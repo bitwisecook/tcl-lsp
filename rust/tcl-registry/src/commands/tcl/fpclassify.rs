@@ -84,6 +84,9 @@ pub fn spec() -> CommandSpec {
             return_value: "One of `zero`, `subnormal`, `normal`, `infinite`, or `nan`. Raises an error when value is not convertible to a floating-point number.",
         }),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     }
 }

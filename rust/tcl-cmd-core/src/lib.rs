@@ -37,6 +37,7 @@
 //! ([`string`], [`path`], …), platform-backed families under [`platform`].
 
 pub mod array;
+pub mod base32;
 pub mod binary;
 pub mod case;
 pub mod channel;

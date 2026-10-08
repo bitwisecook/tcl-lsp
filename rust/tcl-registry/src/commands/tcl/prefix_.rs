@@ -39,6 +39,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "tcl::prefix all table string",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -48,6 +51,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "tcl::prefix longest table string",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -97,6 +103,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ]
         },
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
 ];

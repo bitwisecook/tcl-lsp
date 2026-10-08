@@ -678,7 +678,7 @@ Compiler internals: the plain command name this ensemble subcommand is rewritten
 
 *nested DeclaredSemantics field* — How the declaration computes its answer: none, a shipped direct evaluator, the shared expression engine, or a declared implementation.
 
-How the declared specialisation computes its answer: no evaluator (`evaluate none`), a shipped direct evaluator over the registry's own cores (`-direct ID`), the shared expression engine under a named language profile (`-expression tcl.expr` / `bpf.expr`), or a declared implementation (`-implementation ID -host bounded_tcl { … }`) — see the body box below for that last one's Tcl.
+How the declared specialisation computes its answer: no evaluator (`evaluate none`), a shipped direct evaluator over the registry's own cores (`-direct ID`), the shared expression engine under a named language profile (`-expression tcl.expr` / `bpf.expr`), or a declared implementation (`-implementation ID -host bounded_tcl { … }`, or `-host wasm_extension { extension FILE PREFIX … }` for a compiled C extension's command, run on the thread's extension host and named by the artefact's content hash) — see the body box below for the bounded host's Tcl.
 
 ### `DeclaredSemantics.body` — Implementation body
 

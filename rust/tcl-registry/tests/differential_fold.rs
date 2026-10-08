@@ -3641,3 +3641,164 @@ fn a_search_route_reads_non_ascii_only_where_the_release_decodes_it() {
         None
     );
 }
+
+/// tcllib 2.0's module tree, where the oracle's packages load from:
+/// `TCLLIB_2_0_DIR` or the checkout's `tmp/tcllib-2.0`.
+fn tcllib_modules() -> Option<std::path::PathBuf> {
+    let root = std::env::var_os("TCLLIB_2_0_DIR").map_or_else(
+        || std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tmp/tcllib-2.0"),
+        std::path::PathBuf::from,
+    );
+    let modules = root.join("modules");
+    modules.join("base32").is_dir().then_some(modules)
+}
+
+/// `(command, word)` for the base32 routes: encodings of every final-group
+/// length and of bytes past ASCII, and decodings canonical, in either case,
+/// non-canonical (a set trailing bit), mis-padded, mis-sized and holding a
+/// character outside the alphabet.
+const BASE32_WITNESSES: &[(&str, &str)] = &[
+    ("base32::encode", ""),
+    ("base32::encode", "a"),
+    ("base32::encode", "ab"),
+    ("base32::encode", "abc"),
+    ("base32::encode", "abcd"),
+    ("base32::encode", "abcde"),
+    ("base32::encode", "abcdef"),
+    ("base32::encode", "foobar"),
+    ("base32::encode", "a b\tc"),
+    ("base32::encode", "\u{ff}\u{80}"),
+    ("base32::encode", "\u{100}"),
+    ("base32::hex::encode", ""),
+    ("base32::hex::encode", "a"),
+    ("base32::hex::encode", "foobar"),
+    ("base32::hex::encode", "\u{ff}\u{80}"),
+    ("base32::decode", ""),
+    ("base32::decode", "ME======"),
+    ("base32::decode", "my======"),
+    ("base32::decode", "MFRA===="),
+    ("base32::decode", "MFRGG==="),
+    ("base32::decode", "MFRGGZA="),
+    ("base32::decode", "MFRGGZDF"),
+    ("base32::decode", "MZXW6YTBOI======"),
+    ("base32::decode", "mzxw6ytboi======"),
+    ("base32::decode", "74AIA==="),
+    ("base32::decode", "AA======"),
+    ("base32::decode", "MZ======"),
+    ("base32::decode", "ABCDEFG="),
+    ("base32::decode", "A======="),
+    ("base32::decode", "========"),
+    ("base32::decode", "ABCDEFG"),
+    ("base32::decode", "MZ======MZ======"),
+    ("base32::decode", "01234567"),
+    ("base32::decode", "MZXW 6YT"),
+    ("base32::hex::decode", "C4======"),
+    ("base32::hex::decode", "c4======"),
+    ("base32::hex::decode", "CPNMUOJ1E8======"),
+    ("base32::hex::decode", "0123456V"),
+    ("base32::hex::decode", "V8======"),
+    ("base32::hex::decode", "CPNMV==="),
+    ("base32::hex::decode", "W======="),
+];
+
+/// VT7.5: `base32::encode`, `base32::decode` and their `base32::hex` twins
+/// answer on their direct routes what tcllib 2.0's own packages give under
+/// every release from 8.5 on path, a decoding compared byte for byte; they
+/// decline every word the package raises for, and the non-canonical
+/// encodings its two implementations read apart; every ASCII word the
+/// package answers is answered; and with no release named they answer what
+/// every release agrees on.
+#[test]
+fn base32_routes_match_tcllib_on_every_release_on_path() {
+    use std::fmt::Write as _;
+
+    use tcl_dialect::TclVersion;
+    let Some(modules) = tcllib_modules() else {
+        eprintln!(
+            "[differential_fold] skipped: no tcllib 2.0 under tmp/ (fetch it, or set TCLLIB_2_0_DIR)"
+        );
+        return;
+    };
+    let reg = CommandRegistry::build_default();
+    let hex = |text: &str| -> String {
+        text.chars().fold(String::new(), |mut out, c| {
+            let _ = write!(out, "{:02x}", u32::from(c));
+            out
+        })
+    };
+    let releases = [
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ];
+    let mut answers: Vec<Vec<Option<String>>> = vec![Vec::new(); BASE32_WITNESSES.len()];
+    let mut compared = 0usize;
+    for version in releases {
+        let Some(tclsh) = find_tclsh(version.version_string()) else {
+            continue;
+        };
+        compared += 1;
+        for (index, &(command, word)) in BASE32_WITNESSES.iter().enumerate() {
+            let decodes = command.ends_with("decode");
+            let script = format!(
+                "lappend auto_path {{{}}}\npackage require base32\npackage require base32::hex\n\
+                 if {{[catch {{{command} {}}} __r]}} {{exit 1}}\n{}",
+                modules.display(),
+                tcl_quoted_word(word),
+                if decodes {
+                    "binary scan $__r H* __h\nputs -nonewline $__h"
+                } else {
+                    "puts -nonewline $__r"
+                },
+            );
+            let want = match run_tcl(&tclsh, &script) {
+                Some((true, out)) => Some(out),
+                _ => None,
+            };
+            let got = literal_route(&reg, command, None, &[word], Some(version));
+            let got = if decodes {
+                got.as_deref().map(hex)
+            } else {
+                got
+            };
+            let label = format!("tclsh{}: {command} {word:?}", version.version_string());
+            match (&want, &got) {
+                (_, None) => assert!(
+                    want.is_none() || !word.is_ascii(),
+                    "{label}: the package answers {want:?} and the route declines"
+                ),
+                (Some(want), Some(got)) => assert_eq!(got, want, "{label}"),
+                (None, Some(got)) => {
+                    panic!("{label}: the package raises and the route gives {got:?}")
+                }
+            }
+            answers[index].push(want);
+        }
+    }
+    if compared < releases.len() {
+        return;
+    }
+    for (index, &(command, word)) in BASE32_WITNESSES.iter().enumerate() {
+        let every = &answers[index];
+        let agreed = every
+            .first()
+            .cloned()
+            .flatten()
+            .filter(|first| every.iter().all(|answer| answer.as_ref() == Some(first)));
+        let got = literal_route(&reg, command, None, &[word], None);
+        let got = if command.ends_with("decode") {
+            got.as_deref().map(hex)
+        } else {
+            got
+        };
+        if word.is_ascii() {
+            assert_eq!(got, agreed, "no release named: {command} {word:?}");
+        } else {
+            assert!(
+                got.is_none() || got == agreed,
+                "no release named: {command} {word:?}"
+            );
+        }
+    }
+}

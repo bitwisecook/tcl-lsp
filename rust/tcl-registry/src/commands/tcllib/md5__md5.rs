@@ -46,6 +46,9 @@ pub fn spec() -> CommandSpec {
         side_effects: SIDE_EFFECTS,
         tcllib_package: Some("md5"),
         required_package: Some("md5"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

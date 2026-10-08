@@ -46,6 +46,9 @@ pub fn spec() -> CommandSpec {
         ],
         tcllib_package: Some("cmdline"),
         required_package: Some("cmdline"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::tcllib::WRITES_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

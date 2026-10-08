@@ -471,3 +471,40 @@ Why it has not been done: a platform axis a caller could fix — the language
 server's host, or a profile pinning a target platform — would answer the
 rest, and the evaluation page's contract keeps `PLATFORM` unsatisfiable on
 the direct route until one exists. Not assigned to a slice.
+
+## Open — most pure commands have no route and say why
+
+Every command that declares purity has a route or an explicit `none` with its
+reason (slice 7; `docs/generated/value-transfers.md`), and most declare
+`none (unauthored)` (`ROUTE_UNAUTHORED`, `rust/tcl-registry/src/value_transfer/builtins.rs`):
+a value their words decide, with no route authored. Among them are commands
+whose shared core the runtimes already run — `string compare`, `equal`,
+`index`, `last`, `map`, `repeat`, `replace`, `reverse`, `tolower`, `toupper`,
+`totitle`, `trim`, `trimleft`, `trimright`, `wordend`, `wordstart`, `is`,
+`cat` and `insert`, `concat`, `join`, `lindex`, `linsert`, `lrange`,
+`lremove`, `lrepeat`, `lreplace`, `lreverse`, `lsearch`, the read-only `dict`
+subcommands, `binary encode` and `decode`, `tcl::prefix`, the `::tcl::mathop`
+and `::tcl::mathfunc` commands — and tcllib's candidates for a proven route
+(`value-transfers-migration.md` § *Third-party commands*, Tier 2), of which
+only `base32` has one. Such a call folds only where a `const_fold` callback
+answers it, through the constant-substitution engine (O129, codegen); no route
+evaluates it in the lattice, so a value built from it is not a constant
+downstream of the statement.
+
+Why it has not been done: each route needs its differential against every
+release's `tclsh` (or the package's own implementation), and slice 7 carried
+the classification, not the routes. Not assigned to a slice.
+
+## Accepted — a route on a package's command assumes the package is loaded
+
+The analysis reads a package command's spec wherever its name resolves,
+whether or not the module requires the package (W120 reports the missing
+`package require`), and its routes are no exception: `[base32::encode abc]`
+folds to `MFRGG===` in a script that never loads `base32`, where the call
+raises `invalid command name`. Every other descriptor of the command — its
+arity, its purity, its roles — makes the same assumption.
+
+Why it is accepted: a package is often required by another file of the
+program, which a module cannot see, so gating each route on the module's own
+`package require` would cost the folds of every library split across files;
+the missing require is a diagnostic of its own.

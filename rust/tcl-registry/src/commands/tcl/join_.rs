@@ -64,6 +64,9 @@ pub fn spec() -> CommandSpec {
             return_value: "A string formed by joining the elements of list together, with joinString (a single space by default) between each adjacent pair.",
         }),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     }
 }

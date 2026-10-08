@@ -33,6 +33,9 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

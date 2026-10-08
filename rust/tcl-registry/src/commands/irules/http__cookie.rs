@@ -27,6 +27,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Return list of cookie names.",
         synopsis: "HTTP::cookie names",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -34,6 +35,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Return the number of cookies.",
         synopsis: "HTTP::cookie count",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -51,6 +53,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ..SubCommandForm::DEFAULT
             },
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -68,6 +71,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ..SubCommandForm::DEFAULT
             },
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -85,6 +89,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ..SubCommandForm::DEFAULT
             },
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -102,6 +107,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ..SubCommandForm::DEFAULT
             },
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -119,6 +125,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ..SubCommandForm::DEFAULT
             },
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -135,6 +142,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             "x-auth-token",
             "x-secret",
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -143,6 +151,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Remove a cookie by name.",
         synopsis: "HTTP::cookie remove <name>",
         mutator: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -150,6 +159,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Remove all cookies except named ones.",
         synopsis: "HTTP::cookie sanitize <name-list>",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -157,6 +167,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Check if a cookie exists.",
         synopsis: "HTTP::cookie exists <name>",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -174,6 +185,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ..SubCommandForm::DEFAULT
             },
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -191,6 +203,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ..SubCommandForm::DEFAULT
             },
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -208,6 +221,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ..SubCommandForm::DEFAULT
             },
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -225,6 +239,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ..SubCommandForm::DEFAULT
             },
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -242,6 +257,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ..SubCommandForm::DEFAULT
             },
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -249,6 +265,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(2, 3),
         detail: "Encrypt a cookie value.",
         synopsis: "HTTP::cookie encrypt <name> <passphrase> ?128 | 192 | 256?",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -256,6 +273,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(2, 3),
         detail: "Decrypt a cookie value.",
         synopsis: "HTTP::cookie decrypt <name> <passphrase> ?128 | 192 | 256?",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -273,6 +291,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 ..SubCommandForm::DEFAULT
             },
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -280,6 +299,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 4),
         detail: "Get/set arbitrary cookie attribute.",
         synopsis: "HTTP::cookie attribute <name> ?insert <attr> ?value? | exists <attr> | value <attr> | remove <attr> | names | count?",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -296,6 +316,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             "x-auth-token",
             "x-secret",
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
 ];
@@ -343,6 +364,7 @@ pub const fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..CommandSpec::DEFAULT
     }
 }

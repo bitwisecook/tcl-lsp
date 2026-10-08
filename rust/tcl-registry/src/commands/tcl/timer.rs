@@ -174,6 +174,7 @@ static SUBCOMMANDS: [SubCommand; 6] = [
             reads: true,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {

@@ -70,6 +70,9 @@ pub fn spec() -> CommandSpec {
             return_value: "A list of one or two fully qualified candidate names for cmd, in the order a command lookup would try them.",
         }),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

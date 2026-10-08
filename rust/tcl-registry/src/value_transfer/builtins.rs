@@ -1337,10 +1337,53 @@ pub struct NoRouteSemantics {
     pub reason: NoRouteReason,
 }
 
-/// A value the host platform decides — its byte order, its file system —
-/// which no source fixes (`Needs::PLATFORM`).
+/// A value the host platform decides — its byte order, its file system,
+/// its clock, the installation it runs — which no source fixes
+/// (`Needs::PLATFORM`, and the `WALL_CLOCK` exclusion the platform owns).
 pub static PLATFORM_DECIDED: NoRouteSemantics = NoRouteSemantics {
     reason: NoRouteReason::Platform,
+};
+
+/// A value the program's run decides rather than its words: the
+/// interpreter's own state (`info exists`, `namespace current`, `package
+/// present`), a widget's (`listbox get`), a channel's or an event queue's,
+/// or the traffic an iRule sees (`HTTP::host`). The author declares no
+/// route: none over the words can read it.
+pub static STATE_DECIDED: NoRouteSemantics = NoRouteSemantics {
+    reason: NoRouteReason::Declared,
+};
+
+/// A value its words decide, for which no route is authored yet: the state
+/// of most pure commands, a shared core the runtimes run among them, until
+/// a route proven against the release's `tclsh` (or the package's own
+/// implementation) is declared.
+pub static ROUTE_UNAUTHORED: NoRouteSemantics = NoRouteSemantics {
+    reason: NoRouteReason::Unauthored,
+};
+
+/// A command that runs a script or a command prefix its caller passes
+/// (`dict for`, `struct::list map`): a callback, which needs a declared
+/// route of its own.
+pub static RUNS_A_CALLBACK: NoRouteSemantics = NoRouteSemantics {
+    reason: NoRouteReason::Callback,
+};
+
+/// `::tcl::unsupported::grapheme next|prev string indexVar` (9.1): the
+/// cursor steps over grapheme-cluster boundaries, which no table the
+/// runtimes or the shared cores carry describes, so no route is authored
+/// (D316); it writes the index variable, a scalar.
+pub static GRAPHEME_CURSOR: MayWriteSemantics = MayWriteSemantics {
+    targets: &[ArgRole::VarWrite],
+    reason: NoRouteReason::Unauthored,
+    kind: Some(BindingKind::Scalar),
+};
+
+/// `tcl_findLibrary … varName` and `tcltest::normalizePath pathVar`: the
+/// file system decides the directory or the normalised path written.
+pub static WRITES_A_HOST_PATH: MayWriteSemantics = MayWriteSemantics {
+    targets: &[ArgRole::VarWrite],
+    reason: NoRouteReason::Platform,
+    kind: Some(BindingKind::Scalar),
 };
 
 impl CommandSemantics for NoRouteSemantics {

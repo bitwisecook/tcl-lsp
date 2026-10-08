@@ -52,6 +52,9 @@ const fn pure_sub(
         synopsis,
         pure: true,
         return_type: Some(return_type),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     }
 }
@@ -70,6 +73,9 @@ const fn step_sub(name: &'static str, synopsis: &'static str, detail: &'static s
         safe_on_uninit: Some(SpecSurface::TCL91),
         side_effects: VAR_EFFECTS,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::GRAPHEME_CURSOR,
+        ),
         ..SubCommand::DEFAULT
     }
 }

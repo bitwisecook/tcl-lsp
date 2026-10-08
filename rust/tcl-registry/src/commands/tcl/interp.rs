@@ -495,6 +495,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp aliases ?path?",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -676,6 +677,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp exists ?path?",
         pure: true,
         return_type: Some(TclType::Boolean),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -698,6 +700,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp hidden ?path?",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -773,6 +776,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp issafe ?path?",
         pure: true,
         return_type: Some(TclType::Boolean),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -914,6 +918,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // invoking interpreter) or `{targetPath targetCmd}`.  It is not an
         // arbitrary string; callers may safely consume it as Tcl-list data.
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -944,6 +949,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp slaves ?path?",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -956,6 +962,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp children ?path?",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
 ];

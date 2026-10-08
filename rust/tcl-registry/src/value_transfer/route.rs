@@ -187,24 +187,32 @@ pub struct ImplementationIdentity {
     pub content_hash: u64,
 }
 
-/// Where a declared implementation runs. One word today; the variant exists
-/// so a second host is a declaration rather than a reinterpretation of the
-/// first.
+/// Where a declared implementation runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HostKind {
-    /// The bounded Tcl engine behind the hook host.
+    /// The bounded Tcl engine behind the hook host, running the
+    /// declaration's body.
     BoundedTcl,
+    /// A compiled C extension's command, run on the thread's extension host
+    /// ([`crate::extension_host`]): the declaration names the artefact
+    /// (`extension FILE PREFIX`), and its identity's content hash is the
+    /// artefact's ([`crate::extension_host::artefact_hash`]), so the memo key
+    /// carries it. A thread with no extension host installed declines every
+    /// evaluation `Transient`; the registry links no engine, so the language
+    /// server never links one.
+    WasmExtension,
 }
 
 impl HostKind {
     /// Every host word.
-    pub const ALL: &'static [Self] = &[Self::BoundedTcl];
+    pub const ALL: &'static [Self] = &[Self::BoundedTcl, Self::WasmExtension];
 
-    /// The DSL spelling (`-host bounded_tcl`).
+    /// The DSL spelling (`-host bounded_tcl`, `-host wasm_extension`).
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::BoundedTcl => "bounded_tcl",
+            Self::WasmExtension => "wasm_extension",
         }
     }
 }
@@ -470,6 +478,15 @@ pub enum NativeEvalId {
     StringFirst,
     /// `string match`: whether a string matches a glob pattern.
     StringMatch,
+    /// `base32::encode`: bytes as RFC 4648 base32.
+    Base32Encode,
+    /// `base32::decode`: a canonical base32 encoding's bytes.
+    Base32Decode,
+    /// `base32::hex::encode`: bytes as base32 over the extended-hex
+    /// alphabet.
+    Base32HexEncode,
+    /// `base32::hex::decode`: a canonical extended-hex encoding's bytes.
+    Base32HexDecode,
 }
 
 impl NativeEvalId {
@@ -538,6 +555,10 @@ impl NativeEvalId {
         Self::ListSplit,
         Self::StringFirst,
         Self::StringMatch,
+        Self::Base32Encode,
+        Self::Base32Decode,
+        Self::Base32HexEncode,
+        Self::Base32HexDecode,
     ];
 
     /// Stable spelling for the inventory and the Explorer.
@@ -607,6 +628,10 @@ impl NativeEvalId {
             Self::ListSplit => "list-split",
             Self::StringFirst => "string-first",
             Self::StringMatch => "string-match",
+            Self::Base32Encode => "base32-encode",
+            Self::Base32Decode => "base32-decode",
+            Self::Base32HexEncode => "base32-hex-encode",
+            Self::Base32HexDecode => "base32-hex-decode",
         }
     }
 
@@ -676,7 +701,11 @@ impl NativeEvalId {
             | Self::PathSplit
             | Self::ListSplit
             | Self::StringFirst
-            | Self::StringMatch => EvaluatorOwner::Registry,
+            | Self::StringMatch
+            | Self::Base32Encode
+            | Self::Base32Decode
+            | Self::Base32HexEncode
+            | Self::Base32HexDecode => EvaluatorOwner::Registry,
         }
     }
 }

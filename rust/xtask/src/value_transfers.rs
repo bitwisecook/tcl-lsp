@@ -51,7 +51,8 @@
 //!    `docs/generated/value-transfers.md`: every command, subcommand, and
 //!    declaring form with its declaration state, route, route owner, target
 //!    roles, and a *gap* column for a command that writes variables or
-//!    declares purity and has no route. `--check` fails on drift, on a
+//!    declares purity and has neither a route nor an explicit `none` with
+//!    its reason. `--check` fails on drift, on a
 //!    variable-writing command with no semantics that no classification
 //!    names, and on a stale classification.
 //! 3. **A pinned-set test** — `rust/tcl-registry/tests/value_transfers.rs`
@@ -864,6 +865,8 @@ fn push_row(
     }
     let resolved = resolve_semantics(spec, sub, form);
     let (route, owner, enabled) = describe_route(resolved.route());
+    // An explicit `none` names its reason: the row is classified.
+    let reasoned = matches!(resolved.route(), Some(EvalRoute::None { .. }));
     let semantics = match resolved.semantics() {
         Some(semantics) => format!(
             "{} · `{}`",
@@ -890,7 +893,7 @@ fn push_row(
     if writes && has_semantics && !enabled {
         gaps.push("descriptor without a route");
     }
-    if pure && !enabled {
+    if pure && !enabled && !reasoned {
         gaps.push("pure, no route");
     }
     if traits.contains(Traits::READS_BEFORE_WRITE) && !enabled && !writes {
@@ -987,100 +990,12 @@ fn target_roles(
 /// An entry no row matches is stale and fails the gate. Slice 2 left no
 /// entry of its own: `set` and the `dict` keyed updates declare their
 /// semantics, `append` and `lappend` derive theirs, and `const`, `lset`,
-/// `ledit` and `lpop` wait for the existence rung and the new list cores.
-const KNOWN_GAPS: &[(&str, &str)] = &[
-    // Slice 7, broader execution: the grapheme cursor, the tcllib
-    // procedures over the Rust spec modules (D315) and the Tcl-level library
-    // procedures.
-    (
-        "::tcl::unsupported::grapheme next",
-        "slice 7 — the grapheme cursor steps over a new shared core",
-    ),
-    (
-        "::tcl::unsupported::grapheme prev",
-        "slice 7 — the grapheme cursor steps over a new shared core",
-    ),
-    (
-        "tcl::unsupported::grapheme next",
-        "slice 7 — the grapheme cursor steps over a new shared core",
-    ),
-    (
-        "tcl::unsupported::grapheme prev",
-        "slice 7 — the grapheme cursor steps over a new shared core",
-    ),
-    (
-        "base32::core::define",
-        "slice 7 — a route or a reason on the Rust spec (D315)",
-    ),
-    (
-        "base32::core::valid",
-        "slice 7 — a route or a reason on the Rust spec (D315)",
-    ),
-    (
-        "cmdline::getKnownOpt",
-        "slice 7 — a route or a reason on the Rust spec (D315)",
-    ),
-    (
-        "cmdline::getKnownOptions",
-        "slice 7 — a route or a reason on the Rust spec (D315)",
-    ),
-    (
-        "cmdline::typedGetopt",
-        "slice 7 — a route or a reason on the Rust spec (D315)",
-    ),
-    (
-        "cmdline::typedGetoptions",
-        "slice 7 — a route or a reason on the Rust spec (D315)",
-    ),
-    (
-        "fileutil::foreachLine",
-        "slice 7 — a route or a reason on the Rust spec (D315)",
-    ),
-    (
-        "fileutil::test",
-        "slice 7 — a route or a reason on the Rust spec (D315)",
-    ),
-    (
-        "math::statistics::filter",
-        "slice 7 — a route or a reason on the Rust spec (D315)",
-    ),
-    (
-        "math::statistics::map",
-        "slice 7 — a route or a reason on the Rust spec (D315)",
-    ),
-    (
-        "math::statistics::samplescount",
-        "slice 7 — a route or a reason on the Rust spec (D315)",
-    ),
-    (
-        "struct::list filterfor",
-        "slice 7 — a route or a reason on the Rust spec (D315)",
-    ),
-    (
-        "struct::list foreachperm",
-        "slice 7 — a route or a reason on the Rust spec (D315)",
-    ),
-    (
-        "struct::list mapfor",
-        "slice 7 — a route or a reason on the Rust spec (D315)",
-    ),
-    (
-        "tie::tie",
-        "slice 7 — a route or a reason on the Rust spec (D315)",
-    ),
-    (
-        "tie::untie",
-        "slice 7 — a route or a reason on the Rust spec (D315)",
-    ),
-    (
-        "tcl_findLibrary",
-        "slice 7 — a reason on the Rust spec: it reads the filesystem (D315)",
-    ),
-    (
-        "tcltest::normalizePath",
-        "slice 7 — a reason on the Rust spec: it reads the filesystem (D315)",
-    ),
-];
+/// `ledit` and `lpop` waited for the existence rung and the new list cores.
+/// Slice 7 declared the last ones — the grapheme cursor, the tcllib
+/// procedures on the Rust spec modules (D315) and the Tcl-level library
+/// procedures — so every command declaring a variable write declares its
+/// semantics, and the list is empty.
+const KNOWN_GAPS: &[(&str, &str)] = &[];
 
 fn classification_problems(rows: &[Row]) -> Vec<String> {
     let mut problems = Vec::new();

@@ -46,6 +46,9 @@ pub fn spec() -> CommandSpec {
         side_effects: SIDE_EFFECTS,
         tcllib_package: Some("math::statistics"),
         required_package: Some("math::statistics"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

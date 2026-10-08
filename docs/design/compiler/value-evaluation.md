@@ -13,7 +13,7 @@ target semantics, and what a pack author writes. Read it before adding an
 evaluator to a command, before touching the hook host or the fold engine,
 and before promising that two implementations agree.
 
-> **Status — slices 1–4 built, slices 5–7 still proposed.** Real in the
+> **Status — built; slice 7, the lane's last, has landed.** Real in the
 > workspace since slice 4 landed
 > (`docs/design/lanes/value-transfers.md` § *Plan for slices 2–13* ›
 > *Slice 4*, decisions D72–D104): `EvalRoute`, `NativeEvalId`,
@@ -32,17 +32,20 @@ and before promising that two implementations agree.
 > ([spec-dsl-examples/README.md](../spec-dsl-examples/README.md)
 > § *Vocabulary changelog*), proven by the fixture behind
 > [value-transfers-examples.md](value-transfers-examples.md) § *A vendor
-> loop and a private command in a workspace pack*. No shipped builtin has
-> been moved onto it yet: `incr`, `expr`, and `regexp` still get their
-> route from slice-2/3 Rust construction, so their worked declarations
-> below stay illustrative, not built.
+> loop and a private command in a workspace pack*; slice 7 added the
+> `-host wasm_extension` host and its `extension FILE PREFIX` row
+> (§ *The declared-implementation route* › *The extension host*). No
+> shipped builtin has been moved onto the DSL: every shipped route is Rust
+> construction in `rust/tcl-registry/src/value_transfer/`, so the worked
+> declarations of `incr`, `expr`, and `regexp` below stay illustrative.
 >
-> Still proposed, pending slices 5–7: `RegexpPrecision`,
-> `PrecisionDecline`, `PatternCacheKey`, `EngineIdentity`, the test
-> `direct_route_needs_match_their_cores`, the core functions
-> `scan::parse_format`, `scan::convert`, `binary::format_size_bound`,
-> `numeric_core::tcl_incr`. Landed: the field `MathFuncSpec::result_class`
-> (slice 3).
+> Built since slice 4: `RegexpPrecision`, `PrecisionDecline`,
+> `PatternCacheKey` and `EngineIdentity` (`tcl_cmd_core::regex`),
+> `binary::format_size_bound`, and the field `MathFuncSpec::result_class`.
+> Still named on this page and not built: the test
+> `direct_route_needs_match_their_cores`, and the cores `scan::parse_format`,
+> `scan::convert` and `numeric_core::tcl_incr`, whose standing-in owners
+> § *The cores the direct route calls* names.
 >
 > Named on this page but not the shape the tree built — cited again where
 > each appears below: `EvalMemoKey`, `EvalRouteId`, `TargetState`,
@@ -572,6 +575,7 @@ once. "Charge" is in `WorkUnits` (§ *Budgets and cancellation*).
 | `path::join`, `dirname`, `tail`, `extension`, `rootname`, `split` (`PathSemantics` in `value_transfer/path.rs`) | `SOURCE_ENCODING`, `LIST_RENDERING` (`split`) | none over a name every platform reads alike: tclsh 8.4.20 to 9.1.0 agree, and so do the Unix and Windows readings (the test shell's `testsetplatform windows`; D331, D334) | a name with a backslash, a colon, a leading `//` or a `~` (`ReleaseAmbiguous(Platform)`); `file normalize` declares `none (platform)` | 1 per input byte, charged first |
 | `list::lset`, `ledit`, `lpop` (`ListUpdateSemantics` in `value_transfer/list_update.rs`) | `INDEX_GRAMMAR`, `LIST_RENDERING` | the index grammar; an index equal to a level's length appends from 8.6 (`lset x 3 D` over `a {b1 b2} c` raises `list index out of range` on 8.4 and 8.5 and gives `a {b1 b2} c D` from 8.6), the error worded `index "4" out of range` with `TCL VALUE INDEX OUTOFRANGE` from 9.0 and carrying `TCL OPERATION LSET BADINDEX` on 8.6; `ledit` and `lpop` exist from 9.0 | a variable the analysis cannot prove holds a value; a level that is not a list, which is the program's error under a named release; a bad or out-of-range index; disagreement with no named release | 1 per element, charged by each construction |
 | `irules::call` and the functions it names (`IrulesFunctionSemantics` in `value_transfer/irules.rs`) | none | none: TMM's own commands, the same under every release | an input outside F5's published reference (`irules::Unmodelled`: a `b64decode` of text that is not canonical base64, a `substr` count of 0, a `URI::port` scheme with no default the reference lists, …); a byte function's word that is not ASCII | 1 per input byte, charged first |
+| `base32::encode`, `base32::decode` over `Alphabet::{Standard, ExtendedHex}` (`Base32Semantics` in `value_transfer/tcllib.rs`: tcllib 2.0's `base32::encode`, `base32::decode`, `base32::hex::encode` and `base32::hex::decode`, on the Rust spec modules — D315) | `SOURCE_ENCODING` | none: the package's pure-Tcl and `tcllibc` implementations encode alike, and decode a canonical encoding alike, under tclsh 8.5.19 to 9.1.0 | an encoded character past `U+00FF` (8.x encodes its UTF-8 bytes, 9.0 raises); a decoding that is not canonical — a length off a multiple of eight, a character outside the alphabet, padding inside the text or of a length no encoding ends in, each of which the package raises for, or a set trailing bit, which its Tcl implementation raises for and `tcllibc` reads as data; a non-ASCII word where the target does not decode source as UTF-8 | 1 per input byte, charged first |
 | `dict::create`, `get`, `getdef`, `exists`, `keys`, `values`, `size`, `filter`, `merge`, `replace`, `remove`, `lookup`, `upsert`, `dispatch_canon` (and `worded_parse_error`) | `DICT_ORDER`, `LIST_RENDERING` | canonical key order, last value winning on a duplicate | an odd-length list; a missing key where the form raises | 1 per pair |
 | `dict::info` | `DICT_ORDER` | the retained bucket-array history | always. The core answers: it calls `dict_hash_bucket_count` and falls back to a fresh table when the answer is `None`, which `ConstOps` always returns. A bucket history is not derivable from a string, so the route declines rather than publish a statistic the analysed program's runtime may not have | 1 |
 | `scan::validate_format`, `scan::scan_match` (`Scanned`, `ScanOutcome`; `ScanSemantics` in `value_transfer/destructure.rs`) | `NUMERAL_GRAMMAR`, `CHAR_INDEXING`, `SOURCE_ENCODING`, `LIST_RENDERING` | conversion numeral grammar; `%b` from 8.6; a float is spelt `%.12g` on 8.4; past 32 bits `scan 2147483648 %d` is `-2147483648` on 8.4, 9.0 and 9.1 and `2147483648` on 8.5 and 8.6; from 8.5 an infinity spelling converts (`scan -inf %f` is `-Inf`) and an integer spelling converts as an integer (`scan -0 %f` is `0.0`) | a format `validate_format` rejects; a positional or size-modified conversion; `%u`, which the matcher reads signed (`scan -1 %u` is `18446744073709551615` on every release); an integer past 32 bits; an infinity spelling or a negative zero under a float conversion; a `0x` input to a radix conversion under 8.4 | 1 per subject byte, plus 1 per published byte |
@@ -584,6 +588,22 @@ once. "Charge" is in `WorkUnits` (§ *Budgets and cancellation*).
 | `array`, `var` (beyond the two value helpers), `namespace`, `info`, `trace`, `channel` | — | — | always: they read the interpreter, not a value. Their invocations are structural plans, never direct evaluators | — |
 | `platform::exec`, `platform::pwd` | `PLATFORM` | the host | always: `PLATFORM` is never satisfiable | — |
 | `clock::dispatch` (and `clock::is_specifier`, `clock::specifiers`) | `WALL_CLOCK` | the clock, locale, and timezone | always: `WALL_CLOCK` is never satisfiable. The format-specifier helpers are pattern inspection, not evaluation, and stay available to diagnostics | — |
+
+The two exclusions are recorded on the commands themselves (slice 7): a
+command whose answer the host platform or the clock decides — `clock`, `pid`,
+`info hostname` and `nameofexecutable`, `file nativename`, `pathtype` and
+`separator`, `encoding names`, `platform::identify`, `zlib compress`, the
+`tcl_wordBreak*` family, `htonl` and its kin — declares `none (platform)`
+(`PLATFORM_DECIDED`, `NoRouteReason::Platform`), and the inventory names the
+reason. Every other command that declares purity has a route or an explicit
+`none` with its reason: `none (declared)` (`STATE_DECIDED`) for a value the
+program's run decides — the interpreter's own state, a widget's, a channel's,
+an event queue's, the traffic an iRule sees; `none (callback)`
+(`RUNS_A_CALLBACK`) for a command that runs a script or command prefix its
+caller passes; and `none (unauthored)` (`ROUTE_UNAUTHORED`) for a value its
+words decide with no route authored yet, a shared core the runtimes already
+run among them (`string toupper`, `lindex`, `join`, the `::tcl::mathop` and
+`::tcl::mathfunc` commands, most of tcllib).
 
 Four names the declarations in
 [value-transfers-examples.md](value-transfers-examples.md) use are
@@ -1112,9 +1132,9 @@ struct EvaluatorCapability {
     /// or of the provisioned file. `PackRuntime` already carries the
     /// pack's `content_hash`, `dsl_version`, and name.
     identity: ImplementationIdentity,
-    /// Where it runs. `BoundedTcl` is the only host word; the variant
-    /// exists so a second host is a declaration rather than a
-    /// reinterpretation of the first.
+    /// Where it runs: `BoundedTcl` (`-host bounded_tcl`), the body in the
+    /// bounded engine, or `WasmExtension` (`-host wasm_extension`), a
+    /// compiled C extension's command on the thread's extension host.
     host: HostKind,
     /// The target semantics it supports, as the same `Needs` bits the
     /// direct route admits. An axis absent here is an axis the evaluator
@@ -1162,6 +1182,37 @@ enum ContextDependency {
 
 A resolver that cannot represent "pure, but no evaluator" is corrected by
 `EvalRoute::None`, not by making purity double as executable backing.
+
+#### The extension host
+
+A pack whose command is a compiled C extension's declares the
+implementation on the extension host (slice 7, binding the seam the
+consumer-contracts lane built — its D10.56 and D10.57):
+
+```text
+evaluate -implementation pkga.calc.v1 -host wasm_extension {
+    extension pkga.wasm Pkga
+    inputs {arg 0 exact arg 1 exact}
+}
+```
+
+`extension FILE PREFIX` takes the place of `body`: `FILE` is the artefact, a
+side module built for the WASM runtime and named beside the pack (a plain file
+name, no separators, no `..`), and `PREFIX` the name its entry point
+`PREFIX_Init` is spelt with. The pack load reads the artefact through the
+store that read the pack (`tcl-spectcl`'s `extension_artefacts.rs`): the
+implementation carries its bytes (`ExtensionArtefact`), and its identity the
+pack and the artefact's content hash (`extension_host::artefact_hash`), so
+the memo key carries the artefact and an edited one is another
+implementation. An evaluation runs the command — the invocation's command and
+subcommand, then the declared inputs — on the thread's `ExtensionHost`, which
+loads the artefact on its first evaluation and answers the command's result
+under the declaration's budget; a declaration that writes stores has no
+answer, an extension command's effect on a frame being no value the host
+returns. A thread with no host installed — the language server's, which
+never links wasmtime: the registry holds the seam, not an engine — declines
+every evaluation `Transient`, a state of the worker that is never cached as
+a negative, as it does an artefact the load could not read.
 
 ### `Engine::set_release`
 
@@ -1552,6 +1603,20 @@ evaluation, expression evaluation, and declared execution on the same
 workloads — cold host setup, warm evaluation, cache hits, changed inputs,
 solver iterations, cancellation latency, memory, and incremental editor
 latency.
+
+That comparison is `rust/tcl-compiler/benches/value_transfers.rs` (slice 7):
+`cargo bench -p tcl-compiler --bench value_transfers` prints it, the route
+entries counted with `RouteTally`, and `cargo test` runs it at smoke sizes.
+Its first workload is a literal command substitution of thousands of words
+(`array set m [list 0 1 …]`, the shape of tcllib's `stringprep_data.tcl`),
+timing the analysis and the optimiser against the constant-substitution
+engine's fold and the `list` route over the same words: measured in the
+debug profile at slice 7, the route takes 0.07 to 0.24 % of the optimiser's
+time from 500 to 4,000 words and the engine's fold under 1.5 %; the rest is
+the analysis, which grows with the square of the word count: the
+deferred-write scan asks `CommandRegistry::callback_script_indices` of the
+command, which asks `script_timing` of every word, and each answer assigns
+the roles of every word again (`arg_indices_for_role`).
 
 ## Target semantics
 

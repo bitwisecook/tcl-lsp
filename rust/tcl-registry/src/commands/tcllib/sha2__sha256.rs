@@ -45,6 +45,9 @@ pub fn spec() -> CommandSpec {
         // `package provide sha256 1.0.6`); no `sha2` package exists.
         tcllib_package: Some("sha256"),
         required_package: Some("sha256"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

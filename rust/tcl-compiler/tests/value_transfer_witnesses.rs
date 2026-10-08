@@ -1716,6 +1716,7 @@ fn tenant_label_registry() -> tcl_registry::CommandRegistry {
                 completion: CompletionSupport::NormalOnly,
             },
             slot: Some(slot),
+            extension: None,
         }),
         option_declines: &[],
     }));

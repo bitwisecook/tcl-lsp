@@ -187,6 +187,7 @@ fn tie_specs() -> Vec<CommandSpec> {
             }),
             tcllib_package: Some("tie"),
             required_package: Some("tie"),
+            semantics: SemanticsDeclaration::Declared(&crate::value_transfer::tcllib::TIE),
             ..CommandSpec::DEFAULT
         },
         CommandSpec {
@@ -200,6 +201,7 @@ fn tie_specs() -> Vec<CommandSpec> {
             )),
             tcllib_package: Some("tie"),
             required_package: Some("tie"),
+            semantics: SemanticsDeclaration::Declared(&crate::value_transfer::tcllib::UNTIE),
             ..CommandSpec::DEFAULT
         },
         CommandSpec {
@@ -249,6 +251,9 @@ fn base32_core_specs() -> Vec<CommandSpec> {
             )),
             tcllib_package: Some("base32::core"),
             required_package: Some("base32::core"),
+            semantics: SemanticsDeclaration::Declared(
+                &crate::value_transfer::tcllib::WRITES_UNAUTHORED,
+            ),
             ..CommandSpec::DEFAULT
         },
         CommandSpec {
@@ -262,6 +267,9 @@ fn base32_core_specs() -> Vec<CommandSpec> {
             )),
             tcllib_package: Some("base32::core"),
             required_package: Some("base32::core"),
+            semantics: SemanticsDeclaration::Declared(
+                &crate::value_transfer::tcllib::WRITES_UNAUTHORED,
+            ),
             ..CommandSpec::DEFAULT
         },
     ]

@@ -1126,6 +1126,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         // measurements §5: 8.3-form-only on TMM — see `add` above.
         surface: Some(SpecSurface::ALL_TCL),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1262,6 +1263,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             SpecSurface::core(Family::F5Irules)
         ]),
         lifecycle: Lifecycle::deprecated_in("8.4").retired_from("9.0"),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
 ];

@@ -136,6 +136,12 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: OperatorSpec) {
                 synopsis,
                 ..FormSpec::DEFAULT
             }]),
+            // An operator's value is its operands' — `expr` evaluates the
+            // same operator on its route — but no route assembles the
+            // command's words into one yet.
+            semantics: SemanticsDeclaration::Declared(
+                &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            ),
             ..CommandSpec::DEFAULT
         });
     }

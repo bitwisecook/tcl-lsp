@@ -40,6 +40,9 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         tcllib_package: Some("math::statistics"),
         required_package: Some("math::statistics"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

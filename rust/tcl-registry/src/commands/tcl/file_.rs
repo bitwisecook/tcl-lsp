@@ -362,6 +362,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -405,6 +408,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file pathtype name",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -494,6 +500,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file separator ?name?",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {

@@ -521,16 +521,7 @@ pub(crate) fn load_sources(
             &mut notices,
         );
         admit_commands(&mut merged, &mut notices);
-        // The files `-package-source` backings point at, read through the store
-        // that read the packs. A load with no store reads none, and a command
-        // whose body is not in hand is simply not inlined.
-        if let Some(store) = store
-            && let Some(digest) =
-                crate::package_sources::provision(&mut merged.commands, store, &mut notices)
-        {
-            provisioned.update(&digest.to_le_bytes());
-            read_any = true;
-        }
+        read_any |= provision_beside(&mut merged, store, &mut provisioned, &mut notices);
         crate::loader::derive_implementations(&mut merged.commands, &mut notices);
         say_pack_text_backings(&merged, &mut notices);
         // The execution half of the trust ruling, said where the author
@@ -584,6 +575,30 @@ pub(crate) fn load_sources(
         crate::registration::extension_routes(&set),
     );
     set
+}
+
+/// What the load reads beside a pack, through the store that read the packs:
+/// the files its `-package-source` backings point at and the compiled
+/// extensions its `-host wasm_extension` implementations run, each digest
+/// folded into `provisioned`. A load with no store reads neither, and a
+/// command whose body is not in hand is simply not inlined. Answers whether
+/// it read anything.
+fn provision_beside(
+    merged: &mut MergedPack,
+    store: Option<&dyn tcl_lsp_core::vfs::SourceStore>,
+    provisioned: &mut xxhash_rust::xxh3::Xxh3,
+    notices: &mut Vec<PackNotice>,
+) -> bool {
+    let Some(store) = store else {
+        return false;
+    };
+    let sources = crate::package_sources::provision(&mut merged.commands, store, notices);
+    let artefacts =
+        crate::extension_artefacts::provision(&merged.name, &mut merged.commands, store, notices);
+    for digest in [sources, artefacts].into_iter().flatten() {
+        provisioned.update(&digest.to_le_bytes());
+    }
+    sources.is_some() || artefacts.is_some()
 }
 
 /// The capability gate on the merged commands of one pack, each refusal said on

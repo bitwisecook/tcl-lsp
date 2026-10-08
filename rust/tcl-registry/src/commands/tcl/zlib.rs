@@ -278,6 +278,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "zlib compress string ?level?",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -287,6 +290,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "zlib decompress string ?bufferSize?",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -296,6 +302,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "zlib deflate string ?level?",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -333,6 +342,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         options: GZIP_OPTIONS,
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -342,6 +354,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "zlib inflate string ?bufferSize?",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -384,6 +399,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "zlib adler32 string ?initValue?",
         pure: true,
         return_type: Some(TclType::Int),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -393,6 +411,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "zlib crc32 string ?initValue?",
         pure: true,
         return_type: Some(TclType::Int),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
 ];

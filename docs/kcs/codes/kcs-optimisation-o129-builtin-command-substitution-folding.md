@@ -24,10 +24,13 @@ eliminates the command-dispatch overhead at runtime and makes the intent of the
 code clearer. Commands covered include `string length`, `string toupper`,
 `string tolower`, `join`, `format`, `dict get`, `dict size`, `list`, `split`,
 the name operations of `file` (`join`, `dirname`, `tail`, `extension`,
-`rootname`, `split`) on names every platform reads alike, and similar pure
-builtins. A command the registry gives a direct route folds through that
-route — the same evaluator the analysis runs — so the folded value is the one
-the runtime computes, and the fold declines wherever the route does.
+`rootname`, `split`) on names every platform reads alike, tcllib's
+`base32::encode` and `base32::hex::encode`, and similar pure builtins. A
+command the registry gives a direct route folds through that route — the same
+evaluator the analysis runs — so the folded value is the one the runtime
+computes, and the fold declines wherever the route does; a decoding that
+builds bytes (`base32::decode`) is a byte array, which no source spelling
+holds, so it stays a call.
 
 ## Before
 

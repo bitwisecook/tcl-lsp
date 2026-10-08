@@ -869,6 +869,7 @@ fn declared_for(command: &str, hook: &ReferenceHook) -> &'static DeclaredSemanti
         evaluation: DeclaredEvaluation::Implementation(DeclaredImplementation {
             capability,
             slot: None,
+            extension: None,
         }),
         option_declines: &[],
     }));

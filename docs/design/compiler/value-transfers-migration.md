@@ -8,7 +8,9 @@ optimisation, and diagnostic, the third-party tiers, the drift gate, and
 the validation each slice owes. Read it before starting a slice, before
 waiving a site in the gate, and before claiming a command is migrated.
 
-> **Status — a proposal.** The inventories below are observations of the
+> **Status — delivered: slices 1 to 13 and 7a have landed, slice 7 last**
+> (each slice's record is in `docs/design/lanes/value-transfers.md` until
+> the lane closes). The inventories below are observations of the
 > tree at one revision, not architectural invariants: a count changes when
 > the tree does, and a renamed binding or a helper table can evade a
 > name-based lint. Contract tests and ownership review remain necessary
@@ -197,10 +199,12 @@ executes that runtime.
    checks read applied reachability, and W240 and W241 read the loop
    header's branch fact. *Exit:* program (4) yields O112 and I231 on the
    dead arm for every form, and O107 on its body for the flattened form.
-7. **Broader execution and runtime consumers.** The declared executable
+7. **Broader execution and runtime consumers (landed).** The declared executable
    catalogue grows with independent oracle evidence — the iRules pure
    functions as shared cores registered into the simulator, the tcllib
-   candidates as their specs move to SpecTcl; `summarise_returns` consults
+   candidates on their Rust spec modules, which stay Rust (the repository
+   owner's direction of 7 October 2026: the lane's D315), proven against
+   tcllib itself; `summarise_returns` consults
    a seedless lattice so the argument-independent O103 sees computed
    returns (landed as slice 7a, 2026-10-06: each pure procedure's own
    lattice, run with no call-site seed, read at every exit through the
@@ -210,7 +214,8 @@ executes that runtime.
    the engine's WASM sibling, and extensions in their own changes under
    [registry-consumer-contracts.md](registry-consumer-contracts.md).
    *Exit:* every command that declares purity has a route or an explicit
-   "none" with its reason in the inventory.
+   "none" with its reason in the inventory — met: no inventory row reads
+   `pure, no route`, and `KNOWN_GAPS` is empty.
 8. **The existence rung (landed).** A flow-sensitive bound/unbound fact per
    place and per SSA version of the binding, owned by the solver and fed
    by storage outcomes: the entry states, the join, the absent-cell
@@ -699,18 +704,20 @@ covers the pure functions, which have **no** runtime handler in
 `runtime/rust` or `tcl-vm` — the only executable iRules surface is the test
 harness's Tcl simulator (`rust/tcl-irule-test/tcl/`), whose
 registry-generated stubs return the empty string for them and are not
-evaluators — and which should be written once as cores under the Family-B
-rule and registered into the simulator as host commands: `b64encode` /
-`b64decode` (the base64 core in `tcl_cmd_core::binary` exists), `crc32`,
-`md5`, `sha1`, `sha256`, `sha384`, `sha512` (a digest core shared with the
-runtimes), `htonl` / `htons` / `ntohl` / `ntohs`, `findstr`, `getfield`,
-`substr`, `domain`, `URI::basename` / `path` / `query` / `host` / `port` /
-`protocol` / `decode` / `encode` / `escape` / `compare`, and `IP::addr A
-equals B` with literal operands. These matter in `RULE_INIT` bodies and for
-literal arguments; a `switch -glob [HTTP::uri]` never evaluates because
-`HTTP::uri` reads versioned world state, and that is the correct answer.
-`b64encode`'s spec today declares only a `Global`-side read effect and no
-purity — the inventory makes such under-declared specs visible.
+evaluators — and which slice 7 wrote once as cores under the Family-B rule
+(`rust/tcl-cmd-core/src/irules.rs`) and registered into the simulator as
+host commands: `b64encode` / `b64decode` (over the base64 core in
+`tcl_cmd_core::binary`), `crc32`, `md5`, `sha1`, `sha256`, `sha384`,
+`sha512` (a digest core), `findstr`, `getfield`, `substr`, `domain`,
+`URI::basename` / `path` / `query` / `host` / `port` / `protocol` /
+`decode` / `encode` / `compare`, and `IP::addr A equals B` with literal
+operands, each answering what F5's reference states and declining the rest.
+`htonl` / `htons` / `ntohl` / `ntohs` declare `none (platform)`, the host's
+byte order deciding them (D324), and `URI::escape` has no route, its
+reference stating no escaping set to answer against (D325). These matter in
+`RULE_INIT` bodies and for literal arguments; a `switch -glob [HTTP::uri]`
+never evaluates because `HTTP::uri` reads versioned world state, and that is
+the correct answer: every such reader declares `none (declared)`.
 
 **Tier 2 — a declared implementation.** For a command implemented in Tcl,
 or one whose pack is already SpecTcl, the author declares the
@@ -723,17 +730,26 @@ authoritative as loaded (ruling 3). The EDA packs are already
 string-formatting utility is) is authorable; most of what EDA scripts gain is the transfer on `lappend
 opts …` chains and `switch $tool {…}` on a constant, which needs no pack
 change, and vendor iteration follows its own declared protocol. tcllib's
-Rust specs are the biggest candidate set once they move to SpecTcl:
-`base32`, `ip::normalize` / `prefix` / `mask` / `equal` / `version` /
-`type` / `contract` / `collapse`, `uri::canonicalize` / `isrelative`,
-`textutil::*`, `html::html_entities`, `json::json2dict` / `list2json`,
-`csv::split` / `join`, `struct::list`, `struct::set`,
+specs are the biggest candidate set, and they stay Rust spec modules, with
+Tk and the standard library (D315): a candidate gains a registry-owned
+direct route over a shared core proven against tcllib 2.0 under tclsh 8.5.19
+to 9.1.0, or a declared implementation the Rust spec module carries, its
+body tcllib's own procedure pinned by content hash. Slice 7 landed the first:
+`base32::encode` / `decode` and `base32::hex::encode` / `decode` over
+`tcl_cmd_core::base32` (`base32_routes_match_tcllib_on_every_release_on_path`).
+The rest of the list — `ip::normalize` / `prefix` / `mask` / `equal` /
+`version` / `type` / `contract` / `collapse`, `uri::canonicalize` /
+`isrelative`, `textutil::*`, `html::html_entities`, `json::json2dict` /
+`list2json`, `csv::split` / `join`, `struct::list`, `struct::set`,
 `math::statistics::{mean,median,min,max,…}`, `mime::*` decoders,
 `fileutil::relative` / `lexnormalize` / `stripn`, `otp`, `ripemd`, `md4`,
-`md5crypt`. Until a route is declared they are typed pure with no route,
-and the inventory says so per command; the implementation reaches the
-engine through the pinned provisioning path, never by loading a workspace
-package because a file was opened.
+`md5crypt` — has no route yet: each of them the registry declares pure
+declares `none (unauthored)` until its route is proven (`csv::split`,
+`csv::join` and `json::json2dict` declare no purity, so the inventory does
+not list them),
+and the inventory says so per command; an implementation reaches the engine
+through the pinned provisioning path, never by loading a workspace package
+because a file was opened.
 
 **Tier 3 — a user proc, through the interprocedural path.** A private proc
 needs no spec: the argument-sensitive O103 path re-runs SCCP on the callee

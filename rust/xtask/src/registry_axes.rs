@@ -95,8 +95,8 @@ const AXES: &[&str] = &[
 /// has shipped without it. A lane bumps this when its step or slice lands.
 const LANDED: &[&str] = &[
     "step 1", "step 2", "step 3", "step 4", "step 5", "step 6", "step 7", "step 8", "step 9",
-    "step 10", "slice 1", "slice 2", "slice 3", "slice 4", "slice 5", "slice 6", "slice 7a",
-    "slice 8", "slice 9", "slice 10", "slice 11", "slice 12", "slice 13",
+    "step 10", "slice 1", "slice 2", "slice 3", "slice 4", "slice 5", "slice 6", "slice 7",
+    "slice 7a", "slice 8", "slice 9", "slice 10", "slice 11", "slice 12", "slice 13",
 ];
 
 /// The files the lint holds clean: every site waived or gone. A step that

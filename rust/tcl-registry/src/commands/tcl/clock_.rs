@@ -315,6 +315,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
             (8, ADD_UNIT_VALUES),
         ],
         pure: true,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..VERSIONED_CLOCK_CONTEXT_RESULT
     },
     SubCommand {
@@ -325,6 +328,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         options: CLICKS_OPTIONS,
         pure: true,
         return_type: Some(TclType::Int),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::VOLATILE_RESULT
     },
     SubCommand {
@@ -340,6 +346,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         format_string_type: Some(FormatType::Clock),
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..VERSIONED_CLOCK_CONTEXT_RESULT
     },
     SubCommand {
@@ -351,6 +360,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clock microseconds",
         pure: true,
         return_type: Some(TclType::Int),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::VOLATILE_RESULT
     },
     SubCommand {
@@ -362,6 +374,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clock milliseconds",
         pure: true,
         return_type: Some(TclType::Int),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::VOLATILE_RESULT
     },
     SubCommand {
@@ -376,6 +391,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clock monotonic",
         pure: true,
         return_type: Some(TclType::Int),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::VOLATILE_RESULT
     },
     SubCommand {
@@ -390,6 +408,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `FormatString` / `ScanFormat` argument role that locates the
         // word, it is the whole registry answer the LSP needs.
         format_string_type: Some(FormatType::Clock),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::VOLATILE_RESULT
     },
     SubCommand {
@@ -399,6 +420,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clock seconds",
         pure: true,
         return_type: Some(TclType::Int),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::VOLATILE_RESULT
     },
 ];
@@ -508,6 +532,9 @@ pub fn spec() -> CommandSpec {
             return_value: "An integer for seconds, milliseconds, microseconds, clicks, monotonic, scan, and add; a formatted string for format.",
         }),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

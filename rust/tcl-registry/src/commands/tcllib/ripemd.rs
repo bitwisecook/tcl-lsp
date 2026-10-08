@@ -104,6 +104,9 @@ fn digest(
         side_effects: READS,
         tcllib_package: Some(pkg),
         required_package: Some(pkg),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

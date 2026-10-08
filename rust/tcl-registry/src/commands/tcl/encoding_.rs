@@ -222,6 +222,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "encoding names",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -251,6 +254,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "encoding profiles",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -263,6 +269,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "encoding user",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
 ];

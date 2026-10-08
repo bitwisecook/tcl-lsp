@@ -49,6 +49,9 @@ pub fn spec() -> CommandSpec {
             return_value: "The concatenated string, or the empty string when no arguments are given.",
         }),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

@@ -822,6 +822,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // listed (`namespace children ::tomato`); the optional
         // second is a glob pattern filtering the *result*, not a namespace.
         arg_roles: &[(0, ArgRole::NamespaceName), (1, ArgRole::Pattern)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -846,6 +847,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Keep that timing in registry data so every executable-body
         // consumer distinguishes capture from same-invocation execution.
         traits: Traits::WRAPS_COMMAND_PREFIX.union(Traits::DEFERS_BODY),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -855,6 +857,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace current",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -968,6 +971,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // other namespace reference, and no diagnostic asserts it exists
         // (both interpreters answer `0` rather than erroring).
         arg_roles: &[(0, ArgRole::NamespaceName)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1092,6 +1096,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // The single argument is a command name resolved (not called), so it
         // is a command reference navigation follows.
         arg_roles: &[(0, ArgRole::CommandName)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1103,6 +1108,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         // The optional word names the namespace whose parent is reported.
         arg_roles: &[(0, ArgRole::NamespaceName)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1126,6 +1132,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         // Pure string arithmetic on the word — see [`fold_qualifiers`].
         const_fold: Some(fold_qualifiers),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1137,6 +1146,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         // Pure string arithmetic on the word — see [`fold_tail`].
         const_fold: Some(fold_tail),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1219,6 +1231,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_role_resolver_roles: &[ArgRole::VarRead, ArgRole::CommandNameProbe],
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
 ];

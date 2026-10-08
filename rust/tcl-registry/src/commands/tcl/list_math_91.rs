@@ -81,6 +81,9 @@ fn make(
         return_type: Some(TclType::List),
         hover: Some(hover),
         forms,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

@@ -74,6 +74,7 @@ pub mod dialect_conversion;
 pub mod discovery;
 pub mod environment;
 pub mod export;
+mod extension_artefacts;
 pub mod golden;
 pub mod hooks;
 pub mod install;

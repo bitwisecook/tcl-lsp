@@ -98,7 +98,19 @@ treating every call as unknown?
      its own (`mylib::add s x` on its own line); inside `[…]` the analyser
      never substitutes a call that writes storage, and one that reads its
      target's current value cannot see it there either.
-5. **Check `mcp__tcl-lsp__spectcl_check` before you rely on any of this.**
+5. **If the command is a compiled C extension's, name the extension instead
+   of writing a body.** `evaluate -implementation ID -host wasm_extension {
+   extension FILE PREFIX … }` takes the same `inputs`, `depends` and
+   `budget` rows and no `body`: `FILE` is the extension built for the WASM
+   runtime as a side module, a plain file name beside the pack, and `PREFIX`
+   the name its `PREFIX_Init` entry point is spelt with. The pack load reads
+   the file, and the implementation is named by its content hash, so a
+   rebuilt extension is a new implementation. A call runs the extension's
+   command — your command's name, then the declared inputs — and its result is
+   the answer; it cannot write variables. The language server installs no
+   extension host, so there the call gives up as temporarily unavailable
+   (step 4's host point); a tool that installs one answers it.
+6. **Check `mcp__tcl-lsp__spectcl_check` before you rely on any of this.**
    It flags an evaluator that reads a target it never declared, one that
    is silent on a target it did declare, and a `write` naming something
    outside the declared targets — the same three rules the server

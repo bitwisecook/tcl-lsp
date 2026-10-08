@@ -22,17 +22,20 @@ delivery slices, the gate, and what changes for every pass and diagnostic.
 value axis among the other axes and holds the runtime, package, and
 C-extension contracts, none of which this one waits for.
 
-> **Status — the interface is built; three designs on this page are not.**
+> **Status — built; slice 7, the lane's last, has landed.**
 > `CommandSemantics` and the shapes of § The interface are defined in
 > `rust/tcl-registry/src/value_transfer/` (`inputs.rs`, `answers.rs`,
 > `context.rs`, `decline.rs`), and the compiler's `LatticeDriver`
 > (`rust/tcl-compiler/src/value_transfer.rs`) applies them for every consumer,
 > keeping each definition's type facts in `SccpResult::folded_types`. The code
 > blocks on this page sketch capabilities and answer shapes; where one differs
-> from its definition in the source, the source is the contract. Three shapes
-> name nothing in the workspace — `TransferSummary` and `ParamRole`
-> (§ Proc-level transfer summaries) and `LoopEnumeration` (§ Bounded-loop
-> enumeration) — and `EdgeRefinement` (`rust/tcl-compiler/src/sccp.rs`) is
+> from its definition in the source, the source is the contract.
+> `TransferSummary` and `ParamRole` (§ Proc-level transfer summaries) are
+> `rust/tcl-compiler/src/interprocedural/transfer.rs`'s, and
+> `LoopEnumeration` (§ Bounded-loop enumeration) is
+> `rust/tcl-compiler/src/static_loops.rs`'s; every command that declares
+> purity has a route or an explicit `none` with its reason
+> (`docs/generated/value-transfers.md`). `EdgeRefinement` (`rust/tcl-compiler/src/sccp.rs`) is
 > recorded for each row of § Predicate refinement's table but the `switch`
 > modes that stay one opaque statement, whose arms are no edges, and the
 > value lattice, the type lattice, the ranges and the existence rung each

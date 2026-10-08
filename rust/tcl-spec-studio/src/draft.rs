@@ -2532,6 +2532,7 @@ mod tests {
                     completion: CompletionSupport::NormalOnly,
                 },
                 slot: None,
+                extension: None,
             }),
             option_declines: &[],
         };

@@ -38,6 +38,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         required_package: Some("http"),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..CommandSpec::DEFAULT
     }
 }

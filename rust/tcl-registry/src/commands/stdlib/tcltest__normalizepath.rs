@@ -35,6 +35,9 @@ pub fn spec() -> CommandSpec {
         required_package: Some("tcltest"),
         arg_roles: &[(0, ArgRole::VarWrite)],
         deprecated_replacement: Some("file normalize"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::WRITES_A_HOST_PATH,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

@@ -309,6 +309,9 @@ pub fn spec() -> CommandSpec {
             return_value: "The index of the first matching element, or -1 if none match. With -all, every matching index (or, combined with -inline, every matching value) instead of just the first — empty instead of -1 when nothing matches. With -inline alone, the matching value itself instead of its index.",
         }),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

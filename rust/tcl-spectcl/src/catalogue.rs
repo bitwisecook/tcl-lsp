@@ -573,6 +573,10 @@ pub const NATIVE_EVAL_IDS: &[Variant] = &[
     v("ListSplit", "split"),
     v("StringFirst", "string first"),
     v("StringMatch", "string match"),
+    v("Base32Encode", "base32::encode"),
+    v("Base32Decode", "base32::decode"),
+    v("Base32HexEncode", "base32::hex::encode"),
+    v("Base32HexDecode", "base32::hex::decode"),
 ];
 
 /// [`tcl_registry::value_transfer::LanguageProfileId::ALL`] — `evaluate
@@ -590,10 +594,13 @@ pub const LANGUAGE_PROFILES: &[Variant] = &[
 
 /// [`tcl_registry::value_transfer::HostKind::ALL`] — `evaluate
 /// -implementation ID -host HOST`.
-pub const HOST_KINDS: &[Variant] = &[v(
-    "bounded_tcl",
-    "the bounded Tcl engine behind the hook host",
-)];
+pub const HOST_KINDS: &[Variant] = &[
+    v("bounded_tcl", "the bounded Tcl engine behind the hook host"),
+    v(
+        "wasm_extension",
+        "a compiled C extension's command on the thread's WASM extension host",
+    ),
+];
 
 /// [`tcl_registry::value_transfer::Exactness::ALL`] — an `inputs` row's
 /// mode (`arg N exact`).

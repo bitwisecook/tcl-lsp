@@ -255,7 +255,12 @@ slices proceed without deciding anything here.
 > the memory's growth, every WASI import stubbed. The registry's extension seam
 > (`tcl_registry::extension_host`: `ExtensionHost`, `LoadedExtension`,
 > `artefact_hash`) is what an extension's evaluation calls, and it declines as
-> `Transient` on a thread with no host.
+> `Transient` on a thread with no host. The value-transfer lane's slice 7 bound
+> the route to it: a pack declares `evaluate -implementation ID -host
+> wasm_extension { extension FILE PREFIX … }` (`HostKind::WasmExtension`), the
+> load reads the artefact beside the pack, and the implementation's identity
+> carries the artefact's content hash, so the memo key does
+> ([value-evaluation.md](value-evaluation.md) § *The extension host*).
 >
 > The rest of the vocabulary is not built, and names nothing in the
 > workspace: the `ShippedImplementation` claim and `IdentityKind`.
@@ -2537,8 +2542,11 @@ flowchart LR
   artefact's content hash, takes exact words and an `ImplementationBudget`, and
   declines every evaluation as `Transient` on a thread with no host installed,
   so the language server, which never links wasmtime, declines. The
-  eligibility, the memo key and the vector's gate are the declared-implementation
-  route's, which does not bind the seam.
+  declared-implementation route binds the seam since the value-transfer lane's
+  slice 7: `-host wasm_extension` and its `extension FILE PREFIX` row name the
+  artefact, whose content hash the implementation's identity, and so the memo
+  key, carries; eligibility from a declared route on the command and the
+  vector's gate stay the route's.
 
 ## Build order
 

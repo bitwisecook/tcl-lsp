@@ -504,8 +504,10 @@ commands leave all three unset.",
 (`evaluate none`), a shipped direct evaluator over the registry's own cores \
 (`-direct ID`), the shared expression engine under a named language profile \
 (`-expression tcl.expr` / `bpf.expr`), or a declared implementation \
-(`-implementation ID -host bounded_tcl { … }`) — see the body box below for \
-that last one's Tcl.",
+(`-implementation ID -host bounded_tcl { … }`, or `-host wasm_extension { \
+extension FILE PREFIX … }` for a compiled C extension's command, run on the \
+thread's extension host and named by the artefact's content hash) — see the \
+body box below for the bounded host's Tcl.",
     ),
     (
         "body",

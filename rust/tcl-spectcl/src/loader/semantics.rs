@@ -54,9 +54,10 @@ use tcl_registry::types::TclType;
 use tcl_registry::value_transfer::{
     BindingIdentity, CompletionSupport, ContextDependency, DeclaredEffect, DeclaredEvaluation,
     DeclaredImplementation, DeclaredInput, DeclaredIteration, DeclaredSemantics, DeclaredStores,
-    DeclaredStructure, DeclineReason, EvalRoute, EvaluatorCapability, Exactness, HostKind,
-    ImplementationBudget, ImplementationIdentity, IterableWord, LanguageProfileId, NativeEvalId,
-    Needs, NoRouteReason, OptionEvaluation, OutcomeKind, SemanticType, SemanticsDeclaration,
+    DeclaredStructure, DeclineReason, EvalRoute, EvaluatorCapability, Exactness, ExtensionArtefact,
+    HostKind, ImplementationBudget, ImplementationIdentity, IterableWord, LanguageProfileId,
+    NativeEvalId, Needs, NoRouteReason, OptionEvaluation, OutcomeKind, SemanticType,
+    SemanticsDeclaration,
 };
 
 use super::{
@@ -114,6 +115,9 @@ struct Implementation {
     body: String,
     /// The `evaluate` statement's line, which the `evaluate` hook carries.
     line: u32,
+    /// The extension a `-host wasm_extension` implementation runs, in place of
+    /// a body.
+    extension: Option<ExtensionArtefact>,
 }
 
 impl Declarations {
@@ -223,10 +227,24 @@ impl Declarations {
         let (evaluation, body) = match &self.evaluation {
             None => (tcl_registry::value_transfer::declared::UNAUTHORED, None),
             Some(Evaluation::Route(route)) => (DeclaredEvaluation::Route(*route), None),
+            // An extension's command is the implementation: no body to bind.
+            Some(Evaluation::Implementation(implementation))
+                if implementation.extension.is_some() =>
+            {
+                (
+                    DeclaredEvaluation::Implementation(DeclaredImplementation {
+                        capability: implementation.capability,
+                        slot: None,
+                        extension: implementation.extension,
+                    }),
+                    None,
+                )
+            }
             Some(Evaluation::Implementation(implementation)) => (
                 DeclaredEvaluation::Implementation(DeclaredImplementation {
                     capability: implementation.capability,
                     slot: None,
+                    extension: None,
                 }),
                 Some((
                     HookSource::Body {
@@ -665,8 +683,12 @@ fn read_evaluate(stmt: &Stmt, scope: &Scope<'_>, log: &mut Log) -> Option<Evalua
     }
 }
 
-/// `evaluate -implementation ID -host HOST { inputs … depends … budget … body
-/// {params} {…} }`, whose four rows are the only ones legal inside.
+/// `evaluate -implementation ID -host HOST { … }`: under `bounded_tcl` the
+/// rows `inputs`, `depends`, `budget` and `body {params} {…}`, the body
+/// running in the bounded engine; under `wasm_extension` the same with
+/// `extension FILE PREFIX` in place of the body — the compiled extension
+/// whose command is the implementation, named beside the pack, and the
+/// prefix its entry point is named by. Those are the only rows legal inside.
 fn read_implementation(stmt: &Stmt, log: &mut Log) -> Option<Implementation> {
     let id = stmt.word_text(2);
     if stmt.word_text(3) != "-host" || id.is_empty() {
@@ -684,67 +706,180 @@ fn read_implementation(stmt: &Stmt, log: &mut Log) -> Option<Implementation> {
     else {
         log.say(
             stmt.line,
-            format!("unknown host `{host_word}`: `bounded_tcl` is the only host; dropped"),
-        );
-        return None;
-    };
-    let mut inputs: Vec<DeclaredInput> = Vec::new();
-    let mut depends: Vec<ContextDependency> = Vec::new();
-    let mut budget = ImplementationBudget::default();
-    let mut body: Option<(Vec<String>, String)> = None;
-    for row in block(&stmt.words[5]) {
-        match row.word_text(0) {
-            "inputs" => inputs = inputs_row(&row, log),
-            "depends" => depends = depends_row(&row, log),
-            "budget" => budget = budget_row(&row, log),
-            "body" if row.words.len() == 3 => {
-                body = Some((list_words(row.word_text(1)), row.word_text(2).to_owned()));
-            }
-            "body" => log.say(row.line, "`body` takes `{params} { … }`; dropped"),
-            _ => log.unknown_property(&row),
-        }
-    }
-    let Some((params, text)) = body else {
-        log.say(
-            stmt.line,
-            format!("`evaluate -implementation {id}` has no `body`; it installs nothing"),
-        );
-        return None;
-    };
-    if params.len() != inputs.len() {
-        log.say(
-            stmt.line,
             format!(
-                "the body takes {} parameter(s) for {} declared input(s); every call would \
-                 fail, so it installs nothing",
-                params.len(),
-                inputs.len()
+                "unknown host `{host_word}`: the hosts are `bounded_tcl` and `wasm_extension`; \
+                 dropped"
             ),
         );
         return None;
-    }
+    };
+    let rows = ImplementationRows::read(&stmt.words[5], log);
+    let (params, body, content_hash, extension) = match host {
+        HostKind::BoundedTcl => rows.bounded_body(stmt, id, log)?,
+        HostKind::WasmExtension => rows.extension(stmt, id, log)?,
+    };
     Some(Implementation {
         capability: EvaluatorCapability {
             identity: ImplementationIdentity {
-                // The pack names itself when the host plan binds the body.
+                // The pack names itself when the host plan binds the body, or
+                // when the load reads the extension's artefact.
                 pack: "",
                 id: leak_str(id),
-                content_hash: tcl_registry::implementation_hash::content_hash(&(&params, &text)),
+                content_hash,
             },
             host,
             // The body runs pinned to the call's release, so no axis needs
             // admitting here; a profile naming no release is declined by
             // the host.
             target: Needs::NONE,
-            inputs: leak_slice(inputs),
-            depends: leak_slice(depends),
-            budget,
+            inputs: leak_slice(rows.inputs),
+            depends: leak_slice(rows.depends),
+            budget: rows.budget,
             completion: CompletionSupport::NormalOnly,
         },
         params,
-        body: text,
+        body,
         line: stmt.line,
+        extension,
     })
+}
+
+/// The rows of an `evaluate -implementation` block, as read.
+struct ImplementationRows {
+    inputs: Vec<DeclaredInput>,
+    depends: Vec<ContextDependency>,
+    budget: ImplementationBudget,
+    body: Option<(Vec<String>, String)>,
+    /// `extension FILE PREFIX`, with its line.
+    extension: Option<(u32, String, String)>,
+}
+
+/// What a host's rows give the implementation: the body's parameters and
+/// text, the identity's content hash, and the extension it runs.
+type HostRows = (Vec<String>, String, u64, Option<ExtensionArtefact>);
+
+impl ImplementationRows {
+    fn read(block_word: &Word, log: &mut Log) -> Self {
+        let mut rows = Self {
+            inputs: Vec::new(),
+            depends: Vec::new(),
+            budget: ImplementationBudget::default(),
+            body: None,
+            extension: None,
+        };
+        for row in block(block_word) {
+            match row.word_text(0) {
+                "inputs" => rows.inputs = inputs_row(&row, log),
+                "depends" => rows.depends = depends_row(&row, log),
+                "budget" => rows.budget = budget_row(&row, log),
+                "body" if row.words.len() == 3 => {
+                    rows.body = Some((list_words(row.word_text(1)), row.word_text(2).to_owned()));
+                }
+                "body" => log.say(row.line, "`body` takes `{params} { … }`; dropped"),
+                "extension" if row.words.len() == 3 => {
+                    rows.extension = Some((
+                        row.line,
+                        row.word_text(1).to_owned(),
+                        row.word_text(2).to_owned(),
+                    ));
+                }
+                "extension" => log.say(row.line, "`extension` takes `FILE PREFIX`; dropped"),
+                _ => log.unknown_property(&row),
+            }
+        }
+        rows
+    }
+
+    /// `bounded_tcl`'s: the body, one parameter per declared input; an
+    /// `extension` row is dropped.
+    fn bounded_body(&self, stmt: &Stmt, id: &str, log: &mut Log) -> Option<HostRows> {
+        if let Some((line, _, _)) = self.extension {
+            log.say(
+                line,
+                "`extension` names the artefact a `-host wasm_extension` implementation runs; \
+                 under `bounded_tcl` the body is the implementation, so the row is dropped",
+            );
+        }
+        let Some((params, text)) = self.body.clone() else {
+            log.say(
+                stmt.line,
+                format!("`evaluate -implementation {id}` has no `body`; it installs nothing"),
+            );
+            return None;
+        };
+        if params.len() != self.inputs.len() {
+            log.say(
+                stmt.line,
+                format!(
+                    "the body takes {} parameter(s) for {} declared input(s); every call would \
+                     fail, so it installs nothing",
+                    params.len(),
+                    self.inputs.len()
+                ),
+            );
+            return None;
+        }
+        let hash = tcl_registry::implementation_hash::content_hash(&(&params, &text));
+        Some((params, text, hash, None))
+    }
+
+    /// `wasm_extension`'s: the artefact, a plain file name beside the pack, and
+    /// its entry point's prefix, an identifier; a body is dropped. Until the
+    /// load reads the artefact the identity names the file; once it has, the
+    /// artefact's own hash.
+    fn extension(&self, stmt: &Stmt, id: &str, log: &mut Log) -> Option<HostRows> {
+        if self.body.is_some() {
+            log.say(
+                stmt.line,
+                "a `-host wasm_extension` implementation runs its extension's command, so its \
+                 `body` is dropped",
+            );
+        }
+        let Some((line, file, prefix)) = &self.extension else {
+            log.say(
+                stmt.line,
+                format!(
+                    "`evaluate -implementation {id} -host wasm_extension` names no `extension \
+                     FILE PREFIX`; it installs nothing"
+                ),
+            );
+            return None;
+        };
+        if file.is_empty() || file.contains(['/', '\\']) || file.contains("..") {
+            log.say(
+                *line,
+                format!(
+                    "`extension {file}` is not a plain file name beside the pack (no path \
+                     separators, no `..`); it installs nothing"
+                ),
+            );
+            return None;
+        }
+        let entry_point = prefix
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+            && prefix
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_');
+        if !entry_point {
+            log.say(
+                *line,
+                format!(
+                    "`extension {file} {prefix}`: the prefix names the entry point \
+                     `PREFIX_Init`, an identifier; it installs nothing"
+                ),
+            );
+            return None;
+        }
+        let hash = tcl_registry::implementation_hash::content_hash(&(file, prefix));
+        let artefact = ExtensionArtefact {
+            file: leak_str(file),
+            prefix: leak_str(prefix),
+            bytes: None,
+        };
+        Some((Vec::new(), String::new(), hash, Some(artefact)))
+    }
 }
 
 /// `inputs {arg N exact target N incoming option -NAME exact …}`, read as
@@ -1168,6 +1303,100 @@ speclib probe 2.2 {
     /// different, already-closed catalogue — `NativeEvalId`'s own Rust
     /// spelling, not `SCOPE::FIELD` — and a name it does not hold is dropped
     /// the same way.
+    /// VT7.11: `-host wasm_extension` names its artefact with `extension
+    /// FILE PREFIX` in place of a body. The implementation carries the file
+    /// and the entry point's prefix, with no hook to bind and no bytes until
+    /// the load reads them, and its identity names the file meanwhile; one
+    /// with no `extension` row, or a file that is a path, installs nothing;
+    /// a body beside it is dropped, and so is an `extension` row under
+    /// `bounded_tcl`, whose body stays the implementation.
+    #[test]
+    fn a_wasm_extension_implementation_names_its_artefact() {
+        let pack = evaluate_pack(
+            "speclib probe 2.2 {\n\
+             command pkga_calc {\n\
+             \x20   arity 2\n\
+             \x20   evaluate -implementation pkga.calc.v1 -host wasm_extension {\n\
+             \x20       extension pkga.wasm Pkga\n\
+             \x20       inputs {arg 0 exact arg 1 exact}\n\
+             \x20       body {a b} { fold $a }\n\
+             \x20   }\n\
+             }\n\
+             command pkga_none {\n\
+             \x20   arity 1\n\
+             \x20   evaluate -implementation pkga.none.v1 -host wasm_extension {\n\
+             \x20       inputs {arg 0 exact}\n\
+             \x20   }\n\
+             }\n\
+             command pkga_path {\n\
+             \x20   arity 1\n\
+             \x20   evaluate -implementation pkga.path.v1 -host wasm_extension {\n\
+             \x20       extension ../pkga.wasm Pkga\n\
+             \x20   }\n\
+             }\n\
+             command tcl_body {\n\
+             \x20   arity 1\n\
+             \x20   evaluate -implementation body.v1 -host bounded_tcl {\n\
+             \x20       extension pkga.wasm Pkga\n\
+             \x20       inputs {arg 0 exact}\n\
+             \x20       body {a} { fold $a }\n\
+             \x20   }\n\
+             }\n\
+             }",
+        );
+        let messages: Vec<&str> = pack
+            .notices
+            .iter()
+            .map(|notice| notice.message.as_str())
+            .collect();
+        for expected in [
+            "a `-host wasm_extension` implementation runs its extension's command, so its `body` \
+             is dropped",
+            "`evaluate -implementation pkga.none.v1 -host wasm_extension` names no `extension \
+             FILE PREFIX`; it installs nothing",
+            "`extension ../pkga.wasm` is not a plain file name beside the pack",
+            "under `bounded_tcl` the body is the implementation, so the row is dropped",
+        ] {
+            assert!(
+                messages.iter().any(|message| message.contains(expected)),
+                "{expected}: {messages:#?}"
+            );
+        }
+
+        let calc = declared(pack.command("pkga_calc").unwrap().spec.semantics);
+        let DeclaredEvaluation::Implementation(implementation) = calc.evaluation else {
+            panic!("an implementation: {:?}", calc.evaluation);
+        };
+        assert_eq!(implementation.capability.host, HostKind::WasmExtension);
+        assert_eq!(implementation.capability.identity.id, "pkga.calc.v1");
+        assert_eq!(implementation.slot, None);
+        let artefact = implementation.extension.expect("the artefact");
+        assert_eq!((artefact.file, artefact.prefix), ("pkga.wasm", "Pkga"));
+        assert_eq!(artefact.bytes, None);
+        assert_eq!(
+            implementation.capability.identity.content_hash,
+            tcl_registry::implementation_hash::content_hash(&(&"pkga.wasm", &"Pkga"))
+        );
+        assert!(evaluate_hooks(&pack, "pkga_calc").is_empty());
+        for dropped in ["pkga_none", "pkga_path"] {
+            let semantics = pack.command(dropped).unwrap().spec.semantics;
+            assert!(
+                !matches!(
+                    semantics,
+                    SemanticsDeclaration::Declared(semantics)
+                        if semantics.as_declared().is_some_and(|d| d.implementation().is_some())
+                ),
+                "{dropped}: {semantics:?}"
+            );
+        }
+
+        let body = declared(pack.command("tcl_body").unwrap().spec.semantics);
+        let implementation = body.implementation().expect("the body's implementation");
+        assert_eq!(implementation.capability.host, HostKind::BoundedTcl);
+        assert_eq!(implementation.extension, None);
+        assert_eq!(evaluate_hooks(&pack, "tcl_body").len(), 1);
+    }
+
     #[test]
     fn a_short_native_id_is_a_load_notice() {
         let pack = evaluate_pack(

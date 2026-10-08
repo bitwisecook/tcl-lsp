@@ -29,6 +29,7 @@
 //! scope does, so a declaration reads the same whether its command is
 //! spelled `tenant::label NAME` or `tenant label NAME`.
 
+use crate::extension_host;
 use crate::invocation_words::InvocationWordKind;
 use crate::pack_hooks::{self, EvaluationAnswer, HookAnswer, HookCall, HookSlot, HookWord};
 use crate::types::TclType;
@@ -45,7 +46,7 @@ use super::context::Budget;
 use super::decline::{Axis, DeclineReason, NoRouteReason};
 use super::inputs::{AnalysisInputs, FactDomain, InvocationLayout, OperandId, PlaceRef, TargetId};
 use super::iteration::{LOOP_ABSORBED, LoopResult};
-use super::route::{ContextDependency, DeclaredInput, EvalRoute, EvaluatorCapability};
+use super::route::{ContextDependency, DeclaredInput, EvalRoute, EvaluatorCapability, HostKind};
 
 /// One effect a `semantics { effects {…} }` row declares.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -176,13 +177,33 @@ pub struct DeclaredStructure {
 
 /// A declared implementation (`evaluate -implementation ID -host HOST {…}`):
 /// the capability it states, and the hook slot its body is bound to once a
-/// host plan assigned one.
+/// host plan assigned one, or the compiled extension it runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DeclaredImplementation {
     /// Everything the declaration states about itself.
     pub capability: EvaluatorCapability,
     /// The body's slot, or `None` while no host plan has bound it.
     pub slot: Option<HookSlot>,
+    /// The extension a `-host wasm_extension` declaration runs; `None` for a
+    /// body.
+    pub extension: Option<ExtensionArtefact>,
+}
+
+/// The compiled extension a `-host wasm_extension` implementation runs
+/// (`extension FILE PREFIX`): the artefact a C extension built for the WASM
+/// runtime is, named relative to the declaring pack, the prefix its entry
+/// point is named by, and its bytes once the pack load has read them. The
+/// implementation's identity carries the artefact's content hash
+/// ([`crate::extension_host::artefact_hash`]) once they are read, so the memo
+/// key names the artefact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ExtensionArtefact {
+    /// The artefact's name, relative to the declaring pack's directory.
+    pub file: &'static str,
+    /// The prefix its entry point is named by (`Pkga` for `Pkga_Init`).
+    pub prefix: &'static str,
+    /// The artefact's bytes, `None` until the load has read them.
+    pub bytes: Option<&'static [u8]>,
 }
 
 /// The evaluation half of a declaration: the `evaluate` statement.
@@ -411,6 +432,9 @@ impl DeclaredSemantics {
         if let Err(reason) = ConstOps::admit(context, budget, capability.target) {
             return EvalAnswer::Declined(reason);
         }
+        if capability.host == HostKind::WasmExtension {
+            return self.evaluate_extension(implementation, input, words, &places, release, budget);
+        }
         let Some(slot) = implementation.slot else {
             // No host plan bound the body: nothing on this worker can run it.
             return EvalAnswer::Declined(DeclineReason::Transient);
@@ -455,6 +479,73 @@ impl DeclaredSemantics {
             _ => return EvalAnswer::Declined(DeclineReason::MalformedAnswer),
         };
         self.outcome(capability, &places, answer, release, budget)
+    }
+
+    /// Run a `-host wasm_extension` implementation: the extension's command,
+    /// named by the invocation's command (and subcommand) and given the
+    /// declared inputs, on this thread's extension host under the
+    /// declaration's budget. The host loads the artefact once — on the first
+    /// evaluation it answers `Transient` for, an extension it has not loaded —
+    /// and a thread with no host declines `Transient`, a state of the worker,
+    /// never a verdict on the inputs. An extension command's effect on a frame
+    /// is not a value the host returns, so a declaration that writes stores
+    /// has no answer here.
+    fn evaluate_extension(
+        &self,
+        implementation: &DeclaredImplementation,
+        input: &dyn AnalysisInputs,
+        inputs: Vec<String>,
+        places: &[(usize, TargetId, PlaceRef)],
+        release: tcl_dialect::TclVersion,
+        budget: &mut Budget,
+    ) -> EvalAnswer {
+        let capability = &implementation.capability;
+        if self.structure.stores.is_some() || !places.is_empty() {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        }
+        let Some(ExtensionArtefact {
+            prefix,
+            bytes: Some(bytes),
+            ..
+        }) = implementation.extension
+        else {
+            // The load did not read the artefact: nothing here can run it.
+            return EvalAnswer::Declined(DeclineReason::Transient);
+        };
+        let view = input.invocation();
+        let words: Vec<String> = std::iter::once(view.canonical_command)
+            .chain(view.subcommand)
+            .map(str::to_owned)
+            .chain(inputs)
+            .collect();
+        let hash = capability.identity.content_hash;
+        let answer = match extension_host::evaluate_extension(hash, &words, &capability.budget) {
+            Err(DeclineReason::Transient) if extension_host::extension_host_installed() => {
+                match extension_host::load_extension(bytes, prefix) {
+                    Ok(loaded) if loaded.hash == hash => {
+                        extension_host::evaluate_extension(hash, &words, &capability.budget)
+                    }
+                    // A host that names the artefact otherwise than the
+                    // identity does is a host defect: it degrades.
+                    Ok(_) => Err(DeclineReason::MalformedAnswer),
+                    Err(reason) => Err(reason),
+                }
+            }
+            other => other,
+        };
+        match answer {
+            Ok(value) => self.outcome(
+                capability,
+                places,
+                EvaluationAnswer {
+                    result: Some(value),
+                    stores: Vec::new(),
+                },
+                release,
+                budget,
+            ),
+            Err(reason) => EvalAnswer::Declined(reason),
+        }
     }
 
     /// The body's verbs as an outcome: `fold` the result, `write` and
@@ -813,6 +904,7 @@ mod tests {
                     completion: CompletionSupport::NormalOnly,
                 },
                 slot: Some(slot),
+                extension: None,
             }),
             option_declines: &[],
         }

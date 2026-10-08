@@ -143,6 +143,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // from 9.0's manpage on (9.1's is byte-for-byte identical to 9.0's
         // apart from the version banner).
         surface: Some(SpecSurface::TCL90_PLUS),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -199,6 +200,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "package names",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -245,6 +247,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 effect: None,
             }]
         },
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -319,6 +322,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "package vcompare version1 version2",
         pure: true,
         return_type: Some(TclType::Int),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -328,6 +334,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "package versions package",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -348,6 +355,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Boolean),
         subcommand_forms: VSATISFIES_FORMS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
 ];

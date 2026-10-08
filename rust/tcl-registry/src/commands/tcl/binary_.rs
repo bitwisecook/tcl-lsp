@@ -125,6 +125,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         },
         // `binary encode`/`binary decode` added in Tcl 8.6 (TIP 317).
         surface: Some(SpecSurface::TCL86_PLUS),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -185,6 +188,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         },
         // `binary encode`/`binary decode` added in Tcl 8.6 (TIP 317).
         surface: Some(SpecSurface::TCL86_PLUS),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -316,6 +322,9 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

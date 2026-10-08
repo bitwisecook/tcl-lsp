@@ -63,6 +63,7 @@ pub mod regex;
 pub mod route;
 pub mod scope_alias;
 pub mod selection;
+pub mod tcllib;
 pub mod template;
 pub mod unbind;
 
@@ -84,7 +85,8 @@ pub use declaration::{
 };
 pub use declared::{
     DeclaredEffect, DeclaredEvaluation, DeclaredImplementation, DeclaredIteration,
-    DeclaredSemantics, DeclaredStores, DeclaredStructure, IterableWord, OutcomeKind, SemanticType,
+    DeclaredSemantics, DeclaredStores, DeclaredStructure, ExtensionArtefact, IterableWord,
+    OutcomeKind, SemanticType,
 };
 pub use decline::{AnalysisTier, Axis, BudgetLimit, DeclineReason, NoRouteReason};
 pub use inputs::{

@@ -102,6 +102,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 },
             ]
         },
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -184,6 +185,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 },
             ]
         },
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -192,6 +194,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return the value paired with a name.",
         synopsis: "class lookup <name> <class>",
         pure: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -234,6 +237,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 },
             ]
         },
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -242,6 +246,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return the data type of a data group.",
         synopsis: "class type <class>",
         pure: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -250,6 +255,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Check if a data group exists.",
         synopsis: "class exists <class>",
         pure: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -258,6 +264,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return the number of elements.",
         synopsis: "class size <class>",
         pure: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -300,6 +307,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 },
             ]
         },
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -342,6 +350,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 },
             ]
         },
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -428,6 +437,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Check if more elements remain.",
         synopsis: "class anymore <class> <search_id>",
         pure: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
