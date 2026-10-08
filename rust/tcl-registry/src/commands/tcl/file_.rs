@@ -159,6 +159,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_DIRNAME),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -195,6 +196,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_EXTENSION),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -246,6 +248,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // canonicalised) path.
         taint_transform: Some(TaintColour::PATH_JOINED),
         returns_path: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_JOIN),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -376,6 +379,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             ..SideEffect::DEFAULT
         }],
+        // The host decides: its working directory and its links (D331).
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -477,6 +484,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_ROOTNAME),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -508,6 +516,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file split name",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_SPLIT),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -562,6 +571,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_TAIL),
         ..SubCommand::DEFAULT
     },
     SubCommand {

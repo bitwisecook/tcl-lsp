@@ -20,10 +20,13 @@
 //!
 //! Answers one question for three different consumers: *does this
 //! `[cmd args…]` command substitution evaluate to a compile-time constant?*
-//! Everything command-specific comes from registry data — the
-//! [`tcl_registry::CommandSpec::const_fold`] /
+//! Everything command-specific comes from registry data — the registry-owned
+//! direct route the call resolves to, run over its literal words
+//! ([`tcl_registry::value_transfer::evaluate_literal`]), which is the
+//! implementation the lattice runs for the same call; for a command that
+//! declares no route, the [`tcl_registry::CommandSpec::const_fold`] /
 //! [`tcl_registry::SubCommand::const_fold`] callbacks (pure functions of the
-//! constant argument words) and the
+//! constant argument words); and the
 //! [`tcl_registry::CommandSpec::oo_context_facts`] table (a keyword whose
 //! value the enclosing `TclOO` method frame fixes, like `[self class]`).
 //! No command name is matched here.
@@ -53,7 +56,11 @@
 //! the selected profile rather than reimplemented here.
 
 use tcl_dialect::TclVersion;
-use tcl_registry::{CommandRegistry, CommandSpec, TclType};
+use tcl_registry::value_transfer::{
+    Budget, EvalAnswer, EvalRoute, EvaluatorOwner, ExactValueOrUnavailable, LiteralInputs,
+    RepresentationEvidence, ResolvedSemantics, resolve_semantics,
+};
+use tcl_registry::{CommandRegistry, CommandSpec, SubCommand, TclType};
 use tcl_runtime_api::CommandBindingIdentity;
 
 use crate::naming::normalise_var_name;
@@ -173,14 +180,23 @@ impl ConstSubstCtx<'_> {
             });
         }
         let folded = if spec.subcommands.is_empty() {
-            spec.run_const_fold(&arg_refs, self.version)?
+            match registry_route(spec, None) {
+                Some(route) => route_literal(route, spec.name, None, &arg_refs, self.version)?,
+                None => spec.run_const_fold(&arg_refs, self.version)?,
+            }
         } else {
             // Subcommand-dispatched builtin (`string`, `namespace`, …): the
             // fold lives on the matching subcommand and sees the args after
             // it.
+            let sub = resolved.sub?;
             let (_, sub_rest) = rest.split_first()?;
             let arg_refs: Vec<&str> = sub_rest.iter().map(String::as_str).collect();
-            resolved.sub?.run_const_fold(&arg_refs, self.version)?
+            match registry_route(spec, Some(sub)) {
+                Some(route) => {
+                    route_literal(route, spec.name, Some(sub.name), &arg_refs, self.version)?
+                }
+                None => sub.run_const_fold(&arg_refs, self.version)?,
+            }
         };
         command_bindings.push(CommandBindingIdentity::in_rooted_namespace(
             self.resolution_namespace,
@@ -303,6 +319,49 @@ impl ConstSubstCtx<'_> {
     }
 }
 
+/// The registry-owned direct route `spec` (or its subcommand `sub`) declares,
+/// when it declares one: the evaluator the lattice runs for the same call,
+/// whose answer — a decline included — stands for the fold, so no second
+/// implementation answers beside it.
+fn registry_route(spec: &CommandSpec, sub: Option<&SubCommand>) -> Option<ResolvedSemantics> {
+    let resolved = resolve_semantics(spec, sub, None);
+    match resolved.route()? {
+        EvalRoute::Direct { id } if id.owner() == EvaluatorOwner::Registry => Some(resolved),
+        _ => None,
+    }
+}
+
+/// What `route` answers for `command ?sub? args…` over literal words under
+/// `version` — with none, the answer every release gives — as a literal the
+/// engine may write back into a script: an exact result with no store, never
+/// a byte array, which has no lossless spelling in a script, and never text
+/// beyond ASCII, which 8.x reads in the system encoding.
+fn route_literal(
+    route: ResolvedSemantics,
+    command: &str,
+    sub: Option<&str>,
+    args: &[&str],
+    version: Option<TclVersion>,
+) -> Option<String> {
+    let profile = version.and_then(|v| tcl_dialect::DialectProfile::find(v.dialect_profile_name()));
+    let inputs = LiteralInputs::new(command, sub, args, profile);
+    let EvalAnswer::Evaluated(outcome) = route
+        .semantics()?
+        .evaluate(&inputs, &mut Budget::evaluation())
+    else {
+        return None;
+    };
+    let ExactValueOrUnavailable::Exact(value) = &outcome.result else {
+        return None;
+    };
+    let byte_array = outcome.types.result == Some(TclType::ByteArray)
+        || value.representation == RepresentationEvidence::Constructed(TclType::ByteArray);
+    if outcome.has_stores() || byte_array || !value.bytes.is_ascii() {
+        return None;
+    }
+    String::from_utf8(value.bytes.clone()).ok()
+}
+
 /// Answer a command substitution from the enclosing method frame, when the
 /// registry declares that this command's invoked keyword *is* a frame fact.
 ///
@@ -332,8 +391,9 @@ pub fn oo_context_fact_fold(spec: &CommandSpec, args: &[String], class: &str) ->
 
 /// Cheap pre-gate: could a fold of the substitution interior `inner` even
 /// consult a registry fold? True when the (static, literal) head word
-/// resolves to a spec that carries a `const_fold` / versioned fold, a
-/// subcommand with one, or an [`tcl_registry::OoContextFact`] table.
+/// resolves to a spec that carries a `const_fold` / versioned fold or a
+/// registry-owned direct route, a subcommand with either, or an
+/// [`tcl_registry::OoContextFact`] table.
 /// Consumers whose trust check is expensive to build (the analyser's lazy
 /// whole-module mutation scan) call this first, so that check is only
 /// materialised for a substitution that could actually fold.
@@ -351,10 +411,12 @@ pub fn head_may_fold(registry: &CommandRegistry, inner: &str) -> bool {
     spec.const_fold.is_some()
         || spec.const_fold_versioned.is_some()
         || !spec.oo_context_facts.is_empty()
-        || spec
-            .subcommands
-            .iter()
-            .any(|sc| sc.const_fold.is_some() || sc.const_fold_versioned.is_some())
+        || registry_route(spec, None).is_some()
+        || spec.subcommands.iter().any(|sc| {
+            sc.const_fold.is_some()
+                || sc.const_fold_versioned.is_some()
+                || registry_route(spec, Some(sc)).is_some()
+        })
 }
 
 /// Whether `body` textually contains any `[cmd …]` opener whose head could
@@ -528,6 +590,29 @@ mod tests {
             c86.fold_cmd_subst(r"format %s \x123").as_deref(),
             Some("\u{12}3")
         );
+    }
+
+    /// A routed command folds through its route — the empty `split` is the
+    /// empty list (#2418) — and a byte array or an answer beyond ASCII stays
+    /// a call: the engine writes its answer back into a script, where a byte
+    /// array has no lossless spelling and 8.x reads text in the system
+    /// encoding.
+    #[test]
+    fn a_routed_command_folds_through_its_route_within_ascii() {
+        let trust = |_: &str| true;
+        let lookup = |_: &str| None;
+        let c = ctx(registry(), &trust, &lookup);
+        assert_eq!(c.fold_cmd_subst("split {}").as_deref(), Some(""));
+        assert_eq!(c.fold_cmd_subst("split {a b}").as_deref(), Some("a b"));
+        assert_eq!(
+            c.fold_cmd_subst("file dirname a/b/c").as_deref(),
+            Some("a/b")
+        );
+        assert_eq!(c.fold_cmd_subst("file dirname C:/a"), None);
+        assert_eq!(c.fold_cmd_subst("binary format a3 abc"), None);
+        assert_eq!(c.fold_cmd_subst("binary format c* {128 195 255}"), None);
+        assert_eq!(c.fold_cmd_subst("format %c 233"), None);
+        assert_eq!(c.fold_cmd_subst("format %c 65").as_deref(), Some("A"));
     }
 
     #[test]

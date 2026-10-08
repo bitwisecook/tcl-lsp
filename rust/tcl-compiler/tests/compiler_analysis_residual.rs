@@ -528,10 +528,16 @@ fn auto_path_info_non_script_arg_declines() {
 
 #[test]
 fn auto_path_file_unknown_subcommand_and_arity_decline() {
-    // `file` with an unknown subcommand → None.
+    // A `file` name operation the registry routes answers through the route,
+    // as tclsh 8.4.20 to 9.1.0 do (D331)...
     assert_eq!(
-        evaluate_auto_path_expr("[file rootname /a/b.tcl]", None),
-        None,
+        evaluate_auto_path_expr("[file rootname /a/b.tcl]", None).as_deref(),
+        Some("/a/b"),
+    );
+    // ...and `file` with a subcommand outside the subset → None.
+    assert_eq!(
+        evaluate_auto_path_expr("[file exists /a/b.tcl]", None),
+        None
     );
     // `file dirname` with the wrong arity (two path args) → None.
     assert_eq!(evaluate_auto_path_expr("[file dirname /a /b]", None), None,);

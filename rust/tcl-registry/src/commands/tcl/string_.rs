@@ -1084,6 +1084,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_first),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_FIRST),
         arg_types: &[
             (
                 0,
@@ -1406,6 +1407,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string match ?-nocase? pattern string",
         pure: true,
         const_fold: Some(fold_match),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_MATCH),
         return_type: Some(TclType::Boolean),
         options: MATCH_OPTIONS,
         arg_role_resolver: Some(match_arg_roles),

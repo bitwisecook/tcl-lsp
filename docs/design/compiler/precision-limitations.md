@@ -438,14 +438,36 @@ summary per procedure is the slice's rule. Not assigned to a slice.
 The shared index parser (`rust/tcl-cmd-core/src/index.rs`) reads an index as
 the release it is given reads it, and the sums are 8.5's: tclsh 8.4.20 raises
 `bad index "1+1": must be integer or end?-integer?` where 8.5 to 9.1 answer.
-The compiler's `lindex`, `lrange` and `string index` / `range` / `first` /
-`last` folds (`rust/tcl-registry/src/const_fold.rs`, `parse_index`, and
+The compiler's `lindex`, `lrange` and `string index` / `last` folds
+(`rust/tcl-registry/src/const_fold.rs`, `parse_index`, and
 `commands/tcl/string_.rs`) name no release, so they answer only where every
 release reads the index alike: `lindex {a b c} 1+1` no longer folds under any
 dialect, where it folded to `c` before the parser told 8.4 apart (and, under
 8.4, folded to a value tclsh raises on). The answer is sound, and only the
 arithmetic's precision is lost; a route that names the release, as `string
-range`'s does, keeps it under every profile that names one.
+range`'s and `string first`'s do, keeps it under every profile that names
+one, and since slice 7 O129 and codegen fold through the route where a
+command declares one (D338).
 
 Why it has not been done: the folds take no release until they move to
 `VersionedConstFoldFn`, or onto routes of their own. Not assigned to a slice.
+
+## Open — the path routes answer only names every platform reads alike
+
+The `file join`, `dirname`, `tail`, `extension`, `rootname` and `split`
+routes (`rust/tcl-registry/src/value_transfer/path.rs`) answer a name only
+where the Unix and Windows readings agree on every release (D331, D334): a
+name with a backslash, a colon (a drive or a volume), a leading `//` (a share
+root) or a `~` (a home directory to 8.x) declines with
+`ReleaseAmbiguous(Platform)`, because no profile fixes the platform; `file
+normalize`, which reads the host's working directory and its links, declares
+`none (platform)`. So `[file dirname C:/proj/lib]` and `[file join ~ lib]`
+fold in neither the lattice nor O129 nor codegen, though each reads one way
+on the host that runs it; the language server's own path resolution
+(`rust/tcl-compiler/src/auto_path_eval.rs`) keeps the host's reading for
+them, waived as `irreducible`.
+
+Why it has not been done: a platform axis a caller could fix — the language
+server's host, or a profile pinning a target platform — would answer the
+rest, and the evaluation page's contract keeps `PLATFORM` unsatisfiable on
+the direct route until one exists. Not assigned to a slice.

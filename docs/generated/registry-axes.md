@@ -157,7 +157,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/taint.rs` | 12 |
 | `rust/tcl-compiler/src/taint_interproc.rs` | 2 |
 | `rust/tcl-compiler/src/unit_scope.rs` | 2 |
-| `rust/tcl-compiler/src/uri_split.rs` | 10 |
+| `rust/tcl-compiler/src/uri_split.rs` | 4 |
 | `rust/tcl-compiler/src/value_provenance.rs` | 1 |
 | `rust/tcl-compiler/src/var_escape/handlers.rs` | 2 |
 | `rust/tcl-compiler/src/var_escape/helpers.rs` | 1 |
@@ -188,7 +188,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-lsp-core/src/references.rs` | 1 |
 | `rust/tcl-lsp-core/src/tk_preview.rs` | 1 |
 | `rust/tcl-mcp/src/bigip.rs` | 1 |
-| `rust/tcl-mcp/src/irule_gen.rs` | 18 |
+| `rust/tcl-mcp/src/irule_gen.rs` | 16 |
 | `rust/tcl-mcp/src/irule_test.rs` | 21 |
 | `rust/tcl-mcp/src/spectcl.rs` | 4 |
 | `rust/tcl-mcp/src/tools.rs` | 1 |

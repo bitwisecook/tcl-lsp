@@ -21,7 +21,8 @@
 //! Each declaration names its route — a catalogued direct evaluator or the
 //! shared expression engine — and its result type. Every direct evaluator
 //! ([`STRING_RANGE`], [`LIST_OF_ARGS`], [`LIST_LENGTH`], [`STRING_LENGTH`],
-//! [`FORMAT_TEMPLATE`], [`BINARY_FORMAT`]) is registry-owned: a call into the shared core over
+//! [`SPLIT`], [`STRING_FIRST`], [`STRING_MATCH`], [`FORMAT_TEMPLATE`],
+//! [`BINARY_FORMAT`]) is registry-owned: a call into the shared core over
 //! [`ConstOps`]. The expression route ([`EXPR`]) assembles its arguments
 //! here ([`ExpressionRoute::assemble`]) and is evaluated by the driver's
 //! engine adapter, which feeds the shared engine the analysis services.
@@ -51,6 +52,10 @@ const STRING_RANGE_REVISION: u64 = 1;
 /// shared cores over `ConstOps`, replacing the compiler's transitional
 /// folds.
 const LIST_AND_LENGTH_REVISION: u64 = 1;
+
+/// The revision of the registry-owned `split`, `string first` and `string
+/// match` evaluators.
+const SEARCH_REVISION: u64 = 1;
 
 /// Operand `index`'s exact value, or the answer that stands in for one that
 /// is not ([`super::inputs::FactView::exact`]).
@@ -450,6 +455,250 @@ impl CommandSemantics for StringLengthSemantics {
                 TclType::Int,
                 DependencyEvidence {
                     characters: target.character_model,
+                    release: target.release,
+                    ..DependencyEvidence::default()
+                },
+            ),
+            Err(answer) => answer,
+        }
+    }
+}
+
+/// `split string ?splitChars?` on the direct route: the list core's split
+/// over [`ConstOps`], its pieces rendered as one canonical list, with a
+/// non-ASCII operand admitted only where the target decodes source as
+/// UTF-8.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SplitSemantics;
+
+/// `split string ?splitChars?`.
+pub static SPLIT: SplitSemantics = SplitSemantics;
+
+impl SplitSemantics {
+    /// The axes the core reads.
+    pub const NEEDS: Needs = Needs::LIST_RENDERING.union(Needs::SOURCE_ENCODING);
+}
+
+impl CommandSemantics for SplitSemantics {
+    fn identity(&self) -> &'static str {
+        NativeEvalId::ListSplit.as_str()
+    }
+
+    fn route(&self) -> EvalRoute {
+        EvalRoute::Direct {
+            id: NativeEvalId::ListSplit,
+        }
+    }
+
+    fn transfer(
+        &self,
+        domain: FactDomain,
+        _input: &dyn AnalysisInputs,
+        _budget: &mut Budget,
+    ) -> TransferAnswer {
+        result_type_transfer(domain, TclType::List)
+    }
+
+    fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
+        let count = input.invocation().operands.len();
+        if !(1..=2).contains(&count) {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        }
+        let args = match exact_operands(input, 0..count) {
+            Ok(args) => args,
+            Err(answer) => return answer,
+        };
+        match run_core(
+            input,
+            budget,
+            (NativeEvalId::ListSplit, SEARCH_REVISION),
+            Self::NEEDS,
+            |ops| {
+                for arg in &args {
+                    ops.admissible_text(arg)?;
+                }
+                Ok(tcl_cmd_core::list::split(ops, &args[0], args.get(1)))
+            },
+        ) {
+            Ok((value, target)) => pure_outcome(
+                NativeEvalId::ListSplit,
+                SEARCH_REVISION,
+                value,
+                TclType::List,
+                DependencyEvidence {
+                    release: target.release,
+                    ..DependencyEvidence::default()
+                },
+            ),
+            Err(answer) => answer,
+        }
+    }
+}
+
+/// `string first needleString haystackString ?startIndex?` on the direct
+/// route: the string core's search over [`ConstOps`], the start index read
+/// under the admitted grammar, and a non-ASCII operand admitted only where
+/// the target decodes source as UTF-8.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StringFirstSemantics;
+
+/// `string first needleString haystackString ?startIndex?`.
+pub static STRING_FIRST: StringFirstSemantics = StringFirstSemantics;
+
+impl StringFirstSemantics {
+    /// The axes the core reads.
+    pub const NEEDS: Needs = Needs::INDEX_GRAMMAR
+        .union(Needs::CHAR_INDEXING)
+        .union(Needs::SOURCE_ENCODING);
+}
+
+impl CommandSemantics for StringFirstSemantics {
+    fn identity(&self) -> &'static str {
+        NativeEvalId::StringFirst.as_str()
+    }
+
+    fn route(&self) -> EvalRoute {
+        EvalRoute::Direct {
+            id: NativeEvalId::StringFirst,
+        }
+    }
+
+    fn transfer(
+        &self,
+        domain: FactDomain,
+        _input: &dyn AnalysisInputs,
+        _budget: &mut Budget,
+    ) -> TransferAnswer {
+        result_type_transfer(domain, TclType::Int)
+    }
+
+    fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
+        // Operand 0 is the subcommand word.
+        let count = input.invocation().operands.len();
+        if !(3..=4).contains(&count) {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        }
+        let args = match exact_operands(input, 1..count) {
+            Ok(args) => args,
+            Err(answer) => return answer,
+        };
+        let (needle, haystack, start) = (&args[0], &args[1], args.get(2));
+        match run_core(
+            input,
+            budget,
+            (NativeEvalId::StringFirst, SEARCH_REVISION),
+            Self::NEEDS,
+            |ops| {
+                let needle_text = ops.admissible_text(needle)?;
+                let text = ops.admissible_text(haystack)?;
+                let len = text.chars().count();
+                // The naive search's comparisons, at worst.
+                let work = needle_text.chars().count().saturating_mul(len);
+                ops.charge(u64::try_from(work).unwrap_or(u64::MAX))?;
+                let start = match start {
+                    Some(start) => Some(ops.index(start, len)?),
+                    None => None,
+                };
+                tcl_cmd_core::string::first(ops, needle, haystack, start.as_ref())
+                    .map_err(|error| ops.decline(&error))
+            },
+        ) {
+            Ok((value, target)) => pure_outcome(
+                NativeEvalId::StringFirst,
+                SEARCH_REVISION,
+                value,
+                TclType::Int,
+                DependencyEvidence {
+                    numerals: target.numerals,
+                    release: target.release,
+                    ..DependencyEvidence::default()
+                },
+            ),
+            Err(answer) => answer,
+        }
+    }
+}
+
+/// `string match ?-nocase? pattern string` on the direct route: the glob
+/// core over [`ConstOps`], with a non-ASCII operand admitted only where the
+/// target decodes source as UTF-8 and, under `-nocase`, only where the
+/// release's case tables agree (ASCII).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StringMatchSemantics;
+
+/// `string match ?-nocase? pattern string`.
+pub static STRING_MATCH: StringMatchSemantics = StringMatchSemantics;
+
+impl StringMatchSemantics {
+    /// The axes the core reads.
+    pub const NEEDS: Needs = Needs::COLLATION.union(Needs::SOURCE_ENCODING);
+}
+
+impl CommandSemantics for StringMatchSemantics {
+    fn identity(&self) -> &'static str {
+        NativeEvalId::StringMatch.as_str()
+    }
+
+    fn route(&self) -> EvalRoute {
+        EvalRoute::Direct {
+            id: NativeEvalId::StringMatch,
+        }
+    }
+
+    fn transfer(
+        &self,
+        domain: FactDomain,
+        _input: &dyn AnalysisInputs,
+        _budget: &mut Budget,
+    ) -> TransferAnswer {
+        result_type_transfer(domain, TclType::Boolean)
+    }
+
+    fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
+        // Operand 0 is the subcommand word.
+        let count = input.invocation().operands.len();
+        if !(3..=4).contains(&count) {
+            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        }
+        let args = match exact_operands(input, 1..count) {
+            Ok(args) => args,
+            Err(answer) => return answer,
+        };
+        match run_core(
+            input,
+            budget,
+            (NativeEvalId::StringMatch, SEARCH_REVISION),
+            Self::NEEDS,
+            |ops| {
+                let mut texts = Vec::with_capacity(args.len());
+                for arg in &args {
+                    texts.push(ops.admissible_text(arg)?);
+                }
+                // An option word folds case, and beyond ASCII each release
+                // folds by its own tables.
+                if texts.len() == 3 && texts.iter().any(|text| !text.is_ascii()) {
+                    let reason = DeclineReason::ReleaseAmbiguous(Axis::Collation);
+                    ops.poison(reason);
+                    return Err(reason);
+                }
+                // The matcher backtracks to one star at a time.
+                let [.., pattern, subject] = texts.as_slice() else {
+                    return Err(DeclineReason::Unsupported);
+                };
+                let work = pattern
+                    .chars()
+                    .count()
+                    .saturating_mul(subject.chars().count().saturating_add(1));
+                ops.charge(u64::try_from(work).unwrap_or(u64::MAX))?;
+                tcl_cmd_core::string::string_match(ops, &args).map_err(|error| ops.decline(&error))
+            },
+        ) {
+            Ok((value, target)) => pure_outcome(
+                NativeEvalId::StringMatch,
+                SEARCH_REVISION,
+                value,
+                TclType::Boolean,
+                DependencyEvidence {
                     release: target.release,
                     ..DependencyEvidence::default()
                 },

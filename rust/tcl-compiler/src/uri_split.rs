@@ -34,6 +34,8 @@
 //! * `string match "/api/*" $uri`
 //! * `string first "?" $uri`
 //!
+//! `split`, `string first` and `string match` are known by the direct
+//! route the registry resolves each call to, never by their spelling.
 //! The pass also generalises to **any** `*::uri` command that has
 //! sibling `*::path` and/or `*::query` commands in the registry.
 
@@ -42,6 +44,7 @@ use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
+use tcl_registry::value_transfer::{EvalRoute, NativeEvalId};
 
 use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
@@ -61,19 +64,36 @@ const MAX_TRACE_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::Recursio
 /// Characters that indicate a query-string delimiter when literal.
 const QUERY_CHARS: &[char] = &['?', '&'];
 
-/// True for the bare built-in `split` and its fully-qualified `::split`
-/// form; both denote the same Tcl built-in. Code may write either form
-/// — the SSA / IR layer preserves the surface text — so detection
-/// helpers must accept both to avoid false negatives like
-/// `set parts [::split $uri "?"]`.
-fn is_split_cmd(cmd: &str) -> bool {
-    matches!(cmd, "split" | "::split")
+/// The decomposition a call runs, by the direct route the registry
+/// resolves its words to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Decomposition {
+    /// `split string ?splitChars?`.
+    Split,
+    /// `string first needleString haystackString ?startIndex?`.
+    First,
+    /// `string match ?-nocase? pattern string`.
+    Match,
 }
 
-/// True for the bare `string` ensemble and its fully-qualified
-/// `::string` form. Same rationale as [`is_split_cmd`].
-fn is_string_cmd(cmd: &str) -> bool {
-    matches!(cmd, "string" | "::string")
+/// The decomposition `head args…` runs, resolved through the registry as
+/// every analysis resolves it — `::split` and `split` alike — or `None` for
+/// any other command.
+fn decomposition(registry: &CommandRegistry, head: &str, args: &[String]) -> Option<Decomposition> {
+    let words: Vec<&str> = args.iter().map(String::as_str).collect();
+    let (resolved, _) = crate::value_transfer::resolved_literal_semantics(registry, head, &words)?;
+    match resolved.semantics()?.route() {
+        EvalRoute::Direct {
+            id: NativeEvalId::ListSplit,
+        } => Some(Decomposition::Split),
+        EvalRoute::Direct {
+            id: NativeEvalId::StringFirst,
+        } => Some(Decomposition::First),
+        EvalRoute::Direct {
+            id: NativeEvalId::StringMatch,
+        } => Some(Decomposition::Match),
+        _ => None,
+    }
 }
 
 // URI family discovery
@@ -139,6 +159,8 @@ fn uri_siblings<'a>(
 #[derive(Clone, Copy)]
 struct TraceCtx<'a> {
     cfg: &'a CfgFunction,
+    /// The registry each call's decomposition is resolved through.
+    registry: &'a CommandRegistry,
     ssa: &'a SsaFunction,
     families: &'a UriFamilies,
     def_sites: &'a HashMap<ValueKey, (BlockId, usize)>,
@@ -709,9 +731,8 @@ fn check_expr_command(
 ) -> Option<ExprHit> {
     let (cmd_name, cmd_args) = parse_command_substitution_with_config(text, ctx.config)?;
 
-    if is_string_cmd(&cmd_name) && !cmd_args.is_empty() {
-        let sub = cmd_args[0].as_str();
-        if sub == "match" {
+    match decomposition(ctx.registry, &cmd_name, &cmd_args)? {
+        Decomposition::Match => {
             let mut remaining: &[String] = &cmd_args[1..];
             if remaining.first().is_some_and(|w| w == "-nocase") {
                 remaining = &remaining[1..];
@@ -723,28 +744,28 @@ fn check_expr_command(
             let input_arg = strip_tcl_quotes(&remaining[1]).to_owned();
             let uri_cmd = input_arg_uri(&input_arg, ssa_versions, ctx)?;
             let component = classify_glob_pattern(&pattern)?;
-            return Some((uri_cmd, "string match".to_owned(), component.to_owned()));
+            Some((uri_cmd, "string match".to_owned(), component.to_owned()))
         }
-        if sub == "first" && cmd_args.len() >= 3 {
+        Decomposition::First if cmd_args.len() >= 3 => {
             let needle = strip_tcl_quotes(&cmd_args[1]).to_owned();
             let input_arg = strip_tcl_quotes(&cmd_args[2]).to_owned();
             let uri_cmd = input_arg_uri(&input_arg, ssa_versions, ctx)?;
-            if needle.chars().any(|c| QUERY_CHARS.contains(&c)) {
-                return Some((uri_cmd, "string first".to_owned(), needle));
-            }
+            needle
+                .chars()
+                .any(|c| QUERY_CHARS.contains(&c))
+                .then(|| (uri_cmd, "string first".to_owned(), needle))
         }
-    }
-
-    if is_split_cmd(&cmd_name) && cmd_args.len() >= 2 {
-        let sep = strip_tcl_quotes(&cmd_args[1]).to_owned();
-        if sep.chars().any(|c| QUERY_CHARS.contains(&c)) {
+        Decomposition::Split if cmd_args.len() >= 2 => {
+            let sep = strip_tcl_quotes(&cmd_args[1]).to_owned();
+            if !sep.chars().any(|c| QUERY_CHARS.contains(&c)) {
+                return None;
+            }
             let input_arg = strip_tcl_quotes(&cmd_args[0]).to_owned();
             let uri_cmd = input_arg_uri(&input_arg, ssa_versions, ctx)?;
-            return Some((uri_cmd, "split".to_owned(), sep));
+            Some((uri_cmd, "split".to_owned(), sep))
         }
+        Decomposition::First | Decomposition::Split => None,
     }
-
-    None
 }
 
 fn walk_expr(
@@ -819,11 +840,13 @@ fn extract_split_info<S: std::hash::BuildHasher>(
     stmt: &Statement,
     ssa_stmt: &SsaStatement,
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
-    ssa: &SsaFunction,
-    config: tcl_lexer::LexerConfig,
+    ctx: TraceCtx<'_>,
 ) -> Option<(String, Option<String>)> {
+    let ssa = ctx.ssa;
     match stmt {
-        Statement::Call { command, args, .. } if is_split_cmd(command) => {
+        Statement::Call { command, args, .. }
+            if decomposition(ctx.registry, command, args) == Some(Decomposition::Split) =>
+        {
             if args.len() < 2 {
                 return None;
             }
@@ -832,8 +855,8 @@ fn extract_split_info<S: std::hash::BuildHasher>(
         }
         Statement::AssignValue { value, .. } => {
             let value = value.trim();
-            let (cmd, args) = parse_command_substitution_with_config(value, config)?;
-            if !is_split_cmd(&cmd) {
+            let (cmd, args) = parse_command_substitution_with_config(value, ctx.config)?;
+            if decomposition(ctx.registry, &cmd, &args) != Some(Decomposition::Split) {
                 return None;
             }
             if args.len() < 2 {
@@ -852,59 +875,50 @@ fn extract_string_match_info<S: std::hash::BuildHasher>(
     stmt: &Statement,
     ssa_stmt: &SsaStatement,
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
-    ssa: &SsaFunction,
-    config: tcl_lexer::LexerConfig,
+    ctx: TraceCtx<'_>,
 ) -> Option<(&'static str, Option<String>, String)> {
-    fn from_args<S: std::hash::BuildHasher>(
-        cmd: &str,
-        args: &[String],
-        uses: &HashMap<Symbol, Version>,
-        sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
-        ssa: &SsaFunction,
-    ) -> Option<(&'static str, Option<String>, String)> {
-        if !is_string_cmd(cmd) || args.is_empty() {
-            return None;
-        }
-        let sub = args[0].as_str();
-        if sub == "match" {
-            // string match ?-nocase? pattern string
-            let mut remaining: &[String] = &args[1..];
-            if remaining.first().is_some_and(|w| w == "-nocase") {
-                remaining = &remaining[1..];
+    let from_args =
+        |cmd: &str, args: &[String]| -> Option<(&'static str, Option<String>, String)> {
+            let uses = &ssa_stmt.uses;
+            match decomposition(ctx.registry, cmd, args)? {
+                Decomposition::Match => {
+                    // string match ?-nocase? pattern string
+                    let mut remaining: &[String] = &args[1..];
+                    if remaining.first().is_some_and(|w| w == "-nocase") {
+                        remaining = &remaining[1..];
+                    }
+                    if remaining.len() < 2 {
+                        return None;
+                    }
+                    let pattern = resolve_literal(&remaining[0], sccp_values, uses, ctx.ssa);
+                    Some((
+                        "string match",
+                        pattern,
+                        strip_tcl_quotes(&remaining[1]).to_owned(),
+                    ))
+                }
+                Decomposition::First => {
+                    // string first needleString haystackString ?startIndex?
+                    if args.len() < 3 {
+                        return None;
+                    }
+                    let needle = resolve_literal(&args[1], sccp_values, uses, ctx.ssa);
+                    Some((
+                        "string first",
+                        needle,
+                        strip_tcl_quotes(&args[2]).to_owned(),
+                    ))
+                }
+                Decomposition::Split => None,
             }
-            if remaining.len() < 2 {
-                return None;
-            }
-            let pattern = resolve_literal(&remaining[0], sccp_values, uses, ssa);
-            return Some((
-                "string match",
-                pattern,
-                strip_tcl_quotes(&remaining[1]).to_owned(),
-            ));
-        }
-        if sub == "first" {
-            // string first needleString haystackString ?startIndex?
-            if args.len() < 3 {
-                return None;
-            }
-            let needle = resolve_literal(&args[1], sccp_values, uses, ssa);
-            return Some((
-                "string first",
-                needle,
-                strip_tcl_quotes(&args[2]).to_owned(),
-            ));
-        }
-        None
-    }
+        };
 
     match stmt {
-        Statement::Call { command, args, .. } => {
-            from_args(command, args, &ssa_stmt.uses, sccp_values, ssa)
-        }
+        Statement::Call { command, args, .. } => from_args(command, args),
         Statement::AssignValue { value, .. } => {
             let value = value.trim();
-            let (cmd, args) = parse_command_substitution_with_config(value, config)?;
-            from_args(&cmd, &args, &ssa_stmt.uses, sccp_values, ssa)
+            let (cmd, args) = parse_command_substitution_with_config(value, ctx.config)?;
+            from_args(&cmd, &args)
         }
         _ => None,
     }
@@ -925,8 +939,7 @@ fn check_statement<S: std::hash::BuildHasher>(
     let stmt_span = stmt.span();
 
     // 1. split detection.
-    if let Some((input_arg, Some(sep))) =
-        extract_split_info(stmt, ssa_stmt, sccp_values, ctx.ssa, ctx.config)
+    if let Some((input_arg, Some(sep))) = extract_split_info(stmt, ssa_stmt, sccp_values, ctx)
         && sep.chars().any(|c| QUERY_CHARS.contains(&c))
         && let Some(uri_cmd) = arg_traces_to_uri_family(&input_arg, ssa_stmt, ctx)
     {
@@ -944,7 +957,7 @@ fn check_statement<S: std::hash::BuildHasher>(
 
     // 2. string match / string first.
     if let Some((sub_cmd, Some(pattern), input_arg)) =
-        extract_string_match_info(stmt, ssa_stmt, sccp_values, ctx.ssa, ctx.config)
+        extract_string_match_info(stmt, ssa_stmt, sccp_values, ctx)
         && let Some(uri_cmd) = arg_traces_to_uri_family(&input_arg, ssa_stmt, ctx)
     {
         if sub_cmd == "string match" {
@@ -1056,6 +1069,7 @@ where
     };
     let ctx = TraceCtx {
         cfg,
+        registry,
         ssa,
         families: &families,
         def_sites: &def_sites,
@@ -1136,6 +1150,7 @@ mod tests {
         let phi_index: HashMap<ValueKey, Phi> = HashMap::new();
         let ctx = TraceCtx {
             cfg: &fu.cfg,
+            registry: &r,
             ssa: &fu.ssa,
             families: &families,
             def_sites: &def_sites,

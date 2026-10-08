@@ -154,7 +154,10 @@ fn canonical_file_sub<'a>(subs: &[&'a str], sub: &str) -> Option<&'a str> {
 fn file_path_op(vm: &mut Vm, canon: &str, rest: &[Value]) -> Option<Completion<Value>> {
     let s = |v: &Value| v.to_str().to_string();
     Some(match canon {
-        "join" => ok(Value::string(file_join(rest))),
+        "join" => {
+            let names: Vec<String> = rest.iter().map(|name| name.to_str().to_string()).collect();
+            path_str(&tcl_cmd_core::path::join(&names))
+        }
         "dirname" => match rest {
             [p] => path_str(&tcl_cmd_core::path::dirname(p.to_str().as_bytes())),
             _ => err("wrong # args: should be \"file dirname name\""),
@@ -173,7 +176,10 @@ fn file_path_op(vm: &mut Vm, canon: &str, rest: &[Value]) -> Option<Completion<V
         },
         "split" => match rest {
             [p] => ok(Value::list(
-                split_path(&s(p)).into_iter().map(Value::string).collect(),
+                tcl_cmd_core::path::split(p.to_str().as_bytes())
+                    .into_iter()
+                    .map(|element| Value::string(std::str::from_utf8(element).unwrap_or("")))
+                    .collect(),
             )),
             _ => err("wrong # args: should be \"file split name\""),
         },
@@ -328,29 +334,9 @@ fn file_mtime(fs: Option<&dyn Filesystem>, path: &str) -> Completion<Value> {
     }
 }
 
-/// `file join a b c` — join components, an absolute component resets the path.
-fn file_join(parts: &[Value]) -> String {
-    let mut buf = PathBuf::new();
-    for p in parts {
-        let s = p.to_str();
-        if s.starts_with('/') {
-            buf = PathBuf::from(&*s);
-        } else if !s.is_empty() {
-            buf.push(&*s);
-        }
-    }
-    buf.to_string_lossy().into_owned()
-}
-
-fn split_path(p: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    if p.starts_with('/') {
-        out.push("/".to_string());
-    }
-    for c in p.split('/').filter(|c| !c.is_empty()) {
-        out.push(c.to_string());
-    }
-    out
+/// `file join` over two names, on the shared path core.
+fn file_join(base: &str, name: &str) -> String {
+    String::from_utf8(tcl_cmd_core::path::join(&[base, name])).unwrap_or_default()
 }
 
 /// `file normalize` — make absolute (against the cwd) and resolve `.`/`..`
@@ -501,7 +487,7 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     .any(|p| tcl_syntax::glob::string_match(&p.to_str(), &name));
             if matches {
                 let full = if dir.is_some() {
-                    file_join(&[Value::string(base.clone()), Value::string(name.clone())])
+                    file_join(&base, &name)
                 } else {
                     name
                 };
@@ -516,7 +502,7 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         let probe = if dir.is_some() {
             r.clone()
         } else {
-            file_join(&[Value::string(base.clone()), Value::string(r.clone())])
+            file_join(&base, r)
         };
         glob_types_match(filesystem, &probe, &types)
     });
@@ -548,7 +534,7 @@ fn glob_join(
     };
     for entry in entries {
         if tcl_syntax::glob::string_match(&pattern.to_str(), &entry) {
-            let path = file_join(&[Value::string(directory.to_owned()), Value::string(entry)]);
+            let path = file_join(directory, &entry);
             if remaining.is_empty() {
                 results.push(path);
             } else {

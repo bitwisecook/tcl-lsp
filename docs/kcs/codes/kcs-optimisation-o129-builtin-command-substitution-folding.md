@@ -22,8 +22,12 @@ deterministic result with no side effects, the optimiser can evaluate it at
 compile time and replace the call with the resulting string literal. This
 eliminates the command-dispatch overhead at runtime and makes the intent of the
 code clearer. Commands covered include `string length`, `string toupper`,
-`string tolower`, `join`, `format`, `dict get`, `dict size`, `list`, and
-similar pure builtins.
+`string tolower`, `join`, `format`, `dict get`, `dict size`, `list`, `split`,
+the name operations of `file` (`join`, `dirname`, `tail`, `extension`,
+`rootname`, `split`) on names every platform reads alike, and similar pure
+builtins. A command the registry gives a direct route folds through that
+route — the same evaluator the analysis runs — so the folded value is the one
+the runtime computes, and the fold declines wherever the route does.
 
 ## Before
 
@@ -43,8 +47,8 @@ puts 5
   variable references, no nested command substitutions whose values are
   unknown).
 - The command must be a known pure builtin — user-defined procs and commands
-  with observable side effects (such as `clock`, `rand`, `file`) are not
-  folded.
+  with observable side effects (such as `clock`, `rand`, or a `file`
+  operation that reads the filesystem) are not folded.
 - Skipped when the command substitution appears inside an unbraced expression
   that is itself not constant.
 - The special cases `[list …]` and `[lindex …]` with all-constant arguments

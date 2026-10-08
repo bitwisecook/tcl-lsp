@@ -693,7 +693,8 @@ the keyed updates `dict set` / `unset` / `incr` / `append` / `lappend`
 declaration for the subcommand and its `::tcl::dict::` spelling, with
 `set` itself the cell write beside them), `lset` (slice 7), and
 `file join` / `dirname` / `tail` / `extension` / `rootname` / `split`
-(platform-conditional through the profile). For iRules the same tier
+(slice 7, answering the names every platform and release reads alike —
+D331). For iRules the same tier
 covers the pure functions, which have **no** runtime handler in
 `runtime/rust` or `tcl-vm` — the only executable iRules surface is the test
 harness's Tcl simulator (`rust/tcl-irule-test/tcl/`), whose
@@ -865,7 +866,6 @@ which waives the sites by axis.
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 2 | the `return_type` axis — a `pattern_type` conditional on `-regexp` absorbs the `switch`-specific ReDoS scan |
 | `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 2 | the `traits` axis — `unset` beside the `DESTROYS_VARIABLE` query, `matchclass` by its lifecycle field |
 | `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 6 | the `special_vars` and `side_effects` axes — the `static::`, `log`, and `global` checks |
-| `rust/tcl-compiler/src/auto_path_eval.rs` | 3 | slice 7 — the direct routes for `file dirname` / `normalize` / `join` replace the private path folder |
 | `rust/tcl-compiler/src/codegen/cmd_subst.rs` | 3 | the `native_lowering` axis — instruction selection for `set` and the `array` intrinsics |
 | `rust/tcl-compiler/src/codegen/emitter/bytecoded.rs` | 4 | the `native_lowering` axis — instruction selection for the `dict` and `array` ensembles |
 | `rust/tcl-compiler/src/codegen/emitter/loop_blocks.rs` | 2 | the `native_lowering` axis — the loop emitter's `foreach` / `lmap` collect flag, which the declared iteration plan can carry |
@@ -881,13 +881,12 @@ which waives the sites by axis.
 | `rust/tcl-compiler/src/shimmer/thunking.rs` | 1 | the `native_lowering` axis — a thunked `break` |
 | `rust/tcl-compiler/src/ssa.rs` | 1 | the `arg_roles` axis — `trace add variable` positions by name |
 | `rust/tcl-compiler/src/taint.rs` | 3 | the `side_effects` and `traits` axes — the `file` path-sink narrowing, the `string match` / `first` / `equal` guard parse, and the `interp` / `proc` rebinding order |
-| `rust/tcl-compiler/src/uri_split.rs` | 6 | slice 7 — the direct routes for `split`, `string first`, and `string match` replace the private URI evaluator |
 | `rust/tcl-compiler/src/var_escape/handlers.rs` | 2 | the `arg_roles` and `traits` axes — `namespace upvar`'s positions and `info exists` by name; the walker still calls the file, so it is reviewed, not deleted |
 | `rust/tcl-compiler/src/var_escape/helpers.rs` | 1 | the `traits` axis — `info exists` beside `INTROSPECTS_BY_NAME` |
 | `rust/tcl-compiler/src/var_scoping.rs` | 1 | the `arg_roles` axis — `namespace upvar` positions by name |
 | `rust/tcl-irules/src/lib.rs` | 1 | the `options` axis — the `class match` / `class search` option scan ahead of the data-group reference |
 | `rust/tcl-lsp-core/src/oo_body.rs` | 1 | the `definition_body` axis — `oo::define` / `oo::objdefine` by name |
-| `rust/tcl-mcp/src/irule_gen.rs` | 5 | slice 7 — the `set` / `incr` recognisers behind the CMP-sensitivity facts read the resolved cell update once the tooling crates are this lane's to edit; `table` and the terminal-action table are `side_effects` debt |
+| `rust/tcl-mcp/src/irule_gen.rs` | 2 | the `side_effects` axis — `table`'s shared-state subcommands and the terminal-action table; the `set` / `incr` recognisers read the resolved cell update since slice 7 |
 | `rust/tcl-mcp/src/irule_test.rs` | 2 | the `side_effects` axis — the `pool` / `node` sinks and the terminal-action table, where every listed command carries a `TaintColour` |
 | `rust/tcl-sslictcl/src/bin/sslictcl-data.rs` | 4 | irreducible — the tool's own CLI verbs (`testssl-to-dsl`, `check-trust`, `compile-trust`), not Tcl commands; a file waiver at review |
 

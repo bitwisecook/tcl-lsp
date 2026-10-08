@@ -31,7 +31,11 @@
 //!
 //! The supported subset is `[info script]`, `[file dirname …]`,
 //! `[file join …]`, `[file normalize …]` (anchored arguments only — see
-//! [`eval_file_normalize`]), literal words, and `~`-prefixed paths.
+//! [`eval_file_normalize`]), the other `file` name operations the registry
+//! routes (`tail`, `extension`, `rootname`, `split`) over names every
+//! platform reads alike, literal words, and `~`-prefixed paths. A name
+//! operation reads the registry's route where it answers (D331), and the
+//! host's slash-form reading below for the rest.
 //! Variable references (`$dir`, `${dir}`, `pre_$dir`) are resolved through
 //! whatever resolver the **caller** supplies — this module owns what a path
 //! expression *means*, the caller owns what a variable *is worth*, and the
@@ -1265,26 +1269,54 @@ fn eval(
             }
             if name == "file" && args.len() >= 2 {
                 let sub = eval(&args[0], info_script, resolve_var)?;
-                if sub == "dirname" && args.len() == 2 {
-                    return Some(path_dirname(&eval(&args[1], info_script, resolve_var)?));
+                let mut names: Vec<String> = Vec::with_capacity(args.len() - 1);
+                for a in &args[1..] {
+                    names.push(eval(a, info_script, resolve_var)?);
                 }
-                if sub == "normalize" && args.len() == 2 {
-                    return eval_file_normalize(&eval(&args[1], info_script, resolve_var)?);
+                // A name every platform reads alike folds on the registry's
+                // route (D331); the rest is the language server's own host
+                // resolution: drive and share roots, `~`, and an anchored
+                // `normalize`, in Tcl's slash form.
+                if let Some(value) = file_route(&sub, &names) {
+                    return Some(value);
                 }
-                if sub == "join" && args.len() >= 2 {
-                    let mut parts: Vec<String> = Vec::new();
-                    for a in &args[1..] {
-                        parts.push(eval(a, info_script, resolve_var)?);
-                    }
-                    if parts.is_empty() {
-                        return None;
-                    }
-                    return Some(path_join(&parts));
+                // value-transfer-ok: irreducible — the host's reading of a
+                // name the route declines, which no profile fixes.
+                if sub == "dirname" && names.len() == 1 {
+                    return Some(path_dirname(&names[0]));
+                }
+                // value-transfer-ok: irreducible — the host's anchored
+                // normalisation, which no route answers.
+                if sub == "normalize" && names.len() == 1 {
+                    return eval_file_normalize(&names[0]);
+                }
+                // value-transfer-ok: irreducible — the host's reading of a
+                // name the route declines, which no profile fixes.
+                if sub == "join" {
+                    return Some(path_join(&names));
                 }
             }
             None
         }
     }
+}
+
+/// `file SUB names…` on the path route the registry declares for it, which
+/// answers only names every platform and release reads alike (D331): the
+/// value the lattice gives the same call.
+fn file_route(sub: &str, names: &[String]) -> Option<String> {
+    use tcl_registry::value_transfer::{evaluate_literal, resolve_semantics};
+    let spec = tcl_registry::default_registry().get("file")?;
+    let subcommand = spec.subcommand(sub)?;
+    let resolved = resolve_semantics(spec, Some(subcommand), None);
+    let words: Vec<&str> = names.iter().map(String::as_str).collect();
+    evaluate_literal(
+        resolved.semantics()?,
+        spec.name,
+        Some(subcommand.name),
+        &words,
+        None,
+    )
 }
 
 /// `file normalize` in slash form, or `None` when the argument is not already

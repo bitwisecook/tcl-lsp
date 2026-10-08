@@ -803,13 +803,22 @@ mod tests {
         Some(format!("owned:{}", args.join(",")))
     }
 
+    /// The owned registry decides the fold: the route a command declares,
+    /// whatever callback sits beside it, and with the route declined, the
+    /// callback.
     #[test]
-    fn value_fold_uses_the_owned_registry_callback_and_binding() {
+    fn value_fold_runs_the_owned_registry_route_or_its_callback() {
         let mut registry = CommandRegistry::build_default();
         let mut list = registry.get("list").expect("list spec").clone();
         list.const_fold = Some(owned_list_fold);
-        registry.insert(list);
+        registry.insert(list.clone());
 
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        assert!(ctx.try_emit_constant_fold("[list a b]"));
+        assert!(ctx.literals.entries().iter().any(|lit| lit == "a b"));
+
+        list.semantics = tcl_registry::value_transfer::SemanticsDeclaration::Declined;
+        registry.insert(list);
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         assert!(ctx.try_emit_constant_fold("[list a b]"));
         assert!(ctx.literals.entries().iter().any(|lit| lit == "owned:a,b"));
@@ -821,16 +830,21 @@ mod tests {
         );
     }
 
+    /// A command whose owned registry declines its route and drops its
+    /// callback has nothing to fold through.
     #[test]
     fn value_fold_obeys_owned_registry_removal_for_every_old_fast_path() {
         let mut registry = CommandRegistry::build_default();
+        let declined = tcl_registry::value_transfer::SemanticsDeclaration::Declined;
 
         let mut list = registry.get("list").expect("list spec").clone();
         list.const_fold = None;
+        list.semantics = declined;
         registry.insert(list);
 
         let mut format = registry.get("format").expect("format spec").clone();
         format.const_fold_versioned = None;
+        format.semantics = declined;
         registry.insert(format);
 
         let mut dict = registry.get("dict").expect("dict spec").clone();

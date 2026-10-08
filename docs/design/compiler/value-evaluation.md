@@ -202,7 +202,9 @@ default it was not asked for.
 - **A third family lives in codegen.** `rust/tcl-compiler/src/codegen/helpers.rs`
   carries `fold_list_cmd`, reached from codegen. `try_format_fold` (`%s`
   and `%d` only) went with `format`'s transitional table when VT3.8 gave
-  the command a registry-owned route over the shared format core.
+  the command a registry-owned route over the shared format core;
+  `fold_list_cmd` and `fold_dict_create_cmd`, test-only by then, went in
+  slice 7 (VT7.8).
 - **Codegen already emits folded values, guarded.** `try_emit_constant_fold`
   in `rust/tcl-compiler/src/codegen/values.rs` folds a literal-only
   `[cmd …]` through `ConstSubstCtx::fold_cmd_subst_resolved`, pushes the
@@ -212,7 +214,14 @@ default it was not asked for.
   ([vm-compiled-artifact-provenance.md](../contracts/vm-compiled-artifact-provenance.md)
   § *Invalidation*). The guard protects against rebinding; nothing protects
   against the fold and the runtime disagreeing, which a second
-  implementation permits.
+  implementation permits. Since slice 7 the engine runs the registry-owned
+  route a call declares over its literal words (`evaluate_literal`) — the
+  evaluator the lattice runs, over the core the runtimes run — and its
+  answer, a decline included, is the fold, a byte array or an answer beyond
+  ASCII declining because the engine writes it back into a script, where a
+  byte array has no lossless spelling and 8.x reads text in the system
+  encoding; a command that declares no route keeps its `const_fold`
+  callback (D338).
 - **The oracle.** `rust/tcl-registry/tests/differential_fold.rs` runs every
   fold against a real `tclsh`; the fuzzer pairs `tclvm`, `runtime-rust`,
   and `tclsh`, with the rule that a two-way native pair has no oracle
@@ -559,6 +568,8 @@ once. "Charge" is in `WorkUnits` (§ *Budgets and cancellation*).
 | `case::select`, `case::splits_as_list` (`CaseSemantics` in `value_transfer/selection.rs`) | `SOURCE_ENCODING`, `LIST_RENDERING` | `case` exists on 8.4 to 8.6, and on the iRules 8.4 base, and not from 9.0; `Tcl_CaseObjCmd` is the same loop in 8.4.20, 8.5.19 and 8.6.18, so every release that has it selects alike | a pattern word that splits as a list and is not one; an odd clause list, which `case` raises on only once its scan reaches the missing body, and an empty one, which selects nothing; a non-ASCII word with no named release | 1 per pattern word per member, plus 1 per list element split |
 | `list::list`, `llength`, `lreverse`, `lrepeat`, `linsert`, `lreplace`, `concat` (with `trim_concat_element`), `join`, `split` | `LIST_RENDERING` | canonical quoting | `ValueError::BadList`; an output past the charge | 1 per element, charged first for `lrepeat` |
 | `list::lindex`, `lindex_flat`, `lrange` | `LIST_RENDERING`, `INDEX_GRAMMAR` | index grammar and quoting | as above, plus a malformed index | 1 per element |
+| `list::split`, `string::first`, `string::string_match` (`SplitSemantics`, `StringFirstSemantics` and `StringMatchSemantics` in `value_transfer/builtins.rs`) | `LIST_RENDERING` (`split`), `INDEX_GRAMMAR` and `CHAR_INDEXING` (`string first`), `COLLATION` (`string match`), `SOURCE_ENCODING` | `split` splits on `" \n\t\r"` by default (D333) and brace-quotes a leading `#` element from 8.5; `string first`'s start index is read as each release reads it (`010` is 8 up to 8.6 and 10 from 9.0, `1+1` raises on 8.4); the glob is the same on every release | a non-ASCII operand where the target does not decode source as UTF-8; a start index the grammars read apart with no named release; `string match -nocase` over a non-ASCII operand, each release folding case by its own tables | `split`: its list's rendering; `string first`: the needle's length times the haystack's; `string match`: the pattern's length times the subject's, charged first |
+| `path::join`, `dirname`, `tail`, `extension`, `rootname`, `split` (`PathSemantics` in `value_transfer/path.rs`) | `SOURCE_ENCODING`, `LIST_RENDERING` (`split`) | none over a name every platform reads alike: tclsh 8.4.20 to 9.1.0 agree, and so do the Unix and Windows readings (the test shell's `testsetplatform windows`; D331, D334) | a name with a backslash, a colon, a leading `//` or a `~` (`ReleaseAmbiguous(Platform)`); `file normalize` declares `none (platform)` | 1 per input byte, charged first |
 | `list::lset`, `ledit`, `lpop` (`ListUpdateSemantics` in `value_transfer/list_update.rs`) | `INDEX_GRAMMAR`, `LIST_RENDERING` | the index grammar; an index equal to a level's length appends from 8.6 (`lset x 3 D` over `a {b1 b2} c` raises `list index out of range` on 8.4 and 8.5 and gives `a {b1 b2} c D` from 8.6), the error worded `index "4" out of range` with `TCL VALUE INDEX OUTOFRANGE` from 9.0 and carrying `TCL OPERATION LSET BADINDEX` on 8.6; `ledit` and `lpop` exist from 9.0 | a variable the analysis cannot prove holds a value; a level that is not a list, which is the program's error under a named release; a bad or out-of-range index; disagreement with no named release | 1 per element, charged by each construction |
 | `irules::call` and the functions it names (`IrulesFunctionSemantics` in `value_transfer/irules.rs`) | none | none: TMM's own commands, the same under every release | an input outside F5's published reference (`irules::Unmodelled`: a `b64decode` of text that is not canonical base64, a `substr` count of 0, a `URI::port` scheme with no default the reference lists, …); a byte function's word that is not ASCII | 1 per input byte, charged first |
 | `dict::create`, `get`, `getdef`, `exists`, `keys`, `values`, `size`, `filter`, `merge`, `replace`, `remove`, `lookup`, `upsert`, `dispatch_canon` (and `worded_parse_error`) | `DICT_ORDER`, `LIST_RENDERING` | canonical key order, last value winning on a duplicate | an odd-length list; a missing key where the form raises | 1 per pair |
@@ -569,7 +580,7 @@ once. "Charge" is in `WorkUnits` (§ *Budgets and cancellation*).
 | `ValueOps::int_add` (the `incr` arithmetic owner) | `NUMERAL_GRAMMAR`, `INT_TOWER` | 8.4 raises past the wide boundary and 8.5 onward widens; `incr` of `010` is 9 up to 8.6 and 11 from 9.0; `incr` of an absent variable raises on 8.4 and creates it from 8.5 | `ValueError::IntegerOverflow` with no named release; an unbound place with no existence proof | 1, plus 1 per digit of a bignum result |
 | `lsearch::lsearch` | `LIST_RENDERING`, `INDEX_GRAMMAR`, `REGEXP_FEATURES`, `COLLATION` | `-nocase` is `bad option` on 8.4 and exists from 8.5; the sorted-list comparison folds with `to_ascii_lowercase` | an `LsearchError`; a non-ASCII `-nocase` operand; every `PrecisionDecline` under `-regexp` | 1 per element, plus the regexp row |
 | `mathop::eval` | as the expression route | the operator set by release | — | the expression route's charge |
-| `lsort`, `sort`, `prefix`, `lseq`, `path`, `ensemble`, `error` | `LIST_RENDERING`, `COLLATION` where each applies | `lsort -nocase` is `bad option` on 8.4 and exists from 8.5; `sort`'s `-nocase` and `-dictionary` orders fold with `to_ascii_lowercase` | a comparison command operand, which is a callback and needs a declared route; a non-ASCII `-nocase` or `-dictionary` element | 1 per element, `n log n` for a sort |
+| `lsort`, `sort`, `prefix`, `lseq`, `ensemble`, `error` | `LIST_RENDERING`, `COLLATION` where each applies | `lsort -nocase` is `bad option` on 8.4 and exists from 8.5; `sort`'s `-nocase` and `-dictionary` orders fold with `to_ascii_lowercase` | a comparison command operand, which is a callback and needs a declared route; a non-ASCII `-nocase` or `-dictionary` element | 1 per element, `n log n` for a sort |
 | `array`, `var` (beyond the two value helpers), `namespace`, `info`, `trace`, `channel` | — | — | always: they read the interpreter, not a value. Their invocations are structural plans, never direct evaluators | — |
 | `platform::exec`, `platform::pwd` | `PLATFORM` | the host | always: `PLATFORM` is never satisfiable | — |
 | `clock::dispatch` (and `clock::is_specifier`, `clock::specifiers`) | `WALL_CLOCK` | the clock, locale, and timezone | always: `WALL_CLOCK` is never satisfiable. The format-specifier helpers are pattern inspection, not evaluation, and stay available to diagnostics | — |

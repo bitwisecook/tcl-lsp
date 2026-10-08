@@ -29,8 +29,8 @@
 //! 2. `tcl_registry::const_fold`'s `dict` folders (`get`/`exists`/`size`/
 //!    `keys`/`values`/`create`/`merge`), reached here through the public
 //!    `run_const_fold` path the optimiser uses,
-//! 3. `tcl_compiler::codegen::helpers::fold_dict_create_cmd`, the codegen's
-//!    `[dict create …]` fold.
+//! 3. `tcl_compiler::const_subst`, the engine codegen and O129 fold a
+//!    `[dict create …]` command substitution through.
 //!
 //! Three independent copies of the walk would drift from each other, and a
 //! fourth place where the rule is *missed* — `parse_dict` feeding six folders
@@ -120,19 +120,25 @@ fn registry_fold(registry: &CommandRegistry, sub: &str, args: &[&str]) -> Option
         .run_const_fold(args, Some(TclVersion::V9_0))
 }
 
-/// Leg 3 — the codegen's `[dict create …]` fold, fed the source spelling it
-/// sees in a compiled word.
+/// Leg 3 — the engine codegen and O129 fold a `[dict create …]` command
+/// substitution through, fed the source spelling it sees in a compiled word.
 fn compiler_dict_create_fold(args: &[&str]) -> Option<String> {
-    let mut source = String::from("[dict create");
+    let mut inner = String::from("dict create");
     for arg in args {
-        source.push(' ');
-        source.push_str(&tcl_syntax::list::list_element(arg));
+        inner.push(' ');
+        inner.push_str(&tcl_syntax::list::list_element(arg));
     }
-    source.push(']');
-    tcl_compiler::codegen::helpers::fold_dict_create_cmd(
-        &source,
-        tcl_syntax::word_rules::WordValueRules::TCL,
-    )
+    let trusts = |_: &str| true;
+    let lookup = |_: &str| None;
+    tcl_compiler::const_subst::ConstSubstCtx {
+        registry: tcl_registry::default_registry(),
+        resolution_namespace: "::",
+        version: Some(TclVersion::V9_0),
+        defining_class: None,
+        trusts: &trusts,
+        lookup_var: &lookup,
+    }
+    .fold_cmd_subst(&inner)
 }
 
 /// Leg 4 — real C Tcl, when it is installed. `None` means "not available", not

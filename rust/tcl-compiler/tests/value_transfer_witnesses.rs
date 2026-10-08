@@ -9124,3 +9124,20 @@ fn a_call_past_the_rerun_depth_takes_the_summarys_step() {
     }
     prints_under_every_release(source, "gone\ngone\n");
 }
+
+/// `split` of the empty string is the empty list under every release, and
+/// `tcl opt` folds it through the `split` route: the registry's literal
+/// folder made it `{}` (#2418), so `set x [split ""]` became `set x {{}}`
+/// and `puts [llength $x]` printed 1 where tclsh prints 0.
+#[test]
+fn split_of_the_empty_string_is_the_empty_list() {
+    let source = "proc p {} {\n    set x [split \"\"]\n    puts [llength $x]\n    puts \"<[split {}]>\"\n}\np\n";
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let (rewritten, rewrites) = optimised(source, dialect);
+        assert!(
+            !rewritten.contains("{{}}") && !rewritten.contains("puts 1"),
+            "{dialect}: `split \"\"` is the empty list\n{rewritten}\n{rewrites:#?}"
+        );
+    }
+    prints_under_every_release(source, "0\n<>\n");
+}

@@ -3343,3 +3343,301 @@ fn list_cell_updates_match_every_release_on_path() {
         );
     }
 }
+
+/// What a pure route declared on `command ?sub?` answers over literal words
+/// under `version` — or, with none, the answer every release gives — through
+/// the shared literal entry codegen and O129 use.
+fn literal_route(
+    reg: &CommandRegistry,
+    command: &str,
+    sub: Option<&str>,
+    args: &[&str],
+    version: Option<tcl_dialect::TclVersion>,
+) -> Option<String> {
+    use tcl_registry::value_transfer::{evaluate_literal, resolve_semantics};
+
+    let spec = reg.get(command).expect(command);
+    let resolved = match sub {
+        Some(name) => resolve_semantics(spec, Some(spec.subcommand(name).expect(name)), None),
+        None => resolve_semantics(spec, None, None),
+    };
+    let semantics = resolved.semantics().expect("a declared route");
+    evaluate_literal(semantics, command, sub, args, version)
+}
+
+/// `file` path witnesses: `(subcommand, names)`.
+type PathWitness = (&'static str, &'static [&'static str]);
+
+/// Names every platform and release reads alike, through each operation.
+const PATH_WITNESSES: &[PathWitness] = &[
+    ("dirname", &["a"]),
+    ("dirname", &["a/b/c.txt"]),
+    ("dirname", &["a//b/c"]),
+    ("dirname", &["a/./b"]),
+    ("dirname", &["../a"]),
+    ("dirname", &[""]),
+    ("dirname", &["/"]),
+    ("dirname", &["/a"]),
+    ("dirname", &["/a/b/"]),
+    ("dirname", &["a b/c d.e"]),
+    ("tail", &["a/b/c.txt"]),
+    ("tail", &["/a/b/"]),
+    ("tail", &["/"]),
+    ("tail", &[""]),
+    ("tail", &["a//b"]),
+    ("tail", &["./"]),
+    ("extension", &["a/b/c.txt"]),
+    ("extension", &[".bashrc"]),
+    ("extension", &["a/.bashrc"]),
+    ("extension", &["a/b.c/"]),
+    ("extension", &["a.b/c"]),
+    ("extension", &[".."]),
+    ("extension", &["x.tar.gz"]),
+    ("rootname", &["a/b/c.txt"]),
+    ("rootname", &[".bashrc"]),
+    ("rootname", &["a/b.c/"]),
+    ("rootname", &["/.."]),
+    ("rootname", &["x.tar.gz"]),
+    ("split", &["a/b/c"]),
+    ("split", &["/a//b/"]),
+    ("split", &[""]),
+    ("split", &["/"]),
+    ("split", &["a b/c"]),
+    ("split", &["./a/../b"]),
+    ("join", &["a", "b"]),
+    ("join", &["a", "/b"]),
+    ("join", &["/a", "b"]),
+    ("join", &["a", "b/"]),
+    ("join", &["a/", "b"]),
+    ("join", &["a", "", "b"]),
+    ("join", &["", "a"]),
+    ("join", &["a", ".", ".."]),
+    ("join", &["/", "a"]),
+    ("join", &["a/b", "/c/d", "e"]),
+    ("join", &[" ", "a"]),
+    ("join", &["a"]),
+];
+
+/// Names Windows or a release reads otherwise: each declines.
+const PATH_PLATFORM_WITNESSES: &[PathWitness] = &[
+    ("dirname", &["C:/a"]),
+    ("tail", &["a\\b"]),
+    ("split", &["//srv/share/a"]),
+    ("join", &["a", "~b"]),
+    ("extension", &["~/x.y"]),
+    ("rootname", &["x:y.z"]),
+    ("join", &["x", "C:y"]),
+];
+
+/// VT7.3: each `file` path route answers what every release's `tclsh` gives
+/// for a name every platform and release reads alike, under each release and
+/// with no release named, and declines a name Windows or a release reads
+/// otherwise (D331).
+#[test]
+fn path_routes_match_every_release_on_path() {
+    let reg = CommandRegistry::build_default();
+    let mut releases = 0usize;
+    for version in tcl_dialect::TclVersion::ALL {
+        let Some(tclsh) = find_tclsh(version.version_string()) else {
+            continue;
+        };
+        releases += 1;
+        for &(sub, names) in PATH_WITNESSES {
+            let want = tcl_value(&tclsh, &tcl_command("file", Some(sub), names));
+            assert!(
+                want.is_some(),
+                "tclsh{}: file {sub} {names:?} raised",
+                version.version_string()
+            );
+            let got = literal_route(&reg, "file", Some(sub), names, Some(version));
+            assert_eq!(
+                got,
+                want,
+                "tclsh{}: file {sub} {names:?}",
+                version.version_string()
+            );
+        }
+        for &(sub, names) in PATH_PLATFORM_WITNESSES {
+            let got = literal_route(&reg, "file", Some(sub), names, Some(version));
+            assert_eq!(
+                got,
+                None,
+                "{}: file {sub} {names:?} answered",
+                version.version_string()
+            );
+        }
+    }
+    for &(sub, names) in PATH_WITNESSES {
+        assert!(
+            literal_route(&reg, "file", Some(sub), names, None).is_some(),
+            "no release named: file {sub} {names:?} declined"
+        );
+    }
+    if releases == 0 {
+        eprintln!("path_routes_match_every_release_on_path: no tclsh found, skipped");
+    }
+}
+
+/// `(command, subcommand, args)` for the search routes.
+type SearchWitness = (&'static str, Option<&'static str>, &'static [&'static str]);
+
+/// `split`, `string first` and `string match` witnesses, each compared with
+/// every release's `tclsh` (a release that raises declines or raises).
+const SEARCH_WITNESSES: &[SearchWitness] = &[
+    ("split", None, &["a b c"]),
+    ("split", None, &[" a  b "]),
+    ("split", None, &["a\tb\nc\rd"]),
+    ("split", None, &["a\u{b}b\u{c}c d"]),
+    ("split", None, &[""]),
+    ("split", None, &["a,b,,c", ","]),
+    ("split", None, &["abc", ""]),
+    ("split", None, &["a.b-c", ".-"]),
+    ("split", None, &["#a b"]),
+    ("split", None, &["{a} b"]),
+    ("split", None, &["a\\ b"]),
+    ("split", None, &["/api/v1?x=1&y=2", "?"]),
+    ("string", Some("first"), &["a", "abc"]),
+    ("string", Some("first"), &["bc", "abc"]),
+    ("string", Some("first"), &["x", "abc"]),
+    ("string", Some("first"), &["", "abc"]),
+    ("string", Some("first"), &["a", ""]),
+    ("string", Some("first"), &["a", "aaa", "1"]),
+    ("string", Some("first"), &["a", "aaa", "end"]),
+    ("string", Some("first"), &["a", "aaa", "end-1"]),
+    ("string", Some("first"), &["a", "aaa", "5"]),
+    ("string", Some("first"), &["a", "aaa", "-1"]),
+    ("string", Some("first"), &["a", "abca", "1+1"]),
+    ("string", Some("first"), &["a", "abcabca", "010"]),
+    ("string", Some("first"), &["c", "abc", "0x1"]),
+    ("string", Some("first"), &["abcd", "abc"]),
+    ("string", Some("first"), &["?", "/p?q"]),
+    ("string", Some("match"), &["a", "a"]),
+    ("string", Some("match"), &["a*", "abc"]),
+    ("string", Some("match"), &["*c", "abc"]),
+    ("string", Some("match"), &["?b?", "abc"]),
+    ("string", Some("match"), &["[ab]c", "bc"]),
+    ("string", Some("match"), &["[a-c]", "b"]),
+    ("string", Some("match"), &["[a-]", "-"]),
+    ("string", Some("match"), &["\\*", "*"]),
+    ("string", Some("match"), &["*", ""]),
+    ("string", Some("match"), &["", ""]),
+    ("string", Some("match"), &["", "a"]),
+    ("string", Some("match"), &["-nocase", "A", "a"]),
+    ("string", Some("match"), &["-nocase", "[A-C]", "b"]),
+    ("string", Some("match"), &["-n", "A", "a"]),
+    ("string", Some("match"), &["[!a]", "b"]),
+    ("string", Some("match"), &["[z-a]", "m"]),
+    ("string", Some("match"), &["a[", "a["]),
+    ("string", Some("match"), &["*/api/*", "/x/api/y"]),
+    ("string", Some("match"), &["-bogus", "a", "a"]),
+];
+
+/// VT7.4: `split`, `string first` and `string match` answer on their direct
+/// routes what each release's `tclsh` gives, decline or raise where it
+/// raises, and with no release named answer only where every release
+/// agrees.
+#[test]
+fn search_routes_match_every_release_on_path() {
+    let reg = CommandRegistry::build_default();
+    let mut answers: Vec<Vec<Option<String>>> = vec![Vec::new(); SEARCH_WITNESSES.len()];
+    let mut releases = 0usize;
+    for version in tcl_dialect::TclVersion::ALL {
+        let Some(tclsh) = find_tclsh(version.version_string()) else {
+            continue;
+        };
+        releases += 1;
+        for (index, &(command, sub, args)) in SEARCH_WITNESSES.iter().enumerate() {
+            let words: Vec<String> = args.iter().map(|arg| tcl_quoted_word(arg)).collect();
+            let mut script = command.to_owned();
+            if let Some(sub) = sub {
+                script.push(' ');
+                script.push_str(sub);
+            }
+            for word in &words {
+                script.push(' ');
+                script.push_str(word);
+            }
+            let want = tcl_value(&tclsh, &script);
+            let got = literal_route(&reg, command, sub, args, Some(version));
+            assert_eq!(got, want, "tclsh{}: {script}", version.version_string());
+            answers[index].push(want);
+        }
+    }
+    if releases < tcl_dialect::TclVersion::ALL.len() {
+        return;
+    }
+    let mut unanswered = 0usize;
+    for (index, &(command, sub, args)) in SEARCH_WITNESSES.iter().enumerate() {
+        let every = &answers[index];
+        let agreed = every
+            .first()
+            .cloned()
+            .flatten()
+            .filter(|first| every.iter().all(|answer| answer.as_ref() == Some(first)));
+        // An index the grammars read apart (`010`) declines even where the
+        // answers meet; any answer given is every release's.
+        let got = literal_route(&reg, command, sub, args, None);
+        if got.is_some() || agreed.is_none() {
+            assert_eq!(got, agreed, "no release named: {command} {sub:?} {args:?}");
+        } else {
+            unanswered += 1;
+        }
+    }
+    assert!(
+        unanswered <= 1,
+        "{unanswered} agreed answers declined with no release named"
+    );
+}
+
+/// A non-ASCII operand answers only where the target decodes source as
+/// UTF-8, and `string match -nocase` over one never answers: each release
+/// folds case by its own tables.
+#[test]
+fn a_search_route_reads_non_ascii_only_where_the_release_decodes_it() {
+    use tcl_dialect::TclVersion;
+    let reg = CommandRegistry::build_default();
+    let route =
+        |command, sub, args: &[&str], version| literal_route(&reg, command, sub, args, version);
+    assert_eq!(route("split", None, &["é b"], Some(TclVersion::V8_6)), None);
+    assert_eq!(
+        route("split", None, &["é b"], Some(TclVersion::V9_0)).as_deref(),
+        Some("é b")
+    );
+    assert_eq!(
+        route(
+            "string",
+            Some("first"),
+            &["b", "éb"],
+            Some(TclVersion::V9_0)
+        )
+        .as_deref(),
+        Some("1")
+    );
+    assert_eq!(
+        route(
+            "string",
+            Some("match"),
+            &["é*", "éa"],
+            Some(TclVersion::V9_0)
+        )
+        .as_deref(),
+        Some("1")
+    );
+    assert_eq!(
+        route(
+            "string",
+            Some("match"),
+            &["-nocase", "É", "é"],
+            Some(TclVersion::V9_0)
+        ),
+        None
+    );
+    assert_eq!(
+        route("file", Some("tail"), &["a/é"], Some(TclVersion::V9_0)).as_deref(),
+        Some("é")
+    );
+    assert_eq!(
+        route("file", Some("tail"), &["a/é"], Some(TclVersion::V8_6)),
+        None
+    );
+}

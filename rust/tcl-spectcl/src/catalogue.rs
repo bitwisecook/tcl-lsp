@@ -564,6 +564,15 @@ pub const NATIVE_EVAL_IDS: &[Variant] = &[
     v("UriEncode", "the iRules URI::encode"),
     v("UriCompare", "the iRules URI::compare"),
     v("IpAddrEquals", "the iRules IP::addr ... equals ..."),
+    v("PathJoin", "file join"),
+    v("PathDirname", "file dirname"),
+    v("PathTail", "file tail"),
+    v("PathExtension", "file extension"),
+    v("PathRootname", "file rootname"),
+    v("PathSplit", "file split"),
+    v("ListSplit", "split"),
+    v("StringFirst", "string first"),
+    v("StringMatch", "string match"),
 ];
 
 /// [`tcl_registry::value_transfer::LanguageProfileId::ALL`] — `evaluate

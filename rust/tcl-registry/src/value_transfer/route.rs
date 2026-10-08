@@ -452,6 +452,24 @@ pub enum NativeEvalId {
     UriCompare,
     /// `IP::addr A equals B`: whether two addresses share a network.
     IpAddrEquals,
+    /// `file join`: the names' elements after the last absolute name's.
+    PathJoin,
+    /// `file dirname`: a name's elements but the last.
+    PathDirname,
+    /// `file tail`: a name's last element.
+    PathTail,
+    /// `file extension`: a name from its last dot, no separator after it.
+    PathExtension,
+    /// `file rootname`: a name without its extension.
+    PathRootname,
+    /// `file split`: a name's elements, as a list.
+    PathSplit,
+    /// `split`: a string's pieces between separator characters, as a list.
+    ListSplit,
+    /// `string first`: the index of a needle's first occurrence.
+    StringFirst,
+    /// `string match`: whether a string matches a glob pattern.
+    StringMatch,
 }
 
 impl NativeEvalId {
@@ -511,6 +529,15 @@ impl NativeEvalId {
         Self::UriEncode,
         Self::UriCompare,
         Self::IpAddrEquals,
+        Self::PathJoin,
+        Self::PathDirname,
+        Self::PathTail,
+        Self::PathExtension,
+        Self::PathRootname,
+        Self::PathSplit,
+        Self::ListSplit,
+        Self::StringFirst,
+        Self::StringMatch,
     ];
 
     /// Stable spelling for the inventory and the Explorer.
@@ -571,6 +598,15 @@ impl NativeEvalId {
             Self::UriEncode => "uri-encode",
             Self::UriCompare => "uri-compare",
             Self::IpAddrEquals => "ip-addr-equals",
+            Self::PathJoin => "path-join",
+            Self::PathDirname => "path-dirname",
+            Self::PathTail => "path-tail",
+            Self::PathExtension => "path-extension",
+            Self::PathRootname => "path-rootname",
+            Self::PathSplit => "path-split",
+            Self::ListSplit => "list-split",
+            Self::StringFirst => "string-first",
+            Self::StringMatch => "string-match",
         }
     }
 
@@ -631,7 +667,16 @@ impl NativeEvalId {
             | Self::UriDecode
             | Self::UriEncode
             | Self::UriCompare
-            | Self::IpAddrEquals => EvaluatorOwner::Registry,
+            | Self::IpAddrEquals
+            | Self::PathJoin
+            | Self::PathDirname
+            | Self::PathTail
+            | Self::PathExtension
+            | Self::PathRootname
+            | Self::PathSplit
+            | Self::ListSplit
+            | Self::StringFirst
+            | Self::StringMatch => EvaluatorOwner::Registry,
         }
     }
 }
