@@ -160,6 +160,10 @@ checkpoint compiling.
   registry declarations a summary is derived from, matching no command by
   name) have landed; slice 7, the last, is planned item by item in the
   tracking document's § *Plan for slices 2–13*.
+- [value-transfers-review-7.md](value-transfers-review-7.md) — the
+  slice 7 (broader execution and runtime consumers) adversarial review's
+  findings: B 4, S 1, N 5, P 6, verdict "rework", every item ruled on the
+  hand-off page and fixed in two commits.
 - [value-transfers-review-13.md](value-transfers-review-13.md) — the
   slice 13 (proc-level transfer summaries) adversarial review's findings:
   B 2, S 2, N 6, P 8, verdict "rework", every item ruled on the hand-off
