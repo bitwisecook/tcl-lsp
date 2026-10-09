@@ -67,17 +67,16 @@ User-facing compiler troubleshooting and how-tos live in
   and liveness.
 - [constant-folding-type-inference.md](constant-folding-type-inference.md)
   — SCCP and type lattice.
-- [value-transfers.md](value-transfers.md) — **proposal** for the
-  registry's value axis (issue #1943): the complete consumer interface
-  contract — the ownership boundary, one invocation and one analysis
+- [value-transfers.md](value-transfers.md) — the registry's value axis
+  (issue #1943): the consumer interface contract — the ownership boundary, one invocation and one analysis
   context, the answer protocol of result plus ordered storage outcomes
   indexed by completion path, the three permissions, the lift over the
   lattice, the existence rung, the template-word plan, the ordered
   evaluation state behind `expr` as the first client, branch facts with
   predicate refinement as edge facts, bounded-loop enumeration,
   proc-level transfer summaries, and diagnostics as consumers of facts.
-- [value-evaluation.md](value-evaluation.md) — **proposal**: the evaluation
-  contract — the direct route over the shared cores through `ConstOps`, its
+- [value-evaluation.md](value-evaluation.md) — the evaluation contract
+  behind that interface — the direct route over the shared cores through `ConstOps`, its
   adapters and the closed admissibility axis set, the shared expression
   engine, the regexp owner with typed precision, the
   declared-implementation route in the bounded engine with per-evaluation
@@ -247,14 +246,13 @@ User-facing compiler troubleshooting and how-tos live in
   ownership, typed finding contracts, and overlap rules.
 - [diagnostics-integration.md](diagnostics-integration.md) — aggregation
   and suppression policy boundary.
-- [diagnostic-policy.md](diagnostic-policy.md) — **proposal** for one
-  diagnostic policy owner below every surface (issue #2089): the four
-  stages from typed producers through one `apply` to thin adapters, the
-  policy value covering the five documented suppression scopes,
-  default-off seeding, severity overrides, the optimiser and shimmer
-  switches, overlap precedence and encoding abstention, what each of the
-  editor, CLI, MCP, code-action and `tcl opt` surfaces applies today, and
-  where each part lives.
+- [diagnostic-policy.md](diagnostic-policy.md) — one diagnostic
+  policy owner below every surface (issue #2089): typed producers,
+  one `Policy` holding the five documented suppression scopes, default-off
+  seeding, severity overrides, the optimiser and shimmer switches, overlap
+  precedence and encoding abstention, one `apply` that keeps a suppressed
+  finding with its reason, thin adapters for the editor, the CLI, the MCP
+  tools, code actions and `tcl opt`, and the truth table every adapter runs.
 - [async-diagnostics-tiering.md](async-diagnostics-tiering.md) —
   fast/deep tiering and cancellation expectations.
 

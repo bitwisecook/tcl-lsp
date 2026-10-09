@@ -52,16 +52,15 @@ passes, and ownership matrices.
   pipeline, with diagrams and cross-links to the stage documents.
 - [example-walkthroughs.md](compiler/example-walkthroughs.md) — full pipeline
   traces for progressively complex Tcl scripts.
-- [value-transfers.md](compiler/value-transfers.md) — **proposal** for the
-  registry's value axis (issue #1943): the complete consumer interface
-  contract under which the registry owns what an invocation computes and
+- [value-transfers.md](compiler/value-transfers.md) — the registry's value
+  axis (issue #1943): the consumer interface contract under which the registry owns what an invocation computes and
   writes and the analyser owns the generic operations that apply it — the
   rulings, the answer protocol of result plus ordered storage outcomes, the
   three permissions, the existence rung, completion paths, predicate
   refinement as edge facts, the ordered evaluation state, proc-level
   transfer summaries, and bounded-loop enumeration.
-- [value-evaluation.md](compiler/value-evaluation.md) — **proposal**: the
-  evaluation contract behind that interface — the direct, expression, and
+- [value-evaluation.md](compiler/value-evaluation.md) — the evaluation
+  contract behind that interface — the direct, expression, and
   declared-implementation routes, the shared cores behind `ConstOps` with
   their admissibility axes, the regexp owner, the bounded engine, one
   analysis context and one memo, budgets and cancellation, target
@@ -119,7 +118,7 @@ passes, and ownership matrices.
   implementation and the identity kind codegen chooses from the backing, and
   the extension evaluation route that binds the seam — **not built**.
 - [diagnostic-policy.md](compiler/diagnostic-policy.md) — one diagnostic
-  policy owner below every surface (issue #2089), built: typed producers,
+  policy owner below every surface (issue #2089): typed producers,
   one `Policy` holding the five documented suppression scopes, default-off
   seeding, severity overrides, the optimiser and shimmer switches, overlap
   precedence and encoding abstention, one `apply` that keeps a suppressed

@@ -784,7 +784,7 @@ KCS tag: `type-infer`.
 
 ### Value transfer
 
-The proposed registry-owned answer for one command invocation on the value
+The registry-owned answer for one command invocation on the value
 axis: the command's result, the ordered outcome for each storage place it
 may affect — write a value, preserve the prior state, unbind, or may-write
 with bounded facts — the semantic types of both, and the evidence the
@@ -795,10 +795,15 @@ prove operands, resolve places, validate the answer, and join it into the
 deletion of the producing operation. Computed through a declared evaluator
 route (a shared core, the shared expression engine, or a declared
 implementation in the bounded engine), never inferred from purity.
-The direct route is built: `incr`, `append`, `lappend`, the
-[cell write](#cell-write) behind `set`, the [keyed updates](#keyed-update)
-of `dict`, `string range`, `list`, `llength`, and `string length` answer
-through it; the other routes and outcomes are proposed.
+The routes are `EvalRoute::Direct`, `Expression`, and `Implementation`,
+with `None` for a declared absence
+(`rust/tcl-registry/src/value_transfer/route.rs`), and the outcomes write,
+preserve, unbind, and may-write (`StoreOutcome` in
+`rust/tcl-registry/src/value_transfer/answers.rs`). `incr`, `append`,
+`lappend`, the [cell write](#cell-write) behind `set`, the
+[keyed updates](#keyed-update) of `dict`, `string range`, `list`,
+`llength`, and `string length` are among the commands the direct route
+answers.
 
 See also: [Value transfers](design/compiler/value-transfers.md), [Value evaluation](design/compiler/value-evaluation.md), [Worked examples](design/compiler/value-transfers-examples.md), [Value-transfer migration](design/compiler/value-transfers-migration.md), [Registry consumer contracts](design/compiler/registry-consumer-contracts.md), [Diagnostic policy](design/compiler/diagnostic-policy.md), and
 [Constant folding](#constant-folding).
@@ -836,29 +841,30 @@ See also: [Value transfers § Storage-writing commands](design/compiler/value-tr
 
 ### Completion path
 
-One way a proposed [value transfer](#value-transfer) lets an invocation
+One way a [value transfer](#value-transfer) lets an invocation
 complete: normally, with a completion code (`return`, `break`, `continue`,
 a numeric `-code`), or with an error after a known prefix of its ordered
 stores. Storage outcomes are indexed by completion path, and the prefix
 rule fixes what an error edge leaves behind: the outcome says how many of
 the ordered stores ran, and every target after that index is preserved.
-Proposed as `CompletionPath`, alongside the `CompletionProtocol` that says
-how a body's completion becomes the command's.
+`CompletionPath`, alongside the `CompletionProtocol` that says how a
+body's completion becomes the command's
+(`rust/tcl-registry/src/value_transfer/answers.rs`).
 
 See also: [Value transfers § `catch`, `try`, and completion](design/compiler/value-transfers.md#catch-try-and-completion).
 
 ### Existence
 
-The proposed third lattice rung: a flow-sensitive bound/unbound fact per
+The third lattice rung: a flow-sensitive bound/unbound fact per
 storage place and per SSA version of its binding, with `Pending` as the
 bottom, `Unbound`, `Bound` carrying the binding kind of a proven scalar or
 array, and `MayBound` as the top. The solver owns it and storage outcomes
 feed it — a write binds, a preserve leaves the fact alone, an unbind
 clears it, a may-write joins with the prior fact — so W210, W211, W213,
 W214, I230, O101, O108, O109, and S100 read one fact inside the fixed
-point rather than whole-body scans and a post-pass `[info exists]` fold.
-Proposed as `Existence`, with an `ExistenceTransfer` per
-[completion path](#completion-path).
+point. `Existence`, with an `ExistenceTransfer` per
+[completion path](#completion-path)
+(`rust/tcl-registry/src/value_transfer/answers.rs`).
 
 See also: [Value transfers § Existence](design/compiler/value-transfers.md#existence),
 [Lattice](#lattice).
@@ -884,13 +890,14 @@ See also: [Value transfers § Predicate refinement](design/compiler/value-transf
 The final argument of a substituting command, which the command reads
 through itself instead of receiving already substituted — `subst {hello
 $name}` reads `name` out of a braced word every other command treats as
-literal text. The proposed
+literal text. The template-word
 plan is the one fact its consumers share: which substitution kinds run,
 from the switch operands the analysis proves; whether the word is braced,
 and so whether its `$name` and `[…]` source text is readable at all; and
 the script regions, variable reads, and backslash escapes in template
-order. Proposed as `TemplateWordPlan`, for W102, the two template folders,
-extract-proc, and the dynamic-name barrier.
+order. `TemplateWordPlan`
+(`rust/tcl-registry/src/value_transfer/answers.rs`), read by W102, the two
+template folders, extract-proc, and the dynamic-name barrier.
 
 See also: [Value transfers § The template-word plan](design/compiler/value-transfers.md#the-template-word-plan).
 
@@ -904,14 +911,15 @@ evaluates nothing. The route is resolved with the binding and the selected
 form and is always declared — purity classifies a command but never
 supplies an evaluator, a cost bound, or its dependencies — and a route
 that cannot support the requested target semantics declines instead of
-answering under a default. Proposed as `EvalRoute`, whose implementation
+answering under a default. `EvalRoute`
+(`rust/tcl-registry/src/value_transfer/route.rs`), whose implementation
 identity and revision enter every memo key.
 
 See also: [Value evaluation § Three routes, declared on the spec](design/compiler/value-evaluation.md#three-routes-declared-on-the-spec).
 
 ### Admissibility
 
-The proposed proof that the target profile answers every release axis an
+The proof that the target profile answers every release axis an
 evaluation reads, before it runs. `Needs` is the closed set of those axes
 — numeral and index grammar, the character model and indexing unit, the
 integer tower, `binary` fields, `format` verbs, `string is` classes,
@@ -920,18 +928,19 @@ source encoding, the platform, and the wall clock — and `ConstOps` is the
 value model a direct-route core is handed once `admit` proves them, so an
 ambiguous axis is a typed decline rather than a guess. `PLATFORM` and
 `WALL_CLOCK` are never satisfiable, which keeps a clock- or host-reading
-core off the route by construction instead of by a whitelist.
+core off the route by construction instead of by a whitelist. Both are in
+`rust/tcl-registry/src/value_transfer/const_ops.rs`.
 
 See also: [Value evaluation § The admissibility set](design/compiler/value-evaluation.md#the-admissibility-set).
 
 ### Evaluator generation
 
-The proposed counter in the analysis context that changes whenever the set
+The counter in the analysis context that changes whenever the set
 or the health of a thread's evaluators changes — an engine host installed
 or cleared, a hook quarantined. It enters every memo key once, so a worker
 with no host and a worker with one never share an entry and an otherwise
-identical query cannot silently change its answer. Proposed as
-`EvaluatorGeneration`.
+identical query cannot silently change its answer. `EvaluatorGeneration`
+(`rust/tcl-registry/src/value_transfer/context.rs`).
 
 See also: [Value evaluation § The evaluator generation](design/compiler/value-evaluation.md#the-evaluator-generation),
 [salsa](#salsa).
@@ -1174,7 +1183,7 @@ KCS tag: `ipa`.
 
 ### Transfer summary
 
-The proposed caller-visible transfer of one procedure: which caller places
+The caller-visible transfer of one procedure: which caller places
 its name arguments denote and what happens to each in order, the places
 outside its frame it may write, its result shape, its completion domain,
 and its effect footprint. It is derived from the callee's own analysis
@@ -1182,7 +1191,8 @@ over the seedless lattice — parameters `Overdefined`, no call-site seeds —
 so it holds for every caller, while a value exact only under a seed
 belongs to the argument-sensitive re-run instead. One summary per
 procedure, context-insensitive, composed bottom-up over the call graph
-beside [`ProcSummary`](#ipa); proposed as `TransferSummary`.
+beside [`ProcSummary`](#ipa): `TransferSummary` in
+`rust/tcl-compiler/src/interprocedural/transfer.rs`.
 
 See also: [Value transfers § Proc-level transfer summaries](design/compiler/value-transfers.md#proc-level-transfer-summaries).
 KCS tag: `ipa`.
