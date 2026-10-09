@@ -85,12 +85,11 @@ User-facing compiler troubleshooting and how-tos live in
   and cancellation, target semantics, and the `.tclspec` authoring grammar
   stated as row shapes per statement, block, option flag and body verb.
 - [value-transfers-examples.md](value-transfers-examples.md) —
-  **proposal**: worked examples — one program per optimisation and
-  diagnostic code the value axis touches and per designed rung, each with
-  the tool's observed behaviour today and what the contracts change, the
-  defects running the corpus exposed, and the declarations behind the
-  examples as they would be written in the Rust command registry and in a
-  `.tclspec` pack.
+  worked examples — one program per optimisation and diagnostic code the
+  value axis touches and per rung, each with what the tool reports and the
+  rule behind it, the open defects the examples witness, and the
+  declarations behind the examples as they are written in the Rust command
+  registry and in `.tclspec` packs.
 - [value-transfers-migration.md](value-transfers-migration.md) —
   the migration plan — the versioned inventory of hand-written command
   knowledge, what changes for every analysis, optimisation, and diagnostic,

@@ -67,12 +67,11 @@ passes, and ownership matrices.
   analysis context and one memo, budgets and cancellation, target
   semantics, and the `.tclspec` authoring grammar as row shapes.
 - [value-transfers-examples.md](compiler/value-transfers-examples.md) —
-  **proposal**: worked examples — one program per optimisation and
-  diagnostic code the value axis touches and per designed rung, each with
-  the tool's observed behaviour today and what the contracts change, the
-  defects running the corpus exposed, and the declarations behind the
-  examples as they would be written in the Rust command registry and in a
-  `.tclspec` pack.
+  worked examples — one program per optimisation and diagnostic code the
+  value axis touches and per rung, each with what the tool reports and the
+  rule behind it, the open defects the examples witness, and the
+  declarations behind the examples as they are written in the Rust command
+  registry and in `.tclspec` packs.
 - [value-transfers-migration.md](compiler/value-transfers-migration.md) —
   the migration plan — the versioned inventory of hand-written command
   knowledge, what changes for every analysis, optimisation, and diagnostic,

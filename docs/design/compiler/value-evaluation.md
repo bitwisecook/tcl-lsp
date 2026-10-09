@@ -28,8 +28,8 @@ and before promising that two implementations agree.
 > DSL vocabulary 2.2 — is loader syntax today
 > ([spec-dsl-examples/README.md](../spec-dsl-examples/README.md)
 > § *Vocabulary changelog*), proven by the fixture behind
-> [value-transfers-examples.md](value-transfers-examples.md) § *A vendor
-> loop and a private command in a workspace pack*; the
+> [value-transfers-examples.md](value-transfers-examples.md) § *A private
+> command in a workspace pack*; the
 > `-host wasm_extension` host and its `extension FILE PREFIX` row are
 > § *The declared-implementation route* › *The extension host*. No
 > shipped builtin has been moved onto the DSL: every shipped route is Rust
@@ -1731,7 +1731,7 @@ below stay illustrative, showing what a pack author would write for a
 command shaped like them, exactly as a pack author writing a private
 command does today (the `tenant::label` worked example, built and tested
 verbatim as
-[the completion-test fixture](value-transfers-examples.md#a-vendor-loop-and-a-private-command-in-a-workspace-pack),
+[the completion-test fixture](value-transfers-examples.md#a-private-command-in-a-workspace-pack),
 ). Migrating the shipped catalogue onto `semantics` / `evaluate` is not
 done.
 

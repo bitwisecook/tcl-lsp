@@ -1,6 +1,6 @@
 # Hand-off: the value-transfer branch before its PR to `rust`
 
-**Temporary.** This file and `SPECTCL_BRANCH_REVIEW.md` are deleted, in their own commit, before the pull request is opened. Nothing in it is repository documentation. Updated at every push; last update 2026-10-09, with the B6 commit.
+**Temporary.** This file and `SPECTCL_BRANCH_REVIEW.md` are deleted, in their own commit, before the pull request is opened. Nothing in it is repository documentation. Updated at every push; last update 2026-10-09, with the B2a commit.
 
 ## Where things stand
 
@@ -11,9 +11,11 @@
   - f82eaefbd `fix(analyser): the proven index check reports each site once and covers nested calls` (B3)
   - ea9f0450b `fix(registry): a store a declared outcome may preserve is live` (B5)
   - 5713e4bd4 + d05eac825: the second review (`SPECTCL_BRANCH_REVIEW.md`) and its merge, from the user's side.
-- Committed on top of 8f9a9de85, awaiting push and the full gate: `fix(analyser): the proven re-run reads a return terminator's option words` (B6). The implementer's own checks for it: fmt, clippy (`-D warnings -A clippy::assert_is_empty`), `tcl-compiler` lib 6758/6758, `tcl-spectcl` lib and integration suites green; the remaining `tcl-compiler` integration binaries were still running at commit time.
-- **In the working tree, uncommitted:** the rewritten examples page (`docs/design/compiler/value-transfers-examples.md`, `docs/design/README.md`, `docs/design/compiler/README.md`, `docs/design/compiler/value-evaluation.md`), committed next (B2a) with its placeholders resolved as the fixed behaviour after B5 and B6 and #2441 on the bounded-loop example.
-- Next after B2a: B7 (revised: report the bindable set of direct evaluators before coding), then B8 … B15 in the plan's order.
+- Committed on top of 8f9a9de85, awaiting push and the full gate:
+  - 233d1b3df `fix(analyser): the proven re-run reads a return terminator's option words` (B6). The implementer's own checks: fmt, clippy (`-D warnings -A clippy::assert_is_empty`), `tcl-compiler` lib 6758/6758, `tcl-spectcl` lib and integration suites green; the remaining `tcl-compiler` integration binaries were still running.
+  - `docs: the value-transfer examples describe what the tool reports` (B2a): the rewritten examples page, both design-index entries, and value-evaluation.md's two references to the page's renamed section; `make xtask-check` green. The page states B5's and B6's fixed behaviour and cites #2143, #2439, #2440 and #2441.
+- In the working tree, uncommitted: nothing.
+- Next: B7 (revised: report the bindable set of direct evaluators before coding), then B8 … B15 in the plan's order.
 - Standing states that are not defects of this branch: `cargo xtask dialect-drift` exits 1 with 8 sites present at the base (#2253); the tcl-vm tests of #2271 fail under a POSIX `LANG` and pass under `LANG=C.UTF-8`.
 
 ## How to verify and push
