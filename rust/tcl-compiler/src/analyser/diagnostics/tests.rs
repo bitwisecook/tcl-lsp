@@ -1889,6 +1889,118 @@ fn a_proven_word_is_reported_once_beside_a_written_one() {
     assert_eq!(reported, ["255.0.255.0", "255.0.255.0", "$m"], "{both}");
 }
 
+/// The source text each `code` finding of `src` is anchored at.
+fn index_findings(src: &str, code: DiagCode) -> Vec<String> {
+    Analyser::new()
+        .analyse(src, "tcl8.6")
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == code)
+        .map(|d| src[d.span.as_range()].to_owned())
+        .collect()
+}
+
+/// A `$var` index the interval checks bound is theirs, anchored at the
+/// statement; the proven-word re-run reports only the sites they cannot
+/// bound — a `split` list, a statement-level `string index`.
+#[test]
+fn an_index_site_is_reported_once() {
+    let rows: [(&str, DiagCode, &str); 6] = [
+        (
+            "set l {a b c}\nset i 9\nlindex $l $i\n",
+            DiagCode::W230,
+            "lindex $l $i",
+        ),
+        (
+            "set l [list a b c]\nset i 9\nlindex $l $i\n",
+            DiagCode::W230,
+            "lindex $l $i",
+        ),
+        (
+            "set l {a b c}\nset i 9\nputs [lindex $l $i]\n",
+            DiagCode::W230,
+            "puts [lindex $l $i]",
+        ),
+        (
+            "set l [split a,b,c ,]\nset i 9\nlindex $l $i\n",
+            DiagCode::W230,
+            "$i",
+        ),
+        (
+            "set s abc\nset i 9\nstring index $s $i\n",
+            DiagCode::W232,
+            "$i",
+        ),
+        (
+            "set s abc\nset i 9\nputs [string index $s $i]\n",
+            DiagCode::W232,
+            "puts [string index $s $i]",
+        ),
+    ];
+    for (src, code, anchor) in rows {
+        assert_eq!(index_findings(src, code), [anchor], "{code}: {src}");
+    }
+}
+
+/// A call nested in a command substitution is checked over the value its
+/// host proves, wherever the host sits: a call's words, an assignment's, a
+/// branch condition or a `return` value.
+#[test]
+fn a_nested_index_reads_the_proven_container() {
+    let rows: [(&str, DiagCode); 9] = [
+        ("set l {a b c}\nputs [lindex $l 9]\n", DiagCode::W230),
+        ("set l [list a b c]\nputs [lindex $l 9]\n", DiagCode::W230),
+        (
+            "set l [split a,b,c ,]\nputs [lindex $l 9]\n",
+            DiagCode::W230,
+        ),
+        (
+            "set l {}\nlappend l a b c\nputs [lindex $l 9]\n",
+            DiagCode::W230,
+        ),
+        ("set l {a b c}\nset x [lindex $l 9]\n", DiagCode::W230),
+        (
+            "set l {a b c}\nif {[lindex $l 9] eq {}} {puts e}\n",
+            DiagCode::W230,
+        ),
+        (
+            "proc p {} {\n    set l {a b c}\n    return [lindex $l 9]\n}\n",
+            DiagCode::W230,
+        ),
+        ("set s abc\nputs [string index $s 9]\n", DiagCode::W232),
+        (
+            "set s abc\nputs \"at [string index $s 9]\"\n",
+            DiagCode::W232,
+        ),
+    ];
+    for (src, code) in rows {
+        assert_eq!(index_findings(src, code), ["9"], "{code}: {src}");
+    }
+}
+
+/// No finding where the call is not run by the substitution — a braced
+/// word, a script run later — or where an earlier substitution in the same
+/// command writes the variable the word reads: `$i` is 0 there, in range.
+#[test]
+fn a_nested_index_reads_only_what_the_substitution_sees() {
+    for src in [
+        "set l {a b c}\nputs {[lindex $l 9]}\n",
+        "set l {a b c}\nafter 100 {puts [lindex $l 9]}\n",
+        "set i 9\nlindex {{a b} c} [set i 0] $i\n",
+        "set i 9\nputs [lindex {{a b} c} [set i 0] $i]\n",
+        "set l {a b c}\nputs [lindex [set l {a b c d e f g h i j k}] 0][lindex $l 9]\n",
+        "proc p {} {\n    set l {a b c}\n    \
+             return [lindex [set l {a b c d e f g h i j k}] 0][lindex $l 9]\n}\n",
+        "set l {a b c}\nif {[set l {a b c d e f g h i j k}] ne {} && [lindex $l 9] eq {}} {puts e}\n",
+    ] {
+        assert_eq!(
+            index_findings(src, DiagCode::W230),
+            Vec::<String>::new(),
+            "{src}"
+        );
+    }
+}
+
 #[test]
 fn w127_fires_on_invalid_option_enum_value() {
     // `-relief` carries a closed Tk value set; a literal outside it is W127.

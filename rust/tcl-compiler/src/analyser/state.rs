@@ -516,6 +516,11 @@ pub struct Analyser {
     /// not read, which the CFG/SSA pass checks again over the words' proven
     /// values.
     pub(super) proven_sites: Vec<super::diagnostics::ProvenSite>,
+    /// The out-of-range `$var` index accesses the interval checks reported:
+    /// the code, the absolute span of the statement or terminator the
+    /// finding anchors at, and the index variable. The proven-word re-run
+    /// leaves each of these sites to them.
+    pub(super) interval_index_sites: HashSet<(DiagCode, Span, String)>,
     /// The conditional loops the walk examined, each with what its text says
     /// about its termination (W240 / W241 / W242). The CFG/SSA pass resolves
     /// each against its unit's branch fact at the condition's span
@@ -1575,6 +1580,7 @@ impl Analyser {
             version_gate_sites: Vec::new(),
             dsl_gate_sites: Vec::new(),
             proven_sites: Vec::new(),
+            interval_index_sites: HashSet::new(),
             loop_candidates: Vec::new(),
             loop_unseen_writes: super::bounds_checks::ModuleUnseenWrites::default(),
             pending_option_conflicts: Vec::new(),
@@ -3237,6 +3243,7 @@ impl Analyser {
         // deferred calls into the next.
         self.deferred_class_creations.clear();
         self.proven_sites.clear();
+        self.interval_index_sites.clear();
         self.loop_candidates.clear();
         self.loop_unseen_writes = super::bounds_checks::ModuleUnseenWrites::default();
         self.pending_bareword_dispatch_sites = None;

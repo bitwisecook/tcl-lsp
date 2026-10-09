@@ -85,6 +85,9 @@ pub struct LiftedCall {
     /// its word count disagreed with the argument split; a consumer that reads
     /// this must keep working without it.
     pub arg_words: Vec<WordExpr>,
+    /// The substitution's own words as [`nested_command_words`] recovers
+    /// them, the command word at `0`; `None` when it declined.
+    pub words: Option<CommandTokens>,
     /// Absolute source span of the whole `[…]`.
     pub span: Span,
 }
@@ -479,6 +482,7 @@ fn push_substitution(
         args,
         arg_spans,
         arg_words,
+        words: nested,
         span,
     });
 }

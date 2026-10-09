@@ -4645,6 +4645,10 @@ pub struct StatementId {
 /// an expansion, a word respelled after lowering — is `None`, as is any
 /// word of a statement the solver never reached. Only a whole-word
 /// variable read carries a folded type, the one its definition states.
+/// A read of a name the statement writes is `None` once one of its words'
+/// command substitutions has run: the substitution may have written it,
+/// and the statement holds the one use version from before
+/// (`set i 9; lindex $l [set i 0] $i` reads `$i` as 0).
 /// `config` is the document's grammar, which the literal runs are decoded
 /// under: the unit does not keep one.
 #[must_use]
@@ -4674,11 +4678,157 @@ pub fn proven_word_value(
     };
     let arguments = call_arguments(args, tokens.as_ref(), &config);
     let argument = arguments.get(word.checked_sub(1)?)?;
+    let written = if at.defs.is_empty() {
+        HashSet::new()
+    } else {
+        let start = tokens
+            .as_ref()
+            .and_then(|tokens| tokens.argv.get(word))
+            .map(|span| span.start());
+        written_before(
+            at,
+            start,
+            &crate::word_subst::lifted_calls(tokens.as_ref(), config),
+        )
+    };
+    proven_argument(argument, &at.uses, &written, fu, config)
+}
+
+/// Where a command substitution runs: in a statement's words, or in a
+/// block's terminator — a `return` value or a branch condition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SubstitutionHost {
+    /// The words of a statement.
+    Statement(StatementId),
+    /// The terminator of a block.
+    Terminator(crate::cfg::BlockId),
+}
+
+/// The command substitutions `host` performs, innermost first
+/// ([`crate::word_subst`]), which [`proven_substituted_word_value`]
+/// addresses: none for a host the solver never reached, a statement with
+/// no words of its own, or a branch condition with no source offset.
+#[must_use]
+pub fn substitution_calls(
+    fu: &crate::compilation_unit::FunctionUnit,
+    host: SubstitutionHost,
+    config: LexerConfig,
+    surface: &tcl_registry::model::DocumentCommandSurface<'_>,
+) -> Vec<crate::word_subst::LiftedCall> {
+    let block = match host {
+        SubstitutionHost::Statement(id) => id.block,
+        SubstitutionHost::Terminator(block) => block,
+    };
+    if !fu.sccp.executable_blocks.contains(&block) {
+        return Vec::new();
+    }
+    let Some(cfg_block) = fu.cfg.blocks.get(&block) else {
+        return Vec::new();
+    };
+    match host {
+        SubstitutionHost::Statement(id) => match cfg_block.statements.get(id.index) {
+            Some(
+                Statement::Call {
+                    tokens: Some(tokens),
+                    ..
+                }
+                | Statement::AssignValue {
+                    tokens: Some(tokens),
+                    ..
+                },
+            ) if tokens.synthetic.is_none() => {
+                crate::word_subst::lifted_calls(Some(tokens), config)
+            }
+            _ => Vec::new(),
+        },
+        SubstitutionHost::Terminator(_) => match &cfg_block.terminator {
+            Some(crate::cfg::Terminator::Return { value_word, .. }) => {
+                crate::word_subst::lifted_calls_in_word(value_word.as_ref(), config, surface)
+            }
+            Some(crate::cfg::Terminator::Branch {
+                condition,
+                condition_base: Some(base),
+                ..
+            }) => crate::word_subst::lifted_calls_in_expr(condition, Some(*base), config, surface),
+            _ => Vec::new(),
+        },
+    }
+}
+
+/// [`proven_word_value`] for word `word` of `calls[call]`, a command
+/// substitution `host` performs, where `calls` is what
+/// [`substitution_calls`] lifts there. A statement's substitution reads at
+/// the statement's use versions, under the same rule for a name the
+/// statement writes; a terminator's reads at its block's exit versions,
+/// which the definition point ahead of it has already given every name its
+/// words write.
+#[must_use]
+pub fn proven_substituted_word_value(
+    fu: &crate::compilation_unit::FunctionUnit,
+    host: SubstitutionHost,
+    calls: &[crate::word_subst::LiftedCall],
+    (call, word): (usize, usize),
+    config: LexerConfig,
+) -> Option<(ExactValue, Option<FoldedType>)> {
+    let tokens = calls.get(call)?.words.as_ref()?;
+    let start = tokens.argv.get(word)?.start();
+    let (versions, written) = match host {
+        SubstitutionHost::Statement(id) => {
+            if !fu.sccp.executable_blocks.contains(&id.block) {
+                return None;
+            }
+            let at = fu.ssa.blocks.get(&id.block)?.statements.get(id.index)?;
+            (&at.uses, written_before(at, Some(start), calls))
+        }
+        SubstitutionHost::Terminator(block) => {
+            if !fu.sccp.executable_blocks.contains(&block) {
+                return None;
+            }
+            (&fu.ssa.blocks.get(&block)?.exit_versions, HashSet::new())
+        }
+    };
+    let arguments = call_arguments(tokens.argv_texts.get(1..)?, Some(tokens), &config);
+    proven_argument(
+        arguments.get(word.checked_sub(1)?)?,
+        versions,
+        &written,
+        fu,
+        config,
+    )
+}
+
+/// The names the statement `at` writes, when one of the command
+/// substitutions `calls` its words perform has run before the read at
+/// `start` (or the read's position is unknown); otherwise none.
+fn written_before(
+    at: &SsaStatement,
+    start: Option<u32>,
+    calls: &[crate::word_subst::LiftedCall],
+) -> HashSet<Symbol> {
+    let ran = start.is_none_or(|start| calls.iter().any(|call| call.span.end() <= start));
+    if ran {
+        at.defs.keys().copied().collect()
+    } else {
+        HashSet::new()
+    }
+}
+
+/// One argument's proven value: a literal is its text, a substituted word
+/// [`proven_substitution`] at `versions`, never reading a name in `written`.
+fn proven_argument(
+    argument: &ArgWord<'_>,
+    versions: &HashMap<Symbol, Version>,
+    written: &HashSet<Symbol>,
+    fu: &crate::compilation_unit::FunctionUnit,
+    config: LexerConfig,
+) -> Option<(ExactValue, Option<FoldedType>)> {
     match argument.source {
         OperandSource::BracedLiteral | OperandSource::Literal | OperandSource::QuotedLiteral => {
             Some((ExactValue::from_literal(&argument.text), None))
         }
-        OperandSource::Substituted => proven_substitution(&argument.text, &at.uses, fu, config),
+        OperandSource::Substituted => {
+            proven_substitution(&argument.text, versions, written, fu, config)
+        }
         OperandSource::Unknown => None,
     }
 }
@@ -4688,12 +4838,16 @@ pub fn proven_word_value(
 fn proven_substitution(
     text: &str,
     uses: &HashMap<Symbol, Version>,
+    written: &HashSet<Symbol>,
     fu: &crate::compilation_unit::FunctionUnit,
     config: LexerConfig,
 ) -> Option<(ExactValue, Option<FoldedType>)> {
     use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
     let read = |name: &str| -> Option<(ExactValue, ValueKey)> {
         let symbol = fu.ssa.var_symbol(name)?;
+        if written.contains(&symbol) {
+            return None;
+        }
         let key = (symbol, *uses.get(&symbol)?);
         match fu.sccp.values.get(&key)? {
             LatticeValue::Const(value) => Some((const_to_exact(value), key)),

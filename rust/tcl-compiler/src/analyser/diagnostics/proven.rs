@@ -30,7 +30,11 @@
 //! literal index a proven list or string makes checkable, keep what they
 //! report over the proven words and did not report over the written ones.
 //! A finding over a proven word carries no fix: its word is a substitution
-//! the user wrote, which a fix would replace with a constant.
+//! the user wrote, which a fix would replace with a constant. A call nested
+//! in a command substitution is read at the statement or terminator that
+//! performs the substitution, as a call written on its own line is read at
+//! its statement. An index whose `$var` value the interval checks bound is
+//! theirs: the re-run leaves a site they reported to them.
 
 use rustc_hash::FxHashMap;
 use tcl_core_types::DiagCode;
@@ -38,7 +42,11 @@ use tcl_lexer::{Span, Token, TokenType};
 
 use crate::analyser::state::Analyser;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-use crate::value_transfer::{StatementId, proven_word_value};
+use crate::value_transfer::{
+    StatementId, SubstitutionHost, proven_substituted_word_value, proven_word_value,
+    substitution_calls,
+};
+use crate::word_subst::LiftedCall;
 
 /// The codes the pass may report, each at a proven word.
 const PROVEN_CODES: [DiagCode; 10] = [
@@ -90,17 +98,53 @@ struct ProvenWords {
     proven: Vec<Span>,
     /// The substituted argument indices.
     at: Vec<usize>,
+    /// The absolute span of the statement or terminator whose words the
+    /// site's are, where the interval checks anchor a finding.
+    host: Option<Span>,
 }
 
-/// Every call word of the unit's reached statements by its absolute span:
-/// the unit, the statement and the word's index in its argv.
+/// Where a call word sits in a unit the solver reached.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WordAddress {
+    /// Word `word` of a call statement.
+    Statement(StatementId, usize),
+    /// Word `word` of call `call` of host `host`'s command substitutions.
+    Substituted {
+        host: usize,
+        call: usize,
+        word: usize,
+    },
+}
+
+/// Every call word of the unit's reached statements, and of the command
+/// substitutions their words and their blocks' terminators perform, by its
+/// absolute span.
 struct WordIndex<'u> {
-    words: FxHashMap<(u32, u32), (&'u FunctionUnit, StatementId, usize)>,
+    words: FxHashMap<(u32, u32), (&'u FunctionUnit, WordAddress)>,
+    /// Each host's command substitutions, as [`substitution_calls`] lifts
+    /// them, with the host's absolute span.
+    hosts: Vec<(SubstitutionHost, Vec<LiftedCall>, Option<Span>)>,
 }
 
 impl<'u> WordIndex<'u> {
-    fn build(cu: &'u CompilationUnit) -> Self {
-        let mut words = FxHashMap::default();
+    /// `wanted` is the sorted start of every word a site may prove: a host
+    /// holding none has its substitutions left unlifted.
+    fn build(
+        cu: &'u CompilationUnit,
+        wanted: &[u32],
+        config: tcl_lexer::LexerConfig,
+        surface: &tcl_registry::model::DocumentCommandSurface<'_>,
+    ) -> Self {
+        let mut index = Self {
+            words: FxHashMap::default(),
+            hosts: Vec::new(),
+        };
+        let holds = |span: Option<Span>| {
+            span.is_some_and(|span| {
+                let at = wanted.partition_point(|&start| start < span.start());
+                wanted.get(at).is_some_and(|&start| start < span.end())
+            })
+        };
         let units = std::iter::once(&cu.top_level)
             .chain(cu.procedures.values())
             .chain(cu.methods.values())
@@ -110,29 +154,113 @@ impl<'u> WordIndex<'u> {
                 let Some(cfg_block) = fu.cfg.blocks.get(&block) else {
                     continue;
                 };
-                for (index, statement) in cfg_block.statements.iter().enumerate() {
-                    let crate::ir::Statement::Call {
+                for (at, statement) in cfg_block.statements.iter().enumerate() {
+                    let id = StatementId { block, index: at };
+                    if let crate::ir::Statement::Call {
                         tokens: Some(tokens),
                         ..
                     } = statement
-                    else {
-                        continue;
-                    };
-                    if tokens.synthetic.is_some() {
-                        continue;
+                        && tokens.synthetic.is_none()
+                    {
+                        for (word, &span) in tokens.argv.iter().enumerate() {
+                            index.insert(fu, span, WordAddress::Statement(id, word));
+                        }
                     }
-                    for (word, &span) in tokens.argv.iter().enumerate() {
-                        let span = fu.abs_span(span);
-                        words.entry((span.start(), span.end())).or_insert((
+                    let span = Some(fu.abs_span(statement.span()));
+                    if holds(span) {
+                        index.add_host(
                             fu,
-                            StatementId { block, index },
-                            word,
-                        ));
+                            SubstitutionHost::Statement(id),
+                            span,
+                            (config, surface),
+                        );
                     }
+                }
+                let span = match &cfg_block.terminator {
+                    Some(
+                        crate::cfg::Terminator::Return { span, .. }
+                        | crate::cfg::Terminator::Branch { span, .. },
+                    ) => span.map(|span| fu.abs_span(span)),
+                    _ => None,
+                };
+                if holds(span) {
+                    index.add_host(
+                        fu,
+                        SubstitutionHost::Terminator(block),
+                        span,
+                        (config, surface),
+                    );
                 }
             }
         }
-        Self { words }
+        index
+    }
+
+    fn insert(&mut self, fu: &'u FunctionUnit, span: Span, address: WordAddress) {
+        let span = fu.abs_span(span);
+        self.words
+            .entry((span.start(), span.end()))
+            .or_insert((fu, address));
+    }
+
+    fn add_host(
+        &mut self,
+        fu: &'u FunctionUnit,
+        host: SubstitutionHost,
+        span: Option<Span>,
+        (config, surface): (
+            tcl_lexer::LexerConfig,
+            &tcl_registry::model::DocumentCommandSurface<'_>,
+        ),
+    ) {
+        let calls = substitution_calls(fu, host, config, surface);
+        if calls.is_empty() {
+            return;
+        }
+        let at = self.hosts.len();
+        for (call, lifted) in calls.iter().enumerate() {
+            let Some(tokens) = &lifted.words else {
+                continue;
+            };
+            for (word, &span) in tokens.argv.iter().enumerate().skip(1) {
+                self.insert(
+                    fu,
+                    span,
+                    WordAddress::Substituted {
+                        host: at,
+                        call,
+                        word,
+                    },
+                );
+            }
+        }
+        self.hosts.push((host, calls, span));
+    }
+
+    /// The value the lattice proves at `address`, and the absolute span of
+    /// the statement or terminator whose words hold it.
+    fn proven(
+        &self,
+        fu: &FunctionUnit,
+        address: WordAddress,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<(tcl_registry::value_transfer::ExactValue, Option<Span>)> {
+        match address {
+            WordAddress::Statement(id, word) => {
+                let host = fu
+                    .cfg
+                    .blocks
+                    .get(&id.block)
+                    .and_then(|block| block.statements.get(id.index))
+                    .map(|statement| fu.abs_span(statement.span()));
+                proven_word_value(fu, id, word, config).map(|(value, _)| (value, host))
+            }
+            WordAddress::Substituted { host, call, word } => {
+                let (at, calls, span) = self.hosts.get(host)?;
+                proven_substituted_word_value(fu, *at, calls, (call, word), config)
+                    .map(|(value, _)| (value, *span))
+            }
+        }
     }
 }
 
@@ -147,6 +275,24 @@ fn may_be_proven(text: &str, token: &Token, single: bool, expanded: bool) -> boo
 }
 
 impl ProvenSite {
+    /// Where each word the lattice may prove starts.
+    fn candidates(&self) -> impl Iterator<Item = u32> + '_ {
+        self.arg_tokens
+            .iter()
+            .enumerate()
+            .filter(|&(at, token)| {
+                self.args.get(at).is_some_and(|text| {
+                    may_be_proven(
+                        text,
+                        token,
+                        self.arg_single.get(at).copied().unwrap_or(false),
+                        self.arg_expand_in.get(at + 1).copied().unwrap_or(false),
+                    )
+                })
+            })
+            .map(|(_, token)| token.span.start())
+    }
+
     /// The site's words with each word the lattice proves at its statement
     /// substituted, or `None` when it proves none.
     fn proven(&self, index: &WordIndex<'_>, config: tcl_lexer::LexerConfig) -> Option<ProvenWords> {
@@ -156,8 +302,9 @@ impl ProvenSite {
             arg_single: self.arg_single.clone(),
             proven: Vec::new(),
             at: Vec::new(),
+            host: None,
         };
-        let mut statement = None;
+        let mut site = None;
         for (at, token) in self.arg_tokens.iter().enumerate() {
             let expanded = self.arg_expand_in.get(at + 1).copied().unwrap_or(false);
             let single = self.arg_single.get(at).copied().unwrap_or(false);
@@ -167,22 +314,34 @@ impl ProvenSite {
             if !may_be_proven(text, token, single, expanded) {
                 continue;
             }
-            let Some(&(fu, id, word)) = index.words.get(&(token.span.start(), token.span.end()))
+            let Some(&(fu, address)) = index.words.get(&(token.span.start(), token.span.end()))
             else {
                 continue;
             };
             // The words must be this call's own: the argument at `at` is
-            // argv word `at + 1` of one statement.
-            if word != at + 1 || statement.is_some_and(|seen| seen != id) {
+            // word `at + 1` of one statement or one command substitution.
+            let (word, call) = match address {
+                WordAddress::Statement(id, word) => (word, WordAddress::Statement(id, 0)),
+                WordAddress::Substituted { host, call, word } => (
+                    word,
+                    WordAddress::Substituted {
+                        host,
+                        call,
+                        word: 0,
+                    },
+                ),
+            };
+            if word != at + 1 || site.is_some_and(|seen| seen != call) {
                 continue;
             }
-            let Some((value, _)) = proven_word_value(fu, id, word, config) else {
+            let Some((value, host)) = index.proven(fu, address, config) else {
                 continue;
             };
             let Ok(text) = String::from_utf8(value.bytes) else {
                 continue;
             };
-            statement = Some(id);
+            site = Some(call);
+            words.host = host;
             words.args[at] = text;
             words.arg_tokens[at] = Token::new(TokenType::Str, token.span);
             if let Some(single) = words.arg_single.get_mut(at) {
@@ -232,7 +391,14 @@ impl Analyser {
             return;
         }
         let config = self.file_lexer_config();
-        let index = WordIndex::build(cu);
+        let registry = self.registry.clone();
+        let registry = registry
+            .as_deref()
+            .unwrap_or_else(|| tcl_registry::default_registry());
+        let surface = self.command_surface(registry);
+        let mut wanted: Vec<u32> = sites.iter().flat_map(ProvenSite::candidates).collect();
+        wanted.sort_unstable();
+        let index = WordIndex::build(cu, &wanted, config, &surface);
         let proven: Vec<(&ProvenSite, ProvenWords)> = sites
             .iter()
             .filter_map(|site| site.proven(&index, config).map(|words| (site, words)))
@@ -335,7 +501,8 @@ impl Analyser {
 
     /// W230 and W232 over the proven words: an index the written list or
     /// string could not be checked against is checked against the proven
-    /// one, and what the written words already drew is not drawn again.
+    /// one, and what the written words or the interval checks already drew
+    /// is not drawn again.
     fn rerun_index_checks(&mut self, site: &ProvenSite, words: &ProvenWords) {
         let numbers = self.grammar().numbers;
         let rules = self.word_rules();
@@ -357,13 +524,37 @@ impl Analyser {
         };
         let written = run(&site.args, &site.arg_tokens);
         for diagnostic in run(&words.args, &words.arg_tokens) {
-            if !written.iter().any(|seen| {
+            let drawn = written.iter().any(|seen| {
                 seen.code == diagnostic.code
                     && seen.span == diagnostic.span
                     && seen.message == diagnostic.message
-            }) {
+            });
+            if !drawn && !self.interval_reported(site, words.host, &diagnostic) {
                 self.result.diagnostics.push(diagnostic);
             }
         }
+    }
+
+    /// Whether the interval checks reported the access `diagnostic` is
+    /// anchored at: its index is a written `$var`, and they reported that
+    /// variable's index under the same code at the site's host.
+    fn interval_reported(
+        &self,
+        site: &ProvenSite,
+        host: Option<Span>,
+        diagnostic: &crate::analyser::types::Diagnostic,
+    ) -> bool {
+        let Some(host) = host else {
+            return false;
+        };
+        site.arg_tokens
+            .iter()
+            .zip(&site.args)
+            .find(|(token, _)| token.span == diagnostic.span)
+            .and_then(|(_, text)| crate::interval_bounds::plain_var_name(text))
+            .is_some_and(|name| {
+                self.interval_index_sites
+                    .contains(&(diagnostic.code, host, name))
+            })
     }
 }

@@ -2404,8 +2404,9 @@ file; this call falls through to the 'unknown' handler."
     /// against a statically-established container length.  Complements the
     /// syntactic bounds checks (literal index + literal container only); the
     /// two never double-fire because the syntactic checks back off on any
-    /// `$var` index.  Restricted to SCCP-reachable blocks so a dynamic index
-    /// in dead code does not warn.
+    /// `$var` index, and the proven-word re-run leaves a site reported here
+    /// to this check ([`Self::interval_index_sites`]).  Restricted to
+    /// SCCP-reachable blocks so a dynamic index in dead code does not warn.
     pub(super) fn emit_interval_bounds_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
@@ -2455,6 +2456,8 @@ file; this call falls through to the 'unknown' handler."
             } else {
                 "silently returns the empty string"
             };
+            self.interval_index_sites
+                .insert((f.code, fu.abs_span(f.span), f.index_var.clone()));
             self.result
                 .diagnostics
                 .push(crate::analyser::types::Diagnostic::new(

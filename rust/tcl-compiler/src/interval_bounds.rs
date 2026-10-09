@@ -218,7 +218,7 @@ struct Candidate {
 
 /// The scalar variable name if `arg` is exactly `$name` / `${name}`.  Returns
 /// `None` for `end`, `end-1`, `$arr(i)`, `[expr …]`, composites.
-fn plain_var_name(arg: &str) -> Option<String> {
+pub(crate) fn plain_var_name(arg: &str) -> Option<String> {
     let s = arg.trim();
     let mut s = s.strip_prefix('$')?;
     if let Some(inner) = s.strip_prefix('{').and_then(|r| r.strip_suffix('}')) {
