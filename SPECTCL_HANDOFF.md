@@ -11,10 +11,10 @@
   - f82eaefbd `fix(analyser): the proven index check reports each site once and covers nested calls` (B3)
   - ea9f0450b `fix(registry): a store a declared outcome may preserve is live` (B5)
   - 5713e4bd4 + d05eac825: the second review (`SPECTCL_BRANCH_REVIEW.md`) and its merge, from the user's side.
-- Pushed, full gate pending: 233d1b3df (B6), 97c2811ac (B2a), dff64488e, a32e87f8c (B7), 6dabf998f (B8), d3e90cc1c (B9), 15086f974 (B11), 683705e4e (B10), d0b052d1b (B12), aabedbd2a (B13), 92fbb3537 (B14), 4b9d76ce7 (B15), b3443615a (B2b, `docs: the diagnostic-policy page describes the policy as built`). Checkpoint commits (`wip: progress checkpoint …`) interleave from here on.
-- Committed, awaiting push: `docs: the migration page states what each consumer reads from the registry` (B2c; `make xtask-check` green, the value-transfers ledger included). It cites #2437, #2451, #2452 and #2453 for the gains not realised.
+- Pushed, full gate pending: everything to 4c9be1bf9 (B2c, `docs: the migration page states what each consumer reads from the registry`) — the code items B1–B15, B2a, B2b, B2c — with the checkpoint commits (`wip: progress checkpoint …`) between them.
+- Committed: `docs: the value-transfer contracts are labelled as built` (S1, the glossary, both design indexes and `value-evaluation.md`, with D1 and D3 for that page; `make xtask-check` green). Its edits were swept into the checkpoints before the named commit.
 - In the working tree, uncommitted: nothing.
-- Next: S1 (+D1, D3) — the value-transfer contracts are labelled as built — then S2, S3, S4, N2 and the review file's removal.
+- Next: S2 (+D1, D3) — the registry consumer contracts described once, with their unbuilt remainder — then S3 (with `value-transfers.md`'s D1 and D3), S4, N2 and the review file's removal.
 - Standing states that are not defects of this branch: `cargo xtask dialect-drift` exits 1 with 8 sites present at the base (#2253); the tcl-vm tests of #2271 fail under a POSIX `LANG` and pass under `LANG=C.UTF-8`.
 
 ## How to verify and push
