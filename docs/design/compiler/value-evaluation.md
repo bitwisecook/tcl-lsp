@@ -13,7 +13,7 @@ target semantics, and what a pack author writes. Read it before adding an
 evaluator to a command, before touching the hook host or the fold engine,
 and before promising that two implementations agree.
 
-> **Status — built.** Real in the workspace: `EvalRoute`, `NativeEvalId`,
+> **The types.** `EvalRoute`, `NativeEvalId`,
 > `LanguageProfileId`, `NoRouteReason`, `SpecialisationId`; `ConstOps`,
 > `ConstValue`, `Representation`, `Needs`, `TargetSemantics`, `Axis`,
 > `SourceEncoding`, `WorkUnits`; `EvaluatorCapability`,
@@ -25,42 +25,34 @@ and before promising that two implementations agree.
 > `-implementation` / `-native` / `-host`, the `inputs` / `depends` /
 > `budget` / `body` rows, the option flags `-evaluate` /
 > `-evaluate-reason`, the body verbs `fold` / `write` / `preserve`, and
-> DSL vocabulary 2.2 — is loader syntax today
+> DSL vocabulary 2.2 — is loader syntax
 > ([spec-dsl-examples/README.md](../spec-dsl-examples/README.md)
 > § *Vocabulary changelog*), proven by the fixture behind
 > [value-transfers-examples.md](value-transfers-examples.md) § *A private
 > command in a workspace pack*; the
 > `-host wasm_extension` host and its `extension FILE PREFIX` row are
-> § *The declared-implementation route* › *The extension host*. No
-> shipped builtin has been moved onto the DSL: every shipped route is Rust
-> construction in `rust/tcl-registry/src/value_transfer/`, so the worked
-> declarations of `incr`, `expr`, and `regexp` below stay illustrative.
+> § *The declared-implementation route* › *The extension host*. Every
+> shipped route is Rust construction in
+> `rust/tcl-registry/src/value_transfer/`, and no shipped builtin is
+> declared in the DSL, so the declarations of `incr`, `expr`, and `regexp`
+> below are illustrative.
 >
-> Built: `RegexpPrecision`, `PrecisionDecline`,
-> `PatternCacheKey` and `EngineIdentity` (`tcl_cmd_core::regex`),
-> `binary::format_size_bound`, and the field `MathFuncSpec::result_class`.
-> Still named on this page and not built: the test
-> `direct_route_needs_match_their_cores`, and the cores `scan::parse_format`,
-> `scan::convert` and `numeric_core::tcl_incr`, whose standing-in owners
-> § *The cores the direct route calls* names.
->
-> Named on this page but not the shape the tree built — cited again where
-> each appears below: `EvalMemoKey`, `EvalRouteId`, `TargetState`,
-> `TargetDigest` (the real memo is `pack_hooks::ShapeKey` plus
-> `CallContent`, compared on every hit, never a digest alone);
-> `RequestBudget`, `IterationBudget`, `EvaluationBudget`, `CancelPoint`,
-> `CancelToken` (one `Budget` type at three call sites —
-> `Budget::request()`, `.iteration()`, `.evaluation_within()`);
-> `NativeEvalTables` (fourteen separate `pub const *_NATIVE` tables in
-> `pack_hooks.rs`, two populated, never one struct); `ActivationStore`
-> (superseded before it was built — `Engine::confine_stores` instead).
+> The regexp owner's `RegexpPrecision`, `PrecisionDecline`,
+> `PatternCacheKey`, and `EngineIdentity` are `tcl_cmd_core::regex`'s;
+> `binary::format_size_bound` and the field `MathFuncSpec::result_class`
+> are the cores'. The memo is `pack_hooks::ShapeKey` plus `CallContent`,
+> compared on every hit, never a digest alone; the budget is one `Budget`
+> type at three call sites — `Budget::request()`, `.iteration()`,
+> `.evaluation_within()`; the per-family native tables are fourteen
+> separate `pub const *_NATIVE` tables in `pack_hooks.rs`, two populated;
+> and per-evaluation state is confined by `Engine::confine_stores`. The
+> Rust blocks below are sketches in the contract's names — `EvalMemoKey`,
+> `TargetState`, `TargetDigest`, `CancelToken`, and `CancelPoint` among
+> them — and the text beside each names the tree's type.
 >
 > `DeclineReason` and every variant of it — `NoRoute`, `ReleaseAmbiguous`,
 > and `NotText` included — are the interface contract's; this page defines
 > the payloads `NoRouteReason` and `Axis` that two of them carry.
-> The existing identifiers cited here were checked against the tree at
-> the revision named in
-> [value-transfers-migration.md](value-transfers-migration.md).
 > Every Tcl behaviour quoted was run on `tclsh8.4` (8.4.20), `tclsh8.5`
 > (8.5.19), `tclsh8.6` (8.6.18), `tclsh9.0` (9.0.4), and `tclsh9.1`
 > (9.1b0).
@@ -184,23 +176,23 @@ default it was not asked for.
   so both runtimes read `string range $s 010 end` under whatever release
   the process was pinned to. Both engines are release-pinnable
   (`Vm::set_runtime_version` / `set_dialect_profile`, `Interp::set_runtime_version`).
-- **The registry's folders are a second implementation.** `fold_range` in
-  `rust/tcl-registry/src/commands/tcl/string_.rs` is an ASCII-only
-  re-implementation beside `tcl_cmd_core::string::range`; `fold_format` in
-  `commands/tcl/format_.rs` is a hand-written subset beside
-  `format_cmd_with_syntax`; `fold_is` classifies with its own code beside
-  `string_is::class_check`; the list folds split through a deliberately
-  conservative `split_list` that bails on any backslash. Two folders
-  already *are* core calls — `fold_regsub`
+- **Some of the registry's folders are a second implementation.**
+  `fold_range` in `rust/tcl-registry/src/commands/tcl/string_.rs` runs the
+  `string range` route over its literal words
+  (`evaluate_literal(&STRING_RANGE, …)`), and `fold_regsub`
   (`tcl_cmd_core::regex::regsub::<AreEngine>`) and `parse_index`
-  (`index::read_with` under `NumberSyntax::unanimous`) — so the
-  precedent runs in both directions. There are three test-only
-  string-backed `ValueOps` implementations
-  (`rust/tcl-syntax/src/value.rs`, `tcl-cmd-core`, the registry's test
-  module) and no live one.
+  (`index::read_with` under `NumberSyntax::unanimous`) are core calls;
+  `fold_format` in `commands/tcl/format_.rs` is a hand-written subset beside
+  `format_cmd_with_syntax`, `fold_is` classifies with its own code beside
+  `string_is::class_check`, and the list folds split through a
+  deliberately conservative `split_list` that bails on any backslash.
+  `ConstOps` (`rust/tcl-registry/src/value_transfer/const_ops.rs`) is the
+  live string-backed `ValueOps` implementation; the others
+  (`rust/tcl-syntax/src/value.rs`, `tcl-cmd-core`'s test modules) are
+  test-only.
 - **Codegen carries no folder of its own.** `rust/tcl-compiler/src/codegen/helpers.rs`
-  holds no command fold: the engine runs the folds codegen once held, and
-  `format` folds on its registry-owned route over the shared format core.
+  holds no command fold: the engine runs every fold, and `format` folds on
+  its registry-owned route over the shared format core.
 - **Codegen already emits folded values, guarded.** `try_emit_constant_fold`
   in `rust/tcl-compiler/src/codegen/values.rs` folds a literal-only
   `[cmd …]` through `ConstSubstCtx::fold_cmd_subst_resolved`, pushes the
@@ -227,7 +219,7 @@ default it was not asked for.
 flowchart TB
     VM["impl ValueOps for Vm<br/>rust/tcl-vm/src/value_ops.rs<br/>int_add: i128 fast tier, then BigInt"]
     RT["impl ValueOps for Interp<br/>runtime/rust/src/value_ops.rs<br/>int_add: widens to a bignum"]
-    CO["ConstOps (proposed)<br/>byte-exact · carries the target profile<br/>int_add: 8.5+ widens, 8.4 declines; ValueError → decline"]
+    CO["ConstOps<br/>byte-exact · carries the target profile<br/>int_add: 8.5+ widens, 8.4 declines; ValueError → decline"]
     CORE["tcl-cmd-core · written once over ValueOps<br/>string::dispatch_canon · string::range<br/>binary::{format, scan} over bytes<br/>format_cmd_with_syntax(NumberSyntax)<br/>string_is::class_check · index::read_under<br/>regex::{regexp, regsub} · switch::select · list / dict"]
     VM -->|calls, passing self| CORE
     RT -->|calls, passing self| CORE
@@ -238,27 +230,22 @@ flowchart TB
 
 ### `ConstOps`, and why the adapters matter
 
-One live `ValueOps` implementation, `ConstOps`, carrying the target
+One live `ValueOps` implementation, `ConstOps`, carries the target
 profile — the release when the profile names one or its dialect declares
 a base release, and otherwise the unanimity rule, under which an
 operation's answer stands only where every release the profile can denote
 gives it — with every `ValueError` mapped to a decline. Every shipped
-evaluator then *is* a core call: `fold_range`
-becomes `string::range(&mut ops, s, first, last)`; the whole `string`
-ensemble evaluates through `dispatch_canon`, whose `None` is a decline;
-`format` is `format_cmd_with_syntax` under the profile's `NumberSyntax`;
-`string is` is `class_check`; `binary format` / `scan` are
-`tcl_cmd_core::binary`; the increment, append, and list-append updates are
-the same value computations the runtime adapters call —
+direct evaluator is a core call over it: `string range` is
+`string::range(&mut ops, s, first, last)`; `format` is
+`format_cmd_with_syntax` under the profile's `NumberSyntax`; `binary
+format` / `scan` are `tcl_cmd_core::binary`; the increment, append, and
+list-append updates are the value computations the runtime adapters call —
 `ValueOps::int_add`, `var::append_bytes`, `var::lappend_value` — with the
-lattice write as the compile-time store. The registry's ASCII folders, the
-two codegen helpers, and the five name-keyed SCCP arms retire; the
-conservative list splitter becomes a precondition on the input (a
-backslash-free list) rather than a divergent parser; the registry's
-cross-check tests become tautologies and are replaced by the `tclsh`
-differential.
+lattice write as the compile-time store. The `const_fold` callbacks that
+are not core calls run only where a call's route declines or none is
+declared, and the `tclsh` differential holds them and the routes alike.
 
-Introducing `ConstOps` alone does not deliver the release rules, because
+`ConstOps` alone does not deliver the release rules, because
 the cores' signatures were written for a runtime that has already chosen
 its release:
 
@@ -500,12 +487,15 @@ The protocol, in order, and every step is mandatory:
    on. This is what keeps the `010` answer honest: a 12-element list reads
    `lindex $l 010` as `i` on 8.4, 8.5, and 8.6 and as `k` on 9.0 and 9.1,
    and `string range abcdefghijkl 010 end` is `ijkl` on the first three and
-   `kl` on the last two. `parse_index` already declines that case through
-   `NumberSyntax::unanimous`, and the CLI shows it: `tcl opt` folds
-   `string range abcdefghijkl 3 6` to `defg` under O129 and O100 and folds
-   nothing at all for `string range abcdefghijkl 010 end` under every
-   dialect. Calling `string::range` directly would *lose* that decline,
-   because the core's `index::resolve` reads the ambient grammar. The
+   `kl` on the last two. The route reads the index under the target's
+   grammar, and `parse_index` declines the release-less case through
+   `NumberSyntax::unanimous`: `tcl opt` folds
+   `string range abcdefghijkl 010 end` to `ijkl` under `tcl8.4` to
+   `tcl8.6` and to `kl` under `tcl9.0` and `tcl9.1`, leaves it under the
+   release-less `tcl` profile, and folds `string range abcdefghijkl 3 6`
+   to `defg` under every one. Calling `string::range` directly would
+   *lose* that decline, because the core's `index::resolve` reads the
+   ambient grammar. The
    adapter's `index` step is the whole of the fix, and `index::bad_index`
    supplies the canonical message when the spec is malformed.
 5. **Charge before allocating.** Every core whose output size is a
@@ -598,18 +588,14 @@ words decide with no route authored yet, a shared core the runtimes already
 run among them (`string toupper`, `lindex`, `join`, the `::tcl::mathop` and
 `::tcl::mathfunc` commands, most of tcllib).
 
-Four names the declarations in
-[value-transfers-examples.md](value-transfers-examples.md) use are
-*proposed* cores, and each but `binary::format_size_bound` (built beside
-`binary::format` for the `binary format` route) has a standing-in owner
-today:
+The cores behind the `scan`, `binary format`, and `incr` routes:
 
-| Proposed | Stands in for | Note |
+| Core | Where | What it is |
 |---|---|---|
-| `scan::parse_format` | `scan::validate_format` | today it returns the conversion count or a message, not a parsed format |
-| `scan::convert` | `scan::scan_match` → `ScanOutcome` | the outcome already carries the per-target `Scanned` values |
-| `binary::format_size_bound` | built | the charge cannot be derived from `binary::specifiers` alone, because `a`, `A`, and `x` take explicit counts; the bound is the widest write of every field plus the furthest `@`, saturating |
-| `numeric_core::tcl_incr` | `ValueOps::int_add` plus `tcl_syntax::number::parse` | the seam already folds the absent-value-as-zero case in, so the proposed wrapper adds only the release's parse and the existence check |
+| `scan::validate_format` | `rust/tcl-cmd-core/src/scan.rs` | the format check the `scan` route runs first (`value_transfer/destructure.rs`): the conversion count or a message; there is no separate parsed-format core |
+| `scan::scan_match` → `ScanOutcome` | `rust/tcl-cmd-core/src/scan.rs` | the match, whose outcome carries the per-target `Scanned` values; there is no separate conversion core |
+| `binary::format_size_bound` | `rust/tcl-cmd-core/src/binary.rs` | the `binary format` route's output bound, charged before it runs: the widest write of every field plus the furthest `@`, saturating — `binary::specifiers` alone cannot give it, because `a`, `A`, and `x` take explicit counts |
+| `ValueOps::int_add` | `rust/tcl-syntax/src/value.rs` | the increment the cell update runs (`value_transfer/cell_update.rs`), the absent-value-as-zero case folded in; the release's parse and the existence check are the route's, and there is no separate increment core |
 
 No core gains a `*_with` variant for this page: the axes the cores read
 implicitly are discharged by the adapter, either by pre-resolving the
@@ -626,16 +612,15 @@ dispatcher. The route is `ExprServices` driven by `evaluate_expression`;
 the two, and its answer `ExprAnswer`, are `pub(crate)` to `tcl-compiler`,
 because the registry assembles the expression (`ExpressionRoute::assemble`)
 and the compiler's driver runs it, so no crate outside the compiler calls
-the engine. Nothing new parses or walks an expression. Three changes made
-the walk an evaluator for the interface:
+the engine. Nothing else parses or walks an expression. Three properties
+make the walk an evaluator for the interface:
 
 - **The full value comes back.** `ExprServices` answers the engine's own
   value, with its numeric classification as a fact beside the bytes, so a
   string-valued expression folds: `expr {"x"}` is the string `x` on every
-  release from 8.4 to 9.1, and the lattice holds `x`. The old entry,
-  `eval_with_config`, still ends in `to_number` (its `TclValue` has only
-  `Int`, `Float` and `Big`) and still serves the callers that want a
-  number: code generation's constant operands and the static loop
+  release from 8.4 to 9.1, and the lattice holds `x`. The numeric entry,
+  `eval_with_config`, ends in `to_number` (its `TclValue` has only `Int`,
+  `Float` and `Big`) and serves the callers that want a number: code generation's constant operands and the static loop
   simulator. It keeps the route's tower (a beyond-wide integer or an
   infinity folds nothing under an 8.4 runtime or a profile naming no
   release) and a math function's availability and case, but reads no
@@ -664,9 +649,9 @@ the walk an evaluator for the interface:
   is 5 and leaves `x` at 2; `expr {0 && [incr x]}` is 0 and leaves `x` at
   1; `expr {$x + [set x 10] + $x}` is 21 and leaves `x` at 10.
 - **Bindings are evidence.** The math-function dispatcher in
-  `tcl_syntax::expr::mathfunc` is the one owner of the function table, and
-  `type_infer.rs`'s duplicate return-type table went onto it:
-  `MathFuncSpec::result_class` (a `MathResultClass`) is a field of the
+  `tcl_syntax::expr::mathfunc` is the one owner of the function table,
+  return types included: `MathFuncSpec::result_class` (a `MathResultClass`)
+  is a field of the
   existing struct beside `name`, `since`, `arity`,
   `accepts_boolean_operand`, and `summary`, and `expr_call_type` reads it.
   Each function and nested command used is a dependency in the answer's
@@ -742,8 +727,8 @@ approximate capture cannot become a constant variable value or a
 replacement string. Putting the same matcher behind an engine does not
 recover the lost information.
 
-The regexp owner's result becomes fallible and precision-aware, and the
-same three-way answer travels the whole way out:
+The regexp owner's result is fallible and precision-aware, and the same
+three-way answer travels the whole way out (`tcl_cmd_core::regex`):
 
 ```rust,ignore
 /// What a bounded match establishes. The only variant a compile-time
@@ -776,9 +761,8 @@ enum PrecisionDecline {
     /// The pattern did not compile; carries the engine's detail bytes as
     /// `RegexError` already does.
     PatternError(RegexError),
-    /// The option or form is outside what the core implements: `-about`,
-    /// which C Tcl answers on every release, and `regsub -command`, which
-    /// C Tcl answers from 9.0.
+    /// The option or form is outside what the core implements:
+    /// `regsub -command`, which C Tcl answers from 9.0.
     FormUnsupported { option: &'static str },
     /// The request budget or the cancellation token stopped the match.
     Cancelled,
@@ -787,24 +771,24 @@ enum PrecisionDecline {
 
 How it travels, one layer at a time:
 
-1. `Regex::exec` returns `Option<Vec<Option<Span>>>` today; it gains the
-   three-way answer, because only the engine knows whether the fuel
-   counter or a depth limit ended the search. `Matcher` already holds
+1. The engine answers three ways, because only the engine knows whether
+   the fuel counter or a depth limit ended the search; `Matcher` holds
    `fuel` (a `u64` in the set-simulation path, a `Cell<u64>` in the
-   backtracking one), so the distinction costs the engine one field on
-   its result, not a second traversal.
+   backtracking one), so the distinction costs the engine one field on its
+   result, not a second traversal.
 2. `RegexEngine::exec` in `tcl_cmd_core::regex` carries the same answer, so
-   every provider must state it. The trait's `notbol` contract and its
-   `NO_MATCH` sentinel for a non-participating subexpression are unchanged.
-3. `tcl_cmd_core::regex::regexp` and `regsub` map it onto their existing
-   result types: `RegexpResult::Count { assign: None }` keeps its meaning
-   — a completed no-match, match variables untouched — and a
-   `PrecisionDecline` becomes a `RegexError` on the runtime path and a
-   typed decline on the analysis path. `RegsubResult` gains the same
-   discrimination, so a `regsub` whose match was cut short does not return
-   the unsubstituted text as if nothing had matched.
-4. `tcl_regex::cmd_core::AreEngine` is the one provider to update; it maps
-   the engine's spans onto `RegMatch` and a decline onto the new variant.
+   every provider states it. The trait's `notbol` contract and its
+   `NO_MATCH` sentinel for a non-participating subexpression hold as
+   before.
+3. `tcl_cmd_core::regex::regexp` and `regsub` map it onto their result
+   types: `RegexpResult::Count { assign: None }` is a completed no-match,
+   match variables untouched, and a `PrecisionDecline` is a `RegexError`
+   on the runtime path (`PrecisionDecline::into_error`) and a typed decline
+   on the analysis path. `RegsubResult` makes the same discrimination, so a
+   `regsub` whose match was cut short does not return the unsubstituted
+   text as if nothing had matched.
+4. `tcl_regex::cmd_core::AreEngine` is the one provider; it maps the
+   engine's spans onto `RegMatch` and a decline onto `Declined`.
 5. The direct route's `ConstOps` poisons on any `Declined`, so
    `ConstOps::take` reports the reason and the analyser widens.
 
@@ -812,9 +796,8 @@ A consumer that needs only match existence uses a separately certified
 exact-existence result, which is a different claim with its own
 certification and is not derivable from this enum; capture consumers need
 exact captures. The route declines the whole result on any
-approximation. This is a contract change for existing regexp consumers,
-with focused compatibility tests, and it precedes any widening of
-regexp-derived constants or branch pruning.
+approximation, and every regexp-derived constant or branch decision rests
+on an `Exact` or `NoMatch` answer.
 
 ### The witnesses
 
@@ -848,14 +831,14 @@ empty-string or `-1 -1` index result:
 progress rules — `regexp -all {a*} xaax` is 3 and
 `regsub -all {} abc -` is `-a-b-c` on every release. A regexp-based branch
 fact and a regexp output-variable transfer derive from one evaluated match
-outcome. Two forms are release-gated and the core refuses both:
-`regexp -about` answers `1 {}` on every release from 8.4 to 9.1 and the
-core returns `regexp -about is not yet supported`, and `regsub -command`
-is `bad switch "-command"` on 8.4 and 8.5, `bad option "-command"` on 8.6,
-and answers `Abc` for `regsub -command {a} abc {string toupper}` on 9.0
-and 9.1 while the core refuses it. Both are `FormUnsupported` on the
-analysis path; a callback form needs a declared route on the callback
-before it can be anything else. Index units follow the target release's
+outcome. `regexp -about` answers `1 {}` for `regexp -about {a(b)c}` on
+every release from 8.4 to 9.1, and the core and the route answer it the
+same way. `regsub -command` is release-gated and the core refuses it: it
+is `bad switch "-command"` on 8.4 and 8.5, `bad option "-command"` on
+8.6, and answers `Abc` for `regsub -command {a} abc {string toupper}` on
+9.0 and 9.1. It is `FormUnsupported` on the analysis path; a callback
+form needs a declared route on the callback before it can be anything
+else. Index units follow the target release's
 character model, and copied substrings keep their exact spelling.
 
 ### The pattern cache, its bound, and the cancellation point
@@ -931,10 +914,12 @@ and the hook setup loads no package implementation. `tcl_engine_api::Engine`
 (`rust/tcl-engine-api/src/lib.rs`) compiles a unit once, invokes it with
 values, restricts the command surface through `restrict_commands`, and
 enforces a `Budget` of `commands` / `wall_clock` / `max_value_bytes` whose
-overrun it reports as `EngineError::BudgetExceeded(BudgetKind)`;
-`TclVmEngine` (`rust/tcl-engine-tclvm/src/lib.rs`) is its only
-implementation, builds a `Vm` with the default registry at the default
-release, and exposes no release setter although the VM has one. The host
+overrun it reports as `EngineError::BudgetExceeded(BudgetKind)`. Three
+engines implement it, each with `set_release`: `TclVmEngine`
+(`rust/tcl-engine-tclvm/src/lib.rs`) over a `Vm` with the default
+registry, `RuntimeEngine` (`runtime/rust/src/engine.rs`) over the native
+runtime's `Interp`, and `WasmEngine` (`rust/tcl-engine-wasm`) over the
+runtime built for WASM. The host
 reaches the compiler through the per-thread `pack_hooks` installer
 (`set_installer`, `install_host`), which is how the crate cycle is broken.
 
@@ -981,18 +966,17 @@ it cannot make the computation pure.
 
 Of the three isolation mechanisms — a resettable snapshot, denying writes
 outside the local activation, or discarding an execution context after
-each evaluation — the route takes the second, and the other two are
-rejected for stated reasons:
+each evaluation — the route takes the second, for these reasons:
 
-- **A resettable snapshot** needs a new `Engine` capability whose
+- **A resettable snapshot** needs an `Engine` capability whose
   correctness is the engine's own completeness. A slot the reset forgets is
   a silent leak, and its failure mode is a wrong constant rather than an
   error. Nothing in the answer says the reset was incomplete.
 - **Discarding the execution context** means a fresh engine per
   evaluation, and `install_pack_hooks` compiles every body at install. A
-  fresh engine recompiles the pack's bodies per evaluation, which turns the
-  measured 24.5 ns cached answer into a compile and puts the cost in the
-  wrong place entirely.
+  fresh engine recompiles the pack's bodies per evaluation, which turns a
+  cached answer into a compile and puts the cost in the wrong place
+  entirely.
 - **Denying writes outside the activation** closes a door that is already
   nearly shut — `upvar`, `global`, `variable`, `namespace`, `trace`,
   `uplevel`, and `info` are all off `SANDBOX_COMMANDS`, so the only
@@ -1002,9 +986,9 @@ rejected for stated reasons:
   it), so the door is closed inside the engine itself, not by a host
   command layered over it.
 
-The mechanism, as built:
+The mechanism:
 
-- `Engine::confine_stores(&mut self) -> Result<(), EngineError>` is a new
+- `Engine::confine_stores(&mut self) -> Result<(), EngineError>` is a
   trait method on `tcl_engine_api::Engine`, defaulting to
   `Err(EngineError::Unsupported("confining stores to the activation"))`,
   so an engine that cannot confine its stores says so and the host builds
@@ -1029,11 +1013,11 @@ The mechanism, as built:
 - A refusal is an ordinary Tcl error, which is already an abstention, so
   silence stays the conservative answer and no new answer kind appears at
   the emitter protocol.
-- **Two VM-internal writes needed their own rule, because they do not pass
+- **Two VM-internal writes have their own rule, because they do not pass
   through a body's store entry.** A caught error publishes
-  `::errorInfo` / `::errorCode`; confined, the VM now publishes neither
-  (`catch` and `try` are off `SANDBOX_COMMANDS`, so the whitelisted host
-  never reached this hole — the engine contract did). The embedder's
+  `::errorInfo` / `::errorCode`; confined, the VM publishes neither
+  (`catch` and `try` are off `SANDBOX_COMMANDS`, so the rule is the engine
+  contract's, not the whitelisted host's). The embedder's
   own bookkeeping — `set_host`'s rebootstrap of `::tcl_platform` and
   `::env` — lifts the confinement while it runs, so a host swapped in
   after `confine_stores` still gets its globals.
@@ -1055,13 +1039,12 @@ The mechanism, as built:
   pack — they cannot see each other's writes — and several analysis
   threads, which already have one engine each because `Engine` is
   `&mut self` and `Rc`-based and so thread-confined.
-- **The read side does not close with the same list.** The contract
-  originally read "a body that *reads* `::counter` reads the empty
-  string, because nothing ever writes it" — but the VM's bootstrap seeds
+- **The read side does not close with the same list.** Nothing a body
+  writes outside its activation survives, but the VM's bootstrap seeds
   `::env` with the analysing machine's environment, `::tcl_platform` with
   its platform facts, and `::tcl_library` / `::auto_path` with its paths,
   so an unconfined body could fold `$::env(USER)` into an answer about a
-  program that runs elsewhere. Confining stores now also removes every
+  program that runs elsewhere. Confining stores also removes every
   global the host bootstrap wrote
   (`tcl_platform::bootstrap::HOST_ARRAYS` and `HOST_PATH_GLOBALS`), and
   again after a host swap; a read of one of them raises, which is a
@@ -1257,9 +1240,9 @@ trait Engine {
 }
 ```
 
-The argument is the profile's name, not the page's original
-`&'static DialectProfile`: a dependency on `tcl-dialect` would
-break the crate's stated "no dependencies at all" design. `TclVmEngine`
+The argument is the profile's name rather than a
+`&'static DialectProfile`: a dependency on `tcl-dialect` would break the
+crate's stated "no dependencies at all" design. `TclVmEngine`
 resolves the name through the registry's one dialect ingress,
 `resolve_known_environment(name).catalogue_profile()`, so the lenient
 `tcl` sink, `tk`, `jim`, and an unknown name — none of which names a
@@ -1280,9 +1263,8 @@ installs the release's numeral grammar through
   `HookProgram::release_pinned` runs a body on the pack's engine pinned to
   the call's profile (`HookCall::dialect`), one per (pack, profile,
   thread), each hook compiled on it at first use; a call naming no
-  profile abstains rather than run at a default. Every family stays on
-  the unpinned engine, byte-identical, except `evaluate`, which sets the
-  flag. The hook cache's `ShapeKey` carries the profile,
+  profile abstains rather than run at a default. Every family runs on the
+  unpinned engine except `evaluate`, which sets the flag. The hook cache's `ShapeKey` carries the profile,
   so a pinned answer is never served under another.
 - A pinned profile is part of the pack's engine identity. Analysing the
   same pack against a second profile builds a second engine and recompiles
@@ -1361,6 +1343,8 @@ per-function queries, optimiser consumers, and evaluator calls.
 
 ### The memo key
 
+The key's contract, as a sketch in the contract's names:
+
 ```rust,ignore
 /// One invocation's evaluation memo key. Every field is something that
 /// can change the answer; nothing that cannot is in it.
@@ -1387,26 +1371,24 @@ struct EvalMemoKey {
 }
 ```
 
-The hook cache in `rust/tcl-registry/src/pack_hooks.rs`
-closes both gaps without adopting `EvalMemoKey`'s exact shape. `ShapeKey`
-still carries `slot`, `nwords`, two bits of `kinds` per word for up to 64
-words, a `version` discriminant, `in_event_body`, and a `dialect` — the
-profile the call is analysed under, which stands in for this page's
-`TargetDigest` because `TargetSemantics::of` is a function of the profile
-alone — plus a `content` field that is `0` for a shape-cacheable slot and
+The hook cache in `rust/tcl-registry/src/pack_hooks.rs` holds that
+contract in its own shape. `ShapeKey` carries `slot`, `nwords`, two bits
+of `kinds` per word for up to 64 words, a `version` discriminant,
+`in_event_body`, and a `dialect` — the profile the call is analysed under,
+which fixes the target semantics because `TargetSemantics::of` is a
+function of the profile alone — plus a `content` field that is `0` for a shape-cacheable slot and
 a hash of the call's literal content for a content-keyed one. A hash is
 an index, not evidence that two inputs are equal, so a `ShapeKey` hit does
 not answer from the hash alone: a separate `CallContent` — the words, the
-`constraints` family's invocation view, and, new for the `evaluate`
-family, the declared targets, budget and dependency list
+`constraints` family's invocation view, and, for the `evaluate` family,
+the declared targets, budget and dependency list
 (`HookCall::depends`) — is kept beside the cached answer and compared on
 every hit; a colliding bucket holds the latest content's answer. Declared
-input exposure and cache eligibility still move together
+input exposure and cache eligibility move together
 (`CacheMode::of(inputs)`, over `HookInputs::shape_only` and
 `content_cacheable`), and an incoming target reaches a declared body only
 bound with an exact value, so its word in `CallContent` is at once
-its value and its existence — there is no separate `TargetState` type to
-carry the two.
+its value and its existence, the two the sketch's `TargetState` carries.
 
 ### Invalidation
 
@@ -1414,7 +1396,7 @@ carry the two.
 |---|---|---|
 | a declared input's value | that one entry | it is part of the key |
 | a target's incoming value or existence | that one entry | it is part of the key |
-| the target profile | every entry under the old profile | `TargetDigest` |
+| the target profile | every entry under the old profile | the call's profile in `ShapeKey` |
 | a pack reload | every entry of that pack's evaluators | `EvaluatorGeneration`, and the `clear_cache` that `allocate_stable` already performs when it rebinds a slot |
 | a hook quarantine | every entry of that pack's evaluators | `EvaluatorGeneration` |
 | host install or removal | every entry | `EvaluatorGeneration`, at `install_host` / `clear_host` |
@@ -1465,7 +1447,7 @@ as an argument, resolved by `unit_registry` — the shared registry for `0`,
 so a workspace without packs resolves exactly as before —
 and `function_lattice`, `function_checks`, `function_optimisations`,
 `taint_cascade`, and `proc_summary_cascade` resolve by the overlay their
-key's context carries (`lattice_registry`); `ProcBodyKey` gains the
+key's context carries (`lattice_registry`); `ProcBodyKey` carries the
 overlay too, so a procedure body lowers against the unit's own surface.
 `CommandRegistry::generation` (drawn from a process-wide counter at
 construction and at every mutation) and `overlay_generation` (stamped by
@@ -1530,9 +1512,8 @@ both count against it.
 
 ### The three nested budgets
 
-The page's three separate types did not survive contact with the tree:
-the built shape is **one `Budget` type, at three call sites**, each
-value charging through every enclosing one it was built from.
+The budgets are **one `Budget` type, at three call sites**, each value
+charging through every enclosing one it was built from.
 
 ```rust,ignore
 /// Nested by construction, never by three types: `Budget::request()` is
@@ -1620,14 +1601,12 @@ and `FuelExhausted` are different variants for exactly this reason, a
 transient failure never permanently disables future precision, and a retry
 never mutates an already published snapshot's meaning. Tests cover warm
 and cold caches, deliberate churn, many packs, and worker migration, not
-only a fast repeated hook. The 28 µs uncached and 24.5 ns cached figures
-measured for existing hook workloads describe those workloads; they are
-not measurements of this service or of arbitrary command implementations,
-and performance acceptance compares the unchanged tree, direct-core
-evaluation, expression evaluation, and declared execution on the same
-workloads — cold host setup, warm evaluation, cache hits, changed inputs,
-solver iterations, cancellation latency, memory, and incremental editor
-latency.
+only a fast repeated hook. Performance is measured on the same workloads
+for direct-core evaluation, expression evaluation, and declared execution
+— cold host setup, warm evaluation, cache hits, changed inputs, solver
+iterations, cancellation latency, memory, and incremental editor latency
+— and a figure for one hook workload is a measurement of that workload,
+not of the service or of an arbitrary command implementation.
 
 That comparison is `rust/tcl-compiler/benches/value_transfers.rs`:
 `cargo bench -p tcl-compiler --bench value_transfers` prints it, the route
@@ -1682,7 +1661,7 @@ and declines the rest.
 |---|---|---|---|---|
 | numeric syntax (`NumberSyntax`, the integer tower, the operator set) | supported: `NUMERAL_GRAMMAR` and `INT_TOWER` are explicit arguments through `format_cmd_with_syntax`, `class_check`, and `tcl_syntax::number::parse`; under a profile that names no release, answers where every release it can denote agrees on the operand and declines `ReleaseAmbiguous(NumeralGrammar)` or `(IntTower)` where they differ | supported: `FoldOps` already carries a `NumberSyntax`, and the `Big` rung models the bignum tower | evidence: the engine's own release, pinned by `Engine::set_release`; declines when the engine returns `Unsupported` | declines |
 | character and index model (`CHAR_MODEL`, `CHAR_INDEXING`, `INDEX_GRAMMAR`, `SOURCE_ENCODING`) | supported for counting through `StringCharacterModel::count_for` and for indices through the adapter's pre-resolution; under a profile that names no release, answers where every release it can denote agrees and declines where they differ — a supplementary character, a non-ASCII source literal, a leading-zero index | supported: an expression reads no character index; a string operand's ingress is the direct route's admission | evidence: the pinned release decides, and the host's 16 MiB value cap bounds the result | declines |
-| regexp features and limits | supported through `AreEngine` with `RegexpPrecision`; declines `-about`, `regsub -command`, every `PrecisionDecline`, and a non-ASCII `-nocase` exact pattern (the core folds with `eq_ignore_ascii_case`) | supported only where an operand is already an exact value; the engine itself has no regexp operator | evidence: a body's `regexp` reaches the same engine and the same precision result | declines |
+| regexp features and limits | supported through `AreEngine` with `RegexpPrecision`, `-about` included; declines `regsub -command`, every `PrecisionDecline`, and a non-ASCII `-nocase` exact pattern (the core folds with `eq_ignore_ascii_case`) | supported only where an operand is already an exact value; the engine itself has no regexp operator | evidence: a body's `regexp` reaches the same engine and the same precision result | declines |
 | binary representation (`BINARY_FIELDS`, `BYTE_STRINGS`) | supported: `specifier_min_version` and `signedness_available` gate the field grammar, and `ConstValue` is byte-exact with `Representation` as separate evidence | declines: the expression engine has no byte-array rung | evidence: the engine's own value model; a `binary` result crosses the boundary as bytes or declines | declines |
 | platform behaviour (`PLATFORM`) | declines always: `PLATFORM` is never satisfiable, so `platform::exec` and `platform::pwd` are unreachable by construction | declines | declines: the host denies ambient files, network, clock, and randomness | declines |
 | completion semantics | supported: the normal path, and the interface contract's `CompletionOutcome::Error` under the prefix rule | supported: the normal path, a short circuit being a normal path, and the exact error completion (`expr {1/0}`) | supported for the normal path only, through `CompletionSupport`; `EngineError::Script` is a decline and `BudgetExceeded` is a distinct one | declines |
@@ -1696,7 +1675,7 @@ and declines the rest.
   `tclsh` differential and the fuzzer's `tclsh` pair are the oracle, and a
   shared bug is invisible to a two-way native pair, so agreement between
   our compiler and our runtimes can mean both share a defect. Three kinds
-  of divergence are known today. `index::resolve` reads index numerals
+  of divergence are known. `index::resolve` reads index numerals
   under the ambient grammar for every release. Three `-nocase` folds are
   ASCII-only — `switch::select`'s exact mode, `lsearch`'s sorted-list
   comparison, and `sort`'s `-nocase` and `-dictionary` orders — while C
@@ -1704,9 +1683,8 @@ and declines the rest.
   U+00C9 and U+00E9 is 1 on 8.4, 8.5, 8.6, 9.0, and 9.1, and
   `switch -nocase -- <U+00E9> {<U+00C9> …}` selects the arm on 8.5
   through 9.1, where an ASCII-only fold answers no match. And
-  `regexp -about` and `regsub -command` are refused although C Tcl
-  answers them — `regexp -about {a(b)c}` is `1 {}` on all five releases,
-  and `regsub -command {a} abc {string toupper}` is `Abc` from 9.0.
+  `regsub -command` is refused although C Tcl answers it —
+  `regsub -command {a} abc {string toupper}` is `Abc` from 9.0.
   Independent target oracles and adapter-level tests stay; a missing
   target fact never falls back to the build machine's platform or the
   installed engine's default profile.
@@ -1724,27 +1702,23 @@ and declines the rest.
 
 ## Authoring on the routes
 
-Today's `const_fold {words ctx} {…}` and `const_fold -native ID`, the
+`const_fold {words ctx} {…}` and `const_fold -native ID`, the
 `hook_source` grammar (`FIELD ?-inputs {…}? {params} {body}`,
 `FIELD -native ID`, or `FIELD KEYWORD` for a derivation), and the native
-`CommandSpec` fields are the compatibility baseline the DSL still keeps.
-`semantics`, `evaluate`, `facts`, and the route flags below are **built**,
-not proposed: the registry field, loader (`loader/semantics.rs`), exporter,
-renderer, and studio form moved together, under
-[command-spec-studio.md](../contracts/command-spec-studio.md), and are
-DSL vocabulary **2.2** — the minor after 2.1's
-`arg_role_resolver_roles`. All of it is additive: an older loader meeting a
+`CommandSpec` fields are the compatibility baseline the DSL keeps.
+`semantics`, `evaluate`, `facts`, and the route flags below are **built**:
+the registry field, loader (`loader/semantics.rs`), exporter, renderer,
+and studio form hold them alike, under
+[command-spec-studio.md](../contracts/command-spec-studio.md), and they are
+DSL vocabulary **2.2**. All of it is additive: an older loader meeting a
 2.2 pack keeps loading and loses only the three statements, which leaves
 the command known and its evaluation `Unknown` — the "shape or value word"
-degradation the load policy already defines. What is *not* built is any
-shipped command actually declared this way: `incr`, `expr`, and `regexp`
-below stay illustrative, showing what a pack author would write for a
-command shaped like them, exactly as a pack author writing a private
-command does today (the `tenant::label` worked example, built and tested
-verbatim as
-[the completion-test fixture](value-transfers-examples.md#a-private-command-in-a-workspace-pack),
-). Migrating the shipped catalogue onto `semantics` / `evaluate` is not
-done.
+degradation the load policy defines. No shipped command is declared this
+way: `incr`, `expr`, and `regexp` below are illustrative, showing what a
+pack author would write for a command shaped like them, as a pack author
+writing a private command does (the `tenant::label` worked example, built
+and tested verbatim as
+[the completion-test fixture](value-transfers-examples.md#a-private-command-in-a-workspace-pack)).
 
 ### `incr`: direct arithmetic, independent result and write
 
@@ -1845,14 +1819,16 @@ into the evidence and the cache key.
 
 ```tcl
 # Illustrative, as above; no diagnostic codes, no compiler callback IDs.
-# `regexp` is not declared this way yet, but the option-level flags shown
-# on the last line are real — they are what `regexp -about` and
-# `regsub -command` need, and the whole of the option-level vocabulary.
+# Neither command is declared this way, but the option-level flags on the
+# last line are real: they are the whole of the option-level vocabulary,
+# and `regsub -command` is the form the core refuses.
 command regexp {
     semantics -native regexp::semantics
     evaluate  -direct regexp::evaluate
     facts     -native regexp::facts
-    option -about -evaluate none -evaluate-reason form_unsupported   ;# the core refuses it
+}
+command regsub {
+    option -command -evaluate none -evaluate-reason callback   ;# the core refuses it
 }
 ```
 
@@ -1863,9 +1839,9 @@ For `regexp {a(b)} $subject whole capture`, an exact match yields the
 integer result and ordered writes to `whole` and `capture`; no match
 preserves their previous values and existence; an unknown subject yields
 bounded conditional writes and a known numeric result type without inventing
-captures. `-inline`, `-indices`, and `-all` select different forms, `-about`
-declines through the option row above, and the existing dynamic
-return-type hook is an adapter into those same form semantics.
+captures. `-inline`, `-indices`, `-all`, and `-about` select different
+forms, and the dynamic return-type hook is an adapter into those same form
+semantics.
 
 ### A private command, without granting the pack analyser mutation
 
