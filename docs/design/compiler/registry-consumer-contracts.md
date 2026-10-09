@@ -12,17 +12,14 @@ reads — a clause grammar, a member effect, and
 an option effect that retired the two native resolvers over a command's
 own option table — and the identity and backing contracts a code
 generator or a runtime needs before a pack claim can change *emitted
-code*. Analysis facts wait for
-none of it — under the rulings recorded in the interface contract, a
-loaded pack's facts are authoritative for analysis and optimisation as
-soon as they are loaded, and the direct, expression, and declared-implementation
-routes proceed without deciding anything here.
+code*. Analysis facts depend on none of it — under the rulings recorded in
+the interface contract, a loaded pack's facts are authoritative for
+analysis and optimisation as soon as they are loaded, and the direct,
+expression, and declared-implementation routes decide nothing here.
 
-> **What is built.** The five rulings — the four in § *Rulings* and the
-> narrower one in § *The two hook bodies that remain* — are the owner's
-> decisions, and the build takes them as settled. Every identifier, count,
-> and file path on this page was checked against the tree. The
-> description contract's vocabulary is built, under these names:
+> **The description contract's vocabulary.** The five rulings — the four
+> in § *Rulings* and the narrower one in § *The two hook bodies that
+> remain* — are the owner's decisions. The vocabulary, under these names:
 >
 > - **Clause grammar** — `ClauseGrammarSpec`, `ClauseRow`,
 >   `ClauseRowShape`, `ClauseSlot`, `HandlerMatch`, `ClauseTiming`,
@@ -43,7 +40,7 @@ routes proceed without deciding anything here.
 >   `ResolvedInvocation`, `InvocationWords` and `EffectFootprint`, and
 >   `template_plan` is the value axis's.
 >
-> The trust ruling and the stub ruling are built. `WorkspaceTrust`
+> The trust ruling and the stub ruling: `WorkspaceTrust`
 > (`tcl_dialect::model`) is the trust ruling's one input, carried on
 > `DiscoveryOptions::workspace_trust`, and it gates hook-body execution:
 > `tcl_spectcl::hooks::hook_bodies_run` decides it, `hooks::plan_for` gives
@@ -54,8 +51,7 @@ routes proceed without deciding anything here.
 > nearest-wins — `traits`, `invocation_traits` and `side_effects` beside
 > the role queries, under the security floor.
 >
-> The first half of the identity contract is built.
-> `CommandSpec::alias_of`, the `alias_of NAME` declaration naming the
+> The identity contract's first half: `CommandSpec::alias_of`, the `alias_of NAME` declaration naming the
 > shipped builtin a pack command is, is the target the loader's stamp
 > rejection rule reads (`tcl_spectcl::stamps`) — a codegen-axis stamp
 > survives only on a bundled pack's command whose `alias_of` names the
@@ -79,13 +75,13 @@ routes proceed without deciding anything here.
 > command is replaced, shadowed from the calling namespace, deleted or
 > hidden.
 >
-> The take-shipped floor is built: `SecurityFloor::apply` keeps a shipped
+> The take-shipped floor: `SecurityFloor::apply` keeps a shipped
 > command's `lowering_hook`, `analyser_hook`, `semantic_operation`,
 > `state_transitions`, `native_lowering`, `bpf_op` and `runtime_backing`
 > through any override, from any tier, beside the two codegen hooks it
 > already kept (rule 4 of § *The loader's stamp rejection rule*).
 >
-> The capability gate is built. `tcl_dialect::model::DependencyTier` says how
+> The capability gate: `tcl_dialect::model::DependencyTier` says how
 > far the package that ships a pack sits from the workspace root — the
 > workspace's own package, a direct dependency, a transitive one, or a
 > development one — and discovery reads it from the `tclpkg.lock` beside the
@@ -111,7 +107,7 @@ routes proceed without deciding anything here.
 > registry, and the language server's optimise path reads the registry the
 > workspace's packs were installed into.
 >
-> The backing fact is built. `CommandSpec::runtime_backing`
+> The backing fact: `CommandSpec::runtime_backing`
 > (`tcl_registry::RuntimeBacking`, with `BodySource`) is declared on every
 > core Tcl command as the row of `docs/generated/wasm-command-backing.md` that
 > names it, `tcl_spectcl::BackingSyntax` reads and spells the `runtime_backing`
@@ -132,7 +128,7 @@ routes proceed without deciding anything here.
 > object, defined by the Tcl library the runtime embeds, registered only to
 > refuse, or absent, and `cargo xtask command-backing` holds every core
 > command's declared `runtime_backing` to the WASM runtime's answer, with one
-> waiver list for the commands it does not yet back. Each runtime attaches its
+> waiver list for the commands it does not back. Each runtime attaches its
 > intrinsic guard identities by a sweep after registration, from the
 > generation it is pinned to and never from an overlay.
 >
@@ -262,9 +258,6 @@ routes proceed without deciding anything here.
 > carries the artefact's content hash, so the memo key does
 > ([value-evaluation.md](value-evaluation.md) § *The extension host*).
 >
-> The rest of the vocabulary is not built, and names nothing in the
-> workspace: the `ShippedImplementation` claim and `IdentityKind`.
->
 > `AnalysisContext`, `AnalysisInputs`, `PlanAnswer`, `OperandId`,
 > `TemplateWordPlan`, and `EvalAnswer` are the types
 > [value-transfers.md](value-transfers.md) defines, held in
@@ -273,6 +266,10 @@ routes proceed without deciding anything here.
 > on this page is a prerequisite of the consumer interface, the direct or
 > expression routes, or a workspace pack's declared implementation
 > ([value-evaluation.md](value-evaluation.md)).
+>
+> Not built: rung 4's shipped implementation (the `ShippedImplementation`
+> claim) and the identity kind codegen chooses from the backing
+> (`IdentityKind`).
 
 Read it before extending `CommandSpec` with a fact a code generator or a
 runtime would act on, before letting a pack name a compiler catalogue
@@ -325,7 +322,7 @@ flowchart TB
 ```
 
 The fence around all three is the standing set of rulings, and every
-proposal here fits inside it: SpecTcl declares and Rust executes; packs
+contract here fits inside it: SpecTcl declares and Rust executes; packs
 name closed catalogues and never add to them; `completion` and
 `dispatch_dependencies` are never authorable; a static resolution is a
 candidate, never proof; no pack word loads native code; extensions are
@@ -342,51 +339,45 @@ analysis, with no widen-only tier and no provenance cap (the rulings in
 
 Four questions belong to the owner rather than to the design, and the owner
 has decided all four. Each is stated below as a **ruling**: the decision,
-the rationale, and the consequences — which documents and which code
-predicates change. The build takes them as settled, and the documents
-that stated the rule a ruling replaces are repaired. A fifth, narrower one sits with the hook body it
-concerns, in § *The two hook bodies that remain*.
+the rationale, and what follows from it in the documents and the code. A
+fifth, narrower one sits with the hook body it concerns, in § *The two
+hook bodies that remain*.
 
-### Ruling — the shipped catalogues are generated from Rust
+### Ruling — the shipped catalogues are Rust
 
-**Ruling.** The shipped code-generation catalogues — the intrinsic
-table, the per-command runtime-backing classification, and the ABI
-descriptor table in `rust/tcl-runtime-api/src/codegen_abi.rs` — are
-generated from the Rust registry by an `xtask` build task. There is no
-ahead-of-time `.tclspec` → `.rs` path, and a pack never contributes a
+**Ruling.** The shipped code-generation catalogues are authored in Rust:
+the intrinsic table (`rust/tcl-registry/src/intrinsic.rs`), the
+per-command runtime-backing classification (each spec's
+`runtime_backing`), and the ABI descriptor table
+(`rust/tcl-runtime-api/src/codegen_abi.rs`); an `xtask` task generates
+only the backing report from them. There is no ahead-of-time
+`.tclspec` → `.rs` path, and a pack never contributes a
 member to a closed code-generation catalogue. The one second backend is
 Jim's surface, authored as SpecTcl and compiled in
 (`rust/tcl-spectcl/core-surfaces/jim.tclspec`).
 
-**Rationale.** The registry is already the source of truth the drift gate
-reads: `rust/xtask/src/command_backing.rs` holds each core spec's declared
+**Rationale.** The registry is the source of truth the drift gate reads:
+`rust/xtask/src/command_backing.rs` holds each core spec's declared
 `runtime_backing` to what `runtime/rust` and `tcl-vm` report registering and
 writes `docs/generated/wasm-command-backing.md`, accounting for the residue in
-one committed list (`KNOWN_UNBACKED`). Generating the catalogue from the
-registry is that same move, from a scan of source text to a query, and it is
-the direction `tcl-runtime-api`'s shared `CodegenAbiImportId` descriptor table
-already takes. A SpecTcl source cannot be the generator's input without making
-a workspace pack able to add a catalogue member, which the standing rules
-forbid.
+one committed list (`KNOWN_UNBACKED`), and `tcl-runtime-api`'s shared
+`CodegenAbiImportId` descriptor table is one table both code generators read.
+A SpecTcl source cannot be a catalogue's input without making a workspace
+pack able to add a catalogue member, which the standing rules forbid.
 
-**Consequences.** No standing document text has to move:
-[../registry/spec-packs.md](../registry/spec-packs.md) § *One authoring
-format* states "the shipped cores … stay native Rust; there is no
-ahead-of-time `.tclspec` → `.rs` path", and
+**What follows.** [../registry/spec-packs.md](../registry/spec-packs.md)
+§ *One authoring format* states "the shipped cores … stay native Rust;
+there is no ahead-of-time `.tclspec` → `.rs` path", and
 [../registry/dialect-and-package-registry-redesign.md](../registry/dialect-and-package-registry-redesign.md)
 § *11. The open-questions ledger* records the same decision in its
-"deliberately **not** in this ledger" paragraph. What lands is the
-generator plus one sentence in [command-registry.md](command-registry.md)
-§ *Authoring a spec without Rust* separating the Spec Studio's `.rs`
-contribution export (`rust/tcl-spec-studio/src/render_rs.rs`, a drafting
-aid whose output a human reviews into the tree) from a build-time
-backend. Code predicates: `command_backing`'s classification lists are rows
-of the `runtime_backing` fact, and its registration scan is a query that
+"deliberately **not** in this ledger" paragraph.
+[command-registry.md](command-registry.md) § *Authoring a spec without
+Rust* separates the Spec Studio's `.rs` contribution export
+(`rust/tcl-spec-studio/src/render_rs.rs`, a drafting aid whose output a
+human reviews into the tree) from a build-time backend. In the code,
+`command_backing`'s classification lists are rows of the
+`runtime_backing` fact, and its registration scan is a query that
 `tcl-vm` answers too.
-
-**Decided with the build.** [command-registry.md](command-registry.md)
-§ *Authoring a spec without Rust* states the separation, and the generator
-is built.
 
 ### Ruling — trust gates execution, not authority
 
@@ -415,41 +406,30 @@ hostile document is a repeated execution surface with attacker-chosen
 inputs — a different shape from the one
 [../registry/spec-packs.md](../registry/spec-packs.md) § *Workspace trust:
 the setting is gated, the workspace tier is not* argues is contained by
-the sandbox, and the shape that page says forces the tier to become
-trust-gated "if a hook family ever gains ambient authority". Gating the
+the sandbox. Gating the
 bodies and not the evaluation keeps the pack's facts — which the authority
 ruling makes authoritative — while removing the only surface whose inputs
 the workspace does not control.
 
-**Consequences.** `PackEnvironmentTier::provenance` in
-`rust/tcl-spectcl/src/loader/environment_block.rs` gains the trust input
+**What follows.** `PackEnvironmentTier::provenance` in
+`rust/tcl-spectcl/src/loader/environment_block.rs` takes the trust input
 and maps a workspace pack to `Provenance::WorkspaceTrusted` or
-`Provenance::WorkspaceUntrusted`, which makes the latter reachable from
-discovery for the first time (the redesign's § *11.1 Owner decisions
-pending* carried it as item O9 until `WorkspaceTrust` closed it). The two identical
-`untrusted(…)` predicates —
-`rust/tcl-spectcl/src/loader/eval.rs` over a `Tier` and
-`rust/tcl-registry/src/model/registration.rs` over a `Provenance` —
-collapse into one, exported from `tcl-registry` and called by the loader,
-so the answer is the same at every entry point; the `EvalOptions::tier`
-doc comment that still calls `Tier::Workspace` an untrusted class is
-corrected to name the trust state instead of the discovery location.
-The dormant-hook abstention sits where slots are assigned:
+`Provenance::WorkspaceUntrusted`. One `untrusted(…)` predicate, exported
+from `tcl-registry` and called by the loader, answers for a `Tier` and a
+`Provenance` alike, so the answer is the same at every entry point, and
+`EvalOptions::tier` names the trust state rather than the discovery
+location. The dormant-hook abstention sits where slots are assigned:
 `tcl_spectcl::hooks::plan_for` gives an untrusted workspace pack's bodies
 no slot, so each field keeps the loader's abstaining placeholder and
 `rust/tcl-spec-hooks/src/host.rs` — the hook host that owns the per-pack
 engines and the containment — never learns the trust state or sees the
-text; `spectcl_check`'s tier parameter (redesign item O4) reports it.
-Documents:
+text; `spectcl_check`'s tier parameter reports it. The server plumbs
+`WorkspaceTrust` and gates the hook bodies on it.
 [../registry/spec-packs.md](../registry/spec-packs.md) § *Workspace trust:
 the setting is gated, the workspace tier is not* records the split, and
 [../registry/dialect-and-package-registry-redesign.md](../registry/dialect-and-package-registry-redesign.md)
-§ *6.4 Trust and provenance* keeps the security floor as it is — the floor
-was never tier-keyed and does not become so.
-
-**Decided with the build.** [../registry/spec-packs.md](../registry/spec-packs.md)
-§ *Workspace trust: the setting is gated, the workspace tier is not* records
-the split; the server plumbs `WorkspaceTrust` and gates the hook bodies on it.
+§ *6.4 Trust and provenance* keeps the security floor untouched by it —
+the floor is not tier-keyed.
 
 ### Ruling — a stub sidecar is a workspace-authored fact
 
@@ -457,60 +437,44 @@ the split; the server plumbs `WorkspaceTrust` and gates the hook bodies on it.
 pack's, so the authority ruling applies to it unchanged: once ingested, a
 stub's declarations are inputs to analysis on the same footing as a
 shipped spec. [../contracts/dialect-stubs.md](../contracts/dialect-stubs.md)
-§ *Stubs are declarations* drops "a declaration widens, never narrows" and
-states nearest-wins instead — the document's own declaration answers where
-it speaks, the catalogue answers elsewhere — with `security_floor`'s
-monotone merge (invariant I6) still in force, because that floor is a
-security contract rather than a precision cap. The six `StubFlags` gain
-their consumers in the same change.
+§ *Stubs are declarations* states nearest-wins — the document's own
+declaration answers where it speaks, the catalogue answers elsewhere —
+with `security_floor`'s monotone merge (invariant I6) in force, because
+that floor is a security contract rather than a precision cap. The six
+`StubFlags` each have their consumers.
 
-**Rationale.** The widen-only rule is the untrusted-tier rule read
+**Rationale.** A widen-only rule is the untrusted-tier rule read
 literally, and the authority ruling withdraws exactly that reading.
-Keeping it for stubs would make the narrower declaration — one the author
+Applied to stubs it would make the narrower declaration — one the author
 wrote about their own file, in their own file — weaker than the pack
 declaration they could write beside it, which is a distinction no author
-can predict. The flags were the visible cost: `parse_stub_flags` in
-`rust/tcl-compiler/src/analyser/utils.rs` parsed all six and
-`StubCommandDef::to_declared_command` deliberately did not carry them,
-its doc comment saying the set "has never had a consumer", so a user who
-wrote `-pure` got nothing.
+can predict, and a flag such as `-pure` would mean nothing.
 
-**Consequences.** `DeclaredCommand` grows the declared behavioural facts
+**What follows.** `DeclaredCommand` carries the declared behavioural facts
 beside its `arguments`, and each flag lands on the field its catalogue
 counterpart uses: `-pure` on `Traits::PURE` (`SubCommand::pure` at
 subcommand level), `-mutator` as a declared `SideEffect` write,
 `-barrier` on `Traits::CREATES_DYNAMIC_BARRIER`, `-loop` on
 `Traits::HAS_LOOP_BODY`, `-scope_alias` on `Traits::CREATES_SCOPE_ALIAS`,
 and `-unsafe` on `Traits::UNSAFE` together with
-`Traits::SAFE_INTERP_HIDDEN`. `DocumentCommandSurface`'s role lookup stops
-unioning and resolves nearest-wins, and the consumers of those fields ask
-it: `unit_scope.rs`'s alias walk, the loop-termination checks, lowering's
+`Traits::SAFE_INTERP_HIDDEN`. `DocumentCommandSurface`'s role lookup
+resolves nearest-wins, and the consumers of those fields ask it: `unit_scope.rs`'s alias walk, the loop-termination checks, lowering's
 read-before-write, side-effect classification in the interprocedural
 summary, the safe-interpreter gate, and the minifier's rename barriers see
 a stubbed command the way they see a catalogued one. `-mutator` lands as
 the read-modify-write shape `lset` states — `Traits::READS_BEFORE_WRITE`
 beside a `SideEffect` that reads and writes the variable — because a write
-alone would kill the store the command reads. Three readers are
-deferred residue, not design: `ssa.rs`'s barrier-def walk
+alone would kill the store the command reads. Three readers ask the
+catalogue alone, because reaching them means threading the document's
+surface through `compilation_unit.rs`: `ssa.rs`'s barrier-def walk
 (`registry_barrier_defs`) and scope-alias discriminator, and
-`memory_ssa.rs`'s clobber verdict (`is_clobber` over `CLOBBER_TRAITS`),
-still ask the catalogue alone, because reaching them means threading the
-document's surface through `compilation_unit.rs`. Until then a stub's
-declared roles miss the barrier-def walk —
-a call the lowering keeps as a barrier because its stub declares a `body`
-word writes no def for its `var` word, and a later read of that variable
-draws a false `W210` — and a redeclared catalogued name is walked with the
-catalogue's roles. Once the file is free, the walk takes a declared name's
-roles from the surface, and memory SSA clobbers for a declared name unless
-its declaration states `PURE`, the same conservative reading side-effect
-classification gives a declaration that states nothing. Code predicates: the union in `DocumentCommandSurface`, the flag drop in
-`to_declared_command`, and the `Provenance::WorkspaceUntrusted` class a
-sidecar ingests at — which becomes a provenance label for explanation, not
-a precision class.
-
-**Decided with the build.** [../contracts/dialect-stubs.md](../contracts/dialect-stubs.md)
-§ *Stubs are declarations* states nearest-wins, and the analyser consumes
-the six flags on their catalogue fields.
+`memory_ssa.rs`'s clobber verdict (`is_clobber` over `CLOBBER_TRAITS`). A
+stub's declared roles therefore miss the barrier-def walk — a call the
+lowering keeps as a barrier because its stub declares a `body` word writes
+no def for its `var` word, and a later read of that variable draws a false
+`W210` — and a redeclared catalogued name is walked with the catalogue's
+roles. `Provenance::WorkspaceUntrusted`, the class a sidecar ingests at, is
+a provenance label for explanation, not a precision class.
 
 ### Ruling — one C header, two hosts
 
@@ -536,12 +500,12 @@ not compile against it — while the ABI is held to a measured corpus of
 nine `dltest` extensions from the Tcl 9.0.4 source tree plus two synthetic
 probes, and its one relocation surprise is bounded: four GOT entries for
 the stubs-introspecting `pkgooa` member, and zero for every other one. The
-exports agree: `runtime/rust/src/capi.rs` has 20 `#[no_mangle] extern "C"`
-functions in the ABI's § 4.3 direct-import style, sized on Tcl 9's
-`ptrdiff_t` through `TclSize`, with its own module note recording that the
-obj-lifecycle and result/eval-core subset is exported and the remainder of
-the 81-function surface is absent — the WASM runtime has begun the ABI,
-not the shim. And containment comes out the same either way: the shim's
+exports agree: `runtime/rust/src/capi.rs` has 41 `#[no_mangle] extern "C"`
+functions (`find_capi_exports` in `scripts/check_c_api_ownership.py`) in
+the ABI's § 4.3 direct-import style, sized on Tcl 9's `ptrdiff_t` through
+`TclSize`, with its own module note recording which subset of the
+81-function surface is exported and that the remainder is absent — the
+WASM runtime carries the ABI, not the shim. And containment comes out the same either way: the shim's
 `catch_unwind` guards Rust panics, not C undefined behaviour, and a
 `panic = "abort"` build has no unwinding at all, so under WASM the
 containment is the instance's linear memory and fuel in both designs.
@@ -550,21 +514,20 @@ neutrality, which rung 4's evaluation needs and which the ABI's own
 closing note endorses: "the durable artefact is this ABI plus the headers,
 which is reusable whichever language the runtime is written in."
 
-**Consequences.** [../runtime/c-extension-shim.md](../runtime/c-extension-shim.md)
+**What follows.** [../runtime/c-extension-shim.md](../runtime/c-extension-shim.md)
 § *The implemented subset* is a subset table against the authored
 header, and its § *Out of scope* list is the header's own scope list;
 [../runtime/c-extension-abi.md](../runtime/c-extension-abi.md) § 7 has
 the native leg beside the WASM one. The shim's `Tcl_Size` switch is the
-authored header's (`TCL_MAJOR_VERSION=8`). Code predicates:
-`rust/tcl-cshim/src/obj.rs` publishes the `Tcl_Obj` layout instead of
-keeping it opaque; `rust/tcl-cshim/src/doors.rs` implements `Tcl_GetVar2Ex`,
+authored header's (`TCL_MAJOR_VERSION=8`). In the code,
+`rust/tcl-cshim/src/obj.rs` publishes the `Tcl_Obj` layout; `rust/tcl-cshim/src/doors.rs` implements `Tcl_GetVar2Ex`,
 `Tcl_ObjSetVar2`, `Tcl_UnsetVar2` and `Tcl_EvalObjEx` over the engine interface's
 variable door and in-invocation eval door;
 `rust/tcl-cshim/tests/pkga_e2e.rs`'s byte-for-byte expectations, captured
 against Tcl 9.0.4's own `tcl.h`, are the shared conformance vectors for
 both legs.
 
-**The WASM leg's registration seam** is built: `Tcl_CreateObjCommand` and
+**The WASM leg's registration seam.** `Tcl_CreateObjCommand` and
 `Tcl_DeleteCommand` are exported from `runtime/rust/src/capi.rs`, and a
 `Command::ObjCmd` in `runtime/rust/src/interp.rs` holds the extension's
 procedure (a shared-table function index under `wasm32`), so `tcl_invoke_argv`,
@@ -593,47 +556,40 @@ interface carries the completion code a host command answers (`HostOutcome`),
 so a hosted extension exercises the conservative default this page states for
 it.
 
-**Decided with the build.** The one contract is stated in [../runtime/c-extension-shim.md](../runtime/c-extension-shim.md)
-§ *The implemented subset* and
-[../runtime/c-extension-abi.md](../runtime/c-extension-abi.md) § 7, and the
-shim compiles against the authored header.
-
 ## The analyser: the description contract
 
 The registry surface is far richer than the analyser's dispatch uses.
 
 | Fact | Registry | Analyser |
 |---|---|---|
-| analyser hook variants | 32 (`AnalyserHookId`, `rust/tcl-registry/src/hooks.rs`), down from 43: the eleven whose handler knew only a position or a keyword a descriptor states are retired (`Try`, `For`, `DictFor`, `DictUpdate`, `Incr`, `Append`, `Lappend`, `Upvar`, `NamespaceUpvar`, `Global`, `Variable`) | the residue is analyser policy over typed facts — procedure definition, the dynamic-target and namespace domains, the interpreter-domain stack, rename epochs, member routing, literal-iteration simulation, the case-list walk and the completion protocol, package-index bookkeeping, `source` and `load` — plus three on the migration ledger (`Set`, `DictWith`, `RegexPatternCapture`), command-specific and left for the value axis to retire; a retired command falls to the dispatch tail's generic reads |
+| analyser hook variants | 31 (`AnalyserHookId`, `rust/tcl-registry/src/hooks.rs`); a command whose handler would know only a position or a keyword a descriptor states has no variant (`try`, `for`, `dict for`, `dict update`, `incr`, `append`, `lappend`, `upvar`, `namespace upvar`, `global`, `variable`) | analyser policy over typed facts — procedure definition, the dynamic-target and namespace domains, the interpreter-domain stack, rename epochs, member routing, literal-iteration simulation, the case-list walk and the completion protocol, package-index bookkeeping, `source` and `load` — plus two command-specific variants on the migration page's ledger (`DictWith`, `RegexPatternCapture`); a command with no variant falls to the dispatch tail's generic reads |
 | scope and interpreter transitions | resolvers on `upvar`, `global`, `variable`, `namespace`, `interp` (`rust/tcl-registry/src/state_transition.rs`), and a pack's `state_transitions` resolver | the dispatch tail applies every `VariableCellAliasTransition` an invocation states (`apply_state_transitions`, over the call's source words: `global`, `variable`, `upvar`, `namespace upvar`, a pack command's alias facts) and `interp create` — direct, or the nested `[interp create …]` a `set` binds — reads its `InterpreterTransition::Create`; the namespace family still has no consumer there; `frame_effect` is read only for alias-pair layout and level parsing (`param_traits.rs`, `diagnostics/usage.rs`); the command-binding family only by `interp alias` and the static-proc proof |
 | loop and bind positions | roles and strided `repeated_args` | one binder (`handle_var_binding_command`) binds every `LoopVarList` and `VarWrite` position the roles name — `foreach` (which keeps its literal-iteration simulation), `lmap`, `dict for` / `map` / `update`, `array for`, `incr`, `append`, `lappend`, `lassign`, … — and `package require` / `provide` / `ifneeded` read the roles their subcommands declare |
 | OO member effect | the member-effect descriptor (`MemberSpec::effect`, `MemberEffect`, in `rust/tcl-registry/src/definer.rs`), beside the layout (`MemberKind`: `Flat`, `Wrapper`, `FlagKeyed`) and `arg_roles`, `slot`, `retraction`, `visibility_effect`, `surface`; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one, and `DefinitionBodyGrammar::member_row` answers a statement's row | one `match` on the row's effect (`member_landing`) routes the `TclOO` fold and the snit and itcl walkers, `MethodKind::from_effect` names the lowering's frames, and the providers read the recorded member; `property`'s flag words and snit's type-body implicit variable are the axis's residue in `analyser/oo.rs` |
-| clause grammar | the clause-grammar descriptor (`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`), on `CommandSpec` and `SubCommand`: ten shipped grammars, one registry walk answering the roles and the clause-shape defect, and the loader reading the same type | the lowering (`lower_if`, `lower_try`), the generic body walk (each body's depths by its clause's timing, and a clause's variable list — `try`'s handlers, whose `handle_try_command` is retired), the stray-keyword report, the CFG's `on ok` edge, `signature_scan/walker.rs`, the editor refactors (`if_to_switch.rs`, `refactor/datagroup.rs`) and `tcl-mcp`'s `datagroup.rs` read the plan |
-| option-selected semantics | the option-effect descriptor (`OptionSpec::effect`, `option_effect_families`, `option_effect.rs`), which replaced the two native resolvers over a command's own option table — `substitution_resolver` and `lsearch_pattern_args`; `pattern_arg_resolver` remains an escape hatch no shipped spec sets | three consumers ask `CommandRegistry::substitutions_performed` correctly; the dynamic-name barrier and the `inner_head_performs_substitution` gate read only the trait, and `push_substituted_commands` re-walks a braced template for regions the answer does not carry |
+| clause grammar | the clause-grammar descriptor (`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`), on `CommandSpec` and `SubCommand`: ten shipped grammars, one registry walk answering the roles and the clause-shape defect, and the loader reading the same type | the lowering (`lower_if`, `lower_try`), the generic body walk (each body's depths by its clause's timing, and a clause's variable list — `try`'s handlers), the stray-keyword report, the CFG's `on ok` edge, `signature_scan/walker.rs`, the editor refactors (`if_to_switch.rs`, `refactor/datagroup.rs`) and `tcl-mcp`'s `datagroup.rs` read the plan |
+| option-selected semantics | the option-effect descriptor (`OptionSpec::effect`, `option_effect_families`, `option_effect.rs`), which states what a native resolver over a command's own option table would compute; `pattern_arg_resolver` is an escape hatch no shipped spec sets | three consumers ask `CommandRegistry::substitutions_performed` correctly; the dynamic-name barrier and the `inner_head_performs_substitution` gate read only the trait, and `push_substituted_commands` re-walks a braced template for regions the answer does not carry |
 
-The three descriptors are built, and each is
-specified below. The rest is consumer migration, through the generic
-operations the interface contract names.
+Each of the three descriptors is specified below. The consumers read them
+through the generic operations the interface contract names:
 
-- Scope aliases become one generic application of the
-  `VariableCellAliasTransition` the registry already emits; namespace and
-  interpreter handlers consume the typed `NamespaceTransition` and
-  `InterpreterTransition` families instead of re-scanning flags and words.
+- A scope alias is one generic application of the
+  `VariableCellAliasTransition` the registry emits, and an `interp create`
+  reads its `InterpreterTransition`; the namespace family has no consumer
+  in the dispatch tail.
 - Loop, bind, and read-modify-write handlers bind by role. The
-  special-variable table (`rust/tcl-registry/src/special_vars.rs`) gains a
-  pack statement. `package require`, `provide`, and `ifneeded` get an
-  argument layout instead of fixed indices.
-- Most hook variants then become predicates on descriptors and retire, with
-  the drift test in `rust/tcl-registry/tests/analyser_hooks.rs` re-baselined.
-  What stays is analyser policy over typed facts, documented at its call
-  sites as irreducible: dynamic-target synthetic domains, the
-  interpreter-domain stack, export tombstone ordering, rename epochs,
-  literal-iteration simulation, and value binding of a created interpreter.
-  A hook variant whose handler implements one command's binding rules is
-  still command-specific and is in the migration ledger, not the residue.
+  special-variable table (`rust/tcl-registry/src/special_vars.rs`) has a
+  pack statement (`special_var`). `package require`, `provide`, and
+  `ifneeded` read an argument layout, not fixed indices.
+- A hook variant is a predicate on descriptors or analyser policy over
+  typed facts, documented at its call site as irreducible: dynamic-target
+  synthetic domains, the interpreter-domain stack, export tombstone
+  ordering, rename epochs, literal-iteration simulation, and value binding
+  of a created interpreter. The drift test in
+  `rust/tcl-registry/tests/analyser_hooks.rs` pins the set. A hook variant
+  whose handler implements one command's binding rules is command-specific
+  and is in the migration ledger, not the residue.
 - The alias and command-binding resolvers abstain on dynamic words, and a
-  witness test pins that before the analyser's isolated per-item pass
-  consumes transitions. Each new descriptor is a four-surface change under
+  witness test pins that. Each descriptor is a four-surface change under
   [../contracts/command-spec-studio.md](../contracts/command-spec-studio.md).
 
 ### The clause-grammar descriptor
@@ -644,9 +600,9 @@ operations the interface contract names.
 for` and its siblings). It gives locations and grammar and nothing
 executable: first-match dispatch, list iteration, and completion belong to
 the consumer interface's structural plan, declared beside it and never
-inferred from the slots. It is built in
-`rust/tcl-registry/src/clause_grammar.rs` with two adaptations: `head` is a
-`ClauseRow` (keyword `None`, `Once`), so the head carries its own timing —
+inferred from the slots. It lives in
+`rust/tcl-registry/src/clause_grammar.rs`, where `head` is a `ClauseRow`
+(keyword `None`, `Once`), so the head carries its own timing —
 `try`'s protected body, `for`'s init fixture — and `handler` is the
 value-transfer interface's own `HandlerMatch`.
 
