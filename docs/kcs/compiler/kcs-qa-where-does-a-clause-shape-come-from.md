@@ -40,15 +40,14 @@ compares a word against `"elseif"` or `"trap"` itself.
 
 `CommandSpec::clause_shape_check` is the escape hatch, not the mechanism.
 It exists only for a clause chain the grammar genuinely cannot spell, and
-no shipped command needs it today — `if`'s own former hand-written checker
-retired once the grammar and the walk it derives from could state the same
-rule (including the two rows that make `if else {a}` a well-formed call
-whose condition is the bareword `else`, and the rule that nothing may
-follow a bare trailing body). Reach for it only after checking whether a
-new `ClauseRow` or `ClauseSlot` shape already says what you need; adding a
+no shipped command sets it: `if`'s shape — including the two rows that
+make `if else {a}` a well-formed call whose condition is the bareword
+`else`, and the rule that nothing may follow a bare trailing body — is
+its grammar's walk. Reach for it only after checking whether a new
+`ClauseRow` or `ClauseSlot` shape already says what you need; adding a
 grammar is a data change reviewed like any other registry entry, while a
-new hand-written checker is exactly the kind of command-specific code the
-consumer-contracts migration exists to retire.
+hand-written checker is command-specific code that no consumer of the
+plan can read.
 
 ## Related
 

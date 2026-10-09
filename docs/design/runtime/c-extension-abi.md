@@ -5,17 +5,16 @@ The ABI by which an **unmodified** C Tcl extension — one that `#include`s
 compiled to WebAssembly and linked against the runtime and the compiled user
 code, with no per-extension shim.
 
-> **Implementation state.** This is a *design contract*, and the surface it
-> describes is only partly shipped. The authored `tcl.h` is
+> **What the tree exports.** This page states the whole ABI, and the tree
+> implements a subset of it. The authored `tcl.h` is
 > `runtime/rust/include/tcl.h`: it declares the subset each of its two hosts
 > implements (§ 7), and there is no authored `tclOO.h` or `tclTomMath.h`.
-> `runtime/rust/src/capi.rs` exports the runtime's half of that subset — command
-> registration, object construction and copying, the scalar reads and the
-> option-table lookup, lists, `TclFreeObj`, the interpreter's result and error
-> state, the package call and two UTF-8 helpers — and the rest of the C API is
-> not exported. Derive anything
-> else from this document. The per-function ownership and error-path
-> categories live in
+> `runtime/rust/src/capi.rs` exports the runtime's half of that subset in 41
+> functions — command registration, object construction and copying, the
+> scalar reads and the option-table lookup, lists, `TclFreeObj`, the
+> interpreter's result and error state, the package call and two UTF-8
+> helpers — and nothing else of the C API. The per-function ownership and
+> error-path categories live in
 > [`c-api-ownership-contract.md`](c-api-ownership-contract.md).
 
 Companion docs: [`memory-management.md`](memory-management.md),
@@ -444,13 +443,13 @@ under-specify:
 `embtest.c` is deliberately excluded: it *embeds* Tcl (`main()` +
 `Tcl_FindExecutable`), which is the opposite of extending it.
 
-## 12. The seam, proven
+## 12. The seam, against the real runtime
 
-One seam in §4.6 was never exercised against the real product by anything but a
-stand-in: a Tcl script compiled by `tcl_compiler::codegen::wasm` calling an
-**extension-registered** command and dispatching into that extension.
+The seam in §4.6 — a Tcl script compiled by `tcl_compiler::codegen::wasm`
+calling an **extension-registered** command and dispatching into that
+extension — runs against the real runtime in
 `a_compiled_script_calls_an_extension_registered_command`
-(`rust/tcl-compiler/tests/wasm_real_link.rs`) runs it against the real runtime:
+(`rust/tcl-compiler/tests/wasm_real_link.rs`):
 an extension module shares the runtime's memory and function table, installs its
 `Tcl_ObjCmdProc` in the table and registers it from `Foo_Init` through the
 runtime's `Tcl_CreateObjCommand` export, and a compiled `foo` then reaches it

@@ -52,6 +52,6 @@ editor provider is the one thing not to do.
 
 - [KCS index](../README.md)
 - [Glossary — Member effect](../../GLOSSARY.md#member-effect)
-- [Registry consumer contracts § The member-effect descriptor](../../design/compiler/registry-consumer-contracts.md#the-member-effect-descriptor) — the full contract, the `MemberEffect` shapes, and the sites it retired
+- [Registry consumer contracts § The member-effect descriptor](../../design/compiler/registry-consumer-contracts.md#the-member-effect-descriptor) — the full contract, the `MemberEffect` shapes, and the walker that reads them
 - [ObjectClassSpec](../../GLOSSARY.md#objectclassspec)
 - [kcs-qa-where-does-a-clause-shape-come-from.md](kcs-qa-where-does-a-clause-shape-come-from.md)
