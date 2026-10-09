@@ -444,12 +444,12 @@ append log $line",
     (
         "route",
         Example {
-            code: "evaluate -direct StringRange\nevaluate -expression tcl.expr\nevaluate -implementation tenant.label.v1 -host bounded_tcl { body {name} { fold $name } }",
+            code: "evaluate -direct ListOfArgs\nevaluate -expression tcl.expr\nevaluate -implementation tenant.label.v1 -host bounded_tcl { body {name} { fold $name } }",
             focuses: &[
                 focus(
                     0,
                     "-direct",
-                    "a shipped evaluator over the registry's own cores",
+                    "a registry evaluator that reads only the call's arguments",
                 ),
                 focus(1, "-expression", "the shared expression engine"),
                 focus(

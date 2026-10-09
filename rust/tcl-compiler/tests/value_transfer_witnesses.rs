@@ -2377,6 +2377,58 @@ fn a_pack_declared_preserve_holds_the_prior_version() {
     tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }
 
+/// A pack's `evaluate -direct ID` runs the registry evaluator the id names
+/// when it is one a pack may name: `review::list a b` on `ListOfArgs` is
+/// `a b` in the shared lattice, so `if {$x eq {a b}}` decides (I230), and
+/// the answer is `evaluated` on the direct route. A subcommand scope reads
+/// its arguments after the subcommand word: `review pair a b` is `a b` too.
+#[test]
+fn a_pack_direct_route_runs_the_evaluator_it_names() {
+    use tcl_compiler::analyser::Analyser;
+    const DIRECT_PACK: &str = "speclib review 2.2 {
+    command review::list {
+        arity 0..
+        semantics {
+            effects {no_store_writes no_external_io}
+            result -semantic list
+        }
+        evaluate -direct ListOfArgs
+    }
+    command review {
+        arity 1..
+        subcommand pair {
+            arity 2
+            evaluate -direct ListOfArgs
+        }
+    }
+}
+";
+    let _published = PUBLISHED_PACKS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let packs = pack_workspace("review", DIRECT_PACK);
+    let dialect = "tcl8.6";
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
+    let source = "proc p {} {\n    set x [review::list a b]\n    set y [review pair a b]\n    \
+                  if {$x eq {a b}} {puts selected} else {puts unreachable}\n    return $x$y\n}\n";
+    let unit = CompilationUnit::build_for_dialect(source, &registry, false, dialect);
+    assert_eq!(value_at(&unit, "::p", "x", 1), Some(text("a b")));
+    assert_eq!(value_at(&unit, "::p", "y", 1), Some(text("a b")));
+    assert_eq!(
+        answers_for(&unit, "::p", "review::list"),
+        ["evaluated"],
+        "the direct route runs"
+    );
+    let decided = Analyser::new()
+        .with_pack_overlay(packs.key)
+        .analyse(source, dialect)
+        .diagnostics
+        .into_iter()
+        .any(|d| d.code == DiagCode::I230);
+    assert!(decided, "the condition decides");
+    tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
+}
+
 /// Workspace commands whose one target may keep its prior value, declared
 /// by outcome alone: no `READS_BEFORE_WRITE`, no write-class trait.
 const MAY_PRESERVE_PACK: &str = "speclib kv 2.2 {

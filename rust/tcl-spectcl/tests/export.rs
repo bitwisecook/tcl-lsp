@@ -573,7 +573,7 @@ speclib probe 2.2 {
         arity 1..
         subcommand label {
             arity 1
-            evaluate -direct StringRange
+            evaluate -direct ListOfArgs
         }
         subcommand quiet {
             semantics none

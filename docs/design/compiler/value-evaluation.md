@@ -1930,7 +1930,7 @@ the innermost declaration wins.
 | `semantics -native ID` | one id | the shipped structural plan, by name | 2.2 |
 | `semantics { … }` | one block | inline plan rows: `effects {…}`, `result -semantic T`, `stores -targets {…} -outcome O`, `iterate {…}` | 2.2 |
 | `semantics none` | — | explicit abstention at this scope; the enclosing scope's plan does not apply | 2.2 |
-| `evaluate -direct ID` | one id | a registry-owned Rust evaluator over the shared cores, resolved through the `evaluate` catalogue | 2.2 |
+| `evaluate -direct ID` | one id | a registry-owned Rust evaluator over the shared cores that reads only the call's arguments, from the selected form's first argument on (`PACK_DIRECT_EVALUATORS`): `ListOfArgs`, `ListLength`, `ListSplit`, `FormatTemplate`, `BinaryFormat`, `Base32Encode`, `Base32Decode`, `Base32HexEncode`, `Base32HexDecode`, `Base64Encode`, `Base64Decode`, `Crc32Checksum`, `Md5Digest`, `Sha1Digest`, `Sha256Digest`, `Sha384Digest`, `Sha512Digest`, `FindString`, `StringField`, `Substring`, `DomainLabels`, `UriBasename`, `UriPath`, `UriQuery`, `UriHost`, `UriPort`, `UriProtocol`, `UriDecode`, `UriEncode`, `UriCompare`, `IpAddrEquals`; any other id in `NativeEvalId::ALL` needs its own command's specialisation and is a load notice that installs no route | 2.2 |
 | `evaluate -expression ID` | one id | the shared expression engine under the named language profile (`tcl.expr`, `bpf.expr`) | 2.2 |
 | `evaluate -implementation ID -host HOST { … }` | an id, a host word, one block | a declared implementation; `bounded_tcl` is the only host word | 2.2 |
 | `evaluate -native ID` | one id | a shipped evaluator whose route the catalogue entry itself names | 2.2 |

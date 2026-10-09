@@ -86,7 +86,7 @@ pub use declaration::{
 pub use declared::{
     DeclaredEffect, DeclaredEvaluation, DeclaredImplementation, DeclaredIteration,
     DeclaredSemantics, DeclaredStores, DeclaredStructure, ExtensionArtefact, IterableWord,
-    OutcomeKind, SemanticType,
+    OutcomeKind, PACK_DIRECT_EVALUATORS, SemanticType, pack_direct_evaluator,
 };
 pub use decline::{AnalysisTier, Axis, BudgetLimit, DeclineReason, NoRouteReason};
 pub use inputs::{

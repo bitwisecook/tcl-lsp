@@ -1,6 +1,6 @@
 # Hand-off: the value-transfer branch before its PR to `rust`
 
-**Temporary.** This file and `SPECTCL_BRANCH_REVIEW.md` are deleted, in their own commit, before the pull request is opened. Nothing in it is repository documentation. Updated at every push; last update 2026-10-09, with the folded-type witness fix.
+**Temporary.** This file and `SPECTCL_BRANCH_REVIEW.md` are deleted, in their own commit, before the pull request is opened. Nothing in it is repository documentation. Updated at every push; last update 2026-10-09, with the B7 commit.
 
 ## Where things stand
 
@@ -11,10 +11,10 @@
   - f82eaefbd `fix(analyser): the proven index check reports each site once and covers nested calls` (B3)
   - ea9f0450b `fix(registry): a store a declared outcome may preserve is live` (B5)
   - 5713e4bd4 + d05eac825: the second review (`SPECTCL_BRANCH_REVIEW.md`) and its merge, from the user's side.
-- Pushed, full gate pending: 233d1b3df (B6) and 97c2811ac (B2a, the examples page).
-- Committed, awaiting push: `test(compiler): the folded-type witness widens at an opaque barrier` — B6 stopped the solver widening at a `return` barrier, so `folded_types_state_what_each_route_constructed`'s barrier witness (`return -code ok $n`) widened nothing and the test failed; the witness now uses `eval $script`. `value_transfer_witnesses` 171/171.
-- In the working tree, uncommitted: B7 in progress (`rust/tcl-registry/src/value_transfer/{declared.rs,builtins.rs,mod.rs}`).
-- Next: B7 (revised; the bindable set is reported with its commit), then B8 … B15 in the plan's order.
+- Pushed, full gate pending: 233d1b3df (B6), 97c2811ac (B2a, the examples page), dff64488e (the folded-type witness, after B6).
+- Committed, awaiting push: `fix(registry): a pack's direct evaluator either binds or is reported at load` (B7). Bindable set (`PACK_DIRECT_EVALUATORS`, 31): `ListOfArgs`, `ListLength`, `ListSplit`, `FormatTemplate`, `BinaryFormat`, the four base32 evaluators and the twenty-two iRules functions (`Base64Encode` … `IpAddrEquals`); any other id is a load notice with no route. Own checks: fmt, clippy, `tcl-registry`/`tcl-spectcl`/`tcl-spec-studio` lib and every integration binary, `tcl-compiler` lib and `value_transfer_witnesses`, `make xtask-check`.
+- In the working tree, uncommitted: nothing.
+- Next: B8 (a declared implementation refuses an invocation outside its arity), then B9 … B15 in the plan's order.
 - Standing states that are not defects of this branch: `cargo xtask dialect-drift` exits 1 with 8 sites present at the base (#2253); the tcl-vm tests of #2271 fail under a POSIX `LANG` and pass under `LANG=C.UTF-8`.
 
 ## How to verify and push

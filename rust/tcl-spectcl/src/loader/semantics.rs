@@ -639,9 +639,23 @@ fn read_evaluate(stmt: &Stmt, scope: &Scope<'_>, log: &mut Log) -> Option<Evalua
         (3, "-native") => native_id(stmt, "evaluate", "-native", scope, EVALUATE_NATIVE, log)
             .map(Evaluation::Route),
         (3, "-direct") => {
-            let id = stmt.word_text(2);
-            enum_by_name(NativeEvalId::ALL, id, "direct evaluator", stmt.line, log)
-                .map(|id| Evaluation::Route(EvalRoute::Direct { id }))
+            let name = stmt.word_text(2);
+            let id = enum_by_name(NativeEvalId::ALL, name, "direct evaluator", stmt.line, log)?;
+            // A pack names only an evaluator that reads nothing but the
+            // invocation's arguments; any other needs its own command's
+            // specialisation, which no declaration stands for.
+            if tcl_registry::value_transfer::pack_direct_evaluator(id).is_none() {
+                log.say(
+                    stmt.line,
+                    format!(
+                        "direct evaluator `{name}` on `{}` needs a registry specialisation; \
+                         the route is not installed",
+                        scope.path
+                    ),
+                );
+                return None;
+            }
+            Some(Evaluation::Route(EvalRoute::Direct { id }))
         }
         (3, "-expression") => {
             let id = stmt.word_text(2);
@@ -1020,8 +1034,8 @@ mod tests {
     use tcl_registry::value_transfer::{
         Axis, CommandSemantics, ContextDependency, DeclaredEffect, DeclaredEvaluation,
         DeclaredInput, DeclaredSemantics, DeclineReason, EvalRoute, Exactness, HostKind,
-        ImplementationBudget, IterableWord, LanguageProfileId, NoRouteReason, OutcomeKind,
-        SemanticType, SemanticsDeclaration,
+        ImplementationBudget, IterableWord, LanguageProfileId, NativeEvalId, NoRouteReason,
+        OutcomeKind, SemanticType, SemanticsDeclaration,
     };
 
     use super::super::{HookOwner, HookSource, Pack, evaluate_pack};
@@ -1395,6 +1409,54 @@ speclib probe 2.2 {
         assert_eq!(implementation.capability.host, HostKind::BoundedTcl);
         assert_eq!(implementation.extension, None);
         assert_eq!(evaluate_hooks(&pack, "tcl_body").len(), 1);
+    }
+
+    /// A pack names a direct evaluator only from the set that reads nothing
+    /// but the invocation's arguments: `ListOfArgs` installs its route, and
+    /// `StringRange`, which reads `string`'s subcommand word at operand 0,
+    /// is a load notice naming the evaluator and the command, with no route.
+    #[test]
+    fn a_direct_evaluator_a_pack_cannot_bind_is_a_load_notice() {
+        let pack = evaluate_pack(
+            "speclib probe 2.2 {\n\
+             command probe::list {\n\
+             \x20   arity 0..\n\
+             \x20   evaluate -direct ListOfArgs\n\
+             }\n\
+             command probe::range {\n\
+             \x20   arity 3\n\
+             \x20   evaluate -direct StringRange\n\
+             }\n\
+             }",
+        );
+        let messages: Vec<&str> = pack
+            .notices
+            .iter()
+            .map(|notice| notice.message.as_str())
+            .collect();
+        assert_eq!(messages.len(), 1, "{messages:#?}");
+        assert!(
+            messages[0].contains(
+                "direct evaluator `StringRange` on `probe::range` needs a registry \
+                 specialisation; the route is not installed"
+            ),
+            "{messages:#?}"
+        );
+        let SemanticsDeclaration::Declared(list) =
+            pack.command("probe::list").unwrap().spec.semantics
+        else {
+            panic!("`probe::list` declares its route");
+        };
+        assert_eq!(
+            list.route(),
+            EvalRoute::Direct {
+                id: NativeEvalId::ListOfArgs
+            }
+        );
+        assert!(matches!(
+            pack.command("probe::range").unwrap().spec.semantics,
+            SemanticsDeclaration::Inherited
+        ));
     }
 
     #[test]

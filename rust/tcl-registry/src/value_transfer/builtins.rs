@@ -303,7 +303,8 @@ impl CommandSemantics for ListOfArgsSemantics {
     }
 
     fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
-        let args = match exact_operands(input, 0..input.invocation().operands.len()) {
+        let view = input.invocation();
+        let args = match exact_operands(input, view.argument_offset..view.operands.len()) {
             Ok(args) => args,
             Err(answer) => return answer,
         };
@@ -364,10 +365,11 @@ impl CommandSemantics for ListLengthSemantics {
     }
 
     fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
-        if input.invocation().operands.len() != 1 {
+        let first = input.invocation().argument_offset;
+        if input.invocation().operands.len() != first + 1 {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
         }
-        let list = match exact_operands(input, 0..1) {
+        let list = match exact_operands(input, first..first + 1) {
             Ok(mut args) => args.remove(0),
             Err(answer) => return answer,
         };
@@ -499,11 +501,12 @@ impl CommandSemantics for SplitSemantics {
     }
 
     fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
+        let first = input.invocation().argument_offset;
         let count = input.invocation().operands.len();
-        if !(1..=2).contains(&count) {
+        if !(1..=2).contains(&count.saturating_sub(first)) {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
         }
-        let args = match exact_operands(input, 0..count) {
+        let args = match exact_operands(input, first..count) {
             Ok(args) => args,
             Err(answer) => return answer,
         };
@@ -770,12 +773,13 @@ impl CommandSemantics for FormatTemplateSemantics {
     }
 
     fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
+        let first = input.invocation().argument_offset;
         let words = input.invocation().operands.len();
-        if words == 0 {
+        if words <= first {
             // `wrong # args`: the program's error.
             return EvalAnswer::Declined(DeclineReason::Unsupported);
         }
-        let template = match exact_operand(input, 0) {
+        let template = match exact_operand(input, first) {
             Ok(template) => template,
             Err(answer) => return answer,
         };
@@ -783,7 +787,7 @@ impl CommandSemantics for FormatTemplateSemantics {
             Ok(text) => tcl_syntax::format::version_gated_uses(text),
             Err(reason) => return EvalAnswer::Declined(reason),
         };
-        let args = match exact_operands(input, 0..words) {
+        let args = match exact_operands(input, first..words) {
             Ok(args) => args,
             Err(answer) => return answer,
         };

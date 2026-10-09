@@ -46,7 +46,9 @@ use super::context::Budget;
 use super::decline::{Axis, DeclineReason, NoRouteReason};
 use super::inputs::{AnalysisInputs, FactDomain, InvocationLayout, OperandId, PlaceRef, TargetId};
 use super::iteration::{LOOP_ABSORBED, LoopResult};
-use super::route::{ContextDependency, DeclaredInput, EvalRoute, EvaluatorCapability, HostKind};
+use super::route::{
+    ContextDependency, DeclaredInput, EvalRoute, EvaluatorCapability, HostKind, NativeEvalId,
+};
 
 /// One effect a `semantics { effects {…} }` row declares.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -231,6 +233,91 @@ pub enum DeclaredEvaluation {
     Route(EvalRoute),
     /// A declared implementation.
     Implementation(DeclaredImplementation),
+}
+
+/// The direct evaluators a pack may name with `evaluate -direct ID`: those
+/// whose implementation reads nothing but the invocation's arguments, from
+/// the resolved form's first argument on, and no state of the command that
+/// ships it. Any other catalogued evaluator needs its command's own
+/// specialisation — a subcommand word at operand 0, an absent cell's
+/// creation, a target's roles — and is not one a pack declaration can stand
+/// for.
+pub const PACK_DIRECT_EVALUATORS: &[NativeEvalId] = &[
+    NativeEvalId::ListOfArgs,
+    NativeEvalId::ListLength,
+    NativeEvalId::ListSplit,
+    NativeEvalId::FormatTemplate,
+    NativeEvalId::BinaryFormat,
+    NativeEvalId::Base32Encode,
+    NativeEvalId::Base32Decode,
+    NativeEvalId::Base32HexEncode,
+    NativeEvalId::Base32HexDecode,
+    NativeEvalId::Base64Encode,
+    NativeEvalId::Base64Decode,
+    NativeEvalId::Crc32Checksum,
+    NativeEvalId::Md5Digest,
+    NativeEvalId::Sha1Digest,
+    NativeEvalId::Sha256Digest,
+    NativeEvalId::Sha384Digest,
+    NativeEvalId::Sha512Digest,
+    NativeEvalId::FindString,
+    NativeEvalId::StringField,
+    NativeEvalId::Substring,
+    NativeEvalId::DomainLabels,
+    NativeEvalId::UriBasename,
+    NativeEvalId::UriPath,
+    NativeEvalId::UriQuery,
+    NativeEvalId::UriHost,
+    NativeEvalId::UriPort,
+    NativeEvalId::UriProtocol,
+    NativeEvalId::UriDecode,
+    NativeEvalId::UriEncode,
+    NativeEvalId::UriCompare,
+    NativeEvalId::IpAddrEquals,
+];
+
+/// The registry evaluator a pack's `evaluate -direct ID` runs: the shipped
+/// specialisation whose route `id` is, for an id in
+/// [`PACK_DIRECT_EVALUATORS`]; `None` for any other.
+#[must_use]
+pub fn pack_direct_evaluator(id: NativeEvalId) -> Option<&'static dyn CommandSemantics> {
+    use super::{builtins, irules, tcllib};
+    let semantics: &'static dyn CommandSemantics = match id {
+        NativeEvalId::ListOfArgs => &builtins::LIST_OF_ARGS,
+        NativeEvalId::ListLength => &builtins::LIST_LENGTH,
+        NativeEvalId::ListSplit => &builtins::SPLIT,
+        NativeEvalId::FormatTemplate => &builtins::FORMAT_TEMPLATE,
+        NativeEvalId::BinaryFormat => &builtins::BINARY_FORMAT,
+        NativeEvalId::Base32Encode => &tcllib::BASE32_ENCODE,
+        NativeEvalId::Base32Decode => &tcllib::BASE32_DECODE,
+        NativeEvalId::Base32HexEncode => &tcllib::BASE32_HEX_ENCODE,
+        NativeEvalId::Base32HexDecode => &tcllib::BASE32_HEX_DECODE,
+        NativeEvalId::Base64Encode => &irules::B64ENCODE,
+        NativeEvalId::Base64Decode => &irules::B64DECODE,
+        NativeEvalId::Crc32Checksum => &irules::CRC32,
+        NativeEvalId::Md5Digest => &irules::MD5,
+        NativeEvalId::Sha1Digest => &irules::SHA1,
+        NativeEvalId::Sha256Digest => &irules::SHA256,
+        NativeEvalId::Sha384Digest => &irules::SHA384,
+        NativeEvalId::Sha512Digest => &irules::SHA512,
+        NativeEvalId::FindString => &irules::FINDSTR,
+        NativeEvalId::StringField => &irules::GETFIELD,
+        NativeEvalId::Substring => &irules::SUBSTR,
+        NativeEvalId::DomainLabels => &irules::DOMAIN,
+        NativeEvalId::UriBasename => &irules::URI_BASENAME,
+        NativeEvalId::UriPath => &irules::URI_PATH,
+        NativeEvalId::UriQuery => &irules::URI_QUERY,
+        NativeEvalId::UriHost => &irules::URI_HOST,
+        NativeEvalId::UriPort => &irules::URI_PORT,
+        NativeEvalId::UriProtocol => &irules::URI_PROTOCOL,
+        NativeEvalId::UriDecode => &irules::URI_DECODE,
+        NativeEvalId::UriEncode => &irules::URI_ENCODE,
+        NativeEvalId::UriCompare => &irules::URI_COMPARE,
+        NativeEvalId::IpAddrEquals => &irules::IP_ADDR,
+        _ => return None,
+    };
+    debug_assert_eq!(semantics.route(), EvalRoute::Direct { id });
+    Some(semantics)
 }
 
 /// What a pack declares at one scope: the specialisation the loader leaks
@@ -732,8 +819,14 @@ impl CommandSemantics for DeclaredSemantics {
             DeclaredEvaluation::Implementation(implementation) => {
                 self.evaluate_implementation(implementation, input, budget)
             }
-            // The driver runs a named route itself; what reaches here
-            // evaluates nothing, with the route's own reason.
+            // A direct route runs the registry evaluator the id names; the
+            // driver runs an expression route itself, and what else
+            // reaches here evaluates nothing, with the route's own reason.
+            DeclaredEvaluation::Route(EvalRoute::Direct { id }) => pack_direct_evaluator(*id)
+                .map_or(
+                    EvalAnswer::Declined(DeclineReason::Unsupported),
+                    |evaluator| evaluator.evaluate(input, budget),
+                ),
             DeclaredEvaluation::Route(EvalRoute::None { reason }) => {
                 EvalAnswer::Declined(DeclineReason::NoRoute(*reason))
             }
@@ -785,6 +878,23 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
+
+    /// Every evaluator a pack may name is one the registry runs for that id,
+    /// and every other catalogued id has none a pack can bind.
+    #[test]
+    fn a_pack_binds_exactly_the_evaluators_it_may_name() {
+        for &id in NativeEvalId::ALL {
+            let bound = pack_direct_evaluator(id);
+            assert_eq!(
+                bound.is_some(),
+                PACK_DIRECT_EVALUATORS.contains(&id),
+                "{id:?}"
+            );
+            if let Some(evaluator) = bound {
+                assert_eq!(evaluator.route(), EvalRoute::Direct { id }, "{id:?}");
+            }
+        }
+    }
     use crate::pack_hooks::{HookFamily, HookInput, HookInputs, PackHookHost};
     use crate::value_transfer::const_ops::Needs;
     use crate::value_transfer::context::{AnalysisContext, BindingIdentity};
