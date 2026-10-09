@@ -682,15 +682,19 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
       return { kind: "ends-options", family };
     };
     const controls: Child[] = [
-      checkbox(present, (on) => patchEffect(on ? defaultForKind("disables") : null), "has an effect"),
+      checkbox(
+        present,
+        (on) => patchEffect(on ? defaultForKind("disables") : null),
+        "has an effect",
+      ),
     ];
     if (present) {
       const kind = asString(effect.kind);
       const kindSelect = el(
         "select",
         {},
-        ["disables", "selects", "suppresses-role", "reserves-trailing-words", "ends-options"].map((k) =>
-          el("option", { value: k, text: k }),
+        ["disables", "selects", "suppresses-role", "reserves-trailing-words", "ends-options"].map(
+          (k) => el("option", { value: k, text: k }),
         ),
       );
       kindSelect.value = kind;
