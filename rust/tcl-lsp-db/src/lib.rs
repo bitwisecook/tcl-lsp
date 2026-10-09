@@ -751,8 +751,8 @@ pub struct AnalyserConfig {
 ///
 /// `config.disabled_diagnostics` is the analyser's production-time skip —
 /// rule 2's permitted saving in `docs/design/compiler/diagnostic-policy.md`
-/// § Producers that change: the codes the document's policy turns off, which
-/// the analyser need not compute. It is never a presentation filter. The
+/// § What the producers leave to the policy: the codes the document's policy
+/// turns off, which the analyser need not compute. It is never a presentation filter. The
 /// surface that reads this analysis declares the same set to its report, so a
 /// code left uncomputed is explained rather than read as clean; what the
 /// document shows is the policy step's decision.
@@ -3758,8 +3758,8 @@ pub fn compilation_unit<'db>(
 ///
 /// `config.disabled_diagnostics` is the analyser's production-time skip —
 /// rule 2's permitted saving in `docs/design/compiler/diagnostic-policy.md`
-/// § Producers that change: the codes the document's policy turns off, which
-/// the analyser need not compute. It is never a presentation filter. The
+/// § What the producers leave to the policy: the codes the document's policy
+/// turns off, which the analyser need not compute. It is never a presentation filter. The
 /// surface that reads this analysis declares the same set to its report, so a
 /// code left uncomputed is explained rather than read as clean; what the
 /// document shows is the policy step's decision.

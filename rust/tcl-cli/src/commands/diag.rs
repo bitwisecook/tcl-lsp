@@ -326,7 +326,8 @@ fn collect_rows(
 
     // The analyser's production-time skip: the codes the policy hides by a
     // configuration layer or the default-off seed, which it need not compute
-    // (`docs/design/compiler/diagnostic-policy.md` § Producers that change)
+    // (`docs/design/compiler/diagnostic-policy.md` § What the producers
+    // leave to the policy)
     // — the same seeded set the editor's `file_analysis` passes. Declared to
     // the report below with the codes the analyser's own file-directive fold
     // skips, so a gap is explained rather than read as clean.

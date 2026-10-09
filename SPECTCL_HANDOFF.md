@@ -11,10 +11,10 @@
   - f82eaefbd `fix(analyser): the proven index check reports each site once and covers nested calls` (B3)
   - ea9f0450b `fix(registry): a store a declared outcome may preserve is live` (B5)
   - 5713e4bd4 + d05eac825: the second review (`SPECTCL_BRANCH_REVIEW.md`) and its merge, from the user's side.
-- Pushed, full gate pending: 233d1b3df (B6), 97c2811ac (B2a, the examples page), dff64488e (the folded-type witness, after B6), a32e87f8c (B7, `fix(registry): a pack's direct evaluator either binds or is reported at load`; bindable set `PACK_DIRECT_EVALUATORS`, 31 evaluators), 6dabf998f (B8, `fix(registry): a declared implementation refuses an invocation outside its arity`), d3e90cc1c (B9, `fix(registry): a raising argument ends the invocation before its implementation runs`), 15086f974 (B11, `fix(studio): format the option-effect editor as the lint gate requires`), 683705e4e (B10, `fix(compiler): a declared implementation's binding dependencies are checked at the call`), d0b052d1b (B12, `fix(analyser): W305 reaches the policy owner like every other finding`), aabedbd2a (B13, `fix(runtime): Tcl_PkgProvideEx keeps the caller's result`).
-- Committed, awaiting push: 92fbb3537 (B14, `fix(engine): confinement refuses array creation and unsets outside the activation`; its checks: both engines' suites, the runtime's under `LANG=C.UTF-8`, the WASM engine's confinement cases, `make xtask-check`); `test(registry): a write outcome without a value is rejected` (B15; fmt, clippy `tcl-registry`, its lib suite 1050/1050, and the test fails under the review's mutation).
+- Pushed, full gate pending: 233d1b3df (B6), 97c2811ac (B2a, the examples page), dff64488e (the folded-type witness, after B6), a32e87f8c (B7), 6dabf998f (B8), d3e90cc1c (B9), 15086f974 (B11), 683705e4e (B10), d0b052d1b (B12), aabedbd2a (B13), 92fbb3537 (B14, `fix(engine): confinement refuses array creation and unsets outside the activation`), 4b9d76ce7 (B15, `test(registry): a write outcome without a value is rejected`). The code items B1–B15 are all in.
+- Committed, awaiting push: `docs: the diagnostic-policy page describes the policy as built` (B2b; `make xtask-check` green).
 - In the working tree, uncommitted: nothing.
-- Next: B2b (the diagnostic-policy page describes the policy as built), then B2c, S1 … N2 in the plan's order.
+- Next: B2c (+D1) — the migration page states what each consumer reads from the registry — then S1 … N2 in the plan's order.
 - Standing states that are not defects of this branch: `cargo xtask dialect-drift` exits 1 with 8 sites present at the base (#2253); the tcl-vm tests of #2271 fail under a POSIX `LANG` and pass under `LANG=C.UTF-8`.
 
 ## How to verify and push

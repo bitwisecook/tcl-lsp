@@ -2819,7 +2819,7 @@ Three producers read the interface:
   and the policy step decides the two codes independently — the pattern
   encoding abstention follows, deciding on byte-decode evidence rather than
   on whether W109 is displayed ([diagnostic-policy.md](diagnostic-policy.md)
-  § *Producers that change*; built).
+  § *What the producers leave to the policy*; built).
 
 Not every predicate needs a globally stored lattice: a rule-specific
 analysis may compute its finding from shared facts, as the interval

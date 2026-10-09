@@ -1246,8 +1246,8 @@ impl Policy {
     /// The codes a producer may leave uncomputed: [`Self::disabled_codes`]
     /// less [`FACT_CODES`], which another producer reads as a fact. Rule 2's
     /// permitted saving (`docs/design/compiler/diagnostic-policy.md`
-    /// § Producers that change), the analyser's `with_disabled_diagnostics`
-    /// set on every surface. A disabled fact code is computed and then
+    /// § What the producers leave to the policy), the analyser's
+    /// `with_disabled_diagnostics` set on every surface. A disabled fact code is computed and then
     /// suppressed, so its reason is recorded on the finding itself.
     ///
     /// The family gates are not in it. No producer that honours a skip emits

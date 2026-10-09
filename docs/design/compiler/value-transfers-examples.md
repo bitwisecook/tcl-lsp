@@ -278,7 +278,7 @@ O111 is a producer over the unbraced-expression fact:
 at the span of every W100 the analyser emitted and reads no policy, so it
 does not depend on W100 surviving presentation, and policy decides the two
 codes independently: disabling W100 does not silence O111 — the rule
-[diagnostic-policy.md](diagnostic-policy.md) § *Producers that change*
+[diagnostic-policy.md](diagnostic-policy.md) § *What the producers leave to the policy*
 states. `tcl diag` runs the producer too and, keeping the optimiser off,
 holds its O111 as an `optimiser-off` suppression, which
 `--show-suppressed` lists.

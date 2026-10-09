@@ -228,11 +228,11 @@ pub fn standalone_findings(
 /// span of every W100 the analyser emitted, whatever policy later decides
 /// for either.
 ///
-/// `docs/design/compiler/diagnostic-policy.md` § Producers that change: W100
-/// and O111 consume the same fact, and the policy step decides each on its
-/// own — a layer that turns W100 off or a `# noqa: W100` leaves O111
-/// standing, and the optimiser's switch and profile reach O111 where they
-/// reach every other O-code. It reads no policy. W100 is a fact code
+/// `docs/design/compiler/diagnostic-policy.md` § What the producers leave to
+/// the policy: W100 and O111 consume the same fact, and the policy step
+/// decides each on its own — a layer that turns W100 off or a `# noqa: W100`
+/// leaves O111 standing, and the optimiser's switch and profile reach O111
+/// where they reach every other O-code. It reads no policy. W100 is a fact code
 /// ([`crate::diagnostic_policy::FACT_CODES`]), so no layer's skip takes the
 /// input away; a `# tcl-lsp: disable=W100` still does, because the analyser
 /// folds the file directive into its own skip.
