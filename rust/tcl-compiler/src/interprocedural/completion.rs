@@ -23,7 +23,7 @@
 //!
 //! A store whose value runs a command can be deleted only where the command
 //! cannot raise, and purity says a call changes nothing, not that it
-//! completes (D253). So the summary states completion apart (D330): a
+//! completes. So the summary states completion apart: a
 //! procedure completes where its body is straight-line — assignments to its
 //! own scalars, calls and a `return` — every variable it reads is a parameter
 //! or a scalar an earlier statement set, and every command it runs completes
@@ -86,7 +86,7 @@ impl<'w> CompletionWalk<'w> {
     /// is set as a scalar and every procedure it calls completes: its text is
     /// literal or substitutes a scalar variable or a command that completes.
     /// An element read, an expansion, a word the lexer could not model and a
-    /// word the release's parser rejects (D349) may raise.
+    /// word the release's parser rejects may raise.
     pub(crate) fn word(&mut self, word: &WordExpr) -> bool {
         self.word_at(word, 0)
     }
@@ -179,13 +179,13 @@ impl<'w> CompletionWalk<'w> {
 }
 
 /// Whether each procedure of `ir_module` completes normally whatever its
-/// arguments hold, for a call whose word count its parameters accept
-/// (D330): a least fixpoint over the calls each straight-line body makes, so
+/// arguments hold, for a call whose word count its parameters accept:
+/// a least fixpoint over the calls each straight-line body makes, so
 /// a recursion never completes. The registry commands a body runs are read
 /// from the document's command surface as the module leaves them: the module
 /// must trust the head's builtin binding, and a command the document
 /// declares answers alone, with no completion stated. A procedure a body
-/// calls must be defined where the body runs (D348): `defined` answers
+/// calls must be defined where the body runs: `defined` answers
 /// whether a callee's `proc` statement surely runs before the load may first
 /// run the caller.
 pub(super) fn procedures_complete(
@@ -395,8 +395,7 @@ mod tests {
             .collect()
     }
 
-    /// Whether `procedure` is surely defined where `runner`'s calls run
-    /// (D348).
+    /// Whether `procedure` is surely defined where `runner`'s calls run.
     fn defined_for(source: &str, runner: &str, procedure: &str) -> bool {
         summaries(source, DIALECT)[runner]
             .defined_callees
@@ -407,7 +406,7 @@ mod tests {
     /// A procedure called before the `proc` statement that defines it has
     /// run raises `invalid command name`, so a callee counts as defined only
     /// where a direct top-level `proc` statement defines it before the load
-    /// may first run the caller (D348): the load runs `main` (as a statement,
+    /// may first run the caller: the load runs `main` (as a statement,
     /// in a substitution, under `catch`, through `eval` or from a `namespace
     /// eval`) before `label`'s definition, or `label` is defined only under
     /// a condition, and `label` is not defined for `main`. Defined first, or
@@ -465,7 +464,7 @@ mod tests {
     }
 
     /// A word the release's parser rejects is a compile error when the body
-    /// is first compiled, so a body holding one never completes (D349):
+    /// is first compiled, so a body holding one never completes:
     /// content welded to a closing quote or brace under every release, and
     /// `{*}` under 8.4, which reads it as a braced word.
     #[test]

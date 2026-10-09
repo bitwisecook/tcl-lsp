@@ -8883,8 +8883,8 @@ mod tests {
     /// of both was authorable while `registry/spec-packs.md` stated the
     /// stricter truth. This pins which one the tree agrees with, so growing
     /// either loader fails here until the README is corrected with it: the
-    /// `state_transitions` rows grew with the consumer-contracts lane's
-    /// resolver family, and both documents say so.
+    /// `state_transitions` rows carry the resolver family, and both
+    /// documents say so.
     ///
     /// `composition` is asserted as `Replace` because `Extend` is what
     /// both `EMPTY` descriptors already hold: asserting the default would

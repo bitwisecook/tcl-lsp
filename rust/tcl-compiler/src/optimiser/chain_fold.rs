@@ -820,8 +820,8 @@ mod tests {
     }
 
     /// A `$var` piece the lattice proves constant folds through the value
-    /// at that statement: the non-consecutive chain of the migration plan's
-    /// O104 witness, and its exact-value twin (#2052).
+    /// at that statement: the non-consecutive O104 chain, and its
+    /// exact-value twin (#2052).
     #[test]
     fn var_piece_proven_by_the_lattice_folds_the_chain() {
         let out = apply("set s hello\nset p again\nappend s $p\nputs $s\n");

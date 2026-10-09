@@ -38458,7 +38458,7 @@ mod tests {
     /// A configured folder whose resolved analyser inputs equal the session's
     /// shares the session's `AnalyserConfig` handle, and so its memo: every
     /// configured folder carries a skip of its own, and a handle per folder
-    /// would analyse each of its documents twice per revision (DP4.1).
+    /// would analyse each of its documents twice per revision.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_folder_matching_the_session_shares_its_analyser_handle() {
         let backend = test_backend();
@@ -38498,7 +38498,7 @@ mod tests {
     /// The session's analyser skip is the production skip of its layers: the
     /// per-code decisions and the default-off seed a layer did not turn on,
     /// and never a family gate — the shimmer switch is the policy's, not the
-    /// skip's (DP4.1).
+    /// skip's.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_session_skip_is_the_layers_production_skip() {
         let backend = test_backend();
@@ -38627,7 +38627,7 @@ mod tests {
     }
 
     /// The test seam `apply_global_config` fills the session's editor layer,
-    /// and the session's analyser skip follows it (DP4.1).
+    /// and the session's analyser skip follows it.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn apply_global_config_populates_the_editor_layer() {
         let backend = test_backend();
@@ -39502,7 +39502,7 @@ proc p {} {
         );
     }
 
-    /// A disabled fact code is computed and suppressed, never skipped (DP8.1):
+    /// A disabled fact code is computed and suppressed, never skipped:
     /// the session's analyser skip leaves W100 out, while `getEffectiveConfig`
     /// and the INI export still list it as disabled — they report what the
     /// configuration turns off, not what the analyser skips.
@@ -39531,8 +39531,7 @@ proc p {} {
 
     /// `fixAllSafeIssues` applies a fix for a shown finding and for no other:
     /// a `# noqa: W100` over the command, W100 turned off at a layer, and an
-    /// abstaining document each keep the brace fix from being applied in bulk
-    /// (DP8.1, D44).
+    /// abstaining document each keep the brace fix from being applied in bulk.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn fix_all_safe_issues_applies_only_shown_fixes() {
         let fixed = |out: Option<serde_json::Value>| {
@@ -39654,7 +39653,7 @@ proc p {} {
     /// `getEffectiveConfig` and the INI export list the codes the policy
     /// turns off, catalogued codes only: an uncatalogued spelling decides
     /// nothing, and the default-off seed is listed until a layer turns the
-    /// code on (DP4.1).
+    /// code on.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_effective_skip_lists_catalogued_codes_only() {
         let backend = test_backend();
@@ -53588,7 +53587,7 @@ proc p {} {
         );
     }
 
-    /// Disabling W100 does not silence O111 (DP8.2): the analyser computes
+    /// Disabling W100 does not silence O111: the analyser computes
     /// W100, a fact code, and the policy step decides the two on their own —
     /// a layer's `W100 = false` or a `# noqa: W100` hides W100 and leaves
     /// the O111 over the same expression.
@@ -53642,7 +53641,7 @@ proc p {} {
         );
     }
 
-    /// DP8.3: the code-action handler builds its report the pull path's
+    /// The code-action handler builds its report the pull path's
     /// way — `published_findings` then `published_report` — so the
     /// lightbulb's shown set is exactly what the document publishes.
     #[tokio::test]

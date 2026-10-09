@@ -216,9 +216,9 @@ fn explore_sccp_prints_the_route_of_each_statement() {
 }
 
 /// An iRules pure function folds through its registry-owned route over the
-/// shared core the simulator runs (VT7.1): `b64encode abc` in `RULE_INIT` is
+/// shared core the simulator runs: `b64encode abc` in `RULE_INIT` is
 /// `YWJj`, and the statement names the route; `lset` writes the list it
-/// computes (VT7.2).
+/// computes.
 #[test]
 fn explore_sccp_folds_the_irules_cores_and_the_list_cell_updates() {
     let irules = run_tcl(&[
@@ -1467,8 +1467,8 @@ fn o103_summary_path_folds_a_computed_return() {
     assert!(summary.contains("return shape: const('foo')"), "{summary}");
 }
 
-/// Slice 13's exit evidence: `tcl explore --show sccp` prints what `bump n`
-/// leaves in `::p`'s `n` as `const(2)`, the call applying `bump`'s summary.
+/// `tcl explore --show sccp` prints what `bump n` leaves in `::p`'s `n` as
+/// `const(2)`, the call applying `bump`'s summary.
 #[test]
 fn explore_sccp_prints_what_a_call_leaves_in_its_name_argument() {
     let text = run_tcl(&[
@@ -1484,8 +1484,8 @@ fn explore_sccp_prints_what_a_call_leaves_in_its_name_argument() {
     assert!(p.contains("n#2 = const(2)"), "{text}");
 }
 
-/// Slice 13's review fix S1 through the shipped binary: `tcl explore --show
-/// interproc` prints, among a caller's globals, the global it writes through
+/// Through the shipped binary, `tcl explore --show interproc` prints, among
+/// a caller's globals, the global it writes through
 /// a qualified or aliased `Name` argument — `bump ::g`, `upvar #0 g x; bump
 /// x`, `global g; bump g` — and says a caller whose argument names a place
 /// the summary cannot name has none.

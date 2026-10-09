@@ -265,7 +265,7 @@ fn dispatch_signature_handler(
         Some(AnalyserHookId::Catch) => {
             handle_catch(texts, argv, ns_prefix, known_commands, ctx);
         }
-        // `if` and `try` (CC2.9, CC2.13) carry no analyser hook — their
+        // `if` and `try` carry no analyser hook — their
         // clause-carrying bodies walk through the lowering hook they still
         // have instead.
         _ if matches!(
@@ -275,7 +275,7 @@ fn dispatch_signature_handler(
         {
             handle_clause_bodies(dispatch, texts, argv, ns_prefix, known_commands, ctx);
         }
-        // `lappend` (CC2.13) carries no analyser hook either; a command that
+        // `lappend` carries no analyser hook either; a command that
         // appends list elements to its target variable is exactly `lappend`
         // (`append` writes a string, not list elements), the same registry
         // fact the full analyser's own `auto_path` handling reads.

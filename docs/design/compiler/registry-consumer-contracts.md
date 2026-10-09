@@ -644,7 +644,7 @@ operations the interface contract names.
 for` and its siblings). It gives locations and grammar and nothing
 executable: first-match dispatch, list iteration, and completion belong to
 the consumer interface's structural plan, declared beside it and never
-inferred from the slots. Step 2 built it in
+inferred from the slots. It is built in
 `rust/tcl-registry/src/clause_grammar.rs` with two adaptations: `head` is a
 `ClauseRow` (keyword `None`, `Once`), so the head carries its own timing —
 `try`'s protected body, `for`'s init fixture — and `handler` is the
@@ -920,15 +920,13 @@ the rule the existing
 `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`
 already states for layouts.
 
-**Build-order step.** Step 2.
-
 ### The member-effect descriptor
 
 `MemberEffect` goes on `MemberSpec` beside `kind`. `MemberKind` stays the
 *layout* fact — `Flat`, `Wrapper`, `FlagKeyed` — and `MemberEffect` is
 what the member declares. The vocabulary is closed and family-neutral: no
 variant names TclOO, snit, or itcl, and `DefinerFamily` stays the only
-place a family is named. Step 2 built it in
+place a family is named. It is built in
 `rust/tcl-registry/src/definer.rs` with three adaptations: what a wrapper
 does to the member it wraps is `MemberSpec::wrapper_shift` (a
 `WrapperShift` of an optional receiver and an optional
@@ -1149,8 +1147,6 @@ become the proof that it needs none: a new member spelling in a
 `.tclspec` pack reaches the analyser, the navigation providers, and the
 lowering with no consumer edit.
 
-**Build-order step.** Step 2.
-
 ### The derived-query layer
 
 One query per axis over the resolved invocation the interface contract
@@ -1257,7 +1253,7 @@ the registry declares across every loadable dialect and the shipped
 an inline array searched with `.contains(`, or an entry of a `&[&str]` table
 the file reads again; the scan runs over the lexer's tokens and skips the
 item a `#[cfg(test)]` attribute guards. A reviewed site carries
-`// registry-axis-ok: <axis> — <reason>; until <step N | slice N | never>`
+`// registry-axis-ok: <axis> — <reason>; until <change | never>`
 on its line or in the comment block above it (above the enclosing `match`
 or `matches!` for an arm), or its file carries one
 `// registry-axis-ok(file): …`; the axis is one of `command`,
@@ -1266,9 +1262,9 @@ or `matches!` for an arm), or its file carries one
 waived for both gates names one axis — and only `irreducible` may expire
 `never`. The ledger is generated as `docs/generated/registry-axes.md`:
 every waiver by axis with its expiry, and the ratchet table. `--check`
-fails on a count above its pin, a stale pin, an unknown axis, a missing
-expiry, or an expiry naming a step or slice that has landed, so a new
-hand-written row fails the gate rather than being noticed in review.
+fails on a count above its pin, a stale pin, an unknown axis or a missing
+expiry, so a new hand-written row fails the gate rather than being noticed
+in review.
 
 ### The two hook bodies that remain
 
@@ -1303,8 +1299,8 @@ analyser:
   dropped `argument_shape`, `resolver`, `widen`, `covers`, and `commit`
   with a notice, and recorded in its own comment that "the resolver in
   particular is reference-only by design". So it is a **ruling**, narrower
-  than the four in § *Rulings* and decided with them. Step 2 built it:
-  the loader reads every row, and a `resolver {words ctx} { … }` body is
+  than the four in § *Rulings* and decided with them: the loader reads
+  every row, and a `resolver {words ctx} { … }` body is
   `HookFamily::StateTransitionResolver`, whose two verbs — `alias LOCAL
   TARGET ?-level LEVEL?` and `namespace-variable NAME` — name words by
   index; the thunk reads each against the call's own words, so a computed
@@ -1610,8 +1606,6 @@ and that a family's `base` mentions only axes its options mention;
 `rust/tcl-registry/tests/tcl91_dialect.rs` pins the positive family's
 availability, and a differential row against `tclsh9.1` pins the mixed-family
 error.
-
-**Build-order step.** Step 2, with the other descriptors.
 
 ## Codegen and the registry today
 

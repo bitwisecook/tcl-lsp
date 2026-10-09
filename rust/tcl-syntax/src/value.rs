@@ -315,7 +315,7 @@ pub trait ValueOps {
     }
 
     /// Whether an index word whose value turns on the width of the host's C
-    /// `long` takes the 64-bit reading (D360): a runtime answers as C Tcl on
+    /// `long` takes the 64-bit reading: a runtime answers as C Tcl on
     /// its own host does ([`host_long_is_wide`]); a model that names no host
     /// records a decline and answers `false`.
     fn reads_a_wide_long(&mut self) -> bool {

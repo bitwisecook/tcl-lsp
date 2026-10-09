@@ -481,7 +481,7 @@ fn owner_matches_oracle_over_tcllib() {
 /// word records one: `{a}b`, `{a}{b}`, `{a}$b`, `"a"b`, `""b`, `"a"$b`,
 /// `"a"[b]` and `"a"{b}` under every grammar, `{*}$x` under 8.4, where
 /// `{*}` is a braced word; neither `JimTcl`'s concatenating quote nor a word
-/// that closes cleanly. The completion proof reads it (D349).
+/// that closes cleanly. The completion proof reads it.
 #[test]
 fn a_welded_word_carries_the_parse_cut_owners_message() {
     let words = [

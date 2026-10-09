@@ -352,7 +352,7 @@ their argument roles, when its body runs, its lifecycle, and how many
 clauses one call selects. It gives locations and grammar and nothing
 executable: first-match dispatch, list iteration, and completion belong to
 the [value-transfer](#value-transfer) interface's structural plan, declared
-beside it and never inferred from the slots. Built in step 2 as
+beside it and never inferred from the slots. Built as
 `ClauseGrammarSpec` on `CommandSpec` (and `SubCommand`, for `dict for` and
 its siblings), read through one derived `clause_plan` query so no consumer
 outside the registry walks clause keywords itself;
@@ -373,7 +373,7 @@ trailing words the option scan reserves, or ends option parsing. Options
 over one axis share a family whose base says whether a selection also
 turns the other values off, and one derived `option_effects` query
 answers for a resolved call, in place of the two native resolvers that
-used to read a command's own option table by name. Built in step 2 as
+used to read a command's own option table by name. Built as
 `OptionEffect` on `OptionSpec`; `subst`'s two substitution families and
 `lsearch`'s pattern-language family are its two shipped families. See
 `OptionEffect` in `tcl_registry::option_effect`.
@@ -455,7 +455,7 @@ parameter, and body slots; a dispatch redirect; a state declaration with
 its scope; a contribution to an ancestry or interposition slot; a
 visibility change; or a retraction. The vocabulary is closed and
 family-neutral — no variant names `TclOO`, snit, or itcl — and
-`MemberKind` stays the layout fact beside it. Built in step 2 as
+`MemberKind` stays the layout fact beside it. Built as
 `MemberEffect` on `MemberSpec`, read through one derived `member_rows`
 query that the class hierarchy, method arity, and `my` dispatch all fold
 over generically instead of each hand-matching member keywords. See

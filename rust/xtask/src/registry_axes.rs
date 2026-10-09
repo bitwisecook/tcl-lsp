@@ -44,13 +44,11 @@
 //!    `matches!` pattern, above the enclosing `match` or `matches!` too — and
 //!    a file whose sites all wait on one axis may carry one
 //!    `// registry-axis-ok(file): <axis> — <reason>; until <expiry>` in its
-//!    header. The axis is one of [`AXES`], the names of the migration plan's
+//!    header. The axis is one of [`AXES`], the names of the migration page's
 //!    § *Debt on other axes* table, so a site waived for both this gate and
-//!    the value-transfer gate names one axis. The expiry is `step N` (a step
-//!    of the consumer-contracts build order), `slice N` (a value-transfer
-//!    slice), or `never`, which only `irreducible` may carry; an expiry that
-//!    names a landed step or slice ([`LANDED`]) fails the gate, so a waiver
-//!    cannot outlive the change that was to retire it.
+//!    the value-transfer gate names one axis. The expiry names the change
+//!    that retires the site — the registry query the consumer will ask
+//!    instead — or is `never`, which only `irreducible` may carry.
 //! 3. **A ratchet and the generated ledger.** A file in [`CLEAN_FILES`] has
 //!    every site waived or gone. Every other scanned file's count of unwaived
 //!    sites is pinned in [`RATCHET`]: `--check` fails when a count rises above
@@ -78,7 +76,7 @@ use crate::util::{ANALYSIS_TIER_ROOTS, repo_root};
 
 const REPORT_PATH: &str = "docs/generated/registry-axes.md";
 
-/// The axes a waiver may name: the migration plan's § *Debt on other axes*
+/// The axes a waiver may name: the migration page's § *Debt on other axes*
 /// destinations for vocabulary sites, and the sanctioned exception.
 const AXES: &[&str] = &[
     "command",
@@ -90,16 +88,7 @@ const AXES: &[&str] = &[
     "irreducible",
 ];
 
-/// The build steps and value-transfer slices that have landed. A waiver whose
-/// expiry names one of them is stale: the change that was to retire the site
-/// has shipped without it. A lane bumps this when its step or slice lands.
-const LANDED: &[&str] = &[
-    "step 1", "step 2", "step 3", "step 4", "step 5", "step 6", "step 7", "step 8", "step 9",
-    "step 10", "slice 1", "slice 2", "slice 3", "slice 4", "slice 5", "slice 6", "slice 7",
-    "slice 7a", "slice 8", "slice 9", "slice 10", "slice 11", "slice 12", "slice 13",
-];
-
-/// The files the lint holds clean: every site waived or gone. A step that
+/// The files the lint holds clean: every site waived or gone. A review that
 /// rewrites a file adds it here with its pin removed; a file never leaves.
 const CLEAN_FILES: &[&str] = &[
     "rust/tcl-compiler/src/analyser/commands.rs",
@@ -294,7 +283,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
         eprintln!(
             "registry-axes: {} site(s) compare a registry word in a file the gate holds clean. \
              Ask the axis query the registry answers instead, or mark a reviewed site \
-             `// registry-axis-ok: <axis> — <reason>; until <step N | slice N | never>`:",
+             `// registry-axis-ok: <axis> — <reason>; until <change | never>`:",
             lint.clean_hits.len()
         );
         for hit in &lint.clean_hits {
@@ -1009,7 +998,7 @@ struct Waiver {
 }
 
 /// Parse the text after a waiver marker:
-/// `<axis> — <reason>; until <step N | slice N | never>`.
+/// `<axis> — <reason>; until <change | never>`.
 fn parse_waiver(after_marker: &str) -> Result<Waiver, String> {
     let text = after_marker.trim();
     let (axis, rest) = text
@@ -1025,29 +1014,13 @@ fn parse_waiver(after_marker: &str) -> Result<Waiver, String> {
     }
     let Some((reason, until)) = rest.rsplit_once("; until ") else {
         return Err(format!(
-            "on axis `{axis}` has no expiry: end it with `; until <step N | slice N | never>`"
+            "on axis `{axis}` has no expiry: end it with `; until <change | never>`"
         ));
     };
     let until = until.trim();
-    let well_formed = until == "never"
-        || ["step ", "slice "].iter().any(|prefix| {
-            until
-                .strip_prefix(prefix)
-                .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
-        });
-    if !well_formed {
-        return Err(format!(
-            "expiry `{until}` is not `step N`, `slice N`, or `never`"
-        ));
-    }
     if until == "never" && axis != "irreducible" {
         return Err(format!(
             "on axis `{axis}` expires `never`, which only `irreducible` may"
-        ));
-    }
-    if LANDED.contains(&until) {
-        return Err(format!(
-            "expires with `{until}`, which has landed: retire the site or re-review it"
         ));
     }
     Ok(Waiver {
@@ -1175,9 +1148,8 @@ fn render_report(lint: &Lint) -> String {
          command or subcommand name, an option spelling, a definition-body member keyword, a \
          clause keyword, or a special-variable name — found by the source lint of \
          `docs/design/compiler/registry-consumer-contracts.md` § *The per-axis lint and \
-         ledger*. A reviewed site names the axis whose query retires it and the build step \
-         (`step N`) or value-transfer slice (`slice N`) that will; `never` is the sanctioned \
-         irreducible exception. Every other site is counted against its file's pin.\n\n",
+         ledger*. A reviewed site names the axis whose query retires it and the change that \
+         will; `never` is the sanctioned irreducible exception. Every other site is counted against its file's pin.\n\n",
     );
     render_ledger(&mut out, lint);
     render_ratchet(&mut out, lint);
@@ -1319,11 +1291,11 @@ mod tests {
                 .contains("no expiry")
         );
         assert!(
-            parse_waiver("options — the scan; until step 11")
-                .is_ok_and(|w| w.axis == "options" && w.until == "step 11")
+            parse_waiver("options — the scan; until the option table")
+                .is_ok_and(|w| w.axis == "options" && w.until == "the option table")
         );
         assert!(
-            parse_waiver("colour — x; until step 11")
+            parse_waiver("colour — x; until the option table")
                 .unwrap_err()
                 .contains("unknown axis")
         );
@@ -1333,18 +1305,8 @@ mod tests {
                 .contains("only `irreducible`")
         );
         assert!(parse_waiver("irreducible — Tcl grammar; until never").is_ok());
-        assert!(
-            parse_waiver("options — x; until slice 4")
-                .unwrap_err()
-                .contains("has landed")
-        );
-        assert!(
-            parse_waiver("options — x; until tomorrow")
-                .unwrap_err()
-                .contains("not `step N`")
-        );
         // Found on the line, in the block above, and above an enclosing match.
-        let src = "// registry-axis-ok: clause_grammar — the walk; until step 11\nfn f(w: &str) -> bool { w == \"else\" }\nfn g(w: &str) -> bool { w == \"then\" } // registry-axis-ok: irreducible — Tcl grammar; until never\n// registry-axis-ok: definition_body — the arm table; until step 11\nfn h(w: &str) -> u8 {\n    match w {\n        \"method\" => 1,\n        _ => 0,\n    }\n}\nfn i(w: &str) -> bool { w == \"set\" }\n";
+        let src = "// registry-axis-ok: clause_grammar — the walk; until the descriptor\nfn f(w: &str) -> bool { w == \"else\" }\nfn g(w: &str) -> bool { w == \"then\" } // registry-axis-ok: irreducible — Tcl grammar; until never\n// registry-axis-ok: definition_body — the arm table; until the descriptor\nfn h(w: &str) -> u8 {\n    match w {\n        \"method\" => 1,\n        _ => 0,\n    }\n}\nfn i(w: &str) -> bool { w == \"set\" }\n";
         let comments = line_comments(src);
         let hits = scan(src, &sample());
         assert_eq!(hits.len(), 4);
@@ -1369,7 +1331,7 @@ mod tests {
 
     #[test]
     fn an_enclosing_match_carries_its_arms_waiver() {
-        let src = "fn h(w: &str) -> u8 {\n    // registry-axis-ok: definition_body — the arm table; until step 11\n    match w {\n        \"method\" => 1,\n        _ => 0,\n    }\n}\n";
+        let src = "fn h(w: &str) -> u8 {\n    // registry-axis-ok: definition_body — the arm table; until the descriptor\n    match w {\n        \"method\" => 1,\n        _ => 0,\n    }\n}\n";
         let comments = line_comments(src);
         let hits = scan(src, &sample());
         assert_eq!(hits.len(), 1);

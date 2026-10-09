@@ -828,7 +828,7 @@ const INDEX_SPECS: &[&str] = &[
 ];
 
 /// Magnitudes from 2^64 − 2^32 + 1 to 2^64 − 1, which 8.4 and 8.5 read only
-/// where `long` is 64 bits (D360).
+/// where `long` is 64 bits.
 const HOST_LONG_SPECS: &[&str] = &[
     "18446744073709551615",
     "-0xffffffffffffffff",
@@ -838,20 +838,20 @@ const HOST_LONG_SPECS: &[&str] = &[
 ];
 
 /// Words 8.6 encodes as literals after the end and reads as values before
-/// the first element (D361).
+/// the first element.
 const COMPILED_APART_86: &[&str] = &["end+2147483647", "end-2147483649", "end--2147483647"];
 
 /// Each spelling of an index, read by `string range` under each release on
 /// `PATH`: the fold answers as that release's `tclsh` does, and declines where
 /// it raises (`bad index`) — 8.4 reads no `end+1` or `1+1`, 8.4 to 8.6 read
 /// `e` as `end`, and no release reads ` end` or `end ` or a space after an
-/// operator but 8.4's `end- 1`. Past 32 bits (D351, D359): 8.4 to 8.6 wrap an
+/// operator but 8.4's `end- 1`. Past 32 bits: 8.4 to 8.6 wrap an
 /// integer within ±4294967295 to 32 bits, sums and `end` offsets alike, and
 /// raise past it; 9.0 reads the wide, a bignum and a sum that reaches the
 /// widest as `end+1` past `end`. A magnitude from 2^64 − 2^32 + 1 to
 /// 2^64 − 1, which these 64-bit oracles read under 8.4 and 8.5 and a 32-bit
-/// `long` cannot, declines there (D360), and an `end` offset 8.6 reads apart
-/// as a literal and as a value declines under 8.6 (D361). Each spec is read
+/// `long` cannot, declines there, and an `end` offset 8.6 reads apart
+/// as a literal and as a value declines under 8.6. Each spec is read
 /// as both ends of `string range` and as its last against the first
 /// character.
 #[test]
@@ -3374,7 +3374,7 @@ const NESTED: &[(&str, &str)] = &[("x", "a {b1 b2} c")];
 /// a lone index word that is no index is a path (`lset x {1 0} Q`), and one
 /// that is neither an index nor a list a bad index; `lpop` reads each word
 /// as one index (`lpop x {1 0}` raises). Past 32 bits each release reads in
-/// its own range (D351, D359): `lset x -4294967295 Z` writes element 1 up to
+/// its own range: `lset x -4294967295 Z` writes element 1 up to
 /// 8.6, `end-4294967295` appends on 8.6, and 9.0 appends at a sum that
 /// reaches the widest wide or a bignum offset after `end`.
 const LIST_UPDATE_WITNESSES: &[StorageWitness] = &[
@@ -3517,7 +3517,7 @@ fn list_cell_updates_match_every_release_on_path() {
 /// only where `long` is 64 bits, as on these oracles, and `bad index` where it
 /// is 32 bits: `lset x 18446744069414584321 Z` writes element 1 on tclsh
 /// 8.4.20 and 8.5.19 and raises on 8.6.18, so the route declines under 8.4
-/// and 8.5 and raises with `tclsh` from 8.6 (D360).
+/// and 8.5 and raises with `tclsh` from 8.6.
 #[test]
 fn an_index_the_hosts_long_decides_declines() {
     let reg = CommandRegistry::build_default();
@@ -3633,10 +3633,10 @@ const PATH_PLATFORM_WITNESSES: &[PathWitness] = &[
     ("join", &["x", "C:y"]),
 ];
 
-/// VT7.3: each `file` path route answers what every release's `tclsh` gives
+/// Each `file` path route answers what every release's `tclsh` gives
 /// for a name every platform and release reads alike, under each release and
 /// with no release named, and declines a name Windows or a release reads
-/// otherwise (D331).
+/// otherwise.
 #[test]
 fn path_routes_match_every_release_on_path() {
     let reg = CommandRegistry::build_default();
@@ -3736,7 +3736,7 @@ const SEARCH_WITNESSES: &[SearchWitness] = &[
     ("string", Some("match"), &["-bogus", "a", "a"]),
 ];
 
-/// VT7.4: `split`, `string first` and `string match` answer on their direct
+/// `split`, `string first` and `string match` answer on their direct
 /// routes what each release's `tclsh` gives, decline or raise where it
 /// raises, and with no release named answer only where every release
 /// agrees.
@@ -3955,7 +3955,7 @@ fn base32_routes_decline_a_word_count_the_package_raises_on() {
     }
 }
 
-/// VT7.5: `base32::encode`, `base32::decode` and their `base32::hex` twins
+/// `base32::encode`, `base32::decode` and their `base32::hex` twins
 /// answer on their direct routes what tcllib 2.0's own packages give under
 /// every release from 8.5 on path, a decoding compared byte for byte; they
 /// decline every word the package raises for, and the non-canonical

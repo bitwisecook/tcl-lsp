@@ -2471,7 +2471,7 @@ fn visit_call_tokens(
         }
         // A word the lexer reads as one `[…]` is a command substitution, not
         // interpolation text: `visit_call_cmd_subst_folds` folds it through
-        // its route, whose decline is final (D356), so neither rewriter below
+        // its route, whose decline is final, so neither rewriter below
         // may take it apart — a `]` inside a braced argument
         // (`[string match -nocase {a]€} {€a}]`) is no close of it.
         if single && tokens.argv_kinds.get(i).copied() == Some(tcl_lexer::TokenType::Cmd) {

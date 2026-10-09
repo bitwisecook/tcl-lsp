@@ -392,7 +392,7 @@ impl<'a> Uri<'a> {
                 None => (authority, None),
             };
             // The reference's hosts are lower case, and what TMM makes of
-            // another case is not stated (D357).
+            // another case is not stated.
             if host.is_empty()
                 || host.contains(['@', '[', ']'])
                 || host.bytes().any(|byte| byte.is_ascii_uppercase())
@@ -751,7 +751,7 @@ mod tests {
     /// non-canonical base64 text, a terminator count of 0, a search string
     /// or a field that is not there, a scheme with no default port the
     /// reference lists, a scheme or a host in a case the reference does not
-    /// show (D357), two prefixes, a shape the command does not take.
+    /// show, two prefixes, a shape the command does not take.
     #[test]
     fn each_function_answers_only_what_the_reference_states() {
         assert_eq!(text("b64encode", &["abc"]).as_deref(), Some("YWJj"));

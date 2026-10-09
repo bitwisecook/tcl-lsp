@@ -129,7 +129,7 @@ fn fix_all_safe_issues_reports_the_safety_class_it_applied() {
 fn fix_all_safe_issues_respects_a_disabled_diagnostic() {
     // TN: a diagnostic the user turned off is not shown, so its fixes are
     // not applied in bulk either — W100 included, which the analyser still
-    // computes because O111 reads it as a fact (DP8.1).
+    // computes because O111 reads it as a fact.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "set n [expr abs(-2)]\n";

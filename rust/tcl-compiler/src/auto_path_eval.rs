@@ -34,7 +34,7 @@
 //! [`eval_file_normalize`]), the other `file` name operations the registry
 //! routes (`tail`, `extension`, `rootname`, `split`) over names every
 //! platform reads alike, literal words, and `~`-prefixed paths. A name
-//! operation reads the registry's route where it answers (D331), and the
+//! operation reads the registry's route where it answers, and the
 //! host's slash-form reading below for the rest.
 //! Variable references (`$dir`, `${dir}`, `pre_$dir`) are resolved through
 //! whatever resolver the **caller** supplies — this module owns what a path
@@ -1299,7 +1299,7 @@ fn eval(
                     names.push(eval(a, info_script, resolve_var, registry)?);
                 }
                 // A name every platform reads alike folds on the registry's
-                // route (D331); the rest is the language server's own host
+                // route; the rest is the language server's own host
                 // resolution: drive and share roots, `~`, and an anchored
                 // `normalize`, in Tcl's slash form.
                 if let Some(value) = file_route(&sub, &names, registry) {
@@ -1327,8 +1327,8 @@ fn eval(
 }
 
 /// `file SUB names…` on the path route the call resolves to in the document's
-/// dialect, as every analysis resolves it (D354), which answers only names
-/// every platform and release reads alike (D331): the value the lattice gives
+/// dialect, as every analysis resolves it, which answers only names
+/// every platform and release reads alike: the value the lattice gives
 /// the same call.
 fn file_route(
     sub: &str,
@@ -1529,7 +1529,7 @@ mod tests {
     // is returned relative (see the module docs), never anchored on the
     // analysing process's working directory.
 
-    /// `file` resolves in the document's dialect (D354): iRules has no `file`,
+    /// `file` resolves in the document's dialect: iRules has no `file`,
     /// so `file tail`, which only the route answers, folds in a plain Tcl
     /// document and not in an iRule.
     #[test]

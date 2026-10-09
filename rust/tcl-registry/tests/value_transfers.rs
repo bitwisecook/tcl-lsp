@@ -2163,7 +2163,7 @@ fn elements_of_and_loop_list_header_derive_nothing() {
         );
     }
     // `dict for` carries the header shape and declares no iteration: its
-    // declaration is the callback's `none` (slice 7), which plans nothing.
+    // declaration is the callback's `none`, which plans nothing.
     let dict = reg.get("dict").expect("dict");
     let sub = dict.subcommand("for").expect("dict for");
     assert!(sub.loop_list_header);
@@ -2899,7 +2899,7 @@ fn the_binders_state_their_scope_alias_plan() {
     }
 }
 
-/// What a consumer with no compilation unit reads of a binder (D307): a
+/// What a consumer with no compilation unit reads of a binder: a
 /// scope alias's frame, from its plan, for the invocation it holds — none for
 /// `upvar`, whose frame its level word selects — and an alias-pair call's
 /// level and pairs, the level word present by argument-count parity.
@@ -4273,7 +4273,7 @@ fn route_stamps_match_the_pinned_set() {
     );
 }
 
-/// Slice 4's exit — "shipped builtins stay on the direct route"
+/// Shipped builtins stay on the direct route
 /// (`docs/design/compiler/value-transfers-migration.md`): a workspace pack
 /// declaring evaluators of its own moves no shipped route. Installing the
 /// value-transfer design's executable example over every loadable
@@ -4329,10 +4329,6 @@ fn route_owner(route: EvalRoute) -> &'static str {
     match route {
         EvalRoute::Direct { id } => match id.owner() {
             EvaluatorOwner::Registry => "registry",
-            EvaluatorOwner::Transitional {
-                retires_in_slice: 3,
-            } => "transitional until slice 3",
-            EvaluatorOwner::Transitional { .. } => "transitional",
         },
         EvalRoute::Expression { .. } | EvalRoute::Implementation(_) | EvalRoute::None { .. } => "-",
     }
@@ -8185,9 +8181,8 @@ fn extension_pack(artefact: &[u8]) -> tcl_spectcl::PackSet {
     packs
 }
 
-/// VT7.11: a `-host wasm_extension` implementation runs its extension's
-/// command on the thread's extension host (the consumer-contracts lane's
-/// seam, D10.56 and D10.57). The pack load reads the artefact beside the
+/// A `-host wasm_extension` implementation runs its extension's command on
+/// the thread's extension host. The pack load reads the artefact beside the
 /// pack, and the identity names the pack and carries the artefact's content
 /// hash, so the memo key does; the first evaluation loads the artefact on
 /// the host, which then runs the command over the declared inputs, and the

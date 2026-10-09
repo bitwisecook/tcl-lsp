@@ -53,7 +53,7 @@ num-traits = "0.2"
 [lints]
 workspace = true
 
-# The value-transfer performance report (VT7.9): a plain `main` that prints
+# The value-transfer performance report: a plain `main` that prints
 # its tables; `cargo test --bench value_transfers` runs it at smoke sizes.
 [[bench]]
 name = "value_transfers"

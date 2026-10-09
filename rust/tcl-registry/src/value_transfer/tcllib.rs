@@ -43,7 +43,7 @@ const REVISION: u64 = 1;
 /// direct route over `tcl_cmd_core::base32`. An encoding reads its word a
 /// byte per character and declines a character past U+00FF, which tcllib
 /// 2.0 encodes as its UTF-8 bytes under every release from 8.5 alike
-/// (`base32::encode "€"` is `4KBKY===` on tclsh 8.5.19 to 9.1.0, D352), a
+/// (`base32::encode "€"` is `4KBKY===` on tclsh 8.5.19 to 9.1.0), a
 /// reading the core does not model; a decoding answers a canonical encoding
 /// only and declines the rest, which the package raises for or its two
 /// implementations read apart. A non-ASCII word is admitted only where the

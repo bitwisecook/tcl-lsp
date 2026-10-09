@@ -324,9 +324,7 @@ pub enum CompletionSupport {
 /// The catalogue of registry-named direct evaluators.
 ///
 /// The registry owns the catalogue; who implements each entry is stated by
-/// [`Self::owner`]. A transitional entry is implemented by the compiler's
-/// value-transfer driver until the slice that retires it, and the migration
-/// plan's ledger lists it.
+/// [`Self::owner`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum NativeEvalId {
     /// The cell increment behind `incr`: read the cell, add under the
@@ -715,11 +713,4 @@ impl NativeEvalId {
 pub enum EvaluatorOwner {
     /// The registry: `CommandSemantics::evaluate` is the implementation.
     Registry,
-    /// The compiler's driver, during the migration, with the slice of the
-    /// migration plan that retires the handler.
-    Transitional {
-        /// The delivery slice that moves the implementation into the
-        /// registry.
-        retires_in_slice: u8,
-    },
 }

@@ -19,7 +19,7 @@
 //! When the module's load may first run each of its procedures, and where
 //! each one's `proc` statement surely runs — the one fact the instance
 //! lifecycle proof ([`super::global_instance_classes`]) and the completion
-//! proof (D330, D348) read.
+//! proof read.
 //!
 //! The load is the top-level script in source order with the bodies it runs
 //! where it runs them: a `namespace eval` or `apply` body, and a method body,
@@ -172,7 +172,7 @@ impl EagerInvocations {
     }
 }
 
-/// The definition reach of the module's procedures (D348): where each one's
+/// The definition reach of the module's procedures: where each one's
 /// `proc` statement surely runs, and where the load may first run each.
 pub(crate) struct DefinitionReach {
     invocations: EagerInvocations,

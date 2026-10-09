@@ -5791,7 +5791,7 @@ mod tests {
 
     // TN: `self constructor` / `self destructor` name no member (tclsh
     // 8.6.18, 9.0.4 and 9.1: `invalid command name "constructor"`), so
-    // neither lifts a unit (step 2, CC2.11: the keyword match lifted both) —
+    // neither lifts a unit —
     // while the instance-side spellings beside them do.
     #[test]
     fn tcloo_self_constructor_and_destructor_lift_no_unit() {

@@ -23,8 +23,7 @@ One of five messages:
   fall ``, with the file's sites.
 - `` `path` has N unwaived site(s) against a pin of M; lower the pin ``.
 - `path:line: waiver …` — the waiver names an unknown axis, has no
-  expiry, expires `never` on an axis other than `irreducible`, or expires
-  with a step or slice that has already landed.
+  expiry, or expires `never` on an axis other than `irreducible`.
 - `docs/generated/registry-axes.md is stale — run cargo xtask
   registry-axes`.
 
@@ -45,11 +44,11 @@ grammar of `if`, spelled by hand. Words inside comments, longer strings,
 and `#[cfg(test)]` items are never sites; the registry crate and every
 file under a `tests/` directory are not scanned.
 
-Every scanned file is held to one of two rules. A file a build step has
-already rewritten (`CLEAN_FILES` in `rust/xtask/src/registry_axes.rs`) is
-*clean*: every site is waived or gone. Every other file is *ratcheted*:
-its count of unwaived sites is pinned in `RATCHET`, the count may only
-fall, and a file with no pin may hold no site.
+Every scanned file is held to one of two rules. A file listed in
+`CLEAN_FILES` (`rust/xtask/src/registry_axes.rs`) is *clean*: every site
+is waived or gone. Every other file is *ratcheted*: its count of unwaived
+sites is pinned in `RATCHET`, the count may only fall, and a file with no
+pin may hold no site.
 
 ## Fix
 
@@ -62,9 +61,9 @@ fall, and a file with no pin may hold no site.
    `matches!` pattern, the comment may sit above the enclosing `match` or
    `matches!` instead. The axis is `command`, `subcommands`,
    `clause_grammar`, `definition_body`, `options`, `special_vars`, or
-   `irreducible`. The expiry is `step N` (the consumer-contracts build step
-   that retires the site), `slice N` (the value-transfers slice that
-   does), or `never`, which only `irreducible` may carry. The comment may
+   `irreducible`. The expiry names the change that retires the site — the
+   registry query the consumer will ask instead — or is `never`, which
+   only `irreducible` may carry. The comment may
    wrap onto the standalone comment lines below it. A file whose sites all
    share one axis may carry one
    `// registry-axis-ok(file): <axis> — <reason>; until <expiry>` in its
@@ -75,10 +74,7 @@ fall, and a file with no pin may hold no site.
 4. If the message says to lower the pin, your change removed or waived a
    site in a ratcheted file: set the file's count in `RATCHET` to the
    number the message gives, and drop the row when it reaches zero.
-5. If a waiver's expiry has landed, the step or slice that was to retire
-   the site shipped without it: retire it now, or re-review it and name
-   the change that will.
-6. Run `cargo xtask registry-axes` (no `--check`) from the repository root
+5. Run `cargo xtask registry-axes` (no `--check`) from the repository root
    to rewrite the ledger, and commit it with the change.
 
 ## How to tell it worked

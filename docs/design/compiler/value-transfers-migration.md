@@ -591,16 +591,14 @@ resolve to live code and a registered gate. The Explorer's `sccp` view and
 reason, which keeps the generated inventory and what a contributor sees in
 the tool the same artefact.
 
-## The ledger of transitional compiler-owned handlers
+## Compiler-owned handlers
 
-Ruling 1 of the interface contract admits a compiler-owned handler during
-the migration as a delivery choice, not a destination: each carries a
-ledger entry and an expiry. This is the ledger. Every row is a handler
-kept inside the compiler, keyed by a typed registry identity rather than a
-command name, and the waiver that marks its site, with what retires it. A
-row is added when a handler stays, and removed when it goes; the
-generated inventory's route *owner* column is the same fact read from
-[`NativeEvalId::owner`](../../../rust/tcl-registry/src/value_transfer/route.rs).
+Every declared direct route is implemented in the registry
+([`NativeEvalId::owner`](../../../rust/tcl-registry/src/value_transfer/route.rs)).
+This is the ledger of what stays inside the compiler: each row is a
+handler keyed by a typed registry identity rather than a command name,
+where it lives, what keys it, why it stays, and the waiver that marks its
+site.
 
 | Handler | Where | Keyed by | Retirement | Waiver |
 |---|---|---|---|---|
@@ -726,7 +724,7 @@ workloads, per the evaluation contract's budget section.
 - `rust/xtask/src/callback_inventory.rs`, `number_drift.rs`, `owner_resolution.rs` — the gate shapes to copy
 - `rust/xtask/src/value_transfers.rs`, `docs/generated/value-transfers.md` — the gate and the inventory it writes
 - `rust/tcl-registry/src/value_transfer/` — the interface: `CommandSemantics`, the declaration states and their resolution, the derived cell-update and unbind specialisations, the explicit iteration declaration, and the shipped value-position routes
-- `rust/tcl-compiler/src/value_transfer.rs` — the driver: the lattice-backed `AnalysisInputs`, the expression route (`ExpressionRoute::assemble` over `tcl_expr_eval::ExprServices`), and `AnalysisContextKey`; no compiler-owned transitional handler remains
+- `rust/tcl-compiler/src/value_transfer.rs` — the driver: the lattice-backed `AnalysisInputs`, the expression route (`ExpressionRoute::assemble` over `tcl_expr_eval::ExprServices`), and `AnalysisContextKey`
 - `rust/tcl-irule-test/tcl/command_mocks.tcl`, `_mock_stubs.tcl`, `rust/xtask/src/gen_irule_test_data.rs` — the simulator's command backing
 - `docs/generated/diagnostic_codes.md`, `docs/generated/optimisation_codes.md` — the catalogues the tables above index
 

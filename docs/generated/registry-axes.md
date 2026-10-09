@@ -2,7 +2,7 @@
 
 # Registry axes — the per-axis ledger
 
-Every site outside `tcl-registry` that compares a word the registry declares — a command or subcommand name, an option spelling, a definition-body member keyword, a clause keyword, or a special-variable name — found by the source lint of `docs/design/compiler/registry-consumer-contracts.md` § *The per-axis lint and ledger*. A reviewed site names the axis whose query retires it and the build step (`step N`) or value-transfer slice (`slice N`) that will; `never` is the sanctioned irreducible exception. Every other site is counted against its file's pin.
+Every site outside `tcl-registry` that compares a word the registry declares — a command or subcommand name, an option spelling, a definition-body member keyword, a clause keyword, or a special-variable name — found by the source lint of `docs/design/compiler/registry-consumer-contracts.md` § *The per-axis lint and ledger*. A reviewed site names the axis whose query retires it and the change that will; `never` is the sanctioned irreducible exception. Every other site is counted against its file's pin.
 
 ## The ledger
 

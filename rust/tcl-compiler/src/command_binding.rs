@@ -3537,8 +3537,8 @@ struct State {
 
 /// The unperturbed binding of `qname` before any rename/proc/alias.
 ///
-/// A name the registry knows is a `Builtin`, global or namespaced alike
-/// (D350): `::string` → `string`, a math function's wrapper — from 8.5
+/// A name the registry knows is a `Builtin`, global or namespaced alike:
+/// `::string` → `string`, a math function's wrapper — from 8.5
 /// `expr` dispatches `abs(…)` to `::tcl::mathfunc::abs`, so a `proc` or
 /// `rename` of it rebinds the builtin every `abs(…)` reaches (tclsh 8.5 to
 /// 9.1 run the module's `proc`) — and a package's command such as

@@ -5020,18 +5020,16 @@ impl Analyser {
         }
     }
 
-    // `handle_try_command` retired (step 2, CC2.13): `try`'s only
-    // command-specific knowledge was reading its clause plan's timings and
-    // its handler variable-list slot, both a descriptor now states, so `try`
-    // carries no analyser hook any more and falls through to the same
-    // generic dispatch `for` already used (see
+    // `try` has no handler of its own: its only command-specific
+    // knowledge is its clause plan's timings and its handler variable-list
+    // slot, both a descriptor states, so `try` carries no analyser hook
+    // and falls through to the same generic dispatch `for` uses (see
     // `Analyser::dispatch_analyser_hook`'s doc comment). The clause-body
     // depths this handler used to compute by hand (the deleted
     // `analyse_selected_body`) come from `dispatch_body_arguments`'s
     // `body_depths` instead — every `Selected` body (every `on` / `trap`
     // handler) now also raises `control_flow_body_depth`, not
-    // `conditional_depth` alone, which the handler never did (recorded as a
-    // step 2 behavioural delta, pinned by
+    // `conditional_depth` alone, which the handler never did (pinned by
     // `a_rename_in_a_try_handler_is_not_a_straight_line_deletion`: a `rename`
     // inside a `try` handler is no longer read as a straight-line deletion,
     // matching how one inside a loop body already was not). The handler
@@ -14527,10 +14525,9 @@ mod tests {
         assert!(!handled);
     }
 
-    // try (handle_try_command retired, step 2 CC2.13 — retargeted onto the
-    // generic dispatch `for` already used; `try`'s own clause-timing
-    // resolution is `clause_grammar.rs`'s `try_grammar_agrees_with_the_retired_walk`
-    // and its neighbours, unaffected by the analyser no longer holding a hook)
+    // try (no handler of its own: it goes through the generic dispatch `for`
+    // uses; `try`'s own clause-timing resolution is `clause_grammar.rs`'s
+    // `try_grammar_agrees_with_the_retired_walk` and its neighbours)
 
     #[test]
     fn handle_try_walks_main_body() {
@@ -15611,8 +15608,7 @@ mod tests {
     fn a_written_array_element_binds_its_array_and_a_computed_name_binds_nothing() {
         // `incr hits($word)` writes an element of `hits` whatever the key;
         // `append $name x` and `incr $count` write a variable no static name
-        // spells (step 2, CC2.12: the retired handlers defined `name` /
-        // `count`).
+        // spells.
         let mut a = Analyser::new();
         dispatch_words(&mut a, &["incr", "hits($word)"]);
         dispatch_words(&mut a, &["append", "$name", "x"]);
@@ -15857,7 +15853,7 @@ mod tests {
 
     /// A `try` handler body is `Selected` — conditional and control flow — so
     /// a `rename` there may never run and is not a straight-line deletion,
-    /// as one inside a loop body already was not (step 2, CC2.13). A
+    /// as one inside a loop body is not. A
     /// `finally` body always runs, so its `rename` still is one.
     #[test]
     fn a_rename_in_a_try_handler_is_not_a_straight_line_deletion() {

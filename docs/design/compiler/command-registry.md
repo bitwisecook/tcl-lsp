@@ -1549,13 +1549,12 @@ continues to a tail that reads descriptors only — the scope aliases its
 state transitions state (`apply_state_transitions`), the `LoopVarList` and
 `VarWrite` positions its roles name (`handle_var_binding_command`), and its
 `Body` words, each walked at the depth its clause's timing gives and with
-its clause's variable lists bound (`dispatch_body_arguments`). Step 2
-retired the eleven hooks whose handler knew only a position or a keyword a
-descriptor now states — `Try`, `For`, `DictFor`, `DictUpdate`, `Incr`,
-`Append`, `Lappend`, `Upvar`, `NamespaceUpvar`, `Global`, `Variable` —
-leaving 32 variants on 43 stamp rows, which
-`rust/tcl-registry/tests/analyser_hooks.rs` pins. What stays is analyser
-policy over typed facts, documented where it runs:
+its clause's variable lists bound (`dispatch_body_arguments`). The eleven
+hooks whose handler knew only a position or a keyword a descriptor states —
+`Try`, `For`, `DictFor`, `DictUpdate`, `Incr`, `Append`, `Lappend`, `Upvar`,
+`NamespaceUpvar`, `Global`, `Variable` — are retired, leaving 32 variants on
+43 stamp rows, which `rust/tcl-registry/tests/analyser_hooks.rs` pins. What
+stays is analyser policy over typed facts, documented where it runs:
 
 - procedure definition and the `all_procs` table — `Proc`, `OptProc`,
   `Apply`;

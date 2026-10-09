@@ -177,7 +177,7 @@ impl Axis {
     }
 }
 
-/// Why an answer is not exact. Each group names the lane of the lift
+/// Why an answer is not exact. Each group names the step of the lift
 /// diagram in the interface contract that records it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DeclineReason {

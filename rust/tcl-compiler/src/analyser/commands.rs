@@ -1495,8 +1495,8 @@ impl Analyser {
     ///
     /// `for`, `try`, `dict for`, `dict update`, `incr`, `append`, `lappend`,
     /// `upvar`, `namespace upvar`, `global` and `variable` carry no stamp at
-    /// all any more (step 2, CC2.13): their only command-specific knowledge
-    /// was a position or a keyword a descriptor now states, so they take the
+    /// all: their only command-specific knowledge is a position or a
+    /// keyword a descriptor states, so they take the
     /// "no stamped family" branch above and fall straight through to the
     /// shared tail below like any other command with no hook — the generic
     /// body walk reads when each body runs from its clause plan (`for`'s

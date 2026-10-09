@@ -382,7 +382,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             ..SideEffect::DEFAULT
         }],
-        // The host decides: its working directory and its links (D331).
+        // The host decides: its working directory and its links.
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
         ),

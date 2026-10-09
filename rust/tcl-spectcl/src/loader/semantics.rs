@@ -1303,7 +1303,7 @@ speclib probe 2.2 {
     /// different, already-closed catalogue — `NativeEvalId`'s own Rust
     /// spelling, not `SCOPE::FIELD` — and a name it does not hold is dropped
     /// the same way.
-    /// VT7.11: `-host wasm_extension` names its artefact with `extension
+    /// `-host wasm_extension` names its artefact with `extension
     /// FILE PREFIX` in place of a body. The implementation carries the file
     /// and the entry point's prefix, with no hook to bind and no bytes until
     /// the load reads them, and its identity names the file meanwhile; one

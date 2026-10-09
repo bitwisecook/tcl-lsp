@@ -39,14 +39,13 @@
 //!    lint is a warning mechanism: a renamed binding or a helper table can
 //!    evade it, so the registry's contract tests and ownership review are
 //!    the gate's other half. Every scanned file is held to one of two
-//!    rules. A *clean* file — each file the migration's first delivery
-//!    touched, and each file added since — has every site waived or gone.
+//!    rules. A *clean* file has every site waived or gone.
 //!    Every other file is *ratcheted*: its count of unwaived sites is
 //!    pinned here, `--check` fails when the count rises, and the pin is
 //!    lowered beside the review that removes or waives the file's sites,
-//!    never raised and never added. The migration plan's ledger lists
-//!    each ratcheted file with its pin and the slice, or the axis
-//!    migration, that reviews it; the gate holds the two in agreement.
+//!    never raised and never added. The migration page's ledger lists
+//!    each ratcheted file with its pin and the review that retires it;
+//!    the gate holds the two in agreement.
 //! 2. **A registry enumeration**, written to
 //!    `docs/generated/value-transfers.md`: every command, subcommand, and
 //!    declaring form with its declaration state, route, route owner, target
@@ -80,8 +79,8 @@ const REPORT_PATH: &str = "docs/generated/value-transfers.md";
 const LEDGER_PATH: &str = "docs/design/compiler/value-transfers-migration.md";
 
 /// The files the lint holds clean: every recogniser-shaped site is waived
-/// or gone. Slice 1 touched each of these; a slice adds the files it
-/// touches, and a file never leaves the list.
+/// or gone. A review that rewrites a file adds it here, and a file never
+/// leaves the list.
 const CLEAN_FILES: &[&str] = &[
     "rust/tcl-compiler/src/analyser/bounds_checks.rs",
     "rust/tcl-compiler/src/analyser/commands.rs",
@@ -115,7 +114,7 @@ const CLEAN_FILES: &[&str] = &[
 ];
 
 /// The ratchet over every other scanned file: the pinned count of unwaived
-/// recogniser-shaped sites, as of the slice that last reviewed the file.
+/// recogniser-shaped sites, as of the file's last review.
 /// `--check` fails when a file's count rises above its pin, or when a file
 /// not listed here gains a site. A pin is lowered beside the review that
 /// removes or waives its sites — with the file's ledger row in
@@ -156,7 +155,7 @@ const WAIVER: &str = "value-transfer-ok:";
 const FILE_WAIVER: &str = "value-transfer-ok(file):";
 
 /// The axes a waiver may name: a registry field the fact belongs to, the
-/// value axis itself while a site awaits its slice, or the sanctioned
+/// value axis itself while a site awaits its declaration, or the sanctioned
 /// exception.
 const AXES: &[&str] = &[
     "dataflow",
@@ -933,9 +932,6 @@ fn describe_route(route: Option<EvalRoute>) -> (String, String, bool) {
         Some(EvalRoute::Direct { id }) => {
             let owner = match id.owner() {
                 EvaluatorOwner::Registry => "registry".to_owned(),
-                EvaluatorOwner::Transitional { retires_in_slice } => {
-                    format!("compiler, transitional until slice {retires_in_slice}")
-                }
             };
             (format!("direct `{}`", id.as_str()), owner, true)
         }
@@ -994,18 +990,11 @@ fn target_roles(
 
 // Classification of the gaps
 
-/// A variable-writing command with no semantics, classified by the slice of
-/// the migration plan (`value-transfers-migration.md` § *The slices*) that
-/// gives it one. Keyed by the inventory's command column (`cmd` or
-/// `cmd sub`); a key ending in ` *` covers every subcommand of an ensemble.
-/// An entry no row matches is stale and fails the gate. Slice 2 left no
-/// entry of its own: `set` and the `dict` keyed updates declare their
-/// semantics, `append` and `lappend` derive theirs, and `const`, `lset`,
-/// `ledit` and `lpop` waited for the existence rung and the new list cores.
-/// Slice 7 declared the last ones — the grapheme cursor, the tcllib
-/// procedures on the Rust spec modules (D315) and the Tcl-level library
-/// procedures — so every command declaring a variable write declares its
-/// semantics, and the list is empty.
+/// A variable-writing command with no semantics, classified by what gives
+/// it one. Keyed by the inventory's command column (`cmd` or `cmd sub`); a
+/// key ending in ` *` covers every subcommand of an ensemble. An entry no
+/// row matches is stale and fails the gate. Every command declaring a
+/// variable write declares its semantics, so the list is empty.
 const KNOWN_GAPS: &[(&str, &str)] = &[];
 
 fn classification_problems(rows: &[Row]) -> Vec<String> {
@@ -1028,7 +1017,7 @@ fn classification_problems(rows: &[Row]) -> Vec<String> {
         if gap_classification(row).is_none() {
             problems.push(format!(
                 "`{}` writes a variable and declares no semantics; classify it in KNOWN_GAPS \
-                 (rust/xtask/src/value_transfers.rs) with the slice that gives it one",
+                 (rust/xtask/src/value_transfers.rs) with what gives it one",
                 row.command
             ));
         }
@@ -1059,8 +1048,8 @@ fn render_report(rows: &[Row], lint: &Lint) -> String {
          declaration states (`docs/design/compiler/value-transfers.md` § *One invocation, one \
          context*), with the evaluator route it names and who implements it. *Semantics* is the \
          declaration state and the specialisation's identity; *Route* the declared route; *Owner* \
-         who implements it — the registry, or a compiler-owned transitional handler, which the \
-         migration plan's ledger names with what retires it; *Enabled* whether the route evaluates at all: \
+         who implements it — the registry for a direct route, the compiler's expression engine \
+         adapter for an expression route; *Enabled* whether the route evaluates at all: \
          descriptor availability and enabled evaluation are separate columns. *Targets* lists the \
          variable-writing roles the effective descriptor declares. *Gap* names what the row still \
          lacks. A row with no semantics and no gap is counted per dialect below rather than listed. \
@@ -1256,7 +1245,7 @@ mod tests {
 
     #[test]
     fn an_evaluator_id_arm_is_waived_by_its_enclosing_match() {
-        let src = "fn t(id: NativeEvalId) {\n    // value-transfer-ok: dataflow — the transitional table\n    match id {\n        NativeEvalId::ListOfArgs => {}\n        NativeEvalId::ListLength => {}\n    }\n}\n";
+        let src = "fn t(id: NativeEvalId) {\n    // value-transfer-ok: dataflow — the arm table\n    match id {\n        NativeEvalId::ListOfArgs => {}\n        NativeEvalId::ListLength => {}\n    }\n}\n";
         let hits = scan(src);
         assert_eq!(hits.len(), 2);
         for (line, _) in hits {
@@ -1329,7 +1318,7 @@ mod tests {
 
     #[test]
     fn the_ledger_carries_every_pin_at_its_count() {
-        let doc = "| File | Sites | Reviewed in |\n|---|---|---|\n| `rust/x/a.rs` | 2 | slice 2 |\n| `rust/x/b.rs` | 5 | slice 5 |\n| `rust/x/c.rs` | 1 | slice 8 |\n| `lset` | 2 | not a path |\n| `rust/x/analyser/`, `lowering/` | 28 | a tier row |\n";
+        let doc = "| File | Sites | Reviewed by |\n|---|---|---|\n| `rust/x/a.rs` | 2 | the list cores |\n| `rust/x/b.rs` | 5 | the options axis |\n| `rust/x/c.rs` | 1 | the dict review |\n| `lset` | 2 | not a path |\n| `rust/x/analyser/`, `lowering/` | 28 | a tier row |\n";
         let verdicts = ledger_verdicts(
             doc,
             &[("rust/x/a.rs", 2), ("rust/x/b.rs", 4), ("rust/x/d.rs", 1)],

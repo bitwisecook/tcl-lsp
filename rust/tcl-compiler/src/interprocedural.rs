@@ -193,18 +193,18 @@ pub struct ProcSummary {
     /// normally whatever its arguments hold: the body is straight-line, reads
     /// only scalars it holds set, and runs only commands that complete so — a
     /// registry command declaring the normal completion alone, or a procedure
-    /// of the module that completes in turn — and never recurses (D330). A
+    /// of the module that completes in turn — and never recurses. A
     /// pure procedure that completes is a value that cannot raise, so an
     /// unused store of its call is dead. False where the summary is built
     /// from the IR alone, which holds no command trust.
     pub completes: bool,
-    /// Where the module's load surely runs this procedure's `proc` statement
-    /// (D348): a direct statement of the top level, or of a `namespace eval`
+    /// Where the module's load surely runs this procedure's `proc`
+    /// statement: a direct statement of the top level, or of a `namespace eval`
     /// body that is one. `None` for a definition that may not have run there
     /// — under a condition, in a loop, in another procedure or another file.
     pub defined_at: Option<u32>,
     /// The procedures this one calls whose definitions surely run before the
-    /// load may first run it, sorted (D348): the callees the completion proof
+    /// load may first run it, sorted: the callees the completion proof
     /// may take as defined where this procedure's calls run.
     pub defined_callees: Vec<String>,
     /// Effect regions this proc (or its callees) may read.
@@ -818,7 +818,7 @@ fn build_interprocedural_analysis_inner(
         .unwrap_or_default();
     // Where the load may first run each procedure, and where each one's
     // `proc` statement surely runs: one fact for the completion proof and
-    // the instance lifecycle proof (D348).
+    // the instance lifecycle proof.
     let reach = DefinitionReach::of(ir_module, registry);
     // Completion reads the registry commands a body runs as the module
     // leaves their bindings, which a unit's build holds and the IR alone

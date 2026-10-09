@@ -1063,8 +1063,8 @@ mod tests {
             "::tcl::dict::for must mark its body (arg 2) as Body: {:?}",
             for_.arg_roles,
         );
-        // `DictFor` retired (step 2, CC2.13): `dict for`'s loop variables and
-        // body already bind and walk through the generic `arg_roles` /
+        // `DictFor` is retired: `dict for`'s loop variables and body bind
+        // and walk through the generic `arg_roles` /
         // `ArgRole::Body` paths above (no handler ever read the hook for
         // anything else), so the qualified spelling carrying no hook too is
         // the subcommand's contract transferring verbatim, the same as

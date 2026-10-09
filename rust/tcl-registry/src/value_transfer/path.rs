@@ -25,7 +25,7 @@
 //! to Windows), a colon (a drive or volume), a leading `//` (a share root,
 //! which 9.0 also keeps as a root of its own on Unix) or a `~` (a home
 //! directory to 8.x) in any name declines with `ReleaseAmbiguous(Platform)`,
-//! since no profile fixes the platform (D331). `file normalize`, whose answer
+//! since no profile fixes the platform. `file normalize`, whose answer
 //! is the host's working directory and its links, has no route.
 
 use tcl_syntax::value::ValueOps;
@@ -94,7 +94,7 @@ pub static FILE_SPLIT: PathSemantics = PathSemantics {
 
 /// Whether every platform and release reads `name` as Unix does: no
 /// backslash, no colon, no `~` and no leading `//` (measured with the test
-/// shell's `testsetplatform windows` on 8.4.20 to 9.1.0, D331).
+/// shell's `testsetplatform windows` on 8.4.20 to 9.1.0).
 #[must_use]
 pub fn reads_alike_everywhere(name: &str) -> bool {
     !name.contains(['\\', ':', '~']) && !name.starts_with("//")

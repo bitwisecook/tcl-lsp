@@ -22,8 +22,8 @@
 //!
 //! ## Why this exists
 //!
-//! Until the `one-loader` lane there were two implementations of "load a
-//! pack", and the gate that a loader change could not silently alter a pack's
+//! Before the loader was unified there were two implementations of "load
+//! a pack", and the gate that a loader change could not silently alter a pack's
 //! meaning was *the other loader*: `tests/eval_loader.rs` loaded all 24
 //! shipped packs through both and demanded byte-identical snapshots. Deleting
 //! the CST loader removes that oracle, so the proof has to be kept some other

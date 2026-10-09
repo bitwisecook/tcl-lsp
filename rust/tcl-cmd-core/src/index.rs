@@ -39,10 +39,10 @@ pub enum IndexReading {
     /// No index: the release raises `bad index`.
     Bad,
     /// The index where the host's C `long` is 64 bits and `bad index` where
-    /// it is 32 bits — 64-bit Windows and every 32-bit build (D360).
+    /// it is 32 bits — 64-bit Windows and every 32-bit build.
     HostLong(i64),
     /// A word 8.5 reads as [`Self::HostLong`] and 8.6 raises on, read under
-    /// the numeral grammar the two releases share with neither named (D360).
+    /// the numeral grammar the two releases share with neither named.
     Unsure,
 }
 
@@ -131,7 +131,7 @@ pub fn read_under(spec: &str, len: usize, release: TclVersion) -> IndexReading {
 /// offset whose sum with `end` passes the 32-bit `int` after the end, where
 /// the same index read at run time wraps before the first element (measured,
 /// tclsh 8.6.18: `string range abcdefghijkl 0 end+2147483647` is the whole
-/// string, and the empty one with the index in a variable; D361).
+/// string, and the empty one with the index in a variable).
 #[must_use]
 pub fn compiles_apart(spec: &str, len: usize, release: TclVersion) -> bool {
     release == TclVersion::V8_6
@@ -256,19 +256,19 @@ impl Range {
 /// `end ` or `end -1` in any release. A Jim grammar reads the forms of Tcl 9.0
 /// with whitespace around `end` and each operand.
 ///
-/// Each integer is read in its release's range (measured with
-/// `programs/s1/measure.tcl` and `measure84.tcl` of the slice 7 review fixes):
+/// Each integer is read in its release's range (measured on each
+/// release's `tclsh`):
 ///
 /// - 8.4 to 8.6 read one through `Tcl_GetInt`: a value within ±`UINT_MAX`
 ///   (4,294,967,295) wraps to the 32-bit `int` — on every platform, the 64-bit
 ///   `long` casting it and a 32-bit one taking it through
-///   `Tcl_GetLongFromObj`'s ±`ULONG_MAX` (D359) — so `2147483648` is
+///   `Tcl_GetLongFromObj`'s ±`ULONG_MAX` — so `2147483648` is
 ///   −2147483648 and `-4294967295` is 1, and the sums and `end` offsets wrap
 ///   alike (8.6's `1+2147483647` is −2147483648, `end-4294967295` is
 ///   `end+1`); any other value is `bad index`, but for a magnitude from
 ///   2^64 − 2^32 + 1 to 2^64 − 1, which 8.4 (`strtoul`) and 8.5 (the bignum
 ///   branch) wrap into that range where `long` is 64 bits and raise on where it
-///   is 32 bits, and 8.6 raises on everywhere (D360);
+///   is 32 bits, and 8.6 raises on everywhere;
 /// - 9.0 and 9.1 read a wide, a bignum alone being the wide nearest it, and
 ///   encode `end+1` as the widest wide: a sum that reaches it and a bignum
 ///   offset after `end` name `end+1` (`lset` appends there), a larger `end+N`
@@ -434,7 +434,7 @@ fn wide_128(number: &Number) -> Option<i128> {
     }
 }
 
-/// An integer as `Tcl_GetInt` reads it before 9.0 (D359, D360): see
+/// An integer as `Tcl_GetInt` reads it before 9.0: see
 /// [`read`].
 fn int_32(number: &Number, range: Range) -> IndexReading {
     const UINT_MAX: u64 = 0xffff_ffff;
@@ -874,7 +874,7 @@ mod tests {
     /// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 over `abcdefghijkl` (8.5
     /// and 8.6 answer alike, as do 9.0 and 9.1, but for the integers the second
     /// table reads): `None` is `bad index`. Past 32 bits each release reads in
-    /// its own range (D351, D359, D360), measured with `string index`, `string
+    /// its own range, measured with `string index`, `string
     /// range` from each side and `lset`: 8.4 to 8.6 wrap an integer within
     /// ±4294967295 to 32 bits and their sums and `end` offsets alike, 8.4 and
     /// 8.5 read a magnitude from 2^64 − 2^32 + 1 to 2^64 − 1 as a 64-bit `long`
@@ -975,7 +975,7 @@ mod tests {
 
     /// 8.6 encodes a literal `end` offset that is positive after the 32-bit
     /// wrap as after the end, where the word read at run time sums with `end`
-    /// in an `int`; the two part where that sum passes `INT_MAX` (D361).
+    /// in an `int`; the two part where that sum passes `INT_MAX`.
     /// Measured on a 12-element string and list, a literal against the same
     /// word in a variable (`programs/s1/litvar.tcl`): only 8.6 parts, and
     /// only on these rows.

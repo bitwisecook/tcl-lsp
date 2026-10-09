@@ -36,21 +36,20 @@ recognise an invocation — `command == "unset"`, `matches!(cmd.as_str(),
 "foreach" | "lmap")`, a `match head { "expr" => … }` arm — and for a `match`
 arm on a catalogued evaluator id (`NativeEvalId::…`) outside the registry.
 
-Every scanned file is held to one of two rules. A file the migration has
-already rewritten (`CLEAN_FILES` in `rust/xtask/src/value_transfers.rs`)
-is *clean*: every site is waived or gone. Every other file is *ratcheted*:
-its count of unwaived sites is pinned in `RATCHET`, the count may only
-fall, and a file with no pin may hold no site. A pin is lowered beside the
-review that removes or waives the file's sites — never raised, never
-added — and the ledger in
+Every scanned file is held to one of two rules. A file listed in
+`CLEAN_FILES` (`rust/xtask/src/value_transfers.rs`) is *clean*: every site
+is waived or gone. Every other file is *ratcheted*: its count of unwaived
+sites is pinned in `RATCHET`, the count may only fall, and a file with no
+pin may hold no site. A pin is lowered beside the review that removes or
+waives the file's sites — never raised, never added — and the ledger in
 `docs/design/compiler/value-transfers-migration.md` § *The ratchet over
-unreviewed files* carries the same pins with the slice, or the axis
-migration, that reviews each file; the gate fails when the two disagree.
+unreviewed files* carries the same pins with the review that retires each
+file; the gate fails when the two disagree.
 
 It also enumerates every command and subcommand through the invocation
 resolver and writes the result to `docs/generated/value-transfers.md`; a
 command that writes a variable and declares no semantics is a *gap*, and a
-gap must be classified with the migration slice that gives it semantics.
+gap must be classified with what gives it semantics.
 
 ## Fix
 
@@ -61,7 +60,7 @@ gap must be classified with the migration slice that gives it semantics.
    `// value-transfer-ok: <axis> — <reason>` on the line or in the comment
    block directly above it. The axis is the registry field the fact belongs
    to (`options`, `arg_roles`, `traits`, `case_list`, `native_lowering`,
-   …), `dataflow` for a value-axis site awaiting its slice, or
+   …), `dataflow` for a value-axis site awaiting its declaration, or
    `irreducible` with why. A file whose sites all share one axis may carry
    one `// value-transfer-ok(file): <axis> — <reason>` in its header.
 3. If the message says the count may only fall, the file is ratcheted and
@@ -72,8 +71,8 @@ gap must be classified with the migration slice that gives it semantics.
    ledger row to the number the message gives, and drop both when it
    reaches zero.
 5. For a new variable-writing command with no semantics, add it to
-   `KNOWN_GAPS` in `rust/xtask/src/value_transfers.rs` with the slice that
-   closes the gap, or give it a declaration. An entry no row matches any
+   `KNOWN_GAPS` in `rust/xtask/src/value_transfers.rs` with what closes
+   the gap, or give it a declaration. An entry no row matches any
    more is stale and must go.
 6. Run `cargo xtask value-transfers` (no `--check`) from the repository
    root to rewrite the inventory, and commit it with the change.

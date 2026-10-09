@@ -638,16 +638,16 @@ impl<'ctx> ConstOps<'ctx> {
     ///
     /// `ReleaseAmbiguous(IndexGrammar)` when the grammars disagree and no
     /// release is named, or where 8.6 compiles the literal apart from the
-    /// value ([`tcl_cmd_core::index::compiles_apart`], D361);
-    /// `ReleaseAmbiguous(Platform)` for a reading the host's `long` decides
-    /// (D360); `WrongRepresentation` for a malformed index, which the program
+    /// value ([`tcl_cmd_core::index::compiles_apart`]);
+    /// `ReleaseAmbiguous(Platform)` for a reading the host's `long`
+    /// decides; `WrongRepresentation` for a malformed index, which the program
     /// raises `bad index` on.
     pub fn index(&mut self, spec: &ConstValue, len: usize) -> Result<ConstValue, DeclineReason> {
         use tcl_cmd_core::index::{IndexReading, compiles_apart, read_under, read_with};
         self.require(Needs::INDEX_GRAMMAR);
         self.charge(1)?;
         let text = self.text_of(spec)?;
-        // 8.6 reads such a word apart as a literal and as a value (D361); a
+        // 8.6 reads such a word apart as a literal and as a value; a
         // target that names no release may be 8.6.
         if compiles_apart(&text, len, self.target.release.unwrap_or(TclVersion::V8_6)) {
             let reason = DeclineReason::ReleaseAmbiguous(Axis::IndexGrammar);
@@ -841,7 +841,7 @@ impl ValueOps for ConstOps<'_> {
     type Value = ConstValue;
 
     /// No host is named at compile time: a reading the host's `long`
-    /// decides declines (D360).
+    /// decides declines.
     fn reads_a_wide_long(&mut self) -> bool {
         self.poison(DeclineReason::ReleaseAmbiguous(Axis::Platform));
         false

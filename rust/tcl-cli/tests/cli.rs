@@ -1755,8 +1755,8 @@ fn diag_show_suppressed_declares_what_an_abstaining_document_did_not_run() {
     assert!(stderr.contains("suppressed=2 "), "{stderr}");
 }
 
-/// O111 pairs with every W100 the analyser finds (DP8.2); `tcl diag` keeps
-/// the optimiser off by policy (D4), so O111 is an `OptimiserOff`
+/// O111 pairs with every W100 the analyser finds; `tcl diag` keeps
+/// the optimiser off by policy, so O111 is an `OptimiserOff`
 /// suppression here rather than a finding that silently never existed.
 #[test]
 fn diag_show_suppressed_lists_o111_as_optimiser_off() {

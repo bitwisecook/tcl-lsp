@@ -6374,35 +6374,35 @@ const COMPLETING_CALLS: [CompletingCall; 15] = [
         goes: false,
         printed: "1\n",
     },
-    // `main` runs before `lbl`'s definition: `invalid command name` (D348).
+    // `main` runs before `lbl`'s definition: `invalid command name`.
     CompletingCall {
         source: "proc main {} {\n    set a [lbl abc]\n    return 1\n}\nputs [catch main]\nproc lbl {x} {return [string length $x]}\n",
         store: "set a [lbl abc]",
         goes: false,
         printed: "1\n",
     },
-    // `lbl` is defined only under a condition that does not hold (D348).
+    // `lbl` is defined only under a condition that does not hold.
     CompletingCall {
         source: "if {[info exists ::env(TCL_LSP_NEVER_SET)]} {\n    proc lbl {x} {return [string length $x]}\n}\nproc main {} {\n    set a [lbl abc]\n    return 1\n}\nputs [catch main]\n",
         store: "set a [lbl abc]",
         goes: false,
         printed: "1\n",
     },
-    // A callback runs after the load, which defined `lbl` (D348).
+    // A callback runs after the load, which defined `lbl`.
     CompletingCall {
         source: "proc main {} {\n    set a [lbl abc]\n    return 1\n}\nproc lbl {x} {return [string length $x]}\nafter 0 {puts [main]; set ::done 1}\nvwait ::done\n",
         store: "set a [lbl abc]",
         goes: true,
         printed: "1\n",
     },
-    // `lbl`'s body is `extra characters after close-quote` (D349).
+    // `lbl`'s body is `extra characters after close-quote`.
     CompletingCall {
         source: "proc lbl {x} {return [string length \"a\"b]}\nproc main {} {\n    set a [lbl abc]\n    return 1\n}\nputs [catch main]\n",
         store: "set a [lbl abc]",
         goes: false,
         printed: "1\n",
     },
-    // `lbl`'s body is `extra characters after close-brace` (D349).
+    // `lbl`'s body is `extra characters after close-brace`.
     CompletingCall {
         source: "proc lbl {x} {return [string length {a}b]}\nproc main {} {\n    set a [lbl abc]\n    return 1\n}\nputs [catch main]\n",
         store: "set a [lbl abc]",
@@ -6410,7 +6410,7 @@ const COMPLETING_CALLS: [CompletingCall; 15] = [
         printed: "1\n",
     },
     // Under 8.4 `{*}` is a braced word, so `{*}$x` is the close-brace error;
-    // from 8.5 the expansion reaches `string length a b` (D349).
+    // from 8.5 the expansion reaches `string length a b`.
     CompletingCall {
         source: "proc lbl {x} {return [string length {*}$x]}\nproc main {} {\n    set a [lbl {a b}]\n    return 1\n}\nputs [catch main]\n",
         store: "set a [lbl {a b}]",
@@ -6419,8 +6419,8 @@ const COMPLETING_CALLS: [CompletingCall; 15] = [
     },
 ];
 
-/// The unused store of a call goes only where the call cannot raise (D330):
-/// purity says a call changes nothing, not that it completes (D253), so the
+/// The unused store of a call goes only where the call cannot raise:
+/// purity says a call changes nothing, not that it completes, so the
 /// call's procedure must complete whatever its arguments hold — a
 /// straight-line body that reads only what it set and runs only commands
 /// that complete so, `string length` among them — and be called with a word
@@ -6429,8 +6429,8 @@ const COMPLETING_CALLS: [CompletingCall; 15] = [
 /// unset read and a procedure the caller's namespace shadows each keep the
 /// store, and so does a callee whose `proc` statement has not surely run
 /// where the caller runs — defined after the load first runs the caller, or
-/// under a condition (D348) — and a callee whose body holds a word the
-/// release's parser rejects (D349); a caller only a callback runs, after the
+/// under a condition — and a callee whose body holds a word the
+/// release's parser rejects; a caller only a callback runs, after the
 /// load, takes a callee defined anywhere at the top level. Every program
 /// prints what tclsh prints before and after `tcl opt` under every release.
 #[test]
@@ -6450,7 +6450,7 @@ fn a_call_that_cannot_raise_leaves_a_dead_store() {
 }
 
 /// A procedure of the module that takes a package command's name replaces
-/// it for every caller (D350): `proc base32::encode` and `namespace eval
+/// it for every caller: `proc base32::encode` and `namespace eval
 /// base32 {proc encode …}` print `shadowed` on tclsh 8.5.19 to 9.1.0, so the
 /// `base32` route never answers through them — the call folds to its
 /// procedure's constant (O103), as before the route — and no condition
@@ -6496,7 +6496,7 @@ fn a_shadowing_procedure_stops_a_package_route() {
     }
 }
 
-/// A route's decline is final (D356): the interpolation rewriter never takes
+/// A route's decline is final: the interpolation rewriter never takes
 /// a word the lexer reads as one `[…]` apart, so `[string match -nocase
 /// {a]€} {€a}]`, whose route declines the collation, stays as written where
 /// the rewriter had cut it at the `]` inside the braces and emitted a
@@ -6645,8 +6645,8 @@ fn stubbed_e5(frame: &str) -> String {
     )
 }
 
-/// A stub that states its frame effect is a command the module can name
-/// (D255). `-frame own` and `-frame none` state that the call crosses no
+/// A stub that states its frame effect is a command the module can name.
+/// `-frame own` and `-frame none` state that the call crosses no
 /// frame, so the locals `q` holds at `db_query {select 1}` keep their values
 /// and `$g == 5` is decided; `-frame caller` states `argparse`'s effect, and a
 /// stub that states none may reach the frame that calls it as code the module
@@ -9272,7 +9272,7 @@ fn split_of_the_empty_string_is_the_empty_list() {
 }
 
 /// A substitution whose route raises is labelled by its completion, as the
-/// `lset` view labels one, and not as a store (D353): 8.4 reads no sums, so
+/// `lset` view labels one, and not as a store: 8.4 reads no sums, so
 /// `string range abcdefghijkl 0 1+1` raises `bad index` there and is no value.
 #[test]
 fn a_raising_substitution_is_labelled_by_its_completion() {

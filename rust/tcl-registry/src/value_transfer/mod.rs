@@ -187,9 +187,8 @@ pub trait CommandSemantics: Sync + Send {
 
     /// The exact evaluation over the declared route, under a budget. The
     /// default declines with the route's own reason: a specialisation with
-    /// a registry-owned direct route overrides this; an expression route is
-    /// run by the driver's engine adapter; a transitional direct route is
-    /// run by the driver's handler until the slice that retires it.
+    /// a direct route overrides this; an expression route is run by the
+    /// driver's engine adapter.
     fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
         let _ = (input, budget);
         match self.route() {

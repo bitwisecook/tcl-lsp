@@ -198,12 +198,9 @@ default it was not asked for.
   string-backed `ValueOps` implementations
   (`rust/tcl-syntax/src/value.rs`, `tcl-cmd-core`, the registry's test
   module) and no live one.
-- **A third family lives in codegen.** `rust/tcl-compiler/src/codegen/helpers.rs`
-  carries `fold_list_cmd`, reached from codegen. `try_format_fold` (`%s`
-  and `%d` only) went with `format`'s transitional table when the command
-  gained a registry-owned route over the shared format core;
-  `fold_list_cmd` and `fold_dict_create_cmd`, test-only by then, went
-  when the engine took codegen's folds over.
+- **Codegen carries no folder of its own.** `rust/tcl-compiler/src/codegen/helpers.rs`
+  holds no command fold: the engine runs the folds codegen once held, and
+  `format` folds on its registry-owned route over the shared format core.
 - **Codegen already emits folded values, guarded.** `try_emit_constant_fold`
   in `rust/tcl-compiler/src/codegen/values.rs` folds a literal-only
   `[cmd …]` through `ConstSubstCtx::fold_cmd_subst_resolved`, pushes the

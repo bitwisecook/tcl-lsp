@@ -3613,7 +3613,7 @@ mod tests {
         }
     }
 
-    /// DP8.3: the conversion follows a *shown* W115, not the bare comment
+    /// The conversion follows a *shown* W115, not the bare comment
     /// shape — a layer that turns W115 off, or a directive that silences it,
     /// must silence the action too.
     #[test]

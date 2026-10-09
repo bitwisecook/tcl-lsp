@@ -29,9 +29,8 @@
 //! subcommand, and form decides what runs.
 //!
 //! Every declared direct route is implemented in the registry
-//! ([`NativeEvalId::owner`](tcl_registry::value_transfer::NativeEvalId::owner));
-//! the compiler's transitional handlers are
-//! gone. The expression route is run here by
+//! ([`NativeEvalId::owner`](tcl_registry::value_transfer::NativeEvalId::owner)).
+//! The expression route is run here by
 //! construction: the registry assembles the argument words
 //! ([`ExpressionRoute::assemble`]) and the shared engine evaluates the
 //! expression over this module's lattice services
@@ -1125,10 +1124,6 @@ fn route_label(route: Option<EvalRoute>) -> String {
         None => "no semantics".to_owned(),
         Some(EvalRoute::Direct { id }) => match id.owner() {
             EvaluatorOwner::Registry => format!("direct {} (registry)", id.as_str()),
-            EvaluatorOwner::Transitional { retires_in_slice } => format!(
-                "direct {} (compiler, transitional until slice {retires_in_slice})",
-                id.as_str()
-            ),
         },
         Some(EvalRoute::Expression { language }) => format!("expression {}", language.as_str()),
         Some(EvalRoute::Implementation(capability)) => {
@@ -1394,8 +1389,8 @@ impl<'a> LatticeDriver<'a> {
 
     /// Whether `head` may name a procedure of the module a transfer summary
     /// answers for, as a run that holds no module can tell: the module has
-    /// summaries only at the deep tier and where it rebinds no builtin
-    /// (D299), and a registry command whose binding the module leaves
+    /// summaries only at the deep tier and where it rebinds no builtin,
+    /// and a registry command whose binding the module leaves
     /// standing names none.
     fn may_name_a_summary(&self, head: &str) -> bool {
         let Some(folds) = self.folds else {
@@ -3841,9 +3836,8 @@ impl<'a> LatticeDriver<'a> {
 
     /// The one command a `[…]` script holds, resolved and run on its
     /// declared route over this statement's lattice inputs: a
-    /// registry-owned evaluator, the expression engine, or a transitional
-    /// handler. `None` when the script is not one command the registry
-    /// resolves to a declaration.
+    /// registry-owned evaluator or the expression engine. `None` when the
+    /// script is not one command the registry resolves to a declaration.
     ///
     /// `prior` holds the writes the enclosing evaluations made before the
     /// command runs, which its reads consult first, and `policy` says
@@ -3976,11 +3970,6 @@ impl<'a> LatticeDriver<'a> {
                 match id.owner() {
                     EvaluatorOwner::Registry => {
                         evaluate_lifted(semantics, inputs, &mut self.budget(), MAX_CONSTSET_SIZE)
-                    }
-                    // No compiler-owned evaluator remains: a route the
-                    // registry does not own evaluates nothing here.
-                    EvaluatorOwner::Transitional { .. } => {
-                        LiftedAnswer::Declined(DeclineReason::Unsupported)
                     }
                 }
             }

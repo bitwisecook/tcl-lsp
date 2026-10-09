@@ -160,11 +160,11 @@ pub(crate) fn list_join<S: AsRef<str>>(elems: &[S]) -> String {
 /// An index word is read by `Tcl_GetIntForIndex`, so it inherits every version
 /// difference in the numeral grammar and the integer range — `lindex $l 010` is
 /// index 8 up to 8.6 and 10 from 9.0, `lindex $l 4294967295` the last element
-/// up to 8.6 and past it from 9.0 (D351). These folds are registered as plain
+/// up to 8.6 and past it from 9.0. These folds are registered as plain
 /// [`ConstFoldFn`](crate::hooks::ConstFoldFn)s, which carry no release, so this
 /// resolves under **every** grammar and folds only when they agree on an index;
-/// a reading the host's `long` decides never folds (D360), nor one 8.6 reads
-/// apart as a literal and as a value (D361).
+/// a reading the host's `long` decides never folds, nor one 8.6 reads
+/// apart as a literal and as a value.
 ///
 /// Declining is free: an unfolded `lindex` is evaluated at run time by an
 /// interpreter that does know its release. Folding under one release's grammar
@@ -788,7 +788,7 @@ mod tests {
         // Still nothing at all for a genuinely bad spec.
         assert_eq!(parse_index("nope", 12), None);
         // Past 32 bits 8.4 to 8.6 wrap or raise where 9.0 reads the wide, and
-        // a 64-bit `long` decides the rest (D351, D359, D360).
+        // a 64-bit `long` decides the rest.
         for spec in [
             "2147483648",
             "4294967295",
@@ -803,7 +803,7 @@ mod tests {
         }
         assert_eq!(parse_index("2147483647", 12), Some(2_147_483_647));
         // Every grammar reads this one before the first element, but 8.6
-        // encodes the literal after the end (D361).
+        // encodes the literal after the end.
         assert_eq!(parse_index("end-2147483649", 12), None);
     }
 

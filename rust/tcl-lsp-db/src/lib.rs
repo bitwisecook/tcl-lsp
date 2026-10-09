@@ -5584,8 +5584,8 @@ mod tests {
         );
     }
 
-    /// The slice-3 firewall: a body-only edit (same length, so other bodies
-    /// keep their offset) recomputes exactly one `item_body_analysis`.
+    /// A body-only edit (same length, so other bodies keep their offset)
+    /// recomputes exactly one `item_body_analysis`.
     #[test]
     fn body_edit_recomputes_one_item() {
         use salsa::Setter as _;
@@ -6253,9 +6253,9 @@ mod tests {
     }
 
     /// The opt projection a memoised procedure reads its callees through keeps
-    /// what the dead-store passes ask of them: the completion (D330), and each
+    /// what the dead-store passes ask of them: the completion, and each
     /// parameter's default, which the call-by-name reads take for an omitted
-    /// `Name` argument (D311).
+    /// `Name` argument.
     #[test]
     fn the_opt_projection_keeps_completion_and_defaults() {
         let mut summary = ProcSummary::unknown("::bumpd");
@@ -6271,7 +6271,7 @@ mod tests {
 
     /// A callee that completes whatever its arguments hold makes the unused
     /// store of its call dead in the per-procedure optimiser memo as in the
-    /// whole-module build (D330): the memo reads a callee's summary through its
+    /// whole-module build: the memo reads a callee's summary through its
     /// opt projection, which carries the completion with the purity.
     #[test]
     fn a_completing_callee_reaches_the_optimiser_memo() {

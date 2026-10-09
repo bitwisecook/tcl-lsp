@@ -314,8 +314,8 @@ fn assignment_safe_to_delete_with_effect(stmt: &Statement, effect: EffectCtx<'_>
 ///   ([`RaiseProof::calls_complete`]). A command substitution may raise on
 ///   its own words whatever they read (`[lindex {a b} 1.5]`), and purity
 ///   says a call changes nothing, not that it completes, so a call needs the
-///   clean fold or a procedure that completes whatever its arguments hold
-///   (D330); an `expr` value's operators may raise on a bound operand, so it
+///   clean fold or a procedure that completes whatever its arguments
+///   hold; an `expr` value's operators may raise on a bound operand, so it
 ///   needs the clean fold;
 /// * an `incr` qualifies when its amount is an integer literal and its place
 ///   is a scalar that holds an integer wherever it is bound, and is bound
@@ -351,12 +351,11 @@ struct CallCompletion<'a> {
     /// Whether the function runs in a namespace chosen at run time — a
     /// method body — where a relative head names no proven procedure.
     runtime_namespace: bool,
-    /// Which procedures are surely defined where the function's calls run
-    /// (D348).
+    /// Which procedures are surely defined where the function's calls run.
     defined: Defined<'a>,
 }
 
-/// Which procedures are surely defined where a function's calls run (D348).
+/// Which procedures are surely defined where a function's calls run.
 enum Defined<'a> {
     /// A procedure's body: the callees its summary proves defined before the
     /// load may first run it.
@@ -424,7 +423,7 @@ impl CallCompletion<'_> {
     /// Whether a call to `qname` with `words` words after its head, made by
     /// the statement at `site`, cannot raise: the summary proves the
     /// procedure pure and completing, its parameters accept the count, its
-    /// definition surely ran (D348), and its name stands for it.
+    /// definition surely ran, and its name stands for it.
     fn completes(&self, qname: &str, words: usize, site: u32) -> bool {
         self.procedures.get(qname).is_some_and(|summary| {
             summary.pure
@@ -540,7 +539,7 @@ impl<'a> RaiseProof<'a> {
     }
 
     /// Whether every command the value word of `stmt` (an `AssignValue`)
-    /// substitutes is a call that cannot raise (D330): to a procedure of the
+    /// substitutes is a call that cannot raise: to a procedure of the
     /// module, resolved from the function's namespace as Tcl resolves it,
     /// whose summary proves it pure and completing whatever its arguments
     /// hold, called with a word count its parameters accept, under a name no
@@ -2767,8 +2766,8 @@ mod tests {
         // side effect, and purity is no proof that the call completes
         // (`proc add {a b} {expr {$a + $b}}` raises for `add x 1`); but the
         // summary proves `return 1` completes whatever the call is given, so
-        // the call cannot raise and `set unused [::pure]` is dead (D330;
-        // tclsh 8.4 to 9.1 run `::f` alike with and without it).
+        // the call cannot raise and `set unused [::pure]` is dead (tclsh
+        // 8.4 to 9.1 run `::f` alike with and without it).
         let opts = crate::optimiser::optimise(
             "proc ::pure {} { return 1 }\nproc ::f {} { set unused [::pure]; return 1 }",
             &registry(),
@@ -2779,7 +2778,7 @@ mod tests {
         );
     }
 
-    /// The store of a call goes only where the call cannot raise (D330):
+    /// The store of a call goes only where the call cannot raise:
     /// a callee whose body may raise, a word count its parameters reject, a
     /// recursion, a read the existence rung does not hold set, a procedure
     /// the caller's namespace shadows, a name a `rename` moves or a second

@@ -2825,7 +2825,7 @@ mod policy_tests {
             }),
             "O100 stands in the report as an `OptimiserOff` suppression: {report:?}"
         );
-        // DP9.3: the payload's own `suppressed` array carries the same half.
+        // The payload's own `suppressed` array carries the same half.
         let suppressed = analyze_suppressed(&args, "");
         assert!(
             suppressed

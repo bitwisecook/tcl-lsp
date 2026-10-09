@@ -235,7 +235,7 @@ fn bad_index_under(spec: &str, release: TclVersion) -> CmdError {
 }
 
 /// `spec` read as one index of a level of `len` elements under `release`; a
-/// reading the host's `long` decides takes `ops`'s answer (D360).
+/// reading the host's `long` decides takes `ops`'s answer.
 fn index_under<O: ValueOps>(
     ops: &mut O,
     spec: &str,
@@ -576,7 +576,7 @@ mod tests {
     }
 
     /// A runtime reads an index the host's `long` decides as C Tcl on the same
-    /// host does (D360): `lset x 18446744069414584321 Z` is `a Z c` on tclsh
+    /// host does: `lset x 18446744069414584321 Z` is `a Z c` on tclsh
     /// 8.4.20 and 8.5.19 where `long` is 64 bits, `bad index` where it is 32,
     /// and `bad index` on 8.6.18 everywhere.
     #[test]

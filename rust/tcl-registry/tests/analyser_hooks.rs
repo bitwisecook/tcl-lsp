@@ -89,17 +89,16 @@ fn full_registry() -> CommandRegistry {
 #[test]
 fn analyser_hook_stamps_match_the_former_guard_list() {
     use AnalyserHookId as H;
-    // Step 2 (CC2.13) retired eleven variants whose handler's only
-    // command-specific knowledge was a position or a keyword a descriptor
-    // now states — `Try`, `For`, `DictFor`, `DictUpdate`, `Incr`, `Append`,
+    // Eleven variants are retired whose handler's only command-specific
+    // knowledge was a position or a keyword a descriptor states — `Try`, `For`, `DictFor`, `DictUpdate`, `Incr`, `Append`,
     // `Lappend`, `Upvar`, `NamespaceUpvar`, `Global` and `Variable` — so
     // `variable`, `global`, `namespace upvar`, `foreach`'s `for` sibling,
     // `switch`'s `try` sibling, `upvar`, `dict for` / `dict update` (and
     // their `::tcl::dict::*` qualified spellings), `append`, `lappend` and
     // `incr` carry no analyser hook any more: each falls through to the
     // shared tail (`apply_invocation_transitions`, `handle_var_binding_command`,
-    // the generic `ArgRole::Body` walk) the same way `for` already did
-    // before this step. 43 variants, 56 stamp rows before the retirement;
+    // the generic `ArgRole::Body` walk) the same way `for` does. 43
+    // variants, 56 stamp rows before the retirement;
     // 32 variants, 43 rows after it. `Set` went the same way: the generic
     // role binding defines `set`'s target,
     // and the constant-string environment, the interpreter value binding

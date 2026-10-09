@@ -1536,7 +1536,7 @@ mod tests {
             resolve_start_checked(b"end-9223372036854775800", 10).unwrap(),
             0
         );
-        // 9.0 reads a bignum offset after `end` as `end+1` (D351): tclsh 9.0.4
+        // 9.0 reads a bignum offset after `end` as `end+1`: tclsh 9.0.4
         // runs `regexp -start end+99999999999999999999999 x abc` to 0.
         assert_eq!(
             resolve_start_checked(b"end+99999999999999999999999", 10).unwrap(),

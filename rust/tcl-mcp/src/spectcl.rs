@@ -27,8 +27,8 @@
 //! validate a pack it has just written, and to read what its own loop
 //! actually registered.
 //!
-//! **There is exactly one loader** — and since the `one-loader` lane that is
-//! true of the tree, not just of this module. Every fact below comes from
+//! **There is exactly one loader** — true of the tree, not just of this
+//! module. Every fact below comes from
 //! [`tcl_spectcl::evaluate_pack`], which is now the only door from `.tclspec`
 //! text to a `Pack`: the LSP's discovery and reload path reaches the same
 //! function through `tcl_spectcl::evaluate_pack_cached` (the cache, not a

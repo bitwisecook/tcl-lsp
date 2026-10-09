@@ -858,7 +858,7 @@ fn test_simple_continuation_fix() {
 
 #[test]
 fn no_conversion_for_a_disabled_w115() {
-    // DP8.3: the lightbulb offers the conversion only for a *shown* W115 —
+    // The lightbulb offers the conversion only for a *shown* W115 —
     // a layer that turns the code off silences the action too, even though
     // the comment shape below is still detectable.
     let mut lsp = Lsp::tcl();

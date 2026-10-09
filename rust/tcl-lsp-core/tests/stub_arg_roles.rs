@@ -649,7 +649,7 @@ fn pure_wrapper(inner: &str) -> String {
 /// call as a pure one, so `label` is pure. Over `string length`, which
 /// completes whatever it is given, the unused result of calling `label`
 /// goes (O126); a stub states purity, not how the command completes, so
-/// `mypure abc` may raise and the result stays (D330).
+/// `mypure abc` may raise and the result stays.
 #[test]
 fn a_pure_stub_keeps_its_caller_pure() {
     let registry = optimisation_codes(&pure_wrapper("string length"));
@@ -892,7 +892,7 @@ fn an_extension_stub_is_hidden_in_a_safe_interpreter() {
 /// The default's purity axis is never pure, so a wrapper around the call is
 /// not pure either; `-pure` narrows that axis, and only the effect axes with
 /// it: the summary takes the wrapper as pure, though its unused result still
-/// stays, since the stub states no completion (D330); the same stub is still
+/// stays, since the stub states no completion; the same stub is still
 /// hidden in a safe interpreter, and no longer a barrier, because the
 /// declaration said what the command does.
 #[test]

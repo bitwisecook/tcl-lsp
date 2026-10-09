@@ -751,9 +751,10 @@ the alias whose expression words a later sibling evaluates.
   descriptor that states the same operation. The compiler's
   `value_transfer` module is the engine: it proves operands from the SCCP
   lattice and applies validated answers, and it recognises no command by
-  name — `cargo xtask value-transfers` is the gate. The shipped folds the
-  compiler still implements are keyed by `NativeEvalId` and listed, with an
-  expiry each, in the migration plan's ledger. Design:
+  name — `cargo xtask value-transfers` is the gate. Every direct route is
+  implemented in the registry (`NativeEvalId::owner`); the one transfer
+  that stays in the compiler is listed in the migration page's ledger.
+  Design:
   [value-transfers.md](../compiler/value-transfers.md),
   [value-evaluation.md](../compiler/value-evaluation.md).
 

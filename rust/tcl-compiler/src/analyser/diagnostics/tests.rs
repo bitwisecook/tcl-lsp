@@ -5032,7 +5032,7 @@ fn emit_cfg_ssa_diagnostics_runs_without_panicking_on_empty_source() {
     assert!(a.result.diagnostics.is_empty());
 }
 
-/// Slice 4: a memoised `CompilationUnit` (built via `build_for_memoized`
+/// A memoised `CompilationUnit` (built via `build_for_memoized`
 /// and fed through the `cu_override` seam) must yield **byte-identical**
 /// diagnostics to the whole-file path — both on a cold cache (all misses,
 /// proving the refactor) and a warm cache (all hits, proving the cache key
@@ -12098,8 +12098,7 @@ fn var_binding_binary_scan_defines_targets() {
 fn var_binding_a_nested_loop_command_binds_its_loop_variables_in_the_enclosing_scope() {
     // A loop command nested in a `[…]` substitution binds its loop variables
     // in the scope the substitution runs in, through the same role binder as
-    // the top-level path (step 2, CC2.12: the substitution path ran only the
-    // `VarWrite` binder, so none of these was bound).
+    // the top-level path.
     let mut a = Analyser::new();
     let r = a.analyse(
         "proc f {l d} {\n    set r [lmap x $l {string length $x}]\n    \
@@ -15369,8 +15368,8 @@ fn w144_core_subcommand_lifecycle_uses_registry_safe_fix() {
 /// registry); `analyse` itself clears the run state on exit.
 #[test]
 fn analyser_hook_selection_requires_binding_proof() {
-    // `oo::define` is 8.6+, like `try` (retired from this test's example in
-    // step 2, CC2.13 — `try` itself carries no analyser hook any more).
+    // `oo::define` is 8.6+ (`try`, also 8.6+, carries no analyser hook, so
+    // it cannot serve here).
     let args = vec!["Foo".to_string(), "{ }".to_string()];
     let mut old = crate::analyser::Analyser::new();
     let _ = old.resolve_walk_environment("tcl8.4");

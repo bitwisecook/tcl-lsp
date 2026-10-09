@@ -49,8 +49,7 @@ use super::route::{EvalRoute, LanguageProfileId, NativeEvalId};
 const STRING_RANGE_REVISION: u64 = 1;
 
 /// The revision of the registry-owned list and length evaluators: 1 is the
-/// shared cores over `ConstOps`, replacing the compiler's transitional
-/// folds.
+/// shared cores over `ConstOps`.
 const LIST_AND_LENGTH_REVISION: u64 = 1;
 
 /// The revision of the registry-owned `split`, `string first` and `string
@@ -729,8 +728,7 @@ impl FormatTemplateSemantics {
         .union(Needs::NUMERAL_GRAMMAR)
         .union(Needs::INT_TOWER);
 
-    /// The revision of the registry-owned evaluator: 1 is the shared core,
-    /// replacing the compiler's transitional fold.
+    /// The revision of the registry-owned evaluator: 1 is the shared core.
     const REVISION: u64 = 1;
 
     /// `args` rendered as `release` renders them.
@@ -1370,8 +1368,8 @@ pub static RUNS_A_CALLBACK: NoRouteSemantics = NoRouteSemantics {
 
 /// `::tcl::unsupported::grapheme next|prev string indexVar` (9.1): the
 /// cursor steps over grapheme-cluster boundaries, which no table the
-/// runtimes or the shared cores carry describes, so no route is authored
-/// (D316); it writes the index variable, a scalar.
+/// runtimes or the shared cores carry describes, so no route is
+/// authored; it writes the index variable, a scalar.
 pub static GRAPHEME_CURSOR: MayWriteSemantics = MayWriteSemantics {
     targets: &[ArgRole::VarWrite],
     reason: NoRouteReason::Unauthored,

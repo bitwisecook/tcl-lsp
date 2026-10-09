@@ -491,7 +491,7 @@ fn fp_opt_11_non_numeric_literal_still_rewrites() {
 fn fp_opt_12_pure_user_proc_via_my_dispatch_handled_at_word_level() {
     // Purity is no proof that the call completes (FP-OPT-07), but the summary
     // proves `return 42` completes whatever the call is given, so the call
-    // cannot raise and its unused store goes (D330; tclsh 8.4 to 9.1 print
+    // cannot raise and its unused store goes (tclsh 8.4 to 9.1 print
     // `done` with and without it).
     let src = "proc pure_helper {} { return 42 }\nproc m {} {\n    set unused [pure_helper]\n    puts done\n}\n";
     assert!(
