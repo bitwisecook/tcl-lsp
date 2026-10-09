@@ -631,8 +631,9 @@ branch and every nested command it ran answered without a store.
 `analyser/diagnostics/dataflow.rs`'s undef trace (W210 on a read, a
 `return`, or a condition's no-match arm; W213 on an `unset`) reads
 through a preserved definition to the version `SccpResult::preserved`
-names, replacing the private `regexp` / `scan` no-match prover: a no-match no longer needs its own read-before-set logic, only
-the general trace over the fact every declared preserve outcome states.
+names, so a no-match needs no read-before-set logic of its own: the
+general trace over the fact every declared preserve outcome states covers
+it.
 A nested conditional writer (`regexp` in a word or a condition) records
 its targets as read the same way the statement form does
 (`ir_helpers::variable_write_effects_from_commands`), so the optimiser
