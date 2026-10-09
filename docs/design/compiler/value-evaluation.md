@@ -13,10 +13,7 @@ target semantics, and what a pack author writes. Read it before adding an
 evaluator to a command, before touching the hook host or the fold engine,
 and before promising that two implementations agree.
 
-> **Status — built; slice 7, the lane's last, has landed.** Real in the
-> workspace since slice 4 landed
-> (`docs/design/lanes/value-transfers.md` § *Plan for slices 2–13* ›
-> *Slice 4*, decisions D72–D104): `EvalRoute`, `NativeEvalId`,
+> **Status — built.** Real in the workspace: `EvalRoute`, `NativeEvalId`,
 > `LanguageProfileId`, `NoRouteReason`, `SpecialisationId`; `ConstOps`,
 > `ConstValue`, `Representation`, `Needs`, `TargetSemantics`, `Axis`,
 > `SourceEncoding`, `WorkUnits`; `EvaluatorCapability`,
@@ -690,7 +687,12 @@ the walk an evaluator for the interface:
 
 `MathFuncSince` already gates availability per release
 (`Tcl84`, `Tcl85`, `Tcl90`, `Tcl91`), so a function the target lacks is a
-decline from data the tree already has, not a new check.
+decline from data the tree already has, not a new check. A profile that
+names no release folds only the functions 8.4 has (`fold_math_ceiling`,
+in the route's `math_function` service and in the old folder alike),
+since only those answer on every release; the availability diagnostic
+keeps `math_func_ceiling_for_dialect`'s unbounded ceiling, so it never
+flags a function one of the profile's releases has.
 
 A dialect that gives Tcl syntax different arithmetic gets its own
 language-semantic adapter for the same engine, named by the route's
@@ -1214,6 +1216,17 @@ never links wasmtime: the registry holds the seam, not an engine — declines
 every evaluation `Transient`, a state of the worker that is never cached as
 a negative, as it does an artefact the load could not read.
 
+The WASM host (`WasmExtensionHost`) loads under a budget of its own — a
+hundred thousand commands, two seconds, 16 MiB — and evaluates under it
+narrowed by the evaluation's, each evaluation on a fresh instance, so no
+evaluation sees what another left. An outrun budget declines `Budget(Fuel)`
+for the command count and the fuel that stands in for it, `Budget(Request)`
+for the wall clock, `Budget(AllocationBytes)` for the value size and the
+memory cap, and `Budget(ResultBytes)` for a result over the value size; an
+error, any completion but a normal one, an extension it cannot link and a
+fault are `Unsupported`, since the same words meet them again; an artefact
+it has not loaded, or an instance it cannot build, is `Transient`.
+
 ### `Engine::set_release`
 
 ```rust,ignore
@@ -1308,7 +1321,11 @@ empty string; they are a simulator's fallbacks and are not evaluators.
   (`Pending`, `NotExact`, `CorrelatedSets`) is the decline, never a
   placeholder value (D88) — the engine reads no host environment
   (`Engine::confine_stores` strips it, D101), and one sampled run is never
-  a proof; partial abstract reasoning stays with the analyser.
+  a proof; partial abstract reasoning stays with the analyser. The places
+  and the inputs are read before the release, the admission and the host,
+  so a call whose input is not exact declines with that input's own reason
+  under any profile, and one whose input has not settled stays pending
+  rather than declining at once.
 - **The execution realm is not the subject program.** The engine's own
   builtins are not evidence about the analysed program's bindings. Binding
   validity comes from the analysis context, transitively over every
@@ -1929,7 +1946,7 @@ Inside an `evaluate -implementation` block, four rows and no others:
 
 | keyword | operands | meaning | from |
 |---|---|---|---|
-| `inputs { … }` | repeated `arg N exact`, `target N incoming`, `option -NAME exact` | exactly what the body reads; anything unlisted is not supplied, and an evaluator that reads a target value without listing it is a `spectcl_check` finding | 2.2 |
+| `inputs { … }` | repeated `arg N exact`, `target N incoming`, `option -NAME exact` | exactly what the body reads; anything unlisted is not supplied, and an evaluator that reads a target value without listing it is a `spectcl_check` finding. `arg N` counts from the resolved form's first argument (one past a subcommand word), so a subcommand form and a renamed spelling read one declaration. `option -NAME exact` is read positionally too: it binds `{}` when no argument word is `-NAME` and the one-element list of the next word's value when exactly one is, rendered under the target's list rule, and `-NAME` twice, or as the last word, is `Unsupported` | 2.2 |
 | `depends { … }` | words from the closed set `tcl_profile`, `implementation_identity`, `registry_generation`, `evaluator_generation`, `binding NAME` | the context dependencies the answer carries and the memo key holds | 2.2 |
 | `budget { … }` | `-commands N`, `-wall-clock MS`, `-value-bytes N` | the per-evaluation budget; narrows the host's, never widens it | 2.2 |
 | `body {params} { … }` | a parameter list and a body | the implementation, carried verbatim as `HookSource::Body` already is | 2.2 |

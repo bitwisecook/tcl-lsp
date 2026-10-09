@@ -230,10 +230,3 @@ glossary, and screenshot updates in the same PR
 - The embedded SslicTcl trust-store data is refreshed only deliberately
   (`make update-source-data`, then `make check-source-data`):
   [sslictcl-source-data.md](docs/design/contracts/sslictcl-source-data.md).
-
-## Long-running lanes
-
-A lane keeps a tracking document under `docs/design/lanes/`, commits each
-coherent, compiling state as `wip(<lane>):` with explicitly staged paths,
-never pushes (the orchestrator does), and waits rather than deleting
-`.git/index.lock`. Rules: [lanes/README.md](docs/design/lanes/README.md).

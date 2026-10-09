@@ -832,7 +832,10 @@ SCCP determines `x₁ = Const(Int(5))`:
   `SccpResult::explanations`, which the Explorer's `sccp` view prints,
   beside `SccpResult::route_tally`'s per-family entry counts (`routes
   entered: direct N · expression M · implementation K`), nested route
-  entries included. Every other statement kind — and every
+  entries included. The tally is zeroed at the top of each sweep, so only
+  the settled sweep's entries survive, and the branch-fold pass that runs
+  once after the fixed point adds its own, which is why one decided
+  `if {1} {…}` counts as two expression entries. Every other statement kind — and every
   `Statement::Barrier` — widens its defs to `Overdefined`.
 - `Statement::AssignExpr` and a value-position `[expr …]` run the shared
   expression engine (`tcl_expr_eval::evaluate_expression`) over the

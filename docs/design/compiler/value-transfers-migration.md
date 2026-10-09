@@ -8,9 +8,7 @@ optimisation, and diagnostic, the third-party tiers, the drift gate, and
 the validation each slice owes. Read it before starting a slice, before
 waiving a site in the gate, and before claiming a command is migrated.
 
-> **Status — delivered: slices 1 to 13 and 7a have landed, slice 7 last**
-> (each slice's record is in `docs/design/lanes/value-transfers.md` until
-> the lane closes). The inventories below are observations of the
+> **Status — delivered.** The inventories below are observations of the
 > tree at one revision, not architectural invariants: a count changes when
 > the tree does, and a renamed binding or a helper table can evade a
 > name-based lint. Contract tests and ownership review remain necessary
@@ -166,10 +164,7 @@ executes that runtime.
    the completion test — a rename and a subcommand form with different
    operand positions need no consumer edit; a workspace pack's evaluator
    reaches a diagnostic on the memoised path; a body with a global counter
-   answers identically on every call. Landed 2026-09-23; the record and
-   the decisions (D72–D104) are
-   [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
-   slices 2–13* › *Slice 4*.
+   answers identically on every call.
 5. **Destructuring and structured bodies (landed).** Write, preserve,
    unbind, and may-write outcomes with heterogeneous per-target types and
    duplicate targets resolved to places; the regexp owner's typed precision
@@ -182,10 +177,6 @@ executes that runtime.
    private regexp / scan prover in `dataflow.rs` is retired; the no-match
    preserve, partial `scan`, and `lassign … a a` witnesses pass; the four
    consumers read `TemplateWordPlan` and none walks a template word.
-   Landed 2026-09-24; the record and the decisions (D105–D109, D115–D156,
-   and the review's D162–D164) are
-   [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
-   slices 2–13* › *Slice 5*.
 6. **Branch integration and optional rewrites.** A whole-variable
    `switch` subject resolves from the lattice when the name owner proves it
    is exactly one variable reference; opaque forms get one selection fact
@@ -206,11 +197,9 @@ executes that runtime.
    owner's direction of 7 October 2026: the lane's D315), proven against
    tcllib itself; `summarise_returns` consults
    a seedless lattice so the argument-independent O103 sees computed
-   returns (landed as slice 7a, 2026-10-06: each pure procedure's own
-   lattice, run with no call-site seed, read at every exit through the
-   exact value ingress — the record and the decisions, D287 onward, are
-   [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
-   slices 2–13* › *Slice 7a*); then package backing, intrinsic guards,
+   returns (each pure procedure's own lattice, run with no call-site seed, read at
+   every exit through the exact value ingress); then package backing,
+   intrinsic guards,
    the engine's WASM sibling, and extensions in their own changes under
    [registry-consumer-contracts.md](registry-consumer-contracts.md).
    *Exit:* every command that declares purity has a route or an explicit
@@ -231,10 +220,7 @@ executes that runtime.
    `scan_defined_and_unset` are deleted; `emit_provably_unset_w210` reads
    the fact; the release table for an absent cell, `set x 1; unset x; info
    exists x` deciding `0`, the definite W213 after a killed version, the
-   two O109 refusals, and the S100 silence pass. Landed 2026-09-24; the
-   record and the decisions (D157–D172) are
-   [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
-   slices 2–13* › *Slice 8*.
+   two O109 refusals, and the S100 silence pass.
 9. **Nested writes in expressions (landed).** The ordered evaluation state at
    `LocalWrites`: a nested invocation whose ordered stores name only
    places the state can own is applied to the state in order, so the next
@@ -254,10 +240,7 @@ executes that runtime.
    ternary, the quoted word, and the error path — through `tcl opt` and
    the memoised path, and `command_substitution_is_none` in
    `tcl_expr_eval.rs` became
-   `command_substitution_evaluates_through_the_nested_service`. Landed
-   2026-10-01; the record and the decisions (D188–D192, D202–D204, D213
-   and D214) are [value-transfers.md (lane)](../lanes/value-transfers.md)
-   § *Plan for slices 2–13* › *Slice 9*.
+   `command_substitution_evaluates_through_the_nested_service`.
 10. **Completion paths (landed).** Storage outcomes indexed by completion
     path: the prefix rule (`Error { written, … }`, `scan` going on past a
     store it cannot make), the completion protocols of `catch` and `try`,
@@ -267,10 +250,7 @@ executes that runtime.
     holds in the default and the faithful-exceptions build; the nine
     witnesses — ten, with `scan`'s — and the `catch` code table pass; O109
     keeps a store ahead of `catch {lassign {new second} a b} msg` that the
-    body may never overwrite, and removes one every path overwrites. Landed
-    2026-10-04; the record and the decisions (D216–D249) are
-    [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
-    slices 2–13* › *Slice 10*.
+    body may never overwrite, and removes one every path overwrites.
 11. **Predicate refinement (landed).** `EdgeRefinement` as a fact on one
     CFG edge for one SSA version, stated by the condition's own `Selection`
     transfer (`tcl_expr_eval::condition_edge_facts`) and in force in each
@@ -287,10 +267,7 @@ executes that runtime.
     eq "b"}` program decides through `tcl diag` and `tcl opt`,
     `collect_existence_guards` is deleted, and the twelve witnesses, the
     merge that drops a refinement, and the traced variable that is never
-    refined pass. Landed
-    2026-10-04; the record and the decisions (D258–D264) are
-    [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
-    slices 2–13* › *Slice 11*.
+    refined pass.
 12. **Bounded-loop enumeration.** `LoopEnumeration`: ordered execution of
     an iteration plan over exact state at a loop's pre-header, with the
     iteration cap as a `Budget` decline, exact values and existence
@@ -301,10 +278,7 @@ executes that runtime.
     of its own — its `Incr` arm, `parse_literal_value`, and
     `resolve_switch_subject` are gone — the eleven witnesses fold under
     every release found on `PATH`, and `bounds_checks.rs` seeds W240–W242
-    from the plan's bound and step rather than from `set v INT` text. Landed
-    2026-10-05; the record and the decisions (D268–D284) are
-    [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
-    slices 2–13* › *Slice 12*.
+    from the plan's bound and step rather than from `set v INT` text.
 13. **Proc-level transfer summaries.** `TransferSummary` beside
     `ProcSummary`: parameter roles with a `Name` parameter's frame level
     and ordered outcomes, the global places a callee may write, the
@@ -318,10 +292,7 @@ executes that runtime.
     are gone — a statement's word effects ride a `WordEffects` definition
     point paired with its host, the driver evaluates the pair as one, and
     an embedded call to a summarised procedure applies its summary there —
-    and the seven witnesses pass. Landed 2026-10-07; the record and the
-    decisions (D296–D307) are
-    [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
-    slices 2–13* › *Slice 13*.
+    and the seven witnesses pass.
 
 Slices 1–7 land the two contracts' machinery, and every part of the
 evaluation contract lands in one of them (§ *Where each part lands* on
@@ -866,7 +837,9 @@ The lint holds a *clean* file — every file slice 1 touched, and every
 file a later slice adds — to zero unwaived sites, and pins every other
 scanned file at its current count of unwaived recogniser-shaped sites in
 `RATCHET` (`rust/xtask/src/value_transfers.rs`). `--check` fails when a
-file's count rises above its pin. A slice lowers the pin beside the review
+file's count rises above its pin. The scan of a file ends at its inline
+`#[cfg(test)]` module; any other `#[cfg(test)]` item — a `mod name;`
+declaration, a `use`, a braced item — is skipped alone. A slice lowers the pin beside the review
 that removes or waives the file's sites, adding the `value-transfer-ok`
 annotations for the sites it reviews; a pin is never raised, and never
 added — a site that moves to a new file is reviewed there. The gate holds

@@ -1300,11 +1300,36 @@ dict with d {incr a; set result done}
 - **Duplicate targets resolve to places first.** `lassign … a a` writes
   `a` twice in order; the outcomes are composed after resolution, in
   execution order.
+- **An element write names its key.** `array set`'s places are elements no
+  operand spells, so a `WriteElement { target, key, value }` outcome names
+  the element `key` of the array its target names: one outcome per target
+  and key, an element of an element declines, and an element beside its
+  base in one outcome declines `OverlappingTargets` as a traced base
+  declines `TracedPlace`. The SSA fans a whole-array writer's base
+  definition over every constant-keyed element the function names as a
+  may-write whose value joins with the element's prior version; an
+  evaluated outcome that names the element's place makes that write
+  definite, so the solver takes its value and its folded type as they
+  stand, while an element no store names keeps the join and widens.
 - **Body commands are structural plans.** `dict with` and `dict update`
   bind keys, run a body, and reconcile; their implementation in
   `rust/tcl-vm/src/cmd_dict.rs` is those three steps. Initial key binding
   is a useful projection of a constant dict; it never stands for the whole
-  command.
+  command. `DictWithSemantics` reads the dictionary variable's prior exact
+  value, walks a key path into the nested dictionary (the last value of a
+  repeated key winning) and binds its distinct keys, first occurrence
+  first, as declared scalar binders; a dictionary the analysis does not
+  know exactly binds keys no plan can name, so the plan declines `NotExact`
+  and the generic transfer stands, and a path key the dictionary lacks, or
+  a value that is no dictionary, is the command's error
+  (`WrongRepresentation`). `DictUpdateSemantics` binds its declared
+  variable operands whatever the dictionary holds (a key the dictionary
+  lacks leaves its variable unbound on entry, which a binder cannot say and
+  a consumer must not assume). Both write the bound keys back into the
+  dictionary operand, run the body in the caller's frame, complete as the
+  body does, and declare no route — the command's value is the body's.
+  Operands count from the resolved form's `argument_offset`, so the
+  subcommand and its `::tcl::dict::` spelling share one declaration.
 - **Pending is not unbound.** `incr` on an absent variable behaves by
   release (8.4 raises `can't read "x": no such variable`; from 8.5 the
   cell is created and the result is the amount), while `append` and
@@ -1672,16 +1697,33 @@ subst -nocommands -variables {a$b}    ;# 9.1: cannot combine positive and negati
 Under a profile that does not reach 9.1 the positive family is a
 completion fact — the call errors — and under a profile that spans both
 sides of 9.1 the plan declines with `ReleaseAmbiguous`, so W102 falls
-back to every kind, as it does for an unreadable call today.
+back to every kind, as it does for an unreadable call today. The plan
+runs the option rows over each combination of the switches' proven
+spellings at each release the profile names (its own for a plain or
+vendor profile, every modelled release for one that declares none): a
+spelling that raises at a release — a switch the release lacks, an
+ambiguous prefix, the two families together, a word the switch run stops
+at before the template — contributes nothing and the rest join, a kind on
+in any being on; releases reading one spelling differently decline
+`ReleaseAmbiguous` with the gated option's row, and every spelling
+raising is the command's error (`WrongRepresentation`). A switch the
+lattice does not prove, or more than 64 combinations, reads as every
+kind. An array index inside the template substitutes every kind whatever
+the switches say (`subst -nocommands {$a([set b])}` runs `set b` and reads
+`a(5)` on 8.4 to 9.1), so its reads and scripts are recorded before the
+element read they key, and a template holding a construct `subst`
+rejects (`subst {a[set b}` raises `missing close-bracket`) is the
+command's error rather than a description of the part `subst`
+substitutes before it raises.
 
 Each consumer reads the fields it needs and nothing else:
 
 | Consumer | Reads | What it stops doing |
 |---|---|---|
-| W102 | `kinds`, `dynamic`, and the narrowing advice from the option rows | asking the bare-string resolver, so a proven switch word narrows the message |
+| W102 | `kinds`, `dynamic`, and the narrowing advice from the option rows — the walk emits W102 from the plan over the call's source words (an unproven switch runs every kind and advises nothing), and the per-function pass re-reads each recorded call over the lattice and replaces the walk's finding at the template word, so `set opt -novariables; subst $opt $x` reports what `subst -novariables $x` reports and proven switches that turn both kinds off report nothing | asking the bare-string resolver, so a proven switch word narrows the message |
 | `eval_subst_nocommands_body`, `extract_subst_nocommands_template` | `kinds == SUBST_NOCOMMANDS_KINDS`, `braced`, `reads` — every read must be in the const map — and `escapes` | re-segmenting the `[subst …]` text and matching the head `subst` by spelling |
 | extract-proc's literal cut and same-frame regions | `kinds.variables` to keep or cut the braced word; `script_regions` as the same-frame regions | `push_substituted_commands`' own `[` walk over the braced word |
-| the dynamic-name barrier | `dynamic && kinds.variables` to set `reads`; `script_regions` for the region scan | reading only `PERFORMS_SUBSTITUTION`, so `subst -novariables $t` stops blinding every read |
+| the dynamic-name barrier | `dynamic` with either `kinds.variables` or `kinds.commands` to set `reads` — a computed template that can still run a command reads any name, since `[set x]` in it is a read of `x` — and `script_regions` for the region scan | reading only `PERFORMS_SUBSTITUTION`, so `subst -nocommands -novariables $t` stops blinding every read while `subst -novariables $t` keeps blinding |
 
 The direct route materialises a template only when the plan is closed:
 every read is proven, every script region evaluates through a declared
@@ -2336,7 +2378,13 @@ equal to `boom`, `catch {set v 1} r` is `0` with `r` equal to `1`, and
 (from 8.5; 8.4 accepts no third argument) carries `-code` and `-level`
 exactly, `-errorcode` exactly when the route proves it (`NONE` for a
 plain `error`), and `-errorinfo`, `-errorline`, and `-errorstack` as
-`Unavailable` with type `dict`; on success it holds `-code 0 -level 0`.
+`Unavailable` with type `dict`. The dictionary begins `-code N -level L`
+for every completion but an error (`error msg info code` lists
+`-errorinfo` first), which is all the store states of its text — a prefix
+segment fact and type `dict` — and from 8.6 a normal completion is not
+always `-code 0 -level 0`: `catch {incr absent} m o` and `catch {lappend
+absent x} m o` leave `-errorcode {TCL READ VARNAME}` in `o` (8.5 leaves
+none).
 An error also writes the globals `::errorCode` (exact when proven) and
 `::errorInfo` (`Unavailable`) through the effect domain. `catch {incr
 absent}` is the release split of § Existence in completion form: `1`

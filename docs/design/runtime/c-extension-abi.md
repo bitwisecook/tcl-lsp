@@ -507,7 +507,21 @@ provided, and a host command's `return` and error. What the interpreter's counts
 cannot see is the host's to bound. Fuel stands in for the command count in a C
 command's own loop and in a loop that dispatches nothing; the epoch keeps the
 wall clock, since every WASI clock reads zero; and the memory's growth is capped
-by the value-size budget. Every WASI function either module imports is a stub
+by the value-size budget. An evaluation gets `FUEL_PER_COMMAND` (2,000,000
+instructions) for each command its budget allows and one more, beside
+`FIRST_USE_FUEL` (2,000,000,000) for what a fresh instance builds the first
+time it is used, granted once per instance — on the debugging build the tests
+run, a command costs about 170,000 instructions and the first ensemble command
+an instance dispatches about 700 million, building the release's command
+tables; the epoch advances every 5 ms; memory may grow four bytes for each
+byte of the value-size budget, and at least 32 MiB, before the growth traps;
+and the limits are lifted when an evaluation ends, so what is set up between
+evaluations runs under none. In the interpreter itself the command count is
+charged at the dispatch boundary every command crosses, the wall clock is read
+there every 64 dispatches and at the loop commands' poll every 4096
+iterations, and the value size is charged in `string repeat`; a limit once
+outrun stays outrun until the next evaluation begins, so a body that catches
+the error cannot run on. Every WASI function either module imports is a stub
 that answers the same on every run: the clock reads zero, randomness is zeros,
 there is no environment, no argument and no preopened directory, output is
 swallowed, and `proc_exit` ends the evaluation. So nothing of the machine reaches

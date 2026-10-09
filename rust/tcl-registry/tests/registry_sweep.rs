@@ -1321,12 +1321,11 @@ fn sweep_deprecated_drop_in_replacements_resolve() {
 
 /// Every spec's `alias_of`, when set, must name a command that actually
 /// resolves *in the same registry* — the identity the loader's stamp
-/// rejection rule (CC4.2) will trust and codegen (CC4.3) will record at a
-/// specialised site. No shipped spec declares one yet (step 4 has landed
-/// only the field, `docs/design/lanes/consumer-contracts.md` D4.1), so the
-/// live half sweeps forward-looking; the synthetic half pins what the live
-/// half would catch — an unknown target, and a target real only in another
-/// dialect's family.
+/// rejection rule trusts and codegen records at a specialised site. No
+/// shipped spec declares one (`alias_of` is a pack command's field), so
+/// the live half sweeps forward-looking; the synthetic half pins what the
+/// live half would catch — an unknown target, and a target real only in
+/// another dialect's family.
 ///
 /// registry-metadata: `alias_of` is registry data with no codegen effect
 /// yet.

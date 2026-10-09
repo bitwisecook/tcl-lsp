@@ -435,14 +435,6 @@ Starting shapes for a new design document.
   reference, ownership matrix), what a design doc looks like here, and the
   checklist to run before merging one.
 
-## lanes/
-
-Tracking documents for work handed to a background agent.
-
-- [lanes/README.md](lanes/README.md) — the protocol: tracking document,
-  checkpoint commits, explicit-path staging, orchestrator pushes. A file in
-  that folder means the work is in flight or was interrupted.
-
 ## spec-dsl-examples/
 
 Worked `.tclspec` examples that exercise the SpecTcl DSL against real command
