@@ -3018,14 +3018,13 @@ impl Analyser {
         self.expand_implied_package_requires();
         // Whole-source security checks belong in the analyser result so direct
         // consumers receive the same verdict as the LSP and CLI adapters. The
-        // pure producer is also reused by non-Tcl F5 document adapters.
-        self.result.diagnostics.extend(
-            super::source_integrity::bidi_control_diagnostics_with_suppressions(
-                source,
-                &self.disabled_diagnostics,
-                &self.result.suppressed_lines,
-            ),
-        );
+        // pure producer is also reused by non-Tcl F5 document adapters. Like
+        // every other finding it is emitted raw: an inline `# noqa` reaches
+        // the policy step through `suppressed_lines`, which records the
+        // suppression with its reason.
+        self.result
+            .diagnostics
+            .extend(super::source_integrity::bidi_control_diagnostics(source));
         // Replay the `<ensemble> <subcommand>` call sites the shell pass met
         // before the deferred body that declares the ensemble was walked
         // — before `finalise_invocation_resolutions`, so

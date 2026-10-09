@@ -217,12 +217,13 @@ tools' report (optimiser off) and `code_actions`'s (with the rewrites);
 `line_suppressed`, `parse_noqa_marker`, `parse_file_suppression`,
 `parse_noqa_line_suppressions_for_dialect`, `apply_preceding_noqa` and
 `FILE_SUPPRESS_KEY` build `AnalysisResult::suppressed_lines`, the directive
-facts every surface's policy reads. Two policy steps stay inside the
-producer, and both are open. The analyser folds a top-of-file
-`# tcl-lsp: disable=` into its own skip (`apply_disabled_diagnostics`,
+facts every surface's policy reads. One policy step stays inside the
+producer: the analyser folds a top-of-file `# tcl-lsp: disable=` into its
+own skip (`apply_disabled_diagnostics`,
 `rust/tcl-compiler/src/analyser/diagnostics.rs`), which the report declares
-as a gap; and its W305 producer drops a finding under a `# noqa` itself,
-with no reason in the report.
+as a gap. The W305 producer filters nothing, so a `# noqa` over a
+bidirectional control reaches `apply` and the finding is suppressed with
+its reason.
 
 ## The pipeline
 
@@ -904,16 +905,17 @@ the project file — and what the editor's report holds for the codes the row
 names: shown, shown at a severity, suppressed for a reason, absent with the
 report's reason for the gap, or absent with nothing to explain (`Absent`:
 every producer of the code ran and found nothing, so no surface may render
-it). The 42 rows cover one case per `Reason` variant, the precedence pairs
+it). The 43 rows cover one case per `Reason` variant, the precedence pairs
 that distinguish two reasons for the same finding (an inline directive over
 a project enable; a project enable over a global disable; a directive over
 the optimiser profile), the `*` wildcard in both directive spellings, the
 `FILE_SUPPRESS_KEY` bucket, a default-off code turned back on at each
 layer, the overlap scopes the table uses (`WithinSpan` for W110 over O120,
 `Document` for the loader over W123), an abstaining document and the gap it
-declares, and the O-codes produced without the optimiser, which no surface
-declares as a gap. A new `Reason` variant or `PolicyLayer` that no row
-covers fails the table's own test.
+declares, the O-codes produced without the optimiser, which no surface
+declares as a gap, and the whole-source W305 scan under an inline
+directive. A new `Reason` variant or `PolicyLayer` that no row covers fails
+the table's own test.
 
 The expectations are written once, for the editor, and `Row::expected`
 derives every other surface's by this page's rules (`Surface`): the LSP

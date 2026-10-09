@@ -1214,6 +1214,13 @@ pub const ROWS: &[Row] = &[
             absent(DiagCode::O111),
         ],
     ),
+    // 43: the whole-source security scan under an inline directive — the
+    // finding reaches the policy step and is suppressed with its reason.
+    row(
+        "inline_noqa_on_a_bidi_control",
+        "# noqa: W305\nputs \"\u{202e}x\"\n",
+        &[at(DiagCode::W305, 2, inline(1))],
+    ),
 ];
 
 #[cfg(test)]
@@ -1394,7 +1401,7 @@ mod tests {
                 row.name
             );
         }
-        assert_eq!(ROWS.len(), 42);
+        assert_eq!(ROWS.len(), 43);
     }
 
     /// The surfaces each row runs on, one entry per row in [`ROWS`]'s order,
@@ -1449,6 +1456,7 @@ mod tests {
             &[Core, Lsp, LspActions, Cli, Mcp, McpActions],
             &[Core, Lsp, LspActions, Cli, Mcp, McpActions],
             &[Core, Lsp, LspActions, Cli, Mcp, McpActions],
+            &[Core, Lsp, Cli, Mcp],
             &[Core, Lsp, Cli, Mcp],
         ];
         assert_eq!(listed.len(), ROWS.len());

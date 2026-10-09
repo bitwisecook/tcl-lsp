@@ -12,9 +12,9 @@
   - ea9f0450b `fix(registry): a store a declared outcome may preserve is live` (B5)
   - 5713e4bd4 + d05eac825: the second review (`SPECTCL_BRANCH_REVIEW.md`) and its merge, from the user's side.
 - Pushed, full gate pending: 233d1b3df (B6), 97c2811ac (B2a, the examples page), dff64488e (the folded-type witness, after B6), a32e87f8c (B7, `fix(registry): a pack's direct evaluator either binds or is reported at load`; bindable set `PACK_DIRECT_EVALUATORS`, 31 evaluators), 6dabf998f (B8, `fix(registry): a declared implementation refuses an invocation outside its arity`), d3e90cc1c (B9, `fix(registry): a raising argument ends the invocation before its implementation runs`), 15086f974 (B11, `fix(studio): format the option-effect editor as the lint gate requires`).
-- Committed, awaiting push: `fix(compiler): a declared implementation's binding dependencies are checked at the call` (B10). Its own checks: fmt, clippy (`tcl-compiler`, all targets), `tcl-compiler` lib and every integration binary, `tcl-cli` `value_transfers_cli`; the new witness fails without the fix (`puts 3`).
+- Committed, awaiting push: 683705e4e (B10, `fix(compiler): a declared implementation's binding dependencies are checked at the call`); `fix(analyser): W305 reaches the policy owner like every other finding` (B12). B12's own checks: fmt, clippy (`tcl-compiler`, `tcl-lsp-core`, all targets), `tcl-compiler` lib, `analyser` and `span_char_boundaries`, `tcl-lsp-core` lib (truth-table row 43 fails without the fix), `tcl-cli` `cli`, `tcl-mcp`, `tcl-lsp-server` lib and its e2e W305/encoding tests, `make xtask-check`.
 - In the working tree, uncommitted: nothing.
-- Next: B12 (W305 reaches the policy owner), then B13, B14, B15, then the page commits from B2b in the plan's order.
+- Next: B13 (`Tcl_PkgProvideEx` keeps the caller's result), then B14, B15, then the page commits from B2b in the plan's order.
 - Standing states that are not defects of this branch: `cargo xtask dialect-drift` exits 1 with 8 sites present at the base (#2253); the tcl-vm tests of #2271 fail under a POSIX `LANG` and pass under `LANG=C.UTF-8`.
 
 ## How to verify and push

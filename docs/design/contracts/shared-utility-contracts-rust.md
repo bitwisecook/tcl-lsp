@@ -811,11 +811,10 @@ the alias whose expression words a later sibling evaluates.
   mean the same thing in the editor and on the command line, as
   [`docs/kcs/kcs-howto-suppress-diagnostics.md`](../../kcs/kcs-howto-suppress-diagnostics.md)
   promises; see [diagnostic-policy.md](../compiler/diagnostic-policy.md).
-  `line_suppressed`'s one production caller left is inside this crate: the
-  W305 producer (`rust/tcl-compiler/src/analyser/source_integrity.rs`) still
-  filters itself under a `# noqa`, with no reason recorded in the report —
-  open, alongside the analyser's own fold of the top-of-file directive into
-  its production skip (`apply_disabled_diagnostics`,
+  No producer filters with it, the W305 producer
+  (`rust/tcl-compiler/src/analyser/source_integrity.rs`) included. The one
+  policy step left inside the analyser is its fold of the top-of-file
+  directive into its production skip (`apply_disabled_diagnostics`,
   `rust/tcl-compiler/src/analyser/diagnostics.rs`), which the report declares
   as a gap rather than reading as clean.
 

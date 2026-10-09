@@ -155,7 +155,7 @@ resembles lossy decoding.
 - `rust/tcl-lsp-core/src/source_decode.rs` — the byte → text decoding
   contract and the W107 / W109 producers
 - `rust/tcl-compiler/src/analyser/source_integrity.rs` — the canonical W305
-  producer and suppression filter for non-Tcl adapters
+  producer, which filters nothing
 - `rust/tcl-lsp-core/src/source_style.rs` — the source-text orchestrator
 
 ## Failure modes

@@ -500,8 +500,12 @@ fn w305_analyser_is_silent_on_ordinary_rtl_and_directional_marks() {
     }
 }
 
+/// W305 is emitted raw like every other finding: a disabled code is the
+/// analyser's production skip, and an inline `# noqa` is a directive fact
+/// the policy step reads, never a filter inside the producer — so the
+/// finding stays in the analysis, and its line is in `suppressed_lines`.
 #[test]
-fn w305_analyser_honours_code_and_line_suppression() {
+fn w305_analyser_skips_a_disabled_code_and_leaves_a_noqa_to_the_policy() {
     let disabled = ["W305".to_owned()].into_iter().collect();
     let result = crate::analyser::Analyser::with_disabled_diagnostics(disabled)
         .analyse("puts \"\u{202e}x\"\n", "tcl9.0");
@@ -522,7 +526,7 @@ fn w305_analyser_honours_code_and_line_suppression() {
         "file suppression failed: {result:?}"
     );
 
-    for (src, suppressed) in [
+    for (src, recorded) in [
         ("# noqa: W305\nputs \"\u{202e}x\"\n", true),
         ("# noqa: W108\nputs \"\u{202e}x\"\n", false),
     ] {
@@ -531,9 +535,15 @@ fn w305_analyser_honours_code_and_line_suppression() {
             result
                 .diagnostics
                 .iter()
-                .all(|d| d.code != tcl_core_types::DiagCode::W305),
-            suppressed,
-            "line-local suppression mismatch for {src:?}"
+                .filter(|d| d.code == tcl_core_types::DiagCode::W305)
+                .count(),
+            1,
+            "the producer keeps the finding under {src:?}"
+        );
+        assert_eq!(
+            crate::analyser::line_suppressed("W305", 1, &result.suppressed_lines),
+            recorded,
+            "the directive fact for {src:?}"
         );
     }
 }
