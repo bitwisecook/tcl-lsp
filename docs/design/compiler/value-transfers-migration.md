@@ -204,9 +204,9 @@ has a program for each, with the tool's observed behaviour.
 | W121, W127, W137, W138, W141, W145, W146, W200, W202, W303 | the analyser's literal checks; `analyser/diagnostics/proven.rs` | the written words, then the proven-word re-run over the exact value the lattice proves for a word at its statement (`proven_word_value`), reported only at a proven word and without a fix: `set m 255.0; append m .255.0` before `IP::addr $ip mask $m` gives W121, `set re {(a+)+$}; regexp $re $s` W303, a computed `format` or `binary format` template W138, W200 or W202; a word a command with no route computes (`string tolower`, `none (unauthored)`) stays unchecked |
 | W230, W232 (literal half) | `analyser/bounds_checks.rs`; `proven.rs` | the literal container and index, then the proven words: a container a route computes is checked (`set l [list a b c]` or `[split "a,b,c" ,]`, then `lindex $l 9`, gives W230), one no route computes is not (`lrange` has no value route, #2437) |
 | W147, W152 | the analyser's option checks | the literal option spellings, and a proven option word where the call's option scan reads the lattice (`set o [string range -pathxx 0 4]; glob -directory root $o prefix *.tcl` gives W147); a pack command's declared relations read only the literal words, so `::bibtex::parse -command handle $o rec` with a proven `$o` gives neither (#2453) |
-| W102 | `analyser/diagnostics/security.rs` | the template-word plan's `kinds`, re-read with the switch values the lattice proves (`emit_w102_template_plans`): `set opt -novariables; subst $opt $x` warns of `[cmd]` alone and advises `-nocommands`, as the literal spelling does; a `subst` inside a command substitution (`set r [subst $opt $x]`) has no template plan and keeps every kind (#2451) |
+| W102 | `analyser/diagnostics/security.rs` | the template-word plan's `kinds`, re-read with the switch values the lattice proves (`emit_w102_template_plans`): `set opt -novariables; subst $opt $x` warns of `[cmd]` alone and advises `-nocommands`, as the literal spelling does; a `subst` inside a command substitution (`set r [subst $opt $x]`) keeps every kind (#2451) |
 | W240–W242 | `analyser/bounds_checks.rs` | the loop header's branch fact decides a header the solver proves — `set n 0; while {$n} {…}` is W240, `set go 1; while {$go} {…}` is W241, neither W242 — and a header nothing decides keeps the condition text's verdict, its counter read from the iteration plan: the bound a literal in the condition and the step a literal amount of the registry's cell update, from the integer a `for`'s start script writes or the solver proves where the loop starts, so `set i $start` is checked; a bound or a step only the solver proves is not read (`set n 10; while {$i < $n} {incr i -1}` reports nothing, #2452) |
-| IRULE4004 | `irules_checks.rs` | the proven value of a `set`'s value word, so `set x [string range abcdefgh 0 3]` in a per-request event is hoistable |
+| IRULE4004 | `irules_checks.rs` | a `set` whose value the lattice proves, so `set x [string range abcdefgh 0 3]` in a per-request event is reported as hoistable |
 
 ### Blast radius, and what keeps each family sound
 
@@ -254,7 +254,9 @@ The gate scans every analysis tier (`ANALYSIS_TIER_ROOTS` in
 `rust/tcl-syntax`. A reviewed site carries its waiver, and
 `docs/generated/value-transfers.md` lists every one by axis (§ *Hand-written
 command knowledge outside the registry*); an unreviewed site is counted per
-file in § *The ratchet over unreviewed files*. The split of the unreviewed
+file in § *The ratchet over unreviewed files*. On this tree `cargo xtask
+value-transfers --check` holds 29 files clean, lists 22 waived sites, and
+pins 57 unwaived sites across 28 files. The split of the unreviewed
 sites between dataflow, another axis, irreducible, and shape heuristic is
 the review's reading of each, which the sections below give by kind.
 
