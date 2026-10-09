@@ -434,10 +434,10 @@ symbols, so a clobber reaches it like any other place.
 The decided condition is an ordinary `Applied` branch: it updates
 `executable_blocks`, so O107, taint, shimmer and the reachability-gated
 checks see the dead arm, and the analyser's I230 and the optimiser's O101
-read the one fact. The abstentions the post-pass it replaces kept by hand
-— a barrier or `UpFrame`, a scope alias, an instance variable, a
-connection-scoped iRules name, a computed write or destroy — are the
-rung's entry rules and clobbers.
+read the one fact. The places where the check abstains — a barrier or
+`UpFrame`, a scope alias, an instance variable, a connection-scoped iRules
+name, a computed write or destroy — are the rung's entry rules and
+clobbers.
 
 ### The existence rung (`SccpResult::existence`)
 
