@@ -295,6 +295,36 @@ fn an_error_a_command_states_no_code_for_is_none_whatever_came_before() {
     );
 }
 
+/// `Tcl_PkgProvideEx` leaves the caller's result as it was, as C Tcl's does,
+/// on a first provide and on a repeat of the same version; the `package
+/// provide` command still answers empty.
+#[test]
+fn providing_a_package_keeps_the_caller_s_result() {
+    let mut interp = Interp::new();
+    for kept in [c"preserved", c"again"] {
+        // SAFETY: the interpreter is live and the strings are terminated.
+        let code = unsafe {
+            TclHost_SetResultString(std::ptr::from_mut(&mut interp), kept.as_ptr());
+            Tcl_PkgProvideEx(
+                std::ptr::from_mut(&mut interp),
+                c"review".as_ptr(),
+                c"1.0".as_ptr(),
+                std::ptr::null(),
+            )
+        };
+        assert_eq!(
+            (code, result(&interp)),
+            (TCL_OK, kept.to_string_lossy().into_owned())
+        );
+    }
+    for _ in 0..2 {
+        assert_eq!(
+            run(&mut interp, "set x kept; package provide other 2.0"),
+            (Code::Ok, String::new())
+        );
+    }
+}
+
 #[test]
 fn an_appended_result_that_is_not_the_interpreter_s_own_string_is_copied() {
     let mut interp = Interp::new();

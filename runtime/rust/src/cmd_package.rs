@@ -176,14 +176,24 @@ fn provide(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(&v);
             Code::Ok
         }
-        4 => provide_package(interp, &obj_bytes(argv[2]), &obj_bytes(argv[3])),
+        // The command answers empty; the shared step leaves the result to
+        // its caller.
+        4 => match provide_package(interp, &obj_bytes(argv[2]), &obj_bytes(argv[3])) {
+            Code::Ok => {
+                interp.set_result_bytes(b"");
+                Code::Ok
+            }
+            refused => refused,
+        },
         _ => interp.wrong_args(b"package provide name ?version?"),
     }
 }
 
 /// `package provide name version`, and `Tcl_PkgProvideEx`: the version is
 /// validated for the release the interpreter emulates, and one already provided
-/// at another version is refused with Tcl's error.
+/// at another version is refused with Tcl's error. A package provided leaves
+/// the interpreter's result as the caller had it, as C Tcl's
+/// `Tcl_PkgProvideEx` does; the `package provide` command empties it itself.
 pub(crate) fn provide_package(interp: &mut Interp, name: &[u8], version: &[u8]) -> Code {
     if !valid_version(version, interp.runtime_version()) {
         return invalid_version(interp, version);
@@ -201,7 +211,6 @@ pub(crate) fn provide_package(interp: &mut Interp, name: &[u8], version: &[u8]) 
             message.extend_from_slice(version);
             return interp.error_with_code(&message, b"TCL PACKAGE VERSIONCONFLICT");
         }
-        interp.set_result_bytes(b"");
         return Code::Ok;
     }
     interp
@@ -209,7 +218,6 @@ pub(crate) fn provide_package(interp: &mut Interp, name: &[u8], version: &[u8]) 
         .borrow_mut()
         .provided
         .insert(name.to_vec(), version.to_vec());
-    interp.set_result_bytes(b"");
     Code::Ok
 }
 

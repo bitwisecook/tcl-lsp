@@ -714,7 +714,8 @@ pub unsafe extern "C" fn TclHost_AppendResultString(interp: *mut Interp, piece: 
 
 /// `Tcl_PkgProvideEx` (and the header's `Tcl_PkgProvide`) — `package provide
 /// name version`: a version already provided differently is Tcl's error, left
-/// in the result. `clientData` is not kept.
+/// in the result, and a package provided leaves the caller's result as it was.
+/// `clientData` is not kept.
 ///
 /// # Safety
 /// `interp` must be live; `name` and `version` terminated strings.
