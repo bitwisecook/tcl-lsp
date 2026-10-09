@@ -11,10 +11,10 @@
   - f82eaefbd `fix(analyser): the proven index check reports each site once and covers nested calls` (B3)
   - ea9f0450b `fix(registry): a store a declared outcome may preserve is live` (B5)
   - 5713e4bd4 + d05eac825: the second review (`SPECTCL_BRANCH_REVIEW.md`) and its merge, from the user's side.
-- Pushed, full gate pending: 233d1b3df (B6), 97c2811ac (B2a, the examples page), dff64488e (the folded-type witness, after B6).
-- Committed, awaiting push: a32e87f8c `fix(registry): a pack's direct evaluator either binds or is reported at load` (B7; bindable set `PACK_DIRECT_EVALUATORS`, 31 evaluators); `fix(registry): a declared implementation refuses an invocation outside its arity` (B8). B8's own checks: fmt, clippy, `tcl-registry` lib and every integration binary, `tcl-compiler` lib, `value_transfer_witnesses`, `analyser`, `intervals`.
-- In the working tree, uncommitted: nothing.
-- Next: B9 (a raising argument ends the invocation before its implementation runs), then B10 … B15 in the plan's order.
+- Pushed, full gate pending: 233d1b3df (B6), 97c2811ac (B2a, the examples page), dff64488e (the folded-type witness, after B6), a32e87f8c (B7, `fix(registry): a pack's direct evaluator either binds or is reported at load`; bindable set `PACK_DIRECT_EVALUATORS`, 31 evaluators), 6dabf998f (B8, `fix(registry): a declared implementation refuses an invocation outside its arity`).
+- Committed, awaiting push: `fix(registry): a raising argument ends the invocation before its implementation runs` (B9). Its own checks: fmt, clippy (`tcl-compiler`, all targets), `tcl-compiler` lib and every integration binary, `tcl-cli` `value_transfers_cli`.
+- In the working tree, uncommitted: `rust/tcl-spec-studio/web/src/editors.ts`, formatted by the pinned Prettier (B11; its four make targets green).
+- Next: B10 (a declared implementation's binding dependencies are checked at the call), then B11's commit, then B12 … B15 in the plan's order.
 - Standing states that are not defects of this branch: `cargo xtask dialect-drift` exits 1 with 8 sites present at the base (#2253); the tcl-vm tests of #2271 fail under a POSIX `LANG` and pass under `LANG=C.UTF-8`.
 
 ## How to verify and push

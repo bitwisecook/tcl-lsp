@@ -2678,17 +2678,18 @@ impl<'a> LatticeDriver<'a> {
             self.explain_paths(outcome_paths(outcomes, Some(inputs)));
         }
         self.explain_transfer_paths(semantics, inputs);
-        // A word that raises is an error before the command runs: nothing it
-        // would store is stored, and the state before it is the one a handler
-        // is thrown to.
-        if self.word_error.replace(false)
-            && self.raises_end_paths()
-            && matches!(answer, LiftedAnswer::Declined(_))
-        {
-            return DefValues::Raised(Box::new(RaisedDefs {
-                prefix: None,
-                written: 0,
-            }));
+        // A word that raises is an error before the command runs, whatever
+        // the route would answer from the words it reads: nothing it would
+        // store is stored, and the state before it is the one a handler is
+        // thrown to.
+        if self.word_error.replace(false) {
+            if self.raises_end_paths() {
+                return DefValues::Raised(Box::new(RaisedDefs {
+                    prefix: None,
+                    written: 0,
+                }));
+            }
+            return widen();
         }
         let outcomes = match answer {
             LiftedAnswer::Pending => {
@@ -3953,7 +3954,18 @@ impl<'a> LatticeDriver<'a> {
             inputs.resolve_roles_over_values(&resolved);
         }
         let route = semantics.route();
+        // A word that raises ends the invocation before the command runs,
+        // whichever operands the route reads; the flag stays set for the
+        // word, statement or script that holds this command.
+        let outer = self.word_error.replace(false);
         let answer = self.route_answer(semantics, &inputs, (&binding, policy));
+        let raised = self.word_error.get();
+        self.word_error.set(outer || raised);
+        let answer = if raised {
+            LiftedAnswer::Declined(DeclineReason::StatefulNested)
+        } else {
+            answer
+        };
         let answer = inputs.carrying_word_writes(answer, route);
         let (answer, writes) = match policy {
             NestedPolicy::EffectFreeOnly => (answer, Vec::new()),

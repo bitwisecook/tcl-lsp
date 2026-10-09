@@ -2383,6 +2383,52 @@ fn a_pack_declared_preserve_holds_the_prior_version() {
     tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }
 
+/// A word that raises ends the invocation before the command runs, whichever
+/// operands its route reads: `review::constant [error boom]` declares
+/// `inputs {}`, yet Tcl substitutes the word first and the command never
+/// runs, so `catch` is not proven to complete normally — `tcl opt` had
+/// rewritten `puts $code` and `puts $message` to `puts 0` and
+/// `puts answer`, where every tclsh prints `1` and `boom`. A call whose
+/// words complete still folds.
+#[test]
+fn a_raising_argument_ends_the_invocation_before_its_implementation_runs() {
+    const CONSTANT_PACK: &str = "speclib review 2.2 {
+    command review::constant {
+        arity 1
+        semantics {
+            effects {no_store_writes no_external_io}
+            result -semantic string
+        }
+        evaluate -implementation review.constant.v1 -host bounded_tcl {
+            inputs {}
+            depends {tcl_profile implementation_identity}
+            body {} {fold answer}
+        }
+    }
+}
+";
+    let _published = PUBLISHED_PACKS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let packs = pack_workspace("review", CONSTANT_PACK);
+    let dialect = "tcl8.6";
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
+    let profile = resolve_environment(dialect).analyser_profile();
+    let source = "set code [catch {review::constant [error boom]} message]\nputs $code\n\
+                  puts $message\nproc p {} {\n    set v start\n    \
+                  catch {set v [review::constant [error boom]]} m\n    return \"$v $m\"\n}\n\
+                  proc q {} {\n    set w [review::constant abc]\n    return $w\n}\n";
+    let (rewritten, rewrites) = optimise_source_multipass(source, &registry, Some(profile), PASSES);
+    for kept in ["puts $code", "puts $message", "return \"$v $m\""] {
+        assert!(
+            rewritten.contains(kept),
+            "{kept}:\n{rewritten}\n{rewrites:#?}"
+        );
+    }
+    assert!(rewritten.contains("return answer"), "{rewritten}");
+    tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
+}
+
 /// A declared route answers only a call its resolved arity accepts:
 /// `review::label acme extra` against `arity 1` raises `wrong # args` in
 /// every tclsh, so neither the explicit implementation nor the one derived
