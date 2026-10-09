@@ -1948,6 +1948,7 @@ impl TemplateInputs<'_> {
                     })
                     .collect(),
                 argument_offset: 0,
+                arity: None,
             },
             context: AnalysisContext::detached(tcl_dialect::DialectProfile::find(profile)),
         }

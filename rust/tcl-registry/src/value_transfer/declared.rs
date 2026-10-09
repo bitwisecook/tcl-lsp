@@ -396,6 +396,30 @@ impl DeclaredSemantics {
         None
     }
 
+    /// Why the declaration answers nothing for this invocation before any
+    /// route runs: a source call whose argument count the resolved arity
+    /// refuses — Tcl raises `wrong # args` and the command never runs — or
+    /// an option row that switches the route off ([`Self::option_decline`]).
+    /// A call with an expanded word has no count to judge, and is left to
+    /// the route.
+    #[must_use]
+    pub fn invocation_decline(&self, input: &dyn AnalysisInputs) -> Option<EvalAnswer> {
+        let view = input.invocation();
+        if let Some(arity) = view.arity
+            && view.layout == InvocationLayout::Source
+            && !view
+                .operands
+                .iter()
+                .any(|operand| operand.kind == InvocationWordKind::Expanded)
+        {
+            let count = view.operands.len().saturating_sub(view.argument_offset);
+            if !arity.accepts(u16::try_from(count).unwrap_or(u16::MAX)) {
+                return Some(EvalAnswer::Declined(DeclineReason::Unsupported));
+            }
+        }
+        self.option_decline(input)
+    }
+
     /// The declared targets the body speaks for, as it names them.
     fn targets(&self) -> &'static [usize] {
         self.structure.stores.map_or(&[], |stores| stores.targets)
@@ -812,7 +836,7 @@ impl CommandSemantics for DeclaredSemantics {
     }
 
     fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
-        if let Some(answer) = self.option_decline(input) {
+        if let Some(answer) = self.invocation_decline(input) {
             return answer;
         }
         match &self.evaluation {
@@ -1046,6 +1070,7 @@ mod tests {
                 layout: InvocationLayout::Source,
                 operands,
                 argument_offset: 0,
+                arity: None,
             },
             prior: RefCell::new("a".to_owned()),
             context: AnalysisContext::detached(tcl_dialect::DialectProfile::find(profile)),

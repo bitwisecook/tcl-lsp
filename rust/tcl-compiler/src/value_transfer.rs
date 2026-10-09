@@ -866,6 +866,7 @@ fn procedure_view<'a>(
             })
             .collect(),
         argument_offset: 0,
+        arity: None,
     }
 }
 
@@ -3348,6 +3349,7 @@ impl<'a> LatticeDriver<'a> {
                 layout: InvocationLayout::Source,
                 operands: Vec::new(),
                 argument_offset: 0,
+                arity: None,
             },
             uses,
             values,
@@ -3992,12 +3994,12 @@ impl<'a> LatticeDriver<'a> {
             }
             EvalRoute::Expression { language } => {
                 self.enter_expression();
-                // A pack's option row can switch the declared route off;
-                // the engine adapter never reads the declaration, so the
-                // driver asks it first.
+                // A pack's arity or option row can switch the declared
+                // route off; the engine adapter never reads the
+                // declaration, so the driver asks it first.
                 match semantics
                     .as_declared()
-                    .and_then(|declared| declared.option_decline(inputs))
+                    .and_then(|declared| declared.invocation_decline(inputs))
                 {
                     Some(EvalAnswer::Pending) => LiftedAnswer::Pending,
                     Some(EvalAnswer::Declined(reason)) => LiftedAnswer::Declined(reason),
@@ -5187,6 +5189,7 @@ pub(crate) fn evaluate_expression_in_module(
             layout: InvocationLayout::Source,
             operands: Vec::new(),
             argument_offset: 0,
+            arity: None,
         },
         constants,
         module,
@@ -5919,6 +5922,7 @@ fn view_of<'a>(
         layout,
         operands,
         argument_offset: offset,
+        arity: Some(semantics.arity),
     }
 }
 
@@ -6975,11 +6979,11 @@ impl StateInputs<'_> {
             EvalRoute::Direct { id } if id.owner() == EvaluatorOwner::Registry => {
                 semantics.evaluate(&inputs, &mut budget)
             }
-            // A pack's option row can switch the declared route off, as the
-            // lattice driver asks before it runs the engine.
+            // A pack's arity or option row can switch the declared route
+            // off, as the lattice driver asks before it runs the engine.
             EvalRoute::Expression { language } => match semantics
                 .as_declared()
-                .and_then(|declared| declared.option_decline(&inputs))
+                .and_then(|declared| declared.invocation_decline(&inputs))
             {
                 Some(EvalAnswer::Pending) => EvalAnswer::Pending,
                 Some(EvalAnswer::Declined(reason)) => EvalAnswer::Declined(reason),
@@ -7109,6 +7113,7 @@ impl LatticeDriver<'_> {
                 layout: InvocationLayout::Source,
                 operands: Vec::new(),
                 argument_offset: 0,
+                arity: None,
             },
             state,
         };
@@ -7197,6 +7202,7 @@ impl LatticeDriver<'_> {
                     layout: InvocationLayout::Source,
                     operands: Vec::new(),
                     argument_offset: 0,
+                    arity: None,
                 },
                 state,
             };
@@ -9186,6 +9192,7 @@ mod tests {
                 layout: InvocationLayout::Source,
                 operands: Vec::new(),
                 argument_offset: 0,
+                arity: None,
             },
             uses: &uses,
             values: &values,

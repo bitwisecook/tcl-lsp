@@ -78,6 +78,7 @@ impl<'a> LiteralInputs<'a> {
                 layout: InvocationLayout::Source,
                 operands,
                 argument_offset: usize::from(subcommand.is_some()),
+                arity: None,
             },
             context: AnalysisContext::detached(profile),
             priors: Vec::new(),

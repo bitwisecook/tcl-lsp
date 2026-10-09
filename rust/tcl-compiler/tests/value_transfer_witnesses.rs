@@ -1850,6 +1850,13 @@ static PUBLISHED_PACKS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// load one: the pack set, its hook plan published and this thread's host
 /// built from it.
 fn pack_workspace(name: &str, source: &str) -> tcl_spectcl::PackSet {
+    let packs = pack_workspace_noting(name, source);
+    assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
+    packs
+}
+
+/// [`pack_workspace`] for a pack whose load notices the caller accepts.
+fn pack_workspace_noting(name: &str, source: &str) -> tcl_spectcl::PackSet {
     let packs = tcl_spectcl::pack::load_in_memory(vec![(
         tcl_spectcl::PackFile {
             tier: tcl_spectcl::Tier::Workspace,
@@ -1859,7 +1866,6 @@ fn pack_workspace(name: &str, source: &str) -> tcl_spectcl::PackSet {
         },
         source.to_owned(),
     )]);
-    assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
     tcl_spectcl::hooks::publish(&packs);
     tcl_spectcl::hooks::ensure_thread_host();
     packs
@@ -2373,6 +2379,83 @@ fn a_pack_declared_preserve_holds_the_prior_version() {
             function.sccp.preserved
         );
         assert_eq!(answers_for(&unit, proc, "keep::miss"), ["evaluated"]);
+    }
+    tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
+}
+
+/// A declared route answers only a call its resolved arity accepts:
+/// `review::label acme extra` against `arity 1` raises `wrong # args` in
+/// every tclsh, so neither the explicit implementation nor the one derived
+/// from the reference body runs, and the catch facts stay unproven, where
+/// `tcl opt` had rewritten `puts $code` to `puts 0`; an expression route
+/// declines the same way. A call the arity accepts still folds.
+#[test]
+fn a_declared_route_refuses_a_call_outside_its_arity() {
+    const EXPLICIT: &str = "speclib review 2.2 {
+    command review::label {
+        arity 1
+        semantics {
+            effects {no_store_writes no_external_io}
+            result -semantic string
+        }
+        evaluate -implementation review.label.v1 -host bounded_tcl {
+            inputs {arg 0 exact}
+            depends {tcl_profile implementation_identity}
+            body {name} {fold $name}
+        }
+    }
+}
+";
+    const DERIVED: &str = "speclib review 2.2 {
+    command review::label {
+        arity 1
+        runtime_backing tcl-body {-pack-text {proc review::label {name} {return $name}} -evaluate}
+    }
+}
+";
+    const EXPRESSION: &str = "speclib review 2.2 {
+    command review::label {
+        arity 1
+        evaluate -expression tcl.expr
+    }
+}
+";
+    let _published = PUBLISHED_PACKS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dialect = "tcl8.6";
+    for (pack, good, folded) in [
+        (EXPLICIT, "review::label acme", text("acme")),
+        (DERIVED, "review::label acme", text("acme")),
+        (
+            EXPRESSION,
+            "review::label {1 + 2}",
+            LatticeValue::Const(ConstValue::Int(3)),
+        ),
+    ] {
+        // The derived pack's one notice is the pack-text advisory.
+        let packs = pack_workspace_noting("review", pack);
+        let registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
+        let source = format!(
+            "proc p {{}} {{\n    set code [catch {{review::label acme extra}} message]\n    \
+             set ok [{good}]\n    return $code$message$ok\n}}\n"
+        );
+        let unit = CompilationUnit::build_for_dialect(&source, &registry, false, dialect);
+        assert!(
+            !matches!(
+                value_at(&unit, "::p", "code", 1),
+                Some(LatticeValue::Const(_))
+            ),
+            "{pack}: {:?}",
+            value_at(&unit, "::p", "code", 1)
+        );
+        assert_eq!(value_at(&unit, "::p", "ok", 1), Some(folded), "{pack}");
+        let profile = resolve_environment(dialect).analyser_profile();
+        let (rewritten, _) = optimise_source_multipass(&source, &registry, Some(profile), PASSES);
+        assert!(
+            rewritten.contains("return $code$message"),
+            "{pack}: {rewritten}"
+        );
     }
     tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }

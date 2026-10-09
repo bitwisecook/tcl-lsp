@@ -1,6 +1,6 @@
 # Hand-off: the value-transfer branch before its PR to `rust`
 
-**Temporary.** This file and `SPECTCL_BRANCH_REVIEW.md` are deleted, in their own commit, before the pull request is opened. Nothing in it is repository documentation. Updated at every push; last update 2026-10-09, with the B7 commit.
+**Temporary.** This file and `SPECTCL_BRANCH_REVIEW.md` are deleted, in their own commit, before the pull request is opened. Nothing in it is repository documentation. Updated at every push; last update 2026-10-09, with the B8 commit.
 
 ## Where things stand
 
@@ -12,9 +12,9 @@
   - ea9f0450b `fix(registry): a store a declared outcome may preserve is live` (B5)
   - 5713e4bd4 + d05eac825: the second review (`SPECTCL_BRANCH_REVIEW.md`) and its merge, from the user's side.
 - Pushed, full gate pending: 233d1b3df (B6), 97c2811ac (B2a, the examples page), dff64488e (the folded-type witness, after B6).
-- Committed, awaiting push: `fix(registry): a pack's direct evaluator either binds or is reported at load` (B7). Bindable set (`PACK_DIRECT_EVALUATORS`, 31): `ListOfArgs`, `ListLength`, `ListSplit`, `FormatTemplate`, `BinaryFormat`, the four base32 evaluators and the twenty-two iRules functions (`Base64Encode` … `IpAddrEquals`); any other id is a load notice with no route. Own checks: fmt, clippy, `tcl-registry`/`tcl-spectcl`/`tcl-spec-studio` lib and every integration binary, `tcl-compiler` lib and `value_transfer_witnesses`, `make xtask-check`.
+- Committed, awaiting push: a32e87f8c `fix(registry): a pack's direct evaluator either binds or is reported at load` (B7; bindable set `PACK_DIRECT_EVALUATORS`, 31 evaluators); `fix(registry): a declared implementation refuses an invocation outside its arity` (B8). B8's own checks: fmt, clippy, `tcl-registry` lib and every integration binary, `tcl-compiler` lib, `value_transfer_witnesses`, `analyser`, `intervals`.
 - In the working tree, uncommitted: nothing.
-- Next: B8 (a declared implementation refuses an invocation outside its arity), then B9 … B15 in the plan's order.
+- Next: B9 (a raising argument ends the invocation before its implementation runs), then B10 … B15 in the plan's order.
 - Standing states that are not defects of this branch: `cargo xtask dialect-drift` exits 1 with 8 sites present at the base (#2253); the tcl-vm tests of #2271 fail under a POSIX `LANG` and pass under `LANG=C.UTF-8`.
 
 ## How to verify and push

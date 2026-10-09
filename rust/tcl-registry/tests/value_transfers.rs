@@ -116,6 +116,7 @@ impl<'a> TestInputs<'a> {
                 layout: InvocationLayout::Source,
                 operands,
                 argument_offset: 0,
+                arity: None,
             },
             operands: BTreeMap::new(),
             places: BTreeMap::new(),

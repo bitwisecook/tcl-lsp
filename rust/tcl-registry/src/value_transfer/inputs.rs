@@ -278,6 +278,9 @@ pub struct ResolvedInvocationView<'a> {
     /// offset 1). An `arg N` a declaration writes is operand
     /// `argument_offset + N`.
     pub argument_offset: usize,
+    /// The resolved command's, subcommand's or form's arity over the
+    /// operands from `argument_offset` on, when the resolver states one.
+    pub arity: Option<crate::arity::Arity>,
 }
 
 impl<'a> ResolvedInvocationView<'a> {
