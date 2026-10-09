@@ -1757,7 +1757,7 @@ type ProvenRow = (
 );
 
 /// The rows of [`literal_only_checks_read_proven_words`].
-const PROVEN_ROWS: [ProvenRow; 13] = [
+const PROVEN_ROWS: [ProvenRow; 14] = [
     (
         DiagCode::W121,
         "f5-irules",
@@ -1787,6 +1787,14 @@ const PROVEN_ROWS: [ProvenRow; 13] = [
         "proc p {mask} {\n    set f {flags: %b}\n    format $f $mask\n}\n",
         "proc p {f mask} {\n    format $f $mask\n}\n",
         "$f",
+    ),
+    (
+        DiagCode::W141,
+        "tcl8.6",
+        "proc p {path} {\n    set es {CALL load extra}\n    \
+             return -code error -errorstack $es \"cannot read $path\"\n}\n",
+        "proc p {path es} {\n    return -code error -errorstack $es \"cannot read $path\"\n}\n",
+        "$es",
     ),
     (
         DiagCode::W145,

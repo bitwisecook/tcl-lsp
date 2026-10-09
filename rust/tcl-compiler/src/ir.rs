@@ -1616,6 +1616,20 @@ impl Statement {
         !matches!(self.synthetic_marker(), Some(SyntheticMarker::UnseenCall))
     }
 
+    /// Whether this is the barrier a `return` lowers to when it leaves the
+    /// procedure or its completion is not known — `return` with options
+    /// ([`crate::lowering::hooks::control::try_lower_return`]) or with an
+    /// expanded word. The CFG takes it for a procedure exit, and it writes
+    /// no variable.
+    #[must_use]
+    pub fn is_return_barrier(&self) -> bool {
+        matches!(
+            self,
+            Self::Barrier { reason, .. }
+                if matches!(reason.as_str(), "return with options" | "return with expansion")
+        )
+    }
+
     /// Return the source span of this statement.
     #[must_use]
     pub fn span(&self) -> Span {

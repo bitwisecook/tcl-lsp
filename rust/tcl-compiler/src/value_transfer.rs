@@ -4755,6 +4755,70 @@ pub fn substitution_calls(
     }
 }
 
+/// The words of the command `block`'s `return` terminator stands for, as
+/// the segmenter recovers them from the document `source` at the
+/// terminator's span, each span an offset into `source`: `None` for a block
+/// the solver never reached, any other terminator, a terminator with no
+/// source span, or a span that does not hold exactly one complete command.
+#[must_use]
+pub fn return_command_tokens(
+    fu: &crate::compilation_unit::FunctionUnit,
+    block: crate::cfg::BlockId,
+    source: &str,
+    config: LexerConfig,
+) -> Option<crate::ir::CommandTokens> {
+    if !fu.sccp.executable_blocks.contains(&block) {
+        return None;
+    }
+    let Some(crate::cfg::Terminator::Return {
+        span: Some(span), ..
+    }) = &fu.cfg.blocks.get(&block)?.terminator
+    else {
+        return None;
+    };
+    let span = fu.abs_span(*span);
+    let text = source.get(span.start() as usize..span.end() as usize)?;
+    let segments =
+        crate::segmenter::segment_commands_with_offset_and_config(text, span.start(), config);
+    let [segment] = segments.as_slice() else {
+        return None;
+    };
+    if segment.is_partial {
+        return None;
+    }
+    let map = tcl_lexer::SourceMap::new(text).with_base(span.start(), 0, 0);
+    let tokens = crate::ir::CommandTokens::from_segmented(&map, config, segment);
+    (!tokens.argv.is_empty()).then_some(tokens)
+}
+
+/// [`proven_word_value`] for word `word` of the `return` command `tokens`
+/// holds ([`return_command_tokens`]), the terminator of `block`: read at the
+/// block's exit versions, and only for a command that performs no command
+/// substitution, since the exit versions hold whatever one writes.
+#[must_use]
+pub fn proven_return_word_value(
+    fu: &crate::compilation_unit::FunctionUnit,
+    block: crate::cfg::BlockId,
+    tokens: &crate::ir::CommandTokens,
+    word: usize,
+    config: LexerConfig,
+) -> Option<(ExactValue, Option<FoldedType>)> {
+    if !fu.sccp.executable_blocks.contains(&block)
+        || !crate::word_subst::lifted_calls(Some(tokens), config).is_empty()
+    {
+        return None;
+    }
+    let versions = &fu.ssa.blocks.get(&block)?.exit_versions;
+    let arguments = call_arguments(tokens.argv_texts.get(1..)?, Some(tokens), &config);
+    proven_argument(
+        arguments.get(word.checked_sub(1)?)?,
+        versions,
+        &HashSet::new(),
+        fu,
+        config,
+    )
+}
+
 /// [`proven_word_value`] for word `word` of `calls[call]`, a command
 /// substitution `host` performs, where `calls` is what
 /// [`substitution_calls`] lifts there. A statement's substitution reads at

@@ -33,8 +33,9 @@
 //! the user wrote, which a fix would replace with a constant. A call nested
 //! in a command substitution is read at the statement or terminator that
 //! performs the substitution, as a call written on its own line is read at
-//! its statement. An index whose `$var` value the interval checks bound is
-//! theirs: the re-run leaves a site they reported to them.
+//! its statement, and a `return`'s own words — its options — at the
+//! terminator it lowers to. An index whose `$var` value the interval checks
+//! bound is theirs: the re-run leaves a site they reported to them.
 
 use rustc_hash::FxHashMap;
 use tcl_core_types::DiagCode;
@@ -43,8 +44,8 @@ use tcl_lexer::{Span, Token, TokenType};
 use crate::analyser::state::Analyser;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::value_transfer::{
-    StatementId, SubstitutionHost, proven_substituted_word_value, proven_word_value,
-    substitution_calls,
+    StatementId, SubstitutionHost, proven_return_word_value, proven_substituted_word_value,
+    proven_word_value, return_command_tokens, substitution_calls,
 };
 use crate::word_subst::LiftedCall;
 
@@ -114,16 +115,21 @@ enum WordAddress {
         call: usize,
         word: usize,
     },
+    /// Word `word` of the `return` command of `returns[at]`.
+    Return { at: usize, word: usize },
 }
 
-/// Every call word of the unit's reached statements, and of the command
-/// substitutions their words and their blocks' terminators perform, by its
-/// absolute span.
+/// Every call word of the unit's reached statements, of the command
+/// substitutions their words and their blocks' terminators perform, and of
+/// the `return` commands their blocks end with, by its absolute span.
 struct WordIndex<'u> {
     words: FxHashMap<(u32, u32), (&'u FunctionUnit, WordAddress)>,
     /// Each host's command substitutions, as [`substitution_calls`] lifts
     /// them, with the host's absolute span.
     hosts: Vec<(SubstitutionHost, Vec<LiftedCall>, Option<Span>)>,
+    /// Each reached `return` terminator's block and words
+    /// ([`return_command_tokens`]), with its absolute span.
+    returns: Vec<(crate::cfg::BlockId, crate::ir::CommandTokens, Span)>,
 }
 
 impl<'u> WordIndex<'u> {
@@ -132,12 +138,13 @@ impl<'u> WordIndex<'u> {
     fn build(
         cu: &'u CompilationUnit,
         wanted: &[u32],
-        config: tcl_lexer::LexerConfig,
+        (source, config): (&str, tcl_lexer::LexerConfig),
         surface: &tcl_registry::model::DocumentCommandSurface<'_>,
     ) -> Self {
         let mut index = Self {
             words: FxHashMap::default(),
             hosts: Vec::new(),
+            returns: Vec::new(),
         };
         let holds = |span: Option<Span>| {
             span.is_some_and(|span| {
@@ -190,10 +197,35 @@ impl<'u> WordIndex<'u> {
                         span,
                         (config, surface),
                     );
+                    index.add_return(fu, block, source, config);
                 }
             }
         }
         index
+    }
+
+    /// Index the words of `block`'s `return` terminator, when it has one.
+    fn add_return(
+        &mut self,
+        fu: &'u FunctionUnit,
+        block: crate::cfg::BlockId,
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+    ) {
+        let Some(tokens) = return_command_tokens(fu, block, source, config) else {
+            return;
+        };
+        let at = self.returns.len();
+        for (word, &span) in tokens.argv.iter().enumerate() {
+            self.words
+                .entry((span.start(), span.end()))
+                .or_insert((fu, WordAddress::Return { at, word }));
+        }
+        let span = Span::new(
+            tokens.argv.first().map_or(0, |span| span.start()),
+            tokens.argv.last().map_or(0, |span| span.end()),
+        );
+        self.returns.push((block, tokens, span));
     }
 
     fn insert(&mut self, fu: &'u FunctionUnit, span: Span, address: WordAddress) {
@@ -259,6 +291,11 @@ impl<'u> WordIndex<'u> {
                 let (at, calls, span) = self.hosts.get(host)?;
                 proven_substituted_word_value(fu, *at, calls, (call, word), config)
                     .map(|(value, _)| (value, *span))
+            }
+            WordAddress::Return { at, word } => {
+                let (block, tokens, span) = self.returns.get(at)?;
+                proven_return_word_value(fu, *block, tokens, word, config)
+                    .map(|(value, _)| (value, Some(*span)))
             }
         }
     }
@@ -330,6 +367,7 @@ impl ProvenSite {
                         word: 0,
                     },
                 ),
+                WordAddress::Return { at, word } => (word, WordAddress::Return { at, word: 0 }),
             };
             if word != at + 1 || site.is_some_and(|seen| seen != call) {
                 continue;
@@ -398,7 +436,7 @@ impl Analyser {
         let surface = self.command_surface(registry);
         let mut wanted: Vec<u32> = sites.iter().flat_map(ProvenSite::candidates).collect();
         wanted.sort_unstable();
-        let index = WordIndex::build(cu, &wanted, config, &surface);
+        let index = WordIndex::build(cu, &wanted, (&self.source, config), &surface);
         let proven: Vec<(&ProvenSite, ProvenWords)> = sites
             .iter()
             .filter_map(|site| site.proven(&index, config).map(|words| (site, words)))

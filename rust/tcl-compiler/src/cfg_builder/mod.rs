@@ -2390,12 +2390,8 @@ impl<'a> CfgBuilder<'a> {
             // `return -options …` / `return {*}…args` lower to a
             // Statement::Barrier, but still unconditionally exit the proc
             // in analysis builds.
-            Statement::Barrier { reason, span, .. }
-                if self.faithful_exceptions
-                    && matches!(
-                        reason.as_str(),
-                        "return with options" | "return with expansion"
-                    ) =>
+            Statement::Barrier { span, .. }
+                if self.faithful_exceptions && stmt.is_return_barrier() =>
             {
                 self.lower_return_options_barrier(stmt, *span, current);
                 Some(current.to_owned())
@@ -3963,7 +3959,6 @@ fn flow_facts_stmt_with_classes(
         }
         Statement::Return { .. } => (BTreeSet::new(), Completion::ProcExit),
         Statement::Barrier {
-            reason,
             command,
             canonical_command,
             ..
@@ -3975,10 +3970,8 @@ fn flow_facts_stmt_with_classes(
             // callback's unknown effects as evidence that the host falls
             // through.
             let canon = canonical_command.as_deref().unwrap_or(command);
-            if matches!(
-                reason.as_str(),
-                "return with options" | "return with expansion"
-            ) || command_classes.is_block_terminating_command(canon)
+            if stmt.is_return_barrier()
+                || command_classes.is_block_terminating_command(canon)
                 || command_classes.is_tailcall_command(canon)
             {
                 (BTreeSet::new(), Completion::ProcExit)

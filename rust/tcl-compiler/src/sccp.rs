@@ -3517,11 +3517,16 @@ fn sccp_process_statements(
             stmt_ssa.statement,
             Statement::Barrier { .. } | Statement::UpFrame { .. }
         ) {
-            changed |= widen_at_barrier(
-                values,
-                (index, stmt_ssa),
-                (driver, existence.as_deref_mut()),
-            );
+            // A `return` that leaves the procedure writes nothing, and
+            // nothing of the frame runs after it: the values its own words
+            // read stay what they are.
+            if !stmt_ssa.statement.is_return_barrier() {
+                changed |= widen_at_barrier(
+                    values,
+                    (index, stmt_ssa),
+                    (driver, existence.as_deref_mut()),
+                );
+            }
             continue;
         }
         // An opaque `catch` body the enumeration runs gives the names it
@@ -5378,6 +5383,30 @@ mod tests {
             })
             .collect();
         assert_eq!(returned, vec![Existence::MayBound]);
+    }
+
+    /// A `return` that leaves the procedure is a barrier that writes
+    /// nothing, so the values its words read keep what the frame proves:
+    /// `es` is `abc` at `return -code error -errorinfo $es msg`, where an
+    /// opaque barrier, `eval $script`, widens it.
+    #[test]
+    fn a_return_that_leaves_the_procedure_widens_nothing() {
+        let registry = CommandRegistry::build_default();
+        let value_of_es = |body: &str| {
+            let source = format!("proc r {{script}} {{\n    set es abc\n    {body}\n}}\n");
+            let cu = crate::compilation_unit::CompilationUnit::build_for(&source, &registry, false);
+            let r = cu.function("::r").expect("the procedure analysed");
+            let es = r.ssa.var_symbol("es").expect("the variable");
+            r.sccp.values.get(&(es, 1)).cloned()
+        };
+        assert_eq!(
+            value_of_es("return -code error -errorinfo $es msg"),
+            Some(LatticeValue::Const(ConstValue::String("abc".to_owned())))
+        );
+        assert_eq!(
+            value_of_es("eval $script; return $es"),
+            Some(LatticeValue::Overdefined)
+        );
     }
 
     /// A refinement never survives a barrier: a local its guard
