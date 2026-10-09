@@ -1283,7 +1283,7 @@ either: a 9.0-only option is still declared, and whether its `surface` gate
 is *correct* is what the tclsh audit itself measures.
 
 A genuinely-missing option goes in `KNOWN_UNSPECIFIED` with the issue
-tracking the registry work -- migration debt is tracked, not grandfathered.
+tracking the registry work -- a gap is tracked, not grandfathered.
 A waiver whose option has since been declared,
 or that names no probe, fails the gate too, so an entry cannot outlive the
 gap it documents.
@@ -1549,12 +1549,13 @@ continues to a tail that reads descriptors only — the scope aliases its
 state transitions state (`apply_state_transitions`), the `LoopVarList` and
 `VarWrite` positions its roles name (`handle_var_binding_command`), and its
 `Body` words, each walked at the depth its clause's timing gives and with
-its clause's variable lists bound (`dispatch_body_arguments`). The eleven
-hooks whose handler knew only a position or a keyword a descriptor states —
-`Try`, `For`, `DictFor`, `DictUpdate`, `Incr`, `Append`, `Lappend`, `Upvar`,
-`NamespaceUpvar`, `Global`, `Variable` — are retired, leaving 32 variants on
-43 stamp rows, which `rust/tcl-registry/tests/analyser_hooks.rs` pins. What
-stays is analyser policy over typed facts, documented where it runs:
+its clause's variable lists bound (`dispatch_body_arguments`). A command
+whose handler would know only a position or a keyword a descriptor states —
+`try`, `for`, `dict for`, `dict update`, `incr`, `append`, `lappend`,
+`upvar`, `namespace upvar`, `global`, `variable`, `set` — has no variant:
+there are 31 variants on 42 stamp rows, which
+`rust/tcl-registry/tests/analyser_hooks.rs` pins. The variants are analyser
+policy over typed facts, documented where it runs:
 
 - procedure definition and the `all_procs` table — `Proc`, `OptProc`,
   `Apply`;
@@ -1573,9 +1574,10 @@ stays is analyser policy over typed facts, documented where it runs:
   `PackageIfneeded`, `PackagePrefer`;
 - source and library loading — `Source`, `Load`.
 
-Three more — `Set`, `DictWith` and `RegexPatternCapture` — are
-command-specific and sit on the migration ledger for the value axis to
-retire. A new hook variant whose handler would implement one command's
+Two more — `DictWith` and `RegexPatternCapture` — are command-specific,
+and each is a row of the compiler-owned handlers ledger
+([value-transfers-migration.md](value-transfers-migration.md) § *Compiler-owned
+handlers*). A new hook variant whose handler would implement one command's
 binding rules is a missing descriptor, not residue
 ([registry-consumer-contracts.md](registry-consumer-contracts.md)
 § *The analyser: the description contract*).

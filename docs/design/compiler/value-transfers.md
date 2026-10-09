@@ -21,7 +21,7 @@ registry owns and what remains elsewhere, the ledger, the gate, and what
 each pass and diagnostic reads.
 [registry-consumer-contracts.md](registry-consumer-contracts.md) places the
 value axis among the other axes and holds the runtime, package, and
-C-extension contracts, none of which this one waits for.
+C-extension contracts, none of which this one depends on.
 
 > **Status — built.**
 > `CommandSemantics` and the shapes of § The interface are defined in
@@ -52,9 +52,9 @@ These are the owner's decisions, and every section below fits inside them.
 1. **Ownership boundary.** Command-specific specialisation lives in
    registry-owned code and data. The analyser exposes generic operations
    and applies validated answers; it acquires no new command-name or
-   command-ID arms. A compiler-owned handler kept during migration is a
-   delivery choice, not a different destination: it carries a migration
-   ledger entry and an expiry.
+   command-ID arms. A compiler-owned handler that remains is listed in the
+   migration page's ledger with where it lives, what keys it, and why it
+   stays.
 2. **Executable backing is declared, never inferred.** A command's
    evaluator route — a direct shared core, the shared expression engine,
    or a declared implementation in the bounded engine — is an explicit
@@ -81,10 +81,11 @@ These are the owner's decisions, and every section below fits inside them.
 5. **Shipped specialisations stay Rust** over the shared cores; a SpecTcl
    calculation reaches the analyser through the same interface where
    authoring one is useful.
-6. **First delivery:** direct values, `expr`, one private pack command,
-   and one shared analysis context. Runtime manifests, C hosting, the
-   engine's WASM sibling, and new optimisation-code numbering wait for
-   their own phases and gate nothing here.
+6. **Scope.** This interface covers direct values, `expr`, pack commands
+   and one shared analysis context; runtime manifests, C hosting and the
+   engine's WASM sibling are the backing contract's
+   ([registry-consumer-contracts.md](registry-consumer-contracts.md)) and
+   gate nothing here.
 7. **Unanimity decides a release-less fold.** Under a
    profile that names no release, a route folds only where its answer is
    proven identical under every release the profile can denote, and any
@@ -214,30 +215,30 @@ flowchart TB
     O --> P
 ```
 
-The dependency direction already supports this: `tcl-registry` depends on
+The dependency direction supports this: `tcl-registry` depends on
 `tcl-syntax` and `tcl-cmd-core`, so a registry-owned specialisation can
 call the cores directly. `tcl-engine-tclvm` depends on `tcl-compiler`, so
 the concrete engine is injected by a composition root above the compiler;
-the compiler and the registry see only the execution interface. Existing
-hook installation (`pack_hooks::install_host`) shows the direction; its
-thread-local, mutable availability is replaced by the context contract in
-the evaluation page before it becomes a canonical lattice input.
+the compiler and the registry see only the execution interface. Hook
+installation (`pack_hooks::install_host`) is thread-local and mutable, and
+the evaluator generation in the analysis context
+([value-evaluation.md](value-evaluation.md) § *The evaluator generation*)
+puts its availability in every key, so a hook's answer is a canonical
+lattice input.
 
 ## One invocation, one context
 
-**Extend the resolver that exists.** `ResolvedInvocation` and
+**One resolver.** `ResolvedInvocation` and
 `InvocationSemantics` in `rust/tcl-registry/src/resolved_invocation.rs`
-already select the subcommand and form, follow inheritance, keep the source
+select the subcommand and form, follow inheritance, keep the source
 word kinds and argument offsets, and handle instance invocations. The
 value axis is a projection of that resolution, not a second
 command/subcommand/form resolver: a `value_transfer_for_call(&[&str])`
-over bare strings would drop the evidence the resolver already retains.
-`substitution_resolver` in `rust/tcl-registry/src/substitution.rs`, the
-newest of the string-keyed resolvers beside `arg_role_resolver` and
-`pattern_arg_resolver`, shows the cost: `subst $opt {hello $name}` answers
-every kind even where the lattice proves `opt` is `-novariables`, because
-a bare string carries no proof. The same contract over
-`AnalysisInputs::operand` answers exactly.
+over bare strings would drop the evidence the resolver retains. A
+string-keyed resolver shows the cost: over bare strings,
+`subst $opt {hello $name}` answers every kind even where the lattice proves
+`opt` is `-novariables`, because a bare string carries no proof; the same
+contract over `AnalysisInputs::operand` answers exactly.
 There is one argument coordinate system — the resolved invocation's operand
 indices — with an explicit mapping back to source words and to lowered
 storage places. `Statement::Incr { name, amount, .. }` projects to the
@@ -1223,7 +1224,7 @@ and every specialisation inherits them:
 | a resource cap is hit: output bytes, allocation before it happens, fuel, depth, request budget, cancellation | the route and the budget | decline (`Budget`), distinct from an unsupported case (`Unsupported`) and from a transient host failure (`Transient`), and never an exact negative |
 | a regexp search was cut short or a capture is approximate | the regexp owner | decline (`Approximate`), never "no match" |
 | the answer fails validation | the driver | decline (`MalformedAnswer`) with a load or evaluation notice; the generic conservative result is kept |
-| the statement is a `Barrier` or `UpFrame`, or follows an opaque `switch`, `catch` or `try` whose script runs a command that may write any name | the solver | every tracked value widens, as today |
+| the statement is a `Barrier` or `UpFrame`, or follows an opaque `switch`, `catch` or `try` whose script runs a command that may write any name | the solver | every tracked value widens |
 
 The names in `Module::deferred_writes` come from the scripts a command stores
 to run after it returns — the words the registry states as callbacks
@@ -1355,16 +1356,11 @@ dict with d {incr a; set result done}
 
 Existence is the third lattice rung: a flow-sensitive bound/unbound fact
 per place, owned by the solver, fed by storage outcomes, and consumed by
-W210, W211, W213, W214, O108, O109, I230, O101, and S100. Today the fact
-is two
-whole-body scans — `scan_defined_and_unset` in `sccp.rs` collects every
-assigned name and every name a literal `unset` names, recognising `unset`
-by its spelling — and `existence_constant_branches` folds `[info exists
-X]` from them as a post-pass outside the fixed point, so a name assigned
-anywhere in the body never folds, and W210's read-after-`unset` and
-W213's `unset`-of-a-killed-version answers come from def-use chains
-(`whole_unset_names`, `phi_can_undef`) rather than from a fact the solver
-holds.
+W210, W211, W213, W214, O108, O109, I230, O101, and S100. The solver
+computes it inside the fixed point (`ExistenceRun` in
+`rust/tcl-compiler/src/sccp.rs`), `[info exists X]` decides from it like
+any other proven condition, and W210's read-after-`unset` and W213's
+`unset`-of-a-killed-version read it (`FunctionUnit::existence`).
 
 **The lattice.** Per place, per SSA version of the binding:
 
@@ -1434,9 +1430,7 @@ document's initial global frame a registry special variable enters
 `MayBound` otherwise, a name another procedure may write
 (`scan_module_global_names`) enters `MayBound`, and the rest enter
 `Unbound`; a `::when::*` handler in iRules enters every cross-event
-variable (`ConnectionScope::cross_event_defs`) as `MayBound`, which is
-the rule `drop_cross_event_existence_folds` applies to the post-pass's
-output today. A `Barrier` or `UpFrame` statement sets every place to
+variable (`ConnectionScope::cross_event_defs`) as `MayBound`. A `Barrier` or `UpFrame` statement sets every place to
 `MayBound`, as it sets every value to `Overdefined`. A call to a command the
 module cannot see (`SyntheticMarker::UnseenCall`) sets every place `MayBound`
 from there on, and gives each name live past it a fresh `Overdefined` version,
@@ -1446,8 +1440,8 @@ The dynamic-name
 barrier is flow-sensitive here: a dynamic write
 (`DynamicNameBarrier::writes`) turns every `Unbound` place `MayBound`
 from that statement on, and a dynamic destroy (`destroys`) turns every
-`Bound` place `MayBound` from that statement on; today both blind the
-whole function.
+`Bound` place `MayBound` from that statement on, and neither blinds the
+rest of the function.
 
 **What a call's write class adds.** A call whose declared transfer states
 less than its registry write class takes the class's step for each target at
@@ -1504,9 +1498,9 @@ is the prefix rule for unbind outcomes.
 exists`, and `Bound(Either)` and `MayBound` leave the condition
 undecided. The condition then decides inside the fixed point like any
 other proven condition, so the branch fact carries applied reachability
-and `executable_blocks` drops the dead arm: the post-pass, its second run
-in `emit_existence_constant_branch_diagnostics`, and the reachability
-gate of `emit_constant_branch_diagnostics` become one path. Where the
+and `executable_blocks` drops the dead arm, which
+`emit_constant_branch_diagnostics` reports as it reports any decided
+branch. Where the
 fact is `MayBound` the condition refines its edges instead: the true edge
 of `[info exists x]` carries `Bound(Either)` for `x`, the false edge
 `Unbound`, and `![info exists x]` swaps them — the edge refinement of
@@ -1518,7 +1512,7 @@ the existence rung computes as it sweeps.
 - **W210** (`emit_read_before_set_diagnostics`,
   `record_chain_w210_uses`, `emit_return_phi_undef_w210`): a value read
   at a place whose fact is `Unbound` reports; a read at `MayBound`
-  reports, as today's may-undefined chain does; a read at `Bound(_)` is
+  reports as may-undefined; a read at `Bound(_)` is
   silent. The version-0 origin, `whole_unset_names`, `phi_can_undef`, the
   existence guards, and the preserved definitions are all readings of
   this one fact: no match is a `Preserve`, so the prior fact stands —
@@ -1534,10 +1528,9 @@ the existence rung computes as it sweeps.
   error.
 - **W211** (`emit_unused_variable_diagnostics`): an existence read —
   `info exists`, `array exists`, an `unset`, a `DESTROYS_VARIABLE`
-  command — is a use of the binding. Until #2220
-  `proc p {} { set x 1; if {[info exists x]} { puts yes } }` reported W211
-  on `set x 1`, and `tcl opt --profile full` deleted the store, so the
-  optimised procedure printed nothing where the original prints `yes`.
+  command — is a use of the binding, so
+  `proc p {} { set x 1; if {[info exists x]} { puts yes } }` draws no W211
+  on `set x 1` and `tcl opt --profile full` keeps the store (#2220).
   The registry's read projection
   (`CommandRegistry::variable_read_projection`) names a destroyer's
   targets beside its `VarRead` words, so a nested `[unset x]` — in an
@@ -1557,10 +1550,9 @@ the existence rung computes as it sweeps.
   names the SSA does not record. A read inside a script body nested in a
   substitution other than the protected script of a `catch` and the body of
   a `try` (`[eval {info exists x}]`, #2323) or an `uplevel 0` body is not
-  recorded yet, for existence and value reads alike.
+  recorded, for existence and value reads alike.
 - **I230 and O101**: the existence branch fact is an ordinary
-  `ConstantBranch` with applied reachability; the post-pass extension in
-  `FunctionUnit::build` and its cross-event retention retire with it.
+  `ConstantBranch` with applied reachability.
 - **S100** (`shimmer/`): an unbind is not a typed value, so a phi that
   merges a bound version with an unbound one is not a representation
   merge. A whole-variable kill is typed the type
@@ -1599,32 +1591,27 @@ places it names; an unknown callee is a barrier.
 **Tests.** The `info_exists_*` and `emit_cfg_ssa_diagnostics_w210_*` /
 `w213_*` tests in `rust/tcl-compiler/src/analyser/diagnostics/tests.rs`
 and the `existence_fold_abstains_*` and `upframe_body_models_*` tests in
-`sccp.rs` pin today's answers and stay byte-identical; the fixed
-additions are the release table above, `set x 1; unset x; info exists x`
-deciding `0`, `set x 1; if {$c} { unset x }` giving W210 and a definite
-W213 on a following `unset x`, the two O109 refusals, and the S100
-silence. `sccp.rs` recognises no command by spelling,
-`existence_constant_branches` and `scan_defined_and_unset` are gone, and
-`emit_provably_unset_w210` reads the fact.
+`sccp.rs` pin the answers. `sccp.rs` recognises no command by spelling.
 
 ## The template-word plan
 
 A substituting command reads through its final argument: `subst {hello
 $name}` reads `name` out of a braced word that every other command would
 treat as literal text. Which kinds run is a per-call answer —
-`SubstitutionKinds` in `rust/tcl-registry/src/substitution.rs`, computed
-by `subst_substitutions` over the switch words and answered as `ALL` for
-a call it cannot read — and four consumers derive the rest by their own
-bracket walks: W102 (`emit_w102_subst_injection` and
-`substitution_narrowing_switches` in `analyser/diagnostics/security.rs`),
-the two template folders (`eval_subst_nocommands_body` in
-`lowering/mod.rs` and `extract_subst_nocommands_template` in
-`specialise_factories.rs`, both gated on `SUBST_NOCOMMANDS_KINDS`),
-extract-proc's literal cut and same-frame regions (`literal_word_holes`
-in `rust/tcl-lsp-core/src/refactor/extract_proc.rs` and
-`push_substituted_commands` in `refactor/mod.rs`), and the dynamic-name
-barrier (`template_word_is_substituted` in `dynamic_names.rs`, which
-reads only the trait). The plan is the one fact they share:
+`SubstitutionKinds` in `rust/tcl-registry/src/substitution.rs`, the
+projection of the option-effect walk
+([registry-consumer-contracts.md](registry-consumer-contracts.md) § *Options
+with semantic effects*), answered as `ALL` for a call it cannot read — and
+four consumers read the rest from the plan: W102
+(`emit_w102_subst_injection` and `substitution_narrowing_switches` in
+`analyser/diagnostics/security.rs`), the two template folders
+(`eval_subst_nocommands_body` in `lowering/mod.rs` and
+`extract_subst_nocommands_template` in `specialise_factories.rs`, both
+gated on `SUBST_NOCOMMANDS_KINDS`), extract-proc's literal cut and
+same-frame regions (`literal_word_holes` in
+`rust/tcl-lsp-core/src/refactor/extract_proc.rs` and `same_frame_regions`),
+and the dynamic-name barrier (`dynamic_names.rs`). The plan is the one fact
+they share:
 
 ```rust,ignore
 /// The final argument of a substituting command, with what runs over
@@ -1697,7 +1684,7 @@ subst -nocommands -variables {a$b}    ;# 9.1: cannot combine positive and negati
 Under a profile that does not reach 9.1 the positive family is a
 completion fact — the call errors — and under a profile that spans both
 sides of 9.1 the plan declines with `ReleaseAmbiguous`, so W102 falls
-back to every kind, as it does for an unreadable call today. The plan
+back to every kind, as it does for an unreadable call. The plan
 runs the option rows over each combination of the switches' proven
 spellings at each release the profile names (its own for a plain or
 vendor profile, every modelled release for one that declares none): a
@@ -1718,12 +1705,12 @@ substitutes before it raises.
 
 Each consumer reads the fields it needs and nothing else:
 
-| Consumer | Reads | What it stops doing |
+| Consumer | Reads | What it does not do |
 |---|---|---|
-| W102 | `kinds`, `dynamic`, and the narrowing advice from the option rows — the walk emits W102 from the plan over the call's source words (an unproven switch runs every kind and advises nothing), and the per-function pass re-reads each recorded call over the lattice and replaces the walk's finding at the template word, so `set opt -novariables; subst $opt $x` reports what `subst -novariables $x` reports and proven switches that turn both kinds off report nothing | asking the bare-string resolver, so a proven switch word narrows the message |
-| `eval_subst_nocommands_body`, `extract_subst_nocommands_template` | `kinds == SUBST_NOCOMMANDS_KINDS`, `braced`, `reads` — every read must be in the const map — and `escapes` | re-segmenting the `[subst …]` text and matching the head `subst` by spelling |
-| extract-proc's literal cut and same-frame regions | `kinds.variables` to keep or cut the braced word; `script_regions` as the same-frame regions | `push_substituted_commands`' own `[` walk over the braced word |
-| the dynamic-name barrier | `dynamic` with either `kinds.variables` or `kinds.commands` to set `reads` — a computed template that can still run a command reads any name, since `[set x]` in it is a read of `x` — and `script_regions` for the region scan | reading only `PERFORMS_SUBSTITUTION`, so `subst -nocommands -novariables $t` stops blinding every read while `subst -novariables $t` keeps blinding |
+| W102 | `kinds`, `dynamic`, and the narrowing advice from the option rows — the walk emits W102 from the plan over the call's source words (an unproven switch runs every kind and advises nothing), and the per-function pass re-reads each recorded call over the lattice and replaces the walk's finding at the template word, so `set opt -novariables; subst $opt $x` reports what `subst -novariables $x` reports and proven switches that turn both kinds off report nothing | ask a bare-string resolver: a proven switch word narrows the message |
+| `eval_subst_nocommands_body`, `extract_subst_nocommands_template` | `kinds == SUBST_NOCOMMANDS_KINDS`, `braced`, `reads` — every read must be in the const map — and `escapes` | re-segment the `[subst …]` text or match the head `subst` by spelling |
+| extract-proc's literal cut and same-frame regions | `kinds.variables` to keep or cut the braced word; `script_regions` as the same-frame regions | walk the braced word for `[` itself |
+| the dynamic-name barrier | `dynamic` with either `kinds.variables` or `kinds.commands` to set `reads` — a computed template that can still run a command reads any name, since `[set x]` in it is a read of `x` — and `script_regions` for the region scan | read only `PERFORMS_SUBSTITUTION`: `subst -nocommands -novariables $t` blinds no read, while `subst -novariables $t` blinds every read |
 
 The direct route materialises a template only when the plan is closed:
 every read is proven, every script region evaluates through a declared
@@ -1737,16 +1724,14 @@ the template again. Tests: the `tp_*` and `fp_*` tests in
 `rejects_factory_with_computed_subst_switch` in
 `specialise_factories.rs`, and
 `tp_a_substituting_call_can_switch_its_variable_reads_off` with the
-`tp_a_substituted_bracket_*` tests in `extract_proc.rs` pin today's
-behaviour; the fixed additions are the fourteen witnesses above as plan
-fixtures and the proven-switch W102 narrowing. The four consumers read
-`TemplateWordPlan`; none walks a template word.
+`tp_a_substituted_bracket_*` tests in `extract_proc.rs` pin the
+behaviour. The four consumers read `TemplateWordPlan`; none walks a
+template word.
 
 ## `expr`: the first demanding client
 
 `expr` is the first client that cannot be reduced to a suffix of literal
-operands, so it validates the interface early. There are three layers, and
-the seam for the third already exists:
+operands. There are three layers:
 
 1. **Word evaluation** obtains the argument values under the source's
    braced, quoted, bare, or expanded substitution rules.
@@ -1763,19 +1748,21 @@ the seam for the third already exists:
    — evaluates lazily, using analysis services for proven variable values
    and supported nested calls.
 
-The compiler's `FoldOps` in `rust/tcl-compiler/src/tcl_expr_eval.rs`
-already adapts that engine: it supplies an environment, rejects command
-substitutions, and calls the shared math-function dispatcher. Two limits
-of the adapter are corrected rather than inherited. Its `eval_with_config`
-ends in `to_number`, and its public `TclValue` has numeric variants only,
-so it cannot fold `expr {"x"}` — which is the string `x` — or a
-string-valued ternary; the analysis result boundary carries the engine's
-full value. And it declines a command substitution it reaches, so
-`expr {[string length $s] * 2}` never folds even when `s` is known; the
-`command` service resolves the nested invocation through the registry's
-semantics instead. What the adapter already does right is kept: it stops
-at a short-circuit, so the substitution in the first line below is never
-reached, and the contract preserves that laziness.
+The compiler adapts that engine twice in
+`rust/tcl-compiler/src/tcl_expr_eval.rs`. `FoldOps`, the const-folder's,
+supplies an environment, treats a command substitution as opaque, and calls
+the shared math-function dispatcher. `ExprServices`, the route's, keeps
+`FoldOps`' value semantics and differs in where an operand comes from: `var`
+reads through `variable`, `command` through `nested`, and `call` through
+`math_function`. Its answer is the engine's full value, so `expr {"x"}` —
+the string `x` — and a string-valued ternary fold, and the `command`
+service resolves a nested invocation through the registry's semantics, so
+`expr {[string length abc] * 2}` folds to `6`. A nested word that
+substitutes a variable folds in a branch condition and in
+`[string length [set s]]`, and declines in a braced `expr` command's own
+value: `set n [expr {[string length $s] * 2}]` leaves `n` unknown with `s`
+proven (#2454). Both adapters stop at a short-circuit, so the substitution
+in the first line below is never reached:
 
 ```tcl
 expr {0 && [error never]}   ;# 0: the right operand is never reached
@@ -1952,7 +1939,7 @@ evaluator and returns a typed residual with its dependencies and
 transformation proof; `Residual(expr)` is not `Const(rendered_expr)`, and
 the dynamic operand is never replaced by a dummy to run an engine — that
 yields one sample, not a symbolic result. Partial simplification extends
-`expr_simplify.rs` and `optimiser/propagation.rs`, which already substitute
+`expr_simplify.rs` and `optimiser/propagation.rs`, which substitute
 known operands and simplify; it is not a second partial evaluator inside
 the registry driver.
 
@@ -1983,7 +1970,7 @@ definitions, and the final assignment is a new constant definition, not a
 violation of monotone convergence. An alias write, trace, callback,
 namespace mutation, or opaque call may invalidate knowledge without an
 explicit `set`; that loss uses the existing place, effect, and observability
-owners, and with today's whole-function conservative barriers precision can
+owners, and with whole-function conservative barriers precision can
 be lost earlier than the runtime mutation. A query over an SSA use or a
 place *at the requested program point* returns the value-domain answer,
 the relevant type, shape, and range facts, dependencies, and bounded
@@ -2027,22 +2014,21 @@ kind and never reruns the proof.
 
 ### `if`, `elseif`, `while`, `for`
 
-Conditions are parsed expressions, so `evaluate_branch` already binds
-`$var` operands from the lattice. Two gaps close through the same
-interface:
+Conditions are parsed expressions, and `evaluate_branch` in `sccp.rs` runs
+them through the shared engine over the driver's services, under the
+effect-free nested policy:
 
-- **Command substitutions inside a condition.** `ExprNode::Command` is
-  rejected by the evaluator, so `if {[string length $acc] == 6}` never
-  decides even when `acc` is constant. The engine's `command` service
-  resolves a nested invocation through the registry's semantics, lazily,
-  under the branch's use versions and the nested-substitution policy
-  above; this reaches every pure specialisation at once — `info exists`,
+- **Command substitutions inside a condition.** The engine's `command`
+  service resolves a nested invocation through the registry's semantics,
+  lazily, under the branch's use versions and the nested-substitution
+  policy above, so `if {[string length $acc] == 6}` decides when `acc` is
+  constant; this reaches every pure specialisation — `info exists`,
   `string is integer`, `dict exists`, `lsearch`, `regexp` without match
   variables.
-- **Finite-set operands.** `env_from_uses` binds only a single `Const`.
-  When exactly one distinct SSA value is a `ConstSet`, the condition is
-  evaluated per member: all true → taken, all false → not taken, mixed →
-  open.
+- **Finite-set operands.** With exactly one distinct finite SSA value among
+  its reads, the condition is evaluated per member: all true → taken, all
+  false → not taken, mixed → open. Two finite values decline as
+  correlated.
 
 Loop-carried values still widen at the header phi; past a bounded loop the
 solver states what the loop leaves (§ *Bounded-loop enumeration*). The
@@ -2574,11 +2560,9 @@ puts $y` becomes `puts a`), and a read of the variable itself is not.
 Taint never reads values and is untouched. Tests:
 `info_exists_guard_narrows_read_in_then_arm`,
 `info_exists_negated_guard_narrows_false_arm`, and
-`info_exists_read_outside_guard_still_flags_w210` pin the precedent; the
-fixed additions are the twelve witnesses above, the nested-`if` I230, a
-merge that drops the refinement, and a traced variable that is never
-refined. The nested-`if` program decides through `tcl diag` and
-`tcl opt`, and `collect_existence_guards` is gone.
+`info_exists_read_outside_guard_still_flags_w210` pin the guard
+narrowing, and the nested-`if` program decides through `tcl diag` and
+`tcl opt`.
 
 ## Proc-level transfer summaries
 
@@ -2685,7 +2669,7 @@ enum ParamRole {
   revision, and the pack revision; the analysis context carries the
   summary revision, so a `rename` or a redefinition anywhere in the
   module invalidates every summary in it, the sensitivity `FnLatticeKey`
-  already has for traces.
+  has for traces.
 
 Under every tested release, except where a line says otherwise:
 
@@ -2744,8 +2728,8 @@ under tclsh 8.4 to 9.1, before and after `tcl opt`.
 analyses; compiler checks emit a protocol-independent `Diagnostic`;
 `CompilerDiagnostics` retains checks and optimisation findings
 independently of display-time gates; the server's lifts convert spans and
-severities and apply tags and overrides. Those boundaries are strengthened,
-not replaced, under six rules:
+severities and apply tags and overrides. Those boundaries hold under six
+rules:
 
 1. **Display policy cannot change semantic truth.** Disabling W210, W100,
    I230, or the optimiser presentation must not change values, storage or
@@ -2786,41 +2770,35 @@ not replaced, under six rules:
    severity overrides, the optimiser switch and profile, overlap
    precedence, and encoding abstention are applied once, by a function
    every surface calls, and a suppressed finding stays in the report with
-   its reason. Today each surface assembles its own subset: the server's
-   publish paths, `tcl diag`, `tcl opt`, the MCP tools, and the code-action
-   lifter differ on which steps they apply, which is the parity gap #2089
-   tracks. The `# noqa` directive has one parser and one predicate; the
-   pipeline around them is the remaining half: one `Finding` shape, one
-   `Policy` holding every documented scope, one pure `apply` that pairs
-   every finding with an outcome, and adapters that render rather than
-   decide, designed in [diagnostic-policy.md](diagnostic-policy.md).
+   its reason. That function is `tcl_lsp_core::diagnostic_policy::apply`:
+   one `Finding` shape, one `Policy` holding every documented scope, and
+   one pure `apply` that pairs every finding with an outcome, with the
+   server's publish paths, `tcl diag`, `tcl opt`, the MCP tools, and the
+   code-action lifter as adapters that render rather than decide
+   ([diagnostic-policy.md](diagnostic-policy.md), #2089). The `# noqa`
+   directive has one parser and one predicate.
 
 Three producers read the interface:
 
-- `emit_provably_unset_w210` in
-  `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` recognised
-  `regexp` and `scan` by name, parsed their forms, and computed no-match
-  consequences inside a diagnostic producer, with a second traversal for
-  embedded conditions; its own comment said the registry lacked these
-  per-form semantics. The owner is the registry transfer's *preserve*
-  outcome plus the existence rung (§ Existence): no match preserves, so
-  the prior cell fact is necessary, and W210 consumes the resulting proof.
-  The private prover is gone: SCCP records each preserved definition with the
-  version it holds (`SccpResult::preserved`, a condition's substitutions
-  included when the shared engine decided the condition), and the
-  read-before-set pass reads through it. This is the end-to-end acceptance
-  test for storage outcomes and the regexp owner, not a name-dispatch
-  cleanup.
+- **W210 after a no-match.** The owner is the registry transfer's
+  *preserve* outcome plus the existence rung (§ Existence): a `regexp` or
+  `scan` that does not match preserves, so the prior cell fact is
+  necessary, and W210 consumes the resulting proof. SCCP records each
+  preserved definition with the version it holds (`SccpResult::preserved`,
+  a condition's substitutions included when the shared engine decided the
+  condition), and the read-before-set pass reads through it; no diagnostic
+  producer recognises `regexp` or `scan` by name. This is the end-to-end
+  acceptance test for storage outcomes and the regexp owner.
 - The existence constant-branch fact is stored once with its kind
   (proven, selected, applied), as above.
 - O111 is a producer over the unbraced-expression fact: `brace_expr_hints`
   in `rust/tcl-lsp-core/src/diagnostic_report.rs` emits one at the span of
   every W100 the analyser emitted and reads no policy, so O111's production
-  no longer depends on another diagnostic surviving presentation policy,
+  does not depend on another diagnostic surviving presentation policy,
   and the policy step decides the two codes independently — the pattern
   encoding abstention follows, deciding on byte-decode evidence rather than
   on whether W109 is displayed ([diagnostic-policy.md](diagnostic-policy.md)
-  § *What the producers leave to the policy*; built).
+  § *What the producers leave to the policy*).
 
 Not every predicate needs a globally stored lattice: a rule-specific
 analysis may compute its finding from shared facts, as the interval
@@ -3011,20 +2989,21 @@ and "not supported yet" is never mistaken for "proved impossible".
 **Is the IR node one registry fact with the transfer, or two?** Two facts,
 one operation. `LoweringHookId::Incr` describes IR *shape*, and the typed
 `Statement::Incr` node is consumed for codegen, native lowering,
-α-renaming, span rebasing, and liveness; it stays. The value projection is
+α-renaming, span rebasing, and liveness. The value projection is
 derived from the same `CellUpdate` the native lowering declares, so a new
 read-modify-write command adds one `CellUpdate` variant and gets both
 consumers, the same relationship `SemanticOperationId::StructuredLowering`
 has to `LoweringHookId`. The `Statement::Incr` sites that encode
 *semantics* — the transfer in `sccp.rs`, the enumeration's run of the
-route in `static_loops.rs`, the interval arm in `intervals.rs`, the removability and
-hidden-read arms in `elimination.rs`, the tail fold in `propagation.rs`,
-the global-write rule in `interprocedural.rs` — become consumers of the
-resolved semantics; the sites that encode shape do not change.
+route in `static_loops.rs`, and the interval arm in `intervals.rs`
+(`cell_update_range_model`) — read the resolved semantics; the
+removability and hidden-read arms in `elimination.rs` and the global-write
+rule in `interprocedural.rs` read the node's target and amount words, as
+the shape sites do.
 
 **Is this a new hook or `const_fold` with an environment parameter?**
-A new interface, of which today's `const_fold` is the result-only
-projection and the compatibility baseline. Giving `const_fold` an extra
+A new interface, of which `const_fold` is the result-only projection and
+the compatibility baseline. Giving `const_fold` an extra
 `old` parameter would silently change the contract of every existing
 folder; the interface instead declares which operands and target values an
 evaluator reads, and returns a result with storage outcomes rather than one
@@ -3058,7 +3037,7 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/analyses.rs` — `LatticeValue`, `ConstValue`, `MAX_CONSTSET_SIZE`
 - `rust/tcl-compiler/src/command_binding.rs` — `ModuleCommandMutations`, `CommandTrustSnapshot`, binding validity
 - `rust/tcl-compiler/src/var_observability.rs`, `dynamic_names.rs` — the escaping and dynamic-name gates
-- `rust/tcl-compiler/src/tcl_expr_eval.rs`, `rust/tcl-syntax/src/expr/eval.rs` — `FoldOps`, `eval_with_config`, `ExprOps`
+- `rust/tcl-compiler/src/tcl_expr_eval.rs`, `rust/tcl-syntax/src/expr/eval.rs` — `FoldOps`, `ExprServices`, `eval_with_config`, `ExprOps`
 - `rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs`, `optimiser/propagation.rs` — `instcombine_expr_typed`, `reassociate_node`, the partial-simplification owners
 - `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` — `lower_switch`, `switch_subject_operand`, `lower_opaque_switch`, `lower_try`, `push_try_handler_exception_edges`
 - `rust/tcl-cmd-core/src/switch.rs`, `regex.rs` — `parse_options`, `select`, `RegexpResult::Count`
@@ -3067,10 +3046,10 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` — `emit_read_before_set_diagnostics`, `record_chain_w210_uses`, `emit_unused_variable_diagnostics`, `existence_query_vars`, `is_existence_query_word`
 - `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` — `whole_unset_names`, `phi_can_undef`
 - `rust/tcl-compiler/src/analyser/diagnostics/security.rs` — `emit_w102_subst_injection`, `substitution_narrowing_switches`
-- `rust/tcl-registry/src/substitution.rs` — `SubstitutionKinds`, `subst_substitutions`
+- `rust/tcl-registry/src/substitution.rs`, `value_transfer/template.rs` — `SubstitutionKinds`, `TemplateWordPlan`
 - `rust/tcl-compiler/src/lowering/mod.rs`, `specialise_factories.rs`, `subst_nocommands.rs` — `eval_subst_nocommands_body`, `SUBST_NOCOMMANDS_KINDS`, `extract_subst_nocommands_template`, `subst_nocommands`
-- `rust/tcl-lsp-core/src/refactor/extract_proc.rs`, `refactor/mod.rs` — `literal_word_holes`, `push_substituted_commands`, `same_frame_regions`
-- `rust/tcl-compiler/src/dynamic_names.rs` — `DynamicNameBarrier`, `template_word_is_substituted`
+- `rust/tcl-lsp-core/src/refactor/extract_proc.rs`, `refactor/mod.rs` — `literal_word_holes`, `same_frame_regions`
+- `rust/tcl-compiler/src/dynamic_names.rs` — `DynamicNameBarrier` and its template-word scan
 - `rust/tcl-compiler/src/static_loops.rs` — `enumerate_loop`, `enumerate_script`, `LoopEnumeration`, `LoopState`, `Slot`, `DEFAULT_MAX_STATIC_LOOP_ITERS`, and the `summarise_for_statement` summaries over the enumeration
 - `rust/tcl-compiler/src/intervals.rs` — `transfer`, `widen`, `MAX_ITERS`, `refine_interval`
 - `rust/tcl-compiler/src/interprocedural.rs` — `ProcSummary`, `ProcArgTrait`, `ReturnKind`, `summarise_returns`, `MAX_INTERPROCEDURAL_WALK_DEPTH`
@@ -3079,7 +3058,7 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/cfg_builder/mod.rs` — `emit_opaque_catch`, `lower_try_dispatch`, `with_faithful_exceptions`, a statement's word effects (`Statement::word_effects`)
 - `rust/tcl-registry/src/completion.rs` — `CompletionDescriptor`, `CompletionCodeDomain`, `CompletionCode`
 - `rust/tcl-registry/src/frame_effect.rs` — `FrameLevel`
-- `rust/tcl-compiler/src/connection_scope.rs`, `compilation_unit.rs` — `cross_event_defs`, `drop_cross_event_existence_folds`
+- `rust/tcl-compiler/src/connection_scope.rs`, `compilation_unit.rs` — `cross_event_defs`
 - `rust/tcl-compiler/src/compilation_unit.rs`, `compiler_checks.rs` — `FunctionUnit::build`, the diagnostic envelope
 - `rust/tcl-lsp-db/src/lib.rs` — `FnLatticeKey`, `compilation_unit`, `file_token_facts`, `spec_pack_key`
 - `rust/tcl-lsp-core/src/diagnostic_report.rs` — `brace_expr_hints`, the O111 producer; `rust/tcl-lsp-server/src/lib.rs` — `lifted_report`, the LSP adapter
@@ -3089,21 +3068,20 @@ unit-level lattice evaluates.
 
 ## Test anchors
 
-- `rust/tcl-compiler/src/sccp.rs` — `evaluate_def_incr_*`, `evaluate_def_assign_value_folds_*`, `evaluate_def_foreach_*`: the dispatcher's arms and their byte-identity gate
+- `rust/tcl-compiler/src/sccp.rs` — `evaluate_def_incr_*`, `evaluate_def_assign_value_folds_*`, `evaluate_def_foreach_*`: the dispatcher's arms
 - `rust/tcl-compiler/src/optimiser/branch_folding.rs` — `switch_dispatch_branches_are_skipped`
 - `rust/tcl-compiler/src/optimiser/propagation.rs` — `o103_folds_implicit_return_proc_cmd_subst`, `o103_folds_arg_sensitive_passthrough_cmd_subst`
-- `rust/tcl-registry/tests/differential_fold.rs` — every fold against a real `tclsh`, the shape the storage-outcome witnesses extend
+- `rust/tcl-registry/tests/differential_fold.rs` — every fold against a real `tclsh`
 - `rust/tcl-registry/tests/analyser_hooks.rs` — the pinned-set shape
-- `rust/tcl-compiler/src/analyser/diagnostics/tests.rs` — `info_exists_*`, `emit_cfg_ssa_diagnostics_w210_*`, `emit_cfg_ssa_diagnostics_w213_*`, `w102_*`: the existence, read-before-set, and template-word answers the rungs keep byte-identical
+- `rust/tcl-compiler/src/analyser/diagnostics/tests.rs` — `info_exists_*`, `emit_cfg_ssa_diagnostics_w210_*`, `emit_cfg_ssa_diagnostics_w213_*`, `w102_*`: the existence, read-before-set, and template-word answers
 - `rust/tcl-compiler/src/sccp.rs` — `existence_fold_abstains_*`, `upframe_body_models_*`, `sccp_folds_post_loop_branch_via_static_summary`
-- `rust/tcl-compiler/src/static_loops.rs` — `summarise_*`: the bounded `for` simulation's answers, which the enumeration gives unchanged
+- `rust/tcl-compiler/src/static_loops.rs` — `summarise_*`: the bounded `for` simulation's answers over the enumeration
 - `rust/tcl-compiler/tests/value_transfer_witnesses.rs` — `the_iteration_cap_publishes_nothing`, `the_mirror_pairs_decline_as_correlated`, `a_loop_condition_reads_the_math_binding`, `the_argument_sensitive_rerun_runs_the_callees_loop`, `an_enumerated_loop_bounds_its_counter_after_it`
 - `rust/tcl-syntax/src/expr/eval.rs` — `short_circuit_logical`: the walker's ordering the evaluation state relies on
 - `rust/tcl-compiler/src/tcl_expr_eval.rs` — `command_substitution_evaluates_through_the_nested_service`: a nested command's answer under each nested policy
 - `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` — `try_finally_creates_finally_block`, `try_with_handler`: the faithful-exceptions shape
 - `rust/tcl-registry/src/substitution.rs` — `tp_*`, `fp_*`: the kinds oracle
 - `rust/tcl-compiler/src/lowering/mod.rs`, `specialise_factories.rs`, `rust/tcl-lsp-core/src/refactor/extract_proc.rs` — `proc_subst_nocommands_*`, `detects_*`, `rejects_factory_with_computed_subst_switch`, `tp_a_substituting_call_can_switch_its_variable_reads_off`, `tp_a_substituted_bracket_*`: the four template consumers
-- fixed witnesses to add: `regexp` no-match preserve, partial `scan`, `lassign … a a`, `dict with` result versus write-back, `expr {0 && [error never]}`, quoted versus braced `expr`, `abs` rebinding, `string range { a } 0 end` exactness, the `$x + 1 + 2` floating-point regrouping refusal, `incr` of `010` per release, the failing dead `lappend`, the correlated `foreach` pairs and their mirror image, the existence release table, the prefix-rule programs and the `catch` code table, the seven ordered-state expressions, the twelve refinement programs, the eleven loop programs, the fourteen template programs, and the seven summary programs — each under every release found on `PATH`, with the release recorded
 
 ## Related docs
 
@@ -3111,11 +3089,11 @@ unit-level lattice evaluates.
 - [value-transfers-examples.md](value-transfers-examples.md) — one program per optimisation and diagnostic, and the declarations in Rust and `.tclspec`
 - [value-transfers-migration.md](value-transfers-migration.md) — the registry migration as built: the inventory, the ledger, the gate, and what each consumer reads
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) — the other axes and the runtime, package, and extension contracts
-- [sccp-core-analyses.md](sccp-core-analyses.md) — the lattice, the drivers, and the existence post-pass
+- [sccp-core-analyses.md](sccp-core-analyses.md) — the lattice and the drivers
 - [constant-folding-type-inference.md](constant-folding-type-inference.md) — the fold-versus-rewrite separation and the type lattice
 - [command-registry.md](command-registry.md) — the `CommandSpec` field reference and the hook catalogues
 - [lowering-dispatch.md](lowering-dispatch.md) — why `Statement::Incr` exists and stays
-- [pass-fact-ownership-matrix.md](pass-fact-ownership-matrix.md), [downstream-pass-contracts.md](downstream-pass-contracts.md), [diagnostics-integration.md](diagnostics-integration.md), [diagnostics-calculation.md](diagnostics-calculation.md) — the ownership, consumer, and diagnostic contracts the interface updates
+- [pass-fact-ownership-matrix.md](pass-fact-ownership-matrix.md), [downstream-pass-contracts.md](downstream-pass-contracts.md), [diagnostics-integration.md](diagnostics-integration.md), [diagnostics-calculation.md](diagnostics-calculation.md) — the ownership, consumer, and diagnostic contracts around the interface
 - [ebpf-backend.md](ebpf-backend.md) — BPF-Tcl as a language
 - [optimisation-passes.md](optimisation-passes.md), [precision-limitations.md](precision-limitations.md) — pass ownership and recorded imprecision
 - [interprocedural-analysis.md](interprocedural-analysis.md), [interprocedural-call-site-seeding.md](interprocedural-call-site-seeding.md) — the summaries and the seeds

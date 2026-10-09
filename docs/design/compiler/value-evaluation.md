@@ -114,8 +114,8 @@ enum EvalRoute {
 }
 
 /// Why a specialisation has no route: the payload of the interface
-/// contract's `DeclineReason::NoRoute`, and the "none" column of the
-/// migration plan's generated inventory.
+/// contract's `DeclineReason::NoRoute`, and the `none` route of the
+/// generated inventory (`docs/generated/value-transfers.md`).
 enum NoRouteReason {
     /// `evaluate none`: the author abstained at this scope.
     Declared,

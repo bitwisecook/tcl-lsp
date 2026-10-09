@@ -5,8 +5,8 @@ the evaluation contract in [value-evaluation.md](value-evaluation.md) sit in
 the tree: the inventory of command knowledge the registry owns and what
 remains elsewhere, what each analysis, optimisation, and diagnostic reads,
 the third-party tiers, the drift gate and its ledger, and the validation
-matrix. Read it before waiving a site in the gate, and before claiming a
-command is migrated.
+matrix. Read it before waiving a site in the gate, and before claiming
+that the registry owns a command's knowledge.
 
 ## How the inventory is read
 
@@ -43,7 +43,7 @@ what it reads.
 | Site | What it reads |
 |---|---|
 | `sccp.rs` `evaluate_defs_under` | every `Statement::Call` through the driver's `evaluate_call`, an `ExprEval` through `evaluate_expr_eval`, and the typed `Incr` node through `evaluate_incr` — the registry's derived cell update over the invocation view the node projects to; no command is recognised by its spelling |
-| `value_transfer.rs` `evaluate_call` | a `foreach` / `lmap` header's per-element `ConstSet` transfer from the iteration plan the explicit declaration answers (`PlanAnswer::Iterate`), the one handler § *Compiler-owned handlers* lists |
+| `value_transfer.rs` `evaluate_call` | a `foreach` / `lmap` header's per-element `ConstSet` transfer from the iteration plan the explicit declaration answers (`PlanAnswer::Iterate`), one of the handlers § *Compiler-owned handlers* lists |
 | `existence_query.rs`, `sccp.rs` | `[info exists X]` through `SemanticOperationId::Intrinsic(IntrinsicId::InfoExists)`, answered inside the fixed point as a read of `FactDomain::Existence` (`SccpResult::existence_at`) |
 | `optimiser/chain_fold.rs` | the O104 / O130 write-chain classifier: the resolved cell update, gated on the observed binding of the statement's own head |
 | `optimiser/structure_elimination.rs` | O112: the solver's selection facts; no private subject resolution or arm matching |
@@ -335,18 +335,18 @@ the same lint finds them. They are grouped by the axis each belongs to.
 
 | Axis | Flagship sites |
 |---|---|
-| `options` (`OptionSpec::value_word_count`, `ResolvedTerminator`, `option_placement`) | at least twenty private `--` / `-nocase` / `-encoding` / `-start` / `-nocomplain` scans; `analyser/handlers.rs`'s bare `o == "-command"` pre-scan thirty lines above the same file's correct `OptionSpec::matches` loop; `analyser/recovery.rs` knowing `-matchvar` / `-indexvar` but not `-exact` / `-glob` / `-regexp` / `-nocase` |
+| `options` (`OptionSpec::value_word_count`, `ResolvedTerminator`, `option_placement`) | private `--` / `-nocase` / `-encoding` / `-start` / `-nocomplain` scans in the pinned files; `analyser/handlers.rs`'s bare `o == "-command"` pre-scan a few lines above the same file's `OptionSpec::matches` loop |
 | `arg_roles` / `arg_role_resolver` / `assigns_variable_at` | `rust/tcl-cli/src/commands/minimize.rs`'s `var_target_positions`, a verbatim reimplementation of the role axis for eight commands and wrong for `dict update`, `binary scan`, `regexp -inline`, `scan`, and `foreach`; the W230–W232 index family in `analyser/bounds_checks.rs`; `place_bridge.rs` and `var_scoping.rs` asking for `global` / `variable` / `trace` positions by name |
-| `definition_body` / `MemberKind` | `analyser/oo.rs`'s eleven-arm `apply_oo_subcommand` keyword switch and its snit / itcl member tables; `ir.rs`'s `MethodKind::from_str_lossy`; the `constructor` / `destructor` literals spread across ten `tcl-lsp-core` providers |
-| `traits` | `var_escape/info_subcommands.rs`'s hand-maintained `info` subcommand names, live through `var_escape/helpers.rs`, beside two consumers that already ask `INTROSPECTS_BY_NAME` / `CURRENT_FRAME_INTROSPECTION`; `unset` recognised by name in two diagnostics beside `irules_event_checks.rs`'s correct `DESTROYS_VARIABLE` query; `lowering/mod.rs`'s `WORD_DISQUALIFIERS` body-cache gate; `tcl-syntax`'s default `head == "when"` predicate |
-| `substitution_resolver` / `substitutions_performed` | W102 (`analyser/diagnostics/security.rs`), the two template folders, the dynamic-name barrier in `dynamic_names.rs`, and extract-proc's literal cut and same-frame regions (`rust/tcl-lsp-core/src/refactor/`) ask the registry; the `inner_head_performs_substitution` gate reads only the trait, and `push_substituted_commands` re-walks a braced template for the bracket regions the answer does not carry, which `TemplateWordPlan`'s `dynamic`, `kinds`, and `script_regions` state |
-| `case_list` / clause grammar | five independent `switch` parsers (`analyser/diagnostics/security.rs`, `analyser/recovery.rs`, `analyser/diagnostics/usage.rs`, `lowering/structured.rs`, `analyser/commands.rs`) where the segmenter's `flatten_case_list_clauses` and the registry's `CaseMatchMode` already exist; `then` / `elseif` / `else` and `on` / `trap` / `finally` walked by keyword in `lowering/structured.rs`, `signature_scan/walker.rs` (twice), `tcl-lsp-core`'s refactors, and `tcl-mcp`'s `datagroup.rs`; `TryHandler::kind` as a `String` re-matched in `executable_ir.rs` |
+| `definition_body` / `MemberKind` | the unwaived sites pinned in `analyser/oo.rs` and `analyser/class_lattice.rs`, beside the member walk's one `match` on the row's effect (`member_landing`); `property`'s `-get` / `-set` accessors, extracted by hand rather than read as `Callable` rows |
+| `traits` | `var_escape/info_subcommands.rs`'s hand-maintained `info` subcommand names, live through `var_escape/helpers.rs`, beside two consumers that ask `INTROSPECTS_BY_NAME` / `CURRENT_FRAME_INTROSPECTION`; `unset` recognised by name in two diagnostics beside `irules_event_checks.rs`'s `DESTROYS_VARIABLE` query; `lowering/mod.rs`'s `WORD_DISQUALIFIERS` body-cache gate; `tcl-syntax`'s default `head == "when"` predicate |
+| `substitutions_performed` / the template-word plan | the `inner_head_performs_substitution` gate in `analyser/diagnostics/security.rs`, which reads only `Traits::PERFORMS_SUBSTITUTION`; W102, the CFG builder and extract-proc ask `CommandRegistry::substitutions_performed`, and the two template folders and the dynamic-name barrier read `TemplateWordPlan` |
+| `case_list` / clause grammar | `switch` option scans by spelling — `parse_switch_options` in `lowering/structured.rs` and the W102 regex walk in `analyser/diagnostics/security.rs` — beside `CaseListSpec::invocation`, which classifies each option by its effect; the clause-keyword consumers read the clause plan and are held clean by `cargo xtask registry-axes` |
 | `return_type` / `format_string_type` / `pattern_type` | `type_infer.rs`'s math-function return-type table (`expr_call_type`), a duplicate of `tcl_syntax::expr::mathfunc`; `scan_predicate.rs`'s conversion classes as strings; `analyser/diagnostics/usage.rs` mapping `binary format` / `binary scan` to a format-string index by name |
 | `special_vars` | `static::` spelled in six places; `args` in fourteen; `auto_path`, `auto_index`, `$dir` |
-| `events` / `profiles` / `lifecycle` | `tcl-mcp`'s `irule_gen.rs` rebuilding `HTTP_EVENTS` / `SSL_EVENTS` / `HOT_EVENTS` and `infer_profiles` beside a `code_actions.rs` that already reads `EventRequires.implied_profiles`; `RULE_INIT` as the init phase in four diagnostics |
-| `side_effects` / `world_effects` / `taint_*` | `irules_checks.rs`'s `drop` / `reject` / `discard` and `DNS::return` sets; `tcl-mcp`'s `SECURITY_ACTIONS` / `ROUTING_ACTIONS` / `TAINTED_REFS` where every listed command already carries a `TaintColour`; `tcl-diagram`'s `is_terminal`; the sanitiser bodies `tcl-lsp-core`'s code actions inject by diagnostic code |
+| `events` / `profiles` / `lifecycle` | `tcl-mcp`'s `irule_gen.rs` rebuilding `HTTP_EVENTS` / `SSL_EVENTS` / `HOT_EVENTS` and `infer_profiles` beside a `code_actions.rs` that reads `EventRequires.implied_profiles`; `RULE_INIT` as the init phase in four diagnostics |
+| `side_effects` / `world_effects` / `taint_*` | `irules_checks.rs`'s `drop` / `reject` / `discard` and `DNS::return` sets; `tcl-mcp`'s `SECURITY_ACTIONS` / `ROUTING_ACTIONS` / `TAINTED_REFS` (`irule_test.rs`), where every listed command carries a `TaintColour`; `tcl-diagram`'s `is_terminal`; the sanitiser bodies `tcl-lsp-core`'s code actions inject by diagnostic code |
 | `frame_effect` / `state_transitions` | `realm.rs`'s `namespace import` scan beside `alias.rs`'s typed transitions; `taint.rs` ordering `interp` before `proc` by name (`interprocedural.rs`'s `upvar` level, parsed as `#0` / `0`, reads the frame effect's `FrameLevel`) |
-| `abbrev` / `subcommands` / `presentation` / `completion` | `tcl-lsp-core`'s `minify.rs` carrying a second unique-prefix table for `string` / `info` / `clock` beside `formatting/keywords.rs`, which computes it from the registry; `snippets.rs`, a sixteen-template catalogue with no registry involvement; `analyser/diagnostics/widget_command.rs` treating `configure` / `cget` as universal because no widget spec models them |
+| `abbrev` / `subcommands` / `presentation` / `completion` | `snippets.rs`, a template catalogue with no registry involvement; `analyser/diagnostics/widget_command.rs` treating `configure` / `cget` as universal because no widget spec models them |
 | a parallel mini-registry | `rust/tcl-irules/data/irules_ref_specs.json`, the object-reference table `tcl-bigip` and `tcl-diagram` re-match by name |
 
 ### Irreducibles worth keeping
@@ -576,6 +576,8 @@ site.
 | Handler | Where | Keyed by | Why it stays | Waiver |
 |---|---|---|---|---|
 | the loop header's per-element `ConstSet` transfer over a literal, lattice, or folded list, one set per binder of the plan | `rust/tcl-compiler/src/value_transfer.rs`, `evaluate_call` | `PlanAnswer::Iterate` from the explicit `foreach` / `lmap` declaration | the bounded-loop enumeration states the exact exit state past the loop and keeps this transfer as the binders' value inside it, where the header still widens | none needed: generic over the plan |
+| the `dict with` key binder: each key of a constant dict value defined as a variable of the body's frame, for the no-path form | `rust/tcl-compiler/src/analyser/handlers.rs`, `handle_dict_with_command` | `AnalyserHookId::DictWith`, stamped on `dict`'s `with` subcommand | the analyser's variable table is not a value-transfer answer: the handler reads the dict from the analyser's constant-string map, while `DICT_WITH` (`value_transfer/body.rs`) states the same keys to the lattice | none needed: keyed by the hook identity |
+| the regex-pattern recorder: a `regexp` or `regsub` pattern word, literal or a constant variable's value, recorded for highlighting | `rust/tcl-compiler/src/analyser/handlers.rs`, `handle_regex_pattern_capture` | `AnalyserHookId::RegexPatternCapture`, stamped on `regexp` and `regsub` | a presentation record, not a value: it finds the pattern through `regex_source::regexp_pattern_index` and reads a variable through the analyser's constant-string map | none needed: keyed by the hook identity |
 
 Every run consults the module's command trust, under one of two stances
 (`FoldTrust` in `rust/tcl-compiler/src/sccp.rs`). The shared per-unit
@@ -607,8 +609,8 @@ annotations for the sites it reviews; a pin is never raised, and never
 added — a site that moves to a new file is reviewed there. The gate holds
 this table equal to `RATCHET`: one row per pinned file, its count, and who
 reviews it — the change that rewrites the file, or, where every site
-belongs to another axis, that axis's migration (§ *Debt on other axes*),
-which waives the sites by axis.
+belongs to another axis, the review of that axis (§ *Debt on other
+axes*), which waives the sites by axis.
 
 | File | Sites | Reviewed by |
 |---|---|---|
