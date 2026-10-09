@@ -776,9 +776,10 @@ The whitelist alone once left one door open: `set`, `incr`, `lappend`,
 and `lassign` can still write a `::`-qualified or namespace name with no
 `global` needed, and the VM's own bootstrap seeds `::env`,
 `::tcl_platform`, `::tcl_library`, and `::auto_path`. `Engine::confine_stores`
-closes both: every store whose name resolves outside the running body's
-own activation is refused as an ordinary Tcl error (an abstention, same
-as any other), and the host-seeded globals are removed for the
+closes both: every store, array creation and unset whose name resolves
+outside the running body's own activation is refused as an ordinary Tcl
+error (an abstention, same as any other), and the host-seeded globals are
+removed for the
 confinement's duration, so a read of one is a decline too, never the
 analysing machine's own environment leaking into an answer about the
 analysed program

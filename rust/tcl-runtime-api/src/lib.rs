@@ -843,6 +843,14 @@ pub trait VarStore {
     fn unset_command(&mut self, frame: FrameId, name: &str) -> Result<bool, VarUnsetError> {
         Ok(self.unset(frame, name))
     }
+    /// Whether removing `name`, resolved from `frame`, is refused because
+    /// the engine confines stores to the running procedure's own frame and
+    /// the variable lives outside it — asked by a command before it removes
+    /// anything. An engine that confines nothing refuses nothing.
+    fn unset_confined(&self, frame: FrameId, name: &str) -> bool {
+        let _ = (frame, name);
+        false
+    }
     /// Whether a variable exists in `frame`.
     fn exists(&self, frame: FrameId, name: &str) -> bool;
 

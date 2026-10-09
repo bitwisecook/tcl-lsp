@@ -4365,15 +4365,14 @@ impl Vm {
         }
     }
 
-    /// Refuse a store to `name`, resolved from level `start`, that would
-    /// land outside the running procedure's own frame while stores are
-    /// confined: a `::`-qualified or namespace-resolved name, a global at
-    /// level 0, a local linked to another frame's variable, or any level
-    /// but the running one. The refusal is an ordinary Tcl error raised
-    /// before anything is written; reads are never checked.
-    fn confine_store(&self, name: &str, start: usize) -> Result<(), Completion<Value>> {
+    /// Whether a store to `name`, resolved from level `start`, would land
+    /// outside the running procedure's own frame while stores are confined:
+    /// a `::`-qualified or namespace-resolved name, a global at level 0, a
+    /// local linked to another frame's variable, or any level but the
+    /// running one. Reads are never checked.
+    pub(crate) fn store_confined(&self, name: &str, start: usize) -> bool {
         if !self.limits.confined_stores {
-            return Ok(());
+            return false;
         }
         let base = elem_ref(name).map_or(name, |(base, _)| base);
         let own_frame = start != 0 && start == self.current_level();
@@ -4390,12 +4389,34 @@ impl Vm {
                             )
                         })
             });
-        if inside {
+        !inside
+    }
+
+    /// Refuse a store to `name`, resolved from level `start`, that
+    /// [`Self::store_confined`] says lands outside the activation — an
+    /// array's creation included. The refusal is an ordinary Tcl error
+    /// raised before anything is written.
+    pub(crate) fn confine_store(&self, name: &str, start: usize) -> Result<(), Completion<Value>> {
+        if !self.store_confined(name, start) {
             return Ok(());
         }
         Err(crate::command::err_with_code(
             format!("can't set \"{name}\": stores are confined to the activation"),
             "TCL WRITE VARNAME",
+        ))
+    }
+
+    /// Refuse an unset of `name` — a whole variable, or an element spelt
+    /// `a(k)` — resolved from level `start`, that would remove a variable
+    /// outside the activation while stores are confined. The refusal is an
+    /// ordinary Tcl error raised before anything is removed.
+    pub(crate) fn confine_unset(&self, name: &str, start: usize) -> Result<(), Completion<Value>> {
+        if !self.store_confined(name, start) {
+            return Ok(());
+        }
+        Err(crate::command::err_with_code(
+            format!("can't unset \"{name}\": stores are confined to the activation"),
+            "TCL UNSET VARNAME",
         ))
     }
 
@@ -11334,6 +11355,9 @@ impl Vm {
         name: &str,
         complain: bool,
     ) -> Result<(), Completion<Value>> {
+        // Confined stores refuse a removal outside the activation, whether
+        // or not the variable is there to remove.
+        self.confine_unset(name, self.current_level())?;
         if let Some((array, key)) = elem_ref(name) {
             let miss_reason = complain.then(|| self.array_element_unset_miss_reason(array));
             let existed = self.array_unset_elem_spelled(array, key);
@@ -12704,6 +12728,10 @@ impl VarStore for Vm {
             return Err(VarUnsetError::IsConstant);
         }
         Ok(self.unset(frame, name))
+    }
+
+    fn unset_confined(&self, frame: FrameId, name: &str) -> bool {
+        self.store_confined(name, frame.0)
     }
 
     fn exists(&self, frame: FrameId, name: &str) -> bool {

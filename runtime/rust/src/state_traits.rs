@@ -83,6 +83,14 @@ impl VarStore for Interp {
         Ok(self.unset(frame, name))
     }
 
+    fn unset_confined(&self, frame: FrameId, name: &str) -> bool {
+        if frame.0 == self.frames.borrow().current_level() {
+            self.store_escapes(name.as_bytes())
+        } else {
+            self.store_escapes_at(name.as_bytes(), frame.0)
+        }
+    }
+
     fn exists(&self, frame: FrameId, name: &str) -> bool {
         if frame.0 == self.frames.borrow().current_level() {
             self.var_exists(name.as_bytes())

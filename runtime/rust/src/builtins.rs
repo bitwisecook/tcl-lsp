@@ -652,6 +652,11 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     for &a in &argv[i..] {
         let name = obj_bytes(a);
         let (base, elem) = split_array_ref(&name);
+        // Confined stores refuse the removal of a variable outside the
+        // activation; `-nocomplain` quiets only a missing one.
+        if interp.store_escapes(&base) {
+            return interp.confined_unset_error(&name);
+        }
         // A constant cannot be unset; `-nocomplain` leaves it in place silently
         // (var-26.11/26.12), otherwise it is an error.
         if elem.is_none() && interp.is_constant(&base) {

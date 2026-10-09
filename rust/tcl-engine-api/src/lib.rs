@@ -528,9 +528,9 @@ pub trait Engine {
         Err(EngineError::Unsupported("pinning a release"))
     }
 
-    /// Refuse, as a Tcl error, every store whose name resolves outside the
-    /// running procedure's own frame: a `::`-qualified name, a namespace
-    /// variable, a linked variable. Reads are unaffected, except that an
+    /// Refuse, as a Tcl error, every store, array creation and unset whose
+    /// name resolves outside the running procedure's own frame: a
+    /// `::`-qualified name, a namespace variable, a linked variable. Reads are unaffected, except that an
     /// engine which seeds globals from its host — an environment, platform
     /// facts, library paths — removes them.
     ///

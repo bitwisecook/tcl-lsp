@@ -2203,6 +2203,9 @@ impl Vm {
         key: &str,
         complain: bool,
     ) -> Result<(), Completion<Value>> {
+        if self.stores_confined_value() {
+            self.confine_unset(&format!("{name}({key})"), self.current_level())?;
+        }
         let miss_reason = complain.then(|| self.array_element_unset_miss_reason(name));
         let existed = self.array_unset_elem(name, key);
         if !existed && let Some(what) = miss_reason {
@@ -2883,6 +2886,7 @@ impl Vm {
             // one, and error on a scalar or an array element.
             Op::ARRAY_MAKE_IMM => {
                 let name = lvt_name(imm0(instr));
+                try_op!(self.confine_store(&name, self.current_level()));
                 try_op!(self.ensure_array(&name));
             }
             Op::ARRAY_MAKE_STK => {
@@ -2894,6 +2898,7 @@ impl Vm {
                         "can't array set \"{name}\": variable isn't array"
                     )));
                 }
+                try_op!(self.confine_store(&name, self.current_level()));
                 try_op!(self.ensure_array(&name));
             }
 
@@ -3562,9 +3567,9 @@ impl Vm {
                     let Some(var) = vars.get(i) else { break };
                     match ps.iter().find(|(k, _)| k == key) {
                         Some((_, val)) => try_op!(self.set_var(var, val.clone())),
-                        None => {
-                            let _ = self.unset_one(var, false);
-                        }
+                        // A missing variable is no error here; a confined
+                        // removal is.
+                        None => try_op!(self.unset_one(var, false)),
                     }
                 }
             }

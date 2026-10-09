@@ -244,9 +244,10 @@ issue from the crash record, shown to the user before posting; nothing
 leaves the machine without a click.
 
 **A hook body cannot write, or read, outside its own call.** Beyond the
-command whitelist, `Engine::confine_stores` refuses any store whose name
-resolves outside the running body's own activation — a `::`-qualified
-name, a namespace variable, a linked variable — as an ordinary Tcl error,
+command whitelist, `Engine::confine_stores` refuses any store, array
+creation or unset whose name resolves outside the running body's own
+activation — a `::`-qualified name, a namespace variable, a linked
+variable — as an ordinary Tcl error,
 which the emitter protocol already treats as an abstention; and it
 removes the globals the host's own bootstrap seeds (`::env`,
 `::tcl_platform`, `::tcl_library`, `::auto_path`), so a body cannot read

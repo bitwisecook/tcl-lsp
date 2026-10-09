@@ -406,10 +406,12 @@ impl Vm {
     }
 
     /// Confine every store to the running procedure's own frame, or release
-    /// the confinement. While confined, a store whose name resolves anywhere
-    /// else — a `::`-qualified name, a namespace variable, a global, a local
-    /// linked to another frame — fails as a Tcl error (`can't set "::n":
-    /// stores are confined to the activation`) before anything is written.
+    /// the confinement. While confined, a store, an array's creation or an
+    /// unset whose name resolves anywhere else — a `::`-qualified name, a
+    /// namespace variable, a global, a local linked to another frame — fails
+    /// as a Tcl error (`can't set "::n": stores are confined to the
+    /// activation`, or `can't unset …`) before anything is written or
+    /// removed.
     /// Confining also removes the globals the host's bootstrap wrote
     /// (`::env`, `::tcl_platform`, the library paths), again after a host
     /// swap; releasing the confinement does not restore them. A hosted body

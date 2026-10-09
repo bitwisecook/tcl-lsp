@@ -259,6 +259,14 @@ where
 {
     let here = Frames::current(ops);
     let name = ops.as_str(name);
+    // A confined engine refuses the removal before anything goes, whether a
+    // pattern names elements or the whole array is removed.
+    if ops.unset_confined(here, &name) {
+        return Err(CmdError::with_error_code(
+            format!("can't unset \"{name}\": stores are confined to the activation"),
+            "TCL UNSET VARNAME",
+        ));
+    }
     match pattern.map(|p| ops.as_str(p).to_string()) {
         // No pattern: remove the whole array variable (ignore "didn't exist").
         None => {

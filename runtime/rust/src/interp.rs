@@ -4076,11 +4076,12 @@ impl Interp {
     /// library paths), so an evaluation reads nothing of the machine it runs
     /// on and leaves nothing behind for the next one to read.
     ///
-    /// A store is refused, as a Tcl error raised before anything is written,
-    /// when it would land anywhere else: at the global level, in a namespace
-    /// (a qualified name, `variable`, `namespace eval`), in another frame
-    /// (`uplevel`), or through a link a local holds to a variable outside the
-    /// frame (`global`, `upvar`). So is a draw from the `rand()` generator,
+    /// A store, an array's creation and an unset are refused, as a Tcl error
+    /// raised before anything is written or removed, when they would land
+    /// anywhere else: at the global level, in a namespace (a qualified name,
+    /// `variable`, `namespace eval`), in another frame (`uplevel`), or through
+    /// a link a local holds to a variable outside the frame (`global`,
+    /// `upvar`). So is a draw from the `rand()` generator,
     /// whose seed every evaluation shares. Reads are unaffected, and an error
     /// is not published to `::errorInfo` and `::errorCode`, which are globals.
     pub fn confine_stores(&mut self) {
@@ -4102,7 +4103,7 @@ impl Interp {
     /// Whether a store to `name` from the current frame must be refused:
     /// stores are confined and it would land outside the running procedure's
     /// own frame.
-    fn store_escapes(&self, name: &[u8]) -> bool {
+    pub(crate) fn store_escapes(&self, name: &[u8]) -> bool {
         self.stores_confined.get()
             && !crate::vars::lands_in_own_frame(
                 &self.frames.borrow(),
@@ -4113,7 +4114,7 @@ impl Interp {
     }
 
     /// [`Self::store_escapes`] for a store resolved as if `level` were active.
-    fn store_escapes_at(&self, name: &[u8], level: usize) -> bool {
+    pub(crate) fn store_escapes_at(&self, name: &[u8], level: usize) -> bool {
         self.stores_confined.get()
             && !crate::vars::lands_in_own_frame_at(
                 &self.frames.borrow(),
@@ -4130,6 +4131,15 @@ impl Interp {
         message.extend_from_slice(name);
         message.extend_from_slice(b"\": stores are confined to the activation");
         self.error_with_code(&message, b"TCL WRITE VARNAME")
+    }
+
+    /// The error a confined unset of `name` is refused with — the bytecode
+    /// VM's words and code.
+    pub(crate) fn confined_unset_error(&mut self, name: &[u8]) -> Code {
+        let mut message = b"can't unset \"".to_vec();
+        message.extend_from_slice(name);
+        message.extend_from_slice(b"\": stores are confined to the activation");
+        self.error_with_code(&message, b"TCL UNSET VARNAME")
     }
 
     /// The error a draw from the `rand()` generator is refused with while

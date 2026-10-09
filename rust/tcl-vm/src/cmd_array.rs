@@ -189,6 +189,11 @@ fn array_op_after_trace(
                     // existing scalar it errors. C words *this* case as the
                     // command (`can't array set "a"`), distinct from the
                     // per-element `set` message taken on a non-empty list.
+                    // Confined stores refuse the array outside the
+                    // activation before it is made.
+                    if let Err(e) = vm.confine_store(&name, vm.current_level()) {
+                        return e;
+                    }
                     if let Err(e) = vm.ensure_array(&name) {
                         return e;
                     }

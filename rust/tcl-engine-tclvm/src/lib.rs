@@ -1207,6 +1207,63 @@ mod tests {
         }
     }
 
+    /// `confine_stores` refuses an array's creation and an unset outside the
+    /// activation as it refuses a store: `array set ::fresh {}` makes no
+    /// global array, and no form of removal — a whole variable or an
+    /// element, `-nocomplain`, `array unset` with or without a pattern, a
+    /// linked local, a `dict update` over a missing key — takes away a
+    /// global seeded before the confinement. The same forms on locals run.
+    #[test]
+    fn confine_stores_refuses_creation_and_unset_outside_the_activation() {
+        let arguments = [Value::list([]), Value::dict_of::<&str>([])];
+        let run = |engine: &mut TclVmEngine, body: &str| {
+            let handle = engine.compile(unit(body)).expect("compiles");
+            engine
+                .invoke(&handle, &arguments)
+                .map(|value| value.as_str().expect("a string").to_owned())
+        };
+        let left =
+            "return [list [info exists ::fresh] [info exists ::seed] [info exists ::arr(k)]]";
+        for body in [
+            "array set ::fresh {}",
+            "unset ::seed",
+            "unset -nocomplain ::seed",
+            "unset ::arr(k)",
+            "array unset ::arr",
+            "array unset ::arr k*",
+            "global seed; unset seed",
+            "global arr; unset arr(k)",
+            "upvar #0 seed alias; unset alias",
+            "set d {}; dict update d k ::seed {}",
+        ] {
+            let mut engine = TclVmEngine::new();
+            run(&mut engine, "set ::seed old; set ::arr(k) v").expect("an open VM writes globals");
+            engine.confine_stores().expect("the VM confines its stores");
+            let answer = run(&mut engine, body);
+            assert!(
+                matches!(
+                    &answer,
+                    Err(EngineError::Script { message, .. })
+                        if message.contains("stores are confined to the activation")
+                ),
+                "{body}: {answer:?}"
+            );
+            assert_eq!(run(&mut engine, left), Ok("0 1 1".to_owned()), "{body}");
+        }
+        let mut engine = TclVmEngine::new();
+        engine.confine_stores().expect("the VM confines its stores");
+        assert_eq!(
+            run(
+                &mut engine,
+                "array set fresh {}; unset fresh; set x 1; unset x; set y 1; unset -nocomplain y z\n\
+                 array set a {k 1 j 2}; unset a(k); array unset a j*; array unset a\n\
+                 set d {}; dict update d k v {}\n\
+                 return [list [info exists fresh] [info exists x] [info exists y] [info exists a]]",
+            ),
+            Ok("0 0 0 0".to_owned())
+        );
+    }
+
     /// An engine restricted to a whitelist that allows `expr` keeps its
     /// math functions, which from 8.5 are commands (`tcl::mathfunc::abs`),
     /// so a body answers `expr {abs(-1)}` under every pinned release rather

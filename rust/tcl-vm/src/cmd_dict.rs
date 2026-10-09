@@ -633,8 +633,11 @@ fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                     return e;
                 }
             }
+            // A missing variable is no error here; a confined removal is.
             None => {
-                let _ = vm.unset_one(&var, false);
+                if let Err(e) = vm.unset_one(&var, false) {
+                    return e;
+                }
             }
         }
         i += 2;

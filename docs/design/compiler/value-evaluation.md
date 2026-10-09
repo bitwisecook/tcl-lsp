@@ -1017,8 +1017,15 @@ The mechanism, as built:
   — check it and refuse a name that resolves anywhere but the running
   procedure's own frame with an ordinary Tcl error,
   `can't set "NAME": stores are confined to the activation` (`TCL WRITE
-  VARNAME`). The host calls it once per engine, after
-  `restrict_commands`.
+  VARNAME`). An array's creation and every removal answer to the same
+  check (`Vm::store_confined`): `array set NAME {}` and its bytecode
+  op refuse before the array is made, and `unset` and its ops, `array
+  unset` (through `VarStore::unset_confined`, which the shared `array`
+  core asks) and a `dict update` over a missing key refuse before
+  anything is removed, with `can't unset "NAME": stores are confined to
+  the activation` (`TCL UNSET VARNAME`). The native runtime's
+  `Interp::confine_stores` holds the same rule. The host calls it once
+  per engine, after `restrict_commands`.
 - A refusal is an ordinary Tcl error, which is already an abstention, so
   silence stays the conservative answer and no new answer kind appears at
   the emitter protocol.
@@ -1067,6 +1074,10 @@ The mechanism, as built:
   (`tcl-engine-tclvm`: nineteen escapes, each probed for the name it would
   have written, a caught error publishing neither global, and `rand()` and
   `srand()` refused under the default release, 8.4 and iRules);
+  `confine_stores_refuses_creation_and_unset_outside_the_activation`
+  (`tcl-engine-tclvm` and the runtime's engine cases: an array made and
+  ten removals of a seeded global refused, the same forms on locals
+  run);
   `a_restricted_engine_keeps_the_math_functions_but_the_generator`
   (`tcl-engine-tclvm`, every pinned release);
   `the_generator_is_refused_under_every_pinned_release` (`containment_e2e`:

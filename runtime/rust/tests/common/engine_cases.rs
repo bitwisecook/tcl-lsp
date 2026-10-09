@@ -57,6 +57,7 @@ macro_rules! engine_cases {
             return_is_an_ordinary_early_exit,
             set_release_pins_the_numeral_grammar,
             confine_stores_refuses_every_store_outside_the_activation,
+            confine_stores_refuses_creation_and_unset_outside_the_activation,
             a_confined_engine_reads_no_host_environment,
             a_restricted_engine_keeps_the_math_functions_but_the_generator,
             each_invocation_gets_its_own_locals,
@@ -687,6 +688,53 @@ pub(crate) fn confine_stores_refuses_every_store_outside_the_activation<E: Engin
             "{body}: {answer:?}"
         );
     }
+}
+
+/// `confine_stores` refuses an array's creation and an unset outside the
+/// activation as it refuses a store: `array set ::fresh {}` makes no global
+/// array, and no form of removal — a whole variable or an element, `-nocomplain`,
+/// `array unset` with or without a pattern, a linked local, a `dict update`
+/// over a missing key — takes away a global seeded before the confinement.
+/// The same forms on locals run.
+pub(crate) fn confine_stores_refuses_creation_and_unset_outside_the_activation<E: Engine>(
+    new: &dyn Fn() -> E,
+) {
+    let left = "return [list [info exists ::fresh] [info exists ::seed] [info exists ::arr(k)]]";
+    for body in [
+        "array set ::fresh {}",
+        "unset ::seed",
+        "unset -nocomplain ::seed",
+        "unset ::arr(k)",
+        "array unset ::arr",
+        "array unset ::arr k*",
+        "global seed; unset seed",
+        "global arr; unset arr(k)",
+        "upvar #0 seed alias; unset alias",
+        "set d {}; dict update d k ::seed {}",
+    ] {
+        let mut engine = new();
+        run(&mut engine, "set ::seed old; set ::arr(k) v").expect("an open engine writes globals");
+        engine.confine_stores().expect("confines");
+        let answer = run(&mut engine, body);
+        assert!(
+            matches!(&answer, Err(EngineError::Script { message, .. })
+                if message.contains("stores are confined to the activation")),
+            "{body}: {answer:?}"
+        );
+        assert_eq!(run(&mut engine, left), Ok("0 1 1".to_owned()), "{body}");
+    }
+    let mut engine = new();
+    engine.confine_stores().expect("confines");
+    assert_eq!(
+        run(
+            &mut engine,
+            "array set fresh {}; unset fresh; set x 1; unset x; set y 1; unset -nocomplain y z\n\
+             array set a {k 1 j 2}; unset a(k); array unset a j*; array unset a\n\
+             set d {}; dict update d k v {}\n\
+             return [list [info exists fresh] [info exists x] [info exists y] [info exists a]]",
+        ),
+        Ok("0 0 0 0".to_owned())
+    );
 }
 
 /// A confined engine reads no host environment: the globals the host seeded
