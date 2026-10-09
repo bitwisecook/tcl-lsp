@@ -565,7 +565,7 @@ The registry surface is far richer than the analyser's dispatch uses.
 | loop and bind positions | roles and strided `repeated_args` | one binder (`handle_var_binding_command`) binds every `LoopVarList` and `VarWrite` position the roles name — `foreach` (which keeps its literal-iteration simulation), `lmap`, `dict for` / `map` / `update`, `array for`, `incr`, `append`, `lappend`, `lassign`, … — and `package require` / `provide` / `ifneeded` read the roles their subcommands declare |
 | OO member effect | the member-effect descriptor (`MemberSpec::effect`, `MemberEffect`, in `rust/tcl-registry/src/definer.rs`), beside the layout (`MemberKind`: `Flat`, `Wrapper`, `FlagKeyed`) and `arg_roles`, `slot`, `retraction`, `visibility_effect`, `surface`; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one, and `DefinitionBodyGrammar::member_row` answers a statement's row | one `match` on the row's effect (`member_landing`) routes the `TclOO` fold and the snit and itcl walkers, `MethodKind::from_effect` names the lowering's frames, and the providers read the recorded member; `property`'s flag words and snit's type-body implicit variable are the axis's residue in `analyser/oo.rs` |
 | clause grammar | the clause-grammar descriptor (`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`), on `CommandSpec` and `SubCommand`: ten shipped grammars, one registry walk answering the roles and the clause-shape defect, and the loader reading the same type | the lowering (`lower_if`, `lower_try`), the generic body walk (each body's depths by its clause's timing, and a clause's variable list — `try`'s handlers), the stray-keyword report, the CFG's `on ok` edge, `signature_scan/walker.rs`, the editor refactors (`if_to_switch.rs`, `refactor/datagroup.rs`) and `tcl-mcp`'s `datagroup.rs` read the plan |
-| option-selected semantics | the option-effect descriptor (`OptionSpec::effect`, `option_effect_families`, `option_effect.rs`), which states what a native resolver over a command's own option table would compute; `pattern_arg_resolver` is an escape hatch no shipped spec sets | three consumers ask `CommandRegistry::substitutions_performed` correctly; the dynamic-name barrier and the `inner_head_performs_substitution` gate read only the trait, and `push_substituted_commands` re-walks a braced template for regions the answer does not carry |
+| option-selected semantics | the option-effect descriptor (`OptionSpec::effect`, `option_effect_families`, `option_effect.rs`), which states what a native resolver over a command's own option table would compute; `pattern_arg_resolver` is an escape hatch no shipped spec sets | W102, the CFG builder and extract-proc ask `CommandRegistry::substitutions_performed`, and the template folders and the dynamic-name barrier read the template-word plan; the `inner_head_performs_substitution` gate reads only the trait |
 
 Each of the three descriptors is specified below. The consumers read them
 through the generic operations the interface contract names:
@@ -1430,8 +1430,9 @@ declaration; there is no second Rust-only form to diverge from. `subst_.rs`'s
 six `OptionSpec` rows each carry an `effect`, beside two
 `OptionEffectFamily` rows, and `CommandRegistry::substitutions_performed`
 is a projection of `option_effects` onto `SubstitutionKinds`, which W102
-(`analyser/diagnostics/security.rs`), the two template folders, and
-extract-proc (`rust/tcl-lsp-core/src/refactor/`) call. `lsearch_.rs`'s
+(`analyser/diagnostics/security.rs`), the CFG builder, and extract-proc
+(`rust/tcl-lsp-core/src/refactor/`) call; the template-word plan reads
+`option_effects` itself. `lsearch_.rs`'s
 options carry their effects with no resolver; `pattern_arg_resolver` is on
 `CommandSpec` only for a pattern layout no axis can express. The Tcl 9.1
 positive family carries the release gate its options carry,
