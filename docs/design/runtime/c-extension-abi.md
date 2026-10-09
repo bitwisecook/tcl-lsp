@@ -9,11 +9,11 @@ code, with no per-extension shim.
 > implements a subset of it. The authored `tcl.h` is
 > `runtime/rust/include/tcl.h`: it declares the subset each of its two hosts
 > implements (§ 7), and there is no authored `tclOO.h` or `tclTomMath.h`.
-> `runtime/rust/src/capi.rs` exports the runtime's half of that subset in 41
-> functions — command registration, object construction and copying, the
-> scalar reads and the option-table lookup, lists, `TclFreeObj`, the
-> interpreter's result and error state, the package call and two UTF-8
-> helpers — and nothing else of the C API. The per-function ownership and
+> `runtime/rust/src/capi.rs` exports the runtime's half of that subset —
+> command registration, object construction and copying, the scalar reads
+> and the option-table lookup, lists, `TclFreeObj`, the interpreter's
+> result and error state, the package call and two UTF-8 helpers, 35
+> functions in all — and nothing else of the C API. The per-function ownership and
 > error-path categories live in
 > [`c-api-ownership-contract.md`](c-api-ownership-contract.md).
 

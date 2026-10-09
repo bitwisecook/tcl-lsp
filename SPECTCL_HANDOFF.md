@@ -12,9 +12,9 @@
   - ea9f0450b `fix(registry): a store a declared outcome may preserve is live` (B5)
   - 5713e4bd4 + d05eac825: the second review (`SPECTCL_BRANCH_REVIEW.md`) and its merge, from the user's side.
 - Pushed, full gate pending: everything to 4c9be1bf9 (B2c, `docs: the migration page states what each consumer reads from the registry`) — the code items B1–B15, B2a, B2b, B2c — with the checkpoint commits (`wip: progress checkpoint …`) between them.
-- Committed: `docs: the value-transfer contracts are labelled as built` (S1, the glossary, both design indexes and `value-evaluation.md`, with D1 and D3 for that page; `make xtask-check` green). Its edits were swept into the checkpoints before the named commit.
+- Committed: `docs: the value-transfer contracts are labelled as built` (S1, the glossary, both design indexes and `value-evaluation.md`, with D1 and D3 for that page) and `docs: the registry consumer contracts are described once, with their unbuilt remainder` (S2: both design index entries, `registry-consumer-contracts.md` with its D1 and D3, `c-extension-abi.md`'s export note and § 12, and the clause-shape and member-effect KCS pages); `make xtask-check` green for each. Their edits were swept into the checkpoints before the named commits.
 - In the working tree, uncommitted: nothing.
-- Next: S2 (+D1, D3) — the registry consumer contracts described once, with their unbuilt remainder — then S3 (with `value-transfers.md`'s D1 and D3), S4, N2 and the review file's removal.
+- Next: S3 (with `value-transfers.md`'s D1 and D3; the migration page also needs the `DictWith` and `RegexPatternCapture` ledger rows, and its "Debt on other axes" table restated against `docs/generated/registry-axes.md` — the member-effect, clause-plan and template-word-plan consumers it lists as debt are built), S4, N2 and the review file's removal.
 - Standing states that are not defects of this branch: `cargo xtask dialect-drift` exits 1 with 8 sites present at the base (#2253); the tcl-vm tests of #2271 fail under a POSIX `LANG` and pass under `LANG=C.UTF-8`.
 
 ## How to verify and push
