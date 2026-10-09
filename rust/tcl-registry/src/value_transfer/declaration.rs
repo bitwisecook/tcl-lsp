@@ -76,6 +76,26 @@ impl SemanticsDeclaration {
     pub const fn is_inherited(&self) -> bool {
         matches!(self, Self::Inherited)
     }
+
+    /// The write class a pack declaration at this scope states for its
+    /// targets ([`super::DeclaredStores::write_class`]); none for any other
+    /// declaration.
+    #[must_use]
+    pub fn write_class(&self) -> Traits {
+        match self {
+            Self::Declared(semantics) => declared_write_class(*semantics),
+            Self::Inherited | Self::Declined => Traits::empty(),
+        }
+    }
+}
+
+/// The write class `semantics` states for its targets when it is a pack
+/// declaration with a `stores` row.
+fn declared_write_class(semantics: &dyn CommandSemantics) -> Traits {
+    semantics
+        .as_declared()
+        .and_then(|declared| declared.structure.stores)
+        .map_or_else(Traits::empty, super::DeclaredStores::write_class)
 }
 
 /// Which scope of a spec a declaration came from.
@@ -252,6 +272,14 @@ impl ResolvedSemantics {
     #[must_use]
     pub fn alias_frame(&self) -> Option<super::AliasFrame> {
         self.semantics().and_then(CommandSemantics::alias_frame)
+    }
+
+    /// The write class the specialisation states for its targets when it is
+    /// a pack declaration ([`super::DeclaredStores::write_class`]).
+    #[must_use]
+    pub fn write_class(&self) -> Traits {
+        self.semantics()
+            .map_or_else(Traits::empty, declared_write_class)
     }
 
     /// Whether the specialisation is the direct route's one-target write of

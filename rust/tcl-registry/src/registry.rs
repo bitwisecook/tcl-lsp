@@ -3653,6 +3653,11 @@ impl CommandRegistry {
     /// [`Self::get`] lookup) when the question is "what shape is this
     /// command" rather than "is it available here". An unknown command
     /// carries no traits.
+    ///
+    /// A pack's `stores` row states a write class as well
+    /// ([`crate::value_transfer::DeclaredStores::write_class`]): a target
+    /// declared `write_or_preserve` or `may_write` is a conditional write
+    /// whether or not the pack spells the trait.
     #[must_use]
     pub fn invocation_traits(
         &self,
@@ -3663,7 +3668,10 @@ impl CommandRegistry {
         let Some(resolved) = self.resolve_call(name, args, dialect) else {
             return Traits::empty();
         };
-        resolved.spec.traits | resolved.sub.map_or_else(Traits::empty, |sub| sub.traits)
+        resolved.spec.traits
+            | resolved.sub.map_or_else(Traits::empty, |sub| sub.traits)
+            | crate::value_transfer::resolve_semantics(resolved.spec, resolved.sub, resolved.form)
+                .write_class()
     }
 
     /// The frame the invocation's scope-alias declaration links the locals

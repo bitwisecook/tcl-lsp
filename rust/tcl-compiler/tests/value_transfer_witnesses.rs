@@ -2335,8 +2335,8 @@ fn a_no_match_keeps_the_store_it_preserves() {
 /// builtin's: `keep::miss VAR PIECE` declares `write_or_preserve`
 /// on its target and its body preserves it, so the definition holds the
 /// version before the call — the undefined root in `p`, the `set` in `q` —
-/// which is what W210 reads, though the command carries no trait that
-/// records a use of that version.
+/// which is what W210 reads. The pack spells no trait: the outcome alone
+/// makes the target a conditional write.
 #[test]
 fn a_pack_declared_preserve_holds_the_prior_version() {
     const KEEP_PACK: &str = "speclib keep 2.2 {
@@ -2373,6 +2373,134 @@ fn a_pack_declared_preserve_holds_the_prior_version() {
         );
         assert_eq!(answers_for(&unit, proc, "keep::miss"), ["evaluated"]);
     }
+    tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
+}
+
+/// Workspace commands whose one target may keep its prior value, declared
+/// by outcome alone: no `READS_BEFORE_WRITE`, no write-class trait.
+const MAY_PRESERVE_PACK: &str = "speclib kv 2.2 {
+    command kv::maybe {
+        arity 2
+        arg 1 -role VarWrite
+        semantics {
+            stores -targets {1} -outcome may_write
+        }
+        evaluate none
+    }
+    command kv::wp {
+        arity 2
+        arg 1 -role VarWrite
+        semantics {
+            stores -targets {1} -outcome write_or_preserve
+        }
+        evaluate none
+    }
+    command kv::split3 {
+        arity 4
+        arg_role_resolver {words ctx} { role 1 VarWrite; role 2 VarWrite; role 3 VarWrite }
+        arg_role_resolver_roles {VarWrite}
+        semantics {
+            stores -targets {1 2 3} -outcome write_or_preserve
+            result -semantic int
+        }
+        evaluate -implementation kv.split3.v1 -host bounded_tcl {
+            inputs {arg 0 exact}
+            body {s} {
+                set parts [split $s :]
+                if {[llength $parts] != 3} {
+                    preserve 1; preserve 2; preserve 3
+                    fold 0
+                    return
+                }
+                lassign $parts a b c
+                write 1 $a; write 2 $b; write 3 $c
+                fold 3
+            }
+        }
+    }
+}
+";
+
+/// Whether the analysis of `source` reports W220 on `name`, and whether
+/// the optimiser's single pass removes a store, under `dialect` with the
+/// packs `key` names installed in `registry`.
+fn dead_store_findings(
+    registry: &tcl_registry::CommandRegistry,
+    key: u64,
+    source: &str,
+    dialect: &str,
+    name: &str,
+) -> (bool, bool) {
+    use tcl_compiler::analyser::Analyser;
+    let named = format!("'{name}'");
+    let reported = Analyser::new()
+        .with_pack_overlay(key)
+        .analyse(source, dialect)
+        .diagnostics
+        .into_iter()
+        .any(|d| d.code == DiagCode::W220 && d.message.contains(&named));
+    let profile = resolve_environment(dialect).analyser_profile();
+    let removed = optimise_with_dialect(source, registry, Some(profile))
+        .iter()
+        .any(|rewrite| matches!(rewrite.code, DiagCode::O109 | DiagCode::O126));
+    (reported, removed)
+}
+
+/// A store a later call only may overwrite is live: a pack target declared
+/// `may_write` or `write_or_preserve` may keep the value the store gave it,
+/// so the store ahead of the call — as a statement, in a condition, or in a
+/// word — draws no W220 and no O109, as the store ahead of a `regexp` does,
+/// whether or not the pack spells `READS_BEFORE_WRITE`. The shipped
+/// `append_to_collection` (`may_write` in `specs/sdc_base.tclspec`) is the
+/// first program: O109 had deleted `set c {}`, and the procedure then
+/// returned an unset variable whenever the call kept the collection as it
+/// was.
+#[test]
+fn a_store_a_declared_outcome_may_preserve_is_live() {
+    let shipped = tcl_spectcl::bundled::load_from(
+        &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs"),
+    );
+    let eda = "synopsys-eda-tcl";
+    let registry = tcl_spectcl::bundled::registry_for_dialect_from(eda, &shipped);
+    let source =
+        "proc p {objs} {\n    set c {}\n    append_to_collection c $objs\n    return $c\n}\n";
+    assert_eq!(
+        dead_store_findings(&registry, shipped.key, source, eda, "c"),
+        (false, false),
+        "{source}"
+    );
+
+    let _published = PUBLISHED_PACKS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let packs = pack_workspace("kv", MAY_PRESERVE_PACK);
+    let dialect = "tcl9.0";
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
+    for command in ["kv::maybe", "kv::wp"] {
+        for call in [
+            format!("    {command} $s v\n"),
+            format!("    if {{[{command} $s v]}} {{ puts hit }}\n"),
+            format!("    set r [{command} $s v]\n    puts $r\n"),
+        ] {
+            let source = format!("proc p {{s}} {{\n    set v old\n{call}    return $v\n}}\n");
+            assert_eq!(
+                dead_store_findings(&registry, packs.key, &source, dialect, "v"),
+                (false, false),
+                "{source}"
+            );
+        }
+    }
+
+    // The no-match path's `preserve` keeps the prior value: `x` holds `old`
+    // after the call, and the store stays.
+    let source = "proc p {} {\n    set x old\n    kv::split3 nocolons x y z\n    return $x\n}\n";
+    let unit = CompilationUnit::build_for_dialect(source, &registry, false, dialect);
+    assert_eq!(value_at(&unit, "::p", "x", 2), Some(text("old")));
+    assert_eq!(answers_for(&unit, "::p", "kv::split3"), ["evaluated"]);
+    assert_eq!(
+        dead_store_findings(&registry, packs.key, source, dialect, "x"),
+        (false, false)
+    );
     tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }
 
