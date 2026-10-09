@@ -1019,6 +1019,11 @@ mod tests {
     /// `kv::put KEY VAR`: the key and `VAR`'s incoming value in, `VAR`
     /// written or preserved, its body bound to a fresh slot.
     fn put_semantics() -> DeclaredSemantics {
+        put_semantics_with(OutcomeKind::WriteOrPreserve)
+    }
+
+    /// `kv::put KEY VAR` with `VAR` stored as `outcome` declares.
+    fn put_semantics_with(outcome: OutcomeKind) -> DeclaredSemantics {
         let slot = pack_hooks::allocate(
             HookFamily::Evaluate,
             &HookInputs::declared([HookInput::Words]),
@@ -1029,7 +1034,7 @@ mod tests {
             structure: DeclaredStructure {
                 stores: Some(DeclaredStores {
                     targets: &[1],
-                    outcome: OutcomeKind::WriteOrPreserve,
+                    outcome,
                 }),
                 ..DeclaredStructure::default()
             },
@@ -1145,5 +1150,23 @@ mod tests {
         assert_eq!(evaluate(&inputs), "k=b");
         assert_eq!(host.calls.get(), 2, "a changed target misses");
         pack_hooks::clear_host();
+    }
+
+    /// A `write` outcome has no preserve path: a body that leaves its target
+    /// as it was, under a declaration that says the target is always
+    /// written, contradicts the declaration, and its answer is refused as
+    /// malformed rather than read as a preserved store.
+    #[test]
+    fn a_write_outcome_without_a_value_is_rejected() {
+        let put = put_semantics_with(OutcomeKind::Write);
+        let inputs = put_inputs(vec![literal("k"), literal("v")], "tcl9.0");
+        let host = Rc::new(JoinHost {
+            calls: Cell::new(0),
+        });
+        pack_hooks::install_host(host.clone());
+        let answer = put.evaluate(&inputs, &mut Budget::evaluation());
+        pack_hooks::clear_host();
+        assert_eq!(host.calls.get(), 1, "the body ran");
+        assert_eq!(answer, EvalAnswer::Declined(DeclineReason::MalformedAnswer));
     }
 }
