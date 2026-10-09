@@ -88,7 +88,7 @@ flowchart LR
   for a private command whose algorithm is not worth writing twice, and
   for an explicitly supported Tcl implementation where bounded execution
   avoids duplicating it.
-- **None.** Representable, and the state of most pure commands today: a
+- **None.** Representable, and the state of most pure commands: a
   command declared pure with no route classifies as pure for CSE and
   effect reasoning and evaluates nothing. Purity never selects a route.
 
@@ -120,7 +120,7 @@ enum NoRouteReason {
     /// `evaluate none`: the author abstained at this scope.
     Declared,
     /// No evaluator is authored for the form — the state of most pure
-    /// commands today.
+    /// commands.
     Unauthored,
     /// The form or option is outside what the route models
     /// (`regexp -about`).
@@ -584,7 +584,7 @@ program's run decides — the interpreter's own state, a widget's, a channel's,
 an event queue's, the traffic an iRule sees; `none (callback)`
 (`RUNS_A_CALLBACK`) for a command that runs a script or command prefix its
 caller passes; and `none (unauthored)` (`ROUTE_UNAUTHORED`) for a value its
-words decide with no route authored yet, a shared core the runtimes already
+words decide with no route authored, a shared core the runtimes already
 run among them (`string toupper`, `lindex`, `join`, the `::tcl::mathop` and
 `::tcl::mathfunc` commands, most of tcllib).
 
@@ -597,7 +597,7 @@ The cores behind the `scan`, `binary format`, and `incr` routes:
 | `binary::format_size_bound` | `rust/tcl-cmd-core/src/binary.rs` | the `binary format` route's output bound, charged before it runs: the widest write of every field plus the furthest `@`, saturating — `binary::specifiers` alone cannot give it, because `a`, `A`, and `x` take explicit counts |
 | `ValueOps::int_add` | `rust/tcl-syntax/src/value.rs` | the increment the cell update runs (`value_transfer/cell_update.rs`), the absent-value-as-zero case folded in; the release's parse and the existence check are the route's, and there is no separate increment core |
 
-No core gains a `*_with` variant for this page: the axes the cores read
+No core has a `*_with` variant for this contract: the axes the cores read
 implicitly are discharged by the adapter, either by pre-resolving the
 operand (`INDEX_GRAMMAR`) or by proving unanimity before the call
 (`CHAR_MODEL`).
@@ -1286,7 +1286,7 @@ installs the release's numeral grammar through
 An implementation body reaches the engine three ways and no others:
 
 1. **Embedded in the pack source.** The `body` block in the `.tclspec`,
-   carried verbatim by the loader as `HookSource::Body` does today, and
+   carried verbatim by the loader as `HookSource::Body`, and
    hashed into the pack's `content_hash`.
 2. **A file the pack names, inside the pack's own discovery tier.** The
    loader resolves it at load against `rust/tcl-spectcl/src/discovery.rs`'s
@@ -1790,7 +1790,7 @@ fn evaluate(input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
 ```tcl
 # Illustrative, as above: `evaluate -expression tcl.expr` is a real,
 # loader-recognised form (`LanguageProfileId::ALL`-matched), but `expr`
-# itself is not declared this way yet — never an engine fallback either
+# itself is not declared this way — never an engine fallback either
 # way. `expr::semantics` and `expr::facts` name nothing built.
 command expr {
     semantics -native expr::semantics
@@ -1919,21 +1919,23 @@ the innermost declaration wins.
 | `semantics none` | — | explicit abstention at this scope; the enclosing scope's plan does not apply | 2.2 |
 | `evaluate -direct ID` | one id | a registry-owned Rust evaluator over the shared cores that reads only the call's arguments, from the selected form's first argument on (`PACK_DIRECT_EVALUATORS`): `ListOfArgs`, `ListLength`, `ListSplit`, `FormatTemplate`, `BinaryFormat`, `Base32Encode`, `Base32Decode`, `Base32HexEncode`, `Base32HexDecode`, `Base64Encode`, `Base64Decode`, `Crc32Checksum`, `Md5Digest`, `Sha1Digest`, `Sha256Digest`, `Sha384Digest`, `Sha512Digest`, `FindString`, `StringField`, `Substring`, `DomainLabels`, `UriBasename`, `UriPath`, `UriQuery`, `UriHost`, `UriPort`, `UriProtocol`, `UriDecode`, `UriEncode`, `UriCompare`, `IpAddrEquals`; any other id in `NativeEvalId::ALL` needs its own command's specialisation and is a load notice that installs no route | 2.2 |
 | `evaluate -expression ID` | one id | the shared expression engine under the named language profile (`tcl.expr`, `bpf.expr`) | 2.2 |
-| `evaluate -implementation ID -host HOST { … }` | an id, a host word, one block | a declared implementation; `bounded_tcl` is the only host word | 2.2 |
+| `evaluate -implementation ID -host HOST { … }` | an id, a host word, one block | a declared implementation; the host word is `bounded_tcl` or `wasm_extension` (§ *The extension host*) | 2.2 |
 | `evaluate -native ID` | one id | a shipped evaluator whose route the catalogue entry itself names | 2.2 |
 | `evaluate none` | — | `EvalRoute::None`: declared "no evaluator for this form" | 2.2 |
 | `facts -native ID` | one id | the shipped abstract transfer, by name | 2.2 |
 | `facts { … }` | one block | inline fact rows: `result -representation R`, `result -string_segments {…}`, `taint -result_from {…}`, `range -integer_add` | 2.2 |
 | `facts none` | — | explicit abstention; the generic transfer applies | 2.2 |
 
-Inside an `evaluate -implementation` block, four rows and no others:
+Inside an `evaluate -implementation` block, these rows and no others;
+under `-host wasm_extension`, `extension` takes `body`'s place:
 
 | keyword | operands | meaning | from |
 |---|---|---|---|
 | `inputs { … }` | repeated `arg N exact`, `target N incoming`, `option -NAME exact` | exactly what the body reads; anything unlisted is not supplied, and an evaluator that reads a target value without listing it is a `spectcl_check` finding. `arg N` counts from the resolved form's first argument (one past a subcommand word), so a subcommand form and a renamed spelling read one declaration. `option -NAME exact` is read positionally too: it binds `{}` when no argument word is `-NAME` and the one-element list of the next word's value when exactly one is, rendered under the target's list rule, and `-NAME` twice, or as the last word, is `Unsupported` | 2.2 |
 | `depends { … }` | words from the closed set `tcl_profile`, `implementation_identity`, `registry_generation`, `evaluator_generation`, `binding NAME` | the context dependencies the answer carries and the memo key holds | 2.2 |
 | `budget { … }` | `-commands N`, `-wall-clock MS`, `-value-bytes N` | the per-evaluation budget; narrows the host's, never widens it | 2.2 |
-| `body {params} { … }` | a parameter list and a body | the implementation, carried verbatim as `HookSource::Body` already is | 2.2 |
+| `body {params} { … }` | a parameter list and a body | the implementation, carried verbatim as `HookSource::Body` is | 2.2 |
+| `extension FILE PREFIX` | an artefact and its command prefix | the WASM extension a `-host wasm_extension` implementation runs | 2.2 |
 
 The option-level forms are two flags on an option row, and only two,
 because a route belongs to a *form* and not to a flag:
@@ -1943,8 +1945,8 @@ because a route belongs to a *form* and not to a flag:
 | `-evaluate none` | — | when this option is present the selected form has no evaluator, and the route declines | 2.2 |
 | `-evaluate-reason WORD` | one word from the decline vocabulary | which decline the driver records: `form_unsupported` and `callback` are `NoRoute` with that `NoRouteReason`; `release_ambiguous` is `ReleaseAmbiguous` on the option's availability axis | 2.2 |
 
-Those two flags are what `regexp -about` and `regsub -command` need, and
-they are the whole of the option-level vocabulary. Anything richer — an
+Those two flags are what `regsub -command` needs, and they are the whole
+of the option-level vocabulary. Anything richer — an
 option that selects a *different* evaluator rather than removing one — is
 written as a `refine NAME { evaluate … }` block, the per-form overlay
 vocabulary 2.0 already provides, because a route belongs to a resolved
@@ -1964,7 +1966,7 @@ every other family's are, with silence meaning the conservative answer:
 Three rules make the protocol total:
 
 1. **Silence is a decline.** A body that calls no verb has established
-   nothing, exactly as `HookAnswer::Abstain` means today.
+   nothing, exactly as `HookAnswer::Abstain` means.
 2. **A `write` to a non-target raises.** The target index must be one the
    structural plan validated as a place-bearing target; anything else is an
    error, and raising is a decline — the `Error means abstain` rule the DSL
@@ -1980,8 +1982,8 @@ Three rules make the protocol total:
 `answer_of` in `rust/tcl-spec-hooks/src/emit.rs` remains the exhaustive
 match that forces the verb and silence decisions for every family, and
 `verbs_for` remains the one place a family's verbs are registered as host
-commands, so the three new verbs are three `Emission` variants and three
-arms rather than a new protocol.
+commands, so the three body verbs are three `Emission` variants and three
+arms rather than a protocol of their own.
 
 ### `-native ID`, and the per-family catalogues
 
@@ -1999,11 +2001,10 @@ shipped entries: `const_fold -native ID` and
 families' `-native ID` still installs that family's abstention and nothing
 else, with no notice, and a `semantics`, `evaluate` or `facts` statement's
 is a notice that nothing this build ships holds it: their tables are
-empty, so nothing this build ships is reachable by name there yet. There
-was one spelling ambiguity, `command::subcommand` in
-`docs/design/spec-dsl-examples/string.tclspec` against
-`<command>::<field>` in the renderer's synthesised form; the example now
-spells `string::is::const_fold_versioned`.
+empty, so nothing this build ships is reachable by name there.
+`docs/design/spec-dsl-examples/string.tclspec` spells
+`string::is::const_fold_versioned`, the `<command>::<field>` form the
+renderer synthesises.
 
 The rule, stated once:
 
@@ -2020,43 +2021,39 @@ The rule, stated once:
   `semantics`, `evaluate` and `facts` statements and for the two
   `const_fold` families; the other body families' tables are empty and
   their `-native` statements are not looked up.
-- **Every family gets a table — fourteen separate ones, not one
-  `NativeEvalTables` struct (built as
+- **Every family has a table — fourteen separate
   `pub const *_NATIVE: &[(&str, FnPtr)]` constants in
-  `rust/tcl-registry/src/pack_hooks.rs`).** One per family, keyed by the
+  `rust/tcl-registry/src/pack_hooks.rs`.** One per family, keyed by the
   full id: the eleven pre-existing `HookFamily` variants —
   `ArgRoleResolver`, `CommandPrefixResolver`, `ScriptTimingResolver`,
   `ConstFold`, `ConstFoldVersioned`, `TaintSinkGate`, `ContextGate`,
   `LiteralArgumentValidator`, `ClauseShapeCheck`, `OptionArity`,
   `Constraints` — plus `SEMANTICS_NATIVE`, `EVALUATE_NATIVE`, and
-  `FACTS_NATIVE` for the three new fields. `CONST_FOLD_NATIVE` (47 rows)
+  `FACTS_NATIVE` for the three route fields. `CONST_FOLD_NATIVE` (47 rows)
   and `CONST_FOLD_VERSIONED_NATIVE` (4 rows) are real and hold every
   folder a shipped spec carries, under the scope each hangs off (the
   `::tcl::dict::` commands included), so a rendered shipped spec reloads
   with the folder it came from; the other twelve are empty tables —
-  nothing else ships a named native implementation yet. The empty ones
+  nothing else ships a named native implementation. The empty ones
   are ARG_ROLE_RESOLVER, COMMAND_PREFIX_RESOLVER, SCRIPT_TIMING_RESOLVER,
   TAINT_SINK_GATE, CONTEXT_GATE, LITERAL_ARGUMENT_VALIDATOR,
   CLAUSE_SHAPE_CHECK, OPTION_ARITY, CONSTRAINTS, SEMANTICS, EVALUATE and
   FACTS.
   `HOOK_FAMILIES` holds twelve families in total: the eleven above, and
   `HookFamily::Evaluate` last, whose native table is `EVALUATE_NATIVE`.
-- **`native_hook_tables_cover_their_catalogues` grows a row per family**,
+- **`native_hook_tables_cover_their_catalogues` has a row per family**,
   so a table that omits a shipped implementation fails the test rather
   than dropping an id at load. An id in the table but absent from the
   catalogue fails the same assertion from the other side.
-- **`-direct` and `-native` are two different resolutions, not one.** The
-  plan's "`-direct` and `-expression` resolve through the `evaluate`
-  table" is not what was built: `evaluate -direct ID` resolves against
-  `NativeEvalId::ALL` (`enum_by_name`, Rust-spelled), the closed,
-  already-existing direct-route catalogue that predates `-native`;
-  `evaluate -native ID` resolves against `EVALUATE_NATIVE`, the new
-  `SCOPE::FIELD`-spelled table above; `evaluate -expression ID` resolves
-  against `LanguageProfileId::ALL`, unchanged. All three still fail
-  closed on an id their own catalogue does not hold — the rule the plan's
-  sentence intended — but the catalogue each flag checks is its own, so a
-  route flag can never accidentally resolve through a sibling flag's
-  vocabulary.
+- **`-direct` and `-native` are two different resolutions, not one.**
+  `evaluate -direct ID` resolves against `NativeEvalId::ALL`
+  (`enum_by_name`, Rust-spelled), the closed direct-route catalogue, and
+  binds only the ids `PACK_DIRECT_EVALUATORS` lists; `evaluate -native ID`
+  resolves against `EVALUATE_NATIVE`, the `SCOPE::FIELD`-spelled table
+  above; `evaluate -expression ID` resolves against
+  `LanguageProfileId::ALL`. All three fail closed on an id their own
+  catalogue does not hold, and the catalogue each flag checks is its own,
+  so a route flag can never resolve through a sibling flag's vocabulary.
 
 The `const_fold` family's table, as the shipped folders name it, is the
 worked example:
@@ -2087,44 +2084,43 @@ form, and its catalogue is what
 `evaluate -direct` resolves against.
 
 An unknown name is dropped with a load notice, and the renderer's
-synthesised `FIELD -native <scope>::<field>` spelling is a `GAPS` entry
-until the draft can recover the real name — the same `DraftOpaque` kind
-`bpf_op` and `data_collection` already carry in
+synthesised `FIELD -native <scope>::<field>` spelling is a `GAPS` entry,
+because the draft does not recover the real name — the same `DraftOpaque`
+kind `bpf_op` and `data_collection` carry in
 `rust/tcl-spec-studio/src/render_spectcl.rs`.
 
 ### The four surfaces, the parity tests, and `spectcl_check`
 
-Registry, loader, renderer and export, and studio move together or carry a
-`GAPS` entry, and five gates hold them together:
+Registry, loader, renderer and export, and studio agree or carry a `GAPS`
+entry, and five gates hold them together:
 
 | Gate | What it forces |
 |---|---|
 | `rust/tcl-spec-studio/src/coverage.rs`'s exhaustive destructuring witness | fails to compile until `semantics`, `evaluate`, and `facts` are surfaced or marked `Surface::Excluded` with a reason |
-| `native_hook_tables_cover_their_catalogues` | one row per family, including the three new fields |
-| `value_tables_cover_their_catalogues` | one row per new closed vocabulary: the route kinds, the `-outcome` words, the `depends` words, and the `-evaluate-reason` words |
+| `native_hook_tables_cover_their_catalogues` | one row per family, including the three route fields |
+| `value_tables_cover_their_catalogues` | one row per closed vocabulary: the route kinds, the `-outcome` words, the `depends` words, and the `-evaluate-reason` words |
 | `rust/tcl-spec-studio/tests/spectcl_roundtrip.rs` | a rendered-then-reloaded draft differs from its source only on `GAPS` keys; `export.rs` round-trips bodies verbatim as it does for `const_fold` |
 | `rust/tcl-spec-studio/tests/reference_doc.rs` | `docs/references/command-spec/fields.md` is regenerated from the studio schema, so the three fields' help text is one string in `rust/tcl-spec-studio/src/help.rs` and not two |
 
 The studio has a route picker and a body box —
 `schema.rs`'s `route` and `body` `NestedFieldSchema` rows under
-`semantics` — in the existing "Effects and purity" cluster (`relations.rs`,
-alongside `const_fold`), and closes its top-level-only carry-forward of
-hook bodies (`store.rs`'s `find_subcommand` / `reclaim`) so a subcommand's
-body survives a form edit, with one recorded exception:
+`semantics` — in the "Effects and purity" cluster (`relations.rs`,
+alongside `const_fold`), and carries hook bodies forward at every scope
+(`store.rs`'s `find_subcommand` / `reclaim`), so a subcommand's body
+survives a form edit, with one recorded exception:
 `oo-class.tclspec`'s per-subcommand `world_effects` / `state_transitions`
 blocks name a pack-level construct `PackStore::accepts`'s isolated
 per-block check cannot see, so that one example still falls back to the
 re-render floor, reporting the same fields through `Write::dropped` a
-splice would have. The page's own "try it" box over
-`HookHost::install_pack_hooks` is not built — nothing in
-`tcl-spec-studio` runs a synthetic `HookCall` from the form yet.
+splice would have. Nothing in `tcl-spec-studio` runs a synthetic
+`HookCall` from the form.
 
-`tcl-mcp`'s `spectcl_check` (`rust/tcl-mcp/src/spectcl.rs`) already
-reports each hook's family, `shape_cacheable` with its reason, the
+`tcl-mcp`'s `spectcl_check` (`rust/tcl-mcp/src/spectcl.rs`) reports each
+hook's family, `shape_cacheable` with its reason, the
 `ctx_keys` its body reads, `unknown_ctx_keys`, `declaration_conflict`, and
 the family's `verbs`, `silence_means`, and `requires_all_literal`. The
 routes join that report with three findings, each of which the existing
-`CtxScan` and declaration machinery can reach:
+`CtxScan` and declaration machinery reach:
 
 | Finding | How it is detected | Why it matters |
 |---|---|---|
@@ -2140,8 +2136,8 @@ once, and `spectcl_check` is where an author sees it before a user does.
 `ai/claude/skills/spec-author/SKILL.md` infers arity, roles, traits, hover,
 and packages from a library's sources, and `infer::infer_from_body` reads what a
 body states — whether it is side-effect free, the state it touches outside its
-frame, the type it answers and the parameters it calls — as proposals with their
-evidence. For a command implemented in value-position Tcl over whitelisted
+frame, the type it answers and the parameters it calls — as inferred candidates
+with their evidence. For a command implemented in value-position Tcl over whitelisted
 commands, a pack need not author the declared implementation: a `runtime_backing
 tcl-body` that carries the body and says `-evaluate` derives one (§ *The
 declared-implementation route*), keyed by the target release and its own
@@ -2156,15 +2152,15 @@ implementation against the library's real behaviour.
 - `rust/tcl-cmd-core/src/clock.rs`, `platform.rs`, `channel.rs`, `trace.rs`, `array.rs`, `namespace.rs`, `info.rs` — the cores the direct route never calls, and the `Needs` bits that keep it that way
 - `rust/tcl-dialect/src/version.rs`, `grammar.rs`, `profile.rs` — `TclVersion::from_profile`, `string_character_model`, `number_syntax`, `byte_string_encoding`, `StringCharacterModel`, `ByteStringEncoding`, `NumberSyntax`, `const_fold_version`
 - `rust/tcl-vm/src/value_ops.rs`, `runtime/rust/src/value_ops.rs` — the two runtime implementations of the seam
-- `rust/tcl-registry/src/const_fold.rs`, `commands/tcl/string_.rs`, `commands/tcl/format_.rs`, `commands/tcl/regsub_.rs` — the shipped folders, the ASCII re-implementations, and the two that are already core calls
-- `rust/tcl-compiler/src/codegen/helpers.rs`, `codegen/values.rs` — the two codegen folders to retire; `try_emit_constant_fold`
+- `rust/tcl-registry/src/const_fold.rs`, `commands/tcl/string_.rs`, `commands/tcl/format_.rs`, `commands/tcl/regsub_.rs` — the shipped folders: the core calls and the hand-written ones
+- `rust/tcl-compiler/src/codegen/values.rs` — `try_emit_constant_fold`, codegen's guarded fold over the engine
 - `rust/tcl-compiler/src/tcl_expr_eval.rs`, `rust/tcl-syntax/src/expr/eval.rs`, `rust/tcl-syntax/src/expr/mathfunc.rs`, `rust/tcl-syntax/src/expr/rand.rs` — `FoldOps`, `eval_with_config`, `ExprOps`, `MathFuncSpec`, `MathFuncSince`, the generator model
-- `rust/tcl-compiler/src/type_infer.rs` — `expr_call_type`, the duplicate math return-type table
+- `rust/tcl-compiler/src/type_infer.rs` — `expr_call_type`, which reads `MathFuncSpec::result_class`
 - `rust/tcl-regex/src/lib.rs`, `exec.rs`, `cmd_core.rs` — `Regex::exec`, `MATCH_FUEL`, `MAX_BT_DEPTH`, `MAX_DISSECT_DEPTH`, `Matcher::spend_fuel`, `AreEngine`
 - `rust/tcl-spec-hooks/src/host.rs`, `sandbox.rs`, `emit.rs`, `pack_eval.rs`, `program.rs` — `HookHost`, `HostConfig`, `SANDBOX_COMMANDS`, `builtins`, `answer_of`, `verbs_for`, `HookProgram`
 - `rust/tcl-registry/src/value_transfer/reference_body.rs`, `rust/tcl-spectcl/src/loader/reference.rs` — the scan of a reference body (`SANDBOX_WORDS`, `derive`, `Inexpressible`, `is_derived`) and the loader pass that installs what it derives
 - `rust/tcl-registry/src/pack_hooks.rs` — `HookFamily`, `HookInputs`, `CacheMode`, `ShapeKey`, `content_hash`, `install_host`, `clear_host`, `clear_cache`, `const_fold_fn`, `DialectScope`
-- `rust/tcl-engine-api/src/lib.rs`, `rust/tcl-engine-tclvm/src/lib.rs` — `Engine`, `Budget`, `BudgetKind`, `EngineError`, and the one implementation
+- `rust/tcl-engine-api/src/lib.rs`, `rust/tcl-engine-tclvm/src/lib.rs`, `runtime/rust/src/engine.rs`, `rust/tcl-engine-wasm/src/lib.rs` — `Engine`, `Budget`, `BudgetKind`, `EngineError`, and the three implementations
 - `rust/tcl-vm/src/interp.rs` — `Interp::set_dialect_profile`, what `Engine::set_release` wraps
 - `rust/tcl-spectcl/src/hooks.rs`, `loader.rs`, `export.rs`, `discovery.rs` — the pack seam, `hook_source`, `HookSource`, the native-ID tables, `Tier` and `Origin`
 - `rust/tcl-spec-studio/src/coverage.rs`, `render_spectcl.rs`, `schema.rs`, `draft.rs`, `help.rs` — the four-surface gates, `Surface::Excluded`, `GAPS`
@@ -2172,12 +2168,12 @@ implementation against the library's real behaviour.
 - `rust/tcl-lsp-db/src/lib.rs` — `FnLatticeKey`, `compilation_unit`, `function_lattice`
 - `rust/tcl-compiler/src/command_binding.rs` — `CommandTrustSnapshot`
 - `rust/tcl-irule-test/tcl/_mock_stubs.tcl` — the generated simulator stubs, which are not evaluators
-- `docs/references/command-spec/fields.md` — the generated field reference the three new statements extend
+- `docs/references/command-spec/fields.md` — the generated field reference, the three route statements included
 - `ai/claude/skills/spec-author/SKILL.md` — the inference surface
 
 ## Test anchors
 
-- `rust/tcl-registry/tests/differential_fold.rs` — every fold against a real `tclsh`; gains the storage-outcome witnesses per release found on `PATH`
+- `rust/tcl-registry/tests/differential_fold.rs` — every fold against a real `tclsh`, per release found on `PATH`
 - `rust/tcl-spec-hooks/tests/const_fold_e2e.rs` — O129 driven by a `.tclspec` body
 - `rust/tcl-spec-hooks/tests/containment_e2e.rs` — the budget, quarantine, and poison paths the route's isolation rule extends
 - `rust/tcl-spectcl/tests/spec_corpus.rs` — every shipped pack's hooks through the sandboxed host at budget: a loading and containment gate, not a value oracle
@@ -2186,26 +2182,22 @@ implementation against the library's real behaviour.
 - `rust/tcl-spec-studio/tests/spectcl_roundtrip.rs` — the four-surface round trip
 - `rust/tcl-spec-studio/tests/reference_doc.rs` — the generated field reference
 - `rust/tcl-vm/tests/dict_canonicalisation_parity.rs` — the list-rendering parity the folders depend on
-- fixed witnesses to add: `direct_route_needs_match_their_cores` — every catalogued direct evaluator declines under an empty `Needs`
-- the `fold [incr ::counter]` isolation test: the same answer on every call, and a raise from `Engine::confine_stores`
-- the three regexp precision witnesses, including the `^(a+)+\1$` / `^(a+)+b$` pair whose oracle answers 1 and 0
-- `string repeat` and `**` bounded before allocation, with the two release messages `integer value too large to represent` and `string size overflow`
-- the `<C3 89>` source-literal witness at every release and under both `encoding system` values
-- the `string range … 010 end` decline under a profile that names no release, and its two answers under 8.6 and 9.0
-- host-absent and quarantined workers answering identically, and an `Engine::set_release` witness per release axis
+- `rust/tcl-spec-hooks/tests/containment_e2e.rs` — `a_body_with_a_global_counter_answers_identically_on_every_call`: the `fold [incr ::counter]` body raises under `Engine::confine_stores`, so every call answers alike
+- `rust/tcl-regex/tests/precision_oracle.rs` — the regexp precision witnesses, the `^(a+)+\1$` / `^(a+)+b$` pair among them
+- `rust/tcl-registry/src/pack_hooks.rs` — `host_install_and_quarantine_bump_the_generation`; `runtime/rust/tests/common/engine_cases.rs` and `rust/tcl-engine-tclvm/src/lib.rs` — `set_release_pins_the_numeral_grammar`
 
 ## Related docs
 
 - [value-transfers.md](value-transfers.md) — the interface this contract evaluates for, and the ordered evaluation state stateful nested substitutions need
 - [value-transfers-examples.md](value-transfers-examples.md) — the programs each route is measured against, and the declarations in Rust and `.tclspec`
-- [value-transfers-migration.md](value-transfers-migration.md) — the inventory, the ledger and the gate
+- [value-transfers-migration.md](value-transfers-migration.md) — the registry migration as built: the inventory, the ledger and the gate
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) — runtime backing, the engine's WASM sibling, and C hosting, none of which this contract waits for
 - [byte-array-corruption.md](byte-array-corruption.md) — why `ConstOps` must override both byte methods
 - [../runtime/family-b-routing.md](../runtime/family-b-routing.md) — the shared-core rule the direct route follows
 - [../contracts/numeric-tower-and-expr-semantics.md](../contracts/numeric-tower-and-expr-semantics.md) — the numeral-grammar and tower owners the `Needs` bits name
 - [../contracts/differential-fuzzing.md](../contracts/differential-fuzzing.md), [../contracts/registry-contract-tests.md](../contracts/registry-contract-tests.md) — the oracles
 - [../contracts/vm-compiled-artifact-provenance.md](../contracts/vm-compiled-artifact-provenance.md) — how a folded value in bytecode is admitted and invalidated
-- [../registry/spec-packs.md](../registry/spec-packs.md), [../spec-dsl-examples/README.md](../spec-dsl-examples/README.md) — the DSL, its hook contract, and the vocabulary changelog 2.2 extends
+- [../registry/spec-packs.md](../registry/spec-packs.md), [../spec-dsl-examples/README.md](../spec-dsl-examples/README.md) — the DSL, its hook contract, and the vocabulary changelog
 - [../contracts/command-spec-studio.md](../contracts/command-spec-studio.md) — the four-surface parity rule
 - [../contracts/shared-utility-contracts-rust.md](../contracts/shared-utility-contracts-rust.md) — the owner manifest
 - [compiler design index](README.md), [design docs index](../README.md)
