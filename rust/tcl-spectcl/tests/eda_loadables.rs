@@ -280,22 +280,15 @@ fn the_compiled_registry_has_no_eda_commands_left() {
 }
 
 /// Bundled pack writers left deliberately without a write class, so every
-/// consumer treats their target as possibly unset afterwards.
-const PACK_WRITERS_LEFT_POSSIBLY_UNSET: &[(&str, &str)] = &[
-    (
-        "append_to_collection",
-        "no reference implementation to measure whether it creates an unset collection",
-    ),
-    (
-        "remove_from_collection",
-        "no reference implementation to measure; in PrimeTime it returns a new collection",
-    ),
-];
+/// consumer treats their target as possibly unset afterwards. None is:
+/// `append_to_collection` and `remove_from_collection` declare
+/// `stores -targets {0} -outcome may_write`, a conditional write.
+const PACK_WRITERS_LEFT_POSSIBLY_UNSET: &[(&str, &str)] = &[];
 
 /// Every `VarWrite` position a bundled pack declares says how it writes its
-/// target ([`tcl_registry::spec::VARIABLE_WRITE_CLASSES`]) or is listed above
-/// with the reason it is left possibly unset — the same rule the core
-/// registry's tripwire holds.
+/// target ([`tcl_registry::spec::VARIABLE_WRITE_CLASSES`]), as a trait or
+/// through its `stores` outcome, or is listed above with the reason it is
+/// left possibly unset — the same rule the core registry's tripwire holds.
 #[test]
 fn every_bundled_pack_variable_writer_says_how_it_writes() {
     let mut unclassified: Vec<String> = shipped()

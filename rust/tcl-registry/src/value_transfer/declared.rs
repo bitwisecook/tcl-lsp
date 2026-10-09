@@ -128,6 +128,22 @@ pub struct DeclaredStores {
     pub outcome: OutcomeKind,
 }
 
+impl DeclaredStores {
+    /// The write class the outcome states: a target that may keep its prior
+    /// value (`write_or_preserve`, `may_write`) is a conditional write, whose
+    /// prior store a later read may still observe — the class `regexp` and
+    /// `scan` declare as a trait. The other outcomes add none.
+    #[must_use]
+    pub const fn write_class(self) -> crate::traits::Traits {
+        match self.outcome {
+            OutcomeKind::WriteOrPreserve | OutcomeKind::MayWrite => {
+                crate::traits::Traits::CONDITIONAL_VARIABLE_WRITE
+            }
+            OutcomeKind::Write | OutcomeKind::Unbind => crate::traits::Traits::empty(),
+        }
+    }
+}
+
 /// What a declared loop iterates (`iterable -arg N -kind K`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IterableWord {

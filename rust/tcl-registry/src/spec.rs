@@ -2513,8 +2513,9 @@ fn declares_variable_write(
 
 impl CommandSpec {
     /// This command's, and each subcommand's, `VarWrite` positions that
-    /// declare none of [`VARIABLE_WRITE_CLASSES`], named `name` or
-    /// `name sub`. A consumer treats such a target as possibly unset.
+    /// declare none of [`VARIABLE_WRITE_CLASSES`], as a trait or through a
+    /// pack's `stores` outcome, named `name` or `name sub`. A consumer
+    /// treats such a target as possibly unset.
     #[must_use]
     pub fn unclassified_variable_writers(&self) -> Vec<String> {
         let mut out = Vec::new();
@@ -2525,7 +2526,7 @@ impl CommandSpec {
                 self.repeated_args,
                 self.options,
             ))
-            && !self.traits.intersects(VARIABLE_WRITE_CLASSES)
+            && !(self.traits | self.semantics.write_class()).intersects(VARIABLE_WRITE_CLASSES)
         {
             out.push(self.name.to_owned());
         }
@@ -2535,10 +2536,11 @@ impl CommandSpec {
                 sub.arg_role_resolver_roles,
                 sub.repeated_args,
                 sub.options,
-            ) && !sub
-                .traits
-                .union(self.traits)
-                .intersects(VARIABLE_WRITE_CLASSES)
+            ) && !(sub.traits
+                | self.traits
+                | sub.semantics.write_class()
+                | self.semantics.write_class())
+            .intersects(VARIABLE_WRITE_CLASSES)
             {
                 out.push(format!("{} {}", self.name, sub.name));
             }

@@ -384,6 +384,12 @@ declare_traits! {
     /// `string is class -failindex var` is one too: it writes `var` only when
     /// the class test fails.
     ///
+    /// A pack command needs no trait: a target its `stores` row declares
+    /// `write_or_preserve` or `may_write` is a conditional write
+    /// ([`DeclaredStores::write_class`](crate::value_transfer::DeclaredStores::write_class)),
+    /// which [`CommandRegistry::invocation_traits`](crate::registry::CommandRegistry::invocation_traits)
+    /// answers with this trait.
+    ///
     /// Do **not** apply to `regsub`, `gets`, `lassign` or `catch`: each was
     /// measured writing unconditionally, including on the failure path
     /// (`regsub {xx} zz YY a` leaves `a` as `zz`, `gets` at EOF writes `""`),
@@ -410,7 +416,7 @@ declare_traits! {
     /// The positive counterpart of [`Traits::CONDITIONAL_VARIABLE_WRITE`]: a
     /// consumer may treat a target as set after the command only when this
     /// trait says so. A loop header (`foreach` over an empty list leaves its
-    /// variable unset) and a may-writer carry neither. It covers the
+    /// variable unset) and a may-writer such as `file stat` carry neither. It covers the
     /// [`ArgRole::VarWrite`](crate::ArgRole::VarWrite) targets alone, never a
     /// variable a script argument assigns (`catch {error e; set a 1} x`
     /// leaves `a` unset).
