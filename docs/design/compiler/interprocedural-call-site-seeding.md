@@ -102,12 +102,15 @@ discriminator for the latter is "the whole word is one substitution"
 "the word contains a `$`": `catch {puts $x}` carries readable script text
 and is still walked in place, whereas `catch $body` does not.
 
-Three further whole-module gates withdraw every seed for the same
+Two further whole-module gates withdraw every seed for the same
 "completeness is unproven" reason: a `package provide` in the file (another
-file may call these procedures), a `rename` / `interp alias` touching the
-callee's name (`trusts_proc_binding`), and a frame-shifting `uplevel` body
-(its writes land in a frame the per-scope variable scan does not own, so
-every value set becomes unenumerable).
+file may call these procedures) and a `rename` / `interp alias` touching the
+callee's name (`trusts_proc_binding`). A frame-shifting `uplevel` body is
+not a gate of its own: its writes land in a frame the per-scope variable
+scan does not own, so every value a local holds becomes unenumerable to the
+scan, while a literal seed survives it (`bump n` keeps `name = n`). The
+seeds are withdrawn where a dispatch word such as `$cmd` then cannot be
+enumerated, as an unenumerable dispatch word always withdraws them.
 
 ## Known residual gaps
 

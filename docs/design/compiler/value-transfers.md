@@ -89,7 +89,12 @@ These are the owner's decisions, and every section below fits inside them.
 7. **Unanimity decides a release-less fold.** Under a
    profile that names no release, a route folds only where its answer is
    proven identical under every release the profile can denote, and any
-   per-axis disagreement declines with `ReleaseAmbiguous(Axis)`.
+   per-axis disagreement declines with `ReleaseAmbiguous(Axis)`. The tree
+   holds the rule on the leading-zero axis (`NumberSyntax::unanimous`) and
+   the character model (`StringCharacterModel::count_for(None, …)`); the
+   numeral grammar, the operator set, subcommand availability, `\x` escape
+   length and 8.4's float spelling fold to one release's answer under the
+   release-less `tcl` profile (#2431).
 8. **A declared base release is the release.** A dialect that
    declares a base release evaluates under it — iRules on its 8.4-derived
    engine — and a vendor pack that diverges on an axis blocks the fold by

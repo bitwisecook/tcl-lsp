@@ -112,10 +112,12 @@ because they are shared state writable from other scopes, traces, and source
 files — folding through them is unsound across any opaque call (e.g.
 `set ::g 5; mut; $::g` must not fold to 5).
 
-`sccp` itself cannot decide an `[info exists X]` predicate — it is an opaque
-`ExprNode::Command`, and SCCP holds neither parameter nor existence facts —
-so `existence_constant_branches` runs as a post-pass with the frame's own
-facts and contributes extra `ConstantBranch` entries.
+`sccp` decides an `[info exists X]` predicate inside the fixed point: the
+existence rung (`ExistenceRun`) holds a bound / unbound fact per place, the
+condition reads it through the expression route's `nested` service like
+any other proven condition, and the decided branch is an ordinary
+`ConstantBranch` with applied reachability
+([value-transfers.md](value-transfers.md) § *Existence*).
 
 ## Semi-pruned SSA (φ-reduction)
 

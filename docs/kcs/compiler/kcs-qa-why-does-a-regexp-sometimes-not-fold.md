@@ -17,21 +17,23 @@ match?
 ## Answer
 
 Because the engine, not just the registry declaration, has to prove the
-answer — and a regular expression's matching cost is exponential in the
-pattern's structure on every Tcl release, including the one `tclsh`
-links against. `(a+)+b` against a subject with no trailing `b` is the
-textbook catastrophic-backtracking shape: a real `tclsh` can spend a very
-long time on it too.
+answer, and the engine that proves it is `tcl-regex`, which bounds its own
+work. `(a+)+b` against a subject with no trailing `b` is the textbook
+catastrophic-backtracking shape for a backtracking matcher. C Tcl's
+matcher is a lazy DFA, so a real `tclsh` answers it in microseconds on
+every release; `tcl-regex` is the one that can run out of budget on it,
+and when it does the search stops.
 
 The engine (`tcl-regex`) answers one of three ways, typed so a consumer
 can never confuse them: `Matched`, `NoMatch`, or `Stopped`. `Stopped`
 carries why — fuel exhausted, the dissector's depth cap reached, or the
 request cancelled — and it is never treated as a no-match. Answering `0`
-(no match) for an exhausted search would be unsound: `regexp`,
-`regsub`, `switch -regexp`, and `lsearch -regexp` all raise a real error
-when the engine gives up (`error while matching regular expression: …`),
-so folding a `Stopped` result to "no match" would make the optimised
-program produce a value where the original program raises. The
+(no match) for an exhausted search would be unsound: the search did not
+finish, so the program's answer may be a match, or the error `regexp`,
+`regsub`, `switch -regexp`, and `lsearch -regexp` raise when C Tcl's own
+engine gives up (`error while matching regular expression: …`), and
+folding a `Stopped` result to "no match" would make the optimised program
+produce a value the original program does not. The
 value-transfer route follows the engine's answer exactly:
 `RegexpSemantics` declines `Approximate` for a `Stopped` result, and the
 call's definition stays `Overdefined` with that reason recorded

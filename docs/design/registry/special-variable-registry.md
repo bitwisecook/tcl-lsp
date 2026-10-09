@@ -99,18 +99,20 @@ The crate exposes name + dialect queries; consumers never hold their own list:
   not imply an initial value.
 - `is_readable_at_startup(name, dialect)` — the lifecycle-aware W210 entry
   fact, applied only to the initial global SSA version by `tcl-compiler`.
-- `special_vars_for_dialect(dialect)` — also the abstention set for
-  `tcl-compiler`'s `[info exists X]` / `[array exists X]` fold
-  (`sccp::existence_constant_branches`). In the **initial global frame** that
-  body is the interpreter's global namespace, so a recognised special variable
-  the body never assigns is not provably absent: it may be startup-bound
-  (`argv`), materialised by a later runtime event (`errorInfo` after a `catch`,
-  `auto_index` after an auto-load), or read-traced (`tcl_precision` on Tcl
-  8.x). These names join the scope-alias / object-state abstentions rather than
-  folding, which keeps I230 quiet and stops the optimiser rewriting
-  `if {[info exists argv]} …` to `if {0} …`. Inside a procedure the same
-  spelling is an ordinary fresh local and still folds; an explicit `global`
-  alias there is already covered by the scope-alias skip.
+- `special_vars_for_dialect(dialect)` — the dialect's whole set. The
+  existence rung (`ExistenceRun` in `tcl-compiler`'s `sccp.rs`, inside the
+  fixed point that decides `[info exists X]` / `[array exists X]`) reads the
+  same registry through `special_var_in_dialect` and `is_initially_bound`.
+  In the **initial global frame** the body is the interpreter's global
+  namespace, so a recognised special variable the body never assigns is not
+  provably absent: it may be startup-bound (`argv`), materialised by a later
+  runtime event (`errorInfo` after a `catch`, `auto_index` after an
+  auto-load), or read-traced (`tcl_precision` on Tcl 8.x). It enters
+  `MayBound`, or `Bound` where the registry says it is initially bound,
+  rather than `Unbound`, which keeps I230 quiet and stops the optimiser
+  rewriting `if {[info exists argv]} …` to `if {0} …`. Inside a procedure
+  the same spelling is an ordinary fresh local and folds; an explicit
+  `global` alias there enters `MayBound` as every scope alias does.
 - `is_externally_read(name, dialect)` — dead-store (W220) and unused-variable
   (W211) suppression.
 - `special_var_write_effect(name, dialect)` — `classify_variable_assignment`

@@ -43,7 +43,7 @@ The fold reads a flow-sensitive fact: whether the variable is provably set,
 provably unset, or uncertain at the exact point the check runs, tracking
 every assignment and every `unset` on the way there — not merely whether the
 name is ever written anywhere in the procedure. A `set handle …` earlier in
-the body no longer blocks the fold by itself:
+the body does not block the fold by itself:
 
 ```tcl
 proc reset {} {
@@ -56,13 +56,13 @@ proc reset {} {
 }
 ```
 
-`handle` is written and then removed before the check, so it is still
-provably unset there and the re-use branch is still dead — even though the
-procedure does contain a `set handle`. What still stops the fold is an
-assignment that can actually **reach** the check on some path: a `set` that
-runs before it with nothing between them that undoes it, or a branch that
-sets the name on one path and not the other (`if {$c} {set handle 1}` leaves
-the check genuinely undecided, and no `I230` is reported).
+`handle` is written and then removed before the check, so it is provably
+unset there and the re-use branch is dead — even though the procedure
+contains a `set handle`. A `set` that runs before the check with nothing
+between them that undoes it makes the check certainly true, and `I230`
+reports it as always true. What stops the fold is an assignment that
+**reaches** the check on some paths and not others: `if {$c} {set handle
+1}` leaves the check genuinely undecided, and no `I230` is reported.
 
 The analyser folds the check to its constant value and reports **`I230`** on the
 condition. The optimiser can then drop the dead branch

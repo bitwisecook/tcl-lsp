@@ -271,7 +271,7 @@ Consumers and the direction each abstains in:
 
 | consumer | flag | abstention |
 |---|---|---|
-| `sccp::existence_constant_branches` → I230, O101 | `writes` (absent fold), `destroys` (present fold) | do not fold |
+| the existence rung (`ExistenceRun` in `sccp.rs`) → I230, O101 | `writes` (absent fold), `destroys` (present fold) | do not fold, from the statement on |
 | read-before-set → W210 | `writes` | stay silent |
 | dead store / unused → W211, W220 | `reads` | stay silent |
 | `optimiser::elimination` → O109, O126 | `reads` | do not eliminate |

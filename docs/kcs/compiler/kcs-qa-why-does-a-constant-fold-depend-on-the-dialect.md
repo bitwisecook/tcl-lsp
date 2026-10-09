@@ -69,11 +69,14 @@ source was decoded as UTF-8, which is the 9.x reader's answer, and an 8.x
 reader following `encoding system` may hold a different string — `string
 length` of one astral character read from a UTF-8 file is 1 under 9.0 and
 4 under 8.6 in a Latin-1 locale, so under 8.x neither command folds it.
+The tree keeps this rule on those two axes, the leading zero and the
+character model; the numeral grammar, the operator set, subcommand
+availability, the length of a `\x` escape and 8.4's float spelling fold to
+one release's answer under the `tcl` profile (#2431), so `tcl opt
+--dialect tcl` folds `expr {0o17 + 1_000}` to `1015`, which 8.x rejects.
 
 So the direct and the expression routes agree under iRules: with `set z
 010`, `incr z` and `expr {$z + 1}` both fold to 9, as tclsh 8.4 prints.
-Before the declared base reached the direct routes, `incr z` declined
-there while `expr` folded — imprecise, never wrong.
 
 The decline is a recorded reason, not silence. `tcl explore --show sccp`
 lists every statement's route and answer — `direct cell-increment

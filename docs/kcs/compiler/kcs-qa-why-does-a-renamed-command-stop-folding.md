@@ -35,6 +35,13 @@ under the whole module's trust, which also refuses while any command head
 in the module is dynamic, where the shared lattice keeps folding past a
 head it cannot name.
 
+One order is the exception (#2398): a call that runs before the file
+defines a same-named `proc` ran the builtin, yet O103 folds it through the
+later procedure's constant return. `proc p {} { set x [string range foobar
+0 2]; return $x }; puts [p]; proc string {args} { return SHADOW }; puts
+[p]` prints `foo` then `SHADOW` under every tclsh, and `SHADOW` twice after
+`tcl opt --profile full`.
+
 The fold comes back once the name means the builtin again — give the
 procedure a name of its own. Teaching the compiler that a particular
 `proc incr` is harmless is the one thing not to do: a binding fact is the

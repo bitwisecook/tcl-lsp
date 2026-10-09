@@ -363,7 +363,7 @@ override, and why the default is wrong for a compile-time model:
 | `list_elements` / `list_len` / `list_index` / `list_append` | `tcl_syntax::list::split_list`; `ValueError::BadList` is a decline carrying the canonical message |
 | `dict_pairs` / `new_dict` | the seam's own canonical ordering, first-occurrence position with the last value winning |
 | `dict_hash_bucket_count` | `None`, the string-model answer; `dict::info` therefore declines rather than inventing a bucket history |
-| `new_int` / `new_double` / `new_bool` / `new_list` / `new_str` | the canonical spellings, with every construction charged to the budget before it allocates |
+| `new_int` / `new_double` / `new_bool` / `new_list` / `new_str` | the canonical spellings, with every construction charged to the budget before it allocates; a double's spelling is not always Tcl's: `expr {1e15 + 0.3}` folds to `1000000000000000.3` where tclsh prints `1000000000000000.2` (#2432), and 8.4's 12-digit `tcl_precision` spelling is not modelled (#2395) |
 | `pin_value` / `unpin_value` | the owning-model defaults; there is no refcounted runtime object to hold |
 | `try_append_bytes_in_place` / `try_list_append_in_place` | `true` when the `Rc` is unshared, so a building loop stays amortised rather than quadratic |
 
@@ -688,7 +688,11 @@ release-gated in plain Tcl too: `expr {1 << 70}` is 0 on 8.4 and
 `syntax error in expression "2**70": unexpected operator *` on 8.4 and
 1180591620717411303424 from 8.5, so both the operator set and the tower
 belong to `INT_TOWER` and `NUMERAL_GRAMMAR` in the target-semantics
-matrix rather than to an invariant subset.
+matrix rather than to an invariant subset. The folder reads the tower —
+`expr {1 << 70}` declines under `tcl8.4` — and not the operator set:
+`expr_grammar_min_version` is read by W003 and never by the folder, so
+`**`, `in` / `ni` and `lt` … `ge` fold under `tcl8.4`, where W003 reports
+each and tclsh 8.4 raises a syntax error (#2400).
 
 Partial simplification and algebraic regrouping are separate operations
 with their own proofs, specified in the interface contract; they extend
@@ -1642,11 +1646,16 @@ profile declares an answer of its own that its release does not give — the
 F5 dialects' `character_model`, which no TMOS measurement settles yet —
 answers by unanimity instead, so the declaration blocks the base's answer.
 A profile declaring no release (`tk`, the version-less `tcl` profile,
-`f5-bigip`) answers every axis by unanimity. `TclVersion::from_profile` in
-`rust/tcl-dialect/src/version.rs` still answers only for the five plain
-Tcl profile names; routing a vendor profile's point through the evidence
-gate per measured row is `EvaluationEvidence` on the profile, and it
-feeds the same field. `HookCall` carries `dialect` (the profile name,
+`f5-bigip`) answers every axis by unanimity. The tree holds that rule on
+the leading-zero axis (`NumberSyntax::unanimous`) and the character model
+(`StringCharacterModel::count_for(None, …)`); the numeral grammar, the
+operator set, subcommand availability, `\x` escape length and 8.4's float
+spelling fold to one release's answer under the release-less `tcl` profile
+(#2431). `TclVersion::from_profile` in `rust/tcl-dialect/src/version.rs`
+answers the profile's evaluation point (`DialectProfile::evaluation_point`),
+which the profile's `EvaluationEvidence` gates per measured row: a plain
+Tcl profile's own release, 8.4 for iRules, iApps and tmsh, and none for a
+profile nothing measured. `HookCall` carries `dialect` (the profile name,
 deliberately not derived from `version`) and `version` (the `TclVersion`,
 `None` when the profile names no release).
 
