@@ -771,11 +771,9 @@ struct ResolvedClause {
 
 **How `clause_shape_check` and `case_list` relate to it.**
 `clause_shape_check` is the *escape hatch*, not the mechanism: the walk
-derives `ClauseShapeError` from the grammar (`ClauseGrammarSpec::walk`, the
-loader's former `ClauseGrammar::walk` moved into the registry), so `if_.rs`'s
-`if_arg_roles` and `check_if_shape` have retired and
-`CommandSpec::clause_shape_check` stays only for a chain no grammar can
-spell. `Traits::STRUCTURALLY_CHECKED_ARITY` is the opt-in that makes the
+derives `ClauseShapeError` from the grammar (`ClauseGrammarSpec::walk` in
+the registry), and `CommandSpec::clause_shape_check` is only for a chain no
+grammar can spell. `Traits::STRUCTURALLY_CHECKED_ARITY` is the opt-in that makes the
 walk's defect a command's arity diagnostic (`if`'s E004, read through
 `CommandRegistry::clause_shape_defect`); `try` and the loops keep an
 ordinary arity range beside their grammars.
@@ -788,51 +786,33 @@ and `ClauseSelection::FirstMatch` mean the same thing in both, and
 `CaseMatchMode` has no clause-grammar counterpart because a clause is
 selected by a condition or a handler pattern, never by a match mode.
 
-**Consumers.** `lower_if` and `lower_try` in
+**Consumers.** The compiler reads the plan. `lower_if` and `lower_try` in
 `rust/tcl-compiler/src/lowering/structured.rs` build `Statement::If`'s
 `clauses` / `else_body` and `Statement::Try`'s `handlers` / `finally_body`
-from the plan; `TryHandler::kind` stops being a `String` re-matched in
-`rust/tcl-compiler/src/executable_ir.rs` and becomes the row's
+through `ResolvedInvocation::clause_walk`, whose walk compares the words'
+*values* (so the fall-through marker is exact) and, where a computed word
+stands where it compares one, abstains with the inert reading under which
+the lowering defers the construct; `TryHandler::kind` is the row's
 `HandlerMatch`, which the interface contract's `HandlerPlan` carries per
-handler; `handle_try_command` in `analyser/handlers.rs` walks the
-plan's clauses and reads each one's `timing` instead of asking
-`Traits::BRANCH_SELECTED_BODY` and then matching `finally`;
-`orphaned_keyword_parent` in `analyser/commands.rs` becomes a lookup of
-the keyword in the grammars that declare it; `cfg_builder/cfg_lower.rs`
-reads `is_default` and `timing` rather than `handler.kind == "on" &&
-handler.match_arg == "ok"`; `signature_scan/walker.rs`, the editor
-refactors (`refactor/if_to_switch.rs`, `refactor/datagroup.rs`), and
-`tcl-mcp`'s `datagroup.rs` ask the plan. Recovery, the formatter, and the
-semantic-token classifier read the slot's `noise` word for the `then`
-distinction they draw by hand.
-
-*As built.* The compiler consumers read
-the plan: `lower_if` and `lower_try` through
-`ResolvedInvocation::clause_walk`, whose walk compares the words' *values*
-(so the fall-through marker is exact) and, where a computed word stands
-where it compares one, abstains with the inert reading the lowering needs
-to defer the construct as the retired keyword walk did; `TryHandler::kind`
-is the row's `HandlerMatch`; `cfg_lower.rs`'s `on ok` edge reads
+handler; `cfg_builder/cfg_lower.rs`'s `on ok` edge reads
 `HandlerMatch::CompletionCode` and the registry's completion-code parse
 (`try` declares no default clause, so `is_default` never applies); the
 generic body walk sets each body's depth from its clause's timing and binds
-every variable-list operand a clause fills — `for`'s handler retired onto it
-first, and `handle_try_command` after it, so a `try` handler body is
+every variable-list operand a clause fills, so a `try` handler body is
 `Selected`, conditional and control flow alike; the stray-keyword report
 asks `clause_grammar::owner_of_keyword`; `signature_scan/walker.rs` reads
 each clause's script word; and the registry's own `try_control_invocation`
 parses the plan rather than the keywords. A marker falls through to the next
 *selected* clause only — never to `finally` — and `ClausePlan::falls_through`
 names a marker with no clause to fall to. The editor tiers read it too:
-`if_to_switch.rs` takes `lower_if`'s shape, `refactor/datagroup.rs` and
-`tcl-mcp`'s `datagroup.rs` read the plan and `CaseListSpec`, and recovery,
-the minifier and the semantic-token classifier read the option effects,
-subcommand tables and member kinds where they matched spellings.
+`refactor/if_to_switch.rs` takes `lower_if`'s shape, `refactor/datagroup.rs`
+and `tcl-mcp`'s `datagroup.rs` read the plan and `CaseListSpec`, and
+recovery, the minifier and the semantic-token classifier read the option
+effects, subcommand tables and member kinds rather than spellings.
 
-**The `.tclspec` row shape** extends the block the loader already reads
-([../spec-dsl-examples/if.tclspec](../spec-dsl-examples/if.tclspec) is
-the port that designed it), adding the row flags and the two chain-level
-rules:
+**The `.tclspec` row shape** is the `clause_grammar` block
+([../spec-dsl-examples/if.tclspec](../spec-dsl-examples/if.tclspec) ports
+`if` to it): the rows with their flags, and the two chain-level rules:
 
 ```tcl
 clause_grammar {
@@ -848,9 +828,8 @@ clause_grammar {
 ```
 
 **The studio field.** `clause_grammar` has no `GAPS` row: as a
-`CommandSpec` field, `ClauseGrammarSpec` is plain data all the way down —
-the property that let `object_class` leave that bucket — so the four
-surfaces move together: the field on the type with its
+`CommandSpec` field, `ClauseGrammarSpec` is plain data all the way down, as
+`object_class` is, so four surfaces carry it: the field on the type with its
 `rust/tcl-spec-studio/src/coverage.rs` witnesses (the grammar, a row, a
 slot, the default clause), the loader spelling above recorded in the
 frozen-syntax memo's coverage matrix, the renderer emitting it, and
@@ -859,44 +838,44 @@ frozen-syntax memo's coverage matrix, the renderer emitting it, and
 form shows its rows read-only).
 
 **Tests.** `rust/tcl-spec-studio/tests/spectcl_ports.rs`'s
-`the_clause_grammar_derivation_agrees_with_the_shipped_walk` widens from
-`if` to every grammar-carrying command, walking the derived grammar
-against each shipped walk's own test matrix, including the two subtle `if`
-rows (`if else {a}` is valid; a bare trailing body needs no `else` but
-nothing may follow it) and the `try` fall-through marker;
+`the_clause_grammar_derivation_agrees_with_the_shipped_walk` holds the `if`
+and `foreach` ports' grammars to the shipped ones and walks each call corpus
+through both, including the two subtle `if` rows (`if else {a}` is valid; a
+bare trailing body needs no `else` but nothing may follow it); every other
+grammar-carrying command — `try` with its fall-through marker, `catch`, the
+loops, and `dict` and `array`'s iterating subcommands — is rendered to
+`SpecTcl`, loaded back, and walked against the shipped grammar.
 `derivations_are_recorded_as_derivations` in the same file keeps the rule
 that a derivation is an explicit opt-in and never an implicit consequence
 of declaring the data it reads;
 `rust/tcl-compiler/tests/cfg.rs` and `analyser.rs` keep their `if` / `try`
-/ loop cases as the behavioural parity gate;
-`rust/tcl-registry/tests/registry_sweep.rs` gains the rule that a
-`Group` row's `layout` indexes a real `repeated_args` entry and that a
-`conditional_binding` var-list slot never carries `ArgRole::VarWrite` —
-the rule the existing
+/ loop cases as the behavioural parity gate; and
+`rust/tcl-registry/tests/registry_sweep.rs` holds a `Group` row's `layout`
+to a real `repeated_args` entry
+(`clause_grammar_group_rows_cite_a_real_layout`) and a
+`conditional_binding` var-list slot away from `ArgRole::VarWrite`
+(`conditional_binding_clause_slots_never_carry_var_write`), the rule
 `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`
-already states for layouts.
+states for layouts.
 
 ### The member-effect descriptor
 
-`MemberEffect` goes on `MemberSpec` beside `kind`. `MemberKind` stays the
+`MemberEffect` is on `MemberSpec` beside `kind`. `MemberKind` stays the
 *layout* fact — `Flat`, `Wrapper`, `FlagKeyed` — and `MemberEffect` is
 what the member declares. The vocabulary is closed and family-neutral: no
 variant names TclOO, snit, or itcl, and `DefinerFamily` stays the only
-place a family is named. It is built in
-`rust/tcl-registry/src/definer.rs` with three adaptations: what a wrapper
-does to the member it wraps is `MemberSpec::wrapper_shift` (a
-`WrapperShift` of an optional receiver and an optional
+place a family is named. It lives in `rust/tcl-registry/src/definer.rs`.
+What a wrapper does to the member it wraps is `MemberSpec::wrapper_shift`
+(a `WrapperShift` of an optional receiver and an optional
 `DeclaredMemberVisibility` — `self` moves the member to the type object,
 `private` and itcl's modifiers declare its visibility), since a wrapper's
 effect is `Configuration` and `MemberKind::Wrapper` alone does not say which
-shift it applies; `member_rows` is `DefinitionBodyGrammar::member_row`,
-answering one member statement at a time, since the analyser already
-segments the body; and a wrapper's bare block form answers an
+shift it applies; a wrapper's bare block form answers an
 `InitScript { body_slot: 0, timing: AtDefinition }` row whose receiver and
 visibility are the ones the block's own members take.
 
 ```rust,ignore
-/// Proposed. What one member word of a definition body declares.
+/// What one member word of a definition body declares.
 enum MemberEffect {
     /// A callable member: `method`, `classmethod`, `typemethod`,
     /// `constructor`, `destructor`, snit's `onconfigure` / `oncget`,
@@ -937,10 +916,10 @@ enum MemberEffect {
     /// construction time: snit's `typeconstructor`, a wrapper's bare
     /// block form (`MemberSpec::wrapper_block_body`).
     InitScript { body_slot: u8, timing: InitTiming },
-    /// Configures the definition and declares nothing:
-    /// `definitionnamespace`, `reserved_trailing_words`-style keyword-only
-    /// rows, `property`'s flag-keyed accessors once their bodies are
-    /// `Callable` rows of their own.
+    /// Configures the definition and declares nothing: a wrapper
+    /// (`self`, `private`, itcl's access modifiers), `definitionnamespace`,
+    /// `property`, whose flag-keyed accessors the walker extracts itself,
+    /// and every row of a declaration document (`.tclspec`, `SslicTcl`).
     Configuration,
 }
 
@@ -962,29 +941,36 @@ enum RelationSlot { Superclass, Mixin, Filter }
 enum InitTiming { AtDefinition, AtConstruction }
 ```
 
-**What the analyser derives**, and nothing more:
+**What the analyser derives**, and nothing more, one member statement at a
+time, since the analyser segments the body:
 
 ```rust,ignore
-fn member_rows(&self, inv: &ResolvedInvocation) -> Option<Vec<MemberRow>>;
+impl DefinitionBodyGrammar {
+    fn member_row(
+        &self,
+        keyword_index: usize,
+        words: InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<MemberRow>;
+}
 
 struct MemberRow {
-    /// Index of the member keyword in the definition body's statement.
+    /// Index of the member keyword in the statement's words.
     keyword_index: usize,
     effect: MemberEffect,
     /// Side after every wrapper shift is applied.
     receiver: MemberReceiver,
     /// The declared name when the effect names one and the word is
-    /// literal. A dynamic word abstains, and the abstention is what
-    /// `OoDefinitionEvidence::dynamic_target` already records.
+    /// literal. A computed word abstains.
     name: Option<String>,
     /// Derived from the parameter-list slot, when the effect has one.
     arity: Option<MemberArity>,
     /// The family's name-based default, overridden by the member's own
-    /// option word (`DeclaredMemberVisibility`, unchanged).
+    /// option word or its wrapper (`DeclaredMemberVisibility`).
     visibility: DeclaredMemberVisibility,
     /// The body operand, for the generic body-analysis operation.
     body: Option<OperandId>,
-    /// The slot operation for a `Relation` row (`SlotOp`, unchanged).
+    /// The slot operation for a `Relation` row (`SlotOp`).
     slot_op: Option<SlotOp>,
     /// Releases this row is available at (`MemberSpec::surface`).
     surface: Option<&'static [SpecSurface]>,
@@ -993,24 +979,24 @@ struct MemberRow {
 struct MemberArity { required: usize, optional: usize, variadic: bool }
 ```
 
-Three derivations follow generically, one per consumer that hand-rolls it
-today:
+Three derivations are read off the rows:
 
-- **Class hierarchy.** Every `Relation { slot: Superclass }` row, folded
-  through `SlotSpec::apply` so `-append` and friends compose, gives the
+- **Class hierarchy.** The walker folds every `Relation { slot: Superclass }`
+  row through `SlotSpec::apply`, so `-append` and friends compose, into the
   ancestry graph; `Mixin` and `Filter` give the interposition order. A
   dynamic class word abstains and sets
   `OoDefinitionEvidence::dynamic_class_relations`.
-- **Method arity.** `MemberArity` from the `params_slot`, so the callback
-  and wrong-number-of-arguments checks reach a definer member without a
-  second parameter-list parser.
-- **`my` dispatch.** A row is reachable through `my` when its `receiver`
-  and `visibility` say so; `DeclaredMemberVisibility::Private` and
-  `Unexported` are already the distinction, and
-  `DefinitionBodyGrammar::builtin_object_methods` already carries a
-  `BuiltinMethodReceiver` per builtin. The rule that `my variable v` works
-  where `$obj variable v` does not becomes a comparison of the row's
-  receiver against the dispatch spelling, not a name list.
+- **Method arity.** `MemberRow::arity` is derived from the `params_slot`
+  (`MemberArity::parse`, counted the way Tcl binds arguments). No diagnostic
+  reads it: the callback and wrong-number-of-arguments checks do not reach a
+  definer member through the row.
+- **`my` dispatch.** Whether a method is visible at a call site is its
+  visibility against the dispatch's `MethodReach` — `SelfDispatch` for `my`,
+  `ObjectCommand` for `$obj` and `[self]`.
+  `DeclaredMemberVisibility::Private` and `Unexported` are the distinction,
+  and `DefinitionBodyGrammar::builtin_object_methods` carries a
+  `BuiltinMethodReceiver` per builtin, so `my varname v` reaches the
+  unexported builtin where `$obj varname v` does not.
 
 `Procedure`: snit's `proc` defines a procedure in the
 type's namespace that sees the type's state and is reached by name, never
@@ -1018,30 +1004,26 @@ dispatched (snit 2.3.4 on tclsh 8.6.18 and 9.0.4: `::app::Dog::helper 10`
 runs it, `::app::Dog helper 1` is a construction), which no other role
 says.
 
-**The sites this retires.** `apply_oo_subcommand_in` in
-`rust/tcl-compiler/src/analyser/oo.rs` had eleven keyword arms —
-`superclass`, `mixin`, `method`, `classmethod`, `constructor`,
-`destructor`, `variable`, `property`, `forward`, `private`, `self` — and
-each becomes one `match` on `MemberEffect`: the two slot arms fold through
-the row's `slot_op`, the four callable arms become one `Callable` arm
-keyed on `CallableRole` and `MemberReceiver`, `variable` becomes
-`StateDeclaration`, `forward` becomes `Forward`, `property` becomes its
-flag-keyed `Callable` rows, and `private` / `self` disappear because a
-wrapper's shift is already `MemberKind::Wrapper` and its side is the
-row's resolved `receiver`. `MethodKind::from_str_lossy` in
-`rust/tcl-compiler/src/ir.rs` retires with its call site in
-`rust/tcl-compiler/src/lowering/mod.rs`: `MethodKind` stays as the IR's
-*shape* fact and is constructed from `CallableRole` and `MemberReceiver`
-(`MethodKind::from_effect`), the same two-facts-one-operation relationship
-`LoweringHookId::Incr` has to `NativeLowering::CellReadModifyWrite`. The
-`constructor` / `destructor` literals the ledger counts across the
-`tcl-lsp-core` providers read the recorded member instead. The one match
-is `member_landing`, shared by the snit and itcl
-walkers, and `property` stays its flag-keyed extraction until its 9.0
-accessors are `Callable` rows of their own.
+**The walker.** `apply_oo_subcommand_in` in
+`rust/tcl-compiler/src/analyser/oo.rs` is one `match` on the row's landing
+(`member_landing`, shared by the snit and itcl walkers): a `Relation` row
+folds through its `slot_op`, a `Callable` row lands in the table
+`MethodKind::from_effect` names from its `CallableRole` and
+`MemberReceiver`, `StateDeclaration`, `Forward`, `Retraction` and
+`Visibility` rows have an arm each, and a wrapper (`private`, `self`) has
+none because its shift is the row's resolved `receiver` and visibility.
+`MethodKind` is the IR's *shape* fact, constructed from `CallableRole` and
+`MemberReceiver` (`MethodKind::from_effect` in `rust/tcl-compiler/src/ir.rs`,
+which `rust/tcl-compiler/src/lowering/mod.rs` calls too), the same
+two-facts-one-operation relationship `LoweringHookId::Incr` has to
+`NativeLowering::CellReadModifyWrite`. The `tcl-lsp-core` providers read the
+recorded member rather than `constructor` / `destructor` literals.
+`property` is a flag-keyed `Configuration` row: its `-get` / `-set`
+accessors are extracted by hand (`extract_property_defs`,
+`collect_property_accessor_bodies`), not read as `Callable` rows of their
+own.
 
-**The `.tclspec` row shape** is one flag on the `member` row the loader
-already reads, so the snit port gains nothing but the word:
+**The `.tclspec` row shape** is the `-effect` flag on a `member` row:
 
 ```tcl
 definition_body {
@@ -1064,87 +1046,75 @@ definition_body {
 }
 ```
 
-**The studio field.** `definition_body` was a `DraftOpaque` `GAPS` entry
-because the shipped grammars are named `&'static` descriptors a draft
-cannot recover — the same reason `case_list` and `body_scope` are there —
-and `-effect` rode the change that moved it out: the variant on
-`MemberSpec` with its `coverage.rs` witness, the `-effect` flag in the
-loader and the memo's coverage matrix, the renderer emitting it, and the
-studio's member-row view. The `GAPS` row went the way `object_class`'s
-did, because a `member` row with an `-effect` is plain data and a draft
-carries the whole thing: seeding writes the shipped grammar's name when the
-grammar's data is one of them, and the whole grammar otherwise — every
-`SpecTcl` and `SslicTcl` document grammar, which the round trip now
-carries row by row. The loader grew the rows the inline form needed:
-`member_option` (so `method ?-export?` and `command ?-override?` are
-data), `-shift`, and the `SpecTcl` and `SslicTcl` families.
+**The studio field.** `definition_body` has no `GAPS` row: a `member` row
+with an `-effect` is plain data, so a draft carries the whole grammar. The
+variant is on `MemberSpec` with its `coverage.rs` witness, the `-effect`
+flag is in the loader and the memo's coverage matrix, the renderer emits
+it, and the studio's member-row view shows it. Seeding writes the shipped
+grammar's name when the grammar's data is one of them, and the whole
+grammar otherwise — every `SpecTcl` and `SslicTcl` document grammar, which
+the round trip carries row by row. The loader reads the rows the inline
+form needs: `member_option` (so `method ?-export?` and `command
+?-override?` are data), `-shift`, and the `SpecTcl` and `SslicTcl`
+families.
 
-**Tests.** `rust/tcl-registry/tests/registry_sweep.rs` gains the
-agreement rules: every `MemberSpec` carries an `effect`; a `Callable`
-row's `name_slot`, `params_slot`, and `body_slot` index positions its
-`arg_roles` types as `Name`, `ParamList`, and `Body`; a `Relation` row
-carries a `slot`; a `Retraction` row carries a `retraction`; a
-`Visibility` row carries a `visibility_effect`. As built, the sweep
-(`every_member_carries_an_effect_that_agrees_with_its_roles`) holds the
-callable's slots to exactly the *first* such positions — the reading the
-loader applies to an unwritten slot — reads a `Forward` row's prefix slot
-as the target's `CommandName` (the words after it are prepended
-arguments, not one list), and accepts itcl's `inherit`, which takes no
-slot operation words, as a relation over a plain list of class
-references; `no_member_effect_names_a_family` is the negative.
+**Tests.** `rust/tcl-registry/tests/registry_sweep.rs`'s
+`every_member_carries_an_effect_that_agrees_with_its_roles` holds the
+agreement rules: every `MemberSpec` carries an `effect`; a `Callable` row's
+`name_slot`, `params_slot`, and `body_slot` are exactly the *first*
+positions its `arg_roles` types as `Name`, `ParamList`, and `Body` — the
+reading the loader applies to an unwritten slot; a `Forward` row's prefix
+slot is the target's `CommandName` (the words after it are prepended
+arguments, not one list); a `Relation` row carries a `slot`, and itcl's
+`inherit`, which takes no slot operation words, is a relation over a plain
+list of class references; a `Retraction` row carries a `retraction`; and a
+`Visibility` row carries a `visibility_effect`.
+`no_member_effect_names_a_family` is the negative.
 `rust/tcl-registry/tests/analyser_hooks.rs`'s
-`analyser_hook_stamps_are_disjoint_from_definer_families` is the existing
-separation gate and is re-baselined as the OO hook variants retire.
-`rust/tcl-compiler/tests/mro_lattice_adversarial.rs` is the hierarchy
-gate; `rust/tcl-compiler/tests/analyser.rs` and
-`rust/tcl-lsp-server/tests/preview_tickets_e2e.rs` — whose own comment
-records that a new definer spelling needs an `apply_oo_subcommand` arm —
-become the proof that it needs none: a new member spelling in a
-`.tclspec` pack reaches the analyser, the navigation providers, and the
-lowering with no consumer edit.
+`analyser_hook_stamps_are_disjoint_from_definer_families` keeps hook stamps
+and definer families apart. `rust/tcl-compiler/tests/mro_lattice_adversarial.rs`
+is the hierarchy gate, and `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs`
+holds that a member spelling only a workspace pack declares reaches
+document symbols, hover and go-to-definition through its row's effect, with
+no consumer edit, and that the same row with `-effect configuration`
+declares nothing.
 
 ### The derived-query layer
 
-One query per axis over the resolved invocation the interface contract
-already extends, and every consumer — analyser, lowering, codegen,
-recovery, signature scan, formatter, editor refactors, MCP tools — asks
-these and never a name. The answers are the types the registry already
-returns where it has one, so the layer is a re-keying rather than a second
-set of facts:
+One query per axis over the resolved invocation, and every consumer —
+analyser, lowering, codegen, recovery, signature scan, formatter, editor
+refactors, MCP tools — asks these and never a name. The answers are the
+types the registry returns where it has one, so the layer is a re-keying
+rather than a second set of facts:
 
 ```rust,ignore
-/// Rust-shaped pseudocode: the axis queries, not compilable signatures.
-trait RegistryQueries {
-    /// The one resolution every other query projects from —
-    /// `ResolvedInvocation`, in `tcl-registry`'s
-    /// `resolved_invocation.rs`.
-    fn invocation(&self, words: &CallWords, ctx: &AnalysisContext)
-        -> ResolvedInvocation;
-
-    /// § The clause-grammar descriptor.
-    fn clause_plan(&self, inv: &ResolvedInvocation) -> Option<ClausePlan>;
-    /// § The member-effect descriptor.
-    fn member_rows(&self, inv: &ResolvedInvocation) -> Option<Vec<MemberRow>>;
-    /// § Options with semantic effects.
-    fn option_effects(&self, inv: &ResolvedInvocation) -> OptionEffects;
-    /// The template-word plan that replaces `substitution_resolver`.
-    fn template_plan(&self, inv: &ResolvedInvocation)
-        -> Option<TemplateWordPlan>;
-
-    /// Existing answer types, re-keyed off the resolution:
-    fn case_invocation(&self, inv: &ResolvedInvocation)
-        -> Option<(CaseInvocation, Vec<InlineCaseClause>)>;
-    fn frame_effect(&self, inv: &ResolvedInvocation)
-        -> Option<(FrameLevel, Vec<OperandId>)>;
-    fn state_transitions(&self, inv: &ResolvedInvocation) -> StateTransitions;
-    fn arg_roles(&self, inv: &ResolvedInvocation) -> Vec<(usize, ArgRole)>;
-    fn pattern_args(&self, inv: &ResolvedInvocation) -> Vec<PatternArg>;
-    fn return_type(&self, inv: &ResolvedInvocation) -> Option<TclType>;
-    fn effects(&self, inv: &ResolvedInvocation) -> ResolvedEffects;
-
-    /// The value axis is [value-transfers.md](value-transfers.md)'s
-    /// `structure` / `transfer` / `evaluate` over the same resolution.
+/// The axis queries, signatures abridged.
+impl CommandRegistry {
+    /// The one resolution every other query projects from.
+    fn invocation(&self, words: InvocationWords<'_>, ctx: &AnalysisContext)
+        -> StructuredInvocationResolution<'_, '_>;
 }
+
+impl ResolvedInvocation<'_, '_> {
+    /// § The clause-grammar descriptor.
+    fn clause_plan(&self) -> Option<ClausePlan>;
+    /// § Options with semantic effects.
+    fn option_effects(&self) -> OptionEffects;
+
+    /// The registry's answer types, keyed off the resolution:
+    fn case_invocation(&self) -> Option<(CaseInvocation, Vec<InlineCaseClause>)>;
+    fn frame_effect(&self) -> Option<(FrameLevel, Vec<OperandId>)>;
+    fn state_transitions(&self) -> StateTransitions;
+    fn arg_roles(&self) -> Option<Vec<(usize, ArgRole)>>;
+    fn pattern_args(&self) -> Vec<PatternArg>;
+    fn return_type(&self) -> Option<TclType>;
+    fn effects(&self) -> EffectFootprint;
+    fn facts(&self) -> InvocationFacts;
+}
+
+// § The member-effect descriptor: `DefinitionBodyGrammar::member_row`.
+// The value axis is value-transfers.md's `structure` / `transfer` /
+// `evaluate` over the same resolution, with its template-word plan.
 ```
 
 Three rules hold across every axis. An answer is a value, not a callback
@@ -1162,16 +1132,15 @@ resolution carries that query (`ResolvedInvocation::dialect`) and the
 descriptors it selected, so every query answers under one release:
 `clause_plan`, `option_effects` and its `substitutions_performed`
 projection, `arg_roles`, `pattern_args`, `case_invocation`,
-`frame_effect`, `return_type`, and `effects` (the former
-`effect_footprint`), beside the `state_transitions` and `facts` it
-answered already. `arg_roles` answers `Option<Vec<(usize, ArgRole)>>` —
+`frame_effect`, `return_type`, and `effects`, beside `state_transitions`
+and `facts`. `arg_roles` answers `Option<Vec<(usize, ArgRole)>>` —
 `None` is the abstention an expansion, a computed subcommand word, or a
 computed word where a resolver reads an option carries — and
 `case_invocation` abstains when its reading depends on whether a computed
-word begins with `-`. `member_rows` is `DefinitionBodyGrammar::member_row`,
-one member statement at a time, since the analyser already segments a
-definition body; `template_plan` is the value axis's ([value-transfers.md](value-transfers.md)
-§ *The template-word plan*). The re-keyed
+word begins with `-`. The member axis is `DefinitionBodyGrammar::member_row`,
+one member statement at a time, since the analyser segments a definition
+body; the template-word plan is the value axis's
+([value-transfers.md](value-transfers.md) § *The template-word plan*). The re-keyed
 by-name functions (`arg_indices_for_role_words`, `pattern_args_words`,
 `command_prefixes`, `CommandSpec::return_type_for_call`) share each
 query's rule rather than restating it, and
@@ -1183,20 +1152,14 @@ is not the one a release-blind lookup finds.
 
 ### The per-axis lint and ledger
 
-Each axis gets a lint whose scope is every tier, not the compiler alone.
+Each axis has a lint whose scope is every tier, not the compiler alone.
 The lint is a source-level rule with a narrow shape: a crate outside
 `tcl-registry` may not compare a word against a command name, subcommand
 name, member keyword, clause keyword, or option spelling that the registry
-declares. Each site either moves onto the axis query or carries a ledger
-entry with its axis, its reason, and its expiry — the same ledger and the
-same sanctioned-irreducible test the migration plan applies to the value
-axis. The inventory is the starting baseline: the hand-written-knowledge
-table in [value-transfers-migration.md](value-transfers-migration.md)
-§ *Hand-written command knowledge across the tiers* counts 89 other-axis
-rows in the editor and tooling crates, about thirty on the clause axis and
-about thirty-two on the member axis, and names four clean tiers
-(`tcl-lsp-db`, `tcl-lsp-server`'s `lib.rs`, `tcl-explorer`, `tcl-lexer`)
-as the reference the rest matches.
+declares. Each site either asks the axis query or carries a ledger entry
+with its axis, its reason, and its expiry — the same ledger and the same
+sanctioned-irreducible test the value-transfer gate applies to the value
+axis.
 
 The lint is `cargo xtask registry-axes` (`rust/xtask/src/registry_axes.rs`,
 the `xtask-registry-axes` gate in `make xtask-check`), a sibling of the
@@ -1220,22 +1183,26 @@ waived for both gates names one axis — and only `irreducible` may expire
 every waiver by axis with its expiry, and the ratchet table. `--check`
 fails on a count above its pin, a stale pin, an unknown axis or a missing
 expiry, so a new hand-written row fails the gate rather than being noticed
-in review.
+in review. On this tree every waiver is `irreducible`; the files the gate
+holds clean include the clause-axis consumers (`cfg_builder/cfg_lower.rs`,
+`executable_ir.rs`, `signature_scan/walker.rs`, the two editor refactors and
+`tcl-mcp`'s `datagroup.rs`), and every other file with an unwaived site is
+pinned in the ledger's ratchet table.
 
 ### The two hook bodies that remain
 
-Every other native resolver becomes a descriptor. Two hook bodies stay,
+Every other native resolver is a descriptor. Two hook bodies stay,
 and both are facts-only — they return typed facts and never touch the
 analyser:
 
 - **An argument-role resolver** for a word grammar `ClauseGrammarSpec`
   cannot spell. Its contract: it receives the call's post-name words and
-  the profile-filtered option descriptors, exactly as
-  `PatternArgResolverContext` supplies them today; it returns
+  the profile-filtered option descriptors, as
+  `PatternArgResolverContext` supplies them; it returns
   `Vec<(u8, ArgRole)>` and nothing else; it is pure over its declared
   inputs; a shape it cannot read returns the empty vector, which means
-  "fall back to the `arg` rows" and never "no roles". The existing
-  `arg_role_resolver_roles` declaration stays the closed set of roles it
+  "fall back to the `arg` rows" and never "no roles". The
+  `arg_role_resolver_roles` declaration is the closed set of roles it
   may emit, so a consumer knows the possible answers without running it,
   and `rust/tcl-spectcl/src/loader.rs`'s
   `native_hook_tables_cover_their_catalogues` keeps the native table
@@ -1250,54 +1217,45 @@ analyser:
   and the abstention widens through `StateTransitionWidening` rather than
   producing a narrower fact.
 
-  That reversed `state_transitions_value` in
-  `rust/tcl-spectcl/src/loader.rs`, which read the `composition` row,
-  dropped `argument_shape`, `resolver`, `widen`, `covers`, and `commit`
-  with a notice, and recorded in its own comment that "the resolver in
-  particular is reference-only by design". So it is a **ruling**, narrower
-  than the four in § *Rulings* and decided with them: the loader reads
-  every row, and a `resolver {words ctx} { … }` body is
-  `HookFamily::StateTransitionResolver`, whose two verbs — `alias LOCAL
-  TARGET ?-level LEVEL?` and `namespace-variable NAME` — name words by
+  This is a **ruling**, narrower than the four in § *Rulings*: the loader
+  reads every row of the block (`state_transitions_value` in
+  `rust/tcl-spectcl/src/loader.rs`), and a `resolver {words ctx} { … }`
+  body is `HookFamily::StateTransitionResolver`, whose two verbs — `alias
+  LOCAL TARGET ?-level LEVEL?` and `namespace-variable NAME` — name words by
   index; the thunk reads each against the call's own words, so a computed
   word's fact widens `VariableCells` and `VariableTraces` instead, and the
   family has no verb for any other fact. A namespace variable a call
   declares is the alias `variable` states to the current namespace's cell,
-  so no verb builds a `NamespaceTransition` yet; `from-frame-effect`
-  derives the alias pairs a command's `frame_effect` lays out, with the
-  same abstentions. *The reason*: the
-  alias family is the one whose answer is a pure function of literal
-  words, its consumer — the generic scope-alias application — is already
-  generic, and refusing it leaves a vendor `upvar`-alike unauthorable
-  while `frame_effect`, the same fact in descriptor form, is authorable
-  already. *Consequences*:
+  so no verb builds a `NamespaceTransition`; `from-frame-effect` derives
+  the alias pairs a command's `frame_effect` lays out, with the same
+  abstentions. *The reason*: the alias family is the one whose answer is a
+  pure function of literal words, its consumer — the generic scope-alias
+  application — is generic, and refusing it would leave a vendor
+  `upvar`-alike unauthorable while `frame_effect`, the same fact in
+  descriptor form, is authorable. *What follows*:
   [../registry/spec-packs.md](../registry/spec-packs.md) § *What a pack
-  still cannot say* moves the `state_transitions` resolver from documented
-  vocabulary the loader does not read to readable for the alias and
-  namespace families; the loader's drop list loses `resolver` and the four
-  plain rows beside it, which is what lets the `state_transitions` `GAPS`
-  row become the resolver alone; and `rust/tcl-registry/src/pack_hooks.rs`
-  gains the family with its slot table, under
-  `native_hook_tables_cover_their_catalogues`. The pack document states it.
+  still cannot say* does not list the `state_transitions` resolver for the
+  alias and namespace families; `rust/tcl-registry/src/pack_hooks.rs` holds
+  the family with its slot table, under
+  `native_hook_tables_cover_their_catalogues`; and the block stays one
+  `GAPS` row in the studio, because a draft holds no hook body for any
+  family and the pack store carries the statement forward verbatim.
 
 ### The studio round-trip for `semantic_operation`
 
-`semantic_operation` was a `DraftOpaque` entry in
-`rust/tcl-spec-studio/src/render_spectcl.rs`'s `GAPS`, so a draft recorded
-only that the field was set and the renderer could not write it back. The
-gap was one-sided: the loader reads the word in full
-(`parse_semantic_operation` in `rust/tcl-spectcl/src/loader.rs`, over
-`Invoke` / `{Intrinsic ID}` / `{StructuredLowering ID}`), and
-`SemanticOperationId` is a `Copy` enum of three variants whose payloads
-are the `IntrinsicId` and `LoweringHookId` catalogues, with `kind_str` and
-`detail_str` already returning the two words the spelling needs. It is
-neither a function pointer nor a reference to a named `&'static`
-descriptor, which are the two reasons `GapKind::DraftOpaque` documents, so
-the change was on the draft side only: seeding records the `(kind,
-detail)` pair, the renderer writes it in the loader's spelling
+`semantic_operation` round-trips through the studio. The loader reads the
+word in full (`parse_semantic_operation` in
+`rust/tcl-spectcl/src/loader.rs`, over `Invoke` / `{Intrinsic ID}` /
+`{StructuredLowering ID}`), and `SemanticOperationId` is a `Copy` enum of
+three variants whose payloads are the `IntrinsicId` and `LoweringHookId`
+catalogues, with `kind_str` and `detail_str` returning the two words the
+spelling needs. It is neither a function pointer nor a reference to a
+named `&'static` descriptor, the two reasons `GapKind::DraftOpaque`
+documents, so it has no row in
+`rust/tcl-spec-studio/src/render_spectcl.rs`'s `GAPS`: seeding records the
+`(kind, detail)` pair, and the renderer writes it in the loader's spelling
 (`tcl_spectcl::semantic_operation_spelling`, over the closed
-`semantic_operations()` vocabulary), and the row left `GAPS` the way
-`object_class`'s did. Three details are load-bearing:
+`semantic_operations()` vocabulary). Three details are load-bearing:
 
 - **The catalogue stays closed.** A pack names a member; it never adds
   one. An unknown identifier fails closed through `VocabularyClass`, which
@@ -1307,29 +1265,23 @@ detail)` pair, the renderer writes it in the loader's spelling
   the codegen-axis floor decide that, and § *Four rungs of codegen meeting
   `.tclspec`* states both.
 - **The gate direction is the point.** `spectcl_roundtrip` allows a
-  rendered-then-reloaded draft to differ only on `GAPS` keys, so removing
-  the row is what proves the round trip; a `TODO(spectcl)` comment in
-  rendered output is the visible trace while the row exists.
+  rendered-then-reloaded draft to differ only on `GAPS` keys, so the
+  field's absence from `GAPS` is what proves the round trip; a
+  `TODO(spectcl)` comment in rendered output is the visible trace of a
+  field that has a row.
 
 ## Options with semantic effects
 
-Two native resolvers in the registry read a command's own option table and
-computed a semantic answer about the call: `substitution_resolver`
-(`subst_substitutions` in `rust/tcl-registry/src/substitution.rs`, which
-kinds of substitution `subst` performs) and `pattern_arg_resolver`
-(`lsearch_pattern_args`, which argument carries which pattern language for
-`lsearch`). Both were `GapKind::Excluded` in the studio's `GAPS` with the
-same reason — "a native resolver over a command's own `OptionSpec` table …
-keeping it excluded makes the native-only boundary explicit until a
-declarative selector exists". This is that selector
-(`rust/tcl-registry/src/option_effect.rs`): `substitution_resolver` and
-`lsearch_pattern_args` are gone, and `pattern_arg_resolver` remains only as
-an escape hatch no shipped spec sets. The two unrelated clients are what
-qualify it as a family-neutral operation rather than a command ID in
-disguise, and two more follow from the same descriptor: `regexp_arg_roles`
-in `rust/tcl-registry/src/commands/tcl/regexp_.rs`, and the five option
-fields `CaseListSpec` carried per command instead of per option, now
-retired.
+An option row may declare the semantic effect its presence has on the
+call (`rust/tcl-registry/src/option_effect.rs`). That answers what a
+native resolver over a command's own option table would: which kinds of
+substitution `subst` performs, and which argument carries which pattern
+language for `lsearch`. `CommandSpec` has no `substitution_resolver`, and
+`pattern_arg_resolver` is an escape hatch no shipped spec sets. The two
+unrelated clients are what qualify it as a family-neutral operation rather
+than a command ID in disguise, and two more read the same descriptor:
+`regexp_arg_roles` in `rust/tcl-registry/src/commands/tcl/regexp_.rs`, and
+`CaseListSpec`, which names none of a command's own options.
 
 **The descriptor.** An option row may declare the semantic effect its
 presence has on the call. The effect is an axis and a value, the axis is a
@@ -1337,7 +1289,7 @@ closed catalogue, and a family of options over one axis carries the base
 the axis starts from:
 
 ```rust,ignore
-/// Built (`rust/tcl-registry/src/option_effect.rs`). On `OptionSpec`, beside
+/// `rust/tcl-registry/src/option_effect.rs`. On `OptionSpec`, beside
 /// `value`, `surface`, and `lifecycle`.
 struct OptionEffect {
     /// What this option does to its axis.
@@ -1356,9 +1308,9 @@ enum OptionEffectKind {
     /// `lsearch -regexp`, `switch -glob`).
     Selects(EffectAxis),
     /// Suppress a role the command's own layout would otherwise assign:
-    /// `regexp -inline` removes the trailing match-variable writes that
-    /// `regexp_arg_roles` assigns unconditionally today, and the
-    /// combination of the two is an error the option relation reports.
+    /// `regexp -inline` removes the trailing match-variable writes the
+    /// command's layout assigns, and the combination of the two is an
+    /// error the option relation reports.
     SuppressesRole(ArgRole),
     /// Change how many trailing operands the option scan reserves, which
     /// is what moves the subject: `regexp -about` needs only the
@@ -1412,7 +1364,9 @@ enum FamilyCombine {
 **What the registry derives, generically.** One answer per call:
 
 ```rust,ignore
-fn option_effects(&self, inv: &ResolvedInvocation) -> OptionEffects;
+impl ResolvedInvocation<'_, '_> {
+    fn option_effects(&self) -> OptionEffects;
+}
 
 struct OptionEffects {
     /// The resolved state of each axis the command's families cover.
@@ -1431,21 +1385,19 @@ struct OptionEffects {
 }
 ```
 
-As built, the walk is `option_effect::option_effects(spec_options, families,
-args, reserved_trailing_words, dialect)` over `InvocationArguments`, with
+The walk is `option_effect::option_effects(spec_options, families, args,
+reserved_trailing_words, dialect)` over `InvocationArguments`, with
 `CommandSpec::option_effects(args, dialect)` passing the command's own table,
 families, reservation and prefix policy, and
-`ResolvedInvocation::option_effects(dialect)` doing the same for the selected
-command or subcommand table (the dialect becomes the resolution's own when the
-derived-query layer fixes it). `option_end` is the one field beyond the
-shape above: the pattern projection needs the operand position, and a
-second walk to find it would be a second rule. A family's base applies to
+`ResolvedInvocation::option_effects()` doing the same for the selected
+command or subcommand table under the resolution's own dialect.
+`option_end` is in the answer because the pattern projection needs the
+operand position, and a second walk to find it would be a second rule. A family's base applies to
 the axis values its options mention; with no option of any covering family
 present, the first declared family's base decides (`subst`'s negated
 family), and a `LastWins` option resets its family before it applies.
 
-The derivation is the walk the registry already performs, with three rules
-stated once instead of per resolver:
+The derivation is one walk, with three rules stated once:
 
 - **The option scan boundary is declared.** It ends at
   `CommandSpec::reserved_trailing_words` before the end of the argument
@@ -1453,16 +1405,16 @@ stated once instead of per resolver:
   command's prefix policy — `regexp`'s table is exact-only) so a spelling
   the target release does not have is an invalid call rather than an
   invented operand. `lsearch` declares `reserved_trailing_words: 2`,
-  `switch` declares `2`, and `subst` declares `1` (#2136 had already named
-  the template operand). A literal word that does not begin with `-` ends
+  `switch` declares `2`, and `subst` declares `1` (the template operand,
+  #2136). A literal word that does not begin with `-` ends
   the scan normally — the leading-run placement.
 - **An unreadable call answers every value on.** A computed switch word,
   an abbreviation the table cannot resolve, a `{*}` expansion where an
   option could have been — each makes `complete` false and every axis
   value true, because assuming a substitution does not happen is the
   answer that loses a real read. That is
-  `CommandRegistry::substitutions_performed`'s documented rule, kept
-  verbatim and made generic. The substitution projection adds one rule of
+  `CommandRegistry::substitutions_performed`'s documented rule, made
+  generic. The substitution projection adds one rule of
   its own: every word before `subst`'s operand must be an option, so a
   call whose option run stops short of the operand (`subst -nocommands
   $opt $x` read through spellings) answers every kind.
@@ -1470,23 +1422,22 @@ stated once instead of per resolver:
   families cannot be combined in one call; that is an option relation
   evaluated by `Relation::evaluate` like every other, reported as W147
   (tclsh 9.1b0's `cannot combine positive and negative options`) beside
-  the every-kind answer the mixed call now reads as. `Relation::terms` is
-  one flat set, so the built form is three `Forbids` relations — each
+  the every-kind answer the mixed call reads as. `Relation::terms` is
+  one flat set, so the form is three `Forbids` relations — each
   negated switch forbids the positive set — rather than one
   `MutuallyExclusive` over two sets, which would also reject
   `-nocommands -novariables`.
 
 **How a Rust spec declares the same thing.** The descriptor is the *only*
-declaration; there is no second Rust-only form to diverge from. `subst_.rs`
-keeps its six `OptionSpec` rows and adds `effect` to each plus two
-`OptionEffectFamily` rows, `substitution_resolver` is deleted from
-`CommandSpec`, and `CommandRegistry::substitutions_performed` becomes a
-projection of `option_effects` onto `SubstitutionKinds` so W102
+declaration; there is no second Rust-only form to diverge from. `subst_.rs`'s
+six `OptionSpec` rows each carry an `effect`, beside two
+`OptionEffectFamily` rows, and `CommandRegistry::substitutions_performed`
+is a projection of `option_effects` onto `SubstitutionKinds`, which W102
 (`analyser/diagnostics/security.rs`), the two template folders, and
-extract-proc (`rust/tcl-lsp-core/src/refactor/`) keep their call.
-`lsearch_.rs` keeps its options and drops `lsearch_pattern_args`;
-`pattern_arg_resolver` stays on `CommandSpec` only for a pattern layout no
-axis can express. The Tcl 9.1 positive family carries the release gate its options carry,
+extract-proc (`rust/tcl-lsp-core/src/refactor/`) call. `lsearch_.rs`'s
+options carry their effects with no resolver; `pattern_arg_resolver` is on
+`CommandSpec` only for a pattern layout no axis can express. The Tcl 9.1
+positive family carries the release gate its options carry,
 so Rust and `.tclspec` declare one thing (the loader reads the same
 descriptor as `option -effect` and `option_effect_family`, and the studio
 drafts, renders and round-trips both):
@@ -1516,52 +1467,51 @@ command subst {
 }
 ```
 
-**Consumers.** `option_effects` for the axis state, and
-`template_plan` — the `PlanAnswer::TemplateWord` the interface contract's
-examples spell — for the template word itself: which kinds run, the `[…]`
-regions inside a braced template that execute in the caller's frame, and
-the `$name` reads that remain. `rust/tcl-compiler/src/dynamic_names.rs`'s
-barrier and the `inner_head_performs_substitution` gate stop reading the
-trait alone, and `push_substituted_commands` stops re-walking a braced
-template for the bracket regions, because the plan carries them.
+**Consumers.** `option_effects` for the axis state, and the template-word
+plan — the `PlanAnswer::TemplateWord` the interface contract's examples
+spell — for the template word itself: which kinds run, the `[…]` regions
+inside a braced template that execute in the caller's frame, and the
+`$name` reads that remain. `rust/tcl-compiler/src/dynamic_names.rs`'s
+barrier reads the plan (`literal_template_plan`): a dynamic template that
+substitutes variables or commands is a read barrier, and each script region
+is scanned as a script. The `inner_head_performs_substitution` gate in
+`analyser/diagnostics/security.rs` reads only `Traits::PERFORMS_SUBSTITUTION`.
 `regexp_arg_roles` reads the answer's shifts — `SuppressesRole(VarWrite)`
-from `-inline`, `ReservesTrailingWords(1)` from `-about` — instead of naming
-the switches, and a match variable after `-inline` is the relation `-inline`
-forbids `{arg 2}` (W147, tclsh's `regexp match variables not allowed when
-using -inline`). And `CaseListSpec`'s five option fields — `regex_option`,
-`exact_option`, `glob_option`, `nocase_option`, `end_options_option` —
-became effects on the command's own option rows, which is the same fact
-stated once per option rather than once per command: `CaseListSpec::invocation`
-classifies each option by its effect (`Selects(Selection(mode))`,
-`Selects(CaseSensitivity)`, `EndsOptions`) in the one walk that also finds
-the subject and the clause list, keeping its abstention on a second match
-mode (tclsh 8.5+'s `-exact option already found`), and `switch`'s `-integer`
-left `special_match_options` for its own `Selects(Selection(Other))`.
+from `-inline`, `ReservesTrailingWords(1)` from `-about` — rather than
+naming the switches, and a match variable after `-inline` is the relation
+`-inline` forbids `{arg 2}` (W147, tclsh's `regexp match variables not
+allowed when using -inline`). A `switch` case list's match mode, case
+folding and end of options are effects on the command's own option rows,
+the fact stated once per option rather than once per command:
+`CaseListSpec::invocation` classifies each option by its effect
+(`Selects(Selection(mode))`, `Selects(CaseSensitivity)`, `EndsOptions`) in
+the one walk that also finds the subject and the clause list, keeping its
+abstention on a second match mode (tclsh 8.5+'s `-exact option already
+found`), and `switch`'s `-integer` is its own `Selects(Selection(Other))`.
 `CaseListSpec` keeps the clause-list *value* shape, which is what makes it a
 separate field at all.
 
-**The studio field.** Both `substitution_resolver` and
-`pattern_arg_resolver` lost their `GapKind::Excluded` rows: the first left
-`CommandSpec`, and the second is an escape hatch no shipped spec sets.
-`option -effect` / `option_effect_family` join the option-row form with
-the loader spelling (`rust/tcl-spec-studio/tests/option_row_editing.rs`
+**The studio field.** Neither `pattern_arg_resolver` nor the option
+effects has a `GAPS` row: the resolver is an escape hatch no shipped spec
+sets, and `option -effect` / `option_effect_family` are in the option-row
+form with the loader spelling (`rust/tcl-spec-studio/tests/option_row_editing.rs`
 is that form's gate): an option row's `effect` is drafted and written back,
-and `option_effect_families` has its generator and reverse parser, so
-neither carries a `GAPS` row.
+and `option_effect_families` has its generator and reverse parser.
 
-**Tests.** `rust/tcl-registry/src/substitution.rs`'s own unit rows —
-including `tp_no_switches_runs_every_substitution` — became rows of the
-generic derivation in `option_effect.rs`; `rust/tcl-registry/src/registry.rs`'s
+**Tests.** The generic derivation's unit rows in `option_effect.rs`
+include `tp_no_switches_runs_every_substitution` and `lsearch -regexp
+-glob` searching the list `-regexp` for the glob pattern `-glob`, the
+boundary rule; `rust/tcl-registry/src/registry.rs`'s
 `substitutions_performed_answers_per_call_and_only_for_substituting_commands`
-is the projection's gate; `lsearch_pattern_args`'s cases, including
-`lsearch -regexp -glob` searching the list `-regexp` for the glob pattern
-`-glob`, move to the boundary rule;
-`rust/tcl-registry/tests/registry_sweep.rs` gains the rule that every
-option with an `effect` names a declared family
-and that a family's `base` mentions only axes its options mention;
+is the projection's gate; `rust/tcl-registry/tests/registry_sweep.rs` holds
+that every option with an `effect` names a declared family
+(`every_option_effect_names_a_declared_family`) and that a family's `base`
+mentions only axes its options mention
+(`a_family_base_mentions_only_axes_its_options_mention`);
 `rust/tcl-registry/tests/tcl91_dialect.rs` pins the positive family's
-availability, and a differential row against `tclsh9.1` pins the mixed-family
-error.
+availability; and `rust/tcl-compiler/src/analyser/diagnostics/tests.rs`'s
+`w147_reports_mixed_subst_switch_families` pins the mixed-family error
+tclsh 9.1 raises.
 
 ## Codegen and the registry today
 
