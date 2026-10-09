@@ -11,11 +11,11 @@
   - f82eaefbd `fix(analyser): the proven index check reports each site once and covers nested calls` (B3)
   - ea9f0450b `fix(registry): a store a declared outcome may preserve is live` (B5)
   - 5713e4bd4 + d05eac825: the second review (`SPECTCL_BRANCH_REVIEW.md`) and its merge, from the user's side.
-- Pushed, full gate pending: everything to e60e7f6fb (S3) — the code items B1–B15, B2a, B2b, B2c and the docs items S1–S3 — with the checkpoint commits (`wip: progress checkpoint …`) between them.
-- Committed: S4 `docs: the pages state where the tree falls short of the unanimity and grammar rules` (the unanimity rule's #2431 shortfall in `value-transfers.md`, `value-evaluation.md` and the dialect KCS; the operator set the folder does not read, #2400; the double spelling, #2432 and #2395; the renamed-command KCS's O103 exception, #2398; the seeding page's `uplevel` rule; the I230 and regexp KCS corrections; and the existence fact's home, `ExistenceRun`, in `ssa-construction.md`, `algorithms.md` and `special-variable-registry.md`); `make xtask-check` green. Its edits were swept into the checkpoints before the named commit.
+- Pushed, full gate pending: everything to a3f9c4dc1 (S4) — the code items B1–B15, B2a, B2b, B2c and the docs items S1–S4 — with the checkpoint commits (`wip: progress checkpoint …`) between them.
+- Committed: N2 `docs: state the undef trace's preserve rule without its history` (`sccp-core-analyses.md`); `make xtask-check` green.
 - Filed from S3: #2454 (a braced `expr` in value position declines a nested call whose word substitutes a variable; cited in `value-transfers.md` § `expr`) and #2455 (W220 on a store read only inside a nested `[expr]` in a condition).
 - In the working tree, uncommitted: nothing.
-- Next: N2 and the review file's removal.
+- Next: the review file's removal.
 - Standing states that are not defects of this branch: `cargo xtask dialect-drift` exits 1 with 8 sites present at the base (#2253); the tcl-vm tests of #2271 fail under a POSIX `LANG` and pass under `LANG=C.UTF-8`.
 
 ## How to verify and push
