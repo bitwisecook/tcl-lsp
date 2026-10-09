@@ -660,7 +660,7 @@ is seeded as a JSON object whose methods are ordinary subcommand drafts and
 rendered as `object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }`.
 
 `definition_body` and `semantic_operation` left the unrecoverable list
-together (consumer-contracts step 2, CC2.4/CC2.5). A definer grammar is plain
+together. A definer grammar is plain
 data once every member row states its `MemberEffect`, so seeding writes the
 name of the shipped grammar whose data it equals (`tcloo`, `snit`, … — a
 `const` has no single address, so the match is by data, not by pointer) or
@@ -993,7 +993,7 @@ DSL 2.2) are the newest rows to move this way: `EvaluatorCapability` and
 `render_spectcl.rs`'s `semantics_block` (or the `GAPS`-tracked
 `DraftOpaque` placeholder for a body it cannot recover), and the studio's
 `route` and `body` fields under the existing "Effects and purity" cluster
-all moved together in one slice
+all moved together
 ([value-evaluation.md](../compiler/value-evaluation.md) § *The four
 surfaces, the parity tests, and `spectcl_check`*). The `GAPS` row for the
 whole family is gone; only a declared implementation's *body* — the one

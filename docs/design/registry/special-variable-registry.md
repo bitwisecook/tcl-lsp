@@ -127,14 +127,15 @@ The crate exposes name + dialect queries; consumers never hold their own list:
 
 The registry face of these queries is `CommandRegistry::special_vars()` —
 the rows loaded packs declared, then the shipped table — with
-`special_var`, `special_var_in_dialect`, `special_vars_for_dialect` and
-`is_readable_at_startup` beside it. A consumer holding the registry
+`special_var`, `special_var_in_dialect`, `special_vars_for_dialect`,
+`is_readable_at_startup`, `is_initially_bound`, `is_lazily_readable` and
+`is_externally_read` beside it. A consumer holding the registry
 generation it walks under (the analyser's `set auto_path` / `lappend
 auto_path` record, which reads `auto_path`'s `VarAccess` there) asks the
 registry, so a pack's row answers as a shipped one does. The free functions
-above read the shipped table alone; their consumers move to the door as
-they come to hold a registry (W210's startup read, the `[info exists]`
-fold and the taint seed live in the value-transfers lane's files).
+above read the shipped table alone, for the consumers that hold no
+registry; W210's startup read, the existence rung's entry state, the
+`[info exists]` fold and the taint seed read the registry's faces.
 
 ## Declaring one in a pack
 

@@ -7,8 +7,8 @@ touches, with what the tool reports today and what the contracts in
 declarations behind the examples as they would be written in the Rust
 command registry and in a `.tclspec` pack. The four programs at the top of
 the interface contract are the shortest of these; this page is the full
-set, and its programs are the fixed witnesses the slices in
-[value-transfers-migration.md](value-transfers-migration.md) keep.
+set, and its programs are the fixed witnesses the migration keeps
+([value-transfers-migration.md](value-transfers-migration.md)).
 
 > **Status.** Every "today" line below is an observation, not an
 > assertion: each program was run through `tcl diag FILE --json` and
@@ -19,13 +19,12 @@ set, and its programs are the fixed witnesses the slices in
 > proposed spellings, not loader syntax.
 >
 > A line marked `merged:` instead of `today:` is the same kind of
-> observation on the tree value-transfer slice 2 landed on, after the merge
-> of `rust` at `08bceb36`: it restates a program whose defect `rust` fixed
-> (#2050, #2051, #2052, #2053, #2054, #2132, #2144, and the nested-read
-> half of #2141), or one slice 2's routes changed, and was re-run through
-> `tclsh` 8.4 to 9.1. The O101, I230 and correlated-rung lines were
-> restated the same way on the tree slice 3 landed on, after its review
-> fixes, because slice 3's expression route changed them.
+> observation on a later tree, after the merge of `rust` at `08bceb36`: it
+> restates a program whose defect `rust` fixed (#2050, #2051, #2052, #2053,
+> #2054, #2132, #2144, and the nested-read half of #2141), or one the direct
+> routes changed, and was re-run through `tclsh` 8.4 to 9.1. The O101, I230
+> and correlated-rung lines were restated the same way once the expression
+> route changed them.
 
 ## How to read an example
 
@@ -98,7 +97,7 @@ puts $acc                  ;# merged: O104 folds the chain to `set acc foobar` a
 
 At `3b5eba8a` the chain folded textually (O104) but `acc` was `Overdefined`
 in the lattice, so nothing forwarded `foobar` into the read in the same
-pass. Since slice 2 the cell update makes `acc` `Const("foobar")` at the
+pass. The cell update makes `acc` `Const("foobar")` at the
 read; O100 forwards it, and the code stays O100 rather than O102 because
 the defining statement is a computed write.
 
@@ -161,8 +160,8 @@ set x [label]              ;# today: O104 folds the body's chain to `set s abcde
 
 Under the contracts the argument-sensitive path re-runs SCCP on the callee
 with the cell update present and folds `[label]` to `abcdef`; the
-argument-independent summary path reads `label`'s seedless lattice since
-slice 7a, which holds `s` at `abcdef` where it returns. Both paths fold only a
+argument-independent summary path reads `label`'s seedless lattice, which
+holds `s` at `abcdef` where it returns. Both paths fold only a
 pure callee, and the purity scan takes `append`'s write for an effect
 whatever variable it names, so `[label]` is folded on neither yet.
 
@@ -2002,12 +2001,12 @@ as an unreadable call does.
 
 ### A vendor loop and a private command in a workspace pack
 
-Built (slice 4, VT4.13 and VT4.14; landed 2026-09-23). `specs/sdc_base.tclspec`
+Built. `specs/sdc_base.tclspec`
 declares `foreach_in_collection` with
 `traits {CONTROL_FLOW HAS_LOOP_BODY NEVER_INLINE_BODY LOOP_LIST_HEADER}`,
 `arg 0 -role VarWrite`, `arg 2 -role Body`, and
 `analyser_hook -native Foreach`, which lets the native handler treat a
-braced literal iterable as a Tcl list — and, since VT4.14, the `semantics`
+braced literal iterable as a Tcl list — and the `semantics`
 block below, verbatim:
 
 ```tcl
@@ -2057,7 +2056,7 @@ command append_to_collection {
 }
 ```
 
-`tenant::label` is the lane's own completion-test fixture
+`tenant::label` is the completion-test fixture
 (`rust/tcl-compiler/tests/fixtures/value_transfers/tenant.tclspec`, under
 `speclib tenant 2.2`), reproduced verbatim, alongside a renamed twin
 (`tenant::tag`) and a subcommand form (`tenant label NAME`) the fixture
@@ -2088,9 +2087,9 @@ under 8.6, 9.0, and 9.1; under 8.4, 8.5, `f5-irules`, and the
 version-less `tcl` profile it declines `unsupported`, because the body's
 `string cat` is not a command those releases have and a declared
 implementation runs pinned to the analysed release rather than answer for
-one it cannot run in (D103). With an unknown argument `tenant::label` is
+one it cannot run in. With an unknown argument `tenant::label` is
 not invoked with a placeholder: the answer is an unknown exact value plus
-the proven prefix segment and the taint relationship (D88). Under the
+the proven prefix segment and the taint relationship. Under the
 rulings the pack's declarations are authoritative once loaded; binding
 validity and the implementation identity still decide when the model
 applies.
@@ -2099,7 +2098,7 @@ applies.
 
 - [value-transfers.md](value-transfers.md) — the consumer interface contract these programs exercise
 - [value-evaluation.md](value-evaluation.md) — the routes the declarations name
-- [value-transfers-migration.md](value-transfers-migration.md) — the slices and the tables these examples index
+- [value-transfers-migration.md](value-transfers-migration.md) — the inventory and the tables these examples index
 - [diagnostic-policy.md](diagnostic-policy.md) — the one findings pipeline the O111 and W100 rows answer to
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) — the other axes these programs touch and do not own
 - [../spec-dsl-examples/README.md](../spec-dsl-examples/README.md), [../spec-dsl-examples/string.tclspec](../spec-dsl-examples/string.tclspec), [../spec-dsl-examples/switch.tclspec](../spec-dsl-examples/switch.tclspec) — today's authorable spellings

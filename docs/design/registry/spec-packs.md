@@ -638,7 +638,7 @@ mapping from a static manifest, so it needs telling.
 The server *advertises* the pairs. `pack_file_extensions` appears on the
 `tcl-lsp.getEffectiveConfig` result and again in the
 `tcl-lsp/specPacksReloaded` notification, which is sent once a reload has
-fully landed. Each row carries the extension, the claiming pack, the
+completed. Each row carries the extension, the claiming pack, the
 dialect, and the **existing** editor language id the extension should
 ride, because no editor can mint a new language id at runtime.
 

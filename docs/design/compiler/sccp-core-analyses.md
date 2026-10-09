@@ -412,7 +412,7 @@ for an opaque form, and no edit deletes an arm.
 
 ### Existence-check folding (`info exists` / `array exists`)
 
-Since slice 8 (VT8.2) an existence query decides inside the fixed point.
+An existence query decides inside the fixed point.
 `[info exists NAME]` and `[array exists NAME]` — recognised by the
 resolved operation (`IntrinsicId::InfoExists` / `ArrayExists`, through
 `existence_query::kind_of`), never by spelling — answer through the
@@ -482,8 +482,8 @@ is `Unavailable`, never `Unbound`.
   `MayBound`, and so does a script body a command substitution runs in
   this frame (`[catch {unset x}]`, `[eval {…}]`, `[lmap v {1} {…}]`),
   in a statement's words or in a branch condition or returned word —
-  every place, when such a body holds a barrier or an up-frame (D174).
-- **Edge refinement** (slice 8, VT8.3). A branch whose condition states an
+  every place, when such a body holds a barrier or an up-frame.
+- **Edge refinement.** A branch whose condition states an
   existence fact refines the place on that edge (`EdgeRefinement`, the
   design's shape with its domain `FactDomain::Existence`): the true edge of
   `[info exists x]` carries `Bound(Either)` and its false edge `Unbound`;
@@ -495,9 +495,9 @@ is `Unavailable`, never `Unbound`.
   computed key binds only a bareword array, on the true edge. The fact
   narrows the place as the edge arrives — a `MayBound` place to it, a
   `Bound(Either)` one to a kind — and a fact the place contradicts, on an
-  edge the query did not decide (a special variable the host binds, D165),
-  leaves it as it is. An externally mutable place is never refined
-  (D166): a qualified, aliased, traced or computed-trace place, a `TclOO`
+  edge the query did not decide (a special variable the host binds),
+  leaves it as it is. An externally mutable place is never refined:
+  a qualified, aliased, traced or computed-trace place, a `TclOO`
   instance variable, a cross-event iRules name and a special variable of
   the initial global frame can be set or unset by a plain call to a
   procedure the module cannot see, with no barrier in between, so an
@@ -524,7 +524,7 @@ evaluates to 1 under `tcl8.5` onwards and declines with `UnboundPlace` under
 `tcl8.4` and a profile spanning both; the `dict` keyed updates create an
 absent dictionary the same way.
 
-Three writers read it the same way (slice 8, VT8.8). `const` (from 9.0)
+Three writers read it the same way. `const` (from 9.0)
 writes its value only into an `Unbound` place: over an existing variable
 it raises and over an existing constant it keeps the old value, so any
 other place declines, and the place is bound as a scalar after it either
@@ -617,7 +617,7 @@ integer.
 
 ### Preserve outcomes (`SccpResult::preserved`)
 
-Since slice 5, a definition whose statement left its place untouched — a
+A definition whose statement left its place untouched — a
 destructuring writer's declared `Preserve` outcome, such as `regexp` /
 `scan` / `binary scan` on a no-match or an exhausted field, or a pack
 command's declared `write_or_preserve` — is recorded in
@@ -631,8 +631,7 @@ branch and every nested command it ran answered without a store.
 `analyser/diagnostics/dataflow.rs`'s undef trace (W210 on a read, a
 `return`, or a condition's no-match arm; W213 on an `unset`) reads
 through a preserved definition to the version `SccpResult::preserved`
-names, replacing the private `regexp` / `scan` no-match prover slice 5
-retires: a no-match no longer needs its own read-before-set logic, only
+names, replacing the private `regexp` / `scan` no-match prover: a no-match no longer needs its own read-before-set logic, only
 the general trace over the fact every declared preserve outcome states.
 A nested conditional writer (`regexp` in a word or a condition) records
 its targets as read the same way the statement form does

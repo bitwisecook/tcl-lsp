@@ -133,7 +133,7 @@ per member when exactly one of its reads is a finite SSA value.
 3. O104 folds the chain to `set s helloagain`, and O100 forwards the value
    into `puts`
 
-### Destructuring writers and folded types (slice 5)
+### Destructuring writers and folded types
 
 `regexp`, `regsub`, `scan`, `binary scan`, `lassign` and `array set` fold
 through the same registry-owned routes: each declares its targets'

@@ -29,14 +29,14 @@ and before promising that two implementations agree.
 > ([spec-dsl-examples/README.md](../spec-dsl-examples/README.md)
 > § *Vocabulary changelog*), proven by the fixture behind
 > [value-transfers-examples.md](value-transfers-examples.md) § *A vendor
-> loop and a private command in a workspace pack*; slice 7 added the
-> `-host wasm_extension` host and its `extension FILE PREFIX` row
-> (§ *The declared-implementation route* › *The extension host*). No
+> loop and a private command in a workspace pack*; the
+> `-host wasm_extension` host and its `extension FILE PREFIX` row are
+> § *The declared-implementation route* › *The extension host*. No
 > shipped builtin has been moved onto the DSL: every shipped route is Rust
 > construction in `rust/tcl-registry/src/value_transfer/`, so the worked
 > declarations of `incr`, `expr`, and `regexp` below stay illustrative.
 >
-> Built since slice 4: `RegexpPrecision`, `PrecisionDecline`,
+> Built: `RegexpPrecision`, `PrecisionDecline`,
 > `PatternCacheKey` and `EngineIdentity` (`tcl_cmd_core::regex`),
 > `binary::format_size_bound`, and the field `MathFuncSpec::result_class`.
 > Still named on this page and not built: the test
@@ -47,14 +47,13 @@ and before promising that two implementations agree.
 > Named on this page but not the shape the tree built — cited again where
 > each appears below: `EvalMemoKey`, `EvalRouteId`, `TargetState`,
 > `TargetDigest` (the real memo is `pack_hooks::ShapeKey` plus
-> `CallContent`, compared on every hit, never a digest alone — D95);
+> `CallContent`, compared on every hit, never a digest alone);
 > `RequestBudget`, `IterationBudget`, `EvaluationBudget`, `CancelPoint`,
 > `CancelToken` (one `Budget` type at three call sites —
-> `Budget::request()`, `.iteration()`, `.evaluation_within()` — D99);
+> `Budget::request()`, `.iteration()`, `.evaluation_within()`);
 > `NativeEvalTables` (fourteen separate `pub const *_NATIVE` tables in
 > `pack_hooks.rs`, two populated, never one struct); `ActivationStore`
-> (superseded before it was built — `Engine::confine_stores` instead,
-> D10, D77, D78, D101).
+> (superseded before it was built — `Engine::confine_stores` instead).
 >
 > `DeclineReason` and every variant of it — `NoRoute`, `ReleaseAmbiguous`,
 > and `NotText` included — are the interface contract's; this page defines
@@ -201,10 +200,10 @@ default it was not asked for.
   module) and no live one.
 - **A third family lives in codegen.** `rust/tcl-compiler/src/codegen/helpers.rs`
   carries `fold_list_cmd`, reached from codegen. `try_format_fold` (`%s`
-  and `%d` only) went with `format`'s transitional table when VT3.8 gave
-  the command a registry-owned route over the shared format core;
-  `fold_list_cmd` and `fold_dict_create_cmd`, test-only by then, went in
-  slice 7 (VT7.8).
+  and `%d` only) went with `format`'s transitional table when the command
+  gained a registry-owned route over the shared format core;
+  `fold_list_cmd` and `fold_dict_create_cmd`, test-only by then, went
+  when the engine took codegen's folds over.
 - **Codegen already emits folded values, guarded.** `try_emit_constant_fold`
   in `rust/tcl-compiler/src/codegen/values.rs` folds a literal-only
   `[cmd …]` through `ConstSubstCtx::fold_cmd_subst_resolved`, pushes the
@@ -214,14 +213,14 @@ default it was not asked for.
   ([vm-compiled-artifact-provenance.md](../contracts/vm-compiled-artifact-provenance.md)
   § *Invalidation*). The guard protects against rebinding; nothing protects
   against the fold and the runtime disagreeing, which a second
-  implementation permits. Since slice 7 the engine runs the registry-owned
+  implementation permits. The engine runs the registry-owned
   route a call declares over its literal words (`evaluate_literal`) — the
   evaluator the lattice runs, over the core the runtimes run — and its
   answer, a decline included, is the fold, a byte array or an answer beyond
   ASCII declining because the engine writes it back into a script, where a
   byte array has no lossless spelling and 8.x reads text in the system
   encoding; a command that declares no route keeps its `const_fold`
-  callback (D338).
+  callback.
 - **The oracle.** `rust/tcl-registry/tests/differential_fold.rs` runs every
   fold against a real `tclsh`; the fuzzer pairs `tclvm`, `runtime-rust`,
   and `tclsh`, with the rule that a two-way native pair has no oracle
@@ -494,8 +493,8 @@ The protocol, in order, and every step is mandatory:
    fold by declaring the axis: a declared axis is a disagreement. Declining
    a release-less profile outright would lose precision without adding
    soundness, since the unanimous answer is the answer under whichever
-   release runs (the owner's ruling of 2026-09-22,
-   [value-transfers.md](value-transfers.md) § *Rulings*).
+   release runs ([value-transfers.md](value-transfers.md) § *Rulings*,
+   rules 7 and 8).
 3. **Charge admission.** A fixed charge per admission, so a solver
    iteration that declines ten thousand times is still bounded, and the
    decline is recorded once per invocation rather than once per retry.
@@ -554,7 +553,7 @@ once. "Charge" is in `WorkUnits` (§ *Budgets and cancellation*).
 | `string::first`, `string::last` | `INDEX_GRAMMAR`, `CHAR_INDEXING` | the optional start index | a malformed index | 1 per compared byte |
 | `string::trim`, whose `left` and `right` flags are `trimleft` and `trimright` | none | none | — | 1 per trimmed byte |
 | `string::cat` | none | none | an output past the charge | 1 per output byte, charged first |
-| `index::resolve`, `resolve_opt`, `resolve_opt_with`, `read_with`, `read_under`, `compiles_apart`, `encodable`, `bad_index` | `INDEX_GRAMMAR` | measured on a 12-element list `a`…`l`: `lindex $l 010` is `i` up to 8.6 and `k` from 9.0, `lindex $l end-010` is `d` up to 8.6 and `b` from 9.0, `lindex $l 1_0` and `lindex $l 0d1` are `bad index` up to 8.6 and `k` and `b` from 9.0, while `lindex $l 0x2` is `c` on every release. Each integer is read in its release's range: 8.4 to 8.6 wrap a value within ±4294967295 to the 32-bit `int` on every platform (D359) — `string range abcdefghijkl 0 2147483648` is empty, `lset x -4294967295 Z` writes element 1 — the sums and `end` offsets wrapping alike, and raise `bad index` past it, but for a magnitude from 2^64 − 2^32 + 1 to 2^64 − 1, which 8.4 and 8.5 read where `long` is 64 bits and raise on where it is 32 (8.6 raises everywhere; D360); 9.0 and 9.1 read a wide, a bignum alone as the nearest wide, and a sum that reaches the widest wide or a bignum offset after `end` as `end+1` (`lset` appends there). This is the 64-bit `Tcl_Size` build every oracle is: a 32-bit one bounds an index at 2^31 − 1. 8.6 also compiles a literal `end` offset whose 32-bit sum with `end` passes `INT_MAX` as after the end, where the same word read at run time wraps before the first element (`compiles_apart`, D361) | disagreement with no named release; a reading the host's `long` decides (`ReleaseAmbiguous(Platform)`; the runtimes take their host's); an `end` offset 8.6 reads apart as a literal and as a value, under a target that may be 8.6 | 1 |
+| `index::resolve`, `resolve_opt`, `resolve_opt_with`, `read_with`, `read_under`, `compiles_apart`, `encodable`, `bad_index` | `INDEX_GRAMMAR` | measured on a 12-element list `a`…`l`: `lindex $l 010` is `i` up to 8.6 and `k` from 9.0, `lindex $l end-010` is `d` up to 8.6 and `b` from 9.0, `lindex $l 1_0` and `lindex $l 0d1` are `bad index` up to 8.6 and `k` and `b` from 9.0, while `lindex $l 0x2` is `c` on every release. Each integer is read in its release's range: 8.4 to 8.6 wrap a value within ±4294967295 to the 32-bit `int` on every platform — `string range abcdefghijkl 0 2147483648` is empty, `lset x -4294967295 Z` writes element 1 — the sums and `end` offsets wrapping alike, and raise `bad index` past it, but for a magnitude from 2^64 − 2^32 + 1 to 2^64 − 1, which 8.4 and 8.5 read where `long` is 64 bits and raise on where it is 32 (8.6 raises everywhere); 9.0 and 9.1 read a wide, a bignum alone as the nearest wide, and a sum that reaches the widest wide or a bignum offset after `end` as `end+1` (`lset` appends there). This is the 64-bit `Tcl_Size` build every oracle is: a 32-bit one bounds an index at 2^31 − 1. 8.6 also compiles a literal `end` offset whose 32-bit sum with `end` passes `INT_MAX` as after the end, where the same word read at run time wraps before the first element (`compiles_apart`) | disagreement with no named release; a reading the host's `long` decides (`ReleaseAmbiguous(Platform)`; the runtimes take their host's); an `end` offset 8.6 reads apart as a literal and as a value, under a target that may be 8.6 | 1 |
 | `index::drill` | `INDEX_GRAMMAR`, `LIST_RENDERING` | as above | a non-list step, an out-of-range step | 1 per path step |
 | `binary::format` (`BinaryFormatSemantics` in `value_transfer/builtins.rs`, the result `Constructed(ByteArray)`) | `BINARY_FIELDS`, `BYTE_STRINGS`, `SOURCE_ENCODING` | `t n m r R q Q` arrive in 8.5 (`specifier_min_version`); the `u` suffix is 8.5+ (`signedness_available`); `c 010` packs 8 up to 8.6 and 10 from 9.0, `0b`, `0o` and `1_0` spellings arrive in 8.5 and 9.0, and past 64 bits 8.x raises where 9.x wraps; `d 010` is 10.0 on 8.4 and 9.x and 8.0 on 8.5 and 8.6, `d -0` is -0.0 on 8.4 and 0.0 after, 8.4 raises past the double range and below its normal range, and a single-precision value past `FLT_MAX` is clamped by 8.x and packed as an infinity by 9.x | a field the target lacks; a numeral other than a plain decimal, or a value past those ranges; a character above `U+00FF`; `x*` and a countless `@`, which C Tcl refuses; an output past the charge | `binary::format_size_bound`, charged first as allocation, then 1 per output byte |
 | `binary::scan` (`BinaryScanSemantics` in `value_transfer/destructure.rs`) | `BINARY_FIELDS`, `BYTE_STRINGS`, `SOURCE_ENCODING` | as above; a float field's value is spelt `%.12g` on 8.4 | a field the target lacks; a float field under 8.4; a character above `U+00FF`; a format with more value fields than variables (the command raises once it reaches one with data left, and the route does not follow where the data runs out) | 1 per scanned byte, plus 1 per published byte |
@@ -568,11 +567,11 @@ once. "Charge" is in `WorkUnits` (§ *Budgets and cancellation*).
 | `case::select`, `case::splits_as_list` (`CaseSemantics` in `value_transfer/selection.rs`) | `SOURCE_ENCODING`, `LIST_RENDERING` | `case` exists on 8.4 to 8.6, and on the iRules 8.4 base, and not from 9.0; `Tcl_CaseObjCmd` is the same loop in 8.4.20, 8.5.19 and 8.6.18, so every release that has it selects alike | a pattern word that splits as a list and is not one; an odd clause list, which `case` raises on only once its scan reaches the missing body, and an empty one, which selects nothing; a non-ASCII word with no named release | 1 per pattern word per member, plus 1 per list element split |
 | `list::list`, `llength`, `lreverse`, `lrepeat`, `linsert`, `lreplace`, `concat` (with `trim_concat_element`), `join`, `split` | `LIST_RENDERING` | canonical quoting | `ValueError::BadList`; an output past the charge | 1 per element, charged first for `lrepeat` |
 | `list::lindex`, `lindex_flat`, `lrange` | `LIST_RENDERING`, `INDEX_GRAMMAR` | index grammar and quoting | as above, plus a malformed index | 1 per element |
-| `list::split`, `string::first`, `string::string_match` (`SplitSemantics`, `StringFirstSemantics` and `StringMatchSemantics` in `value_transfer/builtins.rs`) | `LIST_RENDERING` (`split`), `INDEX_GRAMMAR` and `CHAR_INDEXING` (`string first`), `COLLATION` (`string match`), `SOURCE_ENCODING` | `split` splits on `" \n\t\r"` by default (D333) and brace-quotes a leading `#` element from 8.5; `string first`'s start index is read as each release reads it (`010` is 8 up to 8.6 and 10 from 9.0, `1+1` raises on 8.4); the glob is the same on every release | a non-ASCII operand where the target does not decode source as UTF-8; a start index the grammars read apart with no named release; `string match -nocase` over a non-ASCII operand, each release folding case by its own tables | `split`: its list's rendering; `string first`: the needle's length times the haystack's; `string match`: the pattern's length times the subject's, charged first |
-| `path::join`, `dirname`, `tail`, `extension`, `rootname`, `split` (`PathSemantics` in `value_transfer/path.rs`) | `SOURCE_ENCODING`, `LIST_RENDERING` (`split`) | none over a name every platform reads alike: tclsh 8.4.20 to 9.1.0 agree, and so do the Unix and Windows readings (the test shell's `testsetplatform windows`; D331, D334) | a name with a backslash, a colon, a leading `//` or a `~` (`ReleaseAmbiguous(Platform)`); `file normalize` declares `none (platform)` | 1 per input byte, charged first |
+| `list::split`, `string::first`, `string::string_match` (`SplitSemantics`, `StringFirstSemantics` and `StringMatchSemantics` in `value_transfer/builtins.rs`) | `LIST_RENDERING` (`split`), `INDEX_GRAMMAR` and `CHAR_INDEXING` (`string first`), `COLLATION` (`string match`), `SOURCE_ENCODING` | `split` splits on `" \n\t\r"` by default and brace-quotes a leading `#` element from 8.5; `string first`'s start index is read as each release reads it (`010` is 8 up to 8.6 and 10 from 9.0, `1+1` raises on 8.4); the glob is the same on every release | a non-ASCII operand where the target does not decode source as UTF-8; a start index the grammars read apart with no named release; `string match -nocase` over a non-ASCII operand, each release folding case by its own tables | `split`: its list's rendering; `string first`: the needle's length times the haystack's; `string match`: the pattern's length times the subject's, charged first |
+| `path::join`, `dirname`, `tail`, `extension`, `rootname`, `split` (`PathSemantics` in `value_transfer/path.rs`) | `SOURCE_ENCODING`, `LIST_RENDERING` (`split`) | none over a name every platform reads alike: tclsh 8.4.20 to 9.1.0 agree, and so do the Unix and Windows readings (the test shell's `testsetplatform windows`) | a name with a backslash, a colon, a leading `//` or a `~` (`ReleaseAmbiguous(Platform)`); `file normalize` declares `none (platform)` | 1 per input byte, charged first |
 | `list::lset`, `ledit`, `lpop` (`ListUpdateSemantics` in `value_transfer/list_update.rs`) | `INDEX_GRAMMAR`, `LIST_RENDERING` | the index grammar; an index equal to a level's length appends from 8.6 (`lset x 3 D` over `a {b1 b2} c` raises `list index out of range` on 8.4 and 8.5 and gives `a {b1 b2} c D` from 8.6), the error worded `index "4" out of range` with `TCL VALUE INDEX OUTOFRANGE` from 9.0 and carrying `TCL OPERATION LSET BADINDEX` on 8.6; `ledit` and `lpop` exist from 9.0 | a variable the analysis cannot prove holds a value; a level that is not a list, which is the program's error under a named release; a bad or out-of-range index; disagreement with no named release | 1 per element, charged by each construction |
 | `irules::call` and the functions it names (`IrulesFunctionSemantics` in `value_transfer/irules.rs`) | none | none: TMM's own commands, the same under every release | an input outside F5's published reference (`irules::Unmodelled`: a `b64decode` of text that is not canonical base64, a `substr` count of 0, a `URI::port` scheme with no default the reference lists, …); a byte function's word that is not ASCII | 1 per input byte, charged first |
-| `base32::encode`, `base32::decode` over `Alphabet::{Standard, ExtendedHex}` (`Base32Semantics` in `value_transfer/tcllib.rs`: tcllib 2.0's `base32::encode`, `base32::decode`, `base32::hex::encode` and `base32::hex::decode`, on the Rust spec modules — D315) | `SOURCE_ENCODING` | none: the package's pure-Tcl and `tcllibc` implementations encode alike, and decode a canonical encoding alike, under tclsh 8.5.19 to 9.1.0 | an encoded character past `U+00FF`, which the package encodes as its UTF-8 bytes under every release from 8.5 alike (`base32::encode "€"` is `4KBKY===`; D352) and the core does not model; a decoding that is not canonical — a length off a multiple of eight, a character outside the alphabet, padding inside the text or of a length no encoding ends in, each of which the package raises for, or a set trailing bit, which its Tcl implementation raises for and `tcllibc` reads as data; a non-ASCII word where the target does not decode source as UTF-8 | 1 per input byte, charged first |
+| `base32::encode`, `base32::decode` over `Alphabet::{Standard, ExtendedHex}` (`Base32Semantics` in `value_transfer/tcllib.rs`: tcllib 2.0's `base32::encode`, `base32::decode`, `base32::hex::encode` and `base32::hex::decode`, on the Rust spec modules) | `SOURCE_ENCODING` | none: the package's pure-Tcl and `tcllibc` implementations encode alike, and decode a canonical encoding alike, under tclsh 8.5.19 to 9.1.0 | an encoded character past `U+00FF`, which the package encodes as its UTF-8 bytes under every release from 8.5 alike (`base32::encode "€"` is `4KBKY===`) and the core does not model; a decoding that is not canonical — a length off a multiple of eight, a character outside the alphabet, padding inside the text or of a length no encoding ends in, each of which the package raises for, or a set trailing bit, which its Tcl implementation raises for and `tcllibc` reads as data; a non-ASCII word where the target does not decode source as UTF-8 | 1 per input byte, charged first |
 | `dict::create`, `get`, `getdef`, `exists`, `keys`, `values`, `size`, `filter`, `merge`, `replace`, `remove`, `lookup`, `upsert`, `dispatch_canon` (and `worded_parse_error`) | `DICT_ORDER`, `LIST_RENDERING` | canonical key order, last value winning on a duplicate | an odd-length list; a missing key where the form raises | 1 per pair |
 | `dict::info` | `DICT_ORDER` | the retained bucket-array history | always. The core answers: it calls `dict_hash_bucket_count` and falls back to a fresh table when the answer is `None`, which `ConstOps` always returns. A bucket history is not derivable from a string, so the route declines rather than publish a statistic the analysed program's runtime may not have | 1 |
 | `scan::validate_format`, `scan::scan_match` (`Scanned`, `ScanOutcome`; `ScanSemantics` in `value_transfer/destructure.rs`) | `NUMERAL_GRAMMAR`, `CHAR_INDEXING`, `SOURCE_ENCODING`, `LIST_RENDERING` | conversion numeral grammar; `%b` from 8.6; a float is spelt `%.12g` on 8.4; past 32 bits `scan 2147483648 %d` is `-2147483648` on 8.4, 9.0 and 9.1 and `2147483648` on 8.5 and 8.6; from 8.5 an infinity spelling converts (`scan -inf %f` is `-Inf`) and an integer spelling converts as an integer (`scan -0 %f` is `0.0`) | a format `validate_format` rejects; a positional or size-modified conversion; `%u`, which the matcher reads signed (`scan -1 %u` is `18446744073709551615` on every release); an integer past 32 bits; an infinity spelling or a negative zero under a float conversion; a `0x` input to a radix conversion under 8.4 | 1 per subject byte, plus 1 per published byte |
@@ -586,7 +585,7 @@ once. "Charge" is in `WorkUnits` (§ *Budgets and cancellation*).
 | `platform::exec`, `platform::pwd` | `PLATFORM` | the host | always: `PLATFORM` is never satisfiable | — |
 | `clock::dispatch` (and `clock::is_specifier`, `clock::specifiers`) | `WALL_CLOCK` | the clock, locale, and timezone | always: `WALL_CLOCK` is never satisfiable. The format-specifier helpers are pattern inspection, not evaluation, and stay available to diagnostics | — |
 
-The two exclusions are recorded on the commands themselves (slice 7): a
+The two exclusions are recorded on the commands themselves: a
 command whose answer the host platform or the clock decides — `clock`, `pid`,
 `info hostname` and `nameofexecutable`, `file nativename`, `pathtype` and
 `separator`, `encoding names`, `platform::identify`, `zlib compress`, the
@@ -643,8 +642,9 @@ the walk an evaluator for the interface:
   simulator. It keeps the route's tower (a beyond-wide integer or an
   infinity folds nothing under an 8.4 runtime or a profile naming no
   release) and a math function's availability and case, but reads no
-  binding evidence; the simulator gains it when it runs the registry's
-  routes (slice 12). Every rewrite that replaces an expression with its
+  binding evidence; the bounded-loop enumeration, which runs the
+  registry's routes, takes a head under the run's trust stance instead.
+  Every rewrite that replaces an expression with its
   value or decides a condition — O101, O112, a branch condition's fold,
   and the propagation folds of a return value, a call site and an
   assigned expression — asks the route instead, under the rewrite's
@@ -673,7 +673,7 @@ the walk an evaluator for the interface:
   existing struct beside `name`, `since`, `arity`,
   `accepts_boolean_operand`, and `summary`, and `expr_call_type` reads it.
   Each function and nested command used is a dependency in the answer's
-  evidence, and becomes one in the memo key when slice 4's key reaches it. `rand` and `srand` are the one non-determinism check the
+  evidence, and one in the memo key. `rand` and `srand` are the one non-determinism check the
   evaluator keeps by name, because non-determinism is an expression fact,
   and `tcl_syntax::expr::rand`'s `seed_from_wide` / `step` / `scale` /
   `next_draw` / `seed_and_draw` are a faithful model of the generator, not
@@ -1003,7 +1003,7 @@ rejected for stated reasons:
   host command cannot read or write the calling frame
   (`tcl_engine_api::HostCommand::invoke(&self, &[Value])` has no access to
   it), so the door is closed inside the engine itself, not by a host
-  command layered over it (D10).
+  command layered over it.
 
 The mechanism, as built:
 
@@ -1020,7 +1020,7 @@ The mechanism, as built:
   — check it and refuse a name that resolves anywhere but the running
   procedure's own frame with an ordinary Tcl error,
   `can't set "NAME": stores are confined to the activation` (`TCL WRITE
-  VARNAME`) (D77). The host calls it once per engine, after
+  VARNAME`). The host calls it once per engine, after
   `restrict_commands`.
 - A refusal is an ordinary Tcl error, which is already an abstention, so
   silence stays the conservative answer and no new answer kind appears at
@@ -1029,10 +1029,10 @@ The mechanism, as built:
   through a body's store entry.** A caught error publishes
   `::errorInfo` / `::errorCode`; confined, the VM now publishes neither
   (`catch` and `try` are off `SANDBOX_COMMANDS`, so the whitelisted host
-  never reached this hole — the engine contract did, D78). The embedder's
+  never reached this hole — the engine contract did). The embedder's
   own bookkeeping — `set_host`'s rebootstrap of `::tcl_platform` and
   `::env` — lifts the confinement while it runs, so a host swapped in
-  after `confine_stores` still gets its globals (D78).
+  after `confine_stores` still gets its globals.
 - **The `rand()` generator is interpreter state too.** Its seed outlives
   every invocation: `srand` writes it and `rand()` reads and advances what
   an earlier call left, so a `srand` in one hook and a `rand()` in another
@@ -1061,7 +1061,7 @@ The mechanism, as built:
   global the host bootstrap wrote
   (`tcl_platform::bootstrap::HOST_ARRAYS` and `HOST_PATH_GLOBALS`), and
   again after a host swap; a read of one of them raises, which is a
-  decline (D101). Where the answer genuinely depends on a name outside the
+  decline. Where the answer genuinely depends on a name outside the
   activation, the capability's `depends` list is what makes that
   dependency declared; `spectcl_check`'s `ctx_keys` and `unknown_ctx_keys`
   report is the author-facing half.
@@ -1097,7 +1097,7 @@ math function.
 `string`, `format`, `scan`, `regexp`, `regsub`, `dict`, `binary` —
 unchanged as a whitelist; `set`, `incr`, `lappend`, and `lassign` keep
 their exact semantics on the activation's locals, and `Engine::confine_stores`
-is what stops one of the four from reaching outside it (D10, D77); plus
+is what stops one of the four from reaching outside it; plus
 the `builtins()` host command `foldlist`; plus the family's emitter
 verbs. None of the four store writers is pure, and all four are necessary
 facilities: that is the point of separating the two policies. `regexp` and
@@ -1188,8 +1188,8 @@ A resolver that cannot represent "pure, but no evaluator" is corrected by
 #### The extension host
 
 A pack whose command is a compiled C extension's declares the
-implementation on the extension host (slice 7, binding the seam the
-consumer-contracts lane built — its D10.56 and D10.57):
+implementation on the extension host, binding the registry's extension
+seam:
 
 ```text
 evaluate -implementation pkga.calc.v1 -host wasm_extension {
@@ -1250,15 +1250,15 @@ trait Engine {
 ```
 
 The argument is the profile's name, not the page's original
-`&'static DialectProfile` (D76, D11): a dependency on `tcl-dialect` would
+`&'static DialectProfile`: a dependency on `tcl-dialect` would
 break the crate's stated "no dependencies at all" design. `TclVmEngine`
 resolves the name through the registry's one dialect ingress,
 `resolve_known_environment(name).catalogue_profile()`, so the lenient
 `tcl` sink, `tk`, `jim`, and an unknown name — none of which names a
 release the VM can run — are `Unsupported`; the same pin twice is a
 no-op, and pinning a different profile after a unit was compiled is
-`Unsupported`, because the VM does not switch release mid-execution
-(D76). Resolution then calls `Interp::set_dialect_profile` in
+`Unsupported`, because the VM does not switch release mid-execution.
+Resolution then calls `Interp::set_dialect_profile` in
 `rust/tcl-vm/src/interp.rs`, which already pins the interpreter to one
 `DialectProfile`; the wrapper adds only the release identity the memo key
 carries. What `set_dialect_profile` does decides the wrapper's contract:
@@ -1268,13 +1268,13 @@ it bumps the command epoch, and on an actual profile change it increments
 installs the release's numeral grammar through
 `tcl_syntax::number::set_runtime_syntax`.
 
-- **Pinning is per program and opt-in, not per engine (D74).**
+- **Pinning is per program and opt-in, not per engine.**
   `HookProgram::release_pinned` runs a body on the pack's engine pinned to
   the call's profile (`HookCall::dialect`), one per (pack, profile,
   thread), each hook compiled on it at first use; a call naming no
   profile abstains rather than run at a default. Every family stays on
-  the unpinned engine, byte-identical, except `evaluate` (VT4.6), the
-  first to set the flag. The hook cache's `ShapeKey` carries the profile,
+  the unpinned engine, byte-identical, except `evaluate`, which sets the
+  flag. The hook cache's `ShapeKey` carries the profile,
   so a pinned answer is never served under another.
 - A pinned profile is part of the pack's engine identity. Analysing the
   same pack against a second profile builds a second engine and recompiles
@@ -1284,10 +1284,10 @@ installs the release's numeral grammar through
   that finds it, and an analysis thread that owns the engine also reads
   numerals for its own work — `GrammarGuard` claims the pinned release's
   grammar for each compile and invoke and restores the caller's on every
-  exit, including building a fresh VM (D75).
+  exit, including building a fresh VM.
 - **A pack whose capability names a release the engine cannot pin has no
   load-time notice, because a capability names axes, not a release — the
-  release is each call's profile (D74).** The host logs one error-log
+  release is each call's profile.** The host logs one error-log
   line the first time a profile cannot be pinned, and the answer under
   that profile is a decline — never a silent run at the engine's default.
 
@@ -1319,8 +1319,8 @@ empty string; they are a simulator's fallbacks and are not evaluators.
 - **Unknown inputs stay unknown.** If a required operand is not exact the
   body is not invoked with a placeholder — its fact's own stand-in
   (`Pending`, `NotExact`, `CorrelatedSets`) is the decline, never a
-  placeholder value (D88) — the engine reads no host environment
-  (`Engine::confine_stores` strips it, D101), and one sampled run is never
+  placeholder value — the engine reads no host environment
+  (`Engine::confine_stores` strips it), and one sampled run is never
   a proof; partial abstract reasoning stays with the analyser. The places
   and the inputs are read before the release, the admission and the host,
   so a call whose input is not exact declines with that input's own reason
@@ -1379,7 +1379,7 @@ struct EvalMemoKey {
 }
 ```
 
-As built (D95), the hook cache in `rust/tcl-registry/src/pack_hooks.rs`
+The hook cache in `rust/tcl-registry/src/pack_hooks.rs`
 closes both gaps without adopting `EvalMemoKey`'s exact shape. `ShapeKey`
 still carries `slot`, `nwords`, two bits of `kinds` per word for up to 64
 words, a `version` discriminant, `in_event_body`, and a `dialect` — the
@@ -1396,7 +1396,7 @@ every hit; a colliding bucket holds the latest content's answer. Declared
 input exposure and cache eligibility still move together
 (`CacheMode::of(inputs)`, over `HookInputs::shape_only` and
 `content_cacheable`), and an incoming target reaches a declared body only
-bound with an exact value (D88), so its word in `CallContent` is at once
+bound with an exact value, so its word in `CallContent` is at once
 its value and its existence — there is no separate `TargetState` type to
 carry the two.
 
@@ -1413,7 +1413,7 @@ carry the two.
 | a `rename`, `proc` redefinition, or namespace opacity change | every entry whose `depends` names the affected binding, and every per-procedure lattice in the file | `ModuleCommandMutations` in the context; `CommandTrustSnapshot` is its hashable form |
 | a registry or overlay generation change | every entry | `RegistryGeneration` in `depends` |
 | a trace or escape fact | the affected place's transfers, through the solver | the existing observability owners |
-| a plan publish or a quarantine, made visible to every worker sharing the database | every per-procedure lattice memoised in `tcl-lsp-db`, on the next analysis | `tcl_lsp_db::EvaluatorEpoch`, a salsa singleton the server bumps (D104) |
+| a plan publish or a quarantine, made visible to every worker sharing the database | every per-procedure lattice memoised in `tcl-lsp-db`, on the next analysis | `tcl_lsp_db::EvaluatorEpoch`, a salsa singleton the server bumps |
 
 A stale memo is an invalidation defect, not something an optimiser re-run
 repairs. A second run is justified only by additional explicit assumptions
@@ -1451,7 +1451,7 @@ distinct generation, so its honest declines are keyed as such and a
 host-present worker and a host-absent worker never share an entry. Tests
 cover host-present and host-absent workers, pack reload, and quarantine.
 
-The salsa side of the same rule, as built (D96, D97): `compilation_unit`
+The salsa side of the same rule: `compilation_unit`
 and `proc_taint_solve` take the overlay (`AnalyserConfig::spec_pack_key`)
 as an argument, resolved by `unit_registry` — the shared registry for `0`,
 so a workspace without packs resolves exactly as before —
@@ -1465,11 +1465,11 @@ construction and at every mutation) and `overlay_generation` (stamped by
 from the registry the unit resolved against, so a unit built against an
 overlay keys every lattice by exactly that registry; an overlay not installed
 yet builds no unit at all. Left open by this alone: a
-worker's thread-local `EvaluatorGeneration` (D94) is deliberately *not*
+worker's thread-local `EvaluatorGeneration` is deliberately *not*
 a salsa input — `compilation_unit` is memoised on its inputs, and a
 generation is not one, so a unit built on one worker is served to another
 whatever that worker's generation, and the lattice keys inside still carry
-the builder's own (D98). What closes that a level up is the separate,
+the builder's own. What closes that a level up is the separate,
 coarser `EvaluatorEpoch` above — the invalidation table's last row.
 `FnLatticeKey` still cannot carry `ModuleCommandMutations` directly,
 although `CommandTrustSnapshot` exists as the hashable form of that
@@ -1522,8 +1522,8 @@ both count against it.
 
 ### The three nested budgets
 
-The page's three separate types did not survive contact with the tree
-(D99): the built shape is **one `Budget` type, at three call sites**, each
+The page's three separate types did not survive contact with the tree:
+the built shape is **one `Budget` type, at three call sites**, each
 value charging through every enclosing one it was built from.
 
 ```rust,ignore
@@ -1578,7 +1578,7 @@ which quarantines it the first time the clock is reached. A declared
 implementation's `budget` row narrows the host's, never widens it, and
 the rule lives in the host alone: the host caps each field the row names
 at its own configuration when it runs the call, so a value above the
-host's runs under the host's (D91). The loader records the row as
+host's runs under the host's. The loader records the row as
 written, since only the host knows how it is configured. `charge_work`
 propagates to every enclosing level: an evaluation's own exhaustion is
 `Budget(Fuel)`, an iteration's or the request's is `Budget(Request)`, so
@@ -1587,7 +1587,7 @@ sweep re-evaluates, not only those past the point of exhaustion — sound,
 because a re-decline publishes `Overdefined` and never a stale constant,
 but costly per function: once one run's evaluations spend its request,
 the function keeps none of its route folds from that run, the ones
-earlier sweeps folded included (D100, accepted as built at Q13).
+earlier sweeps folded included.
 
 ### Cancellation points
 
@@ -1621,14 +1621,14 @@ workloads — cold host setup, warm evaluation, cache hits, changed inputs,
 solver iterations, cancellation latency, memory, and incremental editor
 latency.
 
-That comparison is `rust/tcl-compiler/benches/value_transfers.rs` (slice 7):
+That comparison is `rust/tcl-compiler/benches/value_transfers.rs`:
 `cargo bench -p tcl-compiler --bench value_transfers` prints it, the route
 entries counted with `RouteTally`, and `cargo test` runs it at smoke sizes.
 Its first workload is a literal command substitution of thousands of words
 (`array set m [list 0 1 …]`, the shape of tcllib's `stringprep_data.tcl`),
 timing the analysis and the optimiser against the constant-substitution
 engine's fold and the `list` route over the same words: measured in the
-debug profile at slice 7, the route takes 0.07 to 0.24 % of the optimiser's
+debug profile, the route takes 0.07 to 0.24 % of the optimiser's
 time from 500 to 4,000 words and the engine's fold under 1.5 %; the rest is
 the analysis, which grows with the square of the word count: the
 deferred-write scan asks `CommandRegistry::callback_script_indices` of the
@@ -1647,7 +1647,7 @@ release the profile can denote, and declines `ReleaseAmbiguous(axis)`
 where two of them differ. A dialect that declares a base release
 evaluates under that release — iRules on its 8.4-derived engine — and an
 axis its pack declares divergent is a disagreement, which blocks the fold
-(the owner's ruling of 2026-09-22). `TargetSemantics::of` takes the
+(§ *Rulings* 7 and 8 of the interface contract). `TargetSemantics::of` takes the
 release a profile declares, `DialectProfile::runtime_version` (its
 `runtime_base`): each plain Tcl profile's own, iRules, iApps and tmsh on
 8.4, `expect` on 8.6, each EDA shell on its vendor's. An axis on which the
@@ -1658,7 +1658,7 @@ A profile declaring no release (`tk`, the version-less `tcl` profile,
 `f5-bigip`) answers every axis by unanimity. `TclVersion::from_profile` in
 `rust/tcl-dialect/src/version.rs` still answers only for the five plain
 Tcl profile names; routing a vendor profile's point through the evidence
-gate per measured row is the consumer-contracts lane's CC9.2, and it
+gate per measured row is `EvaluationEvidence` on the profile, and it
 feeds the same field. `HookCall` carries `dialect` (the profile name,
 deliberately not derived from `version`) and `version` (the `TclVersion`,
 `None` when the profile names no release).
@@ -1677,7 +1677,7 @@ and declines the rest.
 | regexp features and limits | supported through `AreEngine` with `RegexpPrecision`; declines `-about`, `regsub -command`, every `PrecisionDecline`, and a non-ASCII `-nocase` exact pattern (the core folds with `eq_ignore_ascii_case`) | supported only where an operand is already an exact value; the engine itself has no regexp operator | evidence: a body's `regexp` reaches the same engine and the same precision result | declines |
 | binary representation (`BINARY_FIELDS`, `BYTE_STRINGS`) | supported: `specifier_min_version` and `signedness_available` gate the field grammar, and `ConstValue` is byte-exact with `Representation` as separate evidence | declines: the expression engine has no byte-array rung | evidence: the engine's own value model; a `binary` result crosses the boundary as bytes or declines | declines |
 | platform behaviour (`PLATFORM`) | declines always: `PLATFORM` is never satisfiable, so `platform::exec` and `platform::pwd` are unreachable by construction | declines | declines: the host denies ambient files, network, clock, and randomness | declines |
-| completion semantics | supported: the normal path from slice 2, and from slice 10 the interface contract's `CompletionOutcome::Error` under the prefix rule; before slice 10 an error is a decline | supported: the normal path, a short circuit being a normal path, and from slice 10 the exact error completion (`expr {1/0}`); before slice 10 an error is a decline | supported for the normal path only, through `CompletionSupport`; `EngineError::Script` is a decline and `BudgetExceeded` is a distinct one | declines |
+| completion semantics | supported: the normal path, and the interface contract's `CompletionOutcome::Error` under the prefix rule | supported: the normal path, a short circuit being a normal path, and the exact error completion (`expr {1/0}`) | supported for the normal path only, through `CompletionSupport`; `EngineError::Script` is a decline and `BudgetExceeded` is a distinct one | declines |
 | wall clock and locale (`WALL_CLOCK`) | declines always: `clock::dispatch` requests it and it is never satisfiable | declines | declines: `after` and `clock` are off the whitelist | declines |
 
 ### What "consistent" can mean
@@ -1723,8 +1723,8 @@ Today's `const_fold {words ctx} {…}` and `const_fold -native ID`, the
 `semantics`, `evaluate`, `facts`, and the route flags below are **built**,
 not proposed: the registry field, loader (`loader/semantics.rs`), exporter,
 renderer, and studio form moved together, under
-[command-spec-studio.md](../contracts/command-spec-studio.md), and landed
-as DSL vocabulary **2.2** (D83) — the minor after 2.1's
+[command-spec-studio.md](../contracts/command-spec-studio.md), and are
+DSL vocabulary **2.2** — the minor after 2.1's
 `arg_role_resolver_roles`. All of it is additive: an older loader meeting a
 2.2 pack keeps loading and loses only the three statements, which leaves
 the command known and its evaluation `Unknown` — the "shape or value word"
@@ -1735,8 +1735,8 @@ command shaped like them, exactly as a pack author writing a private
 command does today (the `tenant::label` worked example, built and tested
 verbatim as
 [the completion-test fixture](value-transfers-examples.md#a-vendor-loop-and-a-private-command-in-a-workspace-pack),
-VT4.13). Migrating the shipped catalogue onto `semantics` / `evaluate` is
-future work this slice does not do.
+). Migrating the shipped catalogue onto `semantics` / `evaluate` is not
+done.
 
 ### `incr`: direct arithmetic, independent result and write
 
@@ -1768,7 +1768,7 @@ fn evaluate(input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
 ```tcl
 # Illustrative: the `semantics` / `evaluate` / `facts` statements are real
 # loader syntax (2.2), but `incr` itself is not declared this way — it
-# still gets its route from the slice-2 Rust construction shown above.
+# still gets its route from the Rust construction shown above.
 # `incr::semantics`, `incr::evaluate` and `incr::facts` name nothing built.
 command incr {
     semantics -native incr::semantics
@@ -1838,7 +1838,7 @@ into the evidence and the cache key.
 ```tcl
 # Illustrative, as above; no diagnostic codes, no compiler callback IDs.
 # `regexp` is not declared this way yet, but the option-level flags shown
-# on the last line are real (D90) — they are what `regexp -about` and
+# on the last line are real — they are what `regexp -about` and
 # `regsub -command` need, and the whole of the option-level vocabulary.
 command regexp {
     semantics -native regexp::semantics
@@ -1867,11 +1867,11 @@ relationship without extending SCCP:
 
 ```tcl
 # Built, verbatim: rust/tcl-compiler/tests/fixtures/value_transfers/tenant.tclspec
-# (VT4.13), the lane's completion-test fixture, under `speclib tenant 2.2`.
+# the completion-test fixture, under `speclib tenant 2.2`.
 # `tenant::label acme` folds to `tenant:acme` through this route from 8.6
 # onward (the body's `string cat` is unavailable in 8.4 and 8.5, so the
 # evaluator declines `unsupported` there rather than answer for a release
-# it cannot run in, D103); an unknown argument declines `not-exact`.
+# it cannot run in); an unknown argument declines `not-exact`.
 command tenant::label {
     arity 1
     semantics {
@@ -2037,7 +2037,7 @@ The rule, stated once:
   `const_fold` families; the other body families' tables are empty and
   their `-native` statements are not looked up.
 - **Every family gets a table — fourteen separate ones, not one
-  `NativeEvalTables` struct (D93 pattern; built as
+  `NativeEvalTables` struct (built as
   `pub const *_NATIVE: &[(&str, FnPtr)]` constants in
   `rust/tcl-registry/src/pack_hooks.rs`).** One per family, keyed by the
   full id: the eleven pre-existing `HookFamily` variants —
@@ -2098,8 +2098,8 @@ functions (`fold_concat`, `fold_llength`, `fold_lreverse`, `fold_join`,
 range`'s versioned one, `namespace qualifiers` and `tail`, and `subst` —
 take the same `SCOPE::FIELD` spelling under their own scopes, and each is
 one row.
-The `evaluate` table's entries are the direct evaluators the migration's
-slices land, one per resolved form, and its catalogue is what
+The `evaluate` table's entries are the direct evaluators, one per resolved
+form, and its catalogue is what
 `evaluate -direct` resolves against.
 
 An unknown name is dropped with a load notice, and the renderer's
@@ -2121,7 +2121,7 @@ Registry, loader, renderer and export, and studio move together or carry a
 | `rust/tcl-spec-studio/tests/spectcl_roundtrip.rs` | a rendered-then-reloaded draft differs from its source only on `GAPS` keys; `export.rs` round-trips bodies verbatim as it does for `const_fold` |
 | `rust/tcl-spec-studio/tests/reference_doc.rs` | `docs/references/command-spec/fields.md` is regenerated from the studio schema, so the three fields' help text is one string in `rust/tcl-spec-studio/src/help.rs` and not two |
 
-As built (VT4.11), the studio gains a route picker and a body box —
+The studio has a route picker and a body box —
 `schema.rs`'s `route` and `body` `NestedFieldSchema` rows under
 `semantics` — in the existing "Effects and purity" cluster (`relations.rs`,
 alongside `const_fold`), and closes its top-level-only carry-forward of
@@ -2132,7 +2132,7 @@ blocks name a pack-level construct `PackStore::accepts`'s isolated
 per-block check cannot see, so that one example still falls back to the
 re-render floor, reporting the same fields through `Write::dropped` a
 splice would have. The page's own "try it" box over
-`HookHost::install_pack_hooks` was not built in this slice — nothing in
+`HookHost::install_pack_hooks` is not built — nothing in
 `tcl-spec-studio` runs a synthetic `HookCall` from the form yet.
 
 `tcl-mcp`'s `spectcl_check` (`rust/tcl-mcp/src/spectcl.rs`) already
@@ -2164,35 +2164,6 @@ declared-implementation route*), keyed by the target release and its own
 identity. Purity inferred from
 a summary is classification only, and the pack's differential corpus proves an
 implementation against the library's real behaviour.
-
-## Where each part lands
-
-Every part of this contract lands in one of slices 1–7 of the thirteen
-[value-transfers-migration.md](value-transfers-migration.md) numbers;
-slices 8–13 land the rungs the interface contract states and take no part
-from this page.
-
-| This page's part | Slice | What the slice already names |
-|---|---|---|
-| the four `EvalRoute` states, resolved with the binding and the selected form | 1 | the explicit abstention state at command, subcommand, and form scope |
-| the target-semantics matrix as a contract, and the `Needs` axis list | 1 | the two contract pages themselves |
-| the analysis context reaching the per-function key | 1 | "the analysis context in `FnLatticeKey`" |
-| `ConstOps`, `ConstValue`, `Needs`, `admit`, `take`, the index pre-resolution, and the core table for `string range` and `incr` | 2 | "`string range` and `incr` over `ConstOps` and its admissibility adapters, preserving exact values and target semantics" |
-| `var::append_bytes` and `var::lappend_value` on the same adapter | 2 | "then `append` / `lappend`" |
-| the `WorkUnits` unit, the three nested budgets, and the allocation charge | 2 | the same slice, because it is the first route that charges |
-| the expression route: the full value, the lazy services, `MathFuncSpec::result_class`, the binding evidence | 3 | "registry-owned argument assembly over the shared expression engine with lazy input services and transitive binding evidence; the full value result" |
-| the declared-implementation route: `Engine::confine_stores` (D10, superseding the page's `ActivationStore`), the two policies, `EvaluatorCapability`, `Engine::set_release`, the provisioning path | 4 | "per-evaluation state isolation in the host, `-native` resolution for every family, and `Engine::set_release`" |
-| `EvalMemoKey`'s incoming-target and dependency components, and `EvaluatorGeneration` | 4 | "cache inputs (target values), overlay invalidation (`spec_pack_key` reaching `compilation_unit`)" |
-| the `semantics` / `evaluate` / `facts` statements, the body verbs, the `SCOPE::FIELD` id rule, the per-family tables, the four surfaces, and the `spectcl_check` findings | 4 | "the loader, renderer, studio … delivered together on one small executable example before any catalogue migration" |
-| `RegexpPrecision`, `PrecisionDecline`, the pattern cache, and the regexp cancellation point | 5 | "the regexp owner's typed precision result; `regexp`, `scan`, `lassign`, `binary scan`" |
-| the `binary` and `scan` core rows, and the `-inline` / no-match / partial-`scan` outcomes | 5 | "program (2) folds and is typed as a byte array" |
-| regexp-mode `switch::select` and `lsearch -regexp` selection facts | 6 | "selection facts for opaque forms through `tcl_cmd_core::switch`" |
-| the remaining core-table rows as their catalogue entries appear, and the `PLATFORM` / `WALL_CLOCK` exclusions as a recorded reason | 7 | "every command that declares purity has a route or an explicit "none" with its reason in the inventory" |
-
-Two obligations are not a slice of their own because they are a gate on
-every slice: the `tclsh` differential gains each route's witnesses as that
-route lands, and the four-surface parity tests fail closed from slice 4
-onward.
 
 ## File-path anchors
 
@@ -2243,7 +2214,7 @@ onward.
 
 - [value-transfers.md](value-transfers.md) — the interface this contract evaluates for, and the ordered evaluation state stateful nested substitutions need
 - [value-transfers-examples.md](value-transfers-examples.md) — the programs each route is measured against, and the declarations in Rust and `.tclspec`
-- [value-transfers-migration.md](value-transfers-migration.md) — the slices that land each route
+- [value-transfers-migration.md](value-transfers-migration.md) — the inventory, the ledger and the gate
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) — runtime backing, the engine's WASM sibling, and C hosting, none of which this contract waits for
 - [byte-array-corruption.md](byte-array-corruption.md) — why `ConstOps` must override both byte methods
 - [../runtime/family-b-routing.md](../runtime/family-b-routing.md) — the shared-core rule the direct route follows

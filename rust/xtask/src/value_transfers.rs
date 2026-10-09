@@ -941,7 +941,7 @@ fn describe_route(route: Option<EvalRoute>) -> (String, String, bool) {
         }
         Some(EvalRoute::Expression { language }) => (
             format!("expression `{}`", language.as_str()),
-            "compiler engine adapter (registry argument assembly lands in slice 3)".to_owned(),
+            "compiler engine adapter over the registry's argument assembly".to_owned(),
             true,
         ),
         Some(EvalRoute::Implementation(capability)) => (
@@ -1059,8 +1059,8 @@ fn render_report(rows: &[Row], lint: &Lint) -> String {
          declaration states (`docs/design/compiler/value-transfers.md` § *One invocation, one \
          context*), with the evaluator route it names and who implements it. *Semantics* is the \
          declaration state and the specialisation's identity; *Route* the declared route; *Owner* \
-         who implements it — the registry, or the compiler's transitional handler with the slice \
-         of the migration plan that retires it; *Enabled* whether the route evaluates at all: \
+         who implements it — the registry, or a compiler-owned transitional handler, which the \
+         migration plan's ledger names with what retires it; *Enabled* whether the route evaluates at all: \
          descriptor availability and enabled evaluation are separate columns. *Targets* lists the \
          variable-writing roles the effective descriptor declares. *Gap* names what the row still \
          lacks. A row with no semantics and no gap is counted per dialect below rather than listed. \
@@ -1168,9 +1168,9 @@ fn render_ratchet(out: &mut String, lint: &Lint) {
         out,
         "The files the gate holds clean, with every site waived or gone: {}.\n\nEvery other \
          scanned file with an unwaived recogniser-shaped site, and its count, which is the pin in \
-         `rust/xtask/src/value_transfers.rs`. The count may only fall: a slice lowers the pin \
+         `rust/xtask/src/value_transfers.rs`. The count may only fall: a pin is lowered \
          beside the review that removes or waives the file's sites, and the ledger in \
-         `docs/design/compiler/value-transfers-migration.md` names that slice or axis migration.\n",
+         `docs/design/compiler/value-transfers-migration.md` names that review or axis migration.\n",
         clean.join(", ")
     );
     let _ = writeln!(out, "| File | Unwaived sites |");

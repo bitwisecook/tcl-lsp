@@ -36,8 +36,7 @@ project default, not a layered setting: a caller that asks for `full` gets
 that does not ask. The exception covers that one key on those three
 requests and nothing else. The `[optimiser]` master switch and its per-code
 keys keep the table's order, and the editor's `tclLsp.optimiser.profile`
-is an ordinary layer-2 setting, under the project file. It is the owner's
-ruling of 2026-09-22, and
+is an ordinary layer-2 setting, under the project file.
 [diagnostic-policy.md](../compiler/diagnostic-policy.md) § Configuration
 states it with the rest of the policy resolution.
 

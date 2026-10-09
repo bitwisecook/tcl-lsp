@@ -92,10 +92,10 @@ User-facing compiler troubleshooting and how-tos live in
   examples as they would be written in the Rust command registry and in a
   `.tclspec` pack.
 - [value-transfers-migration.md](value-transfers-migration.md) —
-  **proposal**: the migration plan — the versioned inventory of hand-written
-  command knowledge, the delivery slices with their exit criteria, what
-  changes for every analysis, optimisation, and diagnostic, the third-party
-  tiers, the drift gate, and the validation matrix.
+  the migration plan — the versioned inventory of hand-written command
+  knowledge, what changes for every analysis, optimisation, and diagnostic,
+  the third-party tiers, the drift gate and its ledger, and the validation
+  matrix.
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) —
   companion: the description, identity, and backing contracts under which
   the registry and `.tclspec` packs can drive the analyser, both code
@@ -140,16 +140,6 @@ User-facing compiler troubleshooting and how-tos live in
   the registry's extension seam — **built**; the rest — rung 4's shipped
   implementation and the identity kind codegen chooses from the backing, and
   the extension evaluation route that binds the seam — **not built**.
-- [value-transfers-review.md](value-transfers-review.md) — review of those
-  proposals against registry-owned specialisation, with shared expression
-  and regexp evaluation, analysis/diagnostic separation, correctness findings,
-  adversarial attacks, partial reduction, and a revised delivery order.
-- [value-transfers-coverage-review.md](value-transfers-coverage-review.md) —
-  code-by-code evidence and proof obligations for all 275 numbered diagnostic
-  and optimisation entries, plus extensible/domain finding families.
-- [value-transfers-authoring-review.md](value-transfers-authoring-review.md) —
-  proposed multi-domain fact interfaces and Rust/SpecTcl examples, integrating
-  existing type hooks, EDA collection loops and BPF semantics/safety.
 - [type-tracking.md](type-tracking.md) — the comprehensive value-type model
   (purity / first-use commitment, union nodes, container element types, the
   numeric tower) with its oracle corpus.
@@ -265,7 +255,7 @@ User-facing compiler troubleshooting and how-tos live in
   default-off seeding, severity overrides, the optimiser and shimmer
   switches, overlap precedence and encoding abstention, what each of the
   editor, CLI, MCP, code-action and `tcl opt` surfaces applies today, and
-  the ten delivery slices.
+  where each part lives.
 - [async-diagnostics-tiering.md](async-diagnostics-tiering.md) —
   fast/deep tiering and cancellation expectations.
 

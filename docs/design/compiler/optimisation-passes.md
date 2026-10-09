@@ -8,8 +8,7 @@ under `rust/tcl-compiler/src/optimiser/`, with GVN in `src/gvn.rs`.
 
 - `manager.rs` orchestrates the pass sequence and groups findings.
 - `propagation.rs` performs constant, copy, load, and command-substitution
-  propagation, including O100–O103 and related literal folds. Since
-  slice 5, O100's use-site and use-in-return forwards, O103's return
+  propagation, including O100–O103 and related literal folds. O100's use-site and use-in-return forwards, O103's return
   fold and O127's skip each check `SccpResult::materialises` first: a
   value a route constructed rather than read from the source (`binary
   format`'s byte array) is never spelled into the rewritten program, so
@@ -22,9 +21,9 @@ under `rust/tcl-compiler/src/optimiser/`, with GVN in `src/gvn.rs`.
   name, so no word of that statement is an operand to forward. O103's
   argument-independent path reads a procedure's summary, whose constant
   return is the value its own lattice, run with no call-site seed, proves at
-  every exit (slice 7a), so a computed return folds as a literal one does,
+  every exit, so a computed return folds as a literal one does,
   spelled exactly as the procedure returns it. A call to a procedure of the
-  module is applied as its transfer summary says (slice 13): a place a
+  module is applied as its transfer summary says: a place a
   `Name` argument names holds what a re-run of the callee, seeded from the
   caller's places, leaves in it, so after `set n 1; bump n` O100 forwards
   `n` as 2, `[p]` folds on the argument-independent path where `p`'s only
@@ -53,10 +52,10 @@ under `rust/tcl-compiler/src/optimiser/`, with GVN in `src/gvn.rs`.
   summary proves the procedure pure and completing whatever its arguments
   hold (`ProcSummary::completes`: a straight-line body that reads only what
   it set and runs only commands that complete so, without recursion or a
-  word the release's parser rejects, D349) and the
+  word the release's parser rejects) and the
   call resolves to it from the caller's namespace with a word count its
-  parameters accept (D330), its `proc` statement surely run before the call
-  (D348) — a statement the
+  parameters accept, its `proc` statement surely run before the call — a
+  statement the
   solver proves raises where a handler is thrown to (`SccpResult::raised`),
   whose effect is the raise, and an `incr` unless its
   amount is a literal integer, its place holds an integer wherever it is
@@ -154,7 +153,7 @@ paired O111 hint also have production sites outside that enum.
 | O100–O103 | SSA values and uses, SCCP constants (a command's value through its registry-declared route, under the module's command trust; `expr`'s own route is the shared engine's full value, so a string or boolean result folds beside a numeric one, and O101 and the return and call-site folds re-ask that route under the rewrite's whole-module trust rather than a private folder; a statement whose `[…]` substitutions write is evaluated once with its word effects, the definition point paired with it, so the names it writes are proved the value the last write left; a bounded loop the solver runs to its exit states what it leaves, which decides a branch after the loop and lets the argument-sensitive O103 re-run fold a callee that counts in a loop), type facts, command binding, variable observability, and interprocedural call facts (O103's argument-independent fold reads the procedure's seedless lattice, and answers only a call its re-run could make: every word after the head literal, and a count the parameters accept; the re-run reads no exit past a statement the flow graph keeps whole that may run a `return` of its own; a call to a procedure of the module applies its transfer summary, a place its `Name` argument names holding what a re-run of the callee seeded from the caller's places leaves; both readings take a statement the run proves raises, and a call that cannot complete under its seeds, as the end of a path, and read no value where the run holds one or a call whose completion no re-run decided) | Material inputs to the common direct-call, slot, and native-integer proofs. AOT consumes the retained analyses, never the emitted rewrite or its O-code. |
 | O105–O106 | Registry-derived invocation legality, effects, mutable-world barriers, dominance, and loop structure | The invocation-legality primitives also serve executable semantic analysis. The common AOT selector does not consume GVN, PRE, CSE, or LICM candidates. |
 | O107–O109, O112, and O126 | SCCP reachability, SSA def-use (a nested cell update's read and a read inside a braced `expr` are uses of the stores they read, a statement's reads beside a write its own substitutions make are by name, an existence read — `[info exists x]`, `[array exists x]`, an unbind — is an SSA use of the version it observes, a call observes the names its callee's global-write summary holds, a write inside a `catch` or `try` body that a substitution runs also reads the version before it, which the body may leave in place, and a φ's read over the edge from the block before a `catch` or `try` body counts only where the solver opens that edge, which it leaves closed where the body's first command certainly raises after a store), place/alias facts, and effect tests; O112 decides a condition on the shared expression route under the rewrite's whole-module trust, so it never decides past the target's tower or over a math function the module rebinds, and a `switch` only from the solver's selection, so an arm the solver did not select is never folded | Inputs overlap with conservative AOT reasoning, but DCE, dead-store, and structure-elimination results are not AOT evidence. Current AOT does not use an O107 reachability decision to erase a region or an O109 result to erase storage. |
-| O110, O113, and O114 | Tcl expression parsing, type facts, and integer semantics | Native-integer proof reuses the common expression/type/range substrate. It does not consume expression rewrites or the `incr` suggestion. Since slice 3, O110's additive/multiplicative regrouping (`reassociate_node`) requires every variable term to be a proven-integer type; a closed subtree still folds regardless, but an unproven float term (`set x 10000000000000000.0; expr {$x + 1 + 2}`) is left alone rather than regrouped, because floating-point addition is not associative (`value-transfers-migration.md`'s O110 row and its Partial-knowledge row). |
+| O110, O113, and O114 | Tcl expression parsing, type facts, and integer semantics | Native-integer proof reuses the common expression/type/range substrate. It does not consume expression rewrites or the `incr` suggestion. O110's additive/multiplicative regrouping (`reassociate_node`) requires every variable term to be a proven-integer type; a closed subtree still folds regardless, but an unproven float term (`set x 10000000000000000.0; expr {$x + 1 + 2}`) is left alone rather than regrouped, because floating-point addition is not associative (`value-transfers-migration.md`'s O110 row and its Partial-knowledge row). |
 | O116, O118, and O129 | Registry const-fold identities, result stability, command-binding trust, traces, and shared Tcl primitives | Guarded intrinsic planning overlaps with those registry and dispatch facts. A compile-time folded value or O129 finding cannot authorise live intrinsic dispatch. |
 | O104, O111, O115, O117, O119, O120, O128, and O130 | Primarily source-form, readability, or local pattern evidence; O104/O130 classify a chain by the registry's resolved cell update, fold a `$var` piece through the lattice, and consult variable observability before folding writes | No material result currently feeds semantic AOT. A later selector may reuse a common parser or primitive, but must construct its own typed proof. |
 | O121–O125 and O127 | Call graph, CFG, def-use, purity, and use-placement facts | Some inputs are common, but tail-call, recursion, unused-procedure, sinking, and single-use-inline findings do not select AOT regions or frame plans. |

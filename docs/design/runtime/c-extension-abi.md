@@ -534,6 +534,6 @@ and runs the cases the native runtime engine is held to
 (`runtime/rust/tests/common/engine_cases.rs`) on the WASM engine. The registry's
 extension seam (`tcl_registry::extension_host`) is what an analysis binds — a
 pack's `evaluate -implementation ID -host wasm_extension { extension FILE
-PREFIX … }` since the value-transfer lane's slice 7 — and a thread with no
+PREFIX … }` — and a thread with no
 host installed declines every evaluation as `Transient`, so the language
 server, which never links wasmtime, declines.

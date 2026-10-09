@@ -7,16 +7,16 @@ the companion to [value-transfers.md](value-transfers.md), which states
 the consumer interface for one axis (values), and to
 [value-evaluation.md](value-evaluation.md), which states how an answer on
 that axis is computed. This page places the value axis among the others
-and holds the rest of the programme: the three descriptors step 2 of
-§ *Build order* gave the analyser — a clause grammar, a member effect, and
+and holds the rest of the programme: the three descriptors the analyser
+reads — a clause grammar, a member effect, and
 an option effect that retired the two native resolvers over a command's
 own option table — and the identity and backing contracts a code
 generator or a runtime needs before a pack claim can change *emitted
 code*. Analysis facts wait for
 none of it — under the rulings recorded in the interface contract, a
 loaded pack's facts are authoritative for analysis and optimisation as
-soon as they are loaded, and the direct, expression, and private-pack
-slices proceed without deciding anything here.
+soon as they are loaded, and the direct, expression, and declared-implementation
+routes proceed without deciding anything here.
 
 > **What is built.** The five rulings — the four in § *Rulings* and the
 > narrower one in § *The two hook bodies that remain* — are the owner's
@@ -255,8 +255,8 @@ slices proceed without deciding anything here.
 > the memory's growth, every WASI import stubbed. The registry's extension seam
 > (`tcl_registry::extension_host`: `ExtensionHost`, `LoadedExtension`,
 > `artefact_hash`) is what an extension's evaluation calls, and it declines as
-> `Transient` on a thread with no host. The value-transfer lane's slice 7 bound
-> the route to it: a pack declares `evaluate -implementation ID -host
+> `Transient` on a thread with no host. The declared-implementation route
+> binds to it: a pack declares `evaluate -implementation ID -host
 > wasm_extension { extension FILE PREFIX … }` (`HostKind::WasmExtension`), the
 > load reads the artefact beside the pack, and the implementation's identity
 > carries the artefact's content hash, so the memo key does
@@ -271,8 +271,8 @@ slices proceed without deciding anything here.
 > `tcl_registry::value_transfer` and used here as that page spells them; its
 > `HandlerPlan` carries this page's `HandlerMatch` per `try` handler. Nothing
 > on this page is a prerequisite of the consumer interface, the direct or
-> expression routes, or the private-pack slice in
-> [value-transfers-migration.md](value-transfers-migration.md).
+> expression routes, or a workspace pack's declared implementation
+> ([value-evaluation.md](value-evaluation.md)).
 
 Read it before extending `CommandSpec` with a fact a code generator or a
 runtime would act on, before letting a pack name a compiler catalogue
@@ -343,10 +343,8 @@ analysis, with no widen-only tier and no provenance cap (the rulings in
 Four questions belong to the owner rather than to the design, and the owner
 has decided all four. Each is stated below as a **ruling**: the decision,
 the rationale, and the consequences — which documents and which code
-predicates change. The build takes them as settled, and step 1 of
-§ *Build order* repairs the documents that state the rule a ruling
-replaces. None of them blocks the analyser slices, and each is
-independently landable. A fifth, narrower one sits with the hook body it
+predicates change. The build takes them as settled, and the documents
+that stated the rule a ruling replaces are repaired. A fifth, narrower one sits with the hook body it
 concerns, in § *The two hook bodies that remain*.
 
 ### Ruling — the shipped catalogues are generated from Rust
@@ -386,9 +384,9 @@ backend. Code predicates: `command_backing`'s classification lists are rows
 of the `runtime_backing` fact, and its registration scan is a query that
 `tcl-vm` answers too.
 
-**Decided with the build.** Step 1 of § *Build order* states the
-separation in [command-registry.md](command-registry.md) § *Authoring a
-spec without Rust*, and step 7 lands the generator.
+**Decided with the build.** [command-registry.md](command-registry.md)
+§ *Authoring a spec without Rust* states the separation, and the generator
+is built.
 
 ### Ruling — trust gates execution, not authority
 
@@ -428,7 +426,7 @@ the workspace does not control.
 and maps a workspace pack to `Provenance::WorkspaceTrusted` or
 `Provenance::WorkspaceUntrusted`, which makes the latter reachable from
 discovery for the first time (the redesign's § *11.1 Owner decisions
-pending* carried it as item O9 until step 3 closed it). The two identical
+pending* carried it as item O9 until `WorkspaceTrust` closed it). The two identical
 `untrusted(…)` predicates —
 `rust/tcl-spectcl/src/loader/eval.rs` over a `Tier` and
 `rust/tcl-registry/src/model/registration.rs` over a `Provenance` —
@@ -449,10 +447,9 @@ the setting is gated, the workspace tier is not* records the split, and
 § *6.4 Trust and provenance* keeps the security floor as it is — the floor
 was never tier-keyed and does not become so.
 
-**Decided with the build.** Step 1 of § *Build order* records the split in
-[../registry/spec-packs.md](../registry/spec-packs.md) § *Workspace trust:
-the setting is gated, the workspace tier is not*, and step 3 plumbs
-`WorkspaceTrust` and gates the hook bodies on it.
+**Decided with the build.** [../registry/spec-packs.md](../registry/spec-packs.md)
+§ *Workspace trust: the setting is gated, the workspace tier is not* records
+the split; the server plumbs `WorkspaceTrust` and gates the hook bodies on it.
 
 ### Ruling — a stub sidecar is a workspace-authored fact
 
@@ -498,8 +495,8 @@ deferred residue, not design: `ssa.rs`'s barrier-def walk
 (`registry_barrier_defs`) and scope-alias discriminator, and
 `memory_ssa.rs`'s clobber verdict (`is_clobber` over `CLOBBER_TRAITS`),
 still ask the catalogue alone, because reaching them means threading the
-document's surface through `compilation_unit.rs`, which the value-transfers
-lane holds. Until then a stub's declared roles miss the barrier-def walk —
+document's surface through `compilation_unit.rs`. Until then a stub's
+declared roles miss the barrier-def walk —
 a call the lowering keeps as a barrier because its stub declares a `body`
 word writes no def for its `var` word, and a later read of that variable
 draws a false `W210` — and a redeclared catalogued name is walked with the
@@ -511,10 +508,9 @@ classification gives a declaration that states nothing. Code predicates: the uni
 sidecar ingests at — which becomes a provenance label for explanation, not
 a precision class.
 
-**Decided with the build.** Step 1 of § *Build order* states nearest-wins
-in [../contracts/dialect-stubs.md](../contracts/dialect-stubs.md)
-§ *Stubs are declarations*, and step 3 consumes the six flags on their
-catalogue fields.
+**Decided with the build.** [../contracts/dialect-stubs.md](../contracts/dialect-stubs.md)
+§ *Stubs are declarations* states nearest-wins, and the analyser consumes
+the six flags on their catalogue fields.
 
 ### Ruling — one C header, two hosts
 
@@ -543,7 +539,7 @@ the stubs-introspecting `pkgooa` member, and zero for every other one. The
 exports agree: `runtime/rust/src/capi.rs` has 20 `#[no_mangle] extern "C"`
 functions in the ABI's § 4.3 direct-import style, sized on Tcl 9's
 `ptrdiff_t` through `TclSize`, with its own module note recording that the
-obj-lifecycle and result/eval-core slice is exported and the remainder of
+obj-lifecycle and result/eval-core subset is exported and the remainder of
 the 81-function surface is absent — the WASM runtime has begun the ABI,
 not the shim. And containment comes out the same either way: the shim's
 `catch_unwind` guards Rust panics, not C undefined behaviour, and a
@@ -597,8 +593,7 @@ interface carries the completion code a host command answers (`HostOutcome`),
 so a hosted extension exercises the conservative default this page states for
 it.
 
-**Decided with the build.** Step 1 of § *Build order* states the one
-contract in [../runtime/c-extension-shim.md](../runtime/c-extension-shim.md)
+**Decided with the build.** The one contract is stated in [../runtime/c-extension-shim.md](../runtime/c-extension-shim.md)
 § *The implemented subset* and
 [../runtime/c-extension-abi.md](../runtime/c-extension-abi.md) § 7, and the
 shim compiles against the authored header.
@@ -609,14 +604,14 @@ The registry surface is far richer than the analyser's dispatch uses.
 
 | Fact | Registry | Analyser |
 |---|---|---|
-| analyser hook variants | 32 (`AnalyserHookId`, `rust/tcl-registry/src/hooks.rs`), down from 43: step 2 retired the eleven whose handler knew only a position or a keyword a descriptor now states (`Try`, `For`, `DictFor`, `DictUpdate`, `Incr`, `Append`, `Lappend`, `Upvar`, `NamespaceUpvar`, `Global`, `Variable`) | the residue is analyser policy over typed facts — procedure definition, the dynamic-target and namespace domains, the interpreter-domain stack, rename epochs, member routing, literal-iteration simulation, the case-list walk and the completion protocol, package-index bookkeeping, `source` and `load` — plus three on the migration ledger (`Set`, `DictWith`, `RegexPatternCapture`), command-specific and left for the value axis to retire; a retired command falls to the dispatch tail's generic reads |
-| scope and interpreter transitions | resolvers on `upvar`, `global`, `variable`, `namespace`, `interp` (`rust/tcl-registry/src/state_transition.rs`), and a pack's `state_transitions` resolver | since step 2 the dispatch tail applies every `VariableCellAliasTransition` an invocation states (`apply_state_transitions`, over the call's source words: `global`, `variable`, `upvar`, `namespace upvar`, a pack command's alias facts) and `interp create` — direct, or the nested `[interp create …]` a `set` binds — reads its `InterpreterTransition::Create`; the namespace family still has no consumer there; `frame_effect` is read only for alias-pair layout and level parsing (`param_traits.rs`, `diagnostics/usage.rs`); the command-binding family only by `interp alias` and the static-proc proof |
-| loop and bind positions | roles and strided `repeated_args` | since step 2 one binder (`handle_var_binding_command`) binds every `LoopVarList` and `VarWrite` position the roles name — `foreach` (which keeps its literal-iteration simulation), `lmap`, `dict for` / `map` / `update`, `array for`, `incr`, `append`, `lappend`, `lassign`, … — and `package require` / `provide` / `ifneeded` read the roles their subcommands declare |
-| OO member effect | the member-effect descriptor (`MemberSpec::effect`, `MemberEffect`, in `rust/tcl-registry/src/definer.rs`) since step 2, beside the layout (`MemberKind`: `Flat`, `Wrapper`, `FlagKeyed`) and `arg_roles`, `slot`, `retraction`, `visibility_effect`, `surface`; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one, and `DefinitionBodyGrammar::member_row` answers a statement's row | since step 2 one `match` on the row's effect (`member_landing`) routes the `TclOO` fold and the snit and itcl walkers, `MethodKind::from_effect` names the lowering's frames, and the providers read the recorded member; `property`'s flag words and snit's type-body implicit variable are the axis's residue in `analyser/oo.rs` |
-| clause grammar | the clause-grammar descriptor (`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`), on `CommandSpec` and `SubCommand` since step 2: ten shipped grammars, one registry walk answering the roles and the clause-shape defect, and the loader reading the same type | since step 2 the lowering (`lower_if`, `lower_try`), the generic body walk (each body's depths by its clause's timing, and a clause's variable list — `try`'s handlers, whose `handle_try_command` step 2 retired), the stray-keyword report, the CFG's `on ok` edge, `signature_scan/walker.rs`, the editor refactors (`if_to_switch.rs`, `refactor/datagroup.rs`) and `tcl-mcp`'s `datagroup.rs` read the plan |
-| option-selected semantics | the option-effect descriptor (`OptionSpec::effect`, `option_effect_families`, `option_effect.rs`), which replaced the two native resolvers over a command's own option table — `substitution_resolver` and `lsearch_pattern_args` — in step 2; `pattern_arg_resolver` remains an escape hatch no shipped spec sets | three consumers ask `CommandRegistry::substitutions_performed` correctly; the dynamic-name barrier and the `inner_head_performs_substitution` gate read only the trait, and `push_substituted_commands` re-walks a braced template for regions the answer does not carry |
+| analyser hook variants | 32 (`AnalyserHookId`, `rust/tcl-registry/src/hooks.rs`), down from 43: the eleven whose handler knew only a position or a keyword a descriptor states are retired (`Try`, `For`, `DictFor`, `DictUpdate`, `Incr`, `Append`, `Lappend`, `Upvar`, `NamespaceUpvar`, `Global`, `Variable`) | the residue is analyser policy over typed facts — procedure definition, the dynamic-target and namespace domains, the interpreter-domain stack, rename epochs, member routing, literal-iteration simulation, the case-list walk and the completion protocol, package-index bookkeeping, `source` and `load` — plus three on the migration ledger (`Set`, `DictWith`, `RegexPatternCapture`), command-specific and left for the value axis to retire; a retired command falls to the dispatch tail's generic reads |
+| scope and interpreter transitions | resolvers on `upvar`, `global`, `variable`, `namespace`, `interp` (`rust/tcl-registry/src/state_transition.rs`), and a pack's `state_transitions` resolver | the dispatch tail applies every `VariableCellAliasTransition` an invocation states (`apply_state_transitions`, over the call's source words: `global`, `variable`, `upvar`, `namespace upvar`, a pack command's alias facts) and `interp create` — direct, or the nested `[interp create …]` a `set` binds — reads its `InterpreterTransition::Create`; the namespace family still has no consumer there; `frame_effect` is read only for alias-pair layout and level parsing (`param_traits.rs`, `diagnostics/usage.rs`); the command-binding family only by `interp alias` and the static-proc proof |
+| loop and bind positions | roles and strided `repeated_args` | one binder (`handle_var_binding_command`) binds every `LoopVarList` and `VarWrite` position the roles name — `foreach` (which keeps its literal-iteration simulation), `lmap`, `dict for` / `map` / `update`, `array for`, `incr`, `append`, `lappend`, `lassign`, … — and `package require` / `provide` / `ifneeded` read the roles their subcommands declare |
+| OO member effect | the member-effect descriptor (`MemberSpec::effect`, `MemberEffect`, in `rust/tcl-registry/src/definer.rs`), beside the layout (`MemberKind`: `Flat`, `Wrapper`, `FlagKeyed`) and `arg_roles`, `slot`, `retraction`, `visibility_effect`, `surface`; every TclOO, snit, itcl, `SpecTcl` and `SslicTcl` member states one, and `DefinitionBodyGrammar::member_row` answers a statement's row | one `match` on the row's effect (`member_landing`) routes the `TclOO` fold and the snit and itcl walkers, `MethodKind::from_effect` names the lowering's frames, and the providers read the recorded member; `property`'s flag words and snit's type-body implicit variable are the axis's residue in `analyser/oo.rs` |
+| clause grammar | the clause-grammar descriptor (`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`), on `CommandSpec` and `SubCommand`: ten shipped grammars, one registry walk answering the roles and the clause-shape defect, and the loader reading the same type | the lowering (`lower_if`, `lower_try`), the generic body walk (each body's depths by its clause's timing, and a clause's variable list — `try`'s handlers, whose `handle_try_command` is retired), the stray-keyword report, the CFG's `on ok` edge, `signature_scan/walker.rs`, the editor refactors (`if_to_switch.rs`, `refactor/datagroup.rs`) and `tcl-mcp`'s `datagroup.rs` read the plan |
+| option-selected semantics | the option-effect descriptor (`OptionSpec::effect`, `option_effect_families`, `option_effect.rs`), which replaced the two native resolvers over a command's own option table — `substitution_resolver` and `lsearch_pattern_args`; `pattern_arg_resolver` remains an escape hatch no shipped spec sets | three consumers ask `CommandRegistry::substitutions_performed` correctly; the dynamic-name barrier and the `inner_head_performs_substitution` gate read only the trait, and `push_substituted_commands` re-walks a braced template for regions the answer does not carry |
 
-Three descriptors were missing; step 2 built all three, and each is
+The three descriptors are built, and each is
 specified below. The rest is consumer migration, through the generic
 operations the interface contract names.
 
@@ -855,7 +850,7 @@ refactors (`refactor/if_to_switch.rs`, `refactor/datagroup.rs`), and
 semantic-token classifier read the slot's `noise` word for the `then`
 distinction they draw by hand.
 
-*As built in step 2 (CC2.9, CC2.10, CC2.13).* The compiler consumers read
+*As built.* The compiler consumers read
 the plan: `lower_if` and `lower_try` through
 `ResolvedInvocation::clause_walk`, whose walk compares the words' *values*
 (so the fall-through marker is exact) and, where a computed word stands
@@ -899,7 +894,7 @@ clause_grammar {
 **The studio field.** `clause_grammar` has no `GAPS` row: as a
 `CommandSpec` field, `ClauseGrammarSpec` is plain data all the way down —
 the property that let `object_class` leave that bucket — so the four
-surfaces moved together in step 2: the field on the type with its
+surfaces move together: the field on the type with its
 `rust/tcl-spec-studio/src/coverage.rs` witnesses (the grammar, a row, a
 slot, the default clause), the loader spelling above recorded in the
 frozen-syntax memo's coverage matrix, the renderer emitting it, and
@@ -1063,7 +1058,7 @@ today:
   where `$obj variable v` does not becomes a comparison of the row's
   receiver against the dispatch spelling, not a name list.
 
-`Procedure` is step 2's addition: snit's `proc` defines a procedure in the
+`Procedure`: snit's `proc` defines a procedure in the
 type's namespace that sees the type's state and is reached by name, never
 dispatched (snit 2.3.4 on tclsh 8.6.18 and 9.0.4: `::app::Dog::helper 10`
 runs it, `::app::Dog helper 1` is a construction), which no other role
@@ -1086,8 +1081,8 @@ row's resolved `receiver`. `MethodKind::from_str_lossy` in
 (`MethodKind::from_effect`), the same two-facts-one-operation relationship
 `LoweringHookId::Incr` has to `NativeLowering::CellReadModifyWrite`. The
 `constructor` / `destructor` literals the ledger counts across the
-`tcl-lsp-core` providers read the recorded member instead. Step 2 landed
-all of it; the one match is `member_landing`, shared by the snit and itcl
+`tcl-lsp-core` providers read the recorded member instead. The one match
+is `member_landing`, shared by the snit and itcl
 walkers, and `property` stays its flag-keyed extraction until its 9.0
 accessors are `Callable` rows of their own.
 
@@ -1207,7 +1202,7 @@ returning a default that reads as a fact. And an answer is keyed on the
 analysis context, so a query asked under a different overlay generation,
 binding set, or target profile is a different query.
 
-As built in step 2, the layer is inherent methods on `ResolvedInvocation`
+The layer is inherent methods on `ResolvedInvocation`
 (`rust/tcl-registry/src/resolved_invocation.rs`), and `invocation(words,
 ctx)` is `CommandRegistry::invocation` — `resolve_structured_invocation(words,
 ctx.surface_query())`, the surface query `AnalysisContext` fixes. The
@@ -1223,7 +1218,8 @@ computed word where a resolver reads an option carries — and
 `case_invocation` abstains when its reading depends on whether a computed
 word begins with `-`. `member_rows` is `DefinitionBodyGrammar::member_row`,
 one member statement at a time, since the analyser already segments a
-definition body; `template_plan` is the value axis's slice 5. The re-keyed
+definition body; `template_plan` is the value axis's ([value-transfers.md](value-transfers.md)
+§ *The template-word plan*). The re-keyed
 by-name functions (`arg_indices_for_role_words`, `pattern_args_words`,
 `command_prefixes`, `CommandSpec::return_type_for_call`) share each
 query's rule rather than restating it, and
@@ -1330,8 +1326,7 @@ analyser:
   plain rows beside it, which is what lets the `state_transitions` `GAPS`
   row become the resolver alone; and `rust/tcl-registry/src/pack_hooks.rs`
   gains the family with its slot table, under
-  `native_hook_tables_cover_their_catalogues`. Step 1 of § *Build order*
-  states it in the pack document.
+  `native_hook_tables_cover_their_catalogues`. The pack document states it.
 
 ### The studio round-trip for `semantic_operation`
 
@@ -1349,8 +1344,8 @@ descriptor, which are the two reasons `GapKind::DraftOpaque` documents, so
 the change was on the draft side only: seeding records the `(kind,
 detail)` pair, the renderer writes it in the loader's spelling
 (`tcl_spectcl::semantic_operation_spelling`, over the closed
-`semantic_operations()` vocabulary), and the row left `GAPS` in step 2 the
-way `object_class`'s did. Three details are load-bearing:
+`semantic_operations()` vocabulary), and the row left `GAPS` the way
+`object_class`'s did. Three details are load-bearing:
 
 - **The catalogue stays closed.** A pack names a member; it never adds
   one. An unknown identifier fails closed through `VocabularyClass`, which
@@ -1364,10 +1359,6 @@ way `object_class`'s did. Three details are load-bearing:
   the row is what proves the round trip; a `TODO(spectcl)` comment in
   rendered output is the visible trace while the row exists.
 
-**Build-order step.** Step 2 — landed, with `definition_body` leaving
-`GAPS` in the same change and `clause_grammar` landing as a field that
-never needs a row there.
-
 ## Options with semantic effects
 
 Two native resolvers in the registry read a command's own option table and
@@ -1378,7 +1369,7 @@ kinds of substitution `subst` performs) and `pattern_arg_resolver`
 `lsearch`). Both were `GapKind::Excluded` in the studio's `GAPS` with the
 same reason — "a native resolver over a command's own `OptionSpec` table …
 keeping it excluded makes the native-only boundary explicit until a
-declarative selector exists". This is that selector, and step 2 built it
+declarative selector exists". This is that selector
 (`rust/tcl-registry/src/option_effect.rs`): `substitution_resolver` and
 `lsearch_pattern_args` are gone, and `pattern_arg_resolver` remains only as
 an escape hatch no shipped spec sets. The two unrelated clients are what
@@ -1600,8 +1591,8 @@ separate field at all.
 **The studio field.** Both `substitution_resolver` and
 `pattern_arg_resolver` lost their `GapKind::Excluded` rows: the first left
 `CommandSpec`, and the second is an escape hatch no shipped spec sets.
-`option -effect` / `option_effect_family` joined the option-row form with
-the loader spelling in step 2 (`rust/tcl-spec-studio/tests/option_row_editing.rs`
+`option -effect` / `option_effect_family` join the option-row form with
+the loader spelling (`rust/tcl-spec-studio/tests/option_row_editing.rs`
 is that form's gate): an option row's `effect` is drafted and written back,
 and `option_effect_families` has its generator and reverse parser, so
 neither carries a `GAPS` row.
@@ -2542,71 +2533,10 @@ flowchart LR
   artefact's content hash, takes exact words and an `ImplementationBudget`, and
   declines every evaluation as `Transient` on a thread with no host installed,
   so the language server, which never links wasmtime, declines. The
-  declared-implementation route binds the seam since the value-transfer lane's
-  slice 7: `-host wasm_extension` and its `extension FILE PREFIX` row name the
+  declared-implementation route binds the seam: `-host wasm_extension` and its `extension FILE PREFIX` row name the
   artefact, whose content hash the implementation's identity, and so the memo
   key, carries; eligibility from a declared route on the command and the
   vector's gate stay the route's.
-
-## Build order
-
-Each step is independently shippable and lands with its tests, KCS notes,
-and design-doc updates. None of them gates the value-axis slices in the
-migration plan; steps 2 and 4 are the shortest route to the owner's goal
-and come before any runtime guard work.
-
-1. Take the four rulings, and repair the documents the work
-   builds on: [command-registry.md](command-registry.md) § *Authoring a
-   spec without Rust* (the studio's `.rs` export is a contribution aid,
-   not a backend), [../contracts/dialect-stubs.md](../contracts/dialect-stubs.md)
-   § *Stubs are declarations* (nearest-wins in place of widen-only),
-   [../registry/spec-packs.md](../registry/spec-packs.md) § *Workspace
-   trust: the setting is gated, the workspace tier is not* (execution
-   gated, authority not) and § *What a pack still cannot say* (the
-   alias-only state-transition resolver),
-   [../runtime/c-extension-shim.md](../runtime/c-extension-shim.md)
-   § *The implemented subset* and
-   [../runtime/c-extension-abi.md](../runtime/c-extension-abi.md) § 7 (one
-   header, two hosts), [../runtime/tclvm-opcode-status.md](../runtime/tclvm-opcode-status.md)'s
-   note on `startCommand`, [../runtime/rename-alias.md](../runtime/rename-alias.md)
-   § 3.5, and [aot-command-priority.md](aot-command-priority.md) § 5.
-2. Land the derived-query layer, the clause-grammar and member-effect
-   descriptors, the option-effect descriptor with its four clients, the
-   consumer migration across every tier onto the generic operations, the
-   per-axis lint and generated ledger, and the studio round-trip for
-   `semantic_operation` and `definition_body`.
-3. Plumb `WorkspaceTrust` to discovery, collapse the two `untrusted`
-   predicates into one, and gate hook-body execution on it, with the
-   dormant-hook abstention reported on the pack file. Consume the six
-   `StubFlags` on their catalogue fields.
-4. Separate the three identity mechanisms in code and tests: `alias_of`
-   and codegen recording the alias target's identity, the loader's stamp
-   rejection rule, and `SiteClaim` recording the pack facts a specialised
-   site rests on.
-5. Persist intrinsic guard identities in both runtimes across mutations and
-   the pin, widen `guard_semantics_key` to one key per `IntrinsicId`
-   member, and close the Explorer observability gap that
-   [semantic-aot-optimisation.md](semantic-aot-optimisation.md) requires
-   before native selection widens.
-6. Extend the take-shipped floor to the whole codegen and runtime axis,
-   apply the `CodegenCapability` matrix by tier, deliver the overlay
-   generation to the compile service, and make the overlay miss fail
-   closed.
-7. Attach identities from the pinned generation after registration, make
-   `runtime_backing` a registry query in both runtimes with
-   `command_backing`'s lists as its rows, grow the intrinsic table by
-   family, and add `ArtefactIdentityManifest` and the runtime context pin,
-   with a fuzz campaign as the exit.
-8. Add reference bodies as declared implementations and as code, the engine
-   release setter, `tcl spec test`, and the manifest `spec` directive with
-   its `DependencyTier`.
-9. Version the codegen axis and feed evaluation points through the
-   evidence gate.
-10. The extension legs in order: the conservative default fact; the C
-    scan, probe, and bridge; the host opt-in `load`; the authored header
-    retargeting with its CI gate, the `Tcl_CreateObjCommand` export, and
-    the shared-table `Command` variant; the engine interface's completion
-    and variable doors; and WASM-hosted evaluation last.
 
 ## File-path anchors
 

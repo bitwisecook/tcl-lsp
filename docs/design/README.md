@@ -74,10 +74,10 @@ passes, and ownership matrices.
   examples as they would be written in the Rust command registry and in a
   `.tclspec` pack.
 - [value-transfers-migration.md](compiler/value-transfers-migration.md) —
-  **proposal**: the migration plan — the versioned inventory of
-  hand-written command knowledge, the delivery slices with their exit
-  criteria, what changes for every analysis, optimisation, and diagnostic,
-  the third-party tiers, the drift gate, and the validation matrix.
+  the migration plan — the versioned inventory of hand-written command
+  knowledge, what changes for every analysis, optimisation, and diagnostic,
+  the third-party tiers, the drift gate and its ledger, and the validation
+  matrix.
 - [registry-consumer-contracts.md](compiler/registry-consumer-contracts.md)
   — companion: the description, identity, and backing contracts under
   which the registry can drive the analyser, codegen, and the runtimes —
@@ -119,12 +119,6 @@ passes, and ownership matrices.
   the registry's extension seam — **built**; the rest — rung 4's shipped
   implementation and the identity kind codegen chooses from the backing, and
   the extension evaluation route that binds the seam — **not built**.
-- [value-transfers-review.md](compiler/value-transfers-review.md) — review
-  of the value-transfer and consumer-contract proposals: registry-owned
-  specialisation, shared expression/regexp evaluation, correctness findings,
-  analysis/diagnostic separation, adversarial attacks, partial reduction,
-  an exhaustive code ledger, Rust/SpecTcl examples, EDA/BPF integration,
-  and delivery order.
 - [diagnostic-policy.md](compiler/diagnostic-policy.md) — one diagnostic
   policy owner below every surface (issue #2089), built: typed producers,
   one `Policy` holding the five documented suppression scopes, default-off

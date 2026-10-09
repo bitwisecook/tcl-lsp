@@ -26,8 +26,8 @@ long time on it too.
 The engine (`tcl-regex`) answers one of three ways, typed so a consumer
 can never confuse them: `Matched`, `NoMatch`, or `Stopped`. `Stopped`
 carries why — fuel exhausted, the dissector's depth cap reached, or the
-request cancelled — and it is never treated as a no-match. Before slice 5
-an exhausted search answered `0` (no match), which is unsound: `regexp`,
+request cancelled — and it is never treated as a no-match. Answering `0`
+(no match) for an exhausted search would be unsound: `regexp`,
 `regsub`, `switch -regexp`, and `lsearch -regexp` all raise a real error
 when the engine gives up (`error while matching regular expression: …`),
 so folding a `Stopped` result to "no match" would make the optimised

@@ -17,12 +17,12 @@ evaluation contract: the routes an answer is computed by, the shared cores
 and engines behind them, state isolation, budgets, and caches.
 [value-transfers-migration.md](value-transfers-migration.md) is the
 migration plan: the inventory of hand-written command knowledge, the
-delivery slices, the gate, and what changes for every pass and diagnostic.
+ledger, the gate, and what changes for every pass and diagnostic.
 [registry-consumer-contracts.md](registry-consumer-contracts.md) places the
 value axis among the other axes and holds the runtime, package, and
 C-extension contracts, none of which this one waits for.
 
-> **Status — built; slice 7, the lane's last, has landed.**
+> **Status — built.**
 > `CommandSemantics` and the shapes of § The interface are defined in
 > `rust/tcl-registry/src/value_transfer/` (`inputs.rs`, `answers.rs`,
 > `context.rs`, `decline.rs`), and the compiler's `LatticeDriver`
@@ -84,11 +84,11 @@ These are the owner's decisions, and every section below fits inside them.
    and one shared analysis context. Runtime manifests, C hosting, the
    engine's WASM sibling, and new optimisation-code numbering wait for
    their own phases and gate nothing here.
-7. **Unanimity decides a release-less fold** (2026-09-22). Under a
+7. **Unanimity decides a release-less fold.** Under a
    profile that names no release, a route folds only where its answer is
    proven identical under every release the profile can denote, and any
    per-axis disagreement declines with `ReleaseAmbiguous(Axis)`.
-8. **A declared base release is the release** (2026-09-22). A dialect that
+8. **A declared base release is the release.** A dialect that
    declares a base release evaluates under it — iRules on its 8.4-derived
    engine — and a vendor pack that diverges on an axis blocks the fold by
    declaring the axis.
@@ -722,8 +722,8 @@ struct Budget {
     cancelled: AtomicBool,
 }
 
-/// Why an answer is not exact. Each group names the lane of the lift
-/// diagram in § The lift over the lattice that records it.
+/// Why an answer is not exact. Each group names the step of the lift
+/// (§ The lift over the lattice) that records it.
 enum DeclineReason {
     // before step 1 · availability
     /// The fact is not computed at this tier, or the function is over
@@ -962,7 +962,7 @@ flowchart LR
     S5 -. StatefulNested · ReleaseAmbiguous · Budget .-> W
     S5 -. Approximate · Cycle · Transient .-> W
     S6 -. MalformedAnswer .-> W
-    W["decline lane<br/>affected defs → Overdefined<br/>reason recorded with the fact"]
+    W["declined<br/>affected defs → Overdefined<br/>reason recorded with the fact"]
 ```
 
 Acceptance for the lift: bottom → constant → set → top progressions, joins
@@ -1602,10 +1602,9 @@ and the `existence_fold_abstains_*` and `upframe_body_models_*` tests in
 additions are the release table above, `set x 1; unset x; info exists x`
 deciding `0`, `set x 1; if {$c} { unset x }` giving W210 and a definite
 W213 on a following `unset x`, the two O109 refusals, and the S100
-silence. Migration: slice 8, sequenced after slice 5 and before slice 6,
-whose exit criteria are that `sccp.rs` recognises no command by
-spelling, `existence_constant_branches` and `scan_defined_and_unset` are
-deleted, and `emit_provably_unset_w210` reads the fact.
+silence. `sccp.rs` recognises no command by spelling,
+`existence_constant_branches` and `scan_defined_and_unset` are gone, and
+`emit_provably_unset_w210` reads the fact.
 
 ## The template-word plan
 
@@ -1739,9 +1738,8 @@ the template again. Tests: the `tp_*` and `fp_*` tests in
 `tp_a_substituting_call_can_switch_its_variable_reads_off` with the
 `tp_a_substituted_bracket_*` tests in `extract_proc.rs` pin today's
 behaviour; the fixed additions are the fourteen witnesses above as plan
-fixtures and the proven-switch W102 narrowing. Migration: slice 5, with
-the structural plans, whose exit criterion gains "the four consumers read
-`TemplateWordPlan`; none walks a template word".
+fixtures and the proven-switch W102 narrowing. The four consumers read
+`TemplateWordPlan`; none walks a template word.
 
 ## `expr`: the first demanding client
 
@@ -2578,9 +2576,8 @@ Taint never reads values and is untouched. Tests:
 `info_exists_read_outside_guard_still_flags_w210` pin the precedent; the
 fixed additions are the twelve witnesses above, the nested-`if` I230, a
 merge that drops the refinement, and a traced variable that is never
-refined. Migration: slice 11, sequenced after slices 6 and 8, whose exit
-criterion is the nested-`if` program deciding through `tcl diag` and
-`tcl opt` with `collect_existence_guards` deleted.
+refined. The nested-`if` program decides through `tcl diag` and
+`tcl opt`, and `collect_existence_guards` is gone.
 
 ## Proc-level transfer summaries
 
@@ -2633,7 +2630,7 @@ enum ParamRole {
   composition of its two `bump` updates, and the value the place ends with
   is the re-run's; a return that is constant under the seedless
   lattice is a constant return for all callers, which is what
-  `summarise_returns` consumes (slice 7a, landed: `proc p {} {set x [string
+  `summarise_returns` consumes (`proc p {} {set x [string
   range foobar 0 2]; return $x}` makes `[p]` fold to `foo` on the summary
   path). A value that is exact only under a seed belongs to the
   argument-sensitive re-run, never to the summary, and the re-run's seeds
@@ -2738,8 +2735,7 @@ the two O103 paths; `the_seven_summary_witnesses`,
 `two_callers_share_one_summary` and `a_nested_caller_keeps_the_callee_whole`
 (`value_transfer_witnesses.rs`, and their twins in `value_transfers_cli.rs`)
 run the programs above, `bump n; bump other` and #2134's nested caller
-under tclsh 8.4 to 9.1, before and after `tcl opt`. Migration: slice 13,
-landed.
+under tclsh 8.4 to 9.1, before and after `tcl opt`.
 
 ## Diagnostics consume facts
 
@@ -2798,7 +2794,7 @@ not replaced, under six rules:
    every finding with an outcome, and adapters that render rather than
    decide, designed in [diagnostic-policy.md](diagnostic-policy.md).
 
-Three producers move onto the interface in the first slices:
+Three producers read the interface:
 
 - `emit_provably_unset_w210` in
   `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` recognised
@@ -3092,7 +3088,7 @@ unit-level lattice evaluates.
 
 ## Test anchors
 
-- `rust/tcl-compiler/src/sccp.rs` — `evaluate_def_incr_*`, `evaluate_def_assign_value_folds_*`, `evaluate_def_foreach_*`: today's arms, and the byte-identity gate for the first slice
+- `rust/tcl-compiler/src/sccp.rs` — `evaluate_def_incr_*`, `evaluate_def_assign_value_folds_*`, `evaluate_def_foreach_*`: the dispatcher's arms and their byte-identity gate
 - `rust/tcl-compiler/src/optimiser/branch_folding.rs` — `switch_dispatch_branches_are_skipped`
 - `rust/tcl-compiler/src/optimiser/propagation.rs` — `o103_folds_implicit_return_proc_cmd_subst`, `o103_folds_arg_sensitive_passthrough_cmd_subst`
 - `rust/tcl-registry/tests/differential_fold.rs` — every fold against a real `tclsh`, the shape the storage-outcome witnesses extend
@@ -3112,13 +3108,13 @@ unit-level lattice evaluates.
 
 - [value-evaluation.md](value-evaluation.md) — the evaluation contract behind `evaluate`
 - [value-transfers-examples.md](value-transfers-examples.md) — one program per optimisation and diagnostic, and the declarations in Rust and `.tclspec`
-- [value-transfers-migration.md](value-transfers-migration.md) — the inventory, slices, gate, and per-consumer changes
+- [value-transfers-migration.md](value-transfers-migration.md) — the inventory, ledger, gate, and per-consumer changes
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) — the other axes and the runtime, package, and extension contracts
 - [sccp-core-analyses.md](sccp-core-analyses.md) — the lattice, the drivers, and the existence post-pass
 - [constant-folding-type-inference.md](constant-folding-type-inference.md) — the fold-versus-rewrite separation and the type lattice
 - [command-registry.md](command-registry.md) — the `CommandSpec` field reference and the hook catalogues
 - [lowering-dispatch.md](lowering-dispatch.md) — why `Statement::Incr` exists and stays
-- [pass-fact-ownership-matrix.md](pass-fact-ownership-matrix.md), [downstream-pass-contracts.md](downstream-pass-contracts.md), [diagnostics-integration.md](diagnostics-integration.md), [diagnostics-calculation.md](diagnostics-calculation.md) — the ownership, consumer, and diagnostic contracts each implementing slice updates
+- [pass-fact-ownership-matrix.md](pass-fact-ownership-matrix.md), [downstream-pass-contracts.md](downstream-pass-contracts.md), [diagnostics-integration.md](diagnostics-integration.md), [diagnostics-calculation.md](diagnostics-calculation.md) — the ownership, consumer, and diagnostic contracts the interface updates
 - [ebpf-backend.md](ebpf-backend.md) — BPF-Tcl as a language
 - [optimisation-passes.md](optimisation-passes.md), [precision-limitations.md](precision-limitations.md) — pass ownership and recorded imprecision
 - [interprocedural-analysis.md](interprocedural-analysis.md), [interprocedural-call-site-seeding.md](interprocedural-call-site-seeding.md) — the summaries and the seeds

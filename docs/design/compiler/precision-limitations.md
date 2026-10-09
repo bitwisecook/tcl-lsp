@@ -89,7 +89,7 @@ The conservative register-anything-defined behaviour is the right trade-off.
 
 ## Accepted — a regexp match past the dissector's cap declines rather than approximates
 
-`tcl-regex`'s dissection (VT5.3) walks a repeat's iterations and a
+`tcl-regex`'s dissection walks a repeat's iterations and a
 concatenation's items in loops with a backward finish table, skips a
 subtree without a capture, and closes an unbounded repeat's reach with a
 worklist — but it still stops rather than approximate once a pattern's
@@ -247,7 +247,7 @@ it.
 
 ## Accepted — a nested unbind's kill is not a definition
 
-A nested `[unset x]` (D167) is recorded as reading the version of `x` it
+A nested `[unset x]` is recorded as reading the version of `x` it
 observes — the fix every other existence-read position (a condition, a
 value word, a `return` word) takes — but never as *killing* it. A killing
 definition would have to sit on the synthetic statement the lowering
@@ -306,7 +306,7 @@ supplies the call's own result when nothing calls `return` explicitly.
 Nothing in the SSA records that implicit read: `proc p {} {set y 5; set y}`
 prints `5` under every release (`set y`, the bare form, reads `y`), but O126
 sees only that `y`'s one definition has no recorded use and removes
-`set y 5` (VT8.5's find), leaving `set y` to read an undefined `y` — the
+`set y 5`, leaving `set y` to read an undefined `y` — the
 rewritten procedure raises `can't read "y"` where the original returns `5`.
 
 Why it has not been done: the CFG's terminator for a body with no explicit
@@ -315,12 +315,11 @@ does for an explicit one, so there is no use site to attach; giving the
 implicit return path a value operand is a small CFG change with a
 correctness payoff (every procedure without a trailing `return`, which
 idiomatic Tcl leans on heavily) disproportionate to how the case was
-found — auditing existence-read positions for slice 8. Tracked as #2264;
-not assigned to a slice.
+found — auditing existence-read positions. Tracked as #2264.
 
 ## Open — a procedure that calls one defined after it has no transfer summary
 
-A procedure's transfer summary (`interprocedural/transfer.rs`, slice 13)
+A procedure's transfer summary (`interprocedural/transfer.rs`)
 says what a call to it does to its caller's places; a caller's lattice
 applies it, and without one the call widens every place it may write. A
 procedure has none when it reaches code the module cannot see, and the flow
@@ -343,14 +342,13 @@ Why it has not been done: the marker is the flow graph's source-order rule
 for every caller, not the summary's, and a procedure body runs after the
 whole file in the ordinary case; reading a forward call as a call to the
 procedure the file defines is a change to that rule, with its own witnesses.
-Not assigned to a slice.
 
 ## Open — an embedded call whose result its statement needs leaves its places unknown
 
 A unit's lattice applies a callee's transfer summary to the places a call
 names, a `[…]` command a statement's words run among them, but takes no
 call's result: its values feed every rewrite, and a result exact only under
-one call's arguments would let a fold drop the call (slice 13, D304). A
+one call's arguments would let a fold drop the call. A
 statement whose words need the result exactly — an operand of an `expr`, an
 element of a `list` — is then not evaluated, and its word effects, the
 places the call writes among them, take the generic answer: in
@@ -370,7 +368,7 @@ what the re-run proves.
 
 Why it has not been done: evaluating a statement's writes where its result
 is not known is a change to the pair's evaluation for every nested command,
-the registry's routes included, not the summary's. Not assigned to a slice.
+the registry's routes included, not the summary's.
 
 ## Open — a module that rebinds any builtin summarises no procedure
 
@@ -384,16 +382,14 @@ reaches. Every call to a procedure of such a module keeps the widening.
 
 Why it has not been done: telling which typed statements a rebinding moves
 is the lowering's question, answered per command; the conservative rule
-holds until a rebinding module motivates the precise one. Not assigned to a
-slice.
+holds until a rebinding module motivates the precise one.
 
 ## Open — a procedure that hands on a local linked to a place it cannot name has no transfer summary
 
 A call's `Name` argument may name a place outside the caller's frame — a
 qualified name, or a local the caller links to a namespace's variable with
 `upvar #0`, `global`, `variable` or `namespace upvar` — and the caller's
-summary states that place among the outer places it writes (slice 13's
-review, D313). A local linked to a place the summary cannot name — one of
+summary states that place among the outer places it writes. A local linked to a place the summary cannot name — one of
 two places, by the path taken, or an object's or a connection's variable —
 leaves the procedure with no summary, and a call to it keeps the widening
 every call to code the module cannot see has:
@@ -407,8 +403,7 @@ The answer is sound, and only precision is lost.
 
 Why it has not been done: a place chosen by the path is a set of places the
 summary's outer writes have no form for, and an object's or a connection's
-variable lives in no namespace a place reference names. Not assigned to a
-slice.
+variable lives in no namespace a place reference names.
 
 ## Open — a procedure whose `upvar` level names no known frame has no transfer summary
 
@@ -418,7 +413,7 @@ procedure that links a local through `upvar` at a computed level, or at any
 level other than its caller's, has none, and a call to it keeps the widening
 every call to code the module cannot see has. The level word is read as the
 registry's frame effect reads it — present by argument-count parity, its
-value a `FrameLevel` (slice 13, D307) — so in
+value a `FrameLevel` — so in
 
 ```tcl
 proc q {lvl a} {upvar $lvl $a b; set b 1}
@@ -431,7 +426,7 @@ and only precision is lost.
 
 Why it has not been done: a summary per level would be context-sensitive,
 the computed level a seed the call site supplies; one context-insensitive
-summary per procedure is the slice's rule. Not assigned to a slice.
+summary per procedure is the rule.
 
 ## Open — a release-blind fold of index arithmetic declines
 
@@ -446,23 +441,23 @@ dialect, where it folded to `c` before the parser told 8.4 apart (and, under
 8.4, folded to a value tclsh raises on). The answer is sound, and only the
 arithmetic's precision is lost; a route that names the release, as `string
 range`'s and `string first`'s do, keeps it under every profile that names
-one, and since slice 7 O129 and codegen fold through the route where a
-command declares one (D338). The integer range is the release's too (D351):
+one, and O129 and codegen fold through the route where a command
+declares one. The integer range is the release's too:
 `lindex $l 4294967295` is the last element up to 8.6, which wrap it to 32
 bits, and past it from 9.0, so it folds under no dialect here; and a reading
 no release decides alone declines on the routes as well — a magnitude from
 2^64 − 2^32 + 1 to 2^64 − 1, which 8.4 and 8.5 read only where the host's
-`long` is 64 bits (D360), and an `end` offset 8.6 reads apart as a literal
-and as a value (D361).
+`long` is 64 bits, and an `end` offset 8.6 reads apart as a literal
+and as a value.
 
 Why it has not been done: the folds take no release until they move to
-`VersionedConstFoldFn`, or onto routes of their own. Not assigned to a slice.
+`VersionedConstFoldFn`, or onto routes of their own.
 
 ## Open — the path routes answer only names every platform reads alike
 
 The `file join`, `dirname`, `tail`, `extension`, `rootname` and `split`
 routes (`rust/tcl-registry/src/value_transfer/path.rs`) answer a name only
-where the Unix and Windows readings agree on every release (D331, D334): a
+where the Unix and Windows readings agree on every release: a
 name with a backslash, a colon (a drive or a volume), a leading `//` (a share
 root) or a `~` (a home directory to 8.x) declines with
 `ReleaseAmbiguous(Platform)`, because no profile fixes the platform; `file
@@ -476,12 +471,12 @@ them, waived as `irreducible`.
 Why it has not been done: a platform axis a caller could fix — the language
 server's host, or a profile pinning a target platform — would answer the
 rest, and the evaluation page's contract keeps `PLATFORM` unsatisfiable on
-the direct route until one exists. Not assigned to a slice.
+the direct route until one exists.
 
 ## Open — most pure commands have no route and say why
 
 Every command that declares purity has a route or an explicit `none` with its
-reason (slice 7; `docs/generated/value-transfers.md`), and most declare
+reason (`docs/generated/value-transfers.md`), and most declare
 `none (unauthored)` (`ROUTE_UNAUTHORED`, `rust/tcl-registry/src/value_transfer/builtins.rs`):
 a value their words decide, with no route authored. Among them are commands
 whose shared core the runtimes already run — `string compare`, `equal`,
@@ -498,8 +493,8 @@ evaluates it in the lattice, so a value built from it is not a constant
 downstream of the statement.
 
 Why it has not been done: each route needs its differential against every
-release's `tclsh` (or the package's own implementation), and slice 7 carried
-the classification, not the routes. Not assigned to a slice.
+release's `tclsh` (or the package's own implementation); the classification
+carries no route.
 
 ## Accepted — a route on a package's command assumes the package is loaded
 
