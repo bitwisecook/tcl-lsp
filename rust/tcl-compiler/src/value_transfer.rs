@@ -3861,13 +3861,30 @@ impl<'a> LatticeDriver<'a> {
     }
 
     /// A segmented command's arguments as the resolver and an evaluator read
-    /// them, each cooked from its token.
+    /// them, each cooked from its token. The segmenter drops a `{*}` prefix
+    /// from the token and flags the word instead, so the flag decides that a
+    /// word expands: `[list {*}{a b}]` has two elements, not the one `a b`.
     fn cooked_args<'s>(&self, seg: &'s crate::segmenter::SegmentedCommand) -> Vec<ArgWord<'s>> {
+        let expands = |at: usize| {
+            seg.expand_word
+                .as_ref()
+                .and_then(|flags| flags.get(at + 1))
+                .copied()
+                .unwrap_or(false)
+        };
         seg.arg_tokens()
             .iter()
             .zip(seg.arg_single_token())
             .zip(seg.args())
-            .map(|((token, &single), text)| {
+            .enumerate()
+            .map(|(at, ((token, &single), text))| {
+                if expands(at) {
+                    return ArgWord::spelled(
+                        text,
+                        InvocationWordKind::Expanded,
+                        OperandSource::Unknown,
+                    );
+                }
                 // A quoted-opening token counts its `"` as a delimiter byte.
                 let quoted = token.kind == TokenType::Esc && token.content_offset > 0;
                 ArgWord::of_token(text, (token.kind, quoted), single, &self.lexer_config)

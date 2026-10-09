@@ -283,6 +283,23 @@ fn value_position_words_are_read_as_tcl_substitutes_them() {
     prints_under_every_release(braced, "a\\\n");
 }
 
+/// A `{*}` word in value position expands before a route reads it:
+/// `[list {*}{a b}]` is the two elements `a` and `b`. Read as the one
+/// braced word `a b`, `tcl opt` rewrote `puts [llength $l]` to `puts 1`
+/// where tclsh prints 2.
+#[test]
+fn an_expanded_word_in_value_position_is_several_operands() {
+    let source = "proc p {} {set l [list {*}{a b}]; puts [llength $l]; puts [lindex $l 1]}\np\n";
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+        let value = last_value(source, dialect, "::p", "l");
+        assert!(
+            value == text("a b") || !matches!(value, LatticeValue::Const(_)),
+            "{dialect}: {value:?}"
+        );
+    }
+    prints_under_releases_from(source, "2\nb\n", "8.5");
+}
+
 /// The shared lattice folds under the module's observed bindings, the
 /// stance a rewrite's re-run proves under too: with `proc incr` defined at
 /// the top level, `incr n` calls that procedure, so `n#2` is not the
