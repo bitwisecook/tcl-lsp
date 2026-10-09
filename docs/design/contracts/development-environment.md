@@ -38,8 +38,8 @@ idempotent; a warm container re-runs it in seconds.
 
 | Provided | Version | Where |
 |---|---|---|
-| Wasmtime | 48.0.1 | `/opt/wasmtime-48.0.1/`, on `PATH` as `wasmtime` |
-| Binaryen | 132 | `/opt/binaryen-132/`, `wasm-opt` / `wasm-merge` on `PATH` |
+| Wasmtime | 49.0.2 | `/opt/wasmtime-49.0.2/`, on `PATH` as `wasmtime` |
+| Binaryen | 133 | `/opt/binaryen-133/`, `wasm-opt` / `wasm-merge` on `PATH` |
 | wasi-sdk | 34.0 | `/opt/wasi-sdk` (found by `runtime/rust/build.rs`) |
 | Rust | floating `stable` | `/root/.rustup`, `/root/.cargo` |
 | Tcl + Tk source trees | 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 | `tmp/tcl<ver>/`, `tmp/tk<ver>/` |
@@ -60,6 +60,28 @@ upstream than `tcl.tk` / SourceForge on every cold session. The hook exports
 | Tcl / Tk patchlevels and source tags | `rust/tcl-dialect/data/reference-toolchains.tsv` (the fetch skill, host installer, and `tcl docker` source-build layers consume it) |
 | Wasmtime, Binaryen, wasi-sdk, tcllib (remote) | variables at the top of `.claude/hooks/session-start.sh` |
 | Wasmtime, wasi-sdk, tcllib (laptop) | variables near the top of `scripts/dev/ensure-test-deps.sh` |
+| Rust dependencies, including standalone WASM/VM/editor/Python crates | every tracked `Cargo.lock`; manifests beside each lockfile |
+| npm dependencies and npm CLI | the three application `package.json` / `package-lock.json` pairs |
+| Python lint/typecheck/test tooling | `Makefile` `RUFF_VERSION`, `TY_VERSION`, `PYRIGHT_VERSION`, `PYTEST_VERSION` |
+| Python packaging tools | `rust/bigip-report-gen/python/deploy/*-build-requirements.in` and their hashed `.txt` locks |
+| Gradle, Kotlin, IntelliJ SDK and verifier targets | `editors/jetbrains/build.gradle.kts`, `settings.gradle.kts`, `gradle/wrapper/gradle-wrapper.properties` |
+| Mermaid | `Makefile` `MERMAID_VERSION`; the browser fallback in `editors/vscode/src/diagramPanelHtml.ts` must match |
+| CI actions and tool binaries | SHA pins and tool versions in `.github/`; canonical report workflows under `rust/bigip-report-gen/python/deploy/` |
+
+Dependency upgrades preserve host compatibility: `@types/vscode` follows the
+supported VS Code API floor, and TypeScript stays on 6.0.x while the latest
+`typescript-eslint` peer range requires `<6.1`. The WASI transport requires
+the Preview 1 `wasi` 0.11 API; the 0.12+ component API is not an in-place
+replacement. Browser crypto requires both the `getrandom` 0.2 `js` and 0.4
+`wasm_js` backends for the dependency generations that consume them. Keep
+wasm-bindgen's exact report/query pins and every CI CLI pin on the same
+release when refreshing all twelve Cargo roots.
+
+Audit every Rust root with `bash scripts/dev/cargo-deny-all.sh` and each
+application lockfile with `npm audit`. An existing green test run does not
+replace a fresh advisory check. Open VSX uses the same `@vscode/vsce` release
+as VS Code packaging through an override: its older nested packager pulled
+in the vulnerable `braces` chain (GHSA-vfj7-8cjw-p6xm).
 
 Changing a minimum version touches all of: `rust-toolchain.toml`, `ci.yml`,
 the Makefile's Prerequisites comment block, `README.md` § *Building and

@@ -116,8 +116,6 @@ for (const partition of Object.keys(manifest.partitions)) {
   }
   validateIdentities(result, assigned, `partition ${partition}`);
   for (const identity of result.testIdentities) {
-    const separator = identity.indexOf(":");
-    const file = identity.slice(0, separator);
     if (identities.has(identity)) throw new Error(`duplicate test identity: ${identity}`);
     identities.add(identity);
   }

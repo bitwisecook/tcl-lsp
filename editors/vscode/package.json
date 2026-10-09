@@ -5,7 +5,7 @@
   "version": "0.0.0-dev",
   "publisher": "bitwisecook",
   "license": "AGPL-3.0-or-later",
-  "packageManager": "npm@12.0.2",
+  "packageManager": "npm@12.2.0",
   "icon": "docs/icon.png",
   "repository": {
     "type": "git",
@@ -10332,19 +10332,19 @@
   "devDependencies": {
     "@types/glob": "^9.0.0",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.4",
     "@types/vscode": "~1.95.0",
-    "@typescript-eslint/eslint-plugin": "^8.70.1",
-    "@typescript-eslint/parser": "^8.69.0",
+    "@typescript-eslint/eslint-plugin": "^8.71.0",
+    "@typescript-eslint/parser": "^8.71.0",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/test-web": "^0.0.81",
     "@vscode/vsce": "^4.0.0",
     "c8": "^12.0.0",
     "esbuild": "^0.28.2",
-    "eslint": "^10.11.0",
+    "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
     "glob": "^13.0.6",
-    "mocha": "^12.0.2",
+    "mocha": "^12.0.3",
     "ovsx": "^1.2.0",
     "prettier": "^3.9.9",
     "typescript": "~6.0.3",
@@ -10354,24 +10354,14 @@
   "dependencies": {
     "@vscode/wasm-wasi": "^1.0.2",
     "@vscode/wasm-wasi-lsp": "0.1.0-pre.9",
-    "vscode-languageclient": "^10.1.1"
+    "vscode-languageclient": "^10.1.2"
   },
   "overrides": {
-    "@typescript-eslint/typescript-estree": {
-      "minimatch": "^10.2.6"
-    },
-    "mocha": {
-      "diff": "^9.0.0",
-      "serialize-javascript": "^7.1.1"
-    },
-    "@vscode/vsce": {
-      "@azure/msal-node": "^5.6.0"
-    },
-    "lodash": "^4.18.1",
-    "qs": "^6.16.0",
-    "undici": "^7.29.1",
     "@vscode/wasm-wasi-lsp": {
       "vscode-languageclient": "$vscode-languageclient"
+    },
+    "ovsx": {
+      "@vscode/vsce": "$@vscode/vsce"
     }
   }
 }
