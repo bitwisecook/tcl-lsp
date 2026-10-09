@@ -11,10 +11,10 @@
   - f82eaefbd `fix(analyser): the proven index check reports each site once and covers nested calls` (B3)
   - ea9f0450b `fix(registry): a store a declared outcome may preserve is live` (B5)
   - 5713e4bd4 + d05eac825: the second review (`SPECTCL_BRANCH_REVIEW.md`) and its merge, from the user's side.
-- Pushed, full gate pending: 233d1b3df (B6), 97c2811ac (B2a, the examples page), dff64488e (the folded-type witness, after B6), a32e87f8c (B7, `fix(registry): a pack's direct evaluator either binds or is reported at load`; bindable set `PACK_DIRECT_EVALUATORS`, 31 evaluators), 6dabf998f (B8, `fix(registry): a declared implementation refuses an invocation outside its arity`), d3e90cc1c (B9, `fix(registry): a raising argument ends the invocation before its implementation runs`).
-- Committed, awaiting push: `fix(studio): format the option-effect editor as the lint gate requires` (B11). Its own checks: `npm ci`, then `make typecheck-spec-studio-ts lint-spec-studio-ts spec-studio-assets spec-studio-test` (121 tests) and `make xtask-check`, all green.
-- In the working tree, uncommitted: B10 (`rust/tcl-compiler/src/value_transfer.rs`, `rust/tcl-compiler/tests/value_transfer_witnesses.rs`), its gate running.
-- Next: B10's commit (a declared implementation's binding dependencies are checked at the call), then B12 … B15 in the plan's order.
+- Pushed, full gate pending: 233d1b3df (B6), 97c2811ac (B2a, the examples page), dff64488e (the folded-type witness, after B6), a32e87f8c (B7, `fix(registry): a pack's direct evaluator either binds or is reported at load`; bindable set `PACK_DIRECT_EVALUATORS`, 31 evaluators), 6dabf998f (B8, `fix(registry): a declared implementation refuses an invocation outside its arity`), d3e90cc1c (B9, `fix(registry): a raising argument ends the invocation before its implementation runs`), 15086f974 (B11, `fix(studio): format the option-effect editor as the lint gate requires`).
+- Committed, awaiting push: `fix(compiler): a declared implementation's binding dependencies are checked at the call` (B10). Its own checks: fmt, clippy (`tcl-compiler`, all targets), `tcl-compiler` lib and every integration binary, `tcl-cli` `value_transfers_cli`; the new witness fails without the fix (`puts 3`).
+- In the working tree, uncommitted: nothing.
+- Next: B12 (W305 reaches the policy owner), then B13, B14, B15, then the page commits from B2b in the plan's order.
 - Standing states that are not defects of this branch: `cargo xtask dialect-drift` exits 1 with 8 sites present at the base (#2253); the tcl-vm tests of #2271 fail under a POSIX `LANG` and pass under `LANG=C.UTF-8`.
 
 ## How to verify and push

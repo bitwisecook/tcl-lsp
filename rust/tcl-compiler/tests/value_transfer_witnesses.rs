@@ -2506,6 +2506,48 @@ fn a_declared_route_refuses_a_call_outside_its_arity() {
     tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }
 
+/// A declared implementation's `binding` dependencies are checked at the
+/// call: `review::length` declares that its body rests on `string`, so in a
+/// module that renames `string` and defines its own — tclsh prints
+/// `rebound` — the body's builtin `string length` is not the command the
+/// module calls, and the call declines where `tcl opt` had rewritten
+/// `puts $x` to `puts 3`. The same call in a module that keeps the builtin
+/// still folds.
+#[test]
+fn a_declared_binding_the_module_rebinds_declines_the_call() {
+    const PACK: &str = "speclib review 2.2 {
+    command review::length {
+        arity 1
+        semantics {
+            effects {no_store_writes no_external_io}
+            result -semantic int
+        }
+        evaluate -implementation review.length.v1 -host bounded_tcl {
+            inputs {arg 0 exact}
+            depends {tcl_profile implementation_identity binding string}
+            body {value} {fold [string length $value]}
+        }
+    }
+}
+";
+    let _published = PUBLISHED_PACKS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dialect = "tcl8.6";
+    let packs = pack_workspace("review", PACK);
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
+    let profile = resolve_environment(dialect).analyser_profile();
+    let call = "set x [review::length abc]\nputs $x\n";
+    let rebound =
+        format!("rename string saved_string\nproc string args {{return rebound}}\n{call}");
+    let (rewritten, _) = optimise_source_multipass(&rebound, &registry, Some(profile), PASSES);
+    assert!(rewritten.contains("puts $x"), "{rewritten}");
+    assert!(!rewritten.contains("puts 3"), "{rewritten}");
+    let (kept, _) = optimise_source_multipass(call, &registry, Some(profile), PASSES);
+    assert!(kept.contains("puts 3"), "{kept}");
+    tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
+}
+
 /// A pack's `evaluate -direct ID` runs the registry evaluator the id names
 /// when it is one a pack may name: `review::list a b` on `ListOfArgs` is
 /// `a b` in the shared lattice, so `if {$x eq {a b}}` decides (I230), and

@@ -2555,6 +2555,48 @@ impl<'a> LatticeDriver<'a> {
         })
     }
 
+    /// The first command binding a declared implementation's answer rests on
+    /// (`depends {… binding NAME}`) that the run's trust stance does not
+    /// hold to be the command the declaration names: the body runs the
+    /// builtin, and a module that renames or shadows it calls something
+    /// else. A run with no trust stance takes the registry's table, as an
+    /// expression's head is taken.
+    fn unheld_binding<'c>(
+        &self,
+        capability: &'c tcl_registry::value_transfer::EvaluatorCapability,
+    ) -> Option<&'c str> {
+        capability
+            .depends
+            .iter()
+            .find_map(|dependency| match dependency {
+                tcl_registry::value_transfer::ContextDependency::Binding(binding)
+                    if self.folds.is_some() && !self.trusted(&binding.name) =>
+                {
+                    Some(binding.name.as_str())
+                }
+                _ => None,
+            })
+    }
+
+    /// Whether a declared implementation rests on a binding the run does
+    /// not hold ([`Self::unheld_binding`]); the explanation names it.
+    fn explains_an_unheld_binding(
+        &self,
+        head: &str,
+        route: EvalRoute,
+        capability: &tcl_registry::value_transfer::EvaluatorCapability,
+    ) -> bool {
+        let Some(name) = self.unheld_binding(capability) else {
+            return false;
+        };
+        self.explain(
+            head,
+            Some(route),
+            format!("declined: the binding `{name}` it depends on does not hold"),
+        );
+        true
+    }
+
     /// Whether a caller proved the procedure the run evaluates pure before
     /// evaluating it with constant arguments
     /// ([`BuiltinFoldInputs::proven_pure_parameters`]).
@@ -2660,8 +2702,14 @@ impl<'a> LatticeDriver<'a> {
                 self.enter_direct();
             }
             // A declared implementation is registry-owned too: the
-            // specialisation's `evaluate` runs it in the bounded host.
-            EvalRoute::Implementation(_) => self.enter_implementation(),
+            // specialisation's `evaluate` runs it in the bounded host, on
+            // the bindings it declares it rests on.
+            EvalRoute::Implementation(capability) => {
+                if self.explains_an_unheld_binding(head, route, &capability) {
+                    return widen();
+                }
+                self.enter_implementation();
+            }
             _ => {
                 self.explain(
                     head,
@@ -4028,8 +4076,12 @@ impl<'a> LatticeDriver<'a> {
             }
             EvalRoute::None { reason } => LiftedAnswer::Declined(DeclineReason::NoRoute(reason)),
             // The specialisation's `evaluate` resolves the declared inputs
-            // and runs the body in this thread's host.
-            EvalRoute::Implementation(_) => {
+            // and runs the body in this thread's host, on the bindings it
+            // declares it rests on.
+            EvalRoute::Implementation(capability) => {
+                if self.unheld_binding(&capability).is_some() {
+                    return LiftedAnswer::Declined(DeclineReason::RebindingSuspected);
+                }
                 self.enter_implementation();
                 evaluate_lifted(semantics, inputs, &mut self.budget(), MAX_CONSTSET_SIZE)
             }
