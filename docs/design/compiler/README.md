@@ -94,50 +94,21 @@ User-facing compiler troubleshooting and how-tos live in
   registry owns and what remains elsewhere, what each analysis,
   optimisation, and diagnostic reads, the third-party tiers, the drift gate
   and its ledger, and the validation matrix.
-- [registry-consumer-contracts.md](registry-consumer-contracts.md) —
-  companion: the description, identity, and backing contracts under which
-  the registry and `.tclspec` packs can drive the analyser, both code
-  generators, and both runtimes; the four decided rulings the build takes
-  as settled; the description contract's three descriptors — clause
-  grammar, member effect, and option effect over a closed axis catalogue —
-  behind one derived query per axis, **built**; the trust ruling
-  (`WorkspaceTrust`, plumbed from the LSP client, gates pack hook-body
-  execution and nothing else — authority is never gated) and the stub
-  ruling (the six `StubFlags` on their catalogue fields, nearest-wins role
-  resolution), **built**; the first half of the identity contract —
-  `alias_of` as the one source of a pack command's builtin identity, the
-  loader's stamp rejection rule, codegen recording the alias target's
-  identity, the site claim and pack fact stamp that rungs 1 and 2 record
-  with their admission check, and per-member guard identities that both
-  runtimes keep across command mutations — **built**; the take-shipped
-  floor over a shipped command's codegen and dispatch axis and
-  `RuntimeBacking` declared on every core command, **built**; the
-  dependency-tier capability matrix that narrows what a package's pack may
-  declare, and the workspace overlay reaching the compile service with a
-  missing generation an error, **built**; the runtimes' backing query (each
-  runtime answers what it registered, and one gate holds every core
-  command's declared `runtime_backing` to the WASM runtime's answer), the
-  intrinsic table split by family, and the artefact manifest with the
-  runtime's context pin (a compiled module states the world it was compiled
-  for, and the VM refuses, per rung, the sites that rest on a field that
-  disagrees), **built**; rung 3 of a pack claim (a Tcl-body reference body
-  inlined into the procedures that call it, claimed on the binding that holds
-  the live command to that text, and, where its author asks, derived into the
-  command's declared implementation where the sandbox can run it), `tcl spec
-  test`, and the manifest's `spec` directive with its tier clamp and the
-  lockfile's `spec_integrity`, **built**; the codegen axis versioned (a
-  stamp's ordered windows, selected at the release a call is resolved at and
-  declined to plain dispatch where the point does not settle one), a vendor
-  environment's evaluation point read through an evidence gate, and the package
-  floors a surface query carries, **built**; the extension legs — the
-  conservative default for an extension's command, an extension described from
-  its C source, a probe and the shim's report, the host's opt-in `load`, one
-  authored header with a native and a WASM leg and its CI gate, the engine
-  interface's completion and variable doors, and the runtime as an engine,
-  natively and under wasmtime, with a C extension evaluated under fuel behind
-  the registry's extension seam — **built**; the rest — rung 4's shipped
-  implementation and the identity kind codegen chooses from the backing, and
-  the extension evaluation route that binds the seam — **not built**.
+- [registry-consumer-contracts.md](registry-consumer-contracts.md)
+  — the description, identity, and backing contracts under which the
+  registry drives the analyser, codegen, and the runtimes: the three
+  descriptors (clause grammar, member effect, option effect) behind one
+  derived query per axis; the trust and stub rulings; alias identity with
+  the loader's stamp rejection, site claims and pack fact stamps the VM
+  checks at admission, and per-member guard identities; the take-shipped
+  floor and every core command's `runtime_backing`; the dependency-tier
+  capability matrix and the workspace overlay; the runtimes' backing query,
+  the intrinsic table by family, and the artefact manifest with its context
+  pin; rung 3 pack claims, `tcl spec test`, and the manifest's `spec`
+  directive with the lockfile's `spec_integrity`; versioned codegen stamps,
+  the evidence-gated vendor evaluation point, and package floors; and the
+  extension legs. Not built: rung 4's shipped implementation and the
+  identity kind codegen chooses from the backing.
 - [type-tracking.md](type-tracking.md) — the comprehensive value-type model
   (purity / first-use commitment, union nodes, container element types, the
   numeric tower) with its oracle corpus.
