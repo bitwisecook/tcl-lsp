@@ -1936,8 +1936,8 @@ fn folded_at(
 /// result and a write carry the type facts and the representation the route
 /// constructed — `string length` and `incr` build an int, `list` a list,
 /// `append` a string; a copy shares its source's; a φ keeps what its arms
-/// state alike; a literal states nothing; a barrier widens every value and
-/// forgets what they stated. A pack's declared implementation states its
+/// state alike; a literal states nothing; an opaque barrier (`eval
+/// $script`) widens every value and forgets what they stated. A pack's declared implementation states its
 /// `result -semantic` type and no representation, and the type lattice
 /// takes it where the static typing knows nothing of a pack command's
 /// result.
@@ -1958,7 +1958,8 @@ fn folded_types_state_what_each_route_constructed() {
          incr n\n    append s x\n    set m $n\n    \
          if {$c} {set k [llength $l]} else {set k [string length $s]}\n    \
          return $m$k$l$s\n}\n\
-         proc b {} {\n    set s abc\n    set n [string length $s]\n    return -code ok $n\n}\n",
+         proc b {script} {\n    set s abc\n    set n [string length $s]\n    eval $script\n    \
+         return $n\n}\n",
         "tcl9.0",
     );
     assert_eq!(folded_at(&unit, "::p", "s", 1), None, "a literal");
