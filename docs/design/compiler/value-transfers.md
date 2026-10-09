@@ -16,8 +16,9 @@ It is one of three pages. [value-evaluation.md](value-evaluation.md) is the
 evaluation contract: the routes an answer is computed by, the shared cores
 and engines behind them, state isolation, budgets, and caches.
 [value-transfers-migration.md](value-transfers-migration.md) is the
-migration plan: the inventory of hand-written command knowledge, the
-ledger, the gate, and what changes for every pass and diagnostic.
+registry migration as built: the inventory of command knowledge the
+registry owns and what remains elsewhere, the ledger, the gate, and what
+each pass and diagnostic reads.
 [registry-consumer-contracts.md](registry-consumer-contracts.md) places the
 value axis among the other axes and holds the runtime, package, and
 C-extension contracts, none of which this one waits for.
@@ -99,8 +100,8 @@ Each of these is legal, common Tcl, and each has one answer: the registry's
 declaration of its command computes the value once, and every consumer — the
 optimiser, the diagnostics, the editor features and the Explorer — reads it
 from the one lattice. [value-transfers-migration.md](value-transfers-migration.md)
-§ *Where per-command knowledge lives today* inventories the private evaluators
-that still answer from their own reading.
+§ *Where per-command knowledge lives* lists the evaluators that answer from
+their own reading.
 
 ```tcl
 set s [string range foobarbaz 3 6]      ;# (1) a pure result: barb
@@ -2871,7 +2872,7 @@ count is unknown.
 An analyser-local fact not in this table is not exempt: its owner declares
 its input dependencies, its monotone transfer and join or its non-dataflow
 evaluation phase, its unknown policy, its cache key, and its consumers. The
-migration plan's ledger is the checklist.
+migration page's ledger is the checklist.
 
 **Construction and solving are different phases.** First, resolve the
 invocation and its structural semantics and build scopes, IR, CFG, and SSA
@@ -3108,7 +3109,7 @@ unit-level lattice evaluates.
 
 - [value-evaluation.md](value-evaluation.md) — the evaluation contract behind `evaluate`
 - [value-transfers-examples.md](value-transfers-examples.md) — one program per optimisation and diagnostic, and the declarations in Rust and `.tclspec`
-- [value-transfers-migration.md](value-transfers-migration.md) — the inventory, ledger, gate, and per-consumer changes
+- [value-transfers-migration.md](value-transfers-migration.md) — the registry migration as built: the inventory, the ledger, the gate, and what each consumer reads
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) — the other axes and the runtime, package, and extension contracts
 - [sccp-core-analyses.md](sccp-core-analyses.md) — the lattice, the drivers, and the existence post-pass
 - [constant-folding-type-inference.md](constant-folding-type-inference.md) — the fold-versus-rewrite separation and the type lattice

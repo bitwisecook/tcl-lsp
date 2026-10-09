@@ -91,10 +91,10 @@ User-facing compiler troubleshooting and how-tos live in
   declarations behind the examples as they are written in the Rust command
   registry and in `.tclspec` packs.
 - [value-transfers-migration.md](value-transfers-migration.md) —
-  the migration plan — the versioned inventory of hand-written command
-  knowledge, what changes for every analysis, optimisation, and diagnostic,
-  the third-party tiers, the drift gate and its ledger, and the validation
-  matrix.
+  the registry migration as built — the inventory of command knowledge the
+  registry owns and what remains elsewhere, what each analysis,
+  optimisation, and diagnostic reads, the third-party tiers, the drift gate
+  and its ledger, and the validation matrix.
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) —
   companion: the description, identity, and backing contracts under which
   the registry and `.tclspec` packs can drive the analyser, both code
