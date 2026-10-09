@@ -72,7 +72,7 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPTS.parent
 sys.path.insert(0, str(SCRIPTS))
-from check_c_api_ownership import classify_exports, find_capi_exports  # noqa: E402
+from check_c_api_ownership import classify_exports, find_capi_exports
 
 HEADER = REPO_ROOT / "runtime/rust/include/tcl.h"
 RUNTIME_CAPI = REPO_ROOT / "runtime/rust/src/capi.rs"
@@ -89,7 +89,7 @@ REQUIRE_VAR = "TCL_REQUIRE_WASM_LINK"
 
 # The header's preprocessor, as far as the header uses it.
 
-_COMMENT_RE = re.compile(r"/\*.*?\*/", re.S)
+_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
 _DEFINED_RE = re.compile(r"\bdefined\s*(?:\(\s*(\w+)\s*\)|(\w+))")
 _EXTERN_RE = re.compile(r"\bEXTERN\b[^;{()]*?\b(\w+)\s*\(")
 #: What an expression is made of once `defined` and the macros are replaced:
@@ -128,7 +128,7 @@ def _evaluate(expression: str, macros: dict[str, str]) -> bool:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         try:
-            return bool(eval(expression, {"__builtins__": {}}, {}))  # noqa: S307
+            return bool(eval(expression, {"__builtins__": {}}, {}))
         except (SyntaxError, TypeError) as error:
             raise ValueError(f"unsupported #if expression: {source!r}") from error
 
@@ -333,8 +333,10 @@ def check_compiles(sdk: Path, native_only: set[str]) -> list[str]:
             pkga,
             ("TCL_HOST_WASM",),
             (),
-            "the WASM leg declares every function the test extension calls, so "
-            "it compiles against the runtime's leg alone",
+            (
+                "the WASM leg declares every function the test extension calls, so "
+                "it compiles against the runtime's leg alone"
+            ),
         ),
         (
             pkga,
@@ -358,8 +360,10 @@ def check_compiles(sdk: Path, native_only: set[str]) -> list[str]:
             doors,
             BOTH,
             (),
-            "the extension that reaches its caller's frame compiles for wasm32 "
-            "against both legs at once",
+            (
+                "the extension that reaches its caller's frame compiles for wasm32 "
+                "against both legs at once"
+            ),
         ),
         (
             _PROBES[WASM_ONLY],
@@ -380,8 +384,10 @@ def check_compiles(sdk: Path, native_only: set[str]) -> list[str]:
             doors,
             ("TCL_HOST_WASM",),
             (),
-            "the WASM leg declares no variable or evaluation call, and the "
-            "extension that reaches its caller's frame calls the shim's",
+            (
+                "the WASM leg declares no variable or evaluation call, and the "
+                "extension that reaches its caller's frame calls the shim's"
+            ),
             native_only,
         ),
         (
