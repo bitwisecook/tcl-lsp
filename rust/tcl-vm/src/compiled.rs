@@ -160,6 +160,18 @@ impl CompiledUnit {
             manifest: None,
         }
     }
+    /// Move a worker-produced original script into its actual deferred Jim
+    /// activation. Other compiled units retain their independent source path.
+    pub(crate) fn with_deferred_script_original(
+        self,
+        original: crate::Value,
+    ) -> Result<Self, tcl_syntax::value::ValueError> {
+        if let Some(entry) = &self.jim_script {
+            entry.retain_activation_original(original)?;
+        }
+        Ok(self)
+    }
+
     pub(crate) fn new(
         asm: Rc<FunctionAsm>,
         source_namespace: tcl_core_types::ByteNamespacePath,

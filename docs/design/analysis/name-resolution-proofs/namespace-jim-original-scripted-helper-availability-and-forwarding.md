@@ -14,9 +14,13 @@ When the original public info-body guard reaches the Jim namespace helper, what 
 
 Pinned Jim reports helper formals `subcommand args` and ensemble formals `command args`, with complete returned body values of 304 and 930 bytes. The separate global replacement returns `GLOBAL {create -map {go ::list}} ::N`; the namespace-local replacement returns `LOCAL {create -map {go ::list}} ::N`. The unsupported/arity source returns three caught failures: creation outside a namespace, unsupported configure and odd option count. All five C providers return the original NOT_APPLICABLE branch for each control. All 24 fresh original processes and six compilations exit 0 with empty stderr. The separately retained version-variable-gated source returns NOT_APPLICABLE in every one of its 24 controls, including Jim; it observes no helper body, replacement or forwarding. Full vendored helper/ensemble source files are separately pinned at 3917/1211 bytes, distinct from the returned public bodies. No stripping mechanism, private procedure token/header/frame, Native core bootstrap/compiler admission or successful arbitrary ensemble configuration follows. The linked Registry control compares the selected explicit NamespaceEnsemble library roster formals and complete body bytes with the actual public tuple. Linked Runtime and VM controls use all four untouched original sources and whole selected public completion fields for each of the six provider columns. This implementation binding grants no fresh native process result, continued helper binding, Native core bootstrap, compiler entry, private procedure token/header or frame. Current mutable helper lookup and explicit distribution installation remain separate from the public native observations.
 
+Jim ensemble source schema retains exact create/-automap words and available source options. Abbreviations and C-only configuration operations are withheld together with compiler, handler, analyser, transition and world-effect metadata.
+
 ## Scope
 
 Four exact original ASCII LF sources run independently in fresh full provider initialisation under the unchanged counted C API driver, without an added outer source envelope. Public info-body catch is part of the source itself. Whole sources/requests/driver/capture commands/ELFs/stdout/stderr/receipts and required executable/header/archive/source/build pins are retained. Jim public body values and full vendored source assets remain independent channels. The version-variable-gated four-control input and all its actual receipts are losslessly retained under limited-control; its original guard does not reach a helper call. BIG-IP and Rust assertions are not tested.
+
+The selected source schema supplies neither an installed scripted helper nor successful forwarding, Native publication/frame/dispatch or Normal completion. Returned public helper bodies and current helper binding remain independent premises.
 
 ## Provider answers
 
@@ -504,6 +508,11 @@ proc ensemble {command args} {
 - [rust/tcl-vm/src/interp/native_command_holder_tests.rs](../../../../rust/tcl-vm/src/interp/native_command_holder_tests.rs), `interp::native_command_holder_tests::original_jim_namespace_library_sources_match_all_native_provider_results` (linked): Use the same four untouched original scripts and six full public completion columns in VM; selected explicit library installation/current helper lookup stays separate from Native core and private protocol authority.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-registry/src/commands/tcl/namespace_.rs](../../../../rust/tcl-registry/src/commands/tcl/namespace_.rs), `jim_spec`: Model exact Jim helper source words and available options while withholding C compiler/state/effect descriptors and requiring separate current helper binding.
+- [rust/tcl-registry/src/commands/tcl/namespace_.rs](../../../../rust/tcl-registry/src/commands/tcl/namespace_.rs), `commands::tcl::namespace_::tests::jim_scripted_ensemble_metadata_requires_exact_words_and_separate_helper_binding` (linked): Jim ensemble source schema accepts exact create/-automap words only and withholds abbreviated/C-only operations plus compiler, handler, analyser, transition and world-effect metadata. The helper binding remains independent. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

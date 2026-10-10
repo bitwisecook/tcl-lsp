@@ -1039,6 +1039,13 @@ impl Value {
         if self.0.retired.replace(true) {
             return;
         }
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_RETIRED_HEADER").is_some() {
+            eprintln!(
+                "retired-native-header-release: {}",
+                std::backtrace::Backtrace::force_capture()
+            );
+        }
         // Detach everything before releasing children or filename owners.
         let primary = self.0.intrep.replace(IntRep::Str);
         let string = self.0.string.replace(None);

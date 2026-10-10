@@ -59,7 +59,6 @@ impl DeclarationLayoutObservation {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::analyser::ResolvedAnalysisInput;
     use crate::command_binding::{SourceAnalysisOptions, SourceCommandBindings};
     use crate::registry_invocation::OwnedInvocationMetadataContext;

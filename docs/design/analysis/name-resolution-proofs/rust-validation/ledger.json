@@ -129825,6 +129825,244 @@
           "uncompressed_sha256": "918a8e9d298c9bbc7d994380c8f6b63dff03854b402657017c5acd8678a2399b"
         }
       }
+    },
+    {
+      "id": "rust.frozen285.integration-vm-own-test-build285",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen285/integration-vm-own-test-build285/receipt.json.gz",
+        "sha256": "d1fc64286f344ceb04231115bf321bbb47f4df9ef017b117d2af1142c749fdc1",
+        "compression": "gzip",
+        "uncompressed_sha256": "9a36535663ef9d81a7f0bcfa3bae651b75f387751681d5dc201aff145a3b922a"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen285/integration-vm-own-test-build285/tests.log",
+        "sha256": "4782cc44b85fed58adcba87844b5e90fb80177d5ee40038289abde97bc842c7f"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 53.84796684898902,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The unchanged decompressed original receipt retains every immutable source hash, compile/archive path, head and command association. Every archived source leaf is independently byte-checked. Head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Two Compiler dependency missing_docs errors at dynamic_names.rs:289 and :290 block the VM no-run command before test executable creation. No test assertion or strict executable pin is supplied. No aggregate gate pass, Native provider outcome or result from another command/image is inferred."
+    },
+    {
+      "id": "rust.frozen286.integration-vm-own-test-build286",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/integration-vm-own-test-build286/receipt.json.gz",
+        "sha256": "4e28977dd7c7cfebcfe984a6d0e53f5f040d38e29c86e53e650438f8c99e69ca",
+        "compression": "gzip",
+        "uncompressed_sha256": "a0dd75d9f81b6a4410b309f0b3b2a70c628c5d3d96a148506d0e891a24adac99"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/integration-vm-own-test-build286/tests.log",
+        "sha256": "e8778be41ec8c67dde881a7d72ac3537a7462ba3c5210b9239f3c9e42b21dc72"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 0,
+      "seconds": 131.2754866470059,
+      "uniform_source": true,
+      "status": "compile-passed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The unchanged decompressed original receipt retains every immutable source hash, compile/archive path, head and command association. Every archived source leaf is independently byte-checked. Head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The exact successful VM no-run command records one tcl_vm libtest executable event. This record establishes compilation only; strict copied executable pinning, inventory listing and any later assertion runs require their own original receipts. No pin or assertion outcome is attached to this build-only record. No aggregate gate pass, Native provider outcome or result from another command/image is inferred."
+    },
+    {
+      "id": "rust.frozen286.integration-vm-inventory286",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/integration-vm-inventory286/receipt.json.gz",
+        "sha256": "478b851c03d14c46dc0488681e64c52a89bf2094756f6f8d4f7fad7381a1a66f",
+        "compression": "gzip",
+        "uncompressed_sha256": "86ec5b099528c9327e7aa09443272f546eef0fa974d6da02d867d20aeb3c0797"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/integration-vm-inventory286/tests.log",
+        "sha256": "4add95b9be526284532b5c2e16d3f94df130dba5f11fff00b7e0f2bca4388b6a"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm286.elf",
+        "--list"
+      ],
+      "exit": 0,
+      "seconds": 0.006250003003515303,
+      "uniform_source": true,
+      "status": "listed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The unchanged decompressed receipt retains all original source hashes, archive/compile paths and command association. Every archived source leaf is byte-checked; Git head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/sealed-vm-image/pinned-vm286.elf.gz",
+        "sha256": "047cb62cafb9e8fb9adc7ca69f38c8670930a105bf3a021cda1c13e0d282a937",
+        "compression": "gzip",
+        "uncompressed_sha256": "d3dbfecf99c8a1085c779d32202453fcffaa4355f440cfe0233d42e657eef5f0",
+        "uncompressed_bytes": 101562216,
+        "compressed_bytes": 19851715,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/sealed-vm-image/pinned-vm286.json",
+        "metadata_sha256": "9ba487fff5b4eeee6777edd1285e35ba7cf2d924fc909e7263ff7adc5d748b33",
+        "build_receipt_id": "rust.frozen286.integration-vm-own-test-build286",
+        "original_source_snapshot_sha256": "1b79eb499578670488aa27d380a6ff5b5483a7ed125b87106dea2dfd10ad13e4",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/source-snapshot.json.gz",
+          "sha256": "e44a81338ee7658ee866eac7b12d090ed71378890fb2d8238352f1402973b049",
+          "compression": "gzip",
+          "uncompressed_sha256": "1b79eb499578670488aa27d380a6ff5b5483a7ed125b87106dea2dfd10ad13e4"
+        }
+      },
+      "limits": "Actual strict VM286 inventory lists745 tests. Listing grants no assertion outcome. The successful producer has its independent already archived build-only record. No aggregate gate pass, external Native outcome or current definition extension borrows this diagnostic result."
+    },
+    {
+      "id": "rust.frozen286.integration-vm-jim-original-header-diagnostic286",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/integration-vm-jim-original-header-diagnostic286/receipt.json.gz",
+        "sha256": "aeb2e2f083e02c4895ff7afdb5f395dfb9aa1b645cc3be1666db476e420ab9c2",
+        "compression": "gzip",
+        "uncompressed_sha256": "e84f54be2656a2dab9b05d814c7b8dc7e6470247901ec713017f17d5a59dc1c4"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/integration-vm-jim-original-header-diagnostic286/tests.log",
+        "sha256": "83430a05b4aad7b090c962d0c265f6875b9c38eb0d652a5953e30d5d00ee9623"
+      },
+      "command": [
+        "env",
+        "TCL_LSP_TRACE_RETIRED_HEADER=1",
+        "/workspace/.proofs/pinned-vm286.elf",
+        "cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 0.14672075799899176,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 744
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The unchanged decompressed receipt retains all original source hashes, archive/compile paths and command association. Every archived source leaf is byte-checked; Git head is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers",
+          "status": "failed",
+          "purpose": "Actual opt-in software diagnostic of the original Jim namespace-info guard and its retained software headers under the strict286 image; no original external provider or whole mathop comparison is asserted.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [],
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/sealed-vm-image/pinned-vm286.elf.gz",
+        "sha256": "047cb62cafb9e8fb9adc7ca69f38c8670930a105bf3a021cda1c13e0d282a937",
+        "compression": "gzip",
+        "uncompressed_sha256": "d3dbfecf99c8a1085c779d32202453fcffaa4355f440cfe0233d42e657eef5f0",
+        "uncompressed_bytes": 101562216,
+        "compressed_bytes": 19851715,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/sealed-vm-image/pinned-vm286.json",
+        "metadata_sha256": "9ba487fff5b4eeee6777edd1285e35ba7cf2d924fc909e7263ff7adc5d748b33",
+        "build_receipt_id": "rust.frozen286.integration-vm-own-test-build286",
+        "original_source_snapshot_sha256": "1b79eb499578670488aa27d380a6ff5b5483a7ed125b87106dea2dfd10ad13e4",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/source-snapshot.json.gz",
+          "sha256": "e44a81338ee7658ee866eac7b12d090ed71378890fb2d8238352f1402973b049",
+          "compression": "gzip",
+          "uncompressed_sha256": "1b79eb499578670488aa27d380a6ff5b5483a7ed125b87106dea2dfd10ad13e4"
+        }
+      },
+      "limits": "One independently listed opt-in Jim guard diagnostic closes0 passed/1 failed with typed Host retired native object header refusal and complete retirement trace. This is a software ownership failure, independent of original current-Jim guarded code0/UNAVAILABLE measurements and helper metadata. Neither whole60/84 comparator nor other source/control suites execute in this diagnostic. The successful producer has its independent already archived build-only record. No aggregate gate pass, external Native outcome or current definition extension borrows this diagnostic result."
+    },
+    {
+      "id": "rust.frozen287.integration-compiler-registry-core-db-server-test-build287",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen287/integration-compiler-registry-core-db-server-test-build287/receipt.json.gz",
+        "sha256": "fb70742f1b51752cdf68cdc215f0cbd3037bfeb0d2f30e927ab02158a647fb97",
+        "compression": "gzip",
+        "uncompressed_sha256": "f14f4133f3457ec6a2b2f8f844c2b21feacc8dd01e2bd22b2e69f674e2707eba"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen287/integration-compiler-registry-core-db-server-test-build287/tests.log",
+        "sha256": "9f4a58d511ac7e4fb4f4e2ea4e67cd76ad94c93ef50e2682b40649ff2a2af953"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-lsp-core",
+        "-p",
+        "tcl-lsp-db",
+        "-p",
+        "tcl-lsp-server",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 202.57091202100855,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The unchanged decompressed original receipt retains every immutable source hash, compile/archive path, head and exact command association. Every archived source leaf is independently byte-checked. Head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Four Compiler fixture/import errors and three Server integration errors block this exact five-package no-run command. The whole Cargo log records no executable event; no test inventory, strict executable pin or unit assertion is produced by this invocation. This is a compilation-only failure; no Native provider failure, other-command success or aggregate gate result is inferred."
     }
   ]
 }

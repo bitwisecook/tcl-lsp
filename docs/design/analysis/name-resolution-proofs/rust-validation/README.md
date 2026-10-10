@@ -2313,3 +2313,51 @@ restored.chmod(0o755)
 ```
 
 Lossless restoration preserves executable identity and supplies no new build or assertion.
+
+## VM no-run build285: compilation only
+
+The exact `cargo test -p tcl-vm --lib --no-run --message-format=json --offline` command closes with exit 101 after 53.847967s and `uniform_source: true`. Two Compiler dependency missing_docs errors at dynamic_names.rs:289 and :290 block the VM no-run command before test executable creation. No test assertion or strict executable pin is supplied. These compilation records supply no Native provider failure or aggregate gate pass.
+
+The [unchanged original receipt](frozen285/integration-vm-own-test-build285/receipt.json.gz) is retained as lossless gzip with compressed and uncompressed SHA256. The [whole original log](frozen285/integration-vm-own-test-build285/tests.log) retains every diagnostic and Cargo event. Every immutable source archive leaf is independently byte-checked. Original command, paths, source association and timing remain unchanged.
+
+
+## VM no-run build286: compilation only
+
+The exact `cargo test -p tcl-vm --lib --no-run --message-format=json --offline` command closes with exit 0 after 131.275487s and `uniform_source: true`. The exact successful VM no-run command records one tcl_vm libtest executable event. This record establishes compilation only; strict copied executable pinning, inventory listing and any later assertion runs require their own original receipts. No pin or assertion outcome is attached to this build-only record. These compilation records supply no Native provider failure or aggregate gate pass.
+
+The [unchanged original receipt](frozen286/integration-vm-own-test-build286/receipt.json.gz) is retained as lossless gzip with compressed and uncompressed SHA256. The [whole original log](frozen286/integration-vm-own-test-build286/tests.log) retains every diagnostic and Cargo event. Every immutable source archive leaf is independently byte-checked. Original command, paths, source association and timing remain unchanged.
+
+## Sealed Source286 VM inventory and Jim guard diagnostic
+
+The strict copied VM286 image belongs to its independently archived successful no-run producer. Its [original pin metadata](frozen286/sealed-vm-image/pinned-vm286.json), [lossless image record](frozen286/sealed-vm-image/lossless-image-storage.json), gzip executable and [source companion](frozen286/source-snapshot.json.gz) preserve exact original identities. Every source association is byte-checked. The actual inventory lists 745 tests; the separate opt-in Jim namespace-info guard diagnostic closes 0 passed/1 failed with typed Host retired-header refusal. This is a software ownership outcome, independent of the original current-Jim guarded code0/UNAVAILABLE measurements and helper declaration. It does not rerun the whole 60/84 comparators or unrelated control suites. No aggregate gate passes.
+
+| Closed operation | Recorded outcome | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-vm-inventory286` | `listed`, exit 0, 0.006250s; 745 listed; no assertions | [Original receipt](frozen286/integration-vm-inventory286/receipt.json.gz) | [Complete log](frozen286/integration-vm-inventory286/tests.log) |
+| `integration-vm-jim-original-header-diagnostic286` | `failed`, exit 101, 0.146721s; 0 passed/1 failed | [Original receipt](frozen286/integration-vm-jim-original-header-diagnostic286/receipt.json.gz) | [Complete log](frozen286/integration-vm-jim-original-header-diagnostic286/tests.log) |
+
+Restore the exact measured image after checking stored and original identities:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen286/sealed-vm-image")
+record = json.loads((base / "lossless-image-storage.json").read_text())
+packed = (base / "pinned-vm286.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/pinned-vm286.elf")
+restored.write_bytes(original)
+restored.chmod(0o755)
+```
+
+Restoration preserves measured executable identity and supplies no new build, run, Native provider answer or private-header proof.
+
+## Compiler, Registry, Core, DB and Server no-run build287: compilation only
+
+The original `cargo test` no-run command selects the five named packages and closes with exit101 after 202.570912s and `uniform_source: true`. Four Compiler fixture/import errors and three Server integration errors block this exact five-package no-run command. The whole Cargo log records no executable event; no test inventory, strict executable pin or unit assertion is produced by this invocation. This record supplies no Native provider failure, assertion outcome or aggregate gate result.
+
+The [unchanged original receipt](frozen287/integration-compiler-registry-core-db-server-test-build287/receipt.json.gz) is retained as lossless gzip with compressed and uncompressed SHA256. The [whole original log](frozen287/integration-compiler-registry-core-db-server-test-build287/tests.log) preserves all seven errors and Cargo events. All 31917 immutable source archive leaves are independently byte-checked. Original command, paths, source association and timing remain unchanged.

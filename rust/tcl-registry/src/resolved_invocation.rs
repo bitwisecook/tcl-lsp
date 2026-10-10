@@ -2968,26 +2968,30 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         if self.semantics.arg_role_resolver_input() == ArgRoleResolverInput::ConflictingResolvers {
             return (Vec::new(), false);
         }
+        let (mut roles, mut complete) = self.resolver_argument_roles();
         if self.semantics.clause_grammar.is_some() {
-            let Some(Ok(plan)) = self.clause_walk() else {
-                return (self.semantics.arg_roles.to_vec(), false);
-            };
-            let mut roles = self.semantics.arg_roles.to_vec();
-            let mut complete = true;
-            for (at, role) in plan.roles {
-                if let Some(at) = at
-                    .checked_sub(self.semantics.argument_offset)
-                    .and_then(|at| u8::try_from(at).ok())
-                {
-                    if !roles.contains(&(at, role)) {
-                        roles.push((at, role));
+            match self.clause_walk() {
+                Some(Ok(plan)) => {
+                    for (at, role) in plan.roles {
+                        if let Some(at) = at
+                            .checked_sub(self.semantics.argument_offset)
+                            .and_then(|at| u8::try_from(at).ok())
+                        {
+                            if !roles.contains(&(at, role)) {
+                                roles.push((at, role));
+                            }
+                        } else {
+                            complete = false;
+                        }
                     }
-                } else {
-                    complete = false;
                 }
+                _ => complete = false,
             }
-            return (roles, complete);
         }
+        (roles, complete)
+    }
+
+    fn resolver_argument_roles(&self) -> (Vec<(u8, ArgRole)>, bool) {
         if let Some(resolver) = self.semantics.arg_role_layout_resolver {
             resolver(
                 self.words
@@ -3257,6 +3261,27 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         let arguments = self.words.arguments();
         let count = arguments.exact_argv_len()?;
         let selected = self.semantics.script_metadata;
+        if selected.subcommand.is_none()
+            && selected.command.option_selects_pattern_language()
+            && selected.command.pattern_arg_resolver.is_none()
+        {
+            let options = self.semantics.options;
+            options.prefix_occurrences(arguments)?;
+            let available = options.available().collect::<Vec<_>>();
+            let effects = selected.command.option_effects_over(
+                &available,
+                arguments,
+                options.availability.query,
+            );
+            if !effects.complete {
+                return None;
+            }
+            return Some(crate::patterns::option_selected_pattern_args(
+                &effects,
+                options.reserved_trailing_words,
+                count,
+            ));
+        }
         if let Some(resolve) = selected.command.pattern_arg_resolver {
             // Paired command resolvers own full post-head ordinals. A selected
             // member cannot borrow that command-level option layout.
@@ -5406,6 +5431,59 @@ mod tests {
     }
 
     #[test]
+    fn source_clause_roles_keep_resolver_roles_and_actual_availability() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        use crate::InvocationWord::{Expanded, Literal};
+        let current =
+            crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let older = crate::model::ingress::resolve_environment("tcl8.4")
+            .default_context_registry()
+            .with_command_store(current.commands().snapshot().shared_registry());
+        let arguments = [
+            Literal("update"),
+            Literal("d"),
+            Literal("key"),
+            Literal("local"),
+            Literal("BODY"),
+        ];
+        let words = crate::InvocationWords::structured(Literal("dict"), &arguments);
+        let selected = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+            current.commands(),
+            Some(current.context()),
+            words,
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        )
+        .resolved()
+        .unwrap();
+        let roles = selected.arg_roles().unwrap();
+        assert!(roles.contains(&(1, ArgRole::VarRead)));
+        assert!(roles.contains(&(1, ArgRole::VarWrite)));
+        assert!(roles.contains(&(3, ArgRole::LoopVarList)));
+        assert!(roles.contains(&(4, ArgRole::Body)));
+        assert!(
+            crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                older.commands(),
+                Some(older.context()),
+                words,
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            )
+            .resolved()
+            .is_none()
+        );
+        let expanded = [Literal("update"), Literal("d"), Expanded, Literal("BODY")];
+        let selected = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+            current.commands(),
+            Some(current.context()),
+            crate::InvocationWords::structured(Literal("dict"), &expanded),
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        )
+        .resolved()
+        .unwrap();
+        assert!(selected.arg_roles().is_none());
+    }
+
+    #[test]
     fn authored_source_procedure_roles_do_not_supply_native_definition_acceptance() {
         // Implementation contract: naming.vendor.original-registry-metadata
         // docs/design/analysis/name-resolution-proofs/vendor-original-registry-metadata.md
@@ -5413,7 +5491,7 @@ mod tests {
         let arguments = [
             crate::InvocationWord::Literal("p"),
             crate::InvocationWord::Literal("arg"),
-            crate::InvocationWord::Opaque,
+            crate::InvocationWord::Dynamic,
         ];
         let selected = registry
             .resolve_structured_invocation(
@@ -5443,6 +5521,19 @@ mod tests {
             assert!(!facts.arg_roles_complete);
             assert!(facts.arg_roles.is_empty());
         }
+        let opaque = [
+            crate::InvocationWord::Literal("p"),
+            crate::InvocationWord::Literal("arg"),
+            crate::InvocationWord::Opaque,
+        ];
+        let selected = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(crate::InvocationWord::Literal("proc"), &opaque),
+                None,
+            )
+            .resolved()
+            .unwrap();
+        assert!(selected.authored_source_procedure_arguments().is_none());
         let expanded = [crate::InvocationWord::Expanded];
         let selected = registry
             .resolve_structured_invocation(
@@ -9244,13 +9335,16 @@ mod logical_frame_source_role_tests {
         let uplevel = resolve("uplevel", &[Dynamic, Literal("{set x 1}")]);
         assert_eq!(
             uplevel.frame_effect(),
-            Some((FrameLevel::Dynamic, vec![OperandId(1)]))
+            None,
+            "the unknown first value can select a level or remain part of the script"
         );
         let uplevel = resolve("uplevel", &[Dynamic]);
+        assert_eq!(uplevel.frame_effect(), None);
+        let uplevel = resolve("uplevel", &[Literal("{set x 1}")]);
         assert_eq!(
             uplevel.frame_effect(),
             Some((FrameLevel::DEFAULT, vec![OperandId(0)])),
-            "a lone computed word is the script"
+            "a known non-level value is the script"
         );
     }
 
@@ -9319,7 +9413,7 @@ mod logical_frame_source_role_tests {
         let roles = invocation.arg_roles().expect("a literal layout");
         assert!(roles.contains(&(1, ArgRole::VarRead)), "{roles:?}");
         assert!(
-            registry
+            CommandRegistry::build_default()
                 .arg_indices_for_role("array", &["d", "a", "s"], ArgRole::VarRead)
                 .is_empty(),
             "the release-blind lookup finds `d` ambiguous"
@@ -9474,7 +9568,6 @@ mod logical_frame_source_role_tests {
         let registry = CommandRegistry::build_default();
         let context = derived_context("tcl9.0");
         let corpus: &[(&str, &[crate::InvocationWord<'static>], &[&str])] = &[
-            ("lsearch", &[Dynamic, Dynamic], &["$l", "$p"]),
             (
                 "lsearch",
                 &[Literal("-all"), Dynamic, Dynamic],
@@ -9517,6 +9610,23 @@ mod logical_frame_source_role_tests {
                 "{name} {source:?}"
             );
         }
+        let arguments = [Dynamic, Dynamic];
+        let invocation = registry
+            .invocation(
+                InvocationWords::structured(Literal("lsearch"), &arguments),
+                &context,
+            )
+            .resolved()
+            .unwrap();
+        assert_eq!(invocation.return_type(), Some(TclType::Int));
+        assert_eq!(
+            registry
+                .get("lsearch")
+                .unwrap()
+                .return_type_for_call(&["$l", "$p"]),
+            None,
+            "legacy text does not retain the two mandatory argv slots"
+        );
     }
 }
 

@@ -14,9 +14,13 @@ How do original info commands option and reported-name results differ between ac
 
 Jim root exact -all with r2286 pattern reports {{::r2286 spaced} ::r2286_global r2286_holder::r2286_local}; ordinary root pattern reports {::r2286_global r2286_holder::r2286_local}. Qualified -all pattern and the original no-pattern option control retain r2286_holder::r2286_local. Explicit -nons inside the nonroot namespace retains those same selected all/pattern lists and its independently written absent/all values. Original -al, extra operands and -nons arity controls catch their exact info commands ?-all? ?pattern? or -nons commands ?-all? ?pattern? diagnostics. Each five C release's root -all-plus-pattern/arity inputs catches its exact ::info commands ?pattern? diagnostic; ordinary root pattern reports {{r2286 spaced} r2286_global}, while the -all literal pattern is empty. Explicit -nons reaches each release's actual unknown-subcommand diagnostic table. All48 fresh original processes and six compiler commands exit0 with empty stderr; whole ORIGINAL0 values retain their source's caught errors or selected public lists. The separately pinned Jim_InfoCoreCommand excerpt describes its own inspected -nons/forwarding/all-mode code and is not private runtime binding/table/token/cache evidence. The observations grant no general full stock roster, arbitrary Unicode/NUL, other-provider -nons support, successful scripted helper, frame, object/header or compiler/Normal admission.
 
+Original info option lookup and missing-selector usage are separate selected-dialect purposes. C8.4 option-table advice is withheld for newer C ensemble dispatch, Jim and missing or hosted native purpose.
+
 ## Scope
 
 Eight unchanged original ASCII LF sources retain genuine root versus nonroot activation, explicit original -nons words, caller-owned global/local commands and a literal-space command name. Counted C API evaluation introduces no outer source envelope. All exact inputs/requests/driver/launcher/ELFs/whole streams/receipts and independently required provider/archive/header/build/source pins are retained, with full Jim source and exact excerpt as separate source inspection. The two nonroot question records retain their own limited public forwarding answers. BIG-IP and executed software tests are not tested. Linked Runtime and VM controls execute the unchanged source fixtures and compare all138 whole ORIGINAL completion/result windows across the four inventory/helper groups per backend, with private identity and META/version excluded from the behavioural result. Their linked status records source coverage, not an executed software pass.
+
+This policy control grants no selected operation success, original handler table, Native entry or inventory execution outcome. Whole original inventory comparisons retain independent request and executable provenance.
 
 ## Provider answers
 
@@ -397,6 +401,11 @@ jim 0.84-9-g5bac7c9, revision `Pinned independent original provider source`, `/w
 - [rust/tcl-syntax/src/naming/jim_enumeration.rs](../../../../rust/tcl-syntax/src/naming/jim_enumeration.rs), `naming::jim_enumeration::tests::original_jim_core_inventory_matches_comparison_keys_but_retains_original_reports` (linked): Pure supplied command-key inputs match their selected comparison units while preserving original report units; literal-space/all-mode distinction remains selected purpose, with no table entry/header identity allocation.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-registry/src/native_index_lookup.rs](../../../../rust/tcl-registry/src/native_index_lookup.rs), `InvocationDialect::native_info_original_option_protocol`: Select only the original C8.4 info option-table purpose; later ensemble and Jim dispatch remain distinct.
+- [rust/tcl-registry/src/native_index_lookup.rs](../../../../rust/tcl-registry/src/native_index_lookup.rs), `native_index_lookup::tests::original_info_option_lookup_is_separate_from_ensemble_and_jim_dispatch` (linked): The actual dialect selects the C8.4 original info option-table purpose and independently release-specific missing-selector usage; newer ensemble dispatch, Jim and unknown/hosted profiles cannot borrow that option protocol. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

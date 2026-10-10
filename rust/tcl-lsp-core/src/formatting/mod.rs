@@ -119,6 +119,31 @@ pub fn formatting_with_input(
     full_document_edit(source, engine::format_tcl_with_input(source, config, input))
 }
 
+/// Format a current analysed document. Unavailable, stale or incomplete source
+/// owners supply no formatting edits; style settings do not repair that owner.
+#[must_use]
+pub fn formatting_with_analysis(
+    source: &str,
+    config: &FormatterConfig,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+) -> Vec<TextEdit> {
+    let Some(input) = original_formatting_input(source, analysis) else {
+        return Vec::new();
+    };
+    formatting_with_input(source, config, input)
+}
+
+fn original_formatting_input<'a>(
+    source: &str,
+    analysis: &'a tcl_compiler::analyser::AnalysisResult,
+) -> Option<&'a tcl_compiler::analyser::ResolvedAnalysisInput> {
+    // Analysis replaces lone CRs without changing source offsets. Formatter
+    // output and client edit coordinates still use the original terminators.
+    let analysis_source = tcl_lexer::normalise_lone_cr(source);
+    crate::original_context::CurrentSourceContext::capture(&analysis_source, analysis)?;
+    analysis.resolved_input.as_ref()
+}
+
 fn full_document_edit(source: &str, formatted: String) -> Vec<TextEdit> {
     if formatted == source {
         return Vec::new();
@@ -178,6 +203,20 @@ pub fn range_formatting_with_input(
     let config = config.for_resolved_input(input);
     let context = input.context_registry();
     range_formatting_impl(source, range, &config, context.commands(), Some(input))
+}
+
+/// Format a selection only when the whole original analysis is still current.
+#[must_use]
+pub fn range_formatting_with_analysis(
+    source: &str,
+    range: LspRange,
+    config: &FormatterConfig,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+) -> Vec<TextEdit> {
+    let Some(input) = original_formatting_input(source, analysis) else {
+        return Vec::new();
+    };
+    range_formatting_with_input(source, range, config, input)
 }
 
 fn range_formatting_impl(
@@ -348,6 +387,76 @@ fn finalise_slice(text: &str, config: &FormatterConfig, line_ending: &str) -> St
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn analysed_formatting_keeps_current_source_and_typed_unavailability() {
+        // naming.editor.original-source-formatting
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
+        use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+        let source = "if 1 {\nset value 1\n}\n";
+        let config = FormatterConfig::default();
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let range = LspRange {
+            start_line: 0,
+            start_character: 0,
+            end_line: 2,
+            end_character: 1,
+        };
+        let expected = formatting_with_analysis(source, &config, &analysis);
+        assert!(!expected.is_empty());
+        assert!(!range_formatting_with_analysis(source, range, &config, &analysis).is_empty());
+        let mut reported = analysis.clone();
+        reported.dialect = "presentation only".into();
+        assert_eq!(
+            formatting_with_analysis(source, &config, &reported),
+            expected
+        );
+
+        let mut unavailable = analysis.clone();
+        unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+            environment: "tcl".into(),
+            overlay: 1,
+        });
+        assert!(unavailable.resolved_input.is_some());
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let mut changed = analysis.clone();
+        changed.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+        let mut foreign = analysis.clone();
+        let input = foreign.resolved_input.take().unwrap();
+        foreign.resolved_input = Some(ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::resolve_environment("tcl8.4").default_context_registry(),
+            input.lexer_config(),
+        ));
+        for withdrawn in [&unavailable, &missing, &changed, &foreign] {
+            assert!(formatting_with_analysis(source, &config, withdrawn).is_empty());
+            assert!(range_formatting_with_analysis(source, range, &config, withdrawn).is_empty());
+        }
+        assert!(formatting_with_analysis("set replacement 1", &config, &analysis).is_empty());
+        assert!(
+            range_formatting_with_analysis("set replacement 1", range, &config, &analysis)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn analysed_formatting_keeps_original_terminators_and_lone_cr_analysis_currency() {
+        // naming.editor.original-source-formatting
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
+        use tcl_compiler::analyser::Analyser;
+        for ending in ["\n", "\r\n", "\r"] {
+            let source = format!("if 1 {{{ending}set value 1{ending}}}{ending}");
+            let analysis_source = tcl_lexer::normalise_lone_cr(&source);
+            let analysis = Analyser::new().analyse(&analysis_source, "tcl");
+            let edits = formatting_with_analysis(&source, &FormatterConfig::default(), &analysis);
+            assert_eq!(edits.len(), 1);
+            assert!(edits[0].new_text.ends_with(ending));
+            assert_eq!(edits[0].range.end_line, 3);
+            assert_eq!(edits[0].range.end_character, 0);
+        }
+    }
 
     fn range_fmt(source: &str, range: LspRange) -> Vec<TextEdit> {
         let registry = tcl_registry::CommandRegistry::build_default();

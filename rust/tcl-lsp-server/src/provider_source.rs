@@ -34,7 +34,7 @@ impl ProviderDialectInputs {
                 .get(uri.as_str())
                 .map(String::as_str),
             &self.folders,
-            target.map_or(self.default.as_str(), tcl_dialect::TclVersion::dialect_name),
+            target.map_or(self.default.as_str(), |version| version.dialect_name()),
         )
     }
 }

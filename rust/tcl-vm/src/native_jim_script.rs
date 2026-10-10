@@ -6,13 +6,46 @@ use crate::{
     Code, Completion, Value,
     value::{NativeJimScript, NativeJimScriptLease},
 };
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 use tcl_syntax::jim_script_objects::{JimScriptCommand, JimScriptObjectKind};
 
 #[derive(Clone)]
 pub(crate) struct NativeJimScriptEntry {
     pub(crate) original: crate::NativeObjectLifetimeLease,
     pub(crate) substitution_flags: Option<u8>,
+    // Cloned preparation transports share one pending native reference.
+    // The actual activation takes it once; remaining views own no reference.
+    activation_original: Rc<RefCell<Option<Value>>>,
+}
+
+impl NativeJimScriptEntry {
+    pub(crate) fn borrowed(
+        original: crate::NativeObjectLifetimeLease,
+        substitution_flags: Option<u8>,
+    ) -> Self {
+        Self {
+            original,
+            substitution_flags,
+            activation_original: Rc::default(),
+        }
+    }
+
+    pub(crate) fn retain_activation_original(
+        &self,
+        original: Value,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        original.check_native_header()?;
+        if self.substitution_flags.is_some()
+            || !original.is_same_object(self.original.value())
+            || self.activation_original.borrow().is_some()
+        {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "deferred Jim Script original owner",
+            ));
+        }
+        *self.activation_original.borrow_mut() = Some(original.into_native_reference());
+        Ok(())
+    }
 }
 
 pub(crate) enum ScriptStep {
@@ -54,6 +87,9 @@ impl NativeJimScriptState {
     ) -> Result<Self, crate::TclError> {
         let context = vm.native_jim_object_context()?;
         let flags = entry.substitution_flags;
+        // A deferred eval worker transfers its same existing owner before
+        // JimGetScript. Borrowed preparation and Subst retain their own order.
+        let activation_original = entry.activation_original.borrow_mut().take();
         let backing = match flags {
             Some(flags) => entry.original.value().prepare_native_jim_substitution(
                 &context,
@@ -75,7 +111,7 @@ impl NativeJimScriptState {
             context.publish_result(&context.empty_object());
         }
         // JimGetSubst precedes the genuine parent evaluation reference.
-        let original = entry.original.value().clone();
+        let original = activation_original.unwrap_or_else(|| entry.original.value().clone());
         drop(entry);
         let empty = backing.storage.is_empty();
         let (lease, empty_parent) = if flags.is_some() {

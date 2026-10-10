@@ -16,11 +16,15 @@ A positively retained complete Logical input selects a separate authored descrip
 
 Conditional Logical declaration values retain Unicode moves and authentic captured factory operands under the complete quiet original Document source owner. Checked UTF8, NUL refusal and original source/configuration/entry-mode guards remain independent of the source value spelling.
 
+Logical capture consumers use the shared exact literal_bytes facet with checked UTF8 and no-zero projection. Exact Unicode, literal dollar and empty source data retain their bytes and capture order; dynamic, opaque, expanded, invalid UTF8 or zero-containing values refuse. Complete original source/vector/input/configuration/store and selected origin guards remain unchanged.
+
 ## Scope
 
 Static original Logical definitions under a positively retained complete input, known Authored namespace and quiet selected stock source definer. Genuine original words and effective captured-prefix operands use the selected actual source schema and strict formal grammar; labels cannot reconstruct a declaration. The full context supplies only the authored model roster; foreign context/configuration tokens, Native input and unknown/unsealed input cannot borrow it. Selected source grammar may have a Jim point without a Native name policy. Stored body validity, actual invocation, Native publication/Normal and physical frames remain independent. Unknown/rebound/dynamic/opaque/invalid-namespace inputs decline; Native and hosted source stay separate.
 
 Two additional unexecuted source/software controls confer no Native definition publication, value/name receipt, Handler/body/frame entry, physical storage or Normal completion. Existing original Native definition/formal experiments remain separate.
+
+The added literal-byte control is an unexecuted source/software definition. The checked Logical text facet supplies no Native name/value/argv identity, physical object/cache/frame, entered handler, publication or Normal completion; independent symbolic cell/storage purposes remain guarded.
 
 ## Provider answers
 
@@ -95,6 +99,11 @@ A named test is a coverage binding, not a claim that it executed.
 - [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `LogicalProcedureDefinition::capture`: Join the authentic original selected definer, Unicode moves and captured factory operands within the conditional Logical source model.
 - [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `command_binding::logical_definition::tests::logical_definition_keeps_unicode_moves_and_captured_factory_operands` (linked): Complete quiet retained Logical original Document values; checked UTF8 and NUL refusal; source/config/Native mode gates unchanged, no Native value/name/handler/frame/Normal/publication receipt
 - [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `command_binding::logical_definition::tests::logical_static_values_keep_checked_source_and_native_channel_boundaries` (linked): Complete quiet retained Logical original Document values; checked UTF8 and NUL refusal; source/config/Native mode gates unchanged, no Native value/name/handler/frame/Normal/publication receipt
+
+These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
+
+- [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `captured_static_value`: Project shared exact literal_bytes through checked UTF8/no-zero source text only; original owner/vector/context/store and capture order remain separately required.
+- [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `command_binding::logical_definition::tests::logical_captured_values_keep_exact_unicode_bytes_and_refuse_unknown_units` (linked): Two genuine Logical source capture consumers read the shared exact literal_bytes facet with checked UTF-8/no-zero projection. Original source/vector/context/store/selection guards and capture order remain unchanged. Unknown, opaque, expansion, non-UTF-8 and zero-containing values refuse. Existing Unicode producer and independent symbolic cell/storage guards preserved; no Native name/argv/handler/frame/value/Normal grants. Software definition only; no assertion result or Native value/argv completion is attached.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 

@@ -26336,9 +26336,6 @@ impl LanguageServer for Backend {
                 doc.dialect.clone(),
             )
             .await;
-        let Some(input) = analysis.resolved_input.clone() else {
-            return Ok(None);
-        };
         // Honour the user's resolved `tclLsp.formatting` settings, exactly as
         // `formatting()` does — otherwise format-on-save re-indents with
         // defaults and fights an explicit Format Document.
@@ -26361,7 +26358,7 @@ impl LanguageServer for Backend {
         // handler.
         let text = doc.raw().to_owned();
         let edits = crate::rt::spawn_blocking(move || {
-            core_formatting::formatting_with_input(&text, &config, &input)
+            core_formatting::formatting_with_analysis(&text, &config, &analysis)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -28688,9 +28685,6 @@ impl LanguageServer for Backend {
                 doc.dialect.clone(),
             )
             .await;
-        let Some(input) = analysis.resolved_input.clone() else {
-            return Ok(None);
-        };
         // Build from the resolved `tclLsp.formatting` settings; the client's
         // `FormattingOptions.tabSize` / `insertSpaces` override indentation by
         // LSP contract.
@@ -28707,7 +28701,7 @@ impl LanguageServer for Backend {
         // against them) — see `DocumentState::raw`.
         let text = doc.raw().to_owned();
         let edits = crate::rt::spawn_blocking(move || {
-            core_formatting::formatting_with_input(&text, &config, &input)
+            core_formatting::formatting_with_analysis(&text, &config, &analysis)
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -28749,9 +28743,6 @@ impl LanguageServer for Backend {
                 doc.dialect.clone(),
             )
             .await;
-        let Some(input) = analysis.resolved_input.clone() else {
-            return Ok(None);
-        };
         let formatting = self.resolved_formatting(&params.text_document.uri).await;
         let config = formatter_config_from(
             &formatting,
@@ -28762,7 +28753,7 @@ impl LanguageServer for Backend {
         // a JSON-RPC error.
         let text = doc.raw().to_owned();
         let edits = crate::rt::spawn_blocking(move || {
-            core_formatting::range_formatting_with_input(&text, range, &config, &input)
+            core_formatting::range_formatting_with_analysis(&text, range, &config, &analysis)
         })
         .await
         .map_err(|err| jsonrpc::Error {

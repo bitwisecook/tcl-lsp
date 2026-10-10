@@ -4418,24 +4418,7 @@ fn unit_registry(db: &dyn TclDb, dialect: &str, overlay: u64) -> Result<UnitRegi
         .map(UnitRegistry::Overlaid)
 }
 
-/// The registry a memoised per-procedure query resolves against: the one the
-/// unit query that keyed it resolved.
-///
-/// A per-procedure query runs inside, or is re-verified for, a unit query
-/// that has already resolved this overlay through
-/// [`TclDb::registry_with_overlay`], and the database holds what it resolved,
-/// so this cannot miss for a key a unit query resolved. Being asked for one
-/// none did is a caller error, and it stops here: a lattice computed against
-/// a registry the packs are missing from would be memoised under the packs'
-/// key.
-fn nested_registry(db: &dyn TclDb, dialect: &str, overlay: u64) -> UnitRegistry {
-    unit_registry(db, dialect, overlay).unwrap_or_else(|miss| {
-        panic!("{miss}: a per-procedure query ran for an overlay no unit query resolved")
-    })
-}
-
-/// [`nested_registry`] for a lattice key, which carries its overlay in the
-/// analysis context.
+/// The exact shared registry retained by this lattice key's analysis snapshot.
 fn lattice_registry(db: &dyn TclDb, key: FnLatticeKey<'_>) -> Arc<CommandRegistry> {
     key.snapshot(db).registry.shared_registry()
 }

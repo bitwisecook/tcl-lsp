@@ -3028,6 +3028,14 @@ impl Analyser {
             super::ResolvedAnalysisInput::lexer_config,
         );
         let profile = retained.map_or(self.profile, super::ResolvedAnalysisInput::unit_profile);
+        let metadata = retained.and_then(|input| {
+            crate::registry_invocation::InvocationMetadataContext::for_source_input(
+                context.commands(),
+                input,
+                config,
+                Some(profile),
+            )
+        });
         let Ok(script) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
                 .with_dialect(Some(profile))
@@ -3068,7 +3076,7 @@ impl Analyser {
 
         let mut info = UnknownProcInfo::default();
         for stmt in &script.statements {
-            walk_unknown_stmt(stmt, &context, &first_param, &mut info, 0);
+            walk_unknown_stmt(stmt, &context, metadata, &first_param, &mut info, 0);
         }
 
         info
@@ -3160,6 +3168,7 @@ const MAX_UNKNOWN_STMT_WALK_DEPTH: tcl_core_types::RecursionLimit =
 fn walk_unknown_stmt(
     stmt: &Statement,
     context: &tcl_registry::model::ContextRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
     first_param: &str,
     info: &mut UnknownProcInfo,
     depth: u32,
@@ -3199,15 +3208,28 @@ fn walk_unknown_stmt(
             for arm in arms {
                 if let Some(body) = &arm.body {
                     for inner in &body.statements {
-                        walk_unknown_stmt(inner, context, first_param, info, depth + 1);
+                        walk_unknown_stmt(inner, context, metadata, first_param, info, depth + 1);
                     }
                 }
             }
         }
         Statement::Call { .. } | Statement::Barrier { .. } | Statement::NativeCall { .. } => {
-            if let Some(invocation) =
-                crate::registry_invocation::resolved_statement_invocation_in_context(context, stmt)
-            {
+            // naming.compiler.original-unknown-handler-source-context
+            // docs/design/analysis/name-resolution-proofs/compiler-original-unknown-handler-source-context.md
+            // Logical source advice describes the exact selected operation;
+            // Native execution still needs its independent proved target.
+            let invocation = metadata.and_then(|metadata| {
+                if metadata.permits_logical_source_names() {
+                    crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+                        context.commands(), metadata, stmt.tokens()?,
+                    )
+                } else {
+                    crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+                        context.commands(), Some(metadata), stmt,
+                    )
+                }
+            });
+            if let Some(invocation) = invocation {
                 info.chains_original |= chains_original_unknown(&invocation.facts);
                 info.has_exec |= spawns_process(&invocation.facts);
                 info.has_auto_load |= loads_external_unit(&invocation.facts);
@@ -3218,12 +3240,12 @@ fn walk_unknown_stmt(
         } => {
             for clause in clauses {
                 for inner in &clause.body.statements {
-                    walk_unknown_stmt(inner, context, first_param, info, depth + 1);
+                    walk_unknown_stmt(inner, context, metadata, first_param, info, depth + 1);
                 }
             }
             if let Some(body) = else_body {
                 for inner in &body.statements {
-                    walk_unknown_stmt(inner, context, first_param, info, depth + 1);
+                    walk_unknown_stmt(inner, context, metadata, first_param, info, depth + 1);
                 }
             }
         }
@@ -3234,7 +3256,7 @@ fn walk_unknown_stmt(
         | Statement::Block { body, .. }
         | Statement::UpFrame { body, .. } => {
             for inner in &body.statements {
-                walk_unknown_stmt(inner, context, first_param, info, depth + 1);
+                walk_unknown_stmt(inner, context, metadata, first_param, info, depth + 1);
             }
         }
         Statement::Try {
@@ -3244,16 +3266,16 @@ fn walk_unknown_stmt(
             ..
         } => {
             for inner in &body.statements {
-                walk_unknown_stmt(inner, context, first_param, info, depth + 1);
+                walk_unknown_stmt(inner, context, metadata, first_param, info, depth + 1);
             }
             for handler in handlers {
                 for inner in &handler.body.statements {
-                    walk_unknown_stmt(inner, context, first_param, info, depth + 1);
+                    walk_unknown_stmt(inner, context, metadata, first_param, info, depth + 1);
                 }
             }
             if let Some(body) = finally_body {
                 for inner in &body.statements {
-                    walk_unknown_stmt(inner, context, first_param, info, depth + 1);
+                    walk_unknown_stmt(inner, context, metadata, first_param, info, depth + 1);
                 }
             }
         }
@@ -5463,6 +5485,140 @@ _original_unknown $cmd $args";
             &[param("cmd")],
         );
         assert!(info.has_auto_load);
+    }
+
+    #[test]
+    fn original_unknown_operation_advice_keeps_actual_availability_and_captured_sources() {
+        // naming.compiler.original-unknown-handler-source-context
+        // docs/design/analysis/name-resolution-proofs/compiler-original-unknown-handler-source-context.md
+        // Operation descriptions are conditional source advice, without an
+        // executed load, Native handler, cell, frame or Normal certificate.
+        use std::sync::Arc;
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut loader = registry.get("package").unwrap().clone();
+        loader.name = "context_package";
+        loader.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(loader);
+        let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(current.commands())),
+        );
+        assert!(Arc::ptr_eq(current.commands(), older.commands()));
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input =
+            |context| super::super::ResolvedAnalysisInput::new(profile, profile, context, config);
+        let source = "interp alias {} ::chargeré {} context_package require; ::chargeré Tcl";
+        let mut analyser = Analyser::new().with_resolved_input(input(Arc::clone(&current)));
+        assert!(
+            analyser
+                .extract_unknown_proc_info(source, &[param("cmd")])
+                .has_auto_load
+        );
+        analyser.registry = Some(
+            tcl_registry::model::ingress::static_context_for("f5-irules")
+                .commands()
+                .snapshot()
+                .shared_registry(),
+        );
+        assert!(
+            analyser
+                .extract_unknown_proc_info(source, &[param("cmd")])
+                .has_auto_load
+        );
+        let mut unavailable = Analyser::new().with_resolved_input(input(older));
+        assert!(
+            !unavailable
+                .extract_unknown_proc_info(source, &[param("cmd")])
+                .has_auto_load
+        );
+        let replaced = "proc context_package args {}; interp alias {} ensure {} context_package require; ensure Tcl";
+        assert!(
+            !analyser
+                .extract_unknown_proc_info(replaced, &[param("cmd")])
+                .has_auto_load
+        );
+    }
+
+    #[test]
+    fn original_unknown_operation_advice_refuses_missing_foreign_changed_and_dynamic_source() {
+        // naming.compiler.original-unknown-handler-source-context
+        // docs/design/analysis/name-resolution-proofs/compiler-original-unknown-handler-source-context.md
+        use crate::registry_invocation::InvocationMetadataContext;
+        let input = logical_unknown_analyser().resolved_input.unwrap();
+        let context = input.context_registry();
+        let source = "interp alias {} ensure {} package require; ensure Tcl";
+        let mut lowerer =
+            crate::lowering::Lowerer::with_config(context.commands(), input.lexer_config())
+                .with_resolved_analysis_input(input.clone());
+        let script = lowerer.lower(source).top_level.clone();
+        let statement = script.statements.last().unwrap();
+        let original = statement.tokens().unwrap().source_binding.as_ref().unwrap();
+        assert!(original.original_recorded_head_name_input().is_none());
+        assert!(original.proved_execution_target().is_none());
+        let metadata = InvocationMetadataContext::for_source_input(
+            context.commands(),
+            &input,
+            input.lexer_config(),
+            Some(input.unit_profile()),
+        )
+        .unwrap();
+        let inspect = |statement: &Statement, metadata| {
+            let mut info = UnknownProcInfo::default();
+            walk_unknown_stmt(statement, &context, metadata, "cmd", &mut info, 0);
+            info
+        };
+        assert!(inspect(statement, Some(metadata)).has_auto_load);
+        let foreign = super::super::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            input.lexer_config(),
+        );
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        let changed = super::super::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        for metadata in [
+            None,
+            Some(context.as_ref().into()),
+            InvocationMetadataContext::for_analysis_input(
+                foreign.borrowed_context_registry().commands(),
+                &foreign,
+            ),
+            InvocationMetadataContext::for_analysis_input(context.commands(), &changed),
+        ] {
+            assert!(!inspect(statement, metadata).has_auto_load);
+        }
+        let mut missing = statement.clone();
+        missing.tokens_mut().unwrap().source_binding = None;
+        assert!(!inspect(&missing, Some(metadata)).has_auto_load);
+        let mut analyser = logical_unknown_analyser();
+        for source in [
+            "interp alias {} ensure {} package $selector; ensure Tcl",
+            "interp alias {} ensure {} package require; $unknown Tcl",
+            "interp alias {} ensure {} package require; proc package args {}; ensure Tcl",
+        ] {
+            assert!(
+                !analyser
+                    .extract_unknown_proc_info(source, &[param("cmd")])
+                    .has_auto_load,
+                "{source}"
+            );
+        }
+        assert!(
+            !Analyser::new()
+                .extract_unknown_proc_info(source, &[param("cmd")])
+                .has_auto_load
+        );
     }
 
     #[test]

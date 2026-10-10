@@ -1955,8 +1955,8 @@ impl DialectProfile {
         // `f5_core_expr_grammar`'s discriminator above, which is the other
         // place an F5 profile declines to inherit from its `runtime_base`.
         if matches!(
-            self.vendor_surface,
-            Some(SpecProvider::Core(Family::F5Irules) | SpecProvider::Package("tmsh" | "iapps"))
+            self.runtime_core_family(),
+            Some(Family::F5Irules | Family::F5Tcl)
         ) {
             return Some(StringCharacterModel::Utf16CodeUnits);
         }
@@ -2045,6 +2045,24 @@ impl DialectProfile {
         std::ptr::eq(self, Self::irules())
     }
 
+    /// Core family selected by this profile's providers. Package surfaces
+    /// hosted by the F5 trunk retain that family independently of their
+    /// compatible Tcl signature release. This supplies no execution point.
+    #[must_use]
+    pub fn runtime_core_family(&self) -> Option<Family> {
+        match self.vendor_surface {
+            Some(SpecProvider::Core(family)) => Some(family),
+            Some(SpecProvider::Package("tmsh" | "iapps")) => Some(Family::F5Tcl),
+            _ => self
+                .grammar_union
+                .iter()
+                .find_map(|provider| match provider {
+                    SpecProvider::Core(family) => Some(*family),
+                    SpecProvider::Package(_) => None,
+                }),
+        }
+    }
+
     /// The F5-family core `expr` grammar behind this catalogue profile, or
     /// `None` for a profile whose runtime core is not on the F5 tree.
     ///
@@ -2066,15 +2084,13 @@ impl DialectProfile {
     #[must_use]
     pub fn f5_core_expr_grammar(&self) -> Option<&'static crate::model::ExprGrammar> {
         use crate::model::family::Release;
-        match self.vendor_surface {
+        match self.runtime_core_family() {
             // The iRules offshoot overrides no expr axis — it answers with
             // the trunk grammar along the fork edge (measurements §4a).
-            Some(SpecProvider::Core(Family::F5Irules)) => {
+            Some(Family::F5Irules) => {
                 Some(crate::model::expr(Family::F5Irules, Release::F5_IRULES_TMM))
             }
-            Some(SpecProvider::Package("tmsh" | "iapps")) => {
-                Some(crate::model::expr(Family::F5Tcl, Release::F5_TCL_TMOS))
-            }
+            Some(Family::F5Tcl) => Some(crate::model::expr(Family::F5Tcl, Release::F5_TCL_TMOS)),
             _ => None,
         }
     }

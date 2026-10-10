@@ -713,6 +713,10 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ) {
         Ok(prepared) => match prepared.prefix {
             Some(unit) => {
+                let unit = match unit.with_deferred_script_original(script) {
+                    Ok(unit) => unit,
+                    Err(error) => return completion_from_cmd_error(vm, error.into()),
+                };
                 vm.pending.eval = Some(crate::exec::EvalReq {
                     selected_frame_restore: None,
                     script: unit.with_source_location(
@@ -3840,9 +3844,16 @@ fn eval_original_uplevel(
         tcl_registry::native_eval_object::EvalObjectPurpose::UpLevel,
     ) {
         Ok(prepared) => {
-            if let Some(script) = prepared.prefix {
+            if let Some(unit) = prepared.prefix {
+                let unit = match unit.with_deferred_script_original(script) {
+                    Ok(unit) => unit,
+                    Err(error) => {
+                        vm.restore_execution_frame(selected);
+                        return completion_from_cmd_error(vm, error.into());
+                    }
+                };
                 vm.pending.eval = Some(crate::exec::EvalReq {
-                    script: script.with_source_location(location.clone()),
+                    script: unit.with_source_location(location.clone()),
                     label: Some("uplevel"),
                     cleanup_proc: None,
                     fatal_tail: prepared.fatal_tail,

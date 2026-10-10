@@ -1,0 +1,62 @@
+
+running 1 test
+test cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers ... retired-native-header-access:    0: <tcl_vm::value::Value>::check_native_header
+   1: <tcl_vm::value::Value>::bind_native_jim_context
+   2: <tcl_vm::value::Value>::prepare_native_jim_script
+   3: <tcl_vm::native_jim_script::NativeJimScriptState>::new
+   4: <tcl_vm::interp::Vm>::tick_native_jim_script
+   5: <tcl_vm::interp::Vm>::tick
+   6: <tcl_vm::interp::Vm>::drive_loop
+   7: <tcl_vm::interp::Vm>::drive
+   8: <tcl_vm::interp::Vm>::run_activation
+   9: <tcl_vm::interp::Vm>::invoke_resolved_command_inner::{closure#1}
+  10: <tcl_vm::interp::Vm>::invoke_resolved_command_inner
+  11: <tcl_vm::interp::Vm>::invoke_command_value_inner
+  12: <tcl_vm::interp::Vm>::invoke_command_value_entry_at
+  13: <tcl_vm::interp::Vm>::invoke_command_value_at
+  14: <tcl_vm::interp::Vm>::invoke_native_jim_object_vector
+  15: <tcl_vm::interp::Vm>::invoke_host_original_object_vector
+  16: tcl_vm::cmd_info::native_jim::command_inventory
+  17: tcl_vm::cmd_info::cmd_info
+  18: <tcl_vm::interp::Vm>::dispatch_builtin_words
+  19: <tcl_vm::interp::Vm>::dispatch_selected_words
+  20: <tcl_vm::interp::Vm>::dispatch_words_inner
+  21: <tcl_vm::interp::Vm>::dispatch_words_entry_at
+  22: <tcl_vm::interp::Vm>::dispatch_words_selected_at
+  23: <tcl_vm::interp::Vm>::dispatch_words_selected
+  24: <tcl_vm::interp::Vm>::dispatch_words_with_entered
+  25: <tcl_vm::interp::Vm>::dispatch_words
+  26: <tcl_vm::interp::Vm>::tick_native_jim_script
+  27: <tcl_vm::interp::Vm>::tick
+  28: <tcl_vm::interp::Vm>::drive_loop
+  29: <tcl_vm::interp::Vm>::drive
+  30: <tcl_vm::interp::Vm>::run_activation
+  31: <tcl_vm::interp::Vm>::run_compiled_unit
+  32: <tcl_vm::interp::Vm>::eval_original_script_value
+  33: <tcl_vm::interp::Vm>::eval_native_jim_source_bytes
+  34: <tcl_vm::interp::Vm>::eval_source_internal
+  35: <tcl_vm::interp::Vm>::eval_source
+  36: tcl_vm::cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers
+  37: tcl_vm::cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers::{closure#0}
+  38: <tcl_vm::cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+  39: test::__rust_begin_short_backtrace::<core::result::Result<(), alloc::string::String>, fn() -> core::result::Result<(), alloc::string::String>>
+  40: test::run_test::{closure#0}
+  41: std::sys::backtrace::__rust_begin_short_backtrace::<test::run_test::{closure#1}, ()>
+  42: <std::thread::lifecycle::spawn_unchecked<test::run_test::{closure#1}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+  43: <std::sys::thread::unix::Thread>::new::thread_start
+  44: <unknown>
+  45: <unknown>
+
+
+thread 'cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers' (991761) panicked at rust/tcl-vm/src/cmd_mathop.rs:133:14:
+original Jim guard completion: Host(Execution(ValueAccessRefusal(CommandProtocolUnavailable("retired native object header"))))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 744 filtered out; finished in 0.14s
+

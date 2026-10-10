@@ -123,7 +123,19 @@ async fn indexed_package_providers_keep_their_own_pack_and_unavailable_status() 
             .semantic_key(),
         registry.snapshot().semantic_key()
     );
-    assert!(current.input.has_logical_source_name_context());
+    assert!(
+        tcl_compiler::command_binding::SourceAnalysisEntry::for_logical_source(&current.input)
+            .is_some()
+    );
+    assert!(
+        tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+            &registry,
+            &current.input,
+            current.input.lexer_config(),
+            Some(current.input.unit_profile()),
+        )
+        .is_some()
+    );
     assert!(current.analysis.all_procs.contains_key("::provided"));
     assert!(current.is_current());
     assert!(

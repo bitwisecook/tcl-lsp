@@ -2246,14 +2246,22 @@ impl SourceBindingPoint {
         self.binding_projection(head, false)
     }
 
+    fn original_logical_lookup_head(&self) -> Option<&str> {
+        let input = self.state.logical_source_name_advice_input()?;
+        // The complete source owner remains independent of Native head input.
+        // A withdrawn or different supplied owner cannot reopen this projection.
+        if self.state.baseline.metadata_context.source_analysis_input() != Some(input) {
+            return None;
+        }
+        self.head.as_deref()
+    }
+
     fn original_lookup_binding(&self) -> SourceInvocationBinding {
         // naming.consumer.original-workspace-diagnostic-refinement
         // docs/design/analysis/name-resolution-proofs/original-workspace-diagnostic-refinement.md
         // The immutable Logical entry owns this interpreted head. It does
         // not supply a Native name input or permit a source-label fallback.
-        if self.state.logical_source_name_advice_input().is_some()
-            && let Some(head) = self.head.as_deref()
-        {
+        if let Some(head) = self.original_logical_lookup_head() {
             return source_binding_projection(&self.state, head, &self.namespace_key);
         }
         self.original_head_input
@@ -7265,7 +7273,12 @@ impl SourceCommandBindings {
             binding
                 .evaluated_argument_words
                 .clone_from(&point.evaluated_argument_words);
-            if point.original_head_input.is_none() {
+            // naming.source.logical-original-operation-transfer
+            // docs/design/analysis/name-resolution-proofs/logical-original-operation-transfer.md
+            // Keep the same conditional Logical lookup selected above. It has
+            // no Native head receipt and supplies no Native execution permits.
+            if point.original_head_input.is_none() && point.original_logical_lookup_head().is_none()
+            {
                 binding.unknown = true;
                 binding.targets.clear();
                 binding.declared_command = None;

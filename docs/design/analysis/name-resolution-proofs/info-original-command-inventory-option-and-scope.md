@@ -14,9 +14,13 @@ What original absent, literal-pattern, exact -all, abbreviated -al and extra-ope
 
 All five C releases catch wrong-argument errors for exact -all plus pattern, abbreviated -al plus pattern and extra operands, using their original info commands ?pattern? diagnostic. An exact -all word without another pattern succeeds with an empty reported inventory in these originals; absent and literal-pattern controls both report {r2286_global r2286_local}. Jim exact -all plus a pattern in the nonroot namespace reports the namespace info cmd ?pattern? forwarding diagnostic. Its abbreviated -al and extra-operand controls report info commands ?-all? ?pattern? arity; exact -all without another pattern reports r2286_holder::r2286_local. The absent and pattern controls retain their distinct original local/global reported lists. Whole ORIGINAL completion0 contains each original caught code/result or list value; all36 external processes and six compiler commands exit0 with empty stderr. These measured nonroot results establish no direct-core option grammar, private command-table/token/cache identity, arbitrary Unicode/NUL or complete stock inventory law. NativeCompilationSpec::select_registered_worker_native_words keeps the original info-commands last selected member as its source parse head, using a checked operand_from subtraction before the shared source selection. Its grammar retains that selector followed by zero or one genuine pattern operand; underflow refuses and excess operands remain generic. The five fixed source forms distinguish named invocation, genuine literal-pattern inline selection and generic shapes. This installed-worker descriptor geometry control is software/API coverage, independent of captured native worker/opcode admission, whole inventory streams and current Jim helper forwarding observations.
 
+The linked pure usage-rendering control keeps selected procedure-name formatting separate from the final C/Jim message extent. A Jim NUL-bearing called name can clip the message at its formatter boundary while the counted C renderer retains its complete message.
+
 ## Scope
 
 Six unchanged original ASCII LF caught/public-list controls execute independently in fresh full-init counted C API processes. Exact originals, requests, driver, launcher, ELFs, whole streams/receipts and required provider pins are retained. The runtime problem hypothesis in the raw request remains an input premise, not a proved source cause. Rooted-nonroot and root/explicit-nons inputs retain independent question records; sorted caller-owned reports grant no successful scripted helper or Native handler/compiler admission. BIG-IP and executed Rust assertions are not tested. Linked Runtime and VM controls execute the unchanged source fixtures and compare all138 whole ORIGINAL completion/result windows across the four inventory/helper groups per backend, with private identity and META/version excluded from the behavioural result. Their linked status records source coverage, not an executed software pass.
+
+The renderer definition supplies no public helper dispatch, current binding, Native object/frame identity or original-provider completion. Actual helper arity windows retain their original measured scope.
 
 ## Provider answers
 
@@ -226,6 +230,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs), `native_compilation::tests::installed_info_commands_worker_keeps_original_selector_arity` (linked): Five original no-pattern, dynamic-pattern, literal-pattern and excess-operand forms across C8.6/C9 distinguish selected named invocation, inline syntax candidate and generic descriptor shapes. The public last selector is retained and no private pattern operand is invented; no captured native token/opcode/argv/frame or executed provider result is observed.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-registry/src/native_usage.rs](../../../../rust/tcl-registry/src/native_usage.rs), `NativeUsageProtocol::render_procedure_message`: Retain the selected original usage name and the separate final formatter extent; this pure renderer selects no current procedure/helper.
+- [rust/tcl-registry/src/native_usage.rs](../../../../rust/tcl-registry/src/native_usage.rs), `native_usage::tests::procedure_usage_preserves_the_selected_name_and_final_formatter_boundary` (linked): The usage renderer retains the selected called name and the independent final C/Jim formatter extent: Jim clips the NUL-bearing whole message while the counted C message retains the suffix. This is renderer policy, not a public helper invocation. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

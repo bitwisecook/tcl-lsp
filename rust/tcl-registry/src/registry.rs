@@ -3174,10 +3174,7 @@ impl CommandRegistry {
         let Some(profile) = self.profile else {
             return true;
         };
-        if dialect.is_none_or(|query| {
-            query.with_realm(tcl_dialect::model::InvocationRealm::RuleLoader)
-                != profile.surface_query()
-        }) {
+        if dialect.is_none_or(|query| !query.same_point(&profile.surface_query())) {
             // The query is about some other surface's availability; this
             // profile's operator-exclusion does not apply to it.
             return true;
@@ -3379,10 +3376,15 @@ impl CommandRegistry {
                 continue;
             };
             let canonical = tcl_syntax::naming::normalise_qualified_name(name);
-            if rooted_fallback_allowed(&canonical, spec) {
+            // Source metadata remains known for hosted packages, but their
+            // names are not initial bindings until this context activates them.
+            let binding_available = spec
+                .owning_package()
+                .is_none_or(|package| context.package_active(package));
+            if binding_available && rooted_fallback_allowed(&canonical, spec) {
                 binding_names.insert(canonical.clone());
             }
-            if spec.traits.contains(Traits::UNRESOLVED_COMMAND_HANDLER) {
+            if binding_available && spec.traits.contains(Traits::UNRESOLVED_COMMAND_HANDLER) {
                 unresolved_command_handlers.insert(canonical);
             }
             commands.insert(
@@ -4523,6 +4525,9 @@ impl CommandRegistry {
         } else {
             self.get_for_surface(class_name, dialect)?
         };
+        if !self.effect_provider_is_admitted(class_spec, dialect) {
+            return None;
+        }
         self.resolve_structured_instance_invocation_for_descriptor(class_spec, words, None, dialect)
     }
 
@@ -4551,9 +4556,8 @@ impl CommandRegistry {
             .is_some_and(|selected| std::ptr::eq(selected, class_spec))
             .then_some(())?;
         class_spec.object_class?;
-        if !self.effect_provider_is_admitted(class_spec, dialect) {
-            return None;
-        }
+        // This is the selected source schema. Package activation, allocation
+        // and actual method execution are independent of its readonly roles.
         let method = self.instance_method_for_descriptor_at(
             class_spec,
             method_spelling,
@@ -7166,18 +7170,25 @@ impl CommandRegistry {
             };
         };
         let args = words.arguments();
-        let Some(roles) = self.selected_argument_role_assignments(
-            name,
-            args,
-            &[ArgRole::VarRead],
-            query,
-            invocation,
-        ) else {
+        let wanted: &[ArgRole] = if invocation
+            .semantics
+            .traits
+            .contains(Traits::DESTROYS_VARIABLE)
+        {
+            &[ArgRole::VarRead, ArgRole::VarWrite]
+        } else {
+            &[ArgRole::VarRead]
+        };
+        let Some(roles) =
+            self.selected_argument_role_assignments(name, args, wanted, query, invocation)
+        else {
             return VariableReadProjection {
                 literal_names: Vec::new(),
-                opaque_variable_frame: self
-                    .get_for_surface(name, query)
-                    .is_some_and(|spec| Self::spec_may_have_arg_role(spec, ArgRole::VarRead)),
+                opaque_variable_frame: self.get_for_surface(name, query).is_some_and(|spec| {
+                    wanted
+                        .iter()
+                        .any(|role| Self::spec_may_have_arg_role(spec, *role))
+                }),
             };
         };
         let mut projection = VariableReadProjection::default();
@@ -7762,48 +7773,15 @@ impl CommandRegistry {
         args: InvocationArguments<'_>,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<crate::patterns::PatternArg> {
-        let effective_dialect = self.own_surface_query().or(dialect);
-        let spec = if effective_dialect.is_none() {
-            self.get(name)
-        } else {
-            self.get_for_surface(name, effective_dialect)
-        };
-        let Some(spec) = spec else {
-            return Vec::new();
-        };
-        if !spec.subcommands.is_empty() && !args.is_empty() && args.literal_at(0).is_none() {
-            return Vec::new();
-        }
-        let sub = Self::source_selected_subcommand(spec, args);
-        if spec.pattern_arg_resolver.is_some() {
-            if !self.source_descriptor_layout_is_proven(spec, sub, args, effective_dialect) {
-                return Vec::new();
-            }
-            // This compatibility callback is restricted to a proved option
-            // prefix. Unknown ordinary payloads cannot select its language.
-            let spellings: Vec<_> = (0..args.len())
-                .map(|index| args.literal_at(index).unwrap_or_default())
-                .collect();
-            return self.pattern_args_for_dialect(name, &spellings, effective_dialect);
-        }
-        let Some(kind) = sub.and_then(|sub| sub.pattern_type).or(spec.pattern_type) else {
-            return Vec::new();
-        };
-        self.arg_role_assignments_words_for_dialect(
-            name,
-            args,
-            &[ArgRole::Pattern],
-            effective_dialect,
-        )
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|(index, _)| {
-            Some(crate::patterns::PatternArg {
-                index: u8::try_from(index).ok()?,
-                kind,
-            })
-        })
-        .collect()
+        let query = self.own_surface_query().or(dialect);
+        let words = InvocationWords::from_arguments(
+            InvocationWord::Literal(name),
+            args.with_profile(self.profile()),
+        );
+        self.resolve_structured_invocation(words, query)
+            .resolved()
+            .and_then(|resolved| resolved.authored_source_pattern_arguments())
+            .unwrap_or_default()
     }
 
     /// How a formatter should **present** argument `index` of a call to
@@ -8490,43 +8468,39 @@ impl CommandRegistry {
             .is_some_and(|spec| spec.traits.contains(Traits::HAS_LOOP_BODY))
     }
 
-    /// Where the words of a procedure definition `head args…` sit, read from
-    /// the definer's own argument roles: the procedure name, its parameter
-    /// list, its optional static-variable list and its body.
+    /// Positions selected by the definer's Native argv-shape grammar.
+    /// An actual argument dialect must identify that grammar; bare catalogue
+    /// roles are available separately through authored source queries.
     ///
-    /// `None` when `head` does not define a procedure, or when `args` is too
-    /// short for the roles to place a name, a parameter list and a body. The
-    /// indices count words after the command head, so a consumer reads
-    /// `args[layout.body]` without knowing whether the dialect's definer takes
-    /// a static-variable list (`proc name args ?statics? body` in Jim) or not
-    /// (`proc name args body`).
+    /// The indices count words after the head, including Jim's optional
+    /// static-variable list. This shape does not validate formal contents,
+    /// install a procedure, or admit its body for execution.
     #[must_use]
     pub fn procedure_definition_words(&self, head: &str, args: &[&str]) -> Option<ProcedureWords> {
-        let spec = self.get(head)?;
-        if !spec.traits.contains(Traits::DEFINES_PROCEDURE) {
+        let arguments = InvocationArguments::literals(args).with_profile(self.profile());
+        let selected = self
+            .resolve_structured_invocation(
+                InvocationWords::from_arguments(InvocationWord::Literal(head), arguments),
+                self.own_surface_query(),
+            )
+            .resolved()?;
+        if !selected
+            .semantics
+            .traits
+            .contains(Traits::DEFINES_PROCEDURE)
+        {
             return None;
         }
-        let assignments = self.arg_role_assignments(
-            head,
-            args,
-            &[
-                ArgRole::Name,
-                ArgRole::ParamList,
-                ArgRole::StaticVarList,
-                ArgRole::Body,
-            ],
-        );
-        let first = |role: ArgRole| {
-            assignments
-                .iter()
-                .find(|&&(_, assigned)| assigned == role)
-                .map(|&(index, _)| index)
+        let crate::native_procedure::NativeProcedureDefinitionSelection::Valid(definition) =
+            selected.semantics.procedure_definition?.select(arguments)
+        else {
+            return None;
         };
         Some(ProcedureWords {
-            name: first(ArgRole::Name)?,
-            params: first(ArgRole::ParamList)?,
-            statics: first(ArgRole::StaticVarList),
-            body: first(ArgRole::Body)?,
+            name: definition.name_at,
+            params: definition.parameters_at,
+            statics: definition.statics_at,
+            body: definition.body_at,
         })
     }
 
@@ -10867,6 +10841,8 @@ mod tests {
     /// profile's own point, so the profile's operator exclusion applies to it.
     #[test]
     fn a_floor_on_the_own_query_leaves_it_the_profiles_own_point() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let iapps = tcl_dialect::DialectProfile::find("f5-iapps").expect("catalogue profile");
         assert!(!iapps.operators_as_commands);
         let mut registry = CommandRegistry::build_default().project_for_profile(iapps);
@@ -14019,14 +13995,14 @@ mod tests {
 
     #[test]
     fn namespace_name_option_carries_name_role() {
-        // `interp invokehidden -namespace ns cmd` — the `-namespace` value is a
+        // `interp invokehidden path -namespace ns cmd` — the `-namespace` value is a
         // symbolic (namespace) name: captured declaratively for a
         // Name query, never for Body/VarWrite (not recursed, not a var def).
         let reg = CommandRegistry::build_default();
-        let args = ["invokehidden", "-namespace", "ns", "cmd"];
+        let args = ["invokehidden", "child", "-namespace", "ns", "cmd"];
         assert_eq!(
             reg.arg_indices_for_role("interp", &args, ArgRole::Name),
-            vec![2],
+            vec![3],
             "the -namespace value should carry the Name role",
         );
         assert!(
@@ -14335,6 +14311,22 @@ mod tests {
                     ))
                     .into_iter()
                     .map(|lookup| lookup.slot.to_owned()),
+            );
+        }
+        if let Some(profile) = registry.profile()
+            && let Some(support) = registry
+                .native_class_factory_recipe(
+                    "oo::configurable",
+                    crate::InvocationDialect::of_profile(profile),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                )
+                .and_then(crate::native_tcloo_bootstrap::NativeClassFactoryRecipe::support)
+        {
+            expected_bindings.extend(
+                support
+                    .binding_names()
+                    .iter()
+                    .map(|name| (*name).to_owned()),
             );
         }
         let expected_handlers: BTreeSet<String> = registry
@@ -15522,6 +15514,8 @@ mod tests {
 
     #[test]
     fn arg_indices_for_role_dict_update_multirole() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let reg = CommandRegistry::build_default();
         let reads = reg.arg_indices_for_role(
             "dict",
@@ -15944,6 +15938,8 @@ mod tests {
     /// widens the frame.
     #[test]
     fn variable_read_projection_names_a_destroyers_targets() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         use crate::InvocationWord::{Dynamic, Literal};
         let reg = CommandRegistry::build_default();
         for (arguments, expected) in [
@@ -17570,6 +17566,13 @@ mod tests {
             assert!(!model.binding_names().contains("::tcltest::test"));
             assert!(!model.binding_names().contains("::tcl::string::equal"));
         }
+        let mut required = driver.context().clone();
+        required.require_package("tcltest", None);
+        let required_model = driver.commands().authored_source_semantics_in_context(
+            &required,
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        );
+        assert!(required_model.binding_names().contains("::tcltest::test"));
         let native =
             driver
                 .commands()
@@ -18828,6 +18831,26 @@ mod original_instance_descriptor_tests {
                     query,
                 )
                 .is_none()
+        );
+        assert!(
+            registry
+                .resolve_structured_instance_invocation(
+                    factory.name,
+                    crate::InvocationWords::literals(".t", &["move", "one"]),
+                    query,
+                )
+                .is_none(),
+            "the named effect facade still requires independent package admission"
+        );
+        let packages = [tcl_dialect::model::PackageFloor::at("Tk", "8.6")];
+        assert!(
+            registry
+                .resolve_structured_instance_invocation(
+                    factory.name,
+                    crate::InvocationWords::literals(".t", &["move", "one"]),
+                    query.map(|query| query.with_packages(&packages)),
+                )
+                .is_some()
         );
         let selected = registry
             .resolve_structured_instance_invocation_for_descriptor(

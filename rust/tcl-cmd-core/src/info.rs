@@ -454,8 +454,9 @@ pub fn vars<O, V>(ops: &mut O, pattern: Option<&V>) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + Namespaces + Frames,
 {
-    if Namespaces::variable_lookup_policy(ops) == Some(tcl_dialect::VariableLookupPolicy::Jim) {
-        return jim_namespace_variables(ops, pattern);
+    match selected_variable_inventory_policy(ops)? {
+        tcl_dialect::VariableLookupPolicy::Jim => return jim_namespace_variables(ops, pattern),
+        tcl_dialect::VariableLookupPolicy::Tcl => {}
     }
     let pat = pattern
         .map(|value| ops.native_string_bytes(value).map(|bytes| bytes.to_vec()))
@@ -498,8 +499,9 @@ pub fn globals<O, V>(ops: &mut O, pattern: Option<&V>) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + Namespaces,
 {
-    if Namespaces::variable_lookup_policy(ops) == Some(tcl_dialect::VariableLookupPolicy::Jim) {
-        return jim_namespace_variables(ops, pattern);
+    match selected_variable_inventory_policy(ops)? {
+        tcl_dialect::VariableLookupPolicy::Jim => return jim_namespace_variables(ops, pattern),
+        tcl_dialect::VariableLookupPolicy::Tcl => {}
     }
     let pat = pattern
         .map(|value| {
@@ -683,6 +685,18 @@ fn filter_frame_names<O: Frames>(
         }
     }
     Ok(selected)
+}
+
+/// Admit a selected inventory purpose before any operand getter or table read.
+fn selected_variable_inventory_policy<O: Namespaces>(
+    ops: &O,
+) -> Result<tcl_dialect::VariableLookupPolicy, CmdError> {
+    Namespaces::variable_lookup_policy(ops).ok_or_else(|| {
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "variable inventory lookup policy",
+        )
+        .into()
+    })
 }
 
 fn variable_name_matcher<O: ValueOps>(ops: &O) -> Result<NativeGlobProtocol, CmdError> {

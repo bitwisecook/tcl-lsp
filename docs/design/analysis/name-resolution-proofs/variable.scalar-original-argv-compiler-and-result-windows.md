@@ -14,9 +14,13 @@ Which inline opcode, completion/result and original operand/result object fields
 
 The complete 75 retained C windows distinguish inline scalar compilation from generic invocation, parse/arity failures and the observed counted operand/result/cache fields. C8.4 equality of A-zero-x versus A-zero-y differs from later C equality in this exact roster. Compiler selection and native object windows remain independently scoped to their own original bodies and actual argv; they establish no unrelated variable cell, frame or execution grant.
 
+Selected public-member metadata keeps original compiler operand coordinates and argument offsets. Missing member coordinates refuse; private registrations retain their independent original operand basis.
+
 ## Scope
 
 Five private C probes for C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0, exact probe.c and 15 cases.json/cases.rs bodies. Procedure p has two actual original arguments; counted three-byte A-zero-x/A-zero-y values, with a-b list input only cases7–9. Original native object argv, not document-channel text. Jim reference handler inputs are a separate question; BIG-IP unqueried.
+
+The coordinate projection is source/API advice. It supplies no measured original compiler instruction, selected invocation/argv authority, physical frame, scalar result or equivalent handler execution.
 
 ## Provider answers
 
@@ -174,6 +178,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/native_scalar_compilation.rs](../../../../rust/tcl-registry/src/native_scalar_compilation.rs), `native_scalar_compilation::tests::original_scalar_recipes_match_seventy_five_native_compiler_windows` (linked): Checks actual release-specific compiler acceptance separately from original native completion/object fields.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs), `NativeCompilationSpec::original_operand_from_for_facts`: Use selected public-member facts and their actual argument offset to retain original operand coordinates; private registrations keep their own basis.
+- [rust/tcl-registry/src/native_scalar_compilation.rs](../../../../rust/tcl-registry/src/native_scalar_compilation.rs), `native_scalar_compilation::tests::original_scalar_coordinates_retain_the_selected_public_member` (linked): Selected public member facts retain argument_offset when projecting original compiler operands; a missing member coordinate refuses, and private registration facts use their own independent operand basis. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

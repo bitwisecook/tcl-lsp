@@ -3165,6 +3165,14 @@ it retains the original typed record as a capability refusal until a VM-aware
 consumer can apply the actual interpreter state. `CmdErrorDetails` distinguishes
 Default, Unchanged and Set; Unchanged performs no write or guest-global lookup.
 
+Variable inventories admit their naming purpose before reading patterns or
+scanning tables. `Namespaces::variable_lookup_policy` projects the engine's
+sealed `NamePolicyProtocol`; profile/catalogue compatibility cannot supply a
+missing native naming purpose. Shared `info::vars` and `info::globals` refuse an
+unselected policy. Explicit standalone adapters provide their selected policy
+through the same interface; low storage constructors remain separate from this
+command admission contract.
+
 Error-info accumulation, command logging and catch publication consume exact
 result/code/info bytes. Checked Unicode views serve explicit text consumers.
 Dictionary wording and codes come from typed parser failures. These carriers do

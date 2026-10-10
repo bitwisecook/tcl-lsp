@@ -1732,7 +1732,8 @@ mod tests {
         // naming.core.original-dynamic-name-value-purpose
         // docs/design/analysis/name-resolution-proofs/core-original-dynamic-name-value-purpose.md
         use crate::analyser::Analyser;
-        use crate::registry_invocation::{InvocationMetadataContext, SemanticContext};
+        use crate::registry_invocation::InvocationMetadataContext;
+        use tcl_registry::model::semantic::SemanticContext;
         let purpose = SourceNamePatternPurpose::VariableRoot;
         for dialect in [
             "tcl8.4",

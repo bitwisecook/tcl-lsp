@@ -14,9 +14,13 @@ For lassign {one two} first [set first], does the later target read before the f
 
 C8.5/C8.6/C9.0/C9.1 literal commands perform the first store before evaluating the later target: both initial states succeed with first=one, one=two and old absent. Their interp-alias generic controls evaluate the read before any store: absent first errors with all three targets absent; initial old succeeds with first=one, old=two and one absent. Current Jim literal and Jim native-alias controls both follow the latter behaviour. C8.4 has no lassign. These results concern actual source evaluation and do not grant compiler preparation, normal writes, object conversion or Rust execution authority.
 
+Original list-assignment recipe selection preserves opaque literal target bytes across document and native source channels while keeping bytecode, direct and unknown compilation modes independent.
+
 ## Scope
 
 Two immutable exact ASCII source-file programs, fresh native shells, procedure activation per case, literal and actual alias routes, absent/old first states and existence/value of first/old/one. v1 Jim aborts at unsupported Tcl-style interp alias syntax before any lassign case; v2 independently selects its actual alias command and completes all cases. That v1 process failure is retained as a setup limitation, not a lassign answer. BIGIP untested. Source inspection and output observations are distinct.
+
+Selection cannot establish alias-target evaluation, result/cell identity, a reached assignment, physical frame or rewrite equivalence. The original literal-versus-alias target experiment remains independent.
 
 ## Provider answers
 
@@ -520,6 +524,11 @@ static int Jim_LassignCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *
 No implementation binding is claimed by this observation record.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs), `NativeCompilationSpec::select_native_words`: Select the recipe from authentic captured source words plus explicit dialect/mode/context; missing premises retain Generic or Unknown rather than a donated compiler entry.
+- [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs), `native_compilation::tests::original_assignment_selection_keeps_opaque_target_bytes_and_modes_separate` (linked): Original assignment selection retains literal document/native opaque target bytes and exact compiler mode: supported bytecode selection, direct generic execution and missing/unknown context remain separate without assuming alias target evaluation equivalence. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

@@ -87,7 +87,7 @@ pub(super) async fn compute_recovery_analysis(
                 .and_then(|file| file.workspace_subclass_methods(&*db).clone()),
         )
     };
-    let analyser = Backend::configured_analyser(
+    let mut analyser = Backend::configured_analyser(
         disabled.clone(),
         mode,
         extra.clone(),

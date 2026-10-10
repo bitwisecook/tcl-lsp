@@ -23777,10 +23777,10 @@ impl Vm {
     ) -> Result<CompiledUnit, TclError> {
         original.bind_native_jim_context(&self.native_jim_object_context()?)?;
         Ok(CompiledUnit::native_script(
-            crate::native_jim_script::NativeJimScriptEntry {
-                original: original.native_lifetime_lease(),
-                substitution_flags: None,
-            },
+            crate::native_jim_script::NativeJimScriptEntry::borrowed(
+                original.native_lifetime_lease(),
+                None,
+            ),
             namespace,
             self.profile_generation,
             self.native_interpreter_identity(),
@@ -25245,9 +25245,8 @@ impl Namespaces for Vm {
             .map(Some)
     }
     fn variable_lookup_policy(&self) -> Option<tcl_dialect::VariableLookupPolicy> {
-        self.dialect_profile()
-            .variable_lookup_policy()
-            .or(Some(tcl_dialect::VariableLookupPolicy::Tcl))
+        self.name_policy_protocol()
+            .map(tcl_syntax::naming::NamePolicyProtocol::variable_lookup_policy)
     }
 
     fn find_command(&self, cxt: NsId, name: &str) -> Option<CommandId> {
@@ -30269,3 +30268,7 @@ mod byte_array_result_tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "interp/native_variable_inventory_policy_tests.rs"]
+mod native_variable_inventory_policy_tests;

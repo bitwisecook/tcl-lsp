@@ -78,6 +78,13 @@ impl NamePolicyProtocol {
     pub const fn recipe(self) -> NativeNameProtocol {
         self.recipe
     }
+    /// Variable table/listing semantics of this sealed naming purpose.
+    /// The provider's authority remains independent of this pure projection.
+    #[must_use]
+    pub const fn variable_lookup_policy(self) -> tcl_dialect::VariableLookupPolicy {
+        self.recipe.variable_lookup_policy()
+    }
+
     /// Provider authority, retained separately from source and physical engine.
     #[must_use]
     pub const fn authority(self) -> NamePolicyAuthority {
@@ -408,6 +415,16 @@ impl<'a> NativeVariableProjection<'a> {
 }
 
 impl NativeNameProtocol {
+    /// Variable namespace/activation selection for an already selected recipe.
+    /// Catalogue compatibility supplies no recipe or execution authority.
+    #[must_use]
+    pub const fn variable_lookup_policy(self) -> tcl_dialect::VariableLookupPolicy {
+        match self {
+            Self::C(_) => tcl_dialect::VariableLookupPolicy::Tcl,
+            Self::Jim084 => tcl_dialect::VariableLookupPolicy::Jim,
+        }
+    }
+
     /// Construct a C ensemble map-prefix head from its original counted bytes.
     /// A rooted head is unchanged; a relative head appends to the actual
     /// namespace report, with a separator only when that namespace has a parent.

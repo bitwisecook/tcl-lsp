@@ -736,10 +736,10 @@ impl Frame {
                     0
                 };
             let mut unit = placeholder;
-            unit.jim_script = Some(crate::native_jim_script::NativeJimScriptEntry {
+            unit.jim_script = Some(crate::native_jim_script::NativeJimScriptEntry::borrowed(
                 original,
-                substitution_flags: Some(flags),
-            });
+                Some(flags),
+            ));
             unit.compiler = crate::compiled::CompilerProvenance::NativeScript;
             return Self::new(unit, false);
         }

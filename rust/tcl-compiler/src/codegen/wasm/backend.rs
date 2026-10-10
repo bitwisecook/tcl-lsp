@@ -1574,7 +1574,7 @@ fn function_facts(
             if crate::ssa::is_effect_marker(statement) || !statement.is_executable_invocation() {
                 continue;
             }
-            if let (Statement::AssignConst {
+            if let Statement::AssignConst {
                 span,
                 name,
                 name_braced,
@@ -1584,7 +1584,7 @@ fn function_facts(
                 name,
                 name_braced,
                 ..
-            }) = statement
+            } = statement
                 && (*name_braced || !crate::naming::is_dynamic_word(name))
                 // `tcl_codegen_var_set` stores under the exact name, so an
                 // array-element target — as opposed to a scalar whose name

@@ -135,6 +135,9 @@ mod tests {
         unknown.tcl_version = None;
         assert!(NativeLambdaDiagnosticProtocol::select(unknown).is_none());
         let mut mismatched = InvocationDialect::for_version(TclVersion::V8_6);
+        mismatched.core_point = Some(tcl_dialect::model::DialectPoint::for_tcl_version(
+            TclVersion::V8_6,
+        ));
         mismatched.tcl_version = Some(TclVersion::V9_1);
         assert!(NativeLambdaDiagnosticProtocol::select(mismatched).is_none());
     }

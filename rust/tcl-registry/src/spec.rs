@@ -974,6 +974,14 @@ impl CaseListSpec {
                     break;
                 }
             }
+            if !scan.outer_options_ended
+                && !options.is_empty()
+                && args.get(scan.index) == Some(&None)
+            {
+                // An unreadable active candidate can still select an option;
+                // it does not establish the positional subject boundary.
+                return None;
+            }
         }
         if scan.saw_regex_value_option
             && scan.mode.unwrap_or(self.default_mode) != CaseMatchMode::Regexp

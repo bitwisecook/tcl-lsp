@@ -192,3 +192,112 @@ fn original_script_execution_matches_51_native_callback_windows() {
     assert_eq!(expected.lines().count(), 51);
     assert_eq!(transcript, expected);
 }
+
+#[test]
+fn deferred_original_jim_script_owner_survives_transport_clones_only_until_activation_exit() {
+    // naming.source.jim-original-deferred-script-ownership
+    // docs/design/analysis/name-resolution-proofs/jim-original-deferred-script-ownership.md
+    // Software ownership/activation control; no native pointer or new provider observation.
+    let profile = tcl_registry::model::ingress::resolve_known_environment("jim")
+        .unwrap()
+        .unit_profile();
+    let mut vm = crate::native_fixture::core(profile);
+    let original =
+        Value::new_native_string_bytes(b"set temporary RESULT; set temporary".as_slice());
+    let observer = original.native_lifetime_lease();
+    let unit = vm
+        .prepare_native_jim_script_unit(&original, vm.source_namespace_path())
+        .unwrap()
+        .with_deferred_script_original(original)
+        .unwrap();
+    let dormant = unit.clone();
+    assert_eq!(observer.value().native_object_reference_count(), 1);
+    let completion = vm.run_compiled_unit(unit);
+    assert_eq!(completion.code, Code::Ok);
+    assert_eq!(
+        vm.native_name_operand_bytes(&completion.result)
+            .unwrap()
+            .as_ref(),
+        b"RESULT"
+    );
+    assert_eq!(observer.value().native_object_reference_count(), 0);
+    assert!(!observer.value().native_object_is_live());
+    assert!(
+        dormant
+            .jim_script
+            .as_ref()
+            .unwrap()
+            .original
+            .value()
+            .check_native_header()
+            .is_err(),
+        "a preparation clone retains no native execution reference after exit"
+    );
+}
+
+#[test]
+fn deferred_original_jim_script_owner_refuses_foreign_and_retired_original_headers() {
+    // naming.source.jim-original-deferred-script-ownership
+    // docs/design/analysis/name-resolution-proofs/jim-original-deferred-script-ownership.md
+    // Equal bytes and lifetime transports cannot establish the actual pending owner.
+    let profile = tcl_registry::model::ingress::resolve_known_environment("jim")
+        .unwrap()
+        .unit_profile();
+    let mut vm = crate::native_fixture::core(profile);
+    let original = Value::new_native_string_bytes(b"set marker SAME".as_slice());
+    let unit = vm
+        .prepare_native_jim_script_unit(&original, vm.source_namespace_path())
+        .unwrap();
+    let foreign = Value::new_native_string_bytes(b"set marker SAME".as_slice());
+    assert!(matches!(
+        unit.with_deferred_script_original(foreign),
+        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "deferred Jim Script original owner"
+        ))
+    ));
+    assert!(original.native_object_is_live());
+    assert_eq!(original.native_object_reference_count(), 1);
+
+    let unit = vm
+        .prepare_native_jim_script_unit(&original, vm.source_namespace_path())
+        .unwrap();
+    let observer = original.native_lifetime_lease();
+    drop(original);
+    assert!(!observer.value().native_object_is_live());
+    let retired = observer.value().native_lifetime_lease().into_value();
+    assert!(matches!(
+        unit.with_deferred_script_original(retired),
+        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "retired native object header"
+        ))
+    ));
+    assert!(!observer.value().native_object_is_live());
+}
+
+#[test]
+fn deferred_original_jim_eval_and_uplevel_keep_their_worker_produced_script() {
+    // naming.source.jim-original-deferred-script-ownership
+    // docs/design/analysis/name-resolution-proofs/jim-original-deferred-script-ownership.md
+    // Original source reaches both actual deferred workers; these are software controls.
+    let profile = tcl_registry::model::ingress::resolve_known_environment("jim")
+        .unwrap()
+        .unit_profile();
+    for (source, expected) in [
+        ("eval set marker EVAL; set marker", b"EVAL".as_slice()),
+        (
+            "proc caller {} {uplevel 1 set marker UPLEVEL}; caller; set marker",
+            b"UPLEVEL".as_slice(),
+        ),
+    ] {
+        let mut vm = crate::native_fixture::core(profile);
+        let completion = vm.try_eval_source(source).unwrap();
+        assert_eq!(completion.code, Code::Ok, "{source}");
+        assert_eq!(
+            vm.native_name_operand_bytes(&completion.result)
+                .unwrap()
+                .as_ref(),
+            expected,
+            "{source}"
+        );
+    }
+}

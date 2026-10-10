@@ -1117,9 +1117,8 @@ impl Namespaces for Interp {
         self.command_alias_prefix_by_id_checked(cmd.0)
     }
     fn variable_lookup_policy(&self) -> Option<tcl_dialect::VariableLookupPolicy> {
-        self.dialect_profile()
-            .variable_lookup_policy()
-            .or(Some(tcl_dialect::VariableLookupPolicy::Tcl))
+        self.name_policy_protocol()
+            .map(tcl_syntax::naming::NamePolicyProtocol::variable_lookup_policy)
     }
 
     fn find_command(&self, cxt: NsId, name: &str) -> Option<CommandId> {
@@ -1576,6 +1575,35 @@ mod tests {
             counters::live_bufs()
         );
         assert_eq!(counters::double_free_count(), 0);
+    }
+
+    #[test]
+    fn unsupported_variable_inventory_policy_preserves_original_guest_state() {
+        // naming.invocation.original-variable-inventory-policy
+        // docs/design/analysis/name-resolution-proofs/invocation-original-variable-inventory-policy.md
+        // Software purpose/refusal control; no original C/Jim observation.
+        leak_free(|interp| {
+            interp.set_result_bytes(b"RESULT BEFORE");
+            let unknown = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+                "jim",
+                &[],
+                "Jim",
+                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+            )));
+            interp.set_dialect_profile(unknown);
+            assert!(interp.name_policy_protocol().is_none());
+            assert_eq!(Namespaces::variable_lookup_policy(interp), None);
+            let pattern = crate::obj::Owned::fresh(crate::obj::new_wide_int_obj(17));
+            assert!(!crate::obj::has_string_rep(pattern.as_ptr()));
+            for error in [
+                tcl_cmd_core::info::vars(interp, Some(&pattern.as_ptr())).unwrap_err(),
+                tcl_cmd_core::info::globals(interp, Some(&pattern.as_ptr())).unwrap_err(),
+            ] {
+                assert_eq!(error.native_access_refusal(), Some(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("variable inventory lookup policy")));
+                assert!(!crate::obj::has_string_rep(pattern.as_ptr()));
+                assert_eq!(interp.result_bytes(), b"RESULT BEFORE");
+            }
+        });
     }
 
     #[test]

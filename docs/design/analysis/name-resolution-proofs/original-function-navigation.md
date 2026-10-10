@@ -14,9 +14,13 @@ Which original expression owner and independently selected lookup purpose can re
 
 The complete retained invocation selects the Expression role and checked expression tree under the actual full lexer configuration. Each ASCII identifier retains its exact original byte extent and tree ordinal. The selected engine chooses fixed-function metadata for Tcl 8.4 and the measured Jim protocol, or Tcl 8.5+ command-table lookup. Command navigation uses a recorded post-operand binding when present; conditional navigation is admitted only for a root call with closed numeric operands and an independently current ordinary source literal pool. The actual selected source allocation is retained separately from reporting labels. The original occurrence also retains a sealed relative function-name value and immutable lookup observations. When actual invocation inventory is absent, closed literal operands, a current ordinary pool, quiet observers and callback-free lookup permit readonly diagnostic presence through the canonical byte slot and fallback owner. Any actual Unknown observation takes precedence. Reached implicit-function observations retain their genuine post-operand lookup snapshots. Every such snapshot must pass the same selected-policy, opaque-domain, quiet-observer, callback-free and current ordinary-pool gates. Actual Unknown is terminal; independently closed declaration previews are queried only when no reached actual observations exist. The reached lookup word must agree with NativeExpressionFunctionCommandName from the same checked expression. Function-purpose presence reads that exact snapshot through original_function_diagnostic_presence; a command-head presence query cannot require an unwritten head. Actual Unknown is terminal only after this correct function-name purpose is selected.
 
+Fixed math-function navigation metadata remains separate from projected command-surface membership. A fixed-table function can retain its selected source card while its public command-table name is absent; unknown fixed functions remain absent.
+
 ## Scope
 
 Rust readonly original function projection. Complete source image/channel, full LexerConfig and Registry semantic identity are matched. Fixed native tables require their authentic retained row; a separately fresh authored source roster supplies metadata only. Non-ASCII identifiers, computed expression source and unclosed conditional operand effects have no navigation projection. No command-head word, editable key, function registration token, Normal result or native compiler admission is created. This lookup remains a source-purpose receipt; its complete checked expression, native function-name recipe and original table snapshots are retained inside the occurrence, with no fabricated written head or evaluated runtime argv.
+
+This navigation control provides no Native math evaluation, implicit-function slot identity, command dispatch, result or completed call. Actual original function observations retain their own lookup channel.
 
 ## Provider answers
 
@@ -90,6 +94,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/original_math_function.rs](../../../../rust/tcl-compiler/src/command_binding/original_math_function.rs), `command_binding::original_math_function::tests::original_function_lookup_keeps_absence_and_unknown_separate` (linked): Original source Pi absence carries a sealed lookup value and no command reference; actual Unknown, operand commands and replaced/unknown source barriers decline.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-registry/src/mathfunc.rs](../../../../rust/tcl-registry/src/mathfunc.rs), `CommandRegistry::selected_math_function_spec`: Select fixed-table function metadata independently of public command-surface membership; unknown names and command-table absence remain separate.
+- [rust/tcl-registry/src/mathfunc.rs](../../../../rust/tcl-registry/src/mathfunc.rs), `mathfunc::tests::selected_fixed_math_metadata_survives_command_surface_projection` (linked): Fixed-table math-function metadata remains available independently of command-surface projection; absent command-table entries and unknown fixed names remain separate negative cases. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

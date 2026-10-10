@@ -802,11 +802,9 @@ impl BodyExecutionSpec {
         if family.is_some_and(|family| dialect.family() != Some(family)) {
             return None;
         }
-        let native = match dialect.family() {
-            Some(Family::Tcl) => dialect.tcl_version.is_some(),
-            Some(Family::Jim) => dialect
-                .core_point
-                .is_some_and(|point| point.release() == Release::JIM_0_84),
+        let native = match dialect.execution_point() {
+            Some(point) if point.family() == Family::Tcl => true,
+            Some(point) if point.family() == Family::Jim => point.release() == Release::JIM_0_84,
             _ => false,
         };
         native.then_some(DeferredBodyFrame::Global)
@@ -891,6 +889,9 @@ mod tests {
             ..host
         };
         assert_eq!(descriptor.deferred_entry_frame(unknown), None);
+        let mut conflict = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        conflict.core_point = Some(DialectPoint::canonical(Release::TCL_9_1));
+        assert_eq!(descriptor.deferred_entry_frame(conflict), None);
         let registry = CommandRegistry::build_default();
         let after = registry.get("after").expect("authored after");
         assert_eq!(after.body_execution, Some(descriptor));

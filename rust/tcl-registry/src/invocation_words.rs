@@ -925,14 +925,7 @@ impl InvocationDialect {
     #[must_use]
     pub fn of_profile(profile: &tcl_dialect::DialectProfile) -> Self {
         Self {
-            native_family: profile
-                .vendor_surface
-                .into_iter()
-                .chain(profile.grammar_union.iter().copied())
-                .find_map(|provider| match provider {
-                    tcl_dialect::model::SpecProvider::Core(family) => Some(family),
-                    tcl_dialect::model::SpecProvider::Package(_) => None,
-                }),
+            native_family: profile.runtime_core_family(),
             core_point: profile.core_point,
             lexer_grammar: profile.grammar,
             expression_word_grammar: profile.f5_core_expr_grammar(),
@@ -1518,6 +1511,46 @@ mod tests {
         let mut conflict = InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         conflict.core_point = Some(DialectPoint::canonical(Release::TCL_9_0));
         assert_eq!(conflict.execution_point(), None);
+    }
+
+    #[test]
+    fn hosted_fork_profiles_keep_their_core_family_without_c_native_recipes() {
+        // Implementation proof: naming.invocation.execution-policy-canonical-point
+        // docs/design/analysis/name-resolution-proofs/invocation-execution-policy-canonical-point.md
+        // These are profile/admission controls, not observations of a BIG-IP interpreter.
+        use tcl_dialect::model::Family;
+        for (name, family) in [
+            ("f5-tmsh", Family::F5Tcl),
+            ("f5-iapps", Family::F5Tcl),
+            ("f5-irules", Family::F5Irules),
+        ] {
+            let profile = tcl_dialect::DialectProfile::find(name).expect("hosted fork profile");
+            let selected = InvocationDialect::of_profile(profile);
+            assert_eq!(profile.runtime_core_family(), Some(family));
+            assert_eq!(selected.family(), Some(family));
+            assert_eq!(selected.tcl_version, Some(tcl_dialect::TclVersion::V8_4));
+            assert!(selected.execution_point().is_none());
+            assert!(selected.native_string_protocol().is_none());
+            assert!(selected.native_name_protocol().is_none());
+            assert!(profile.f5_core_expr_grammar().is_some());
+        }
+        for version in tcl_dialect::TclVersion::ALL {
+            let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name())
+                .expect("C profile");
+            assert_eq!(profile.runtime_core_family(), Some(Family::Tcl));
+            assert!(
+                InvocationDialect::of_profile(profile)
+                    .native_string_protocol()
+                    .is_some()
+            );
+        }
+        let jim = crate::model::ingress::resolve_environment("jim");
+        assert_eq!(jim.unit_profile().runtime_core_family(), Some(Family::Jim));
+        assert!(
+            InvocationDialect::of_profile(jim.unit_profile())
+                .native_name_protocol()
+                .is_some()
+        );
     }
 
     #[test]

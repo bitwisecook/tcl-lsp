@@ -14,9 +14,13 @@ How do shared Registry invocation and transition projections retain exact byte-o
 
 KnownBytes retains one ordinary argv position and an exact native byte facet. LocatedNativeBytes retains that facet and the effective ordinal without a logical literal. Only a direct selected identity operation representing the same positioned subject discharges dynamic identity widening; unresolved operations and control operands remain conservative. Legacy logical pack-hook caches cannot reuse a byte-only value as a literal.
 
+Pack alias transition facts retain complete known bytes and original effective ordinals for level/target/local operands. A selected C/Jim name policy may project the local extent; missing dialect retains an unknown local projection while preserving the counted target.
+
 ## Scope
 
 Fixed Rust metadata and transport contracts, including opaque 0xff, surrogate native units, counted NUL, exact ordinal rebasing and independently selected C/Jim alias-name purposes. No native execution, normal completion, installed command identity, physical object, source word, edit or CPP/cache admission follows from these value facets.
+
+These transition facts grant no installed alias, current variable value, reached caller selection, physical link or entered Native frame. A byte carrier and equal rendered names are insufficient execution or identity premises.
 
 ## Provider answers
 
@@ -90,6 +94,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs), `registry_invocation::tests::decoded_native_byte_words_preserve_cardinality_and_checked_text` (linked): Compiler ByteLiteral transports exact native bytes to Registry KnownBytes without inventing a logical string.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-registry/src/pack_hooks.rs](../../../../rust/tcl-registry/src/pack_hooks.rs), `pack_transitions`: Keep counted transition subjects, original effective ordinals and selected name-purpose projection without issuing a physical alias or caller-frame receipt.
+- [rust/tcl-registry/src/pack_hooks.rs](../../../../rust/tcl-registry/src/pack_hooks.rs), `pack_hooks::tests::pack_aliases_preserve_original_known_bytes_and_selected_name_policy` (linked): Pack alias transition facts retain counted known bytes and selected local-name extent independently; a missing dialect retains the target bytes but refuses to select a C/Jim local-name projection. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
+- [rust/tcl-registry/src/pack_hooks.rs](../../../../rust/tcl-registry/src/pack_hooks.rs), `pack_hooks::tests::pack_caller_alias_keeps_counted_operands_and_effective_ordinals` (linked): Caller alias source facts preserve complete counted level, target and local operands plus each effective ordinal without selecting or entering the caller frame. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

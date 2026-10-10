@@ -14,9 +14,13 @@ Which sealed shared source structure preserves actual selected or conditional Na
 
 Analysis retains the conflict-withdrawing original pre-walk conditional metadata ledger under complete current source/image/configuration, actual ContextRegistry and Registry semantic identity. Public Compiler source_structure issues sealed OriginalRegistryWords and OriginalOperandSource through actual selected original argv or independently retained conditional Native/vendor metadata. Effective arguments, captured/expanded origins, optional genuine words/inputs and unanimous authored roles remain separate; captured operands do not borrow source spans and expansion children do not acquire complete original words. The source enum retains full conditional applicability obligations. with_source_schema reuses this exact argv and actual complete context/store without selecting a runtime handler. Core uses thin shared wrappers and retains cursor-specific geometry independently. These carriers supply readonly source structure without execution, current cell, entered frame, compiler admission, Normal, reflection equivalence or edit permission. Native/hosted semantic collection requires the actual retained command realm and cannot recapture a nominal replacement from copied presentation/input/configuration. ScriptCtx retains the genuine source definition parent and complete OriginalSourceDefinitionMemberRegion issuer. definition_member_head_word and definition_member_bodies project its authentic complete original argv; actual keyword/release availability remains separate from optional selector/formal/body layout applicability. Selected wrapper/immediate source retains genuine vocabulary; method/procedure/lambda contexts clear it. An escaped member head colours its entire original physical extent as one token; LineIndex supplies Unicode/UTF16 coordinates. Decoded labels, trimmed vectors, unknown selectors, cooked bodies and absent actual provenance cannot manufacture geometry or body traversal. Ordinary unavailable schemas receive generic Function colour independently of authentic member vocabulary; colours grant no handler, runtime frame/value, completion or edit.
 
+Authored source presentation retains selected inline/block body roles and effective operand ordinals. Dynamic expression data and expanded width do not become invented body presentation.
+
 ## Scope
 
 Current shared below-Core source words/schema, original pre-walk ledger and Core wrappers. Fixed assertions cover genuine selected/conditional/hosted vectors, source origins/roles and whole-source/configuration/Registry/context checks. Seven providers are not tested; no native or Rust execution receipt is attached.
+
+Presentation advice supplies no current source contents, entered body, Native command/frame identity or safe editor action. Actual consumers must separately retain complete source currency and their own purpose permissions.
 
 ## Provider answers
 
@@ -92,6 +96,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/semantic_tokens.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens.rs), `semantic_tokens::original_realm_consumer_tests::original_semantic_consumer_declines_missing_realm_without_nominal_recapture` (linked): Actual canonical declaration colours are positive; copied reports/input/config without the authentic retained realm cannot mint semantic provenance.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs), `ResolvedInvocation::authored_source_argument_presentation`: Read source presentation from the actual selected descriptor and effective ordinal, refusing non-body or expanded-width operands.
+- [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs), `resolved_invocation::original_source_presentation_tests::original_source_presentation_uses_selected_roles_and_effective_ordinals` (linked): Source presentation derives inline/block body roles from the actual selected descriptor and effective argument ordinal; dynamic expression and expanded width do not invent presentation for an operand. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

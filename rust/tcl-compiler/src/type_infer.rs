@@ -2752,9 +2752,9 @@ mod tests {
             std::sync::Arc::clone(&context),
             config,
         );
-        let module = crate::lowering::Lowerer::with_config(context.commands(), config)
-            .with_resolved_analysis_input(input)
-            .lower(r"set value \U00000041");
+        let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
+            .with_resolved_analysis_input(input);
+        let module = lowerer.lower(r"set value \U00000041");
         let tokens = module
             .top_level
             .statements
@@ -2801,7 +2801,7 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         // Independently authored source numerals remain Tcl85 while command
         // availability is C9. This selects no Native parser or execution.
-        let mut authored = *tcl_dialect::DialectProfile::plain_tcl();
+        let mut authored = tcl_dialect::DialectProfile::plain_tcl().clone();
         authored.grammar.numbers = NumberSyntax::Tcl85;
         let profile: &'static tcl_dialect::DialectProfile = Box::leak(Box::new(authored));
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
@@ -2818,9 +2818,9 @@ mod tests {
             ("set value [list x]", None),
             (r"set value \x00", None),
         ] {
-            let module = crate::lowering::Lowerer::with_config(context.commands(), config)
-                .with_resolved_analysis_input(input.clone())
-                .lower(source);
+            let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
+                .with_resolved_analysis_input(input.clone());
+            let module = lowerer.lower(source);
             let tokens = module
                 .top_level
                 .statements

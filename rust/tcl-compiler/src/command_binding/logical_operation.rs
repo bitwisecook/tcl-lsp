@@ -644,6 +644,195 @@ mod tests {
     }
 
     #[test]
+    fn logical_dispatch_projection_keeps_exact_targets_without_native_receipts() {
+        // naming.source.logical-original-operation-transfer
+        // docs/design/analysis/name-resolution-proofs/logical-original-operation-transfer.md
+        let input = input();
+        for (source, captured) in [
+            ("package require Tcl", false),
+            (
+                "interp alias {} ensure {} package require; ensure Tcl",
+                true,
+            ),
+            (
+                "interp alias {} ::assuré {} package require; ::assuré Tcl",
+                true,
+            ),
+        ] {
+            let binding = final_binding(source, &input);
+            let target = binding
+                .proved_target()
+                .expect("original Logical source target");
+            assert!(target.registry_backed, "{source}");
+            assert_eq!(
+                target.prepended,
+                if captured {
+                    vec![
+                        crate::registry_invocation::EffectiveInvocationWord::Literal(
+                            "require".into(),
+                        ),
+                    ]
+                } else {
+                    Vec::new()
+                },
+                "{source}",
+            );
+            assert!(binding.original_recorded_head_name_input().is_none());
+            assert!(binding.proved_handler_target().is_none());
+            assert!(binding.proved_execution_target().is_none());
+            assert!(binding.native_handler_envelope.is_none());
+            assert!(binding.native_compiler_admission.is_none());
+            assert!(binding.variable_context.execution_name_policy.is_none());
+            assert!(binding.variable_context.interpreter.is_none());
+            assert!(binding.variable_context.execution.is_none());
+        }
+    }
+
+    #[test]
+    fn logical_dispatch_projection_refuses_missing_changed_and_uninterpreted_owners() {
+        // naming.source.logical-original-operation-transfer
+        // docs/design/analysis/name-resolution-proofs/logical-original-operation-transfer.md
+        use crate::command_binding::SourceCommandBindings;
+        use crate::registry_invocation::OwnedInvocationMetadataContext;
+        let input = input();
+        let actual = input.context_registry();
+        let source = "interp alias {} ensure {} package require; ensure Tcl";
+        let offset = u32::try_from(source.rfind("ensure Tcl").unwrap()).unwrap();
+        let bindings = SourceCommandBindings::analyse_with_options(
+            source,
+            input.lexer_config(),
+            actual.commands(),
+            SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+        );
+        // The caller's reporting name never selects the target. The immutable
+        // point retains the original interpreted head at this exact source site.
+        assert!(
+            bindings
+                .invocation_at_source("different", offset)
+                .proved_target()
+                .is_some()
+        );
+        let foreign = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            input.lexer_config(),
+        );
+        let mut changed_config = input.lexer_config();
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        let changed = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            Arc::clone(&actual),
+            changed_config,
+        );
+        for (label, owner) in [
+            (
+                "missing metadata",
+                OwnedInvocationMetadataContext::Unavailable,
+            ),
+            (
+                "standalone metadata",
+                OwnedInvocationMetadataContext::Standalone,
+            ),
+            (
+                "foreign store",
+                OwnedInvocationMetadataContext::for_source_input(Some(&foreign)),
+            ),
+            (
+                "changed grammar",
+                OwnedInvocationMetadataContext::for_source_input(Some(&changed)),
+            ),
+        ] {
+            let mut withdrawn = bindings.clone();
+            let indices = withdrawn.dispatch_points.get(&offset).unwrap().clone();
+            for index in indices {
+                let point = &mut withdrawn.points[index];
+                Arc::make_mut(&mut point.state.baseline).metadata_context = owner.clone();
+                point.lookup_snapshot = std::sync::OnceLock::new();
+            }
+            let binding = withdrawn.invocation_at_source("ensure", offset);
+            assert!(binding.unknown, "{label}");
+            assert!(binding.targets.is_empty(), "{label}");
+            assert!(binding.declared_command.is_none(), "{label}");
+            assert!(binding.catalogue_command.is_none(), "{label}");
+            assert!(
+                binding.original_recorded_head_name_input().is_none(),
+                "{label}"
+            );
+            assert!(binding.proved_handler_target().is_none(), "{label}");
+        }
+        for withdraw_head in [false, true] {
+            let mut withdrawn = bindings.clone();
+            let indices = withdrawn.dispatch_points.get(&offset).unwrap().clone();
+            for index in indices {
+                let point = &mut withdrawn.points[index];
+                if withdraw_head {
+                    point.head = None;
+                } else {
+                    Arc::make_mut(&mut point.state.baseline).logical_source_input = None;
+                }
+                point.lookup_snapshot = std::sync::OnceLock::new();
+            }
+            let binding = withdrawn.invocation_at_source("ensure", offset);
+            assert!(binding.unknown);
+            assert!(binding.targets.is_empty());
+            assert!(binding.proved_handler_target().is_none());
+        }
+        let dynamic = final_binding(
+            "interp alias {} ensure {} package require; $unknown Tcl",
+            &input,
+        );
+        assert!(dynamic.unknown);
+        assert!(dynamic.targets.is_empty());
+    }
+
+    #[test]
+    fn native_source_dispatch_requires_its_independent_original_head_receipt() {
+        // naming.source.logical-original-operation-transfer
+        // docs/design/analysis/name-resolution-proofs/logical-original-operation-transfer.md
+        // This checks the selected source recipe's gate, without a Native
+        // process, entered handler, frame, value or Normal-completion claim.
+        use crate::command_binding::SourceCommandBindings;
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let native = ResolvedAnalysisInput::new(profile, profile, Arc::clone(&context), config);
+        assert!(!native.has_logical_source_name_context());
+        let mut bindings = SourceCommandBindings::analyse_with_options(
+            "package require Tcl",
+            config,
+            context.commands(),
+            SourceAnalysisOptions {
+                metadata_context:
+                    crate::registry_invocation::InvocationMetadataInput::SuppliedSource(Some(
+                        &native,
+                    )),
+                invocation_dialect: Some(
+                    super::super::source_analysis_entry::source_input_dialect(&native),
+                ),
+                ..Default::default()
+            },
+        );
+        let original = bindings.invocation_at_source("package", 0);
+        assert!(original.logical_source_name_advice_input().is_none());
+        assert!(original.original_recorded_head_name_input().is_some());
+        assert!(original.proved_target().is_some());
+        let indices = bindings.dispatch_points.get(&0).unwrap().clone();
+        for index in indices {
+            let point = &mut bindings.points[index];
+            point.original_head_input = None;
+            point.lookup_snapshot = std::sync::OnceLock::new();
+        }
+        let withdrawn = bindings.invocation_at_source("package", 0);
+        assert!(withdrawn.unknown);
+        assert!(withdrawn.targets.is_empty());
+        assert!(withdrawn.declared_command.is_none());
+        assert!(withdrawn.catalogue_command.is_none());
+    }
+
+    #[test]
     fn logical_original_operation_refusals_do_not_recover_from_reporting_state() {
         // naming.source.logical-original-operation-transfer
         // docs/design/analysis/name-resolution-proofs/logical-original-operation-transfer.md
