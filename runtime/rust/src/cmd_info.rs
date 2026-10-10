@@ -315,16 +315,36 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     } else {
         if argv.len() < 2 {
-            return interp.wrong_args_for_invocation(argv, b"subcommand ?arg ...?");
+            let usage = interp
+                .native_invocation_dialect()
+                .native_info_original_missing_selector_usage()
+                .unwrap_or(b"subcommand ?arg ...?");
+            return interp.wrong_args_for_invocation(argv, usage);
         }
-        let raw = obj_bytes(argv[1]);
-        let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &raw, true) else {
-            return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                subs,
-                &raw,
-                true,
-                b"::tcl::info",
-            ));
+        let index = if interp
+            .native_invocation_dialect()
+            .native_info_original_option_protocol()
+            .is_some()
+        {
+            let table =
+                tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend_bytes(
+                    subs,
+                );
+            match interp.native_index_operand(argv[1], &table, false, "option") {
+                Ok(index) => index,
+                Err(error) => return interp.report_cmd_error(error),
+            }
+        } else {
+            let raw = obj_bytes(argv[1]);
+            let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &raw, true) else {
+                return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                    subs,
+                    &raw,
+                    true,
+                    b"::tcl::info",
+                ));
+            };
+            index
         };
         subs[index]
     };

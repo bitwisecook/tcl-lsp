@@ -1525,6 +1525,12 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     );
     d.insert("destructive".into(), json!(sub.destructive));
     d.insert("returns_path".into(), json!(sub.returns_path));
+    d.insert(
+        "source_path_operation".into(),
+        sub.source_path_operation.map_or(Value::Null, |operation| {
+            json!(catalogue::variant_name(&operation))
+        }),
+    );
     d.insert("is_unescape".into(), json!(sub.is_unescape));
     d.insert("cfg_rewrite_name".into(), opt_str(sub.cfg_rewrite_name));
     d.insert(

@@ -155,13 +155,10 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/retained-representation-metadata.md
         let base =
             tcl_registry::model::ingress::resolve_environment("tcl").default_context_registry();
-        let mut availability = base.context().clone();
-        availability.require_package("example", None);
-        let context = Arc::new(tcl_registry::model::ContextRegistry::with_commands(
-            availability,
-            Arc::clone(base.commands()),
-        ));
         let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut commands = base.commands().project_for_profile(profile);
+        commands.insert_ambient_package("example", "1.0");
+        let context = Arc::new(base.with_command_store(Arc::new(commands)));
         let config = tcl_lexer::LexerConfig {
             braced_var: tcl_dialect::BracedVarStyle::FirstClose,
             list_parse: tcl_dialect::ListParse::Lenient,
@@ -189,7 +186,7 @@ mod tests {
                 .metadata()
                 .unwrap()
                 .context()
-                .is_required("example")
+                .ambient_package("example")
         );
         assert!(core::ptr::eq(
             selected.metadata().unwrap().context(),
@@ -250,11 +247,10 @@ mod tests {
             )
             .is_empty()
         );
-        let mut foreign_registry = registry.clone();
-        foreign_registry.insert(tcl_registry::CommandSpec {
-            name: "unrelated",
-            ..Default::default()
-        });
+        let mut foreign_registry = tcl_registry::CommandRegistry::build_default();
+        let mut unrelated = foreign_registry.get("set").unwrap().clone();
+        unrelated.name = "unrelated";
+        foreign_registry.insert(unrelated);
         assert!(ShimmerContext::for_function(function, &foreign_registry).is_none());
         assert!(
             crate::compiler_checks::shimmer_family_checks(

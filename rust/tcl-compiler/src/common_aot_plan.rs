@@ -9,7 +9,7 @@
 //! instructions and it does not recognise Tcl commands by spelling. Procedure
 //! identities come from the lowered module, command mutation and trace hazards
 //! come from their shared analyses, and formal-list semantics come from the
-//! shared strict Tcl parameter parser.
+//! shared independently selected parameter grammar.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -23,7 +23,10 @@ use crate::command_binding::BindingKind;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::intervals::{Interval, compute_intervals_with};
 use crate::ir::{CommandTokens, Procedure, Statement};
-use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
+use crate::registry_invocation::{
+    InvocationMetadataContext, RegistryInvocationResolution,
+    resolve_command_tokens_with_metadata_context,
+};
 use crate::representation_plan::{SharingState, VarStorage};
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use crate::ssa::{SsaBlock, SsaStatement, Symbol, ValueKey};
@@ -104,8 +107,10 @@ pub struct DirectProcEvidence {
     pub actual_types: Vec<TypeLattice>,
     /// Exact caller values corresponding to each formal, when retained by SSA.
     pub actual_values: Vec<DirectActualValue>,
-    /// Exact environment premise used for Tcl numeric and completion rules.
+    /// Explicit standalone context, when the caller supplied one.
     pub context: Option<SemanticContext>,
+    /// Complete selected availability; independent Native premises remain required.
+    pub metadata_context: tcl_registry::model::ResolvedContext,
     /// Mutable dispatch domains a later runtime guard must cover.
     pub dispatch_dependencies: DispatchDependencies,
     /// Whether the entire body is authorised for specialised execution.
@@ -315,8 +320,10 @@ pub struct SemanticCallEvidence {
     pub operation: SemanticOperationId,
     /// Registry form identity, when a determinate form matched.
     pub form: Option<SemanticFormIdentity>,
-    /// Environment premise used for registry resolution.
+    /// Explicit standalone context, when the caller supplied one.
     pub context: Option<SemanticContext>,
+    /// Complete availability used for registry resolution.
+    pub metadata_context: tcl_registry::model::ResolvedContext,
     /// Mutable interpreter domains a runtime guard must cover.
     pub dispatch_dependencies: DispatchDependencies,
     /// Registry-declared behaviour traits used by boundary coverage proofs.
@@ -397,10 +404,12 @@ pub struct MaterialisableSlotEvidence {
 pub enum MaterialisableSlotAuthority {
     /// Explicit logical analysis of a symbolic authored cell.
     Authored,
-    /// Fixed scalar argument ordinal from its complete original `ParamList`.
+    /// Fixed argument ordinal for a newly compiled original declaration.
     SourceFormal {
-        /// Original declaration and exact counted argument keys.
-        declaration: std::sync::Arc<crate::var_escape::original_slots::OriginalScalarArgumentSlots>,
+        /// Original declaration, counted arguments and declaration compiler purpose.
+        declaration: std::sync::Arc<
+            crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots,
+        >,
         /// Exact local activation represented by SSA.
         cell: crate::var_resolve::VariableCellKey,
     },
@@ -581,6 +590,33 @@ pub struct CommonAotProofPlan {
     coverage_declines: Vec<CommonAotCoverageDecline>,
 }
 
+#[derive(Clone, Copy)]
+enum AotMetadataSelection {
+    Standalone(Option<SemanticContext>),
+    Retained,
+}
+
+impl AotMetadataSelection {
+    fn for_function<'a>(
+        self,
+        function: &'a FunctionUnit,
+        registry: &tcl_registry::CommandRegistry,
+        module: &crate::ir::Module,
+    ) -> Option<InvocationMetadataContext<'a>> {
+        match self {
+            Self::Standalone(context) => context.map(InvocationMetadataContext::from),
+            Self::Retained => function.invocation_metadata_context_for_module(registry, module),
+        }
+    }
+
+    const fn standalone_context(self) -> Option<SemanticContext> {
+        match self {
+            Self::Standalone(context) => context,
+            Self::Retained => None,
+        }
+    }
+}
+
 impl CommonAotProofPlan {
     /// Build proof evidence from existing common analyses.
     #[must_use]
@@ -588,6 +624,41 @@ impl CommonAotProofPlan {
         unit: &CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
         context: Option<SemanticContext>,
+        config: SemanticOptimisationConfig,
+        environment: CommonAotEnvironment,
+    ) -> Self {
+        Self::build_with_selection(
+            unit,
+            registry,
+            AotMetadataSelection::Standalone(context),
+            config,
+            environment,
+        )
+    }
+
+    /// Build from each function's actual retained availability and grammar.
+    /// Missing, foreign or stale owners cannot supply metadata. Binding,
+    /// dispatch, frame and Native execution obligations remain independent.
+    #[must_use]
+    pub fn build_with_retained_metadata(
+        unit: &CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+        config: SemanticOptimisationConfig,
+        environment: CommonAotEnvironment,
+    ) -> Self {
+        Self::build_with_selection(
+            unit,
+            registry,
+            AotMetadataSelection::Retained,
+            config,
+            environment,
+        )
+    }
+
+    fn build_with_selection(
+        unit: &CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+        selection: AotMetadataSelection,
         config: SemanticOptimisationConfig,
         environment: CommonAotEnvironment,
     ) -> Self {
@@ -599,7 +670,7 @@ impl CommonAotProofPlan {
         let direct = collect_direct_calls(
             unit,
             registry,
-            context,
+            selection,
             config,
             &escape,
             mutations,
@@ -610,7 +681,7 @@ impl CommonAotProofPlan {
         let propagated = direct.propagated;
 
         let semantic_calls =
-            collect_semantic_calls(unit, registry, context, config, mutations, &direct_calls);
+            collect_semantic_calls(unit, registry, selection, config, mutations, &direct_calls);
 
         let closed_program_coverage = prove_closed_program_coverage(
             unit,
@@ -737,14 +808,23 @@ fn call_sites<'a>(
             if ssa_block.statements.get(index).is_none() {
                 continue;
             }
-            let Statement::Call {
-                command,
-                args,
-                tokens,
-                ..
-            } = statement
-            else {
-                continue;
+            let original = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+                &function.cfg.command_binding_sites,
+                statement,
+            );
+            let (command, args) = match statement {
+                Statement::Call { command, args, .. } => (command.clone(), args.clone()),
+                _ => {
+                    let Some(tokens) = original.filter(|tokens| {
+                        tokens.synthetic.is_none() && tokens.words_align_with_argv_text()
+                    }) else {
+                        continue;
+                    };
+                    let Some((head, arguments)) = tokens.argv_texts.split_first() else {
+                        continue;
+                    };
+                    (head.clone(), arguments.to_vec())
+                }
             };
             let statement_index = u32::try_from(index).unwrap_or(u32::MAX);
             out.push(CallCandidate {
@@ -756,34 +836,31 @@ fn call_sites<'a>(
                 },
                 block: *block,
                 statement_index,
-                command: command.clone(),
+                command,
                 args: args.clone(),
-                tokens: tokens.as_ref().map(std::borrow::Cow::Borrowed),
+                tokens: original.map(std::borrow::Cow::Borrowed),
             });
-            for (argument_index, argument) in args.iter().enumerate() {
-                if let Some((nested, nested_args)) =
-                    crate::value_shapes::parse_command_substitution_with_config(
-                        argument,
-                        lexer_config,
-                    )
-                {
-                    out.push(CallCandidate {
-                        id: DirectCallSiteId {
-                            function: caller.to_owned(),
-                            block: *block,
-                            statement_index,
-                            nested_argument: Some(
-                                u32::try_from(argument_index).unwrap_or(u32::MAX),
-                            ),
-                        },
+            for argument_index in 0..args.len() {
+                let Some(tokens) = nested_call_tokens(original, argument_index, lexer_config)
+                else {
+                    continue;
+                };
+                let Some((nested, nested_args)) = tokens.argv_texts.split_first() else {
+                    continue;
+                };
+                out.push(CallCandidate {
+                    id: DirectCallSiteId {
+                        function: caller.to_owned(),
                         block: *block,
                         statement_index,
-                        command: nested,
-                        args: nested_args,
-                        tokens: nested_call_tokens(tokens.as_ref(), argument_index, lexer_config)
-                            .map(std::borrow::Cow::Owned),
-                    });
-                }
+                        nested_argument: Some(u32::try_from(argument_index).unwrap_or(u32::MAX)),
+                    },
+                    block: *block,
+                    statement_index,
+                    command: nested.clone(),
+                    args: nested_args.to_vec(),
+                    tokens: Some(std::borrow::Cow::Owned(tokens)),
+                });
             }
         }
     }
@@ -814,7 +891,7 @@ struct DirectCollection {
 fn collect_direct_calls(
     unit: &CompilationUnit,
     registry: &tcl_registry::CommandRegistry,
-    context: Option<SemanticContext>,
+    selection: AotMetadataSelection,
     config: SemanticOptimisationConfig,
     escape: &HashMap<String, ProcEscapeSummary>,
     mutations: &crate::command_binding::ModuleCommandMutations,
@@ -830,7 +907,7 @@ fn collect_direct_calls(
     // fact.
     let mut propagated: HashMap<(String, usize), Option<TypeLattice>> = HashMap::new();
     for (caller_name, function) in function_units(unit) {
-        for site in call_sites(caller_name, function, unit.ir_module.lexer_config) {
+        for site in call_sites(caller_name, function, function.source_lexer_config()) {
             let binding = site
                 .tokens
                 .as_deref()
@@ -878,7 +955,11 @@ fn collect_direct_calls(
                 summary: escape.get(&callee_name),
                 mutations,
                 proc_binding_trust,
-                context,
+                context: selection.standalone_context(),
+                metadata: selection.for_function(function, registry, &unit.ir_module),
+                callee_metadata: unit
+                    .function(&callee_name)
+                    .and_then(|callee| selection.for_function(callee, registry, &unit.ir_module)),
                 enabled: config.is_enabled(SemanticOptimisationPassId::DirectProc),
                 frame_elision_enabled: config.is_enabled(SemanticOptimisationPassId::FrameElision),
                 native_integer_enabled: config
@@ -934,21 +1015,23 @@ fn propagate_actual_types(
 fn collect_semantic_calls(
     unit: &CompilationUnit,
     registry: &tcl_registry::CommandRegistry,
-    context: Option<SemanticContext>,
+    selection: AotMetadataSelection,
     config: SemanticOptimisationConfig,
     mutations: &crate::command_binding::ModuleCommandMutations,
     direct_calls: &BTreeMap<DirectCallSiteId, DirectProcDecision>,
 ) -> BTreeMap<DirectCallSiteId, SemanticCallDecision> {
     let mut decisions = BTreeMap::new();
     for (caller, function) in function_units(unit) {
-        for site in call_sites(caller, function, unit.ir_module.lexer_config) {
+        for site in call_sites(caller, function, function.source_lexer_config()) {
             if site.id.nested_argument.is_some() {
                 continue;
             }
             let decision = semantic_call_decision(&SemanticCallInputs {
                 unit,
                 registry,
-                context,
+                function,
+                context: selection.standalone_context(),
+                metadata: selection.for_function(function, registry, &unit.ir_module),
                 site: &site,
                 mutations,
                 direct_calls,
@@ -964,7 +1047,9 @@ fn collect_semantic_calls(
 struct SemanticCallInputs<'a> {
     unit: &'a CompilationUnit,
     registry: &'a tcl_registry::CommandRegistry,
+    function: &'a FunctionUnit,
     context: Option<SemanticContext>,
+    metadata: Option<InvocationMetadataContext<'a>>,
     site: &'a CallCandidate<'a>,
     mutations: &'a crate::command_binding::ModuleCommandMutations,
     direct_calls: &'a BTreeMap<DirectCallSiteId, DirectProcDecision>,
@@ -976,7 +1061,7 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
     if !input.enabled {
         return decline(SemanticCallDecline::PassDisabled);
     }
-    if input.context.is_none() {
+    if input.metadata.is_none() {
         return decline(SemanticCallDecline::ContextUnavailable);
     }
     if input.mutations.has_dynamic_mutation() {
@@ -986,7 +1071,7 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
         return decline(SemanticCallDecline::TokensUnavailable);
     };
     let Ok(RegistryInvocationResolution::Resolved(facts)) =
-        resolve_command_tokens(input.registry, input.context, tokens)
+        resolve_command_tokens_with_metadata_context(input.registry, input.metadata, tokens)
     else {
         return decline(SemanticCallDecline::RegistryUnresolved);
     };
@@ -1017,7 +1102,7 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
         let outer_argument = u32::try_from(index).unwrap_or(u32::MAX);
         if crate::value_shapes::parse_command_substitution_with_config(
             argument,
-            input.unit.ir_module.lexer_config,
+            input.function.source_lexer_config(),
         )
         .is_some()
         {
@@ -1045,6 +1130,11 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
         operation: facts.operation,
         form: facts.form.clone().map(SemanticFormIdentity),
         context: input.context,
+        metadata_context: input
+            .metadata
+            .expect("selected metadata prerequisite")
+            .context()
+            .clone(),
         dispatch_dependencies: facts.dispatch_dependencies,
         traits: facts.traits,
         arguments,
@@ -1115,7 +1205,10 @@ fn closed_constant_store(
     if matches!(statement, Statement::AssignConst { .. }) {
         return true;
     }
-    let Some(tokens) = statement.tokens() else {
+    let Some(tokens) = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+        &input.function.cfg.command_binding_sites,
+        statement,
+    ) else {
         return false;
     };
     let site = DirectCallSiteId {
@@ -1133,9 +1226,11 @@ fn closed_constant_store(
     let Some(binding) = tokens.source_binding.as_ref() else {
         return false;
     };
-    crate::registry_invocation::normal_transfer_invocation(
+    crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
         input.registry,
-        input.function.semantic_facts.context(),
+        input
+            .function
+            .invocation_metadata_context_for_module(input.registry, &input.unit.ir_module),
         tokens,
     )
     .and_then(|normal| normal.stored_value_literal(&binding.variable_context, input.registry))
@@ -1146,31 +1241,28 @@ fn closed_native_store_binding(input: &ClosedStatementInputs<'_>, statement: &St
     let Statement::AssignConst { value, .. } = statement else {
         return false;
     };
-    input
-        .function
-        .cfg
-        .command_binding_sites
-        .iter()
-        .filter(|site| site.span == statement.span())
-        .filter_map(|site| site.source_tokens.as_deref())
-        .any(|tokens| {
-            let Some(binding) = tokens.source_binding.as_ref() else {
-                return false;
-            };
-            binding
-                .evaluated_command_word()
-                .is_some_and(|head| binding.direct_registry_target(head).is_some())
-                && crate::registry_invocation::normal_transfer_invocation(
-                    input.registry,
-                    input.function.semantic_facts.context(),
-                    tokens,
-                )
-                .and_then(|normal| {
-                    normal.stored_value_literal(&binding.variable_context, input.registry)
-                })
-                .as_deref()
-                    == Some(value.as_str())
-        })
+    let Some(tokens) = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+        &input.function.cfg.command_binding_sites,
+        statement,
+    ) else {
+        return false;
+    };
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return false;
+    };
+    binding
+        .evaluated_command_word()
+        .is_some_and(|head| binding.direct_registry_target(head).is_some())
+        && crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+            input.registry,
+            input
+                .function
+                .invocation_metadata_context_for_module(input.registry, &input.unit.ir_module),
+            tokens,
+        )
+        .and_then(|normal| normal.stored_value_literal(&binding.variable_context, input.registry))
+        .as_deref()
+            == Some(value.as_str())
 }
 
 fn cover_closed_constant_store(
@@ -1357,6 +1449,8 @@ struct DirectInputs<'a> {
     mutations: &'a crate::command_binding::ModuleCommandMutations,
     proc_binding_trust: &'a crate::command_binding::ProcBindingTrustProjection,
     context: Option<SemanticContext>,
+    metadata: Option<InvocationMetadataContext<'a>>,
+    callee_metadata: Option<InvocationMetadataContext<'a>>,
     enabled: bool,
     frame_elision_enabled: bool,
     native_integer_enabled: bool,
@@ -1379,7 +1473,7 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
     if !input.enabled {
         return decline(DirectProcDecline::PassDisabled);
     }
-    if input.context.is_none() {
+    if input.metadata.is_none() || input.callee_metadata.is_none() {
         return decline(DirectProcDecline::ContextUnavailable);
     }
     if input.proc_binding_trust.has_dynamic_binding_transition() {
@@ -1533,6 +1627,11 @@ fn select_direct_evidence(
         actual_types,
         actual_values,
         context: input.context,
+        metadata_context: input
+            .metadata
+            .expect("selected metadata prerequisite")
+            .context()
+            .clone(),
         dispatch_dependencies: DispatchDependencies::BASE.union(DispatchDependencies::one(
             DispatchDependencyDomain::UnknownHandling,
         )),
@@ -1590,6 +1689,44 @@ fn direct_formal_bindings(
     Ok(formals)
 }
 
+/// Original outer return and sole nested expression from one supplied body.
+/// This selects metadata only; binding, frame, compiler and result-equivalence
+/// premises belong to the caller's independent admission checks.
+pub(crate) fn original_direct_expression_body_operations(
+    registry: &tcl_registry::CommandRegistry,
+    metadata: Option<InvocationMetadataContext<'_>>,
+    procedure: &Procedure,
+    config: tcl_lexer::LexerConfig,
+) -> Option<[SemanticOperationId; 2]> {
+    let metadata = metadata?;
+    let [statement @ Statement::Return { expr: Some(_), .. }] =
+        procedure.body.statements.as_slice()
+    else {
+        return None;
+    };
+    let original = procedure
+        .body
+        .retained_source_tokens_for_statement(statement)?;
+    let operation = |tokens: &CommandTokens, expected| {
+        if tokens.words().len() != 2 {
+            return None;
+        }
+        let selected =
+            crate::registry_invocation::logical_structured_invocation_with_metadata_context(
+                registry, metadata, tokens, None,
+            )?;
+        (selected.lowering_hook() == Some(expected))
+            .then_some(SemanticOperationId::StructuredLowering(expected))
+    };
+    let outer = operation(original, LoweringHookId::Return)?;
+    let children = crate::word_subst::checked_lifted_calls(original, config)?;
+    let [child] = children.as_slice() else {
+        return None;
+    };
+    let nested = operation(child.tokens.as_ref()?, LoweringHookId::Expr)?;
+    Some([nested, outer])
+}
+
 fn direct_body_decision(
     input: &DirectInputs<'_>,
     formals: &[tcl_syntax::formal_params::FormalParameter],
@@ -1601,7 +1738,7 @@ fn direct_body_decision(
     if !input.native_integer_enabled {
         return decline(DirectProcBodyDecline::NativeIntegerPassDisabled);
     }
-    let operations = vec![
+    let operations = [
         SemanticOperationId::StructuredLowering(LoweringHookId::Expr),
         SemanticOperationId::StructuredLowering(LoweringHookId::Return),
     ];
@@ -1614,6 +1751,17 @@ fn direct_body_decision(
             return decline(DirectProcBodyDecline::InternalExecutionTrace { operation });
         }
     }
+    let Some(callee) = input.unit.function(input.callee_name) else {
+        return decline(DirectProcBodyDecline::UnsupportedBodyShape);
+    };
+    let Some(operations) = original_direct_expression_body_operations(
+        input.registry,
+        input.callee_metadata,
+        input.proc_def,
+        callee.source_lexer_config(),
+    ) else {
+        return decline(DirectProcBodyDecline::UnsupportedBodyShape);
+    };
     let [
         Statement::Return {
             expr: Some(expr), ..
@@ -1631,7 +1779,7 @@ fn direct_body_decision(
         return decline(DirectProcBodyDecline::UnsupportedBodyShape);
     }
     DirectProcBodyDecision::Selected(DirectProcBodyEvidence {
-        operations,
+        operations: operations.to_vec(),
         dispatch_dependencies: DispatchDependencies::CONSERVATIVE,
     })
 }
@@ -1742,12 +1890,15 @@ fn direct_call_tokens<'a>(
         .get(&id.block)?
         .statements
         .get(id.statement_index as usize)?;
-    let original = statement.statement.tokens()?;
+    let original = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+        &function.cfg.command_binding_sites,
+        &statement.statement,
+    )?;
     if let Some(outer) = id.nested_argument {
         Some(std::borrow::Cow::Owned(nested_call_tokens(
             Some(original),
             outer as usize,
-            unit.ir_module.lexer_config,
+            function.source_lexer_config(),
         )?))
     } else {
         Some(std::borrow::Cow::Borrowed(original))
@@ -1960,12 +2111,12 @@ fn native_frame_slot_allocation(
 fn materialisable_slot_allocation(
     input: &MaterialisableInputs<'_>,
 ) -> Option<(u32, MaterialisableSlotAuthority)> {
-    use crate::var_escape::original_slots::{
-        original_procedure_argument_slots, original_procedure_topology,
-    };
+    use crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots;
     use crate::var_resolve::VariableCellKey;
     let cell = input.function.ssa.cell_key(input.key.0);
-    if input.unit.ir_module.source_entry.native_entry.is_some() {
+    if input.qname == input.unit.top_level.name
+        && input.unit.ir_module.source_entry.native_entry.is_some()
+    {
         return native_frame_slot_allocation(input, cell);
     }
     if input.qname == input.unit.top_level.name
@@ -1998,9 +2149,12 @@ fn materialisable_slot_allocation(
         }
         VariableCellKey::Activation { identity, simple } => {
             let procedure = input.unit.ir_module.procedures.get(input.qname)?;
-            let topology = original_procedure_topology(&input.unit.ir_module, procedure)?;
-            let declaration = original_procedure_argument_slots(&input.unit.ir_module, procedure)?;
-            let ordinal = declaration.ordinal(simple.as_bytes())?;
+            let declaration = OriginalDeclaredProcedureArgumentSlots::from_module(
+                &input.unit.ir_module,
+                procedure,
+            )?;
+            let topology = declaration.topology();
+            let ordinal = declaration.arguments().ordinal(simple.as_bytes())?;
             let points = input.function.ssa.point_contexts.as_ref()?;
             let mut represented = false;
             for (&block, statements) in &input.function.ssa.blocks {
@@ -2161,15 +2315,448 @@ mod tests {
         config: SemanticOptimisationConfig,
         environment: CommonAotEnvironment,
     ) -> CommonAotProofPlan {
-        let registry = tcl_registry::CommandRegistry::build_default();
-        let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
-        CommonAotProofPlan::build(
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(source, std::sync::Arc::clone(&context));
+        CommonAotProofPlan::build_with_retained_metadata(
             &unit,
-            &registry,
-            unit.top_level.semantic_facts.context(),
+            context.commands(),
             config,
             environment,
         )
+    }
+
+    fn native_unit(
+        source: &str,
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> crate::environment_ingress::RetainedNativeUnit {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let (owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        crate::environment_ingress::RetainedNativeUnit::new(unit, owner)
+    }
+
+    fn logical_unit(
+        source: &str,
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> CompilationUnit {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let entry = crate::command_binding::SourceAnalysisEntry::for_logical_source(&input)
+            .expect("positive supplied Logical source input");
+        CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        )
+    }
+
+    #[test]
+    fn original_declared_argument_slots_do_not_borrow_the_parent_native_frame() {
+        // Implementation contract: naming.variable.aot-original-slot-purpose
+        // docs/design/analysis/name-resolution-proofs/aot-original-slot-purpose.md
+        use crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots;
+        use tcl_syntax::naming::NativeCompiledVariableEnvironment;
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit("proc p {x y} {return $x}; p FIRST SECOND", context);
+        let module = &unit.ir_module;
+        let procedure = &module.procedures["::p"];
+        let entry = module.source_entry.native_entry.as_deref().unwrap();
+        assert!(entry.compiled_local_layout.is_none());
+        let receipt = OriginalDeclaredProcedureArgumentSlots::from_module(module, procedure)
+            .expect("original declaration allocates its own argument convention");
+        assert_eq!(receipt.arguments().ordinal(b"x"), Some(0));
+        assert_eq!(receipt.arguments().ordinal(b"y"), Some(1));
+        assert_eq!(receipt.declaration_span(), procedure.span);
+        assert!(
+            receipt
+                .protocol()
+                .supports_environment(NativeCompiledVariableEnvironment::DeclareProcedure)
+        );
+        assert_eq!(
+            receipt.arguments().original_input(),
+            receipt.topology().original_input()
+        );
+        let mut entered = module.clone();
+        entered.source_entry.compilation_scope =
+            tcl_runtime_api::SourceCompilationScope::EnteredSource;
+        assert!(OriginalDeclaredProcedureArgumentSlots::from_module(&entered, procedure).is_none());
+        let mut unavailable = module.clone();
+        std::sync::Arc::make_mut(unavailable.source_entry.native_entry.as_mut().unwrap())
+            .compiled_variable_protocol = None;
+        assert!(
+            OriginalDeclaredProcedureArgumentSlots::from_module(&unavailable, procedure).is_none()
+        );
+        let mut missing = module.clone();
+        missing.procedure_implementation_bodies = std::sync::Arc::from([]);
+        assert!(OriginalDeclaredProcedureArgumentSlots::from_module(&missing, procedure).is_none());
+        let mut stale = module.clone();
+        stale.source = tcl_lexer::SourceImage::document("proc p {x y} {return OTHER}");
+        assert!(OriginalDeclaredProcedureArgumentSlots::from_module(&stale, procedure).is_none());
+        let mut changed = procedure.clone();
+        changed.body.executed_source = None;
+        assert!(OriginalDeclaredProcedureArgumentSlots::from_module(module, &changed).is_none());
+    }
+
+    #[test]
+    fn original_procedure_body_preflight_keeps_entry_and_missing_provider_independent() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Compiler traversal only: no body execution, numeric result, old frame
+        // slot or direct-body specialisation is certified by this control.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
+        for (formals, body, arguments) in [
+            ("x", "return $x", "VALUE"),
+            ("x y", "return [expr {$x+$y}]", "1 2"),
+            ("", "return [expr {1+2}]", ""),
+            ("x", "set y $x; return $y", "VALUE"),
+        ] {
+            let source = format!("proc p {{{formals}}} {{{body}}}; p {arguments}");
+            let unit = native_unit(&source, std::sync::Arc::clone(&context));
+            let procedure = &unit.ir_module.procedures["::p"];
+            let original = procedure.body.executed_source.as_ref().unwrap();
+            assert_eq!(original.text.bytes(), body.as_bytes());
+            assert!(
+                !crate::native_compilation_admission::script_requires_admission(&procedure.body),
+                "{body}: {:?}",
+                procedure.body.native_compilation_admission,
+            );
+            let unavailable = crate::command_binding::SourceCommandBindings::analyse_with_options(
+                body,
+                config,
+                context.commands(),
+                crate::command_binding::SourceAnalysisOptions {
+                    unknown_entry: true,
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                        mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
+                        frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+            );
+            assert!(unavailable.native_compilation_source_at(0).is_some());
+            assert!(
+                unavailable.native_compilation_provider_required_at(0),
+                "{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_empty_procedure_direct_call_keeps_formals_without_body_specialisation() {
+        // Implementation contract: naming.variable.aot-original-slot-purpose
+        // docs/design/analysis/name-resolution-proofs/aot-original-slot-purpose.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit("proc p {x} {}; p VALUE", std::sync::Arc::clone(&context));
+        let procedure = &unit.ir_module.procedures["::p"];
+        assert!(procedure.body.statements.is_empty());
+        assert!(!crate::native_compilation_admission::script_requires_admission(&procedure.body));
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        let selected = plan
+            .direct_calls()
+            .find_map(|(_, decision)| match decision {
+                DirectProcDecision::Selected(evidence)
+                    if evidence.callee.qualified_name == "::p" =>
+                {
+                    Some(evidence)
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("original empty procedure direct call: {plan:#?}"));
+        assert_eq!(selected.formals, ["x"]);
+        assert_eq!(
+            selected.original_formals.as_ref().unwrap().ordinal(b"x"),
+            Some(0)
+        );
+        assert!(matches!(
+            selected.body,
+            DirectProcBodyDecision::Declined(DirectProcBodyDecline::UnsupportedBodyShape)
+        ));
+        assert!(!selected.frame_elidable);
+    }
+
+    #[test]
+    fn retained_aot_metadata_cannot_borrow_missing_or_foreign_function_input() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for_dialect(
+            "proc p {x} {return $x}; p VALUE",
+            &registry,
+            false,
+            "tcl8.6",
+        );
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            &registry,
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        assert_eq!(plan.direct_calls().count(), 1);
+        assert!(plan.direct_calls().all(|(_, decision)| !matches!(
+            decision,
+            DirectProcDecision::Declined(DirectProcDecline::ContextUnavailable)
+        )));
+        let mut missing_module = unit.clone();
+        missing_module.ir_module.source_metadata_input = None;
+        let mut missing_caller = unit.clone();
+        missing_caller.top_level.source_metadata_input = None;
+        let mut missing_callee = unit.clone();
+        missing_callee
+            .procedures
+            .get_mut("::p")
+            .unwrap()
+            .source_metadata_input = None;
+        let mut stale_grammar = unit.clone();
+        stale_grammar.top_level.source_config.expand_syntax =
+            !stale_grammar.top_level.source_config.expand_syntax;
+        let input = unit.top_level.source_metadata_input().unwrap();
+        let mut foreign = unit.clone();
+        foreign.top_level.source_metadata_input =
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                tcl_registry::model::ingress::resolve_environment("tcl9.1")
+                    .default_context_registry(),
+                input.lexer_config(),
+            ));
+        for refused in [
+            missing_module,
+            missing_caller,
+            missing_callee,
+            stale_grammar,
+            foreign,
+        ] {
+            let plan = CommonAotProofPlan::build_with_retained_metadata(
+                &refused,
+                &registry,
+                enabled(),
+                CommonAotEnvironment::Hosted,
+            );
+            assert_eq!(plan.direct_calls().count(), 1);
+            assert!(plan.direct_calls().all(|(_, decision)| matches!(
+                decision,
+                DirectProcDecision::Declined(DirectProcDecline::ContextUnavailable)
+            )));
+        }
+    }
+
+    #[test]
+    fn original_source_queries_require_unanimous_statement_carriers() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = logical_unit("set result VALUE", context);
+        let (block, index) = unit
+            .top_level
+            .ssa
+            .blocks
+            .iter()
+            .find_map(|(id, block)| {
+                block
+                    .statements
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, statement)| {
+                        matches!(statement.statement, Statement::AssignConst { .. })
+                            .then_some((*id, index))
+                    })
+            })
+            .expect("original source store retains a structural statement");
+        let id = DirectCallSiteId {
+            function: "::top".into(),
+            block,
+            statement_index: u32::try_from(index).unwrap(),
+            nested_argument: None,
+        };
+        let statement = &unit.top_level.ssa.blocks[&block].statements[index].statement;
+        assert!(
+            statement.tokens().is_none(),
+            "typed store consumes its inline vector"
+        );
+        assert_eq!(
+            direct_call_tokens(&unit, &id).unwrap().argv_texts,
+            ["set", "result", "VALUE"],
+        );
+        let mut missing = unit.clone();
+        missing.top_level.cfg.command_binding_sites.clear();
+        assert!(direct_call_tokens(&missing, &id).is_none());
+        let mut conflicting = unit.clone();
+        let mut other = conflicting
+            .top_level
+            .cfg
+            .command_binding_sites
+            .iter()
+            .find(|site| site.span == statement.span() && site.source_tokens.is_some())
+            .unwrap()
+            .clone();
+        other.source_tokens.as_mut().unwrap().argv_texts[0] = "other".into();
+        conflicting.top_level.cfg.command_binding_sites.push(other);
+        assert!(direct_call_tokens(&conflicting, &id).is_none());
+    }
+
+    #[test]
+    fn structural_call_candidates_keep_original_nested_words_and_literal_boundaries() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = logical_unit(
+            "proc p {x} {return $x}; proc q {x} {return [p $x]}; list {[p VALUE]}",
+            context,
+        );
+        let function = &unit.procedures["::q"];
+        let candidates = call_sites("::q", function, function.source_lexer_config());
+        let nested = candidates
+            .iter()
+            .find(|site| site.command == "p")
+            .expect("structural return retains its original nested call");
+        assert_eq!(nested.id.nested_argument, Some(0));
+        assert_eq!(nested.args, ["$x"]);
+        assert_eq!(nested.tokens.as_ref().unwrap().argv_texts, ["p", "$x"]);
+        let top = call_sites(
+            "::top",
+            &unit.top_level,
+            unit.top_level.source_lexer_config(),
+        );
+        assert!(
+            top.iter().all(|site| site.id.nested_argument.is_none()),
+            "procedure body words and braced list values are data at these invocations"
+        );
+        let mut missing = function.clone();
+        missing.cfg.command_binding_sites.clear();
+        for block in missing.cfg.blocks.values_mut() {
+            for statement in &mut block.statements {
+                if let Statement::Return { tokens, .. } = statement {
+                    *tokens = None;
+                } else {
+                    assert!(statement.tokens().is_none());
+                }
+            }
+        }
+        assert!(
+            call_sites("::q", &missing, missing.source_lexer_config())
+                .iter()
+                .all(|site| site.command != "p")
+        );
+    }
+
+    #[test]
+    fn original_direct_expression_body_requires_the_actual_nested_operation_receipts() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let registry = context.commands();
+        let unit = logical_unit(
+            "proc p {x y} {return [expr {$x+$y}]}",
+            std::sync::Arc::clone(&context),
+        );
+        let function = &unit.procedures["::p"];
+        let procedure = &unit.ir_module.procedures["::p"];
+        let metadata = function.invocation_metadata_context_for_module(registry, &unit.ir_module);
+        let operations = original_direct_expression_body_operations(
+            registry,
+            metadata,
+            procedure,
+            function.source_lexer_config(),
+        );
+        assert_eq!(
+            operations,
+            Some([
+                SemanticOperationId::StructuredLowering(LoweringHookId::Expr),
+                SemanticOperationId::StructuredLowering(LoweringHookId::Return),
+            ])
+        );
+        assert!(
+            original_direct_expression_body_operations(
+                registry,
+                None,
+                procedure,
+                function.source_lexer_config(),
+            )
+            .is_none()
+        );
+        let mut missing_source = procedure.clone();
+        missing_source.body.command_binding_sites = crate::ir::CommandBindingSites::default();
+        for statement in &mut missing_source.body.statements {
+            if let Statement::Return { tokens, .. } = statement {
+                *tokens = None;
+            }
+        }
+        assert!(
+            original_direct_expression_body_operations(
+                registry,
+                metadata,
+                &missing_source,
+                function.source_lexer_config(),
+            )
+            .is_none()
+        );
+        for source in [
+            "proc expr args {return 0}; proc p {x y} {return [expr {$x+$y}]}",
+            "proc return args {}; proc p {x y} {return [expr {$x+$y}]}",
+            "proc p {x y} {return [expr {$x+[unknown]}]}",
+        ] {
+            let changed = logical_unit(source, std::sync::Arc::clone(&context));
+            let function = &changed.procedures["::p"];
+            assert!(
+                original_direct_expression_body_operations(
+                    registry,
+                    function.invocation_metadata_context_for_module(registry, &changed.ir_module),
+                    &changed.ir_module.procedures["::p"],
+                    function.source_lexer_config(),
+                )
+                .is_none(),
+                "{source}"
+            );
+        }
     }
 
     fn enabled() -> SemanticOptimisationConfig {
@@ -2205,10 +2792,9 @@ mod tests {
             failure: None,
             provider_required: true,
         }));
-        let plan = CommonAotProofPlan::build(
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
             &unit,
             &registry,
-            unit.top_level.semantic_facts.context(),
             enabled(),
             CommonAotEnvironment::Hosted,
         );
@@ -2254,9 +2840,56 @@ mod tests {
         )));
     }
 
+    fn original_formal_diagnostics(unit: &CompilationUnit, function: &str) -> String {
+        let function = &unit.procedures[function];
+        let mut rows = vec![format!("SSA cells: {:?}", function.ssa.cell_keys())];
+        if let Some(points) = &function.ssa.point_contexts {
+            for (&block, body) in &function.cfg.blocks {
+                for index in (0..body.statements.len()).chain(std::iter::once(usize::MAX)) {
+                    if let Some(context) = points.context_before(block, index) {
+                        rows.push(format!(
+                            "{block:?}/{index}: activation={:?}, topology={}, observers={}, dynamic={}",
+                            context.activation,
+                            context.original_formal_topology.is_some(),
+                            context.activation_observers_closed(),
+                            context.dynamic_bindings,
+                        ));
+                    }
+                    for access in points.source_reads_at(block, index) {
+                        rows.push(format!(
+                            "read {:?} at {:?}: residual={:?}, activations={:?}",
+                            access.original_spelling,
+                            access.source.span,
+                            access.context_residual(),
+                            access
+                                .context_alternatives()
+                                .iter()
+                                .map(|context| (
+                                    &context.activation,
+                                    context.original_formal_topology.is_some(),
+                                    context.activation_observers_closed(),
+                                    context.dynamic_bindings,
+                                ))
+                                .collect::<Vec<_>>(),
+                        ));
+                    }
+                }
+            }
+        }
+        rows.join("\n")
+    }
+
     #[test]
     fn add_call_and_integer_formals_receive_common_proofs() {
-        let plan = plan(ADD, enabled());
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(ADD, std::sync::Arc::clone(&context));
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
         let direct = plan
             .direct_calls()
             .find_map(|(_, decision)| match decision {
@@ -2290,7 +2923,12 @@ mod tests {
                 _ => None,
             })
             .collect();
-        assert_eq!(selected.len(), 2);
+        assert_eq!(
+            selected.len(),
+            2,
+            "{}\n{plan:#?}",
+            original_formal_diagnostics(&unit, "::add")
+        );
         assert!(selected.iter().all(|slot| slot.shape == TypeShape::Int));
         assert!(selected.iter().all(|slot| {
             slot.storage == VarStorage::MaterializableSlot
@@ -2495,8 +3133,10 @@ mod tests {
                 false,
             ),
         ] {
-            let registry = tcl_registry::CommandRegistry::build_default();
-            let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+            let context = tcl_registry::model::ingress::resolve_environment("tcl9.0")
+                .default_context_registry();
+            let registry = context.commands();
+            let unit = native_unit(source, std::sync::Arc::clone(&context));
             assert_eq!(
                 unit.command_mutations.has_dynamic_mutation(),
                 transitive_mutation_is_dynamic,
@@ -2508,10 +3148,9 @@ mod tests {
                     .trusts_proc_binding("::add"),
                 "body-dispatch opacity must not erase the separately proven proc identity"
             );
-            let plan = CommonAotProofPlan::build(
+            let plan = CommonAotProofPlan::build_with_retained_metadata(
                 &unit,
-                &registry,
-                unit.top_level.semantic_facts.context(),
+                registry,
                 enabled(),
                 CommonAotEnvironment::Hosted,
             );
@@ -2575,10 +3214,9 @@ mod tests {
         // decline it pins is therefore the surviving one: a unit built with
         // no dialect carries no context.
         let unit = CompilationUnit::build_for(ADD, &registry, false);
-        let ambiguous = CommonAotProofPlan::build(
+        let ambiguous = CommonAotProofPlan::build_with_retained_metadata(
             &unit,
             &registry,
-            unit.top_level.semantic_facts.context(),
             enabled(),
             CommonAotEnvironment::Hosted,
         );
@@ -2608,9 +3246,17 @@ mod tests {
 
     #[test]
     fn unknown_actual_type_poisons_cross_call_formal_propagation() {
-        let plan = plan(
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit(
             "proc add {b c} {return [expr {$b+$c}]}\nproc caller {x} {set d 2; add $d $x}\nset d 2\nset e 4\nadd $d $e\n",
+            std::sync::Arc::clone(&context),
+        );
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
             enabled(),
+            CommonAotEnvironment::Hosted,
         );
         // The caller formal exists by its native activation contract but has
         // unknown contents. Reading an unprovided global argv would instead
@@ -2628,7 +3274,13 @@ mod tests {
                 propagate_actual_types(&mut propagated, "::add", decision);
             }
         }
-        assert_eq!(selected_callers, 2, "{plan:#?}");
+        assert_eq!(
+            selected_callers,
+            2,
+            "{}\n{}\n{plan:#?}",
+            original_formal_diagnostics(&unit, "::caller"),
+            original_formal_diagnostics(&unit, "::add"),
+        );
         let actual = propagated
             .get(&("::add".to_owned(), 1))
             .expect("both callers recorded");

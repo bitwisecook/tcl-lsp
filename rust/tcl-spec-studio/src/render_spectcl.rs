@@ -3103,6 +3103,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     flag(out_body, ctx, sub, "mutator");
     flag(out_body, ctx, sub, "destructive");
     flag(out_body, ctx, sub, "returns_path");
+    enum_word(out_body, ctx, sub, "source_path_operation");
     flag(out_body, ctx, sub, "is_unescape");
     flag(out_body, ctx, sub, "loop_list_header");
     flag(out_body, ctx, sub, "creates_scope_alias");
@@ -4691,5 +4692,57 @@ mod tests {
             spec.subcommands[0].subcommand_forms[0].variable_receivers
         );
         assert!(parsed.successful_handler.is_none());
+    }
+    #[test]
+    fn authored_source_path_operations_survive_render_load_and_draft() {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        static MEMBERS: &[tcl_registry::SubCommand] = &[
+            tcl_registry::SubCommand {
+                name: "combine",
+                source_path_operation: Some(tcl_registry::SourcePathOperation::Join),
+                ..tcl_registry::SubCommand::DEFAULT
+            },
+            tcl_registry::SubCommand {
+                name: "filename",
+                source_path_operation: Some(tcl_registry::SourcePathOperation::ScriptPath),
+                ..tcl_registry::SubCommand::DEFAULT
+            },
+        ];
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::paths",
+            subcommands: MEMBERS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(text.contains("source_path_operation Join"), "{text}");
+        assert!(text.contains("source_path_operation ScriptPath"), "{text}");
+        let rust = crate::render_rs::render(&before);
+        assert!(rust.contains("SourcePathOperation::Join"), "{rust}");
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let after = draft::from_command_spec(pack.command("probe::paths").unwrap().spec);
+        assert_eq!(
+            after.get("subcommands"),
+            before.get("subcommands"),
+            "{text}"
+        );
+        let invalid = text.replace(
+            "source_path_operation Join",
+            "source_path_operation Unknown",
+        );
+        let invalid_pack = crate::spectcl::evaluate_pack(&invalid);
+        assert!(!invalid_pack.notices.is_empty());
+        assert_eq!(
+            invalid_pack
+                .command("probe::paths")
+                .unwrap()
+                .spec
+                .subcommand("combine")
+                .unwrap()
+                .source_path_operation,
+            None,
+        );
     }
 }

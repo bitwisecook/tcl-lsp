@@ -39,6 +39,16 @@ impl ResolvedAnalysisInput {
         }
     }
 
+    /// Project a genuinely extracted body into local source coordinates.
+    /// Availability, profiles and hosted naming policy stay identical; only
+    /// the nested-source BOM rule and positional bookkeeping are adjusted.
+    pub(crate) fn for_nested_source(&self) -> Self {
+        Self {
+            config: self.config.nested().normalized(),
+            ..self.clone()
+        }
+    }
+
     /// Explicit hosted source policy, including contexts without a catalogue
     /// environment. This does not change runtime admission or the parser.
     #[must_use]

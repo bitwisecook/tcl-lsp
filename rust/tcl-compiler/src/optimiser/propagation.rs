@@ -145,7 +145,14 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     {
         let trace = crate::sccp::TraceInputs {
             registry,
-            source_metadata_input: cu.ir_module.source_metadata_input.as_ref(),
+            source_metadata_input:
+                crate::registry_invocation::InvocationMetadataContext::for_module(
+                    registry,
+                    &cu.ir_module,
+                )
+                .and_then(
+                    crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
+                ),
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
         };
@@ -1190,13 +1197,21 @@ fn oo_method_constants(
         &facts.instance_vars,
         crate::sccp::TraceInputs {
             registry,
-            source_metadata_input: fu.source_metadata_input(),
+            source_metadata_input: fu
+                .invocation_metadata_context_for_module(registry, &cu.ir_module)
+                .and_then(
+                    crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
+                ),
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
         },
         Some(crate::sccp::BuiltinFoldInputs {
             registry,
-            source_metadata_input: fu.source_metadata_input(),
+            source_metadata_input: fu
+                .invocation_metadata_context_for_module(registry, &cu.ir_module)
+                .and_then(
+                    crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
+                ),
             mutations: &ctx.command_mutations,
             dialect: ctx.dialect,
             defining_class: Some(&frame.defining_class),
@@ -1436,10 +1451,7 @@ fn retained_o115(
     word: &str,
     registry: &CommandRegistry,
 ) -> Option<String> {
-    let actual = crate::registry_invocation::retained_source_metadata_context(
-        registry,
-        module.source_metadata_input.as_ref(),
-    )?;
+    let actual = crate::registry_invocation::retained_module_metadata_context(registry, module)?;
     let metadata = Some(actual.as_ref().into());
     if !retained_expr_call(call, registry, metadata) {
         return None;
@@ -1470,10 +1482,8 @@ fn visit_oo_frame_folds(
     let Some(registry) = ctx.registry else {
         return;
     };
-    let actual = crate::registry_invocation::retained_source_metadata_context(
-        registry,
-        cu.ir_module.source_metadata_input.as_ref(),
-    );
+    let actual =
+        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
     let metadata = actual.as_deref().map(Into::into);
     let Some(calls) = retained_substitution_calls(tokens, registry) else {
         return;
@@ -1526,10 +1536,8 @@ fn try_oo_frame_return_fold(
     let Some(tokens) = tokens else {
         return;
     };
-    let actual = crate::registry_invocation::retained_source_metadata_context(
-        registry,
-        cu.ir_module.source_metadata_input.as_ref(),
-    );
+    let actual =
+        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
     let metadata = actual.as_deref().map(Into::into);
     let Some(calls) = retained_substitution_calls(tokens, registry) else {
         return;
@@ -1648,13 +1656,21 @@ fn constants_with_builtin_folds(
         extra_escaping,
         crate::sccp::TraceInputs {
             registry,
-            source_metadata_input: fu.source_metadata_input(),
+            source_metadata_input: fu
+                .invocation_metadata_context_for_module(registry, &cu.ir_module)
+                .and_then(
+                    crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
+                ),
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
         },
         Some(crate::sccp::BuiltinFoldInputs {
             registry,
-            source_metadata_input: fu.source_metadata_input(),
+            source_metadata_input: fu
+                .invocation_metadata_context_for_module(registry, &cu.ir_module)
+                .and_then(
+                    crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
+                ),
             mutations: &ctx.command_mutations,
             dialect: ctx.dialect,
             // No method frame here — `[self class]`-style frame facts fold
@@ -1874,7 +1890,10 @@ fn evaluate_proc_with_constants(
 ) -> Option<ConstValue> {
     let seed = seed_params_from_args(params, args, grammar, policy)?;
     let registry = ctx.registry?;
-    callee.invocation_metadata_context(registry)?;
+    let metadata = match ctx.ir_module {
+        Some(module) => callee.invocation_metadata_context_for_module(registry, module),
+        None => callee.invocation_metadata_context(registry),
+    }?;
     let empty_traced = std::collections::BTreeSet::new();
     let (traced_variables, has_dynamic_variable_trace) = match ctx.ir_module {
         Some(m) => (&m.traced_variables, m.has_dynamic_variable_trace),
@@ -1888,7 +1907,7 @@ fn evaluate_proc_with_constants(
         &std::collections::HashSet::new(),
         crate::sccp::TraceInputs {
             registry,
-            source_metadata_input: callee.source_metadata_input(),
+            source_metadata_input: metadata.source_analysis_input(),
             traced_variables,
             has_dynamic_variable_trace,
         },
@@ -1899,7 +1918,7 @@ fn evaluate_proc_with_constants(
         // with (#2164).
         Some(crate::sccp::BuiltinFoldInputs {
             registry,
-            source_metadata_input: callee.source_metadata_input(),
+            source_metadata_input: metadata.source_analysis_input(),
             mutations: &ctx.command_mutations,
             dialect: ctx.dialect,
             defining_class: None,
@@ -2657,10 +2676,8 @@ fn visit_call_cmd_subst_folds(
     let Some(registry) = ctx.registry else {
         return;
     };
-    let actual = crate::registry_invocation::retained_source_metadata_context(
-        registry,
-        cu.ir_module.source_metadata_input.as_ref(),
-    );
+    let actual =
+        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
     let metadata = actual.as_deref().map(Into::into);
     let Some(calls) = retained_substitution_calls(tokens, registry) else {
         return;
@@ -2788,10 +2805,8 @@ fn try_o103_proc_fold(
         tcl_syntax::formal_params::parse_formal_parameters_in(&declaration.params_raw, grammar)
             .ok()?;
     let registry = ctx.registry?;
-    let actual = crate::registry_invocation::retained_source_metadata_context(
-        registry,
-        cu.ir_module.source_metadata_input.as_ref(),
-    )?;
+    let actual =
+        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module)?;
     let original = crate::const_subst::ConstSubstCtx {
         registry,
         resolution_namespace: "::",
@@ -2977,10 +2992,8 @@ fn visit_string_interpolation_cmd_subs(
     let Some(registry) = ctx.registry else {
         return;
     };
-    let actual = crate::registry_invocation::retained_source_metadata_context(
-        registry,
-        cu.ir_module.source_metadata_input.as_ref(),
-    );
+    let actual =
+        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
     let metadata = actual.as_deref().map(Into::into);
     let Some(calls) = retained_substitution_calls(tokens, registry) else {
         return;
@@ -5587,6 +5600,8 @@ mod tests {
     fn retained_expression_argument_folding_requires_actual_availability() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Actual original registrations are retained independently of metadata
+        // availability. The owner stays alive through every refusal control.
         let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let mut catalogue = baseline
             .commands()
@@ -5597,6 +5612,17 @@ mod tests {
         let current =
             std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(catalogue)));
         let registry = current.commands();
+        let (_owner, native) = crate::environment_ingress::captured_native_entry_with_owner(
+            registry.profile().unwrap(),
+        );
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            invocation_dialect: registry
+                .profile()
+                .map(tcl_registry::InvocationDialect::of_profile),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            native_entry: Some(std::sync::Arc::new(native)),
+            ..crate::command_binding::SourceAnalysisEntry::default()
+        };
         let mut unit = CompilationUnit::build_with_context_registry(
             "puts [expr {1 + 2}]",
             crate::compilation_unit::UnitBuildOptions {
@@ -5607,7 +5633,7 @@ mod tests {
                 external_call_sites: None,
                 declared_commands: None,
             },
-            None,
+            Some(&entry),
             std::sync::Arc::clone(&current),
         );
         let statement = &unit.ir_module.top_level.statements[0];
@@ -5633,7 +5659,7 @@ mod tests {
         );
         assert!(std::sync::Arc::ptr_eq(older.commands(), registry));
         let foreign =
-            std::sync::Arc::new(tcl_registry::model::ingress::static_context_for("tcl9.1").clone());
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
         for withheld in [Some(older), Some(foreign), None] {
             unit.ir_module.source_metadata_input = withheld.map(|availability| {
                 crate::analyser::ResolvedAnalysisInput::new(

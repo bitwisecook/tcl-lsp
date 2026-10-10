@@ -444,10 +444,8 @@ fn build_facts_gated(
     empty_seed_fast_path: bool,
 ) -> (ObjectHandleFacts, LatticeStats) {
     let owners = OwnerIndex::build(cu, mode);
-    let context = crate::registry_invocation::retained_source_metadata_context(
-        registry,
-        cu.ir_module.source_metadata_input.as_ref(),
-    );
+    let context =
+        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
     let mut sink = FactSink {
         facts: ObjectHandleFacts::default(),
         owners: &owners,
@@ -852,11 +850,18 @@ fn retain_normal_procedure_result_types(cu: &CompilationUnit, facts: &mut Object
     for _ in 0..=units.len() {
         let mut next = crate::type_infer::NormalProcedureResultTypes::new();
         for (allocation, unit) in &units {
+            let Some(metadata) = crate::type_infer::TypePropagationMetadata::for_function(
+                unit,
+                cu.ir_module.resolved_registry(),
+            ) else {
+                join_procedure_result(&mut next, allocation, crate::types::TypeLattice::unknown());
+                continue;
+            };
             let result = crate::type_infer::infer_function_return_type_with_results(
                 &unit.cfg,
                 &unit.sccp,
                 &unit.types,
-                cu.ir_module.resolved_registry(),
+                metadata,
                 &known_classes,
                 &unit.ssa,
                 Some(&results),
@@ -949,10 +954,9 @@ fn returning_proc_candidates<'a>(
     registry: &CommandRegistry,
 ) -> HashMap<&'a str, String> {
     let mut returns = returning_procs(cu);
-    let Some(context) = crate::registry_invocation::retained_source_metadata_context(
-        registry,
-        cu.ir_module.source_metadata_input.as_ref(),
-    ) else {
+    let Some(context) =
+        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module)
+    else {
         return returns;
     };
     let metadata = Some(context.as_ref().into());
@@ -1166,10 +1170,8 @@ fn scan_flow_edges(
     scoped: Option<&OwnerIndex>,
     index: &FlowIndex,
 ) -> Vec<Binding> {
-    let context = crate::registry_invocation::retained_source_metadata_context(
-        registry,
-        cu.ir_module.source_metadata_input.as_ref(),
-    );
+    let context =
+        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
     let metadata_context = context.as_deref().map(Into::into);
     let ctor_params = &index.ctor_params;
     let resolve_ctor_class =

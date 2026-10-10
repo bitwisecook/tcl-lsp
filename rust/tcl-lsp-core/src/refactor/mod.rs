@@ -63,8 +63,11 @@ mod switch_to_dict;
 
 pub use brace_expr::brace_expr;
 pub use datagroup::{
-    DataGroupDefinition, data_group_tcl, extract_to_datagroup, extract_to_datagroup_from_if,
-    extract_to_datagroup_from_switch,
+    DataGroupDefinition, OriginalExactCaseSource, OriginalExactSwitchSource,
+    OriginalScalarVariableSubject, ScalarVariableSourceSyntax, data_group_tcl,
+    extract_to_datagroup, extract_to_datagroup_from_if, extract_to_datagroup_from_switch,
+    original_exact_case_source_at_analysis, original_exact_switch_source_at_analysis,
+    scalar_variable_source_syntax,
 };
 pub use extract_proc::{extract_proc, extract_proc_rename_command};
 pub use extract_variable::extract_variable;
@@ -78,7 +81,6 @@ use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and
 use tcl_dialect::BracedVarStyle;
 use tcl_lexer::{LexerConfig, LineIndex, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
-use tcl_syntax::switch_body::parse_braced_pairs;
 
 use crate::definition::LspRange;
 
@@ -1039,51 +1041,6 @@ fn push_body_word(out: &mut Vec<BodyWord>, inner_start: u32, inner_end: u32) {
             inner_end,
         });
     }
-}
-
-/// Parse a `switch` command's flags + subject + pattern/body pairs.
-///
-/// Shared by [`switch_to_dict`] and the data-group switch transform.
-/// Returns `(subject, pairs)` only for an `-exact` switch (the only mode
-/// either transform handles); any other mode — `-glob` / `-regexp` —
-/// yields `None`.  The remaining args are the pattern-body pairs, given
-/// either as a single braced list (`{pat1 {body1} …}`) or as separate
-/// words.  Parses the flag / subject / pairs prologue shared by both
-/// transforms.
-#[must_use]
-pub fn parse_exact_switch(texts: &[String]) -> Option<(String, Vec<(String, String)>)> {
-    let mut i = 1;
-    let mut mode = "exact";
-    while i < texts.len() && texts[i].starts_with('-') {
-        match texts[i].as_str() {
-            "-exact" => mode = "exact",
-            "-glob" => mode = "glob",
-            "-regexp" => mode = "regexp",
-            "--" => {
-                i += 1;
-                break;
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    if mode != "exact" || i >= texts.len() {
-        return None;
-    }
-    let subject = texts[i].clone();
-    i += 1;
-
-    let pairs: Vec<(String, String)> = if i + 1 == texts.len() {
-        parse_braced_pairs(&texts[i])
-    } else {
-        let mut p = Vec::new();
-        while i + 1 < texts.len() {
-            p.push((texts[i].clone(), texts[i + 1].clone()));
-            i += 2;
-        }
-        p
-    };
-    Some((subject, pairs))
 }
 
 /// Leading-whitespace indent of `line`.

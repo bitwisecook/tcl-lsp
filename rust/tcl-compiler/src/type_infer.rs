@@ -62,7 +62,6 @@ use crate::types::{
     Elements, MAX_EXACT_ELEMENTS, TypeKind, TypeLattice, TypeShape, join_elements, shape_join,
     type_join,
 };
-use crate::value_shapes::is_pure_var_ref;
 use crate::var_resolve::{VariableCellKey, VariableCellTable};
 
 // Float literal pattern: requires a decimal point so that forms like `1e3`
@@ -72,18 +71,9 @@ fn looks_like_float(s: &str) -> bool {
     s.contains('.') && s.parse::<f64>().is_ok()
 }
 
-/// The numeric-literal grammar of `registry`'s dialect profile.
-///
-/// The registry the lattice pipeline runs under is the dialect-selected one
-/// (`registry_for_dialect`), so its profile is where the numeral grammar comes
-/// from — the same source [`crate::tcl_expr_eval::FoldPolicy::from_registry`]
-/// reads. A hand-assembled registry with no profile (unit tests, dialect-free
-/// helpers) falls back to `Tcl90`, matching
-/// [`crate::codegen::CodegenCtx::numbers`].
-///
-/// Explicit, never `tcl_syntax::number`'s thread-local ambient: the LSP types
-/// documents of several dialects in one process, and ambient state would let one
-/// document's grammar decide another's literals.
+/// Explicit standalone numeric policy for compatibility helpers.
+/// Actual function typing uses the independent retained source grammar in
+/// [`TypePropagationMetadata`]. No ambient numeric state participates.
 #[must_use]
 fn numbers_of(registry: &CommandRegistry) -> NumberSyntax {
     registry.numbers()
@@ -528,11 +518,10 @@ struct WordTypingCtx<'a, S: std::hash::BuildHasher> {
     tokens: Option<&'a crate::ir::CommandTokens>,
     source: crate::ssa::SsaSourceView<'a>,
     uses: &'a HashMap<Symbol, u32>,
-    /// The resolved context this function's registry answers under, when
-    /// the registry carries a profile — the I4 binding proof for the
-    /// spec-fact specialisations below (`None` for a hand-assembled,
-    /// profile-less registry: the obligation is `NotRequired`).
-    context: Option<&'a tcl_registry::model::ResolvedContext>,
+    /// Complete retained availability; this supplies no executed handler.
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    /// Exact lexical and list policy of the original source.
+    config: tcl_lexer::LexerConfig,
     types: &'a HashMap<ValueKey, TypeLattice>,
     /// SCCP constants at this point — purity evidence (a numeric-typed
     /// literal is still a pure string) and constant list/index values for
@@ -542,9 +531,7 @@ struct WordTypingCtx<'a, S: std::hash::BuildHasher> {
     known_classes: &'a HashSet<String, S>,
     namespace: &'a str,
     ssa: &'a SsaFunction,
-    /// The target release's numeric-literal grammar, derived once from the
-    /// dialect-selected registry in [`propagate_types`] and threaded to every
-    /// literal classifier — see [`numbers_of`].
+    /// The actual source's numeric grammar, independently of the command store.
     numbers: NumberSyntax,
     /// Active provenance write points; cycles cannot establish a value type.
     active_writes: &'a [(BlockId, usize)],
@@ -552,6 +539,11 @@ struct WordTypingCtx<'a, S: std::hash::BuildHasher> {
 }
 
 impl<S: std::hash::BuildHasher> WordTypingCtx<'_, S> {
+    fn is_variable_word(&self, spelling: &str) -> bool {
+        tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), self.config)
+            .is_ok_and(|reference| reference.is_some())
+    }
+
     fn variable_key(&self, spelling: &str) -> Option<VariableCellKey> {
         self.source
             .symbol(spelling)
@@ -661,6 +653,7 @@ impl<S: std::hash::BuildHasher> WordTypingCtx<'_, S> {
             source: self.source,
             uses: self.uses,
             context: self.context,
+            config: self.config,
             types: self.types,
             values: self.values,
             registry: self.registry,
@@ -722,7 +715,7 @@ fn element_word_shape<S: std::hash::BuildHasher>(
     if stripped.starts_with("{*}") {
         return None;
     }
-    if is_pure_var_ref(stripped) {
+    if ctx.is_variable_word(stripped) {
         let t = ctx.written_variable_type(stripped, retained)?;
         let shape = t.single_shape()?.clone();
         let constant = retained.map_or_else(
@@ -794,7 +787,7 @@ fn return_elements_lattice<S: std::hash::BuildHasher>(
                 return None;
             }
             let container = args.get(container_idx)?;
-            if !is_pure_var_ref(container) {
+            if !ctx.is_variable_word(container) {
                 return None;
             }
             let t = ctx.written_variable_type(
@@ -812,7 +805,7 @@ fn return_elements_lattice<S: std::hash::BuildHasher>(
         }
         ReturnElements::SubListOf { container_arg } => {
             let container = args.get(usize::from(container_arg))?;
-            if !is_pure_var_ref(container) {
+            if !ctx.is_variable_word(container) {
                 return None;
             }
             let elements = ctx
@@ -866,7 +859,7 @@ fn uniform_elements_of<S: std::hash::BuildHasher>(
         // unknown here — no uniform claim survives.
         let word = word.trim();
         let shape = if let Some(expanded) = word.strip_prefix("{*}") {
-            let Some(TypeShape::List(elements)) = (if is_pure_var_ref(expanded) {
+            let Some(TypeShape::List(elements)) = (if ctx.is_variable_word(expanded) {
                 ctx.written_variable_type(expanded, None)
                     .and_then(|t| t.single_shape().cloned())
             } else {
@@ -908,7 +901,7 @@ fn constant_index<S: std::hash::BuildHasher>(
     if let Ok(i) = word.parse::<usize>() {
         return Some(i);
     }
-    if is_pure_var_ref(word)
+    if ctx.is_variable_word(word)
         && let Some(LatticeValue::Const(ConstValue::Int(i))) = ctx.constant_of_word(word)
     {
         return usize::try_from(*i).ok();
@@ -1026,7 +1019,7 @@ fn prior_container_elements<S: std::hash::BuildHasher>(
         }
         // A pure string constant parses to a known element count of pure
         // strings — `lappend` on `{a b}` starts from two `String` elements.
-        let rules = tcl_syntax::word_rules::WordValueRules::of_profile(ctx.registry.profile());
+        let rules = tcl_syntax::word_rules::WordValueRules::from_config(&ctx.config);
         if t.tcl_type() == Some(TclType::String)
             && let Some(LatticeValue::Const(ConstValue::String(text))) =
                 ctx.named_cell_constant(target)
@@ -1119,7 +1112,11 @@ fn normal_result_type<S: std::hash::BuildHasher>(
         return result;
     }
     let Some(invocation) =
-        crate::registry_invocation::normal_representation_invocation(ctx.registry, None, tokens)
+        crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+            ctx.registry,
+            ctx.context,
+            tokens,
+        )
     else {
         return TypeLattice::overdefined();
     };
@@ -1192,7 +1189,7 @@ fn lowered_expression_result_type<S: std::hash::BuildHasher>(
     let Some(tokens) = tokens else {
         return TypeLattice::overdefined();
     };
-    let config = tcl_lexer::LexerConfig::for_profile(ctx.registry.profile());
+    let config = ctx.config;
     let Some(calls) = crate::word_subst::checked_lifted_calls(tokens, config) else {
         return TypeLattice::overdefined();
     };
@@ -1232,7 +1229,7 @@ fn value_word_type<S: std::hash::BuildHasher>(
     retained: Option<&crate::ir::WordExpr>,
 ) -> TypeLattice {
     use crate::ir::{WordExpr, WordPart};
-    let config = tcl_lexer::LexerConfig::for_profile(ctx.registry.profile());
+    let config = ctx.config;
     let parsed = retained
         .is_none()
         .then(|| crate::value_shapes::value_word_with_config(value, config))
@@ -1252,67 +1249,21 @@ fn value_word_type<S: std::hash::BuildHasher>(
         if ctx.source.is_positioned() {
             return retained_contents_type(ctx, word);
         }
+        let Some(reference) = tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), config)
+            .ok()
+            .flatten()
+        else {
+            return TypeLattice::overdefined();
+        };
+        let Ok(name) = core::str::from_utf8(reference.name) else {
+            return TypeLattice::overdefined();
+        };
         return ctx
-            .variable_type(tcl_syntax::naming::var_reference_for_style(
-                spelling,
-                config.braced_var,
-            ))
+            .variable_type(name)
             .unwrap_or_else(TypeLattice::overdefined);
     }
     if word.sole_command_substitution().is_some() {
-        let Some(mut commands) =
-            crate::value_shapes::command_substitution_tokens(word, ctx.tokens, config)
-        else {
-            return TypeLattice::overdefined();
-        };
-        // Earlier commands may replace the last implementation or return
-        // abruptly. Their composed result is not a nominal string value.
-        if commands.len() != 1 {
-            return TypeLattice::overdefined();
-        }
-        let tokens = commands.remove(0);
-        if let Some(class_name) = tokens
-            .source_binding
-            .as_ref()
-            .and_then(|binding| binding.proved_construction_result(ctx.registry))
-        {
-            return TypeLattice::object_of(class_name);
-        }
-        let Some(invocation) =
-            crate::registry_invocation::resolved_tokens_invocation(ctx.registry, None, &tokens)
-        else {
-            return normal_result_type(ctx, &tokens);
-        };
-        if let Some(result) = prepared_expression_result_type(ctx, &tokens) {
-            return result;
-        }
-        let arguments = invocation
-            .arguments
-            .iter()
-            .map(Option::as_deref)
-            .collect::<Option<Vec<_>>>();
-        if let Some(fact) = invocation.facts.return_elements
-            && let Some(arguments) = arguments.as_ref()
-        {
-            let elements = arguments
-                .get(invocation.facts.argument_offset..)
-                .unwrap_or(&[]);
-            if let Some(value) = return_elements_lattice(
-                &ctx.with_tokens(&tokens),
-                fact,
-                elements,
-                invocation
-                    .effective
-                    .words
-                    .get(1 + invocation.facts.argument_offset..),
-            ) {
-                return value;
-            }
-        }
-        return invocation
-            .facts
-            .return_type
-            .map_or_else(TypeLattice::overdefined, TypeLattice::of);
+        return command_word_result_type(ctx, word);
     }
     match word {
         WordExpr::Literal { text, .. } | WordExpr::BracedLiteral { text, .. } => {
@@ -1324,6 +1275,71 @@ fn value_word_type<S: std::hash::BuildHasher>(
         | WordExpr::Variable { .. }
         | WordExpr::CommandSubstitution { .. } => TypeLattice::overdefined(),
     }
+}
+
+/// Type the original sole nested command using the same source metadata.
+fn command_word_result_type<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    word: &crate::ir::WordExpr,
+) -> TypeLattice {
+    let config = ctx.config;
+    let Some(mut commands) =
+        crate::value_shapes::command_substitution_tokens(word, ctx.tokens, config)
+    else {
+        return TypeLattice::overdefined();
+    };
+    // Earlier commands may replace the last implementation or return
+    // abruptly. Their composed result is not a nominal string value.
+    if commands.len() != 1 {
+        return TypeLattice::overdefined();
+    }
+    let tokens = commands.remove(0);
+    if let Some(class_name) = tokens
+        .source_binding
+        .as_ref()
+        .and_then(|binding| binding.proved_construction_result(ctx.registry))
+    {
+        return TypeLattice::object_of(class_name);
+    }
+    let Some(invocation) =
+        crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+            ctx.registry,
+            ctx.context,
+            &tokens,
+        )
+    else {
+        return normal_result_type(ctx, &tokens);
+    };
+    if let Some(result) = prepared_expression_result_type(ctx, &tokens) {
+        return result;
+    }
+    let arguments = invocation
+        .arguments
+        .iter()
+        .map(Option::as_deref)
+        .collect::<Option<Vec<_>>>();
+    if let Some(fact) = invocation.facts.return_elements
+        && let Some(arguments) = arguments.as_ref()
+    {
+        let elements = arguments
+            .get(invocation.facts.argument_offset..)
+            .unwrap_or(&[]);
+        if let Some(value) = return_elements_lattice(
+            &ctx.with_tokens(&tokens),
+            fact,
+            elements,
+            invocation
+                .effective
+                .words
+                .get(1 + invocation.facts.argument_offset..),
+        ) {
+            return value;
+        }
+    }
+    invocation
+        .facts
+        .return_type
+        .map_or_else(TypeLattice::overdefined, TypeLattice::of)
 }
 
 /// Join the actual stores reaching a read whose memory contents do not have
@@ -1389,6 +1405,7 @@ fn type_of_read_contents<S: std::hash::BuildHasher>(
             source: crate::ssa::SsaSourceView::at_statement(ctx.ssa, block, index),
             uses: &statement.uses,
             context: ctx.context,
+            config: ctx.config,
             types: ctx.types,
             values: ctx.values,
             registry: ctx.registry,
@@ -1443,11 +1460,12 @@ fn empty_source_class(
 }
 
 fn caller_safe_factory_invocation(
-    registry: &CommandRegistry,
+    metadata: TypePropagationMetadata<'_>,
     head: &str,
     args: &[&str],
     classes: &HashSet<String>,
 ) -> bool {
+    let registry = metadata.registry;
     let grammar = &tcl_registry::definer::TCLOO_GRAMMAR;
     if classes.contains(&crate::naming::normalise_qualified_name(head)) {
         return args
@@ -1459,9 +1477,14 @@ fn caller_safe_factory_invocation(
                     && args.len() == usize::from(method.constructor_args_from)
             });
     }
-    let Some(resolved) =
-        tcl_registry::model::resolve_invocation_in_context(registry, None, head, args)
-    else {
+    let Some(resolved) = tcl_registry::model::resolve_invocation_in_context(
+        registry,
+        metadata
+            .context
+            .map(crate::registry_invocation::InvocationMetadataContext::context),
+        head,
+        args,
+    ) else {
         return false;
     };
     !resolved.semantics.traits.intersects(
@@ -1476,9 +1499,10 @@ fn caller_safe_factory_invocation(
 /// edge withdraws the proof for the whole function.
 fn has_only_caller_safe_factories<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
-    registry: &CommandRegistry,
+    metadata: TypePropagationMetadata<'_>,
     known_classes: &HashSet<String, S>,
 ) -> bool {
+    let registry = metadata.registry;
     if cfg.name != "::top"
         || known_classes.is_empty()
         || !cfg.exception_edges.is_empty()
@@ -1540,7 +1564,7 @@ fn has_only_caller_safe_factories<S: std::hash::BuildHasher>(
                     continue;
                 }
                 if !caller_safe_factory_invocation(
-                    registry,
+                    metadata,
                     command,
                     &args.iter().map(String::as_str).collect::<Vec<_>>(),
                     &classes,
@@ -1551,28 +1575,46 @@ fn has_only_caller_safe_factories<S: std::hash::BuildHasher>(
             Statement::AssignConst { .. } | Statement::AssignValue { .. } => {}
             _ => return false,
         }
-        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, registry);
-        if embedded.opaque {
+        if !substitutions_have_only_caller_safe_factories(stmt, metadata, &classes) {
             return false;
-        }
-        for words in embedded.all_commands() {
-            let Some(head) = words
-                .first()
-                .and_then(crate::ir_helpers::CommandWord::literal)
-            else {
-                return false;
-            };
-            let args: Vec<_> = words
-                .iter()
-                .skip(1)
-                .map(|word| word.literal().unwrap_or("<dynamic>"))
-                .collect();
-            if !caller_safe_factory_invocation(registry, head, &args, &classes) {
-                return false;
-            }
         }
     }
     !classes.is_empty()
+}
+
+/// Check nested operands without selecting a fresh context or lexer policy.
+fn substitutions_have_only_caller_safe_factories(
+    stmt: &Statement,
+    metadata: TypePropagationMetadata<'_>,
+    classes: &HashSet<String>,
+) -> bool {
+    let registry = metadata.registry;
+    let embedded = crate::ir_helpers::evaluated_command_substitutions_with_metadata_context(
+        stmt,
+        registry,
+        metadata.context,
+        metadata.config,
+    );
+    if embedded.opaque {
+        return false;
+    }
+    for words in embedded.all_commands() {
+        let Some(head) = words
+            .first()
+            .and_then(crate::ir_helpers::CommandWord::literal)
+        else {
+            return false;
+        };
+        let args: Vec<_> = words
+            .iter()
+            .skip(1)
+            .map(|word| word.literal().unwrap_or("<dynamic>"))
+            .collect();
+        if !caller_safe_factory_invocation(metadata, head, &args, classes) {
+            return false;
+        }
+    }
+    true
 }
 
 /// How one statement types the variable(s) it defines.
@@ -1651,7 +1693,11 @@ fn evaluate_call_type_def<S: std::hash::BuildHasher>(
     if let Some(tokens) = stmt.tokens()
         && let Some(binding) = tokens.source_binding.as_ref()
         && let Some(normal) =
-            crate::registry_invocation::normal_transfer_invocation(ctx.registry, None, tokens)
+            crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+                ctx.registry,
+                ctx.context,
+                tokens,
+            )
     {
         if let Some((value, word)) =
             normal.stored_value_operand(&binding.variable_context, ctx.registry)
@@ -1681,7 +1727,11 @@ fn evaluate_call_type_def<S: std::hash::BuildHasher>(
     // `interp alias {} myset {} set` — is typed by the *real* command's
     // registry spec, not left as an unknown `Call` (OVERDEFINED).
     let proven = stmt.tokens().map(|_| {
-        crate::registry_invocation::resolved_statement_invocation(ctx.registry, None, stmt)
+        crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+            ctx.registry,
+            ctx.context,
+            stmt,
+        )
     });
     if matches!(proven, Some(None)) {
         return DefTyping::Uniform(TypeLattice::overdefined());
@@ -1760,7 +1810,8 @@ fn written_call_type<S: std::hash::BuildHasher>(
     };
     let resolved = tcl_registry::model::resolve_invocation_in_context(
         ctx.registry,
-        ctx.context,
+        ctx.context
+            .map(crate::registry_invocation::InvocationMetadataContext::context),
         canon,
         arg_refs,
     );
@@ -1910,7 +1961,7 @@ fn elements_of_def_typing<S: std::hash::BuildHasher>(
     // lassign: targets follow the container word.
     let container = args.get(usize::from(container_arg));
     let elements = container
-        .filter(|w| is_pure_var_ref(w))
+        .filter(|w| ctx.is_variable_word(w))
         .and_then(|w| ctx.written_variable_type(w, None))
         .and_then(|t| t.elements().cloned());
     for (i, def) in defs.iter().enumerate() {
@@ -1942,7 +1993,7 @@ fn container_word_shape<S: std::hash::BuildHasher>(
     word: &str,
 ) -> Option<TypeShape> {
     let word = word.trim();
-    if is_pure_var_ref(word) {
+    if ctx.is_variable_word(word) {
         return ctx
             .written_variable_type(word, None)
             .and_then(|t| t.single_shape().cloned());
@@ -2015,7 +2066,9 @@ fn foreach_var_lattice(container_shape: Option<&TypeShape>, nvars: usize, j: usi
     }
 }
 
-/// Run type propagation over one SSA function.
+/// Run type propagation with an explicitly supplied standalone command store.
+/// Actual function/unit consumers use [`propagate_types_with_metadata_context`]
+/// with their retained source metadata and configuration.
 ///
 /// Returns a map from `(variable_name, ssa_version)` to inferred
 /// `TypeLattice`. Values absent from the map are implicitly `Unknown`.
@@ -2053,23 +2106,60 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
     extra_global_escaping: &HashSet<String, S>,
     trace_facts: crate::compilation_unit::ModuleTraceFacts<'_>,
 ) -> HashMap<ValueKey, TypeLattice> {
-    let context = registry.profile().map(tcl_registry::model::semantic::SemanticContext::for_profile).map(Into::into);
+    let context = registry
+        .profile()
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+        .map(Into::into);
     propagate_types_with_metadata_context(
-        cfg, ssa, sccp,
-        TypePropagationMetadata { registry, context, numbers: numbers_of(registry) },
-        known_classes, extra_global_escaping, trace_facts,
+        cfg,
+        ssa,
+        sccp,
+        TypePropagationMetadata {
+            registry,
+            context,
+            config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            numbers: numbers_of(registry),
+        },
+        known_classes,
+        extra_global_escaping,
+        trace_facts,
     )
 }
 
-/// Exact source metadata and numeric grammar used by the type solver.
+/// Exact source metadata and lexical/numeric grammar used by the type solver.
 #[derive(Clone, Copy)]
 pub struct TypePropagationMetadata<'a> {
     /// Actual command store used by this graph.
     pub registry: &'a CommandRegistry,
     /// Supplied complete availability, independent of an executing interpreter.
     pub context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    /// Exact original source lexical and list policy.
+    pub config: tcl_lexer::LexerConfig,
     /// Exact source numeric grammar.
     pub numbers: NumberSyntax,
+}
+
+impl<'a> TypePropagationMetadata<'a> {
+    /// Borrow all typing premises from one genuine function input.
+    /// Missing input, a foreign store or inconsistent source policy declines.
+    #[must_use]
+    pub fn for_function(
+        function: &'a crate::compilation_unit::FunctionUnit,
+        registry: &'a CommandRegistry,
+    ) -> Option<Self> {
+        let input = function.source_metadata_input()?;
+        let context = function.invocation_metadata_context(registry)?;
+        let config = function.source_lexer_config();
+        if config.normalized() != input.lexer_config().normalized() {
+            return None;
+        }
+        Some(Self {
+            registry,
+            context: Some(context),
+            config,
+            numbers: input.unit_profile().grammar.numbers,
+        })
+    }
 }
 
 /// Infer source values under retained metadata without recreating availability.
@@ -2084,13 +2174,20 @@ pub fn propagate_types_with_metadata_context<S: std::hash::BuildHasher>(
     trace_facts: crate::compilation_unit::ModuleTraceFacts<'_>,
 ) -> HashMap<ValueKey, TypeLattice> {
     let registry = metadata.registry;
-    let Some(context) = metadata.context.filter(|context| context.matches_registry(registry)) else {
+    let Some(context) = metadata
+        .context
+        .filter(|context| context.matches_registry(registry))
+    else {
         return HashMap::new();
     };
     let preds = cfg.predecessors();
     let order = crate::sccp::cfg_order(cfg);
-    let mut escaping =
-        crate::var_observability::analyse_var_observability_with_metadata_context(cfg, registry, Some(context)).escaping_var_names();
+    let mut escaping = crate::var_observability::analyse_var_observability_with_metadata_context(
+        cfg,
+        registry,
+        Some(context),
+    )
+    .escaping_var_names();
     if !extra_global_escaping.is_empty() {
         escaping.extend(extra_global_escaping.iter().cloned());
     }
@@ -2098,13 +2195,13 @@ pub fn propagate_types_with_metadata_context<S: std::hash::BuildHasher>(
     // Constructor heads written `[Foo new]` inside this function resolve
     // relative names against the function's own namespace.
     let namespace = function_namespace(&cfg.name);
-    // The I4 binding proof for spec-fact specialisation: the dialect-
-    // selected registry's own environment context (a profile-less
-    // registry carries no obligation).
+    // Every nested query borrows the same complete source availability and
+    // lexical policy; neither is reconstructed from the registry profile.
     let ctx = StatementTypingCtx {
         preparations: &cfg.expression_preparations,
         ssa,
-        context: Some(context.context()),
+        context: Some(context),
+        config: metadata.config,
         registry,
         known_classes,
         namespace: &namespace,
@@ -2115,7 +2212,7 @@ pub fn propagate_types_with_metadata_context<S: std::hash::BuildHasher>(
     };
 
     let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();
-    let caller_safe_factories = has_only_caller_safe_factories(cfg, registry, known_classes);
+    let caller_safe_factories = has_only_caller_safe_factories(cfg, metadata, known_classes);
     for (block, markers) in &ssa.value_clobbers {
         if sccp.executable_blocks.contains(block) {
             for versions in markers.values() {
@@ -2216,8 +2313,9 @@ pub fn propagate_types_with_metadata_context<S: std::hash::BuildHasher>(
 struct StatementTypingCtx<'a, S: std::hash::BuildHasher> {
     preparations: &'a [crate::command_binding::SourceExpressionPreparation],
     ssa: &'a SsaFunction,
-    /// See [`WordTypingCtx::context`].
-    context: Option<&'a tcl_registry::model::ResolvedContext>,
+    /// Same retained metadata as each original word query.
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    config: tcl_lexer::LexerConfig,
     registry: &'a CommandRegistry,
     known_classes: &'a HashSet<String, S>,
     namespace: &'a str,
@@ -2230,7 +2328,7 @@ struct StatementTypingCtx<'a, S: std::hash::BuildHasher> {
     /// `trace_facts.traced_variables`).
     escaping: &'a HashSet<String>,
     has_dynamic_variable_trace: bool,
-    /// The target release's numeric-literal grammar — see [`numbers_of`].
+    /// The actual source's numeric-literal grammar.
     numbers: NumberSyntax,
 }
 
@@ -2280,6 +2378,7 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                     source,
                     uses: &ssa_stmt.uses,
                     context: ctx.context,
+                    config: ctx.config,
                     types,
                     values: ctx.values,
                     registry: ctx.registry,
@@ -2380,11 +2479,11 @@ pub(crate) fn infer_function_return_type<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     sccp: &SccpResult,
     types: &HashMap<ValueKey, TypeLattice>,
-    registry: &CommandRegistry,
+    metadata: TypePropagationMetadata<'_>,
     known_classes: &HashSet<String, S>,
     ssa: &SsaFunction,
 ) -> TypeLattice {
-    infer_function_return_type_with_results(cfg, sccp, types, registry, known_classes, ssa, None)
+    infer_function_return_type_with_results(cfg, sccp, types, metadata, known_classes, ssa, None)
 }
 
 /// Conditional normal result inference with independently retained callee body
@@ -2393,15 +2492,20 @@ pub(crate) fn infer_function_return_type_with_results<S: std::hash::BuildHasher>
     cfg: &CfgFunction,
     sccp: &SccpResult,
     types: &HashMap<ValueKey, TypeLattice>,
-    registry: &CommandRegistry,
+    metadata: TypePropagationMetadata<'_>,
     known_classes: &HashSet<String, S>,
     ssa: &SsaFunction,
     normal_results: Option<&NormalProcedureResultTypes>,
 ) -> TypeLattice {
+    let registry = metadata.registry;
+    let Some(context) = metadata
+        .context
+        .filter(|context| context.matches_registry(registry))
+    else {
+        return TypeLattice::unknown();
+    };
     let namespace = function_namespace(&cfg.name);
-    // The registry is the dialect-selected one, so it carries the numeral
-    // grammar the return literals must be read under (see [`numbers_of`]).
-    let numbers = numbers_of(registry);
+    let numbers = metadata.numbers;
     let mut result: Option<TypeLattice> = None;
     for (bn, block) in &cfg.blocks {
         if !sccp.executable_blocks.contains(bn) {
@@ -2424,7 +2528,8 @@ pub(crate) fn infer_function_return_type_with_results<S: std::hash::BuildHasher>
                     tokens: tokens.as_deref(),
                     source: crate::ssa::SsaSourceView::at_terminator(ssa, *bn),
                     uses: &ssa_block.exit_versions,
-                    context: None,
+                    context: Some(context),
+                    config: metadata.config,
                     types,
                     values: &sccp.values,
                     registry,
@@ -2468,6 +2573,163 @@ mod tests {
     use tcl_lexer::Span;
 
     #[test]
+    fn original_type_metadata_retains_actual_availability_and_independent_source_grammar() {
+        // naming.compiler.retained-representation-metadata
+        // docs/design/analysis/name-resolution-proofs/retained-representation-metadata.md
+        use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+        use std::sync::Arc;
+
+        let base =
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut commands = base
+            .commands()
+            .project_for_profile(base.commands().profile().unwrap());
+        commands.insert_ambient_package("example", "1.0");
+        let actual = Arc::new(base.with_command_store(Arc::new(commands)));
+        let registry = actual.commands();
+        let config = tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+            list_parse: tcl_dialect::ListParse::Lenient,
+            ..tcl_lexer::LexerConfig::for_profile(Some(profile))
+        };
+        let unit = CompilationUnit::build_with_context_registry(
+            "proc f {lst} {return [llength $lst]}",
+            UnitBuildOptions {
+                registry,
+                dialect: Some(profile),
+                defer_top_level: false,
+                config,
+                declared_commands: None,
+                external_call_sites: None,
+            },
+            None,
+            Arc::clone(&actual),
+        );
+        let function = unit.function("::f").unwrap();
+        let metadata = TypePropagationMetadata::for_function(function, registry).unwrap();
+        assert!(core::ptr::eq(
+            metadata.context.unwrap().context(),
+            actual.context()
+        ));
+        assert!(
+            metadata
+                .context
+                .unwrap()
+                .context()
+                .ambient_package("example")
+        );
+        assert_eq!(metadata.config, config);
+        assert_eq!(metadata.numbers, profile.grammar.numbers);
+        assert_ne!(metadata.numbers, registry.numbers());
+        assert!(
+            tcl_syntax::word_rules::WordValueRules::from_config(&metadata.config)
+                .split_list("{a")
+                .is_ok()
+        );
+        assert!(
+            tcl_syntax::word_rules::WordValueRules::TCL
+                .split_list("{a")
+                .is_err()
+        );
+        assert_eq!(
+            tcl_lexer::word_parts::whole_var_ref(b"${a{b}", metadata.config)
+                .unwrap()
+                .unwrap()
+                .name,
+            b"a{b",
+        );
+        assert!(
+            tcl_lexer::word_parts::whole_var_ref(
+                b"${a{b}",
+                tcl_lexer::LexerConfig::for_profile(Some(profile)),
+            )
+            .is_err()
+        );
+        let mut stale = function.clone();
+        stale.source_config.braced_var = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+        assert!(TypePropagationMetadata::for_function(&stale, registry).is_none());
+    }
+
+    #[test]
+    fn original_type_consumers_keep_positive_normal_results_and_refuse_missing_foreign_metadata() {
+        // naming.compiler.retained-representation-metadata
+        // docs/design/analysis/name-resolution-proofs/retained-representation-metadata.md
+        use crate::compilation_unit::CompilationUnit;
+
+        let registry = registry();
+        let unit = CompilationUnit::build_for(
+            "proc f {lst} {set x [llength $lst]; return $x}",
+            &registry,
+            false,
+        );
+        let function = unit.function("::f").unwrap();
+        let classes: HashSet<String> = HashSet::new();
+        let escaping: HashSet<String> = HashSet::new();
+        let metadata = TypePropagationMetadata::for_function(function, &registry).unwrap();
+        let infer = |metadata| {
+            infer_function_return_type(
+                &function.cfg,
+                &function.sccp,
+                &function.types,
+                metadata,
+                &classes,
+                &function.ssa,
+            )
+        };
+        let propagate = |metadata| {
+            propagate_types_with_metadata_context(
+                &function.cfg,
+                &function.ssa,
+                &function.sccp,
+                metadata,
+                &classes,
+                &escaping,
+                crate::compilation_unit::ModuleTraceFacts::none(),
+            )
+        };
+        assert_eq!(infer(metadata).tcl_type(), Some(TclType::Int));
+        assert!(!propagate(metadata).is_empty());
+        let missing = TypePropagationMetadata {
+            context: None,
+            ..metadata
+        };
+        assert_eq!(infer(missing).kind(), TypeKind::Unknown);
+        assert!(propagate(missing).is_empty());
+        let mut foreign = tcl_registry::CommandRegistry::build_default();
+        let mut changed = foreign.get("llength").unwrap().clone();
+        changed.return_type = Some(TclType::String);
+        foreign.insert(changed);
+        let foreign_metadata = TypePropagationMetadata {
+            registry: &foreign,
+            ..metadata
+        };
+        assert_eq!(infer(foreign_metadata).kind(), TypeKind::Unknown);
+        assert!(propagate(foreign_metadata).is_empty());
+        assert!(TypePropagationMetadata::for_function(function, &foreign).is_none());
+        let mut absent = function.clone();
+        absent.source_metadata_input = None;
+        assert!(TypePropagationMetadata::for_function(&absent, &registry).is_none());
+        let replacement = CompilationUnit::build_for(
+            "proc llength {lst} {return other}; proc f {lst} {set x [llength $lst]; return $x}",
+            &registry,
+            false,
+        );
+        let replaced = replacement.function("::f").unwrap();
+        let replacement_metadata =
+            TypePropagationMetadata::for_function(replaced, &registry).unwrap();
+        let replacement_result = infer_function_return_type(
+            &replaced.cfg,
+            &replaced.sccp,
+            &replaced.types,
+            replacement_metadata,
+            &classes,
+            &replaced.ssa,
+        );
+        assert_ne!(replacement_result.tcl_type(), Some(TclType::Int));
+    }
+
+    #[test]
     fn positional_type_facts_retain_native_cell_keys_without_display_lookup() {
         use crate::command_binding::SourceNamespaceKey;
         use crate::var_resolve::VariableProofRelocation;
@@ -2505,7 +2767,11 @@ mod tests {
             tokens: None,
             source: crate::ssa::SsaSourceView::unpositioned(&ssa),
             uses: &uses,
-            context: None,
+            context: registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                .map(Into::into),
+            config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
             types: &types,
             values: &values,
             registry: &registry,
@@ -2555,7 +2821,11 @@ mod tests {
             tokens: stmt.tokens(),
             source: crate::ssa::SsaSourceView::unpositioned(ssa),
             uses: &uses,
-            context: None,
+            context: registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                .map(Into::into),
+            config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
             types: &types,
             values: &values,
             registry,

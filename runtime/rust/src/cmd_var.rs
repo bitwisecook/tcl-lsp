@@ -618,6 +618,9 @@ mod tests {
 
     #[test]
     fn whole_array_destruction_preserves_staged_native_member_lifetimes() {
+        // naming.variable.original-array-member-trace-retirement-horizon
+        // docs/design/analysis/name-resolution-proofs/variable-original-array-member-trace-retirement-horizon.md
+        // Whole public callback logs, including later-member trace registration.
         use tcl_syntax::execution_conformance::{vectors, ExecutionDomain};
         let cases: Vec<_> = vectors(ExecutionDomain::CommandBinding)
             .into_iter()

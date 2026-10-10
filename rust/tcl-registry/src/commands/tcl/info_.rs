@@ -1222,6 +1222,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "script",
+        source_path_operation: Some(SourcePathOperation::ScriptPath),
         native_compilation: Some(named_member_compilation(
             &INFO_NAMED_LOOKUPS[15],
             Arity::new(0, 1),

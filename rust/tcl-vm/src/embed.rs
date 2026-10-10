@@ -436,13 +436,32 @@ impl Vm {
         self.run_compiled_unit(handle.state.borrow().unit.clone())
     }
 
-    /// Register an embedder command carrying its own state.
+    /// Register an embedder command using the selected script declaration policy.
     ///
-    /// The name is a plain command name (`fold`, `role`) or a qualified one;
-    /// it replaces any existing command of that name, exactly as a `proc`
-    /// redefinition does.
+    /// Plain and qualified names publish as procedure declarations in the actual
+    /// current namespace. Original byte extents and qualifier routing belong to
+    /// the shared naming owner. Existing commands in the selected slot are replaced.
+    /// An unavailable policy retains a host execution refusal; use
+    /// [`Self::try_register_native_command`] to receive it directly.
     pub fn register_native_command(&mut self, name: &str, command: Rc<dyn NativeCommand>) {
-        self.register_written_command(name, Command::Native(command));
+        if let Err(error) = self.try_register_native_command(name, command) {
+            let _ = self.refuse_host_command(error.to_string());
+        }
+    }
+
+    /// Register a host command through the same checked script-publication owner.
+    ///
+    /// # Errors
+    /// Refuses an unavailable naming policy, actual namespace context or retired
+    /// interpreter before publishing a command. A compatible source profile
+    /// supplies no missing native naming authority.
+    pub fn try_register_native_command(
+        &mut self,
+        name: &str,
+        command: Rc<dyn NativeCommand>,
+    ) -> Result<(), crate::NativeCommandLookupUnavailable> {
+        self.register_written_command(name, Command::Native(command))
+            .map(|_| ())
     }
 
     /// Grant a private alias a concrete native host grammar. The original must
@@ -464,14 +483,25 @@ impl Vm {
             implementation,
             profile,
         };
-        self.framework_builtins.push(capability.clone());
-        self.install_framework_builtin(capability);
+        if !self.install_framework_builtin(capability.clone()) {
+            return false;
+        }
+        self.framework_builtins.push(capability);
         true
     }
 
-    pub(crate) fn install_framework_builtin(&mut self, capability: FrameworkBuiltinCapability) {
+    pub(crate) fn install_framework_builtin(
+        &mut self,
+        capability: FrameworkBuiltinCapability,
+    ) -> bool {
         let alias = capability.alias.clone();
-        self.register_written_command(&alias, Command::Native(Rc::new(capability)));
+        match self.register_written_command(&alias, Command::Native(Rc::new(capability))) {
+            Ok(_) => true,
+            Err(error) => {
+                let _ = self.refuse_host_command(error.to_string());
+                false
+            }
+        }
     }
 
     /// Every registered command's exact native display bytes, sorted.

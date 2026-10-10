@@ -1726,7 +1726,29 @@ belong to that exact script and checks the retained alternatives for conflict.
 CFG consumers use `Function::source_tokens_at(block, index)` and the separate
 captured-iteration input query. They must not borrow an original IR carrier by
 matching a cloned statement's span. A synthetic iteration input cannot grant a
-new invocation or another variable read.
+new invocation or another variable read. A conflicting retained carrier declines
+even when the statement has a direct token vector. The shared ownership query
+must arbitrate all retained alternatives before operation selection.
+
+`CompilationUnit::build_with_analysis_input(source, options, entry, input)`
+retains the complete caller input through lowering, the module and its function
+units. Keep its ContextRegistry, lexer configuration and independently selected
+source entry together. A supplied entry remains authoritative. Without an
+explicit entry, `SourceAnalysisEntry::for_supplied_source` selects source advice
+only when the input positively supplies the matching Logical or hosted policy.
+Native, missing and contradictory inputs remain unknown; metadata availability
+provides no Native execution entry.
+
+A caller using `Lowerer` directly retains that input with
+`with_resolved_analysis_input(input.clone())`. That builder shares the supplied
+source-entry policy while preserving an explicitly selected entry. Retain the
+complete input instead of copying its ContextRegistry alone. Use
+`InvocationMetadataContext::for_source_input` or `for_module` to validate the
+actual unit profile, complete lexer configuration and command generation at
+metadata joins. Keep an actual Native entry separate. Constructed literal
+bodies in global and caller-frame summaries retain the same source-advice
+policy; their possible write footprint grants no entered frame, physical link
+or store.
 
 Synthetic optimisation modules retain all three ingress facts: the actual
 lexer configuration, resolved dialect profile and registry snapshot. The
@@ -5526,6 +5548,31 @@ independent. See the
 and its separate
 [exact native source controls](../analysis/name-resolution-proofs/static-original-text-controls.md).
 
+### Retire literal owners after releasing table borrows
+
+`NativeLiteralWorld::release` retires the registration and returns the detached
+final owner as `Option<V>`. A remaining registration lease returns `None`.
+The caller disposes of a returned owner after releasing every mutable table or
+pool borrow. The owner's destructor can release registrations from nested
+bytecode in the same literal world.
+
+```rust
+let retired = world.borrow_mut().release(registration);
+drop(retired);
+```
+
+Keep these as separate statements. An inline
+`drop(world.borrow_mut().release(registration))` retains the `RefMut` through
+the destructor and prevents a nested release from borrowing the world. Pool
+adapters follow the same rule for outer pool borrows and inner world borrows;
+local slot removal also detaches its value before disposal. Registration
+observations are withdrawn before the detached owner can invoke cleanup.
+
+The shared API and registered-bytecode controls test reentrant Rust ownership.
+They supply no C Tcl or Jim private destructor, object identity or namespace
+chronology claim. See the
+[literal owner contract](../analysis/name-resolution-proofs/runtime-original-literal-owner-retirement.md).
+
 ## Retain original source values independently of display and cache state
 
 `OriginalProducedNameValue` retains native data bytes, the independently selected
@@ -8028,6 +8075,78 @@ See the [metadata contract](../analysis/name-resolution-proofs/original-analysis
 [source-body purpose](../analysis/name-resolution-proofs/original-script-region-purpose.md)
 and [callback target contract](../analysis/name-resolution-proofs/source-original-callback-procedure-target.md).
 
+### Executable IR and semantic metadata
+
+Use `build_linear_executable_ir_with_metadata_context` for executable source
+metadata. It accepts the actual `InvocationMetadataContext`; missing or foreign
+input returns `ExecutableMetadataBuildDecline::ContextUnavailable` before source
+visitation. A source shape outside the supported projection returns
+`ExecutableMetadataBuildDecline::Source`. Recursive bodies and original
+substitutions retain the supplied availability. A profile label or matching
+catalogue cannot recreate this owner.
+
+`FunctionUnit::invocation_metadata_context` validates its retained input against
+its actual command store and source grammar. A consumer combining a function
+with its Module uses `invocation_metadata_context_for_module`; both retained
+inputs must share the actual `ContextRegistry`, analyser and unit profiles and
+hosted source policy. Each grammar is checked against its own input, including
+nested-body BOM policy and lexer overlays. Clearing the Module input cannot be
+repaired by a surviving function copy. For example:
+
+```rust
+fn executable_source_metadata(
+    unit: &tcl_compiler::compilation_unit::CompilationUnit,
+    registry: &tcl_registry::CommandRegistry,
+) -> Result<
+    tcl_compiler::executable_ir::ExecutableFunction,
+    tcl_compiler::executable_ir::ExecutableMetadataBuildDecline,
+> {
+    use tcl_compiler::executable_ir::{
+        build_linear_executable_ir_with_metadata_context, ExecutableFunctionId,
+    };
+    let module = &unit.ir_module;
+    let context = unit.top_level.invocation_metadata_context_for_module(registry, module);
+    build_linear_executable_ir_with_metadata_context(
+        registry, context, ExecutableFunctionId::new(0), &module.top_level,
+    )
+}
+```
+
+`SemanticAnalysisBundle::build_with_metadata_context` retains full semantic
+facts under this owner. Its interactive companion,
+`build_for_interactive_analysis_with_metadata_context`, retains source
+invocations while preserving the selected dispatch entry and world-state cost
+contract. Function-unit builders use `with_retained_semantic_analysis` with the
+original body and their retained input. `CompilationUnit::with_retained_deep_semantic_analysis`
+uses the supplied full builder across its top level, procedures, methods and
+body units. Lattice and memoised body callers retain
+the genuine nested input; they preserve vendor policies and availability while
+projecting the body's lexer coordinates.
+
+When no body is supplied,
+`SemanticAnalysisBundle::unavailable_with_metadata_context(registry, context)`
+retains a valid metadata owner and reports `SourceUnavailable`. Missing or
+foreign context reports `ContextUnavailable`. Readonly metadata queries remain
+independent of the absent executable body.
+
+For a supplied bundle, `metadata_context()` exposes the complete retained
+`ResolvedContext`, including overlays and package availability. `context()`
+belongs to the explicitly standalone scalar `SemanticContext` API and remains
+`None` for supplied bundles. In an explicit standalone bundle,
+`metadata_context()` exposes the exact resolved context of the already retained
+scalar handle. The getter supplies no default context for missing input. The
+explicit standalone builders remain separate contracts and cannot serve as a
+fallback for withheld document input.
+
+Metadata availability supplies no Native command entry, actual activation,
+compiler admission, variable receiver, successful normal completion or effect
+closure. Codegen retains those independent proofs and the original source
+words. A structured lowering node's operation label cannot recreate consumed
+command tokens or donate a binding. Tests distinguish same-store availability,
+missing and foreign owners, stale grammar, conflicting original carriers and
+nested lexer overlays. See the
+[analysis metadata contract](../analysis/name-resolution-proofs/original-analysis-metadata-context.md).
+
 ## Typed original callback signatures
 
 Retain `OriginalCallbackPrefix` independently of mutable invocation display
@@ -8787,13 +8906,18 @@ the name. Use the sigil-aware reference parser only for actual source variable
 references; read spans come from the original source and retained lexer
 configuration, including the complete braced wrapper.
 
-Possible object results use `registry_invocation::retained_source_metadata_context`
-to join the supplied Registry and retained `ResolvedAnalysisInput`, then
-`advisory_value_assignments_in_context` and `advisory_return_values_in_context`.
-The analyser also verifies the exact source image, lexer configuration and
-`Module.source_metadata_input`. Missing or foreign context supplies no
-factory advice. A possible result remains a possible result; it cannot donate
-a completed store, live object, current class or entered command.
+Possible object results with an owning Module use
+`registry_invocation::retained_module_metadata_context(registry, module)`.
+That shared adapter applies `InvocationMetadataContext::for_module` before
+joining availability to the command store: the Module's unit profile, complete
+lexer policy and retained input must agree. The input-only
+`retained_source_metadata_context` adapter serves requests with no owning
+Module. Consumers then call `advisory_value_assignments_in_context` and
+`advisory_return_values_in_context`. The analyser independently verifies the
+exact source image and its correspondence with `Module.source_metadata_input`.
+Missing, foreign or mismatched context supplies no factory advice. A possible
+result remains a possible result; it cannot donate a completed store, live
+object, current class or entered command.
 
 The regexp/scan no-match diagnostic selects its layout from genuine original
 Registry words and typed conditional output operands. Captured alias arguments
@@ -8863,3 +8987,144 @@ purposes. The [native scripted-library consumer guide](../../../rust/tcl-registr
 provides the current installer and forwarding APIs and links their independent
 public observations. The [scalar source-emitter contract](../analysis/name-resolution-proofs/expression-scalar-reference-constant-source-projection.md)
 records its exact parsing and constant-key bounds.
+
+## Function metadata and conditional write footprints
+
+Use `FunctionUnit::invocation_metadata_context(registry)` for a function's
+complete retained metadata, and `FunctionUnit::source_lexer_config()` for its
+exact source grammar. The supplied Registry must match the input's immutable
+command generation. A missing or foreign input is unavailable; a catalogue
+profile cannot replace it. A function used with its Module calls
+`invocation_metadata_context_for_module(registry, module)`, which checks both
+producers against the same actual input, availability generation and profile.
+The Module's retained input must travel through secondary body builders and
+function-lattice requests. Module-level metadata joins use
+`InvocationMetadataContext::for_module`; `retained_module_metadata_context`
+returns its checked ContextRegistry for internal consumers that need the owned
+availability handle. Keep `for_source_input` for requests that have their full
+input and exact source configuration but no Module.
+
+```rust
+fn function_metadata<'a>(
+    function: &'a tcl_compiler::compilation_unit::FunctionUnit,
+    registry: &tcl_registry::CommandRegistry,
+    module: &tcl_compiler::ir::Module,
+) -> Option<tcl_compiler::registry_invocation::InvocationMetadataContext<'a>> {
+    function.invocation_metadata_context_for_module(registry, module)
+}
+```
+
+Global-write summaries select their metadata through `for_module` and retain
+its exact lexer configuration and shared original command bindings. Structural IR
+destinations use `structural_variable_write_projection`; generic calls use
+the retained selected invocation and Registry operand roles. Original alias
+captures remain before the written arguments. `uplevel`/`upvar` body consumers
+share `script_value_write_projection_with_metadata_context` with the selected
+namespace, actual metadata and exact configuration. Unknown body, frame level,
+argument role or context contributes an opaque footprint rather than an empty
+write set. Embedded expression calls also participate in the source procedure
+summary closure. These are conditional source footprints, not measured writes
+or selected Native frames and cells.
+
+Diagnostic definition places and existence guards take the same function
+metadata. Missing/foreign input, refused availability and a mismatched source
+grammar withdraw advice. Existence-query operands describe a conditional guard;
+they cannot establish the current query result, physical storage contents or
+permission to remove an original read. See the [metadata contract](../analysis/name-resolution-proofs/original-analysis-metadata-context.md)
+and [existence metadata contract](../analysis/name-resolution-proofs/retained-existence-metadata.md).
+
+Read-before-set suppression for a concatenating script retains the genuine
+installer's whole source vector, original lookup state and namespace, exact
+source image and complete metadata input. The materialized text is scanned by
+`script_value_possible_writes_with_metadata_context`; it receives possible
+names and an opaque residual, without an authored child word, source span,
+Native evaluation entry or current write. Select immediate bodies from the
+already selected Registry descriptor, including its `BodyKind::Plain`, current
+interpreter and same-invocation timing. A scoped descriptor keeps its own
+selection; querying the global catalogue by the displayed command name cannot
+replace it.
+
+Expression suppression starts with the original Expr operand content base.
+`OriginalRegistryWords::source_expression_script_bodies_at` selects its unique
+complete source operand, including a particular operand among multiple Expr
+roles. Each original bracketed command then uses its own retained lookup
+position. The outer assignment's post-substitution state cannot replace that
+position: an earlier `[set x value]` stays independent of a later rename in the
+same expression. Captured aliases retain their declaration values and held
+target names. Known replacements and unavailable descriptors supply no borrowed
+stock writes. CFG condition footprints use the same retained context and
+literal-name owner; they remain analysis facts. The [materialized footprint
+contract](../analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md)
+records the bounded source/API controls independently of provider execution.
+
+## Typed write-chain source proposals
+
+O104/O130 select variable operations through actual retained invocation facts,
+including the Registry's typed lowering and analyser hooks. Original alias
+captures and moved commands keep their selected static operands. A frozen
+value obtained by a substitution cannot replace an original static operand:
+dropping the substitution could remove an observer. Source roles, accepted
+arity, exact grammar and the same supplied generation remain required.
+
+Literal variable names use the closed `split_element_ref` owner. A leading
+`$` or unmatched final parenthesis remains part of a scalar name. Complete
+array operands require an independent index/cell proof and do not acquire one
+from the scalar chain recipe. Shared literal source renderers quote the exact
+selected name; reference-sigil normalisation is not a destination-name parser.
+A traced or aliased interleaved write ends the chain because its callback can
+observe the accumulator.
+
+The proposed rooted setter is derived from the selected setter descriptor.
+Its independent whole-unit command-mutation guard remains required because
+the unwritten head has no original invocation receipt. Genuine retained
+Logical compatibility can emit grouped source rewrites. A Native handler
+layout supplies a hint only: source pattern, static values and quiet source
+hazards do not certify Native intermediate-store erasure or result-object
+equivalence. `hint_only` prevents those proposals from being applied.
+
+## Original selector and procedure usage rendering
+
+`InvocationDialect::native_info_original_option_protocol` selects the
+original C8.4 legacy option door. The independently selected
+`native_info_original_missing_selector_usage` supplies each supported C
+provider's missing-selector usage suffix. Runtime and VM consume these shared
+purpose queries; Jim retains its separate `NativeJimInfoProtocol`. Version
+labels and quoted display names do not select another provider's grammar.
+See the [original selector dispatch observations](../analysis/name-resolution-proofs/info-original-missing-and-empty-selector-dispatch.md).
+
+Procedure usage names and messages use
+`NativeUsageProtocol::render_procedure_name` and `render_procedure_message`.
+The original called-name bytes, selected header bytes and formal usage suffix
+remain separate inputs. Jim's called-name rendering preserves the original
+raw bytes, while its assembled formatter result has the independently selected
+CString extent. Rendering does not establish command lookup, original object
+identity, a live procedure header or interpreter entry.
+
+## Declaration arguments and retained frame slots
+
+Use `OriginalDeclaredProcedureArgumentSlots` for the argument positions of a
+newly compiled original procedure. Its shared issuer requires `WholeModule`
+scope, the actual declaration image and body, complete original formal topology,
+fixed scalar arguments, and a selected compiled-variable protocol supporting
+`DeclareProcedure`. Counted names and compiler first-primary comparison select
+the proposed argument ordinal. Defaults, rest arguments, caller links,
+collisions, a missing protocol or a replaced source producer withdraw it.
+
+`MaterialisableSlotAuthority::SourceFormal` retains this declaration receipt
+and the exact SSA activation cell. Every represented use must match the
+original topology and activation, with independently closed observers. A
+parent Native compilation entry does not turn the new declaration's arguments
+into slots borrowed from that parent's frame.
+
+Use `OriginalNativeFrameSlot` for an existing root frame. It requires the
+retained layout owner and incarnation, actual compiled primary and ordinal,
+selected procedure activation, namespace identity and independent entry naming
+policy. Every represented use must retain those owners. A source declaration,
+escape label or calling-convention ordinal cannot supply this receipt.
+
+`SealedProgramCell` describes independently owned program storage proved by
+closed-program statement coverage; it cannot replace the frame contract of a
+supplied Native entry. None of these allocation purposes discharges retained
+Native body admission, current contents, trace or alias absence, numeric
+representation, or runtime observer guards. The [slot-purpose contract](../analysis/name-resolution-proofs/aot-original-slot-purpose.md)
+keeps declaration positions, authored storage and retained frames separate.

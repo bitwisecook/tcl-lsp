@@ -268,6 +268,11 @@ const ROWS: &[Row] = &[
         "Whether the subcommand destroys its subject.",
     ),
     boolean("returns_path", "Whether the subcommand's result is a path."),
+    one(
+        "source_path_operation",
+        "Conditional source path algebra operation.",
+        "`Join`, `Dirname`, `Normalize` or `ScriptPath`; no runtime handler, current filename or filesystem authority.",
+    ),
     boolean(
         "is_unescape",
         "Whether the subcommand reverses an escaping.",

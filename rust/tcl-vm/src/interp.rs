@@ -82,6 +82,8 @@ pub(crate) mod native_compiled_locals;
 mod native_control_expression_tests;
 mod native_coroutine_names;
 pub(crate) mod native_dictionary;
+#[cfg(test)]
+mod native_embed_registration_tests;
 mod native_ensemble_objects;
 #[cfg(test)]
 mod native_ensemble_rewrite_tests;
@@ -4644,23 +4646,6 @@ impl Vm {
         world.jim_command_table_keys.remove(key);
     }
 
-    /// Resolve the namespace portion of a Tcl-written command name without
-    /// discarding the absolute marker when its qualifier text is empty (for
-    /// example `::co`).
-    fn command_namespace_path_from_written(&self, written: &str) -> NamespacePath {
-        let prefix = tcl_cmd_core::namespace::qualifiers(written.as_bytes());
-        if written.starts_with("::") {
-            NamespacePath::from_segments(tcl_syntax::naming::qualifier_segments(prefix))
-        } else {
-            let current = self.current_ns_id();
-            let mut path = self.ns_path(current);
-            for segment in tcl_syntax::naming::qualifier_segments(prefix) {
-                path.push(segment);
-            }
-            path
-        }
-    }
-
     /// Render one already-resolved command slot for Tcl-facing output. This is
     /// the only native projection from namespace-token identity back to a
     /// command name; publication must never reuse the written ingress spelling.
@@ -4670,27 +4655,6 @@ impl Vm {
             simple: slot.simple.clone(),
         })[2..]
             .to_vec()
-    }
-
-    /// Resolve a Tcl-written command name to the exact namespace-table slot
-    /// where a new binding belongs. Display names are projected from the slot
-    /// only after resolution, so `b::y` inside `::a` publishes `::a::b::y`.
-    fn command_slot_for_written_name(&mut self, written: &str) -> CommandSlot {
-        let qualified = tcl_syntax::naming::is_qualified(written.as_bytes());
-        let simple = tcl_core_types::NameBytes::from(tcl_syntax::naming::written_command_tail(
-            written.as_bytes(),
-        ));
-        let namespace = if qualified {
-            let path = self.command_namespace_path_from_written(written);
-            self.definition_namespace_token_at_path(&path, written.starts_with("::"))
-        } else {
-            self.resolution_stacks
-                .ns_id_stack
-                .last()
-                .copied()
-                .unwrap_or(ROOT_NS)
-        };
-        CommandSlot { namespace, simple }
     }
 
     /// Reserve the destination hash-table slot used by `rename`. This occurs
@@ -5185,24 +5149,23 @@ impl Vm {
         self.register_command_in_slot(slot, cmd)
     }
 
-    /// Register a command whose name came from Tcl/embedder ingress. Keeping
-    /// this seam distinct from already-constructed engine keys prevents a
-    /// rendered colon-edge FQN from being inverted into the wrong table.
-    pub(crate) fn register_written_command(&mut self, written: &str, cmd: Command) -> String {
-        if self.uses_native_jim_lookup() {
-            let selected = self
-                .native_alias_publication_slot(written.as_bytes())
-                .expect("actual Jim written command publication");
-            let report = self
-                .jim_command_table_key_for_original(
-                    written.as_bytes(),
-                    tcl_syntax::naming::NativeNamePurpose::AliasPublication,
-                )
-                .expect("actual Jim original table spelling");
-            return self.register_command_in_slot_with_jim_key(selected, cmd, report);
+    /// Publish a host-written name through the selected script declaration
+    /// purpose. This preserves the embedder's procedure-like naming contract;
+    /// it does not select the distinct C API global-publication purpose.
+    pub(crate) fn register_written_command(
+        &mut self,
+        written: &str,
+        command: Command,
+    ) -> Result<String, NativeCommandLookupUnavailable> {
+        if !self.name_world.borrow().is_live() {
+            return Err(NativeCommandLookupUnavailable::Retired);
         }
-        let slot = self.command_slot_for_written_name(written);
-        self.register_command_in_slot(slot, cmd)
+        let report = self.jim_command_table_key_for_original(
+            written.as_bytes(),
+            tcl_syntax::naming::NativeNamePurpose::CommandPublication,
+        )?;
+        let (_, slot, _) = self.native_procedure_publication(written.as_bytes())?;
+        Ok(self.register_command_in_slot_with_jim_key(slot, command, report))
     }
 
     fn retire_command_replaced_by_callback(
@@ -5568,6 +5531,29 @@ impl Vm {
         let path = self.namespace_path_for_token(context);
         let selected = recipe
             .alias_publication_projection(
+                tcl_syntax::naming::NativeNameContext::new(&path),
+                original,
+            )
+            .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)?;
+        let namespace = self.materialise_native_command_projection(context, &selected);
+        Ok(CommandSlot {
+            namespace,
+            simple: selected.into_slot().simple,
+        })
+    }
+
+    fn native_child_alias_publication_slot(
+        &mut self,
+        original: &[u8],
+    ) -> Result<CommandSlot, NativeCommandLookupUnavailable> {
+        let recipe = self
+            .name_policy_protocol()
+            .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?
+            .recipe();
+        let context = self.current_ns_id();
+        let path = self.namespace_path_for_token(context);
+        let selected = recipe
+            .child_alias_publication_projection(
                 tcl_syntax::naming::NativeNameContext::new(&path),
                 original,
             )
@@ -6066,6 +6052,49 @@ impl Vm {
         self.interp_alias_at(src, src_cmd, target, target_words)
     }
 
+    /// C interp aliases reports alias-record registration spelling, independently
+    /// of current command placement and Jim's core-only info aliases inventory.
+    pub(crate) fn interpreter_alias_names_original(
+        &mut self,
+        path: Option<&Value>,
+    ) -> Completion<Value> {
+        if self
+            .native_invocation_dialect()
+            .native_command_name_protocol()
+            .is_none()
+        {
+            return self.refuse_host_command("C interpreter alias inventory issuer".into());
+        }
+        let id = match path {
+            Some(path) => match self.resolve_interp_path_original(path) {
+                Ok(id) => id,
+                Err(error) => return error,
+            },
+            None => self.cur,
+        };
+        let mut names = self.in_interp(id, |vm| {
+            vm.commands
+                .values()
+                .filter_map(|command| match command {
+                    Command::Alias {
+                        publication_name, ..
+                    }
+                    | Command::CrossAlias {
+                        publication_name, ..
+                    } => Some(publication_name.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        });
+        names.sort();
+        ok(Value::list(
+            names
+                .into_iter()
+                .map(|name| Value::from_native_string_bytes(name.as_bytes()))
+                .collect(),
+        ))
+    }
+
     fn interp_alias_at(
         &mut self,
         src: InterpId,
@@ -6073,22 +6102,60 @@ impl Vm {
         target: InterpId,
         target_words: Vec<Value>,
     ) -> Completion<Value> {
-        let words = Rc::new(target_words);
-        let cmd = if src == target {
-            Command::Alias(Rc::clone(&words))
-        } else {
-            Command::CrossAlias {
-                target,
-                words: Rc::clone(&words),
-            }
+        let producer = match self.name_policy_protocol() {
+            Some(policy) => policy,
+            None => return self.refuse_host_command("parent alias publication issuer".into()),
         };
+        for realm in [src, target] {
+            let Some(receiver) = self
+                .st_of(realm)
+                .and_then(|state| state.name_policy_protocol())
+            else {
+                return self.refuse_host_command("alias interpreter publication issuer".into());
+            };
+            if receiver != producer {
+                return self.refuse_host_command("alias producer realm".into());
+            }
+        }
+        let words = Rc::new(target_words);
         let original = match self.native_name_operand_bytes(src_cmd) {
             Ok(original) => original,
             Err(error) => return self.refuse_host_command(error.to_string()),
         };
         let src_key = self.in_interp(src, |vm| {
-            let slot = vm.native_alias_publication_slot(&original)?;
-            let key = vm.register_command_in_slot(slot, cmd);
+            let recipe = vm
+                .name_policy_protocol()
+                .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?
+                .recipe();
+            let selected = recipe
+                .child_alias_publication_input(
+                    tcl_syntax::naming::NativeNameContext::root(),
+                    &original,
+                )
+                .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)?;
+            let publication_name = NameBytes::from(
+                selected
+                    .alias_registration_report_bytes()
+                    .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?,
+            );
+            let cmd = if src == target {
+                Command::Alias {
+                    words: Rc::clone(&words),
+                    publication_name,
+                }
+            } else {
+                Command::CrossAlias {
+                    target,
+                    words: Rc::clone(&words),
+                    publication_name,
+                }
+            };
+            let report = vm.jim_command_table_key_for_original(
+                &original,
+                tcl_syntax::naming::NativeNamePurpose::ChildAliasPublication,
+            )?;
+            let slot = vm.native_child_alias_publication_slot(&original)?;
+            let key = vm.register_command_in_slot_with_jim_key(slot, cmd, report);
             if src != target {
                 vm.note_alias_backref(&key, target);
             }
@@ -6164,8 +6231,8 @@ impl Vm {
                     .and_then(|state| state.visible_command_at_key(key))
             };
             let (target_interp, target_words) = match command {
-                Some(Command::Alias(words)) => (*interp, words),
-                Some(Command::CrossAlias { target, words }) => (target, words),
+                Some(Command::Alias { words, .. }) => (*interp, words),
+                Some(Command::CrossAlias { target, words, .. }) => (target, words),
                 _ => return Ok(None),
             };
             let Some(target_operand) = target_words.first() else {
@@ -6275,7 +6342,9 @@ impl Vm {
                 Command::Proc(_) => "proc",
                 // Cross-interp aliases are aliases (C's `info cmdtype` says
                 // `alias` for every `interp alias` product).
-                Command::Alias(_) | Command::CallerAlias(_) | Command::CrossAlias { .. } => "alias",
+                Command::Alias { .. } | Command::CallerAlias(_) | Command::CrossAlias { .. } => {
+                    "alias"
+                }
                 Command::ChildInterp(_) => "interp",
                 Command::Ensemble(_) => "ensemble",
                 Command::Object(_) => "object",
@@ -7018,7 +7087,7 @@ impl Vm {
                         .get(&key)
                         .is_some_and(|found| found == &binding.identity);
                 }
-                Some(Command::Alias(words)) if words.len() == 1 => {
+                Some(Command::Alias { words, .. }) if words.len() == 1 => {
                     let target = words[0].to_str();
                     let Some(next) = self.resolve_command_fqn("", &target) else {
                         return false;
@@ -7698,6 +7767,12 @@ impl Vm {
         ens_name: &str,
         parameters: &[NameBytes],
     ) -> Completion<Value> {
+        let Some(configuration) = self
+            .native_invocation_dialect()
+            .native_ensemble_configuration_protocol()
+        else {
+            return self.refuse_host_command("ensemble argument usage".into());
+        };
         let mut words = vec![
             self.invoked_name_value()
                 .unwrap_or_else(|| Value::string(ens_name)),
@@ -7729,7 +7804,8 @@ impl Vm {
                 "native ensemble argument usage storage is unavailable".into(),
             );
         };
-        usage.extend_from_slice(b" subcommand ?arg ...?");
+        usage.push(b' ');
+        usage.extend_from_slice(configuration.missing_selector_usage());
         crate::command::native_wrong_args_bytes(self, &usage)
     }
 
@@ -10894,7 +10970,7 @@ impl Vm {
                 Ok(None) => break,
                 Err(error) => return Err(self.refuse_host_command(error.to_string())),
             };
-            let Some(Command::Alias(words)) = self.visible_command_at_key(&key) else {
+            let Some(Command::Alias { words, .. }) = self.visible_command_at_key(&key) else {
                 break;
             };
             let Some(head) = words.first() else {
@@ -11007,9 +11083,10 @@ impl Vm {
             };
             self.register_command_in_slot_with_jim_key(
                 destination,
-                Command::Alias(Rc::new(vec![Value::from_native_string_bytes(
-                    rooted_source,
-                )])),
+                Command::Alias {
+                    words: Rc::new(vec![Value::from_native_string_bytes(rooted_source)]),
+                    publication_name: NameBytes::from(written.as_slice()),
+                },
                 report,
             );
         }
@@ -22086,7 +22163,7 @@ impl Vm {
                     command,
                     Command::Builtin(_)
                         | Command::Native(_)
-                        | Command::Alias(_)
+                        | Command::Alias { .. }
                         | Command::CallerAlias(_)
                         | Command::CrossAlias { .. }
                         | Command::ChildInterp(_)
@@ -22281,7 +22358,7 @@ impl Vm {
                         compiler_hook: false,
                     }
                 }
-                Command::Alias(words) => Self::native_compilation_alias(
+                Command::Alias { words, .. } => Self::native_compilation_alias(
                     interpreter,
                     words,
                     tcl_runtime_api::native_compilation::NativeAliasTargetLookup::Global,
@@ -22298,7 +22375,7 @@ impl Vm {
                         tcl_runtime_api::native_compilation::NativeAliasTargetLookup::CallerNamespace,
                     )
                 }
-                Command::CrossAlias { target, words } => Self::native_compilation_alias(
+                Command::CrossAlias { target, words, .. } => Self::native_compilation_alias(
                     NativeInterpreterIdentity {
                         owner: interpreter.owner,
                         interpreter: u64::try_from(target.0).expect("interpreter slot fits u64"),
@@ -23837,15 +23914,30 @@ impl VarStore for Vm {
                 "unmeasured observed variable operation",
             ));
         }
-        let id = target.cell_id().or_else(|| {
-            self.resolve_var_parts_from_bytes(target.name_bytes(), None, target.frame().0)
-                .and_then(|resolved| resolved.id)
-        });
         if self.dictionary_variable_containers() {
+            let id = target.cell_id().or_else(|| {
+                self.resolve_var_parts_from_bytes(target.name_bytes(), None, target.frame().0)
+                    .and_then(|resolved| resolved.id)
+            });
             return id.map_or(Ok(false), |id| {
                 self.remove_dictionary_element_bytes(id, key)
             });
         }
+        use tcl_runtime_api::variable_destruction::NativeArrayUnsetMemberLookup;
+        let id = match self
+            .actual_native_invocation_dialect()
+            .array_unset_member_lookup()
+        {
+            Some(NativeArrayUnsetMemberLookup::OriginalName) => self
+                .resolve_var_parts_from_bytes(target.name_bytes(), None, target.frame().0)
+                .and_then(|resolved| resolved.id),
+            Some(NativeArrayUnsetMemberLookup::SelectedArray) => target.cell_id(),
+            None => {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "array member unset lookup",
+                ));
+            }
+        };
         let Some(id) = id else {
             return Ok(false);
         };
@@ -24389,7 +24481,7 @@ impl tcl_runtime_api::Aliases for Vm {
                 original.check_native_header()?;
                 Ok(tcl_runtime_api::AliasPrefixLookup::Prefix(original))
             }
-            Command::Alias(_) | Command::CrossAlias { .. } => {
+            Command::Alias { .. } => {
                 Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "original Jim alias prefix object",
                 ))
@@ -24419,7 +24511,7 @@ impl Namespaces for Vm {
             return Ok(None);
         };
         let words = match command {
-            Command::Alias(words) => words.as_ref().clone(),
+            Command::Alias { words, .. } => words.as_ref().clone(),
             Command::CallerAlias(original) => original
                 .native_object_list_elements(
                     tcl_syntax::native_string::NativeStringProtocol::Jim084,
@@ -28874,3 +28966,6 @@ mod native_oo_bootstrap_inventory_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod native_child_alias_publication_tests;

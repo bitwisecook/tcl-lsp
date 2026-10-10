@@ -2836,23 +2836,21 @@ impl Analyser {
         fresh.analyse(new_text, dialect)
     }
 
-    /// Record the batch's raw path-constant candidates (see
-    /// [`AnalysisResult::path_constant_assignments`]).  Called from the head
-    /// of both top-level walks — `analyse`'s [`Self::walk_commands_top_level`]
-    /// and the chunked/batched [`Self::analyse_commands_inner`] — which are
-    /// sibling implementations, so no path records a batch twice.  Accumulated
-    /// per batch (the chunked path walks one chunk at a time, and document
-    /// order across chunks is exactly append order), with multi-write
-    /// poisoning applied at fold time, where the whole document's write
-    /// counts are in view.
+    /// Extend conditional path source advice through the same actual input,
+    /// original realm and complete image as command analysis. Batches preserve
+    /// prior lexical homes; namespace seeds remain constructed source scopes.
     fn record_path_constant_candidates(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
-        self.result.path_constant_assignments.append(
-            crate::auto_path_eval::constant_path_assignments_in_namespace(
-                commands,
-                self.profile,
-                self.path_constant_source_namespace.as_deref(),
-            ),
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        let mut inventory = std::mem::take(&mut self.result.path_constant_assignments);
+        crate::auto_path_eval::extend_path_constant_assignments_from_analysis_commands(
+            &self.source,
+            &self.result,
+            commands,
+            self.path_constant_source_namespace.as_deref(),
+            &mut inventory,
         );
+        self.result.path_constant_assignments = inventory;
     }
 
     /// Inner dispatch loop shared by [`Self::analyse_chunked`]

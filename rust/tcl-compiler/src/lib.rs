@@ -105,6 +105,7 @@ pub mod def_use;
 mod depth_guard;
 pub mod dictionary_bindings;
 pub mod dispatch_proof;
+pub mod durable_inventory;
 pub mod dynamic_names;
 pub mod effect_ssa;
 pub(crate) mod environment_ingress;

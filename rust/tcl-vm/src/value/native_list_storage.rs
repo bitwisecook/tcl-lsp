@@ -210,7 +210,7 @@ mod tests {
     use tcl_syntax::native_compiled_index::NativeCompiledListIndex;
 
     #[test]
-    fn command_range_empty_result_has_actual_list_store_only_from_c9() {
+    fn command_range_empty_result_has_actual_list_store_only_in_c90() {
         // naming.list.original-range-objects-and-instructions
         // docs/design/analysis/name-resolution-proofs/list.original-range-objects-and-instructions.md
         // Inspect reached result birth before string/list result materialisation.
@@ -228,11 +228,11 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 result.cached_list_representation().is_some(),
-                version >= TclVersion::V9_0
+                version == TclVersion::V9_0
             );
             assert_eq!(
                 result.resident_string_bytes().is_some(),
-                version < TclVersion::V9_0
+                version != TclVersion::V9_0
             );
             if let Some((items, _)) = result.cached_list_representation() {
                 assert_eq!(items.len(), 0);

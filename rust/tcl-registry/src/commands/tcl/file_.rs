@@ -267,6 +267,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "dirname",
+        source_path_operation: Some(SourcePathOperation::Dirname),
         native_compilation: Some(named_file_compiler!(
             "dirname",
             Arity::exact(1),
@@ -386,6 +387,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "join",
+        source_path_operation: Some(SourcePathOperation::Join),
         native_compilation: Some(named_file_compiler!(
             "join",
             Arity::at_least(1),
@@ -551,6 +553,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "normalize",
+        source_path_operation: Some(SourcePathOperation::Normalize),
         native_compilation: Some(named_file_compiler!(
             "normalize",
             Arity::exact(1),

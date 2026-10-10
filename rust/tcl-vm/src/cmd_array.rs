@@ -576,3 +576,7 @@ mod tests {
         assert!(VarStore::array_keys(&vm, tcl_runtime_api::Frames::current(&vm), "a").is_some());
     }
 }
+
+#[cfg(test)]
+#[path = "cmd_array/native_unset_tests.rs"]
+mod native_unset_tests;

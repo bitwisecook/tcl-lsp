@@ -134,11 +134,85 @@ pub(super) fn procedure_view(
         .filter(|(ordinal, _)| !outgoing[*ordinal])
         .map(|(_, label)| label.clone())
         .collect::<Vec<_>>();
-    Some(
-        json!({"projection": "original-source-declarations", "nodes": nodes, "edges": edges,
+    let mut graph = json!({"projection": "original-source-declarations", "nodes": nodes, "edges": edges,
         "references": references, "roots": roots, "leaf_procs": leaves,
-        "root_ids": root_ids, "leaf_ids": leaf_ids}),
-    )
+        "root_ids": root_ids, "leaf_ids": leaf_ids});
+    append_hosted_procedures(source, analysis, &mut graph)?;
+    Some(graph)
+}
+
+/// Hosted headers remain source cards without borrowing C/Jim publication or
+/// compiled body identity. Unsupported names retain their original span and ID.
+fn append_hosted_procedures(
+    source: &str,
+    analysis: &AnalysisResult,
+    graph: &mut Value,
+) -> Option<()> {
+    let config = analysis.body_lexer_config?;
+    let image = tcl_lexer::SourceImage::document(source);
+    let index = tcl_lexer::LineIndex::new(source);
+    for (ordinal, row) in analysis
+        .original_vendor_procedure_declarations()
+        .enumerate()
+    {
+        let input = row.name_input();
+        if !input.matches_source(&image, config) {
+            return None;
+        }
+        let id = format!("hosted-declaration-{ordinal}");
+        let name = input
+            .literal_units(row.purpose())
+            .and_then(|units| std::str::from_utf8(units).ok())
+            .map_or_else(|| id.clone(), str::to_owned);
+        let span = input.span();
+        graph["nodes"].as_array_mut()?.push(json!({
+            "id": id, "name": name,
+            "projection": "hosted-source-declaration",
+            "params": row.metadata().params.iter().map(|param| &param.name).collect::<Vec<_>>(),
+            "line": super::line0(&index, span.start()),
+            "span": {"start": span.start(), "end": span.end()},
+            "pure": null, "effects": null,
+        }));
+        graph["references"]
+            .as_array_mut()?
+            .push(json!({"id": id, "name": name, "sites": []}));
+        for key in ["roots", "leaf_procs"] {
+            graph[key].as_array_mut()?.push(json!(name));
+        }
+        for key in ["root_ids", "leaf_ids"] {
+            graph[key].as_array_mut()?.push(json!(id));
+        }
+    }
+    Some(())
+}
+
+/// Original declarations with no independently matched compiled body. These
+/// cards preserve authored functions while withholding every execution summary.
+pub(super) fn uncompiled_procedure_nodes(
+    source: &str,
+    analysis: &AnalysisResult,
+    module: &Module,
+) -> Vec<Value> {
+    let Some(graph) = procedure_view(source, analysis, None) else {
+        return Vec::new();
+    };
+    let represented = analysis
+        .original_procedure_declarations()
+        .enumerate()
+        .filter(|(_, row)| compiled_label(source, analysis, module, row).is_some())
+        .map(|(ordinal, _)| format!("declaration-{ordinal}"))
+        .collect::<std::collections::HashSet<_>>();
+    graph["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|node| {
+            node["id"]
+                .as_str()
+                .is_some_and(|id| !represented.contains(id))
+        })
+        .cloned()
+        .collect()
 }
 
 /// A compiled unit must independently retain the same original implementation
@@ -267,7 +341,8 @@ mod tests {
         let source = "proc p {} {return SAFE}; p";
         let profile = crate::profile_for_dialect("tcl8.6");
         let registry = crate::registry_for_dialect("tcl8.6");
-        let unit = super::super::document_unit(source, registry, profile)
+        let input = super::super::standalone_graph_input(registry, profile);
+        let unit = super::super::document_unit(source, registry, &input)
             .with_interprocedural(registry, Some(profile));
         let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
         let mut module = unit.ir_module.clone();

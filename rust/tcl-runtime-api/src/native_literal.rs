@@ -100,7 +100,10 @@ impl<V: Clone> NativeLiteralWorld<V> {
         Some(entry.value.clone())
     }
     /// Release one real local-array registration before its local member owner.
-    pub fn release(&mut self, index: usize) {
+    /// Return the final global owner without dropping it under the world's
+    /// mutable borrow: its destructor can release nested literal arrays.
+    #[must_use]
+    pub fn release(&mut self, index: usize) -> Option<V> {
         self.observation.invalidate();
         let entry = self.entries[index]
             .as_mut()
@@ -110,7 +113,7 @@ impl<V: Clone> NativeLiteralWorld<V> {
             .checked_sub(1)
             .expect("literal registration owner underflow");
         if entry.local_arrays != 0 {
-            return;
+            return None;
         }
         let entry = self.entries[index]
             .take()
@@ -124,6 +127,7 @@ impl<V: Clone> NativeLiteralWorld<V> {
         if bucket.is_empty() {
             self.index.remove(&entry.key);
         }
+        Some(entry.value)
     }
     /// Capture actual emptiness in this same live interpreter-owned registration world.
     /// Existing values are neither inspected nor converted. Each capture invalidates
@@ -224,9 +228,9 @@ impl<V: Clone> NativeLocalNameTable<V> {
 impl<V: Clone> Drop for NativeLocalNameTable<V> {
     fn drop(&mut self) {
         if let Some(world) = self.world.upgrade() {
-            let mut world = world.borrow_mut();
             for &registration in &self.registrations {
-                world.release(registration);
+                let retired = world.borrow_mut().release(registration);
+                drop(retired);
             }
         }
     }
@@ -463,11 +467,79 @@ mod empty_world_tests {
         assert!(world.capture_empty_world(owner, 0).is_none());
         assert_eq!(getters.get(), 0);
         assert_eq!(Rc::strong_count(&original), before);
-        world.release(index);
+        drop(world.release(index));
         assert!(world.capture_empty_world(owner, 0).is_some());
         drop(local);
         assert_eq!(Rc::strong_count(&original), 1);
     }
+    #[test]
+    fn detached_final_owner_can_release_nested_registration_without_pool_borrow() {
+        // naming.runtime.original-literal-owner-retirement
+        // docs/design/analysis/name-resolution-proofs/runtime-original-literal-owner-retirement.md
+        // Software allocation control: native public values do not prove
+        // Rust destructor or registration-table identity.
+        use std::cell::RefCell;
+        use std::rc::Weak;
+        struct NestedOwner {
+            world: Weak<RefCell<NativeLiteralWorld<Rc<Self>>>>,
+            child: Option<usize>,
+            drops: Rc<Cell<usize>>,
+        }
+        impl Drop for NestedOwner {
+            fn drop(&mut self) {
+                self.drops.set(self.drops.get() + 1);
+                if let (Some(world), Some(child)) = (self.world.upgrade(), self.child) {
+                    let retired = world.borrow_mut().release(child);
+                    drop(retired);
+                }
+            }
+        }
+        let world = Rc::new(RefCell::new(NativeLiteralWorld::default()));
+        let drops = Rc::new(Cell::new(0));
+        let (child, local) = world
+            .borrow_mut()
+            .register(
+                key(),
+                |_| Ok::<_, ()>(b"held".to_vec()),
+                || {
+                    Ok::<_, ()>(Rc::new(NestedOwner {
+                        world: Rc::downgrade(&world),
+                        child: None,
+                        drops: Rc::clone(&drops),
+                    }))
+                },
+            )
+            .unwrap();
+        drop(local);
+        let (parent, local) = world
+            .borrow_mut()
+            .register(
+                NativeLiteralKey {
+                    original: b"parent".to_vec(),
+                    ..key()
+                },
+                |_| Ok::<_, ()>(b"parent".to_vec()),
+                || {
+                    Ok::<_, ()>(Rc::new(NestedOwner {
+                        world: Rc::downgrade(&world),
+                        child: Some(child),
+                        drops: Rc::clone(&drops),
+                    }))
+                },
+            )
+            .unwrap();
+        drop(local);
+        let retired = world.borrow_mut().release(parent);
+        assert_eq!(
+            drops.get(),
+            0,
+            "detaching a registration runs no destructor"
+        );
+        drop(retired);
+        assert_eq!(drops.get(), 2);
+        assert_eq!(world.borrow().registered_values().count(), 0);
+    }
+
     #[test]
     fn failed_registration_invalidates_before_native_getter_or_constructor() {
         let owner = interpreter();

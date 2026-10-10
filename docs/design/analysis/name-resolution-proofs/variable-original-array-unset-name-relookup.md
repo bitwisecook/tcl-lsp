@@ -16,7 +16,7 @@ All five pinned C providers complete the whole-root source with guest code0 and 
 
 ## Scope
 
-Two original ASCII LF programs, independently evaluated in fresh fully initialised interpreters using the unchanged counted-source CAPI driver. The original source alias setup, array callback, explicit unpatterned/patterned unset words and four public queries remain byte-identical. Whole source/request/driver/compile/ELF/process/code/result/required pin artifacts are retained without an added source envelope or API substitution. No private header/frame/operand identity, general callback traversal, BIG-IP or executed Rust assertion is supplied.
+Two original ASCII LF programs, independently evaluated in fresh fully initialised interpreters using the unchanged counted-source CAPI driver. The original source alias setup, array callback, explicit unpatterned/patterned unset words and four public queries remain byte-identical. Whole source/request/driver/compile/ELF/process/code/result/required pin artifacts are retained without an added source envelope or API substitution. No private header/frame/operand identity, general callback traversal, BIG-IP or executed Rust assertion is supplied. The shared software NativeArrayUnsetMemberLookup selector requires the actual C family, release and distinct-array storage purpose: C8.4/C8.5 selects OriginalName and C8.6/C9.0/C9.1 selects SelectedArray; missing release, mixed dictionary storage, Jim and hosted contexts refuse this C rule. Runtime and VM byte patterned-array-unset adapters consume that selected rule, while whole-root CmdCore unset keeps its separate original-name lookup after the array callback. These are current implementation policies; the public original356 flags remain a distinct observation and do not prove private lookup/table/header identities.
 
 ## Provider answers
 
@@ -139,7 +139,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [rust/tcl-runtime-api/src/variable_destruction.rs](../../../../rust/tcl-runtime-api/src/variable_destruction.rs), `NativeArrayUnsetMemberLookup`: Transport OriginalName versus SelectedArray member-lookup purpose without issuing any physical receiver or Native operand/frame proof.
+- [rust/tcl-registry/src/native_variable_destruction.rs](../../../../rust/tcl-registry/src/native_variable_destruction.rs), `InvocationDialect::array_unset_member_lookup`: Require actual C release/family and distinct-array storage; select original-name versus selected-array implementation purpose, refusing missing/Jim/hosted/mixed owners.
+- [rust/tcl-registry/src/native_variable_destruction.rs](../../../../rust/tcl-registry/src/native_variable_destruction.rs), `native_variable_destruction::tests::array_unset_member_lookup_requires_its_selected_native_release` (linked): Pure selected C release rule is independent of genuine physical receiver: C84/85 OriginalName versus C86/90/91 SelectedArray, missing release/mixed dictionary/Jim/hosted refuse. No private native lookup identity is asserted.
+- [runtime/rust/src/interp/native_variable_teardown.rs](../../../../runtime/rust/src/interp/native_variable_teardown.rs), `interp::native_variable_teardown::tests::original_array_unset_keeps_release_selected_member_lookup` (linked): Twelve whole unchanged original356 source completion/results compare the public release-specific flags, including Jim unavailable trace result. Public values do not identify private receiver/table/header or original operand/frame ownership.
+- [rust/tcl-vm/src/cmd_array/native_unset_tests.rs](../../../../rust/tcl-vm/src/cmd_array/native_unset_tests.rs), `cmd_array::native_unset_tests::original_array_unset_matches_native_refills_and_release_selected_lookup` (linked): Twenty-four whole unchanged original355/356 source completions/results compare public refill and release-specific flags. Each original source identity remains distinct; no native private table/header/compiler/activation equivalence is inferred.
 
 A named test is a coverage binding, not a claim that it executed.
 

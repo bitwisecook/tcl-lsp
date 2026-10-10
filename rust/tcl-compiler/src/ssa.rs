@@ -5282,7 +5282,7 @@ fn represented_contents_origins(
 
 fn intern_terminator_reads(
     func: &cfg::Function,
-    walk: &mut RenameWalk,
+    walk: &mut RenameWalk<'_>,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) {
@@ -5382,7 +5382,8 @@ fn assemble_ssa_blocks(
 /// Mutable state threaded through the dominator-tree rename walk: the live
 /// version stacks / counters keyed by variable name, the use-scanner and
 /// name interner, and the accumulated per-block [`RenameOutputs`].
-struct RenameWalk {
+struct RenameWalk<'a> {
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
     version_counter: HashMap<VariableCellKey, Version>,
     stacks: HashMap<VariableCellKey, Vec<Version>>,
     scanner: VarReferenceScanner,
@@ -5394,11 +5395,12 @@ struct RenameWalk {
     unknown_source_names: HashSet<String>,
 }
 
-impl RenameWalk {
+impl<'a> RenameWalk<'a> {
     fn new(
         func: &cfg::Function,
         config: tcl_lexer::LexerConfig,
         points: PointResolveContexts,
+        metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
     ) -> Self {
         let mut out = RenameOutputs::default();
         for id in func.blocks.keys() {
@@ -5409,6 +5411,7 @@ impl RenameWalk {
             out.stmt_infos.insert(*id, Vec::new());
         }
         Self {
+            metadata,
             version_counter: HashMap::new(),
             stacks: HashMap::new(),
             scanner: VarReferenceScanner::with_config(
@@ -5547,11 +5550,9 @@ impl RenameWalk {
             self.points
                 .source_tokens_at(point.0, point.1)
                 .and_then(|tokens| {
-                    crate::registry_invocation::normal_transfer_invocation(
+                    crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
                         registry,
-                        registry
-                            .profile()
-                            .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+                        self.metadata,
                         tokens,
                     )
                 })
@@ -5864,7 +5865,7 @@ pub fn build_ssa_with_config(
     )
 }
 
-fn project_ssa_source_names(walk: &mut RenameWalk, func: &cfg::Function) {
+fn project_ssa_source_names(walk: &mut RenameWalk<'_>, func: &cfg::Function) {
     register_unique_source_names(&mut walk.interner, &walk.point_symbols);
     for name in &walk.unknown_source_names {
         walk.interner.source_symbols.remove(name);
@@ -5967,7 +5968,7 @@ fn propagate_array_refresh_phis(
 }
 
 fn rename_dominator_tree(
-    walk: &mut RenameWalk,
+    walk: &mut RenameWalk<'_>,
     func: &cfg::Function,
     tree: &HashMap<BlockId, Vec<BlockId>>,
     phi_vars: &HashMap<BlockId, HashSet<VariableCellKey>>,
@@ -6044,7 +6045,56 @@ pub(crate) fn build_ssa_with_context_for_entry(
     entry: ResolveContext,
     entry_bindings: Option<&[String]>,
 ) -> SsaFunction {
-    let initial = build_ssa_inner(func, registry, config, entry.clone(), &HashMap::new());
+    let metadata = registry
+        .profile()
+        .map(|profile| tcl_registry::model::semantic::SemanticContext::for_profile(profile).into());
+    build_ssa_with_context_for_entry_and_metadata(
+        func,
+        registry,
+        config,
+        entry,
+        entry_bindings,
+        metadata,
+    )
+}
+
+fn supplied_ssa_metadata<'a>(
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+) -> Option<crate::registry_invocation::InvocationMetadataContext<'a>> {
+    let metadata = metadata.filter(|metadata| metadata.matches_registry(registry))?;
+    match metadata.source_analysis_input() {
+        Some(input) => crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            registry,
+            input,
+            config,
+            Some(input.unit_profile()),
+        ),
+        None => Some(metadata),
+    }
+}
+
+/// Build source SSA with the supplied availability owner. Missing, foreign or
+/// incompatible source input withholds operand metadata; it never selects a
+/// standalone catalogue context. Physical cell and contents proofs are separate.
+pub(crate) fn build_ssa_with_context_for_entry_and_metadata(
+    func: &cfg::Function,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    entry: ResolveContext,
+    entry_bindings: Option<&[String]>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> SsaFunction {
+    let metadata = supplied_ssa_metadata(registry, config, metadata);
+    let initial = build_ssa_inner(
+        func,
+        registry,
+        config,
+        entry.clone(),
+        &HashMap::new(),
+        metadata,
+    );
     let bound: Option<HashSet<_>> = entry_bindings.map(|bindings| {
         bindings
             .iter()
@@ -6096,7 +6146,7 @@ pub(crate) fn build_ssa_with_context_for_entry(
     if clobbers.is_empty() {
         initial
     } else {
-        build_ssa_inner(func, registry, config, entry, &clobbers)
+        build_ssa_inner(func, registry, config, entry, &clobbers, metadata)
     }
 }
 
@@ -6106,6 +6156,7 @@ fn build_ssa_inner(
     config: tcl_lexer::LexerConfig,
     entry: ResolveContext,
     clobbers: &RegistryClobberNames,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) -> SsaFunction {
     // Complexity guard: skip the O(blocks·vars) phi placement + rename walk
     // for a pathologically large (usually generated) body. Returns a trivial
@@ -6140,7 +6191,7 @@ fn build_ssa_inner(
     // 2. Set up rename state: the transient version stacks / counters, the
     // use-scanner, name interner, and per-block outputs (keyed by variable
     // name / version, interned to `Symbol` when blocks are assembled).
-    let mut walk = RenameWalk::new(func, config, points);
+    let mut walk = RenameWalk::new(func, config, points, metadata);
 
     rename_dominator_tree(
         &mut walk, func, &tree, &phi_vars, registry, &elems, clobbers,
@@ -6205,6 +6256,121 @@ mod tests {
     use crate::cfg::{Block, Function, Terminator};
     use crate::expr_ast::ExprNode;
     use tcl_lexer::Span;
+
+    fn original_operand_metadata_fixture() -> (
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        crate::environment_ingress::RetainedNativeUnit,
+    ) {
+        use std::sync::Arc;
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut registry = baseline.commands().project_for_profile(profile);
+        let mut setter = registry.get("set").unwrap().clone();
+        setter.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(setter);
+        let context = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        let (owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            "set selected VALUE",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                config: tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+                dialect: Some(profile),
+                defer_top_level: false,
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            Arc::clone(&context),
+        );
+        (
+            context,
+            crate::environment_ingress::RetainedNativeUnit::new(unit, owner),
+        )
+    }
+
+    #[test]
+    fn original_operand_symbols_keep_actual_availability_and_source_grammar() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        use crate::registry_invocation::InvocationMetadataContext;
+        use std::sync::Arc;
+        let (context, unit) = original_operand_metadata_fixture();
+        let function = &unit.top_level;
+        let input = function.source_metadata_input().unwrap();
+        let points = function.ssa.point_contexts.as_ref().unwrap();
+        let point = function
+            .cfg
+            .blocks
+            .iter()
+            .find_map(|(&block, body)| {
+                body.statements
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, statement)| {
+                        statement
+                            .is_executable_invocation()
+                            .then_some((block, index))
+                    })
+            })
+            .unwrap();
+        let symbols = |metadata, config| {
+            let metadata = supplied_ssa_metadata(context.commands(), config, metadata);
+            let mut walk = RenameWalk::new(&function.cfg, config, points.clone(), metadata);
+            let mut symbols = HashMap::new();
+            walk.retain_native_operand_symbols(
+                point,
+                points.context_before(point.0, point.1).unwrap(),
+                context.commands(),
+                &mut symbols,
+            );
+            symbols
+        };
+        let metadata = InvocationMetadataContext::for_analysis_input(context.commands(), input);
+        assert_eq!(symbols(metadata, function.source_lexer_config()).len(), 1);
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(context.commands())),
+        );
+        assert!(Arc::ptr_eq(older.commands(), context.commands()));
+        let older_input = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            older,
+            input.lexer_config(),
+        );
+        assert!(
+            symbols(
+                InvocationMetadataContext::for_analysis_input(context.commands(), &older_input,),
+                function.source_lexer_config()
+            )
+            .is_empty()
+        );
+        assert!(symbols(None, function.source_lexer_config()).is_empty());
+        let foreign = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            input.lexer_config(),
+        );
+        assert!(
+            symbols(
+                InvocationMetadataContext::for_analysis_input(context.commands(), &foreign,),
+                function.source_lexer_config()
+            )
+            .is_empty()
+        );
+        let mut stale_config = function.source_lexer_config();
+        stale_config.strict_quoting = !stale_config.strict_quoting;
+        assert!(symbols(metadata, stale_config).is_empty());
+    }
 
     #[test]
     fn destruction_predecessor_keeps_substituted_operand_use_in_def_use() {

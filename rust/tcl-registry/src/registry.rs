@@ -6862,6 +6862,15 @@ impl CommandRegistry {
             };
         };
 
+        Self::selected_variable_write_projection(&invocation, || {
+            self.arg_role_variable_writes(name, words, query, invocation)
+        })
+    }
+
+    fn selected_variable_write_projection(
+        invocation: &ResolvedInvocation<'_, '_>,
+        roles: impl FnOnce() -> VariableWriteProjection,
+    ) -> VariableWriteProjection {
         // `incr` / `append` / `lappend` / `lset` / `lpop` / `ledit` fold the
         // target's current value into the one they store, so the write is
         // also a read of the same cell. Taken from the *resolved* invocation,
@@ -6930,7 +6939,69 @@ impl CommandRegistry {
             return with_reads(projection);
         }
 
-        with_reads(self.arg_role_variable_writes(name, words, query, invocation))
+        with_reads(roles())
+    }
+
+    /// Possible output names of an already selected source descriptor.
+    /// Selection/context remain owned by the caller. This never re-resolves a
+    /// command spelling or proves a current variable write or entered frame.
+    #[must_use]
+    pub fn variable_write_projection_for_selected_source(
+        invocation: &ResolvedInvocation<'_, '_>,
+    ) -> VariableWriteProjection {
+        Self::selected_variable_write_projection(invocation, || {
+            let arguments = invocation.words.arguments();
+            let Some(selected) = invocation.authored_source_arity() else {
+                return VariableWriteProjection {
+                    opaque_variable_frame: true,
+                    ..Default::default()
+                };
+            };
+            if arguments.exact_argv_len().is_some_and(|count| {
+                selected
+                    .command
+                    .variable_write_min_args
+                    .is_some_and(|minimum| count < usize::from(minimum))
+            }) {
+                return VariableWriteProjection::default();
+            }
+            let (roles, complete) = invocation.authored_source_argument_roles();
+            if !complete {
+                return VariableWriteProjection {
+                    opaque_variable_frame: Self::spec_may_have_arg_role(
+                        selected.command,
+                        ArgRole::VarWrite,
+                    ),
+                    ..Default::default()
+                };
+            }
+            let mut projection = VariableWriteProjection::default();
+            for (argument, role) in roles {
+                if role != ArgRole::VarWrite {
+                    continue;
+                }
+                let argument = usize::from(argument) + invocation.semantics.argument_offset;
+                let Some(name) = arguments
+                    .literal_at(argument)
+                    .filter(|name| !name.is_empty())
+                else {
+                    projection.opaque_variable_frame = true;
+                    continue;
+                };
+                let name = if invocation.authored_source_option_variable_scope_at(argument)
+                    == Some(crate::hover::VariableScope::Global)
+                    && !name.starts_with("::")
+                {
+                    format!("::{name}")
+                } else {
+                    name.to_owned()
+                };
+                if !projection.literal_names.contains(&name) {
+                    projection.literal_names.push(name);
+                }
+            }
+            projection
+        })
     }
 
     /// The [`ArgRole::VarWrite`] half of [`Self::variable_write_projection`]:

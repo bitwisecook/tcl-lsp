@@ -1390,19 +1390,20 @@ fn proc_usage(vm: &mut Vm, proc: &ProcDef) -> Result<Vec<u8>, Completion<Value>>
         proc.actual_command_slot().simple.as_bytes().to_vec(),
     )];
     let words = proc.usage_name.as_deref().unwrap_or(&plain);
-    let mut usage = vm.native_argument_usage_header(words)?;
+    let usage = vm.native_argument_usage_header(words)?;
     let suffix = tcl_syntax::formal_params::formal_parameter_usage_bytes(
         &proc.formal_parameters(),
         proc.parameter_grammar,
     );
-    if !suffix.is_empty() {
-        usage.push(b' ');
-        usage.extend_from_slice(&suffix);
-    }
-    let mut message = b"wrong # args: should be \"".to_vec();
-    message.extend_from_slice(&usage);
-    message.push(b'"');
-    Ok(message)
+    let protocol = vm
+        .native_invocation_dialect()
+        .usage_protocol(Some(
+            tcl_registry::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
+        ))
+        .ok_or_else(|| {
+            vm.refuse_host_command("native procedure usage protocol is unavailable".into())
+        })?;
+    Ok(protocol.render_procedure_message(&usage, &suffix))
 }
 
 impl Vm {
@@ -7978,7 +7979,7 @@ impl Vm {
                     &usage,
                 )
             }
-            Some(Command::Alias(target)) => {
+            Some(Command::Alias { words: target, .. }) => {
                 let mut argv = (*target).clone();
                 argv.extend_from_slice(&words[1..]);
                 let usage = self.alias_usage_rewrites_value(original, target.len(), dispatch.usage);
@@ -7992,6 +7993,7 @@ impl Vm {
             Some(Command::CrossAlias {
                 target: target_interp,
                 words: target,
+                ..
             }) => {
                 let mut argv = (*target).clone();
                 argv.extend_from_slice(&words[1..]);
@@ -8917,7 +8919,7 @@ impl Vm {
                         &usage,
                     )
                 }
-                Command::Alias(target) => {
+                Command::Alias { words: target, .. } => {
                     // Target resolves in the GLOBAL namespace, caller's frame kept
                     // — see the `dispatch_words` Alias arm for the tclsh pins.
                     let mut full: Vec<Value> = (*target).clone();
@@ -8940,6 +8942,7 @@ impl Vm {
                 Command::CrossAlias {
                     target: target_interp,
                     words: target,
+                    ..
                 } => {
                     let mut full: Vec<Value> = (*target).clone();
                     full.extend_from_slice(argv);

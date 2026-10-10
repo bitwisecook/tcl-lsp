@@ -28,6 +28,7 @@ use tcl_runtime_api::native_compilation::NativeEnsembleCompiler;
 /// This recipe describes the issuer, not catalogue command availability.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeEnsembleConfigurationProtocol {
+    version: TclVersion,
     parameters: bool,
     dying_namespace: bool,
 }
@@ -40,6 +41,7 @@ impl InvocationDialect {
     ) -> Option<NativeEnsembleConfigurationProtocol> {
         let version = self.native_command_name_protocol()?.version();
         (version >= TclVersion::V8_5).then_some(NativeEnsembleConfigurationProtocol {
+            version,
             parameters: version >= TclVersion::V8_6,
             dying_namespace: version >= TclVersion::V9_0,
         })
@@ -65,6 +67,17 @@ pub struct NativeEnsembleTablePlan {
 }
 
 impl NativeEnsembleConfigurationProtocol {
+    /// Missing-selector suffix of the actual C ensemble dispatcher. This pure
+    /// release selection supplies no original invocation or ensemble identity.
+    #[must_use]
+    pub const fn missing_selector_usage(self) -> &'static [u8] {
+        match self.version {
+            TclVersion::V8_5 => b"subcommand ?argument ...?",
+            TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1 => b"subcommand ?arg ...?",
+            TclVersion::V8_4 => unreachable!(),
+        }
+    }
+
     /// Original ensemble entry accepts only the selected actual namespace
     /// lifetime. C8.5/8.6 test `NS_DYING`; C9 tests `NS_DEAD`.
     #[must_use]
@@ -680,6 +693,43 @@ mod configuration_epoch_tests {
 #[cfg(test)]
 mod configuration_surface_tests {
     use super::*;
+
+    #[test]
+    fn actual_ensemble_missing_selector_usage_is_selected_independently_of_info() {
+        // naming.ensemble.original-missing-selector-source-usage
+        // docs/design/analysis/name-resolution-proofs/ensemble-original-missing-selector-source-usage.md
+        // The separate public originals exercise stock info; this pure API control
+        // independently checks the generic dispatcher recipe. Pinned source:
+        // C8.5 tclNamesp.c:6050; C8.6 tclEnsemble.c:1717; C9.0:1787; C9.1:1788.
+        for version in TclVersion::ALL {
+            let dialect = InvocationDialect::for_version(version);
+            let recipe = dialect.native_ensemble_configuration_protocol();
+            if version == TclVersion::V8_4 {
+                assert!(recipe.is_none());
+                continue;
+            }
+            let expected: &[u8] = if version == TclVersion::V8_5 {
+                b"subcommand ?argument ...?"
+            } else {
+                b"subcommand ?arg ...?"
+            };
+            assert_eq!(recipe.unwrap().missing_selector_usage(), expected);
+            assert_eq!(
+                dialect.native_info_original_missing_selector_usage(),
+                Some(expected)
+            );
+        }
+        for engine in ["jim", "irules"] {
+            let dialect = InvocationDialect::of_profile(
+                crate::model::ingress::resolve_environment(engine).unit_profile(),
+            );
+            assert!(dialect.native_ensemble_configuration_protocol().is_none());
+        }
+        let mut unknown = InvocationDialect::for_version(TclVersion::V8_6);
+        unknown.core_point = None;
+        unknown.native_family = None;
+        assert!(unknown.native_ensemble_configuration_protocol().is_none());
+    }
 
     #[test]
     fn actual_namespace_lifetime_policy_matches_pinned_ensemble_entry() {

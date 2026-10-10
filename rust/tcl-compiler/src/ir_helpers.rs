@@ -24,6 +24,12 @@
 //! modified before an exception, and at condition sites to track
 //! definitions produced by command substitutions.
 
+mod materialized_footprint;
+pub(crate) use materialized_footprint::{
+    expression_possible_writes_with_metadata_context, immediate_same_frame_script_values,
+    script_value_possible_writes_with_metadata_context,
+};
+
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry, InvocationWord, InvocationWords, Traits};
 
@@ -206,6 +212,56 @@ pub(crate) fn requires_runtime_command_namespace(
 /// defence-in-depth and consistency with every other full-tree walker in
 /// this crate.
 const MAX_DEFS_COLLECT_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
+
+/// Possible value writes owned directly by a selected structured IR node.
+/// Generic call defs are excluded: those require current Registry availability
+/// and original binding/argument resolution. Names here are literal destinations,
+/// independent of command substitution or a reached Native storage cell.
+#[must_use]
+pub(crate) fn structural_variable_write_projection(
+    stmt: &Statement,
+) -> tcl_registry::VariableWriteProjection {
+    let mut projection = tcl_registry::VariableWriteProjection::default();
+    match stmt {
+        Statement::AssignConst {
+            name, name_braced, ..
+        }
+        | Statement::AssignExpr {
+            name, name_braced, ..
+        }
+        | Statement::AssignValue {
+            name, name_braced, ..
+        }
+        | Statement::Incr {
+            name, name_braced, ..
+        } => {
+            if crate::ssa::is_dynamic_write_target(name, *name_braced) {
+                projection.opaque_variable_frame = true;
+            } else {
+                projection.literal_names.push(name.clone());
+            }
+        }
+        Statement::Foreach { iterators, .. } => projection.literal_names.extend(
+            iterators
+                .iter()
+                .flat_map(|iterator| iterator.vars.iter().cloned()),
+        ),
+        Statement::Catch {
+            result_var,
+            options_var,
+            ..
+        } => projection
+            .literal_names
+            .extend(result_var.iter().chain(options_var).cloned()),
+        Statement::Try { handlers, .. } => projection.literal_names.extend(
+            handlers
+                .iter()
+                .flat_map(|handler| handler.var_name.iter().chain(&handler.options_var).cloned()),
+        ),
+        _ => {}
+    }
+    projection
+}
 
 /// Collect all variable names defined anywhere inside a script (recursive).
 ///
@@ -433,6 +489,7 @@ fn defs_from_body_script(body_text: &str, registry: &CommandRegistry) -> Vec<Str
 /// the synthetic `<cond>` statement so the def-use / W210 analysis sees the
 /// write.  Which arguments those are is the registry's
 /// [`ArgRole::VarWrite`] answer, never a name list here.
+#[cfg(test)]
 pub(crate) fn condition_command_out_vars(
     condition: &ExprNode,
     registry: &CommandRegistry,
@@ -459,6 +516,7 @@ pub(crate) fn condition_command_out_vars(
 /// the word's *content* spelling drops the `$`, so `set $n 1` would otherwise
 /// read as a definition of a variable called `n` and silence a genuine
 /// warning about it.
+#[cfg(test)]
 fn is_bare_var_word(word: &CommandWord) -> bool {
     !word.expanded
         && !word.substituted
@@ -469,6 +527,7 @@ fn is_bare_var_word(word: &CommandWord) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
 }
 
+#[cfg(test)]
 fn push_out_var(word: &CommandWord, out: &mut Vec<String>) {
     if is_bare_var_word(word) {
         let normalised = normalise_var_name(&word.text);
@@ -514,6 +573,7 @@ fn push_out_var(word: &CommandWord, out: &mut Vec<String>) {
 /// leaves the status quo — but a name harvested from the *wrong* command is
 /// not over-collection, it is a wrong fact, so the skip is a correctness
 /// requirement rather than a precision nicety.
+#[cfg(test)]
 fn cmd_substitution_out_vars(
     words: &[CommandWord],
     registry: &CommandRegistry,
@@ -560,20 +620,7 @@ fn cmd_substitution_out_vars(
     }
 }
 
-/// Out-vars assigned by a run of **script text**.
-///
-/// Shared by [`cmd_substitution_out_vars`]'s `Plain`-body descent (a `catch`
-/// script) and the analyser's read-before-set suppression for a
-/// [`tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS`] call whose words the
-/// lowering left as an opaque barrier (`eval set l2 hello`).
-/// Both need the same answer from the same text, so they ask once here.
-///
-/// Suppress-only: over-collection is safe (it only avoids false warnings),
-/// under-collection merely leaves the status quo.
-pub(crate) fn script_text_out_vars(body: &str, registry: &CommandRegistry, out: &mut Vec<String>) {
-    script_text_out_vars_at(body, registry, out, 0);
-}
-
+#[cfg(test)]
 fn script_text_out_vars_at(
     body: &str,
     registry: &CommandRegistry,
@@ -1059,45 +1106,6 @@ pub(crate) fn variable_read_effects_from_commands<'a>(
     out
 }
 
-/// Conditional embedded read footprint under exact supplied availability.
-/// Missing or foreign metadata is opaque, independently of lexical word shape.
-#[must_use]
-pub(crate) fn variable_read_effects_from_commands_with_metadata_context<'a>(
-    commands: impl IntoIterator<Item = &'a Vec<CommandWord>>,
-    registry: &CommandRegistry,
-    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
-) -> VariableReadEffects {
-    let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
-        return VariableReadEffects {
-            opaque: true,
-            ..VariableReadEffects::default()
-        };
-    };
-    let mut out = VariableReadEffects::default();
-    for words in commands {
-        let Some(head) = words.first() else {
-            continue;
-        };
-        let args: Vec<InvocationWord<'_>> = words
-            .iter()
-            .skip(1)
-            .map(CommandWord::invocation_word)
-            .collect();
-        let projection = registry.variable_read_projection_in_resolved_context(
-            context.context(),
-            InvocationWords::structured(head.invocation_word(), &args),
-            context.context().authoring_query().realm,
-        );
-        out.opaque |= projection.opaque_variable_frame;
-        for name in projection.literal_names {
-            if !out.names.contains(&name) {
-                out.names.push(name);
-            }
-        }
-    }
-    out
-}
-
 /// Project variable writes from recursively recovered command substitutions.
 #[must_use]
 pub(crate) fn variable_write_effects_from_commands<'a>(
@@ -1134,6 +1142,7 @@ pub(crate) fn variable_write_effects_from_commands<'a>(
 /// Conditional embedded write footprint under exact supplied availability.
 /// Missing or foreign metadata is opaque, independently of lexical word shape.
 #[must_use]
+#[cfg(test)]
 pub(crate) fn variable_write_effects_from_commands_with_metadata_context<'a>(
     commands: impl IntoIterator<Item = &'a Vec<CommandWord>>,
     registry: &CommandRegistry,
@@ -1801,6 +1810,51 @@ pub(crate) fn expression_command_substitutions_with_replay(
         registry,
         heads,
         observe,
+    )
+}
+
+/// Conditional expression command inventory under the supplied metadata and
+/// exact syntax policy. Missing/foreign input is opaque; no native replay or
+/// callback/frame entry is established by this readonly inventory.
+#[must_use]
+pub(crate) fn expression_command_substitutions_with_replay_and_metadata_context(
+    expr: &ExprNode,
+    registry: &CommandRegistry,
+    heads: Option<EmbeddedHeadResolver<'_>>,
+    observe: Option<EmbeddedCommandObserver<'_>>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    config: LexerConfig,
+) -> EvaluatedCommandSubstitutions {
+    let Some(metadata) = metadata.filter(|metadata| metadata.matches_registry(registry)) else {
+        return EvaluatedCommandSubstitutions {
+            opaque: true,
+            ..Default::default()
+        };
+    };
+    if metadata
+        .source_analysis_input()
+        .is_some_and(|input| input.lexer_config().normalized() != config.normalized())
+    {
+        return EvaluatedCommandSubstitutions {
+            opaque: true,
+            ..Default::default()
+        };
+    }
+    let mut texts = Vec::new();
+    let mut opaque = false;
+    let mut conditional = false;
+    collect_expr_command_surface_refs(expr, &mut texts, &mut opaque, &mut conditional, 0);
+    recover_substitution_surfaces(
+        &texts,
+        opaque,
+        SubstitutionWalkContext {
+            config,
+            registry,
+            metadata: Some(metadata),
+            heads,
+            observe,
+            conditional,
+        },
     )
 }
 

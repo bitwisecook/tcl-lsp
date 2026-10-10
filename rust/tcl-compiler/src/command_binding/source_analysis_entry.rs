@@ -158,6 +158,18 @@ impl<'a> SourceAnalysisOptions<'a> {
             ..Self::default()
         })
     }
+
+    /// Retain positively selected hosted source advice without assuming runtime
+    /// history, storage, a native worker or a TMM execution context.
+    #[must_use]
+    pub fn for_hosted_source(input: &'a crate::analyser::ResolvedAnalysisInput) -> Option<Self> {
+        input.has_hosted_source_name_context().then(|| Self {
+            vendor_source_input: Some(input),
+            invocation_dialect: Some(source_input_dialect(input)),
+            unknown_entry: true,
+            ..Self::default()
+        })
+    }
 }
 
 impl SourceAnalysisOptions<'_> {
@@ -357,6 +369,52 @@ pub struct SourceAnalysisEntry {
 }
 
 impl SourceAnalysisEntry {
+    /// Retain an owned source-only entry from a positive Logical input.
+    /// The shared source options gate refuses Native and hosted axes; this
+    /// entry carries no runtime activation or compiler admission.
+    #[must_use]
+    pub fn for_logical_source(input: &crate::analyser::ResolvedAnalysisInput) -> Option<Self> {
+        let options = SourceAnalysisOptions::for_logical_source(input)?;
+        Some(Self {
+            logical_source_input: options.logical_source_input.cloned(),
+            invocation_dialect: options.invocation_dialect,
+            ..Self::default()
+        })
+    }
+
+    /// Retain source-only hosted advice from the independent supplied policy.
+    /// Prior runtime history stays unknown; this supplies no native or TMM entry.
+    #[must_use]
+    pub fn for_hosted_source(input: &crate::analyser::ResolvedAnalysisInput) -> Option<Self> {
+        let options = SourceAnalysisOptions::for_hosted_source(input)?;
+        Some(Self {
+            vendor_source_input: options.vendor_source_input.cloned(),
+            invocation_dialect: options.invocation_dialect,
+            unknown_entry: options.unknown_entry,
+            ..Self::default()
+        })
+    }
+
+    /// Select only authored advice justified by the complete supplied input.
+    /// An absent runtime entry stays unknown for Native, mismatched or unsupported
+    /// source axes; catalogue metadata cannot assert a fresh interpreter.
+    #[must_use]
+    pub fn for_supplied_source(
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        config: tcl_lexer::LexerConfig,
+        profile: Option<&tcl_dialect::DialectProfile>,
+    ) -> Self {
+        crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            registry, input, config, profile,
+        )
+        .and_then(|_| Self::for_logical_source(input).or_else(|| Self::for_hosted_source(input)))
+        .unwrap_or_else(|| Self {
+            unknown_entry: true,
+            ..Self::default()
+        })
+    }
+
     /// Borrow the entry contract for a shared binding interpretation.
     #[must_use]
     pub fn options(&self) -> SourceAnalysisOptions<'_> {
@@ -376,6 +434,109 @@ impl SourceAnalysisEntry {
             invocation_dialect: self.invocation_dialect,
             compiled_variable_provider: self.compiled_variable_provider,
             native_compilation: self.native_compilation,
+        }
+    }
+}
+
+#[cfg(test)]
+mod source_entry_tests {
+    use super::*;
+
+    #[test]
+    fn owned_hosted_entry_keeps_source_policy_and_unknown_runtime_history() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        for environment in ["f5-irules", "f5-iapps"] {
+            let environment = tcl_registry::model::ingress::resolve_environment(environment);
+            let profile = environment.unit_profile();
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                environment.default_context_registry(),
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            );
+            let entry = SourceAnalysisEntry::for_hosted_source(&input).unwrap();
+            assert_eq!(entry.vendor_source_input.as_ref(), Some(&input));
+            assert!(entry.unknown_entry);
+            assert!(entry.logical_source_input.is_none());
+            assert!(entry.native_entry.is_none());
+            assert!(entry.hosted_execution_context.is_none());
+            assert!(entry.options().execution_name_policy().is_none());
+            assert_eq!(
+                entry.native_compilation,
+                tcl_registry::native_compilation::NativeCompilationContext::default()
+            );
+            assert_eq!(
+                entry.options().retained_vendor_source_input(
+                    input.context_registry().commands(),
+                    Some(input.lexer_config()),
+                ),
+                Some(input)
+            );
+        }
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let profile = environment.unit_profile();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            environment.default_context_registry(),
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        );
+        assert!(SourceAnalysisEntry::for_hosted_source(&input).is_none());
+        assert!(SourceAnalysisOptions::for_hosted_source(&input).is_none());
+    }
+
+    #[test]
+    fn owned_logical_entry_preserves_actual_input_and_refuses_native_axes() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry();
+        let config = tcl_lexer::LexerConfig {
+            escapes: tcl_dialect::EscapeSyntax::Tcl84,
+            ..tcl_lexer::LexerConfig::from_grammar(profile.grammar)
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let entry = SourceAnalysisEntry::for_logical_source(&input).unwrap();
+        assert_eq!(entry.logical_source_input.as_ref(), Some(&input));
+        assert!(entry.native_entry.is_none());
+        assert!(entry.hosted_execution_context.is_none());
+        assert!(entry.execution_name_policy.is_none());
+        assert_eq!(
+            entry.invocation_dialect,
+            SourceAnalysisOptions::for_logical_source(&input)
+                .unwrap()
+                .invocation_dialect
+        );
+        for native in ["tcl8.4", "tcl8.6", "tcl9.1", "jim", "f5-irules", "f5-iapps"] {
+            let environment = tcl_registry::model::ingress::resolve_environment(native);
+            let native_profile = environment.unit_profile();
+            let native_input = crate::analyser::ResolvedAnalysisInput::new(
+                native_profile,
+                native_profile,
+                environment.default_context_registry(),
+                tcl_lexer::LexerConfig::from_grammar(native_profile.grammar),
+            );
+            assert!(
+                SourceAnalysisEntry::for_logical_source(&native_input).is_none(),
+                "{native}"
+            );
+            let mixed = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                native_profile,
+                std::sync::Arc::clone(&context),
+                config,
+            );
+            assert!(
+                SourceAnalysisEntry::for_logical_source(&mixed).is_none(),
+                "{native}"
+            );
         }
     }
 }

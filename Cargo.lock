@@ -4262,6 +4262,7 @@ dependencies = [
  "tcl-platform",
  "tcl-runtime-api",
  "tcl-syntax",
+ "tcl-test-support",
 ]
 
 [[package]]

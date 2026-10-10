@@ -259,13 +259,13 @@ impl Interp {
                 "Jim original parent alias prefix",
             ));
         };
-        Ok(self.install_parent_alias_with_original(
+        self.install_parent_alias_with_original(
             child,
             name,
             target.to_vec(),
             prefix.iter().map(|word| word.to_vec()).collect(),
             Some(original),
-        ))
+        )
     }
 
     pub(super) fn dispatch_original_jim_parent_alias(

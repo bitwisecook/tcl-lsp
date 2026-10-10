@@ -646,10 +646,9 @@ fn select_native_i64_add_plan(
         return None;
     }
 
-    let common = CommonAotProofPlan::build(
+    let common = CommonAotProofPlan::build_with_retained_metadata(
         unit,
         registry,
-        unit.top_level.semantic_facts.context(),
         config,
         options.common_aot_environment(),
     );

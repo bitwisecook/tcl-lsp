@@ -486,9 +486,22 @@ fn transition_alias_pairs_with_metadata_context(
     registry: &CommandRegistry,
     context: Option<InvocationMetadataContext<'_>>,
 ) -> Vec<RegistryAliasPair> {
-    let Some(RegistryInvocationResolution::Resolved(facts)) =
-        registry_resolution_with_metadata_context(stmt, registry, context)
-    else {
+    // Logical source recipes add MAY exposure only. They cannot remove the
+    // separate wildcard/clobber residual or establish a completed physical link.
+    let facts = registry_resolution_with_metadata_context(stmt, registry, context)
+        .and_then(|resolution| match resolution {
+            RegistryInvocationResolution::Resolved(facts) => Some(facts),
+            RegistryInvocationResolution::Unresolved(_) => None,
+        })
+        .or_else(|| {
+            crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+                registry,
+                context?,
+                command_tokens(stmt)?,
+            )
+            .map(|selected| selected.facts)
+        });
+    let Some(facts) = facts else {
         return Vec::new();
     };
     let StateTransitionKnowledge::Declared(transitions) = &facts.state_transitions else {

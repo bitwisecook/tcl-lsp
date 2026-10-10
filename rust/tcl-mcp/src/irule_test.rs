@@ -658,12 +658,18 @@ fn build_condition_summary(conditions: &[Condition]) -> String {
 /// logic reads (`_get_taint_warnings`), which reads the `taint_warnings` list
 /// from the dataflow graph.
 fn collect_taints(source: &str) -> Vec<Taint> {
-    let registry = crate::environment::store_for_dialect(IRULES_DIALECT);
-    let graph = tcl_lsp_core::graphs::dataflow_graph(
+    let analysis = crate::tools::analyse(source, IRULES_DIALECT);
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return Vec::new();
+    };
+    let context = input.context_registry();
+    let Ok(graph) = tcl_lsp_core::graphs::dataflow_graph_with_source_input(
         source,
-        registry,
-        tcl_lsp_core::profile_for_dialect(IRULES_DIALECT),
-    );
+        context.commands(),
+        Some(input),
+    ) else {
+        return Vec::new();
+    };
     graph
         .get("taint_warnings")
         .and_then(Value::as_array)

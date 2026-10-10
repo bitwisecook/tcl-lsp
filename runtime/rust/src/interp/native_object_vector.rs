@@ -174,15 +174,26 @@ impl Interp {
         let protocol = self
             .native_invocation_dialect()
             .native_object_vector_protocol();
-        let name = if protocol
-            .is_some_and(|recipe| matches!(recipe.strings(), NativeStringProtocol::C(_)))
-        {
-            &name[..name
-                .iter()
-                .position(|byte| *byte == 0)
-                .unwrap_or(name.len())]
-        } else {
-            name
+        // The missing-command formatter has its own reporting extent. Lookup
+        // and child registration retain their separately selected input/key.
+        // naming.alias.original-child-publication-and-inventory
+        // docs/design/analysis/name-resolution-proofs/alias-original-child-publication-and-inventory.md
+        let Some(names) = self.name_policy_protocol() else {
+            return self.report_cmd_error(
+                ValueError::CommandProtocolUnavailable("missing-command name reporting").into(),
+            );
+        };
+        let name = match tcl_syntax::naming::report_native_name_bytes(
+            names.recipe(),
+            tcl_syntax::naming::NativeNameReportPurpose::CommandLookupError,
+            name,
+        ) {
+            Ok(name) => name,
+            Err(_) => {
+                return self.report_cmd_error(
+                    ValueError::CommandProtocolUnavailable("missing-command name reporting").into(),
+                );
+            }
         };
         let mut message = b"invalid command name \"".to_vec();
         message.extend_from_slice(name);

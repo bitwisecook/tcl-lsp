@@ -434,6 +434,18 @@ impl OriginalRegistryWords {
         super::source_scoped_body::source_script_bodies_for_mutation_coverage(self, context)
     }
 
+    /// Original expression command regions at the retained AST's actual
+    /// operand-content base. Unique genuine Expr geometry is required;
+    /// unrelated or cooked operands cannot donate a child source span.
+    #[must_use]
+    pub fn source_expression_script_bodies_at(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        expression_base: u32,
+    ) -> Option<Vec<super::OriginalSourceScriptBody>> {
+        super::source_scoped_body::source_expression_script_bodies_at(self, input, expression_base)
+    }
+
     /// Registry contents used by the issuer, independent of reporting names.
     #[must_use]
     pub fn matches_registry(&self, registry: &CommandRegistry) -> bool {

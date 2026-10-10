@@ -968,17 +968,17 @@ fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         );
     }
     let src = source_path.first().cloned().unwrap_or_default();
-    let name = match interp.native_string_bytes(&argv[3]) {
+    let original_name = match interp.native_string_bytes(&argv[3]) {
         Ok(name) => name,
         Err(error) => return interp.report_cmd_error(error.into()),
     };
     let policy = interp
         .name_policy_protocol()
         .expect("path selected the original protocol");
-    let name = match policy
-        .recipe()
-        .alias_publication_input(tcl_syntax::naming::NativeNameContext::root(), &name)
-    {
+    let name = match policy.recipe().alias_publication_input(
+        tcl_syntax::naming::NativeNameContext::root(),
+        &original_name,
+    ) {
         Ok(name) => name.selected().to_vec(),
         Err(_) => {
             return interp.report_cmd_error(
@@ -1014,8 +1014,13 @@ fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         let target = obj_bytes(argv[5]);
         let prefix: Vec<Vec<u8>> = argv[6..].iter().map(|&a| obj_bytes(a)).collect();
-        interp.install_parent_alias(&src, &name, target, prefix);
-        interp.set_result(obj::new_string_bytes(&name));
+        if !interp.install_parent_alias(&src, &original_name, target, prefix) {
+            if interp.host_refusal_pending() {
+                return Code::Error;
+            }
+            return not_found_original_path(interp, argv[2]);
+        }
+        interp.set_result(argv[3]);
         return Code::Ok;
     }
 
@@ -1056,9 +1061,9 @@ fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Create: `interp alias {} aliasName {} target ?arg ...?`.
     let target = obj_bytes(argv[5]);
     let prefix: Vec<Vec<u8>> = argv[6..].iter().map(|&a| obj_bytes(a)).collect();
-    match interp.install_alias(&name, target, prefix) {
+    match interp.install_alias(&original_name, target, prefix) {
         Ok(()) => {
-            interp.set_result(obj::new_string_bytes(&name));
+            interp.set_result(argv[3]);
             Code::Ok
         }
         Err(simple) => alias_loop_error(interp, &simple),

@@ -55,7 +55,9 @@ use crate::codegen::structured;
 use crate::command_binding::{
     Binding, BindingKind, CommandBinding, ModuleCommandMutations, analyse_command_binding,
 };
-use crate::common_aot_plan::semantic_operation_binding_is_trusted;
+use crate::common_aot_plan::{
+    original_direct_expression_body_operations, semantic_operation_binding_is_trusted,
+};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Module, Procedure, Statement};
 use crate::mixed_region_plan::GuardedSelectionEvidence;
@@ -64,7 +66,10 @@ use crate::native_lowering::{
     FunctionDecline, FunctionReport, LoweringInput, NativeBinding, NativeTierReport,
     ProcEntryDecline, lower_function,
 };
-use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
+use crate::registry_invocation::{
+    InvocationMetadataContext, RegistryInvocationResolution,
+    resolve_command_tokens_with_metadata_context,
+};
 use crate::semantic_optimisation::SemanticOptimisationConfig;
 use tcl_runtime_api::codegen_abi::{
     CodegenAbiImportId, CodegenAbiValueType, WASM32_CODEGEN_DATA_START, WASM32_COMPLETION_ALIGN,
@@ -1473,6 +1478,14 @@ fn direct_proc_eligible(
     registry: &CommandRegistry,
     mutations: &ModuleCommandMutations,
 ) -> bool {
+    let Some(operations) = original_direct_expression_body_operations(
+        registry,
+        unit.invocation_metadata_context_for_module(registry, module),
+        proc,
+        unit.source_lexer_config(),
+    ) else {
+        return false;
+    };
     if crate::native_compilation_admission::script_requires_admission(&proc.body)
         || proc.namespace_scoped
         || proc
@@ -1481,16 +1494,9 @@ fn direct_proc_eligible(
             .is_some_and(|name| name.contains("::"))
         || module.redefined_procedures.contains(&proc.qualified_name)
         || unit.complexity_guarded
-        || !semantic_operation_binding_is_trusted(
-            registry,
-            mutations,
-            SemanticOperationId::StructuredLowering(LoweringHookId::Expr),
-        )
-        || !semantic_operation_binding_is_trusted(
-            registry,
-            mutations,
-            SemanticOperationId::StructuredLowering(LoweringHookId::Return),
-        )
+        || operations
+            .into_iter()
+            .any(|operation| !semantic_operation_binding_is_trusted(registry, mutations, operation))
         || !matches!(
             unit.return_type.tcl_type(),
             Some(TclType::Int | TclType::Double | TclType::Numeric)
@@ -1523,7 +1529,26 @@ fn direct_proc_eligible(
         return false;
     };
     let params: HashSet<&str> = proc.params.iter().map(String::as_str).collect();
-    direct_expr_supported(expr, &params, module.native_lexer_config())
+    direct_expr_supported(expr, &params, unit.source_lexer_config())
+}
+
+fn initial_procedure_bindings(module: &Module, is_top: bool) -> Vec<(String, Binding)> {
+    if is_top {
+        return Vec::new();
+    }
+    module
+        .procedures
+        .keys()
+        .map(|name| {
+            (
+                name.clone(),
+                Binding {
+                    kind: BindingKind::Proc,
+                    target: Some(name.clone()),
+                },
+            )
+        })
+        .collect()
 }
 
 fn function_facts(
@@ -1533,23 +1558,8 @@ fn function_facts(
     mutations: &ModuleCommandMutations,
     is_top: bool,
 ) -> FunctionFacts {
-    let initial: Vec<(String, Binding)> = if is_top {
-        Vec::new()
-    } else {
-        module
-            .procedures
-            .keys()
-            .map(|name| {
-                (
-                    name.clone(),
-                    Binding {
-                        kind: BindingKind::Proc,
-                        target: Some(name.clone()),
-                    },
-                )
-            })
-            .collect()
-    };
+    let initial = initial_procedure_bindings(module, is_top);
+    let context = unit.invocation_metadata_context_for_module(registry, module);
     let bindings = analyse_command_binding(&unit.cfg, registry, &initial);
     let mut facts = FunctionFacts::default();
     let mut planned_spans: HashSet<(u32, u32)> = HashSet::new();
@@ -1576,14 +1586,15 @@ fn function_facts(
                     cell_place(name, *name_braced),
                     Some(CellPlace::Named { .. })
                 )
-                && registry
-                    .command_names_for_semantic_operation(SemanticOperationId::StructuredLowering(
-                        LoweringHookId::Set,
-                    ))
-                    .any(|command| {
-                        bindings.is_original_builtin_at(block, stmt_idx, command)
-                            && mutations.trusts(command)
-                    })
+                && assignment_operation_is_trusted(
+                    unit,
+                    context,
+                    registry,
+                    mutations,
+                    &bindings,
+                    (block, stmt_idx),
+                    statement,
+                )
             {
                 facts.direct_assignments.insert(span_key(*span));
             }
@@ -1597,8 +1608,9 @@ fn function_facts(
                 continue;
             };
             if let Some(tokens) = tokens
+                && let Some(context) = context
                 && let Ok(RegistryInvocationResolution::Resolved(invocation)) =
-                    resolve_command_tokens(registry, unit.semantic_facts.context(), tokens)
+                    resolve_command_tokens_with_metadata_context(registry, Some(context), tokens)
                 && bindings.is_original_builtin_at(block, stmt_idx, command)
                 && mutations.trusts(invocation.canonical_command.trim_start_matches("::"))
             {
@@ -1606,7 +1618,7 @@ fn function_facts(
                     &mut facts,
                     module,
                     registry,
-                    unit.semantic_facts.context(),
+                    Some(context),
                     statement.span(),
                     tokens,
                 );
@@ -1620,7 +1632,8 @@ fn function_facts(
                     &mut facts,
                     &mut planned_spans,
                     registry,
-                    unit.semantic_facts.context(),
+                    context,
+                    unit.source_lexer_config(),
                     statement.span(),
                     tokens.as_ref(),
                 );
@@ -1638,6 +1651,59 @@ fn function_facts(
         }
     }
     facts
+}
+
+/// A consumed assignment head keeps its original source selection and words.
+/// Catalogue membership and flow binding alone cannot recreate that carrier.
+fn assignment_operation_is_trusted(
+    unit: &FunctionUnit,
+    context: Option<InvocationMetadataContext<'_>>,
+    registry: &CommandRegistry,
+    mutations: &ModuleCommandMutations,
+    bindings: &CommandBinding<'_>,
+    site: (crate::cfg::BlockId, usize),
+    statement: &Statement,
+) -> bool {
+    let Some(context) = context else {
+        return false;
+    };
+    let Some(tokens) = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+        &unit.cfg.command_binding_sites,
+        statement,
+    )
+    .filter(|tokens| {
+        tokens.synthetic.is_none()
+            && tokens.words_align_with_argv_text()
+            && tokens
+                .source_binding
+                .as_ref()
+                .and_then(crate::command_binding::SourceInvocationBinding::proved_execution_target)
+                .is_some()
+    }) else {
+        return false;
+    };
+    let Ok(RegistryInvocationResolution::Resolved(invocation)) =
+        resolve_command_tokens_with_metadata_context(registry, Some(context), tokens)
+    else {
+        return false;
+    };
+    let Some(effective) = crate::registry_invocation::effective_command_words(tokens) else {
+        return false;
+    };
+    let Some(written_head) = tokens.argv_texts.first() else {
+        return false;
+    };
+    invocation.operation == SemanticOperationId::StructuredLowering(LoweringHookId::Set)
+        && effective.words.len() == 3
+        && effective.words.len() == tokens.words().len()
+        && !effective.origins.iter().any(|origin| {
+            matches!(
+                origin,
+                crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
+            )
+        })
+        && bindings.is_original_builtin_at(site.0, site.1, written_head)
+        && mutations.trusts(invocation.canonical_command.trim_start_matches("::"))
 }
 
 /// Record every procedure this call site provably binds to, so the emitter may
@@ -1687,7 +1753,8 @@ fn plan_leaf_statement(
     facts: &mut FunctionFacts,
     planned_spans: &mut HashSet<(u32, u32)>,
     registry: &CommandRegistry,
-    context: Option<tcl_registry::model::semantic::SemanticContext>,
+    context: Option<InvocationMetadataContext<'_>>,
+    config: tcl_lexer::LexerConfig,
     span: Span,
     tokens: Option<&crate::ir::CommandTokens>,
 ) {
@@ -1705,23 +1772,20 @@ fn plan_leaf_statement(
             .insert(key, WasmLeafInvokeDecline::MissingCommandTokens);
         return;
     };
-    let resolution = resolve_command_tokens(registry, context, tokens);
+    // Missing actual metadata keeps generic argv planning, without entering
+    // the resolver's independently supported standalone catalogue mode.
+    let resolution = context.map(|context| {
+        resolve_command_tokens_with_metadata_context(registry, Some(context), tokens)
+    });
     let resolved = match &resolution {
-        Ok(RegistryInvocationResolution::Resolved(invocation)) => Some(invocation.as_ref()),
+        Some(Ok(RegistryInvocationResolution::Resolved(invocation))) => Some(invocation.as_ref()),
         _ => None,
     };
     let operation = resolved.map_or(SemanticOperationId::Invoke, |facts| facts.operation);
     let selection_facts = resolved.map_or_else(SelectionFacts::unavailable, |facts| {
         SelectionFacts::from_invocation(facts)
     });
-    match select_leaf_invocation(
-        tokens.words(),
-        operation,
-        selection_facts,
-        // The registry carries the environment's profile: a nested `[…]` word
-        // is re-segmented while planning, under the document's own grammar.
-        tcl_lexer::LexerConfig::for_profile(registry.profile()),
-    ) {
+    match select_leaf_invocation(tokens.words(), operation, selection_facts, config) {
         Ok(plan) => {
             facts.leaf_invocations.insert(key, plan);
         }
@@ -1745,12 +1809,15 @@ fn record_operation(
     facts: &mut FunctionFacts,
     module: &Module,
     registry: &CommandRegistry,
-    context: Option<tcl_registry::model::semantic::SemanticContext>,
+    context: Option<InvocationMetadataContext<'_>>,
     span: Span,
     tokens: &crate::ir::CommandTokens,
 ) {
+    let Some(context) = context else {
+        return;
+    };
     let Ok(RegistryInvocationResolution::Resolved(invocation)) =
-        resolve_command_tokens(registry, context, tokens)
+        resolve_command_tokens_with_metadata_context(registry, Some(context), tokens)
     else {
         return;
     };
@@ -2699,15 +2766,275 @@ mod tests {
 
     /// Plan the top-level statements of `source` under the full analysed tier.
     fn top_level_facts(source: &str) -> FunctionFacts {
-        let registry = CommandRegistry::build_default();
-        let unit = CompilationUnit::build_for(source, &registry, false);
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let unit = retained_source_unit(
+            std::sync::Arc::clone(&context),
+            source,
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        );
         function_facts(
             &unit.top_level,
             &unit.ir_module,
-            &registry,
+            context.commands(),
             &unit.command_mutations,
             true,
         )
+    }
+
+    fn retained_source_unit(
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+    ) -> crate::environment_ingress::RetainedNativeUnit {
+        native_source_unit(
+            context,
+            source,
+            config,
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+        )
+    }
+
+    fn native_source_unit(
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> crate::environment_ingress::RetainedNativeUnit {
+        let (owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_context_registry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        crate::environment_ingress::RetainedNativeUnit::new(unit, owner)
+    }
+
+    fn assignment_facts(
+        function: &FunctionUnit,
+        unit: &CompilationUnit,
+        registry: &CommandRegistry,
+    ) -> FunctionFacts {
+        function_facts(
+            function,
+            &unit.ir_module,
+            registry,
+            &unit.command_mutations,
+            true,
+        )
+    }
+
+    #[test]
+    fn structural_assignments_require_actual_availability_and_grammar() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Availability selection retains a separate actual command-entry owner;
+        // it does not assert successful native compilation or fixture execution.
+        use std::sync::Arc;
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut setter = registry.get("set").unwrap().clone();
+        setter.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(setter);
+        let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        let registry = current.commands();
+        let unit = retained_source_unit(
+            Arc::clone(&current),
+            "set result VALUE",
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        );
+        let selected = &unit.top_level;
+        assert_eq!(
+            assignment_facts(selected, &unit, registry)
+                .direct_assignments
+                .len(),
+            1
+        );
+        let input = selected.source_metadata_input().unwrap();
+        let replace_input = |context| {
+            let mut changed = selected.clone();
+            changed.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                context,
+                input.lexer_config(),
+            ));
+            changed
+        };
+        let older = replace_input(Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(registry)),
+        ));
+        assert!(Arc::ptr_eq(
+            older
+                .source_metadata_input()
+                .unwrap()
+                .context_registry()
+                .commands(),
+            registry
+        ));
+        let mut older_module = unit.ir_module.clone();
+        older_module.source_metadata_input = older.source_metadata_input.clone();
+        assert!(
+            function_facts(
+                &older,
+                &older_module,
+                registry,
+                &unit.command_mutations,
+                true,
+            )
+            .direct_assignments
+            .is_empty()
+        );
+        let foreign = replace_input(
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+        );
+        let mut missing = selected.clone();
+        missing.source_metadata_input = None;
+        let mut different_grammar = selected.clone();
+        different_grammar.source_config.strict_quoting =
+            !different_grammar.source_config.strict_quoting;
+        let mut missing_module = unit.ir_module.clone();
+        missing_module.source_metadata_input = None;
+        assert!(
+            function_facts(
+                selected,
+                &missing_module,
+                registry,
+                &unit.command_mutations,
+                true,
+            )
+            .direct_assignments
+            .is_empty()
+        );
+        for refused in [older, foreign, missing, different_grammar] {
+            assert!(
+                assignment_facts(&refused, &unit, registry)
+                    .direct_assignments
+                    .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn structural_assignments_need_unanimous_original_source_carriers() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let unit = retained_source_unit(
+            std::sync::Arc::clone(&context),
+            "set result VALUE",
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        );
+        let registry = context.commands();
+        let selected = &unit.top_level;
+        assert_eq!(
+            assignment_facts(selected, &unit, registry)
+                .direct_assignments
+                .len(),
+            1
+        );
+        let mut missing = selected.clone();
+        missing.cfg.command_binding_sites.clear();
+        assert!(
+            assignment_facts(&missing, &unit, registry)
+                .direct_assignments
+                .is_empty()
+        );
+        let mut conflicting = selected.clone();
+        let mut additional = conflicting
+            .cfg
+            .command_binding_sites
+            .iter()
+            .find(|site| site.source_tokens.is_some())
+            .unwrap()
+            .clone();
+        let tokens = additional.source_tokens.as_mut().unwrap();
+        tokens.argv_texts[0] = "different".into();
+        conflicting.cfg.command_binding_sites.push(additional);
+        assert!(
+            assignment_facts(&conflicting, &unit, registry)
+                .direct_assignments
+                .is_empty()
+        );
+        let mut unqueried = selected.clone();
+        for site in &mut unqueried.cfg.command_binding_sites {
+            if let Some(tokens) = &mut site.source_tokens {
+                tokens.source_binding = None;
+            }
+        }
+        assert!(
+            assignment_facts(&unqueried, &unit, registry)
+                .direct_assignments
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn assignment_source_metadata_retains_nested_lexer_overlays() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let config = tcl_lexer::LexerConfig {
+            escapes: tcl_dialect::EscapeSyntax::Tcl84,
+            ..tcl_lexer::LexerConfig::for_dialect("tcl8.6")
+        };
+        // The original Tcl84 escape overlay is the measured Tcl8.5 lexer
+        // grammar. Its actual command entry stays separate from C8.6 availability.
+        let unit = native_source_unit(
+            std::sync::Arc::clone(&context),
+            r"proc p {} {set escaped \U00000041}; p",
+            config,
+            tcl_dialect::DialectProfile::find("tcl8.5").unwrap(),
+        );
+        let function = unit.procedures.get("::p").unwrap();
+        assert_eq!(function.source_lexer_config(), config.nested().normalized());
+        assert_eq!(
+            function.source_metadata_input().unwrap().lexer_config(),
+            config.nested().normalized()
+        );
+        let facts = function_facts(
+            function,
+            &unit.ir_module,
+            context.commands(),
+            &unit.command_mutations,
+            false,
+        );
+        assert_eq!(facts.direct_assignments.len(), 1);
+        let mut stale = function.clone();
+        stale.source_config.escapes = tcl_dialect::EscapeSyntax::Tcl86;
+        assert!(
+            stale
+                .invocation_metadata_context(context.commands())
+                .is_none()
+        );
+        let facts = function_facts(
+            &stale,
+            &unit.ir_module,
+            context.commands(),
+            &unit.command_mutations,
+            false,
+        );
+        assert!(facts.direct_assignments.is_empty());
     }
 
     fn only_decline(facts: &FunctionFacts) -> WasmLeafInvokeDecline {
@@ -2803,11 +3130,15 @@ mod tests {
     /// anything defined inside a procedure.
     #[test]
     fn a_written_out_definition_body_still_binds() {
-        let registry = CommandRegistry::build_default();
-        let unit = CompilationUnit::build_for(
-            "proc make {} { proc p {x} {return $x} }\n",
-            &registry,
-            false,
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        // A called original body supplies its reached binding separately from
+        // the uncalled declaration preview and from availability metadata.
+        let unit = retained_source_unit(
+            std::sync::Arc::clone(&context),
+            "proc make {} { proc p {x} {return $x} }; make\n",
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
         );
         let procedure = unit.ir_module.procedures.get("::p").expect("procedure");
         let enclosing = unit.procedures.get("::make").expect("the enclosing body");
@@ -2824,7 +3155,7 @@ mod tests {
         let facts = function_facts(
             enclosing,
             &unit.ir_module,
-            &registry,
+            registry,
             &unit.command_mutations,
             false,
         );

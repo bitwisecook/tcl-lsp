@@ -53,6 +53,51 @@ impl NativeUsageProtocol {
         self.style
     }
 
+    /// Render a procedure's original called-name bytes. C procedure names use
+    /// their own list-element quoting rule; Jim duplicates the called object
+    /// without applying that rule. This chooses presentation only.
+    #[must_use]
+    pub fn render_procedure_name(self, called: &[u8], quote_name: bool) -> Vec<u8> {
+        let mut header = Vec::new();
+        if quote_name && self.style != crate::NativeArgumentUsageHeader::RawWords {
+            tcl_syntax::list::append_list_element(&mut header, called, false);
+        } else {
+            header.extend_from_slice(called);
+        }
+        header
+    }
+
+    /// Present an already selected procedure header and formal usage suffix.
+    /// Jim's JimCmdUsage keeps counted bytes until JimSetProcWrongArgs passes
+    /// the assembled usage through the formatter's CString boundary. The C
+    /// procedure presenter retains the counted header and suffix here.
+    #[must_use]
+    pub fn render_procedure_message(self, header: &[u8], suffix: &[u8]) -> Vec<u8> {
+        self.render_command_usage_message(header, suffix)
+    }
+
+    /// Present the selected called-name and registered usage suffix. Jim's
+    /// native and procedure branches of JimCmdUsage assemble counted bytes
+    /// before JimCallNative/JimSetProcWrongArgs applies the final formatter.
+    /// This rendering does not confer a resolved command or registered arity.
+    #[must_use]
+    pub fn render_command_usage_message(self, header: &[u8], suffix: &[u8]) -> Vec<u8> {
+        let mut usage = header.to_vec();
+        if !suffix.is_empty() {
+            usage.push(b' ');
+            usage.extend_from_slice(suffix);
+        }
+        let usage = if self.style == crate::NativeArgumentUsageHeader::RawWords {
+            c_string(&usage)
+        } else {
+            &usage
+        };
+        let mut message = b"wrong # args: should be \"".to_vec();
+        message.extend_from_slice(usage);
+        message.push(b'"');
+        message
+    }
+
     /// Render the retained, already rewritten original words. Each C quoted
     /// word uses its own native element scan, including hash protection.
     /// A C index-cache word is unsupported by Jim's actual object protocol.
@@ -168,6 +213,44 @@ mod tests {
                 .unwrap(),
             b"n s\0tail\xc0\x80\xff #x"
         );
+    }
+
+    #[test]
+    fn procedure_usage_preserves_the_selected_name_and_final_formatter_boundary() {
+        // naming.procedure.original-usage-called-name-and-formatter
+        // docs/design/analysis/name-resolution-proofs/procedure-original-usage-called-name-and-formatter.md
+        // Source/API control: JimCmdUsage and JimSetProcWrongArgs in the pinned
+        // Jim source. The public helper arity windows are independently measured
+        // by naming.info.original-command-inventory-option-and-scope.
+        // docs/design/analysis/name-resolution-proofs/info-original-command-inventory-option-and-scope.md
+        let jim = InvocationDialect::of_profile(
+            crate::model::ingress::resolve_environment("jim").analyser_profile(),
+        )
+        .native_usage_protocol()
+        .unwrap();
+        assert_eq!(
+            jim.render_procedure_name(b"namespace info", true),
+            b"namespace info"
+        );
+        assert_eq!(
+            jim.render_procedure_message(b"namespace info", b"cmd ?pattern?"),
+            b"wrong # args: should be \"namespace info cmd ?pattern?\""
+        );
+        assert_eq!(
+            jim.render_procedure_message(b"p\0tail", b"x"),
+            b"wrong # args: should be \"p\""
+        );
+        for version in TclVersion::ALL {
+            let c = InvocationDialect::for_version(version)
+                .native_usage_protocol()
+                .unwrap();
+            assert_eq!(c.render_procedure_name(b"n s", true), b"{n s}");
+            assert_eq!(c.render_procedure_name(b"n s", false), b"n s");
+            assert_eq!(
+                c.render_procedure_message(b"p\0tail", b"x"),
+                b"wrong # args: should be \"p\0tail x\""
+            );
+        }
     }
 
     #[test]

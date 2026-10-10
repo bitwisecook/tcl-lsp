@@ -152,7 +152,8 @@ mod tests {
         vm.register_written_command(
             "matcher",
             crate::command::Command::Native(Rc::new(Callback(callback))),
-        );
+        )
+        .unwrap();
     }
     fn hex(text: &str) -> Vec<u8> {
         assert!(text.len().is_multiple_of(2));

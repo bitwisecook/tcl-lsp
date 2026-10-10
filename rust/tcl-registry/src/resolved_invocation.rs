@@ -2706,6 +2706,63 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .collect()
     }
 
+    /// Name/value or declaration-tail source positions from the selected
+    /// descriptor. Read-modify-write and whole-array forms are excluded;
+    /// unknown roles/cardinality decline. No store or cell value is proved.
+    #[must_use]
+    pub fn authored_source_assignment_arguments(&self) -> Option<Vec<(usize, Option<usize>)>> {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        use crate::{ArgRole, Traits};
+        let count = self.words.arguments().exact_argv_len()?;
+        let (roles, complete) = self.authored_source_argument_roles();
+        if !complete {
+            return None;
+        }
+        if self
+            .semantics
+            .traits
+            .intersects(Traits::READS_BEFORE_WRITE | Traits::WHOLE_ARRAY_ARG)
+        {
+            return Some(Vec::new());
+        }
+        let Some(base) = self
+            .semantics
+            .script_metadata
+            .command
+            .assigns_variable_at
+            .map(usize::from)
+        else {
+            return Some(Vec::new());
+        };
+        let writes = roles
+            .iter()
+            .filter(|(_, role)| *role == ArgRole::VarWrite)
+            .map(|(argument, _)| self.semantics.argument_offset + usize::from(*argument))
+            .collect::<Vec<_>>();
+        let paired_tail = self.semantics.repeated_args.iter().any(|layout| {
+            layout.role == ArgRole::VarWrite
+                && layout.stride == 2
+                && self.semantics.argument_offset + usize::from(layout.start) == base
+                && !layout.conditional_binding
+        });
+        if paired_tail {
+            return Some(
+                writes
+                    .into_iter()
+                    .map(|argument| (argument, (argument + 1 < count).then_some(argument + 1)))
+                    .collect(),
+            );
+        }
+        Some(
+            if self.semantics.repeated_args.is_empty() && writes == [base] && count == base + 2 {
+                vec![(base, Some(base + 1))]
+            } else {
+                Vec::new()
+            },
+        )
+    }
+
     /// Expression roles and whole-tail grammar from the already selected
     /// descriptor. Unknown selectors, unresolved roles and expanded argv
     /// cardinality withdraw this projection; ordinary unknown values keep
@@ -2756,7 +2813,21 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// unknown. This is descriptive syntax, not a variable read or rewrite.
     #[must_use]
     pub fn authored_source_append_arguments(&self) -> Option<AuthoredSourceAppendArguments> {
-        if self.semantics.analyser_hook != Some(crate::hooks::AnalyserHookId::Append) {
+        self.authored_source_append_layout(crate::hooks::AnalyserHookId::Append)
+    }
+
+    /// Exact list-append source receiver and value slots from its selected
+    /// descriptor. This supplies no native receiver, list conversion or write.
+    #[must_use]
+    pub fn authored_source_list_append_arguments(&self) -> Option<AuthoredSourceAppendArguments> {
+        self.authored_source_append_layout(crate::hooks::AnalyserHookId::Lappend)
+    }
+
+    fn authored_source_append_layout(
+        &self,
+        hook: crate::hooks::AnalyserHookId,
+    ) -> Option<AuthoredSourceAppendArguments> {
+        if self.semantics.analyser_hook != Some(hook) {
             return None;
         }
         let count = self.words.arguments().exact_argv_len()?;
@@ -7750,5 +7821,36 @@ mod logical_frame_source_role_tests {
             );
             assert!(!schema.facts().arg_roles_complete);
         }
+    }
+}
+
+impl ResolvedInvocation<'_, '_> {
+    /// Select the actual authored source path operation and complete effective
+    /// post-head argument range. Bound prefix values retain their ordinals;
+    /// unknown expansion/selectors and unmatched forms supply no algebra.
+    /// This is conditional source advice, not a native handler or value.
+    #[must_use]
+    pub fn authored_source_path_operation(
+        &self,
+    ) -> Option<crate::source_path::SourcePathInvocation> {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        if self.form.is_some() {
+            return None;
+        }
+        let operation = self
+            .semantics
+            .script_metadata
+            .subcommand?
+            .source_path_operation?;
+        let count = self.words.arguments().exact_argv_len()?;
+        let first = self.semantics.argument_offset;
+        let values = count.checked_sub(first)?;
+        operation.accepts_argument_count(values).then_some(
+            crate::source_path::SourcePathInvocation {
+                operation,
+                arguments: first..count,
+            },
+        )
     }
 }

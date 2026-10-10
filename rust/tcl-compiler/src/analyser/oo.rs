@@ -7047,17 +7047,20 @@ _original_unknown $cmd $args";
 
     #[test]
     fn a_stub_retraction_of_an_undeclared_member_leaves_a_tombstone() {
+        // naming.source.original-class-reference
+        // docs/design/analysis/name-resolution-proofs/source-original-class-reference.md
+        // Explicit Logical cross-document advisory channel; no Native class or retraction.
         // TP for the cross-document channel. This document
         // is the `oo::define ::C { deletemethod m }` half of a two-file program:
         // it has no local `m` to remove, so the removal has to travel as a
         // tombstone or the workspace keeps advertising a method that sourcing
         // this file deletes. The side travels with it — a `self`-scoped
         // retraction tombstones the class-object side.
-        let mut a = Analyser::new();
+        let mut a = logical_object_abort_analyser();
         let r = a.analyse(
             "oo::define ::C { deletemethod m }\n\
              oo::define ::D { self deletemethod cm }",
-            "tcl9.0",
+            "explicit-object-abort-advice",
         );
         assert_eq!(
             r.all_classes["::C"].retracted_members,
@@ -7077,6 +7080,9 @@ _original_unknown $cmd $args";
 
     #[test]
     fn a_stub_renamemethod_tombstones_only_the_source_name() {
+        // naming.source.original-class-reference
+        // docs/design/analysis/name-resolution-proofs/source-original-class-reference.md
+        // Explicit Logical cross-document advisory channel; no Native move.
         // TN for the tombstone's shape: `renamemethod old new` removes `old` and
         // *creates* `new` (oracle: `info class methods ::I3` -> new, and
         // `[::I3 new] new` answers), so tombstoning `new` would suppress a live
@@ -7084,8 +7090,11 @@ _original_unknown $cmd $args";
         // retracting word removes is registry data
         // ([`tcl_registry::definer::MemberRetraction::FirstArgument`]), not a
         // keyword match here.
-        let mut a = Analyser::new();
-        let r = a.analyse("oo::define ::C { renamemethod old new }", "tcl9.0");
+        let mut a = logical_object_abort_analyser();
+        let r = a.analyse(
+            "oo::define ::C { renamemethod old new }",
+            "explicit-object-abort-advice",
+        );
         assert_eq!(
             r.all_classes["::C"]
                 .retracted_members
@@ -7101,6 +7110,39 @@ _original_unknown $cmd $args";
             r.all_classes["::C"].retracted_members[0].arrival.as_deref(),
             Some("new"),
         );
+    }
+
+    #[test]
+    fn missing_class_source_cannot_publish_native_definition_stubs() {
+        // naming.source.original-class-reference
+        // docs/design/analysis/name-resolution-proofs/source-original-class-reference.md
+        let source = "oo::define ::C {deletemethod m}; oo::define ::D {renamemethod old new}";
+        for profile in ["tcl8.6", "tcl9.0", "tcl9.1", "f5-irules"] {
+            let result = Analyser::new().analyse(source, profile);
+            assert!(!result.all_classes.contains_key("::C"), "{profile}");
+            assert!(!result.all_classes.contains_key("::D"), "{profile}");
+        }
+        let mut missing = logical_object_abort_analyser();
+        let mut baseline = logical_object_abort_analyser();
+        missing.result = baseline.analyse(source, "explicit-object-abort-advice");
+        assert!(missing.result.all_classes.contains_key("::C"));
+        missing.result.resolved_input = None;
+        missing.result.all_classes.clear();
+        missing.source = source.to_owned();
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            missing.lexer_config(),
+        )
+        .remove(0);
+        assert!(missing.handle_oo_define_command(
+            command.name(),
+            command.args(),
+            command.arg_tokens(),
+            command.arg_single_token(),
+            &[],
+        ));
+        assert!(missing.result.all_classes.is_empty());
     }
 
     #[test]
@@ -7205,6 +7247,56 @@ _original_unknown $cmd $args";
                 "`{member}` must not retract",
             );
         }
+    }
+
+    #[test]
+    fn source_configuration_accumulates_redeclared_members_under_original_class_owner() {
+        // naming.source.original-class-reference
+        // docs/design/analysis/name-resolution-proofs/source-original-class-reference.md
+        // Conditional source chronology and canonical metadata, without an
+        // executed configuration worker or a live Native method table.
+        for source in [
+            "oo::class create C {method m {} {return FIRST}}; oo::define C {deletemethod m}; oo::define C {method m {} {return LAST}}",
+            "oo::class create C {method m {} {return FIRST}}; rename C Held; interp alias {} configure {} oo::define Held; configure {deletemethod m}; configure {method m {} {return LAST}}",
+        ] {
+            let mut result = Analyser::new().analyse(source, "tcl9.0");
+            let declaration = result.original_class_declarations().next().unwrap();
+            assert!(declaration.metadata().methods.contains_key("m"));
+            let last = source.find("return LAST").unwrap();
+            assert!(
+                declaration.metadata().methods["m"]
+                    .body_span
+                    .as_range()
+                    .contains(&last)
+            );
+            let methods = declaration
+                .metadata()
+                .original_members
+                .methods(MemberSide::Instance)
+                .unwrap();
+            let method = methods
+                .iter()
+                .find(|method| method.original_name_input().bytes() == b"m")
+                .unwrap();
+            assert!(method.metadata().body_span.as_range().contains(&last));
+            let canonical = declaration.clone();
+            result.all_classes.clear();
+            assert_eq!(
+                result.original_class_declarations().next(),
+                Some(&canonical)
+            );
+        }
+        let source = "oo::class create C {}; rename C {}; oo::define C {method ghost {} {}}";
+        let result = Analyser::new().analyse(source, "tcl9.0");
+        assert_eq!(result.original_class_declarations().count(), 1);
+        assert!(result.original_class_declarations().all(|declaration| {
+            !declaration.metadata().methods.contains_key("ghost")
+                && declaration
+                    .metadata()
+                    .original_members
+                    .declarations()
+                    .all(|method| method.original_name_input().bytes() != b"ghost")
+        }));
     }
 
     #[test]

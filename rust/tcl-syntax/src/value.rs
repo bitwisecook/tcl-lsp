@@ -628,6 +628,19 @@ pub trait ValueOps {
         ))
     }
 
+    /// Construct the actual C external-UTF8 result as binary storage with its
+    /// updater recipe retained before allocation. The supplied version and
+    /// octets do not confer a native producer or string-residency receipt.
+    /// Concrete adapters authenticate the actual C interpreter independently;
+    /// unknown adapters and Jim's separately available extensions refuse.
+    fn native_external_utf8_result(
+        &mut self,
+        _bytes: &[u8],
+        _version: tcl_dialect::TclVersion,
+    ) -> Result<Self::Value, ValueError> {
+        Err(ValueError::CommandProtocolUnavailable("external UTF-8 binary result issuer"))
+    }
+
     /// Selected native concat protocol; unknown adapters abstain.
     fn concat_policy(&self) -> Option<tcl_dialect::ConcatPolicy> {
         None

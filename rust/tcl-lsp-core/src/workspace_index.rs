@@ -671,6 +671,10 @@ fn alias_cell_is_computed(cell: &str) -> bool {
 /// rewrite the dependent's `source` literal.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceSource {
+    /// Sealed conditional expression selected from genuine original words.
+    /// It retains the full analysis/context and supplies no actual file load.
+    pub original_path_expression:
+        Option<tcl_compiler::auto_path_eval::OriginalSourcePathExpression>,
     /// Retained possible child source edge and its full source/input lineage.
     /// No actual file evaluation or completed execution is established.
     pub original_interpreter_source_load:
@@ -2008,6 +2012,10 @@ impl DocumentRecords {
                 continue;
             }
             self.sources.push(WorkspaceSource {
+                original_path_expression:
+                    tcl_compiler::auto_path_eval::capture_source_target_path_expression(
+                        analysis, target,
+                    ),
                 original_interpreter_source_load: target.original_interpreter_source_load.clone(),
                 uri: uri.to_owned(),
                 raw_path: target.raw_path.clone(),
@@ -2426,20 +2434,16 @@ pub struct WorkspaceIndex {
 /// [`WorkspaceIndex::set_source_resolver`].  The signature is
 /// [`WorkspaceIndex::source_seed_map`]'s, so one host resolver serves both.
 ///
-/// The fourth argument is the parent document's raw single-assignment
-/// path-constant candidates ([`WorkspaceIndex::path_constant_assignments`]) —
-/// supplied by the index, which carries them, and folded by the host, which
-/// knows the parent's filesystem path; that split is why the argument is the
-/// raw pairs rather than a folded map.
-/// The fourth argument is the original source-site byte offset. The sixth
-/// argument is the document's **imported** constants — values its
-/// source-graph ancestors establish before it runs
-/// ([`WorkspaceIndex::imported_constants`]); empty until the
-/// import fixpoint has something to say.
+/// The third argument is the sealed original source expression. Missing or
+/// foreign lineage declines; reported path text is not a selection input.
+/// The fourth argument is the original source-site byte offset. The fifth
+/// argument is the parent's retained path inventory; the sixth contains
+/// position-gated source-ancestor constants. The host supplies only document
+/// filenames and URI/path mapping, without reconstructing Tcl operations.
 pub type SourceResolver = fn(
     &str,
     &str,
-    bool,
+    Option<&tcl_compiler::auto_path_eval::OriginalSourcePathExpression>,
     u32,
     &tcl_compiler::auto_path_eval::PathConstantAssignments,
     &tcl_compiler::auto_path_eval::FoldedPathConstants,
@@ -2947,15 +2951,15 @@ impl WorkspaceIndex {
         })
     }
 
-    /// Install the host's literal-`source`-path → document-URI resolver, so
+    /// Install the host's retained-source-expression → document-URI resolver, so
     /// the index can build the [`crate::source_graph::RunOrder`] the
     /// import-lifecycle gates rank cross-document events with.
     ///
     /// The index deliberately holds no URI ↔ filesystem-path mapping of its
     /// own — that is the host's knowledge, and every other `source`-graph
-    /// consumer already takes the same closure per call
-    /// ([`Self::source_ancestor_package_requires`],
-    /// [`Self::source_ancestor_prefers_latest`], [`Self::source_seed_map`]).
+    /// consumer reads the same selected candidate edges
+    /// ([`Self::source_ancestor_package_requires_from_resolved`],
+    /// [`Self::source_ancestor_prefers_latest_from_resolved`], [`Self::source_seed_map`]).
     /// The order, though, is consulted *inside* the per-call import walk,
     /// where a per-call resolver argument would have to be threaded through
     /// every caller of `resolve_wildcard_import` and every derived view that
@@ -2964,7 +2968,7 @@ impl WorkspaceIndex {
     /// [`Self::generation`].
     ///
     /// A plain `fn` pointer rather than a boxed closure: the resolver is a
-    /// pure function of `(parent uri, raw path, is_literal)` in every host, and
+    /// pure function of the explicit filename and retained source inputs, and
     /// a `fn` keeps the index `Debug + Clone + Default` with no manual impls.
     /// The signature is [`Self::source_seed_map`]'s, so one host resolver
     /// serves both — including its statically-foldable computed-path tier
@@ -2983,6 +2987,83 @@ impl WorkspaceIndex {
         self.export_snapshot = Derived::default();
     }
 
+    /// Candidate source edges using the same genuine expression plans and
+    /// retained inventories as import folding, namespace seeds and run order.
+    /// These are conditional source routes, not completed file evaluation.
+    #[must_use]
+    pub fn resolved_source_edges(&self) -> Vec<crate::source_graph::RunEdge> {
+        let imports = self.imported_constants();
+        let empty = tcl_compiler::auto_path_eval::FoldedPathConstants::default();
+        self.source_resolver
+            .into_iter()
+            .flat_map(|resolve| {
+                self.sources()
+                    .filter_map(|source| {
+                        resolve(
+                            &source.uri,
+                            &source.raw_path,
+                            source.original_path_expression.as_ref(),
+                            source.range.start(),
+                            self.path_constant_assignments(&source.uri),
+                            imports.get(&source.uri).unwrap_or(&empty),
+                        )
+                        .map(|child| crate::source_graph::RunEdge {
+                            parent: source.uri.clone(),
+                            child,
+                            at: source.range.start(),
+                            enclosing_body: source.enclosing_body,
+                            kind: crate::source_graph::RunEdgeKind::Source,
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    }
+
+    /// Package names available through the installed conditional source edge
+    /// resolver. No raw reported path or dialect label selects an operation.
+    #[must_use]
+    pub fn source_ancestor_package_requires_from_resolved(&self, target_uri: &str) -> Vec<String> {
+        let edges = self
+            .resolved_source_edges()
+            .into_iter()
+            .map(|edge| (edge.parent, edge.child))
+            .collect::<Vec<_>>();
+        let mut requires = std::collections::HashMap::<String, Vec<String>>::new();
+        for required in self.package_requires() {
+            requires
+                .entry(required.uri.clone())
+                .or_default()
+                .push(required.name.clone());
+        }
+        crate::source_graph::ancestor_requires(target_uri, &edges, &requires)
+    }
+
+    /// Source-order package preference advice over the installed, selected
+    /// source edges, independently of actual interpreter package state.
+    #[must_use]
+    pub fn source_ancestor_prefers_latest_from_resolved(&self, target_uri: &str) -> bool {
+        if self.package_prefers().next().is_none() {
+            return false;
+        }
+        self.source_ancestor_prefers_latest_for_edges(target_uri, &self.resolved_source_edges())
+    }
+
+    fn source_ancestor_prefers_latest_for_edges(
+        &self,
+        target_uri: &str,
+        edges: &[crate::source_graph::RunEdge],
+    ) -> bool {
+        let mut raises = std::collections::HashMap::<String, Vec<u32>>::new();
+        for prefer in self.package_prefers() {
+            raises
+                .entry(prefer.uri.clone())
+                .or_default()
+                .push(prefer.at);
+        }
+        crate::source_graph::ancestor_prefer_latest_raised(target_uri, edges, &raises)
+    }
+
     /// The load order over this workspace's documents, built at most once per
     /// [`Self::generation`] from the `source` graph
     /// ([`Self::set_source_resolver`]) **and** the `package require` graph
@@ -2996,29 +3077,7 @@ impl WorkspaceIndex {
     /// `package provide` records, so it works on a host that installs none.
     fn run_order(&self) -> Arc<crate::source_graph::RunOrder> {
         self.run_order.get_or_build(|| {
-            let imports = self.imported_constants();
-            let empty = tcl_compiler::auto_path_eval::FoldedPathConstants::default();
-            let source_edges = self.source_resolver.into_iter().flat_map(|resolve| {
-                let imports = &imports;
-                let empty = &empty;
-                self.sources().filter_map(move |s| {
-                    resolve(
-                        &s.uri,
-                        &s.raw_path,
-                        s.is_literal,
-                        s.range.start(),
-                        self.path_constant_assignments(&s.uri),
-                        imports.get(&s.uri).unwrap_or(empty),
-                    )
-                    .map(|child| crate::source_graph::RunEdge {
-                        parent: s.uri.clone(),
-                        child,
-                        at: s.range.start(),
-                        enclosing_body: s.enclosing_body,
-                        kind: crate::source_graph::RunEdgeKind::Source,
-                    })
-                })
-            });
+            let source_edges = self.resolved_source_edges().into_iter();
             let edges: Vec<crate::source_graph::RunEdge> =
                 source_edges.chain(self.package_run_edges()).collect();
             crate::source_graph::RunOrder::build(&edges)
@@ -3079,7 +3138,7 @@ impl WorkspaceIndex {
                         let child = resolve(
                             &s.uri,
                             &s.raw_path,
-                            s.is_literal,
+                            s.original_path_expression.as_ref(),
                             s.range.start(),
                             self.path_constant_assignments(&s.uri),
                             imports.get(&s.uri).unwrap_or(&empty),
@@ -3844,17 +3903,12 @@ impl WorkspaceIndex {
                 })
             })
             .collect();
-        let mut raises: std::collections::HashMap<String, Vec<u32>> =
-            std::collections::HashMap::new();
-        for p in self.package_prefers() {
-            raises.entry(p.uri.clone()).or_default().push(p.at);
-        }
-        crate::source_graph::ancestor_prefer_latest_raised(target_uri, &edges, &raises)
+        self.source_ancestor_prefers_latest_for_edges(target_uri, &edges)
     }
 
     /// The **source-site namespace seeds** per sourced document: for
     /// every `source` statement `resolve` can place (the closure maps
-    /// `(parent-uri, raw-path, is_literal)` to the child's URI — handling
+    /// `(parent-uri, reported-path, original-expression)` to the child's URI — handling
     /// relative literals and statically-foldable computed
     /// paths), the child URI maps to the set of namespaces it is sourced
     /// under.  `source` runs the file in the caller's namespace, so a child
@@ -3870,7 +3924,7 @@ impl WorkspaceIndex {
         resolve: impl Fn(
             &str,
             &str,
-            bool,
+            Option<&tcl_compiler::auto_path_eval::OriginalSourcePathExpression>,
             u32,
             &tcl_compiler::auto_path_eval::PathConstantAssignments,
             &tcl_compiler::auto_path_eval::FoldedPathConstants,
@@ -3884,7 +3938,7 @@ impl WorkspaceIndex {
             let Some(child) = resolve(
                 &src.uri,
                 &src.raw_path,
-                src.is_literal,
+                src.original_path_expression.as_ref(),
                 src.range.start(),
                 self.path_constant_assignments(&src.uri),
                 imports.get(&src.uri).unwrap_or(&empty),
@@ -9604,36 +9658,36 @@ p\uD801";
     //   # app.tcl:  source mod.tcl; source imp.tcl; source exp.tcl
     //   ::app::helper   ->  invalid command name "::app::helper"
 
-    /// The server's URI resolver, in miniature: a literal path resolved
-    /// against the sourcing document's directory.
+    /// The installed server resolver's source-plan and inventory contract,
+    /// with the file URI mapped to an explicit document filename.
     fn test_resolve(
         parent_uri: &str,
-        raw_path: &str,
-        is_literal: bool,
+        _raw_path: &str,
+        expression: Option<&tcl_compiler::auto_path_eval::OriginalSourcePathExpression>,
         source_offset: u32,
         raw_constants: &tcl_compiler::auto_path_eval::PathConstantAssignments,
         imported: &tcl_compiler::auto_path_eval::FoldedPathConstants,
     ) -> Option<String> {
         let parent = parent_uri.strip_prefix("file://")?;
         let dir = std::path::Path::new(parent).parent()?;
-        // The server's two tiers, in miniature: a literal resolves directly, a
-        // computed path only when it folds statically — with the parent's own
-        // constants (and imports) chained in, exactly as the real resolver
-        // folds them — anything else names no document and sequences nothing.
-        let raw = if is_literal {
-            raw_path.to_owned()
-        } else {
-            let constants = tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
-                raw_constants,
-                Some(parent),
-                imported,
-            );
-            tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants(
-                raw_path,
-                Some(parent),
+        let expression = expression?;
+        if !expression.matches_assignments(raw_constants)
+            || expression.source_span().start() > source_offset
+            || source_offset >= expression.source_span().end()
+        {
+            return None;
+        }
+        let constants = tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
+            raw_constants,
+            Some(parent),
+            imported,
+        );
+        let raw = expression.evaluate(Some(parent), &|name| {
+            tcl_compiler::auto_path_eval::PathConstantLookup::path_constant(
                 &constants.at(source_offset),
-            )?
-        };
+                name,
+            )
+        })?;
         let child = crate::source_graph::resolve_under(dir, &raw);
         Some(format!("file://{}", child.display()))
     }
@@ -9669,6 +9723,48 @@ p\uD801";
             analyse("namespace eval ::mymod { namespace export helper }\n"),
             analyse("namespace eval ::app { namespace import ::mymod::* }\n"),
         )
+    }
+
+    #[test]
+    fn retained_source_routes_share_original_plans_across_graph_consumers() {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        let app = analyse(
+            "interp alias {} build {} file join /proj; package require Tk; package prefer latest; source [build lib.tcl]",
+        );
+        let child = analyse("proc leaf {} {}");
+        let index = sourced_index([
+            ("file:///proj/app.tcl", &app),
+            ("file:///proj/lib.tcl", &child),
+        ]);
+        let edges = index.resolved_source_edges();
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0].child, "file:///proj/lib.tcl");
+        assert_eq!(
+            index.source_ancestor_package_requires_from_resolved("file:///proj/lib.tcl"),
+            vec!["Tk".to_owned()]
+        );
+        assert!(index.source_ancestor_prefers_latest_from_resolved("file:///proj/lib.tcl"));
+        assert_eq!(
+            index
+                .source_seed_map(test_resolve)
+                .get("file:///proj/lib.tcl"),
+            Some(&std::collections::BTreeSet::from(["::".to_owned()]))
+        );
+        let shadow =
+            analyse("proc file {args} {}; package require Tk; source [file join /proj lib.tcl]");
+        let index = sourced_index([
+            ("file:///proj/app.tcl", &shadow),
+            ("file:///proj/lib.tcl", &child),
+        ]);
+        assert!(!index.sources().collect::<Vec<_>>().is_empty());
+        assert!(index.resolved_source_edges().is_empty());
+        assert!(index.source_seed_map(test_resolve).is_empty());
+        assert!(
+            index
+                .source_ancestor_package_requires_from_resolved("file:///proj/lib.tcl")
+                .is_empty()
+        );
     }
 
     #[test]

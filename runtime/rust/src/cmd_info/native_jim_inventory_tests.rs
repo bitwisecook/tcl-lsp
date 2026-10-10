@@ -354,3 +354,194 @@ fn original_alias_queries_and_inventory_compare_all_24_native_windows() {
     }
     assert_eq!(comparisons, 24);
 }
+
+const ALIAS_EXTENT_CONTROLS: &[OriginalControl] = &[
+    ("original-missing-alias-diagnostic-extent", include_bytes!("../../../../rust/tcl-registry/tests/data/native_jim_alias_error_extent279/original-missing-alias-diagnostic-extent.tcl").as_slice(), [
+        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_alias_error_extent279/8.4.20/original-missing-alias-diagnostic-extent/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_alias_error_extent279/8.5.19/original-missing-alias-diagnostic-extent/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_alias_error_extent279/8.6.18/original-missing-alias-diagnostic-extent/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_alias_error_extent279/9.0.4/original-missing-alias-diagnostic-extent/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_alias_error_extent279/9.1.0/original-missing-alias-diagnostic-extent/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_alias_error_extent279/jim/original-missing-alias-diagnostic-extent/stdout"),
+    ]),
+    ("original-nonalias-alias-diagnostic-extent", include_bytes!("../../../../rust/tcl-registry/tests/data/native_jim_alias_error_extent279/original-nonalias-alias-diagnostic-extent.tcl").as_slice(), [
+        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_alias_error_extent279/8.4.20/original-nonalias-alias-diagnostic-extent/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_alias_error_extent279/8.5.19/original-nonalias-alias-diagnostic-extent/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_alias_error_extent279/8.6.18/original-nonalias-alias-diagnostic-extent/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_alias_error_extent279/9.0.4/original-nonalias-alias-diagnostic-extent/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_alias_error_extent279/9.1.0/original-nonalias-alias-diagnostic-extent/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_jim_alias_error_extent279/jim/original-nonalias-alias-diagnostic-extent/stdout"),
+    ]),
+];
+
+#[test]
+fn original_alias_diagnostic_extents_match_all_12_native_public_windows() {
+    // naming.alias.jim-original-alias-diagnostic-name-extent
+    // docs/design/analysis/name-resolution-proofs/alias-jim-original-alias-diagnostic-name-extent.md
+    // Whole unchanged ASCII source programs produce the name bytes through
+    // binary format H*: counted NUL, UTF8 e-acute, and invalid FF are runtime
+    // bytes, not configuration/source Unicode. The original C branches report
+    // NOT_APPLICABLE rather than invoking a different alias API.
+    // Only the byte-producing command adapter is installed explicitly for Jim;
+    // no complete distribution, table identity or helper availability is granted.
+    let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
+    let mut comparisons = 0;
+    for &(case, source, columns) in ALIAS_EXTENT_CONTROLS {
+        for (engine, column) in providers.iter().zip(columns) {
+            let (expected_code, expected_result) = original_result(column);
+            let mut interp = crate::interp::Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            if *engine == "jim" {
+                crate::cmd_binary::install(&mut interp);
+            }
+            let code = interp.eval_str(source);
+            assert_eq!(
+                code.as_int(),
+                expected_code,
+                "{engine}/{case}: {:?}; host={:?}",
+                interp.result_bytes(),
+                interp.native_access_refusal()
+            );
+            assert!(!interp.host_refusal_pending(), "{engine}/{case}");
+            assert_eq!(interp.result_bytes(), expected_result, "{engine}/{case}");
+            comparisons += 1;
+        }
+    }
+    assert_eq!(comparisons, 12);
+}
+
+const PROCEDURE_USAGE_CONTROLS: &[OriginalControl] = &[
+    ("original-called-name-nul-usage", include_bytes!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/original-called-name-nul-usage.tcl").as_slice(), [
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/8.4.20/original-called-name-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/8.5.19/original-called-name-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/8.6.18/original-called-name-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/9.0.4/original-called-name-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/9.1.0/original-called-name-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/jim/original-called-name-nul-usage/stdout"),
+    ]),
+    ("original-required-formal-nul-usage", include_bytes!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/original-required-formal-nul-usage.tcl").as_slice(), [
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/8.4.20/original-required-formal-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/8.5.19/original-required-formal-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/8.6.18/original-required-formal-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/9.0.4/original-required-formal-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/9.1.0/original-required-formal-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/jim/original-required-formal-nul-usage/stdout"),
+    ]),
+    ("original-default-formal-nul-usage", include_bytes!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/original-default-formal-nul-usage.tcl").as_slice(), [
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/8.4.20/original-default-formal-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/8.5.19/original-default-formal-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/8.6.18/original-default-formal-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/9.0.4/original-default-formal-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/9.1.0/original-default-formal-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/jim/original-default-formal-nul-usage/stdout"),
+    ]),
+    ("original-reference-formal-nul-usage", include_bytes!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/original-reference-formal-nul-usage.tcl").as_slice(), [
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/8.4.20/original-reference-formal-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/8.5.19/original-reference-formal-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/8.6.18/original-reference-formal-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/9.0.4/original-reference-formal-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/9.1.0/original-reference-formal-nul-usage/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_procedure_usage_extents288/jim/original-reference-formal-nul-usage/stdout"),
+    ]),
+];
+
+#[test]
+fn original_procedure_usage_extents_match_all_24_native_public_windows() {
+    // naming.procedure.original-called-name-and-formal-usage-extents
+    // docs/design/analysis/name-resolution-proofs/procedure-original-called-name-and-formal-usage-extents.md
+    // Four unchanged ASCII source programs produce their NUL through binary
+    // format H*. Name/formal lengths, definition completion/result, and caught
+    // call completion/message stay separate fields in each whole native result.
+    // C providers execute their original APIs: no unavailable branch substitutes
+    // for an actual definition or invocation. These observations prove no native
+    // formal object/header/table identity or internal CString conversion stage.
+    let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
+    let mut comparisons = 0;
+    for &(case, source, columns) in PROCEDURE_USAGE_CONTROLS {
+        for (engine, column) in providers.iter().zip(columns) {
+            let (expected_code, expected_result) = original_result(column);
+            let mut interp = crate::interp::Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            // Explicit binary command capability matches only the byte-producing
+            // source dependency; no complete Jim distribution is asserted.
+            if *engine == "jim" {
+                crate::cmd_binary::install(&mut interp);
+            }
+            let code = interp.eval_str(source);
+            assert_eq!(
+                code.as_int(),
+                expected_code,
+                "{engine}/{case}: {:?}; host={:?}",
+                interp.result_bytes(),
+                interp.native_access_refusal()
+            );
+            assert!(!interp.host_refusal_pending(), "{engine}/{case}");
+            assert_eq!(interp.result_bytes(), expected_result, "{engine}/{case}");
+            comparisons += 1;
+        }
+    }
+    assert_eq!(comparisons, 24);
+}
+
+const INFO_DISPATCH_CONTROLS: &[OriginalControl] = &[
+    ("original-info-no-selector", include_bytes!("../../../../rust/tcl-registry/tests/data/native_info_original_dispatch292/original-info-no-selector.tcl").as_slice(), [
+        include_str!("../../../../rust/tcl-registry/tests/data/native_info_original_dispatch292/8.4.20/original-info-no-selector/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_info_original_dispatch292/8.5.19/original-info-no-selector/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_info_original_dispatch292/8.6.18/original-info-no-selector/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_info_original_dispatch292/9.0.4/original-info-no-selector/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_info_original_dispatch292/9.1.0/original-info-no-selector/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_info_original_dispatch292/jim/original-info-no-selector/stdout"),
+    ]),
+    ("original-info-empty-selector", include_bytes!("../../../../rust/tcl-registry/tests/data/native_info_original_dispatch292/original-info-empty-selector.tcl").as_slice(), [
+        include_str!("../../../../rust/tcl-registry/tests/data/native_info_original_dispatch292/8.4.20/original-info-empty-selector/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_info_original_dispatch292/8.5.19/original-info-empty-selector/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_info_original_dispatch292/8.6.18/original-info-empty-selector/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_info_original_dispatch292/9.0.4/original-info-empty-selector/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_info_original_dispatch292/9.1.0/original-info-empty-selector/stdout"),
+        include_str!("../../../../rust/tcl-registry/tests/data/native_info_original_dispatch292/jim/original-info-empty-selector/stdout"),
+    ]),
+];
+
+#[test]
+fn original_info_dispatch_matches_all_12_native_public_windows() {
+    // naming.info.original-missing-and-empty-selector-dispatch
+    // docs/design/analysis/name-resolution-proofs/info-original-missing-and-empty-selector-dispatch.md
+    // Both original ASCII sources catch the original invocation and retain its
+    // code and complete message as separate fields. Every provider executes its
+    // genuine public info command; no unavailable branch replaces a result.
+    // Root info uses its authentic core dispatcher, without a library helper
+    // substitution. These windows grant no private command/table/header identity.
+    let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
+    let mut comparisons = 0;
+    for &(case, source, columns) in INFO_DISPATCH_CONTROLS {
+        for (engine, column) in providers.iter().zip(columns) {
+            let (expected_code, expected_result) = original_result(column);
+            let mut interp = crate::interp::Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let code = interp.eval_str(source);
+            assert_eq!(
+                code.as_int(),
+                expected_code,
+                "{engine}/{case}: {:?}; host={:?}",
+                interp.result_bytes(),
+                interp.native_access_refusal()
+            );
+            assert!(!interp.host_refusal_pending(), "{engine}/{case}");
+            assert_eq!(interp.result_bytes(), expected_result, "{engine}/{case}");
+            comparisons += 1;
+        }
+    }
+    assert_eq!(comparisons, 12);
+}

@@ -1485,6 +1485,17 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "source_path_operation",
+        Example {
+            code: "set target [file join /project lib]",
+            focuses: &[focus(
+                0,
+                "[file join /project lib]",
+                "the selected source Join algebra keeps each argument as one value",
+            )],
+        },
+    ),
+    (
         "is_unescape",
         Example {
             code: "set text [encoding convertfrom utf-8 $wire]\nputs $text",

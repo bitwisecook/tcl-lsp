@@ -553,15 +553,84 @@ pub(super) fn collect_upvar_targets_with_bindings(
     registry: &CommandRegistry,
     bindings: &ModuleCommandBindings,
     namespace: &str,
+    input: Option<&crate::analyser::ResolvedAnalysisInput>,
 ) -> UpvarInfo {
+    let Some((input, metadata)) = input.and_then(|input| {
+        crate::registry_invocation::InvocationMetadataContext::for_analysis_input(registry, input)
+            .map(|metadata| (input, metadata))
+    }) else {
+        return UpvarInfo {
+            caller_frame_opaque_writes: true,
+            caller_frame_opaque_reads: true,
+            has_unresolvable_caller_target: true,
+            ..UpvarInfo::default()
+        };
+    };
+    let bindings = UpvarBindings {
+        source: bindings,
+        input,
+        metadata,
+    };
     collect_upvar_targets_inner(body, params, registry, Some(bindings), namespace)
+}
+
+#[derive(Clone, Copy)]
+struct UpvarBindings<'a> {
+    source: &'a ModuleCommandBindings,
+    input: &'a crate::analyser::ResolvedAnalysisInput,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'a>,
+}
+impl UpvarBindings<'_> {
+    fn invocation_dialect(self) -> Option<tcl_registry::InvocationDialect> {
+        self.source.invocation_dialect()
+    }
+    fn resolve_statement(
+        self,
+        statement: &Statement,
+        registry: &CommandRegistry,
+        namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
+    ) -> Vec<ResolvedBindingInvocation> {
+        self.source.resolve_statement_with_metadata_context(
+            statement,
+            registry,
+            Some(self.metadata),
+            namespace,
+        )
+    }
+    fn resolve_command_words(
+        self,
+        words: &[crate::ir_helpers::CommandWord],
+        registry: &CommandRegistry,
+        namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
+    ) -> Vec<tcl_registry::InvocationFacts> {
+        self.source.resolve_command_words_with_metadata_context(
+            words,
+            registry,
+            Some(self.metadata),
+            namespace,
+        )
+    }
+    fn for_each_resolved_invocation<F>(self, statement: &Statement, namespace: &str, visit: F)
+    where
+        F: for<'w> FnMut(
+            &'w crate::command_binding::ResolvedCommandTarget,
+            tcl_registry::InvocationWords<'w>,
+        ),
+    {
+        self.source
+            .for_each_resolved_invocation(statement, namespace, visit);
+    }
+    fn target_resolution_may_be_unknown(self, command: &str, namespace: &str) -> bool {
+        self.source
+            .target_resolution_may_be_unknown(command, namespace)
+    }
 }
 
 fn collect_upvar_targets_inner(
     body: &Script,
     params: &[String],
     registry: &CommandRegistry,
-    bindings: Option<&ModuleCommandBindings>,
+    bindings: Option<UpvarBindings<'_>>,
     namespace: &str,
 ) -> UpvarInfo {
     let mut info = UpvarInfo::default();
@@ -580,7 +649,7 @@ fn walk_script(
     stmts: &[Statement],
     params: &[String],
     registry: &CommandRegistry,
-    bindings: Option<&ModuleCommandBindings>,
+    bindings: Option<UpvarBindings<'_>>,
     namespace: &str,
     info: &mut UpvarInfo,
 ) {
@@ -594,7 +663,7 @@ fn walk_stmt(
     stmt: &Statement,
     params: &[String],
     registry: &CommandRegistry,
-    bindings: Option<&ModuleCommandBindings>,
+    bindings: Option<UpvarBindings<'_>>,
     namespace: &str,
     info: &mut UpvarInfo,
 ) {
@@ -875,13 +944,18 @@ fn record_resolved_frame_body(
     current: FrameContext,
     params: &[String],
     registry: &CommandRegistry,
-    bindings: &ModuleCommandBindings,
+    bindings: UpvarBindings<'_>,
     namespace: &str,
     execution_namespace: &ExecutionNamespace,
     info: &mut UpvarInfo,
     depth: u32,
 ) {
-    let body = invocation.resolved_frame_body(registry, bindings, execution_namespace);
+    let body = invocation.resolved_frame_body_with_metadata_context(
+        registry,
+        bindings.source,
+        execution_namespace,
+        Some(bindings.metadata),
+    );
     match body {
         ResolvedFrameBody::Readable { source, selection } => {
             let selected = selected_frame_context(current, selection);
@@ -919,7 +993,7 @@ fn record_readable_frame_body(
     selected: FrameContext,
     params: &[String],
     registry: &CommandRegistry,
-    bindings: &ModuleCommandBindings,
+    bindings: UpvarBindings<'_>,
     namespace: &str,
     info: &mut UpvarInfo,
     depth: u32,
@@ -936,17 +1010,11 @@ fn record_readable_frame_body(
             info.caller_frame_opaque_reads = true;
         }
         FrameContext::Own | FrameContext::DirectCaller => {
-            let config = registry
-                .profile()
-                .map_or_else(tcl_lexer::LexerConfig::default, |profile| {
-                    tcl_lexer::LexerConfig::from_grammar(profile.grammar)
-                });
-            let module = crate::lowering::lower_to_ir_with_dialect(
-                source,
-                registry,
-                config,
-                registry.profile(),
-            );
+            let config = bindings.input.lexer_config();
+            let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+                .with_dialect(Some(bindings.input.unit_profile()))
+                .with_context_registry(bindings.input.context_registry());
+            let module = lowerer.lower(source).clone();
             if selected == FrameContext::Own {
                 walk_script(
                     &module.top_level.statements,
@@ -973,7 +1041,7 @@ fn record_readable_frame_body(
 
 #[derive(Clone, Copy)]
 struct FrameCommandContext<'a> {
-    bindings: Option<&'a ModuleCommandBindings>,
+    bindings: Option<UpvarBindings<'a>>,
     dialect: Option<tcl_registry::InvocationDialect>,
 }
 
@@ -1167,7 +1235,7 @@ fn record_upframe_body(
     body: &Script,
     source_body_is_braced: bool,
     registry: &CommandRegistry,
-    bindings: Option<&ModuleCommandBindings>,
+    bindings: Option<UpvarBindings<'_>>,
     namespace: &str,
     info: &mut UpvarInfo,
 ) {
@@ -1206,7 +1274,7 @@ fn record_upframe_body_at_depth(
     body: &Script,
     source_body_is_braced: bool,
     registry: &CommandRegistry,
-    bindings: Option<&ModuleCommandBindings>,
+    bindings: Option<UpvarBindings<'_>>,
     namespace: &str,
     info: &mut UpvarInfo,
     depth: u32,
@@ -1223,8 +1291,13 @@ fn record_upframe_body_at_depth(
             opaque_variable_frame: super::global_write_info::script_has_dynamic_write_target(body),
         },
         |bindings| {
-            super::global_write_info::script_value_write_projection(
-                body, registry, bindings, namespace,
+            super::global_write_info::script_value_write_projection_with_metadata_context(
+                body,
+                registry,
+                bindings.source,
+                namespace,
+                Some(bindings.metadata),
+                bindings.input.lexer_config(),
             )
         },
     );
@@ -1280,7 +1353,7 @@ fn compose_selected_frame_alias_writes(
     projected_names: &BTreeSet<String>,
     opaque_write: bool,
     registry: &CommandRegistry,
-    bindings: &ModuleCommandBindings,
+    bindings: UpvarBindings<'_>,
     info: &mut UpvarInfo,
     depth: u32,
 ) {
@@ -1353,7 +1426,7 @@ fn compose_selected_statement_aliases(
     projected_names: &BTreeSet<String>,
     any_write: bool,
     registry: &CommandRegistry,
-    bindings: &ModuleCommandBindings,
+    bindings: UpvarBindings<'_>,
     info: &mut UpvarInfo,
 ) {
     if let Statement::Call { command, .. } | Statement::Barrier { command, .. } = stmt {
@@ -1362,11 +1435,9 @@ fn compose_selected_statement_aliases(
             execution_namespace.for_invocation_context(command, stmt.tokens())
         {
             let normal = stmt.tokens().and_then(|tokens| {
-                crate::registry_invocation::normal_transfer_invocation(
+                crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
                     registry,
-                    registry
-                        .profile()
-                        .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+                    Some(bindings.metadata),
                     tokens,
                 )
             });
@@ -1385,11 +1456,9 @@ fn compose_selected_statement_aliases(
                 }
             }
             if let Some(possible) = stmt.tokens().and_then(|tokens| {
-                crate::registry_invocation::possible_variable_alias_transitions(
+                crate::registry_invocation::possible_variable_alias_transitions_with_metadata_context(
                     registry,
-                    registry
-                        .profile()
-                        .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+                    Some(bindings.metadata),
                     tokens,
                 )
             }) {
@@ -1525,7 +1594,7 @@ fn compose_selected_alias(
 fn record_nested_upframe_effects(
     script: &Script,
     registry: &CommandRegistry,
-    bindings: Option<&ModuleCommandBindings>,
+    bindings: Option<UpvarBindings<'_>>,
     namespace: &str,
     info: &mut UpvarInfo,
     depth: u32,
@@ -1618,16 +1687,20 @@ fn record_nested_upframe_effects(
 fn record_constructed_body(
     word: &str,
     registry: &CommandRegistry,
-    bindings: Option<&ModuleCommandBindings>,
+    bindings: Option<UpvarBindings<'_>>,
     namespace: &str,
     info: &mut UpvarInfo,
 ) -> bool {
     let Some(bindings) = bindings else {
         return false;
     };
-    let Some(constructed) =
-        crate::command_binding::constructed_script_words(word, registry, bindings, namespace)
-    else {
+    let Some(constructed) = crate::command_binding::constructed_script_words_with_metadata_context(
+        word,
+        registry,
+        bindings.source,
+        namespace,
+        Some(bindings.metadata),
+    ) else {
         return false;
     };
     let Some((command, cargs)) = constructed.split_first() else {
@@ -1645,9 +1718,12 @@ fn record_constructed_body(
         return true;
     }
     let arg_refs: Vec<&str> = cargs.iter().map(String::as_str).collect();
-    if let Some(invocation) =
-        registry.resolve_invocation(command, &arg_refs, registry.own_surface_query())
-    {
+    if let Some(invocation) = tcl_registry::model::assembly::resolve_invocation_in_context(
+        registry,
+        Some(bindings.metadata.context()),
+        command,
+        &arg_refs,
+    ) {
         // A registry command: its own `VarWrite` roles say which words name
         // the variables it creates, and they name them in whatever frame it
         // runs in — here, the caller's.
@@ -1782,6 +1858,7 @@ mod tests {
             &registry,
             &bindings,
             namespace,
+            module.source_metadata_input.as_ref(),
         )
     }
 
@@ -2421,5 +2498,63 @@ mod tests {
         let call_args = vec!["$".to_string()];
         let defs = info.caller_side_defs(&call_args, &params);
         assert_eq!(defs.len(), 0);
+    }
+    #[test]
+    fn caller_frame_metadata_keeps_actual_availability_and_missing_owner_hazards() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = current.commands();
+        // A source MAY footprint does not require or create a Native entered frame.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&current),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let mut module = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            "proc helper {} {uplevel 1 {::lassign {VALUE} target}}",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        )
+        .ir_module;
+        let selected = crate::cfg_builder::detect_upvar_procs_with_registry(&module, registry);
+        assert!(
+            selected["::helper"]
+                .uplevel_literal_writes
+                .contains("target")
+        );
+        let original = module.source_metadata_input.as_ref().unwrap().clone();
+        let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(registry));
+        for context in [
+            std::sync::Arc::new(older),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+        ] {
+            module.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+                original.analyser_profile(),
+                original.unit_profile(),
+                context,
+                original.lexer_config(),
+            ));
+            let unavailable =
+                crate::cfg_builder::detect_upvar_procs_with_registry(&module, registry);
+            assert!(unavailable["::helper"].caller_frame_opaque_writes);
+        }
+        module.source_metadata_input = None;
+        let missing = crate::cfg_builder::detect_upvar_procs_with_registry(&module, registry);
+        assert!(missing["::helper"].caller_frame_opaque_writes);
+        assert!(missing["::helper"].caller_frame_opaque_reads);
+        assert!(!missing["::helper"].is_empty());
     }
 }

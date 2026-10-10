@@ -10448,24 +10448,11 @@ impl Analyser {
         }
     }
 
-    /// Handle `oo::define CLASS ?BODY?` — record an extension to
-    /// an existing class.
-    ///
-    /// Looks up the class by qualified name in
-    /// ``result.all_classes``; when found, walks the body or
-    /// inline-form arguments via the OO walkers in
-    /// [`super::oo`] to extend ``superclasses`` / ``mixins`` /
-    /// ``methods`` / ``class_methods``.  When the class isn't
-    /// in the index yet (e.g. the class definition lives in a
-    /// separate file the workspace index hasn't reached), a
-    /// stub ``ClassDef`` is created so subsequent
-    /// ``oo::define`` calls + the workspace index see a
-    /// consistent record.
-    ///
-    /// Dispatched via
-    /// [`tcl_registry::hooks::AnalyserHookId::OoDefine`]; `cmd_name` is
-    /// the invocation's own head (always the stamped `oo::define`
-    /// spelling), used only to look its definition grammar back up.
+    /// Class definition advice from the selected definition grammar.
+    /// Native source targets require a genuine original class/configuration
+    /// receipt; unjoined targets retain only lexical body analysis. Positively
+    /// retained Logical inputs can also publish cross-document advisory stubs.
+    /// Reporting tables establish neither Native identity nor definition entry.
     pub fn handle_oo_define_command(
         &mut self,
         cmd_name: &str,
@@ -10473,6 +10460,33 @@ impl Analyser {
         arg_tokens: &[Token],
         arg_single: &[bool],
         scope_path: &[usize],
+    ) -> bool {
+        self.handle_oo_define_with_source(cmd_name, args, arg_tokens, arg_single, scope_path, None)
+    }
+
+    pub(super) fn handle_oo_define_source(
+        &mut self,
+        original: &super::original_definer::OriginalClassConfigurationSource,
+        scope_path: &[usize],
+    ) -> bool {
+        self.handle_oo_define_with_source(
+            original.target.consumer().command(),
+            &original.arguments,
+            &original.tokens,
+            &original.single,
+            scope_path,
+            Some(original),
+        )
+    }
+
+    fn handle_oo_define_with_source(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+        source: Option<&super::original_definer::OriginalClassConfigurationSource>,
     ) -> bool {
         if args.is_empty() {
             return false;
@@ -10486,14 +10500,30 @@ impl Analyser {
             return true;
         }
 
+        let source_class = source.map(|source| source.target.class_declaration());
         if let Some(target) = arg_tokens.first() {
-            self.retain_original_class_configuration_metadata(target.span);
+            self.retain_original_class_configuration_metadata_with_source(
+                target.span,
+                source_class,
+            );
         }
-        let original_class = arg_tokens
-            .first()
-            .and_then(|token| self.original_oo_configuration_class_declaration(*token));
-        let Some(qualified) =
-            self.oo_define_qualified_target(args, arg_tokens, arg_single, scope_path)
+        let original_class = source_class.cloned().or_else(|| {
+            arg_tokens
+                .first()
+                .and_then(|token| self.original_oo_configuration_class_declaration(*token))
+        });
+        let selected = original_class.as_ref().and_then(|declaration| {
+            declaration
+                .source_class(&self.result)
+                .map(|record| record.metadata().qualified_name.clone())
+                .or_else(|| {
+                    declaration
+                        .logical_source_class(&self.result)
+                        .map(|class| class.qualified_name.clone())
+                })
+        });
+        let Some(qualified) = selected
+            .or_else(|| self.oo_define_qualified_target(args, arg_tokens, arg_single, scope_path))
         else {
             // An unjoined target still owns its lexical definition body. This
             // temporary holder is not published under an invented class key.
@@ -10505,62 +10535,16 @@ impl Analyser {
             return true;
         };
 
-        // Look up or create the partial ClassDef in
-        // ``result.all_classes``. The ``name`` field carries the
-        // bare tail even when the source declared the class
-        // qualified (``oo::define ::ns::Other``), the same
-        // ``simple`` extraction as ``handle_oo_class_command``.
-        let simple = crate::naming::key_tail(&qualified).to_string();
-        // The class-name token's own span, and this specific `oo::define`
-        // invocation's own extent — from the class-name token's start to
-        // the last argument token's end, covering whichever of the
-        // inline-form tail or the `{ body }` token is present. The *whole*
-        // invocation, not just the class-name token, so any member this
-        // call adds (inline `method`/`property`/… words, or a `{ … }`
-        // body) stays nested inside it for document-symbol rendering — a
-        // name-token-sized span would leave every subsequently-added
-        // member "escaping" its own parent's range, a self-contradictory,
-        // checkable-from-source-alone structural error.
-        //
-        // Recorded in `class_body_spans` for *every* `oo::define` call,
-        // not just when creating a fresh stub: a class
-        // extended via a *separate* `oo::define ClassName { ... }` block
-        // has its methods living inside THIS span, textually disjoint from
-        // the class's original `oo::class create` block (or an earlier
-        // `oo::define`), so `my`-dispatch resolution needs every
-        // contributing span on file, not just the first one recorded.
-        let name_span = arg_tokens.first().map_or(
-            super::types::Scope::default()
-                .body_span
-                .unwrap_or_else(|| tcl_lexer::Span::new(0, 0)),
-            |t| t.span,
-        );
-        let this_call_span = arg_tokens.last().map_or(name_span, |last| {
-            tcl_lexer::Span::new(name_span.start(), last.span.end())
-        });
+        let (name_span, this_call_span) = Self::oo_definition_source_spans(arg_tokens, source);
         self.result
             .class_body_spans
             .push((qualified.clone(), this_call_span));
-        let canonical = original_class.as_ref().and_then(|original| {
-            original
-                .source_class(&self.result)
-                .map(|declaration| declaration.metadata().clone())
-        });
-        let mut class_def = canonical
-            .or_else(|| {
-                self.resolved_analysis_input()
-                    .has_logical_source_name_context()
-                    .then(|| self.result.all_classes.remove(&qualified))
-                    .flatten()
-            })
-            .unwrap_or_else(|| super::types::ClassDef {
-                name: simple,
-                qualified_name: qualified.clone(),
-                name_span,
-                body_span: this_call_span,
-                via_define: true,
-                ..Default::default()
-            });
+        let mut class_def = self.oo_definition_source_class(
+            &qualified,
+            original_class.as_ref(),
+            name_span,
+            this_call_span,
+        );
 
         self.walk_oo_define_form(cmd_name, args, arg_tokens, scope_path, &mut class_def);
 
@@ -10578,6 +10562,60 @@ impl Analyser {
         }
         self.register_defined_class(qualified, class_def, scope_path);
         true
+    }
+
+    fn oo_definition_source_class(
+        &mut self,
+        qualified: &str,
+        original: Option<&crate::command_binding::OriginalSourceClassDeclaration>,
+        name_span: tcl_lexer::Span,
+        body_span: tcl_lexer::Span,
+    ) -> super::types::ClassDef {
+        let canonical = original.and_then(|original| {
+            original
+                .source_class(&self.result)
+                .map(|record| record.metadata().clone())
+                .or_else(|| original.logical_source_class(&self.result).cloned())
+        });
+        canonical
+            .or_else(|| {
+                self.result
+                    .allows_retained_logical_declaration_advice()
+                    .then(|| self.result.all_classes.remove(qualified))
+                    .flatten()
+            })
+            .unwrap_or_else(|| super::types::ClassDef {
+                name: crate::naming::key_tail(qualified).to_owned(),
+                qualified_name: qualified.to_owned(),
+                name_span,
+                body_span,
+                via_define: true,
+                ..Default::default()
+            })
+    }
+
+    /// Report geometry follows the actual whole selected installer. A
+    /// captured target's producer does not become the configuration site.
+    fn oo_definition_source_spans(
+        arguments: &[Token],
+        source: Option<&super::original_definer::OriginalClassConfigurationSource>,
+    ) -> (tcl_lexer::Span, tcl_lexer::Span) {
+        let name = arguments
+            .first()
+            .map_or(tcl_lexer::Span::empty(0), |word| word.span);
+        let original = source.and_then(|source| {
+            let words = source.target.consumer().original_words();
+            Some(tcl_lexer::Span::new(
+                words.first()?.word_span().start(),
+                words.last()?.word_span().end(),
+            ))
+        });
+        let call = original.unwrap_or_else(|| {
+            arguments.last().map_or(name, |last| {
+                tcl_lexer::Span::new(name.start(), last.span.end())
+            })
+        });
+        (name, call)
     }
 
     /// Note that the command whose name is being moved/bound loads an external
@@ -10762,10 +10800,7 @@ impl Analyser {
         }
         // Native targets require the genuine original configuration issuer.
         // Missing source category/layout never re-enters a reporting-name map.
-        if !self
-            .resolved_analysis_input()
-            .has_logical_source_name_context()
-        {
+        if !self.result.allows_retained_logical_declaration_advice() {
             return None;
         }
         let resolved = self

@@ -164,6 +164,14 @@ impl Analyser {
         &mut self,
         target_span: tcl_lexer::Span,
     ) {
+        self.retain_original_class_configuration_metadata_with_source(target_span, None);
+    }
+
+    pub(super) fn retain_original_class_configuration_metadata_with_source(
+        &mut self,
+        target_span: tcl_lexer::Span,
+        source_class: Option<&crate::command_binding::OriginalSourceClassDeclaration>,
+    ) {
         if let Some(configuration) = self.original_object_configuration_metadata(target_span) {
             self.result
                 .original_object_configuration_metadata
@@ -172,6 +180,15 @@ impl Analyser {
         }
         let configuration = self.original_class_configuration_metadata(target_span);
         let Some(configuration) = configuration else {
+            // A selected source target retains its conditional authored ledger.
+            // Missing allocation-backed configuration is not evidence that the
+            // original class operand was unknown. The member walker supplies
+            // original effects; this grants no entered worker or own-table state.
+            if source_class
+                .is_some_and(|declaration| declaration.source_class(&self.result).is_some())
+            {
+                return;
+            }
             // An unowned target can affect any current class. Retained birth
             // declarations survive, while their effective own views withdraw.
             for declaration in &mut self.result.original_class_metadata {

@@ -37,6 +37,8 @@ use crate::value::Value;
 mod native_procedure;
 #[cfg(test)]
 mod native_procedure_name_tests;
+#[cfg(test)]
+mod native_encoding_tests;
 pub use native_procedure::NativeProcedureCommand;
 pub(crate) use native_procedure::{NativeProcedureReference, NativeProcedureResources};
 
@@ -174,7 +176,12 @@ pub enum Command {
     /// An `interp alias` — invoking the command evaluates these target words
     /// (the target command plus any fixed prefix arguments) with the call's own
     /// arguments appended.
-    Alias(Rc<Vec<Value>>),
+    Alias {
+        /// Target command + fixed prefix arguments.
+        words: Rc<Vec<Value>>,
+        /// Selected original C alias-record spelling, independent of lookup slots.
+        publication_name: tcl_core_types::NameBytes,
+    },
     /// Jim's original prefix List header; target lookup retains the caller namespace.
     CallerAlias(Value),
     /// A cross-interp `interp alias` whose target runs in a DIFFERENT
@@ -191,6 +198,8 @@ pub enum Command {
         target: crate::interp::InterpId,
         /// Target command + fixed prefix arguments.
         words: Rc<Vec<Value>>,
+        /// Selected child registration report in the source interpreter's realm.
+        publication_name: tcl_core_types::NameBytes,
     },
     /// A child interpreter addressable as a command (`$child eval …`): the id
     /// addresses the child in the engine's interp arena. Invoking it dispatches
@@ -1001,7 +1010,7 @@ fn check_renamed_alias_loop(
 ) -> Result<(), Completion<Value>> {
     let is_alias = matches!(
         cmd,
-        Command::Alias(_) | Command::CallerAlias(_) | Command::CrossAlias { .. }
+        Command::Alias { .. } | Command::CallerAlias(_) | Command::CrossAlias { .. }
     );
     let loops = if is_alias {
         match vm.alias_chain_loops_for_rename(key, cmd) {
@@ -1569,6 +1578,14 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             _ => native_wrong_arguments_message(
                 vm,
                 "wrong # args: should be \"interp alias srcPath srcCmd targetPath targetCmd ?arg ...?\"",
+            ),
+        },
+        "aliases" => match rest {
+            [] => vm.interpreter_alias_names_original(None),
+            [path] => vm.interpreter_alias_names_original(Some(path)),
+            _ => native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"interp aliases ?path?\"",
             ),
         },
         "exists" => match rest {
@@ -2606,13 +2623,11 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     )
 }
 
-/// `encoding subcommand ?arg …?` — matches the tree-walking runtime
-/// (`runtime/rust`): the internal string model is UTF-8, so
-/// `convertto`/`convertfrom` pass the data through unchanged, `system` reports
-/// the host's typed locale fact, `names` lists the supported channel encodings,
-/// and `dirs` is accepted and ignored (no encoding-file search). This is a
-/// documented simplification — real codepage conversion (cp1252, shiftjis, …)
-/// is not implemented on either side.
+/// `encoding subcommand ?arg …?`: `convertto utf-8` uses the common native
+/// unit conversion and proper binary-result owner. Other output targets require
+/// independent encoding support. `convertfrom` retains the current bootstrap
+/// pass-through, `system` reports the typed host locale, and `dirs` has no
+/// encoding-file search.
 /// `encoding`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
 /// 9.0's table also carries `profiles` and `user`, which need the encoding
 /// machinery this engine does not model; like its other ensembles it names
@@ -2658,13 +2673,33 @@ fn cmd_encoding(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             _ => err_wrong_args(vm, "encoding system ?encoding?"),
         },
         "names" => ok(Value::string("utf-8 unicode ascii iso8859-1")),
-        // Unreachable: `ENCODING_SUBS` has exactly these five names.
+        "convertto" => {
+            // naming.encoding.original-utf8-convertto-object-storage
+            // docs/design/analysis/name-resolution-proofs/encoding-original-utf8-convertto-object-storage.md
+            let data = match args {
+                [_, data] if vm.system_encoding() == tcl_platform::SystemEncoding::Utf8 => data,
+                [_, encoding, data] => {
+                    let encoding = match vm.native_name_operand_bytes(encoding) {
+                        Ok(bytes) => bytes,
+                        Err(error) => return vm.refuse_host_command(error.to_string()),
+                    };
+                    if encoding.as_ref() != b"utf-8" {
+                        return vm.refuse_host_command("external encoding target is unavailable".to_owned());
+                    }
+                    data
+                }
+                [_, _] => return vm.refuse_host_command("external system encoding target is unavailable".to_owned()),
+                _ => return native_wrong_arguments_message(vm, "wrong # args: should be \"encoding convertto ?encoding? data\""),
+            };
+            match tcl_cmd_core::encoding::convert_to_utf8(vm, data) {
+                Ok(result) => ok(result),
+                Err(error) => completion_from_cmd_error(vm, error),
+            }
+        }
+        // External decoding retains the current bootstrap pass-through.
         _ => {
             if args.len() < 2 {
-                return native_wrong_arguments_message(
-                    vm,
-                    "wrong # args: should be \"encoding convertto ?encoding? data\"",
-                );
+                return native_wrong_arguments_message(vm, "wrong # args: should be \"encoding convertfrom ?encoding? data\"");
             }
             ok(args.last().expect("len >= 2").clone())
         }

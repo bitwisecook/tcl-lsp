@@ -40,7 +40,10 @@ use crate::obj::{self, TclObj};
 /// *active* frame delegates to the by-name accessors verbatim (their namespace
 /// resolution + trace firing), and any other frame uses the frame-addressed
 /// resolver (`vars::*_at`, resolving as if that frame were active, following
-/// links). The refcount contract mirrors the runtime's internal accessors:
+/// links). Removal uses the shared physical callback owner in both cases;
+/// quiet bootstrap clearing is a separate internal operation. The VM's
+/// noncurrent storage-only ports retain their own independent contract.
+/// The refcount contract mirrors the runtime's internal accessors:
 /// [`get`](VarStore::get) returns a **borrowed** pointer (the variable table
 /// keeps its reference — the caller must not release it), and
 /// [`set`](VarStore::set) has the table take its own `+1` on the value.
@@ -505,7 +508,20 @@ impl VarStore for Interp {
         {
             self.var_unset_elem_at(target.name_bytes(), key, target.frame().0)
         } else {
-            self.array_unset_elem_at_target(target, key)
+            use tcl_runtime_api::variable_destruction::NativeArrayUnsetMemberLookup;
+            match self.native_invocation_dialect().array_unset_member_lookup() {
+                Some(NativeArrayUnsetMemberLookup::OriginalName) => {
+                    self.var_unset_elem_at(target.name_bytes(), key, target.frame().0)
+                }
+                Some(NativeArrayUnsetMemberLookup::SelectedArray) => {
+                    self.array_unset_elem_at_target(target, key)
+                }
+                None => {
+                    return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "array member unset lookup",
+                    ))
+                }
+            }
         };
         if let Some(refusal) = self.native_access_refusal() {
             return Err(refusal.into());

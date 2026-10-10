@@ -294,7 +294,7 @@ pub fn jim_core_command_list<O, V>(
     ops: &mut O,
     pattern: Option<&V>,
     include_spaces: bool,
-    kind: tcl_registry::commands::tcl::NativeJimCommandInventoryKind,
+    kind: tcl_runtime_api::NativeJimCommandInventoryKind,
 ) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + Namespaces,
@@ -312,13 +312,13 @@ where
         tcl_syntax::value::ValueError::CommandProtocolUnavailable("Jim core inventory root table"),
     )?;
     let candidates = match kind {
-        tcl_registry::commands::tcl::NativeJimCommandInventoryKind::Commands => {
+        tcl_runtime_api::NativeJimCommandInventoryKind::Commands => {
             ops.commands_in_bytes(root)
         }
-        tcl_registry::commands::tcl::NativeJimCommandInventoryKind::Procs => {
+        tcl_runtime_api::NativeJimCommandInventoryKind::Procs => {
             ops.procs_in_bytes(root)
         }
-        tcl_registry::commands::tcl::NativeJimCommandInventoryKind::Aliases => {
+        tcl_runtime_api::NativeJimCommandInventoryKind::Aliases => {
             ops.aliases_in_bytes_checked(root)?
         }
     };
@@ -354,10 +354,10 @@ where
     let failure = match ops.alias_prefix_original_value(original_name)? {
         tcl_runtime_api::AliasPrefixLookup::Prefix(original) => return Ok(original),
         tcl_runtime_api::AliasPrefixLookup::MissingCommand => {
-            tcl_registry::commands::tcl::NativeJimAliasLookupFailure::MissingCommand
+            tcl_runtime_api::NativeJimAliasLookupFailure::MissingCommand
         }
         tcl_runtime_api::AliasPrefixLookup::NotAlias => {
-            tcl_registry::commands::tcl::NativeJimAliasLookupFailure::NotAlias
+            tcl_runtime_api::NativeJimAliasLookupFailure::NotAlias
         }
     };
     let name = ops.native_string_bytes(original_name)?;

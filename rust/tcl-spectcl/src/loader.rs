@@ -6768,6 +6768,15 @@ fn apply_subcommand_stmt(
         "mutator" => sub.mutator = parse_flag(stmt.tail()),
         "destructive" => sub.destructive = parse_flag(stmt.tail()),
         "returns_path" => sub.returns_path = parse_flag(stmt.tail()),
+        "source_path_operation" => {
+            sub.source_path_operation = enum_by_name(
+                tcl_registry::SourcePathOperation::ALL,
+                &value,
+                "source path operation",
+                stmt.line,
+                log,
+            );
+        }
         "is_unescape" => sub.is_unescape = parse_flag(stmt.tail()),
         "loop_list_header" => sub.loop_list_header = parse_flag(stmt.tail()),
         "creates_scope_alias" => sub.creates_scope_alias = parse_flag(stmt.tail()),

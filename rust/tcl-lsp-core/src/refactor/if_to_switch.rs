@@ -19,7 +19,9 @@
 //! Convert an `if`/`elseif` equality chain to a `switch` statement.
 
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_lexer::LineIndex;
+use tcl_lexer::{LexerConfig, LineIndex};
+
+use super::datagroup::{ScalarVariableSourceSyntax, scalar_variable_source_syntax};
 
 use super::source_rewrite::{RewriteObligation, select};
 use super::{RefactorEdit, Refactoring, reindent_body};
@@ -27,14 +29,14 @@ use crate::code_actions::ActionKind;
 
 /// Parsed equality condition: `(var_name, value, negated)`.
 struct EqTest {
-    var: String,
+    subject: ScalarVariableSourceSyntax,
     value: String,
     negated: bool,
 }
 
 /// Parse an equality condition `$var eq "value"` / `"value" eq $var`
 /// (and the `==` / `ne` / `!=` operators).
-fn parse_eq_test(condition: &str) -> Option<EqTest> {
+fn parse_eq_test(condition: &str, config: LexerConfig) -> Option<EqTest> {
     let mut cond = condition.trim();
 
     // Strip outer braces: `{ $x eq "foo" }`.
@@ -55,18 +57,18 @@ fn parse_eq_test(condition: &str) -> Option<EqTest> {
         }
     }
 
-    if let Some((var, op, value)) = split_var_op_value(cond) {
+    if let Some((var, op, value)) = split_var_op_value(cond, config) {
         let is_ne = op == "ne" || op == "!=";
         return Some(EqTest {
-            var,
+            subject: var,
             value: value.trim().to_owned(),
             negated: negated ^ is_ne,
         });
     }
-    if let Some((value, op, var)) = split_value_op_var(cond) {
+    if let Some((value, op, var)) = split_value_op_var(cond, config) {
         let is_ne = op == "ne" || op == "!=";
         return Some(EqTest {
-            var,
+            subject: var,
             value: value.trim().to_owned(),
             negated: negated ^ is_ne,
         });
@@ -79,13 +81,16 @@ fn parse_eq_test(condition: &str) -> Option<EqTest> {
 const OPS: &[&str] = &["==", "!=", "eq", "ne"];
 
 /// Split `$var OP value` / `"$var" OP value` → `(var, op, value)`.
-fn split_var_op_value(cond: &str) -> Option<(String, String, String)> {
+fn split_var_op_value(
+    cond: &str,
+    config: LexerConfig,
+) -> Option<(ScalarVariableSourceSyntax, String, String)> {
     for op in OPS {
         let needle = format!(" {op} ");
         if let Some(pos) = cond.find(&needle) {
             let lhs = cond[..pos].trim();
             let value = cond[pos + needle.len()..].to_owned();
-            if let Some(var) = parse_var_word(lhs) {
+            if let Some(var) = scalar_variable_source_syntax(lhs, config) {
                 return Some((var, (*op).to_owned(), value));
             }
         }
@@ -94,7 +99,10 @@ fn split_var_op_value(cond: &str) -> Option<(String, String, String)> {
 }
 
 /// Split `value OP $var` / `value OP "$var"` → `(value, op, var)`.
-fn split_value_op_var(cond: &str) -> Option<(String, String, String)> {
+fn split_value_op_var(
+    cond: &str,
+    config: LexerConfig,
+) -> Option<(String, String, ScalarVariableSourceSyntax)> {
     for op in OPS {
         let needle = format!(" {op} ");
         // Use the *last* occurrence so a value containing the operator
@@ -103,30 +111,12 @@ fn split_value_op_var(cond: &str) -> Option<(String, String, String)> {
         if let Some(pos) = cond.rfind(&needle) {
             let value = cond[..pos].trim().to_owned();
             let rhs = cond[pos + needle.len()..].trim();
-            if let Some(var) = parse_var_word(rhs) {
+            if let Some(var) = scalar_variable_source_syntax(rhs, config) {
                 return Some((value, (*op).to_owned(), var));
             }
         }
     }
     None
-}
-
-/// Parse a `$var` / `${var}` / `"$var"` / `"${var}"` word to its bare
-/// variable name (`[A-Za-z0-9_]+`), or `None`.  Matches the shape
-/// `\$\{?(\w+)\}?` (optionally wrapped in double quotes).
-fn parse_var_word(word: &str) -> Option<String> {
-    let mut w = word.trim();
-    if w.len() >= 2 && w.starts_with('"') && w.ends_with('"') {
-        w = &w[1..w.len() - 1];
-    }
-    let w = w.strip_prefix('$')?;
-    let w = w.strip_prefix('{').unwrap_or(w);
-    let w = w.strip_suffix('}').unwrap_or(w);
-    if !w.is_empty() && w.chars().all(|c| c.is_alphanumeric() || c == '_') {
-        Some(w.to_owned())
-    } else {
-        None
-    }
 }
 
 /// Remove surrounding double quotes if present.
@@ -172,6 +162,7 @@ pub fn if_to_switch(
     if let Some(obligation) = obligation {
         return Some(obligation.refusal("Convert if chain to switch"));
     }
+    let config = analysis.body_lexer_config?;
     let texts = &cmd.texts;
     if texts.len() < 3 {
         return None;
@@ -180,7 +171,7 @@ pub fn if_to_switch(
     // Parse the if/elseif chain: `if cond body ?elseif cond body?... ?else body?`.
     let mut branches: Vec<(String, String)> = Vec::new(); // (value, body)
     let mut else_body: Option<String> = None;
-    let mut target_var: Option<String> = None;
+    let mut target_var: Option<ScalarVariableSourceSyntax> = None;
 
     let mut i = 1;
     while i < texts.len() {
@@ -213,10 +204,10 @@ pub fn if_to_switch(
             }
         }
 
-        let parsed = parse_eq_test(&condition)?;
+        let parsed = parse_eq_test(&condition, config)?;
         match &target_var {
-            None => target_var = Some(parsed.var.clone()),
-            Some(v) if *v != parsed.var => return None,
+            None => target_var = Some(parsed.subject.clone()),
+            Some(v) if v.name() != parsed.subject.name() => return None,
             _ => {}
         }
         // Negated (ne / !=) conditions make switch conversion awkward.
@@ -246,27 +237,11 @@ pub fn if_to_switch(
     let indent = lines
         .get(cmd_line as usize)
         .map_or("", |l| super::line_indent(l));
-    let inner = format!("{indent}    ");
-
-    let mut parts: Vec<String> = vec![format!("switch -exact -- ${target_var} {{")];
-    for (value, body) in &branches {
-        let body_trimmed = reindent_body(body, &format!("{inner}    "));
-        parts.push(format!("{inner}{} {{", render_switch_pattern(value)));
-        parts.push(body_trimmed);
-        parts.push(format!("{inner}}}"));
-    }
-    if let Some(eb) = &else_body {
-        let body_trimmed = reindent_body(eb, &format!("{inner}    "));
-        parts.push(format!("{inner}default {{"));
-        parts.push(body_trimmed);
-        parts.push(format!("{inner}}}"));
-    }
-    parts.push(format!("{indent}}}"));
-    let replacement = parts.join("\n");
+    let replacement = render_switch(&target_var, &branches, else_body.as_deref(), indent, config)?;
 
     let (start, end) = super::command_span_offsets(source, &cmd);
     Some(Refactoring {
-        title: format!("Convert to switch on ${target_var}"),
+        title: format!("Convert to switch on {}", target_var.reference()),
         edits: vec![RefactorEdit {
             start,
             end,
@@ -278,8 +253,94 @@ pub fn if_to_switch(
     })
 }
 
+fn render_switch(
+    subject: &ScalarVariableSourceSyntax,
+    branches: &[(String, String)],
+    else_body: Option<&str>,
+    indent: &str,
+    config: LexerConfig,
+) -> Option<String> {
+    let inner = format!("{indent}    ");
+
+    let mut parts: Vec<String> = vec![format!("switch -exact -- {} {{", subject.reference())];
+    for (value, body) in branches {
+        let body_trimmed = reindent_body(body, &format!("{inner}    "));
+        parts.push(format!("{inner}{} {{", render_switch_pattern(value)));
+        parts.push(body_trimmed);
+        parts.push(format!("{inner}}}"));
+    }
+    if let Some(eb) = else_body {
+        let body_trimmed = reindent_body(eb, &format!("{inner}    "));
+        parts.push(format!("{inner}default {{"));
+        parts.push(body_trimmed);
+        parts.push(format!("{inner}}}"));
+    }
+    parts.push(format!("{indent}}}"));
+    let replacement = parts.join("\n");
+
+    let generated = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(&replacement),
+        tcl_lexer::Span::new(0, u32::try_from(replacement.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    (generated.fatal_tail.is_none() && generated.commands.len() == 1).then_some(replacement)
+}
+
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn selected_if_switch_scalar_syntax_preserves_reference_and_edit_permission() {
+        // Implementation contract: naming.refactor.selected-if-scalar-source-syntax
+        // docs/design/analysis/name-resolution-proofs/selected-if-scalar-source-syntax.md
+        for subject in [
+            "${a b}",
+            "\"${café}\"",
+            "${literal$name}",
+            "${a(k)tail}",
+            r"${a\b}",
+            "$café",
+        ] {
+            let source = format!(
+                "if {{{subject} eq \"a\"}} {{puts one}} elseif {{{subject} eq \"b\"}} {{puts two}}"
+            );
+            let action = run(&source, 0).expect("explicit Logical scalar source rewrite");
+            assert!(action.disabled.is_none());
+            assert!(
+                action
+                    .apply(&source)
+                    .starts_with(&format!("switch -exact -- {subject} {{"))
+            );
+        }
+        let config = LexerConfig::for_dialect("tcl8.6");
+        for subject in [
+            "$a(k)",
+            "${a(k)}",
+            "$café",
+            "{$x}",
+            "\"$x[set y]\"",
+            "${missing",
+        ] {
+            assert!(
+                parse_eq_test(&format!("{subject} eq one"), config).is_none(),
+                "{subject:?}"
+            );
+        }
+        let source = "if {${a b} eq \"a\"} {puts one} elseif {${a b} eq \"b\"} {puts two}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let action = if_to_switch(source, 0, &analysis, &LineIndex::new(source))
+            .expect("source advice refuses edit");
+        assert!(
+            action
+                .disabled
+                .as_deref()
+                .unwrap()
+                .contains("missing-control-flow-equivalence")
+        );
+        assert!(action.edits.is_empty());
+    }
+
     use super::*;
 
     fn run(source: &str, cursor: u32) -> Option<Refactoring> {

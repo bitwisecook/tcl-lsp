@@ -16,7 +16,7 @@ Each pinned C8.4–C9.1 provider completes both originals with guest code0 and {
 
 ## Scope
 
-Two byte-identical ASCII LF sources, each evaluated once in six fresh fully initialised interpreters by the unchanged counted-source CAPI driver, without an added original-source envelope or provider API substitution. Whole original hashes, separate VERSION/ORIGINAL channels, twelve complete process receipts/stdout/stderr and six compile/ELF artifacts retain exact header/archive/build/source/executable pins. Arbitrary registration order, private identity, BIG-IP and executed software controls are not tested.
+Two byte-identical ASCII LF sources, each evaluated once in six fresh fully initialised interpreters by the unchanged counted-source CAPI driver, without an added original-source envelope or provider API substitution. Whole original hashes, separate VERSION/ORIGINAL channels, twelve complete process receipts/stdout/stderr and six compile/ELF artifacts retain exact header/archive/build/source/executable pins. Arbitrary registration order, private identity, BIG-IP and executed software controls are not tested. Runtime and VM linked controls compare whole unchanged original355 refill sources independently of original351 alias-unset sources and356 retarget flags. Runtime addressed byte removal retains its genuine physical receiver and shared callback owner; quiet_var_unset_at is an explicitly separate bootstrap storage purpose. VM noncurrent raw storage adapters retain storage-only scope and do not claim callback equivalence. No direct-addressed-frame software assertion expands native public source output into a C API, original header or generated-frame grant.
 
 ## Provider answers
 
@@ -139,7 +139,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs), `Interp::quiet_var_unset_at`: Explicitly quiet bootstrap storage removal, separate from addressed operational byte-unset callback semantics.
+- [runtime/rust/src/interp/native_variable_teardown.rs](../../../../runtime/rust/src/interp/native_variable_teardown.rs), `interp::native_variable_teardown::tests::original_array_unset_refills_match_six_native_source_results` (linked): Twelve complete unchanged original355 public completion/results compare member/root ArrayUnset refill values/logs and Jim unavailable trace outcome; no private receiver identity or Native C API equivalence follows.
+- [rust/tcl-vm/src/cmd_array/native_unset_tests.rs](../../../../rust/tcl-vm/src/cmd_array/native_unset_tests.rs), `cmd_array::native_unset_tests::original_array_unset_matches_native_refills_and_release_selected_lookup` (linked): Twenty-four complete unchanged original355/356 public source windows compare separately identified refill and retarget controls. Whole source outputs grant no Native operand/header/table or compiled activation equivalence.
 
 A named test is a coverage binding, not a claim that it executed.
 

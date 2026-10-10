@@ -55,4 +55,5 @@ tcl-runtime-api = { path = "../tcl-runtime-api" }
 workspace = true
 
 [dev-dependencies]
+tcl-test-support = { path = "../tcl-test-support" }
 tcl-host-c-abi = { path = "../tcl-host-c-abi" }

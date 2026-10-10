@@ -27,7 +27,9 @@
 
 mod metadata_context;
 pub use metadata_context::InvocationMetadataContext;
-pub(crate) use metadata_context::retained_source_metadata_context;
+pub(crate) use metadata_context::{
+    retained_module_metadata_context, retained_source_metadata_context,
+};
 mod symbol_advice;
 pub(crate) use symbol_advice::{
     OriginalSymbolDeclarationAdvice, original_symbol_declaration_advice,
@@ -388,6 +390,35 @@ fn original_declared_structured_invocation<'a>(
         return None;
     }
     resolve_original_declared_layout(registry, context, tokens, &advice)
+}
+
+/// Conditional operation recipe for the exact supplied Logical source model.
+/// Original alias captures and source words remain composed by the shared
+/// declaration owner. This grants no Native handler, Normal completion,
+/// compiler entry, variable allocation or executable erasure permission.
+pub(crate) fn original_logical_operation_invocation_with_metadata_context(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+) -> Option<ResolvedStatementInvocation> {
+    if !context.matches_registry(registry)
+        || !context.permits_logical_source_names()
+        || tokens.synthetic.is_some()
+    {
+        return None;
+    }
+    let input = context.source_analysis_input()?;
+    let binding = tokens.source_binding.as_ref()?;
+    if binding.logical_source_name_advice_input() != Some(input)
+        || binding
+            .original_lexer_config_for_tokens(tokens)?
+            .normalized()
+            != input.lexer_config().normalized()
+    {
+        return None;
+    }
+    resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens)
+        .or_else(|| original_declared_structured_invocation(registry, context, tokens))
 }
 
 /// The source-role consumer chooses its purpose-specific closure before this

@@ -56,10 +56,7 @@ pub use tcl_compiler::semantic_optimisation::{
 pub use view_tree::{ViewNode, build_view};
 
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
-// The pack-carrying registry, not the plain one: since the EDA vendor
-// libraries became `.tclspec` loadables they exist nowhere else, so an
-// explorer on the plain registry reports every `synth_design` unknown while
-// the diagnostic on the same line resolves it.
+// Bundled SpecTcl loadables share the registry used by source diagnostics.
 use tcl_spectcl::bundled::active_registry_for_dialect as registry_for_dialect;
 
 /// Per-function compilation artefacts surfaced by the explorer.
@@ -219,11 +216,6 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     // (upvar / global / variable / namespace upvar). Without it the
     // `aliases` list degrades to empty.
     let profile = environment::profile_for_dialect(dialect);
-    // One resolved environment drives the whole deep-inspection build,
-    // rather than passing `profile.surface_query()` directly.
-    let semantic_context = Some(tcl_registry::model::semantic::SemanticContext::for_profile(
-        profile,
-    ));
     // The document's own `# tcl-lsp: stub` declarations, so the views show the
     // IR the diagnostics path actually built: a stub-declared `script:body`
     // word lowers to a barrier carrying a script, a `var` word to a def. The
@@ -243,12 +235,12 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
         },
     )
     .with_interprocedural(registry, Some(profile))
-    .with_memory_ssa(registry, semantic_context)
+    .with_retained_memory_ssa(registry)
     // The ordinary compiler path builds world SSA only when interactive
     // GVN can consume it. Explorer is an explicit inspection surface, so
     // it asks for the complete source-faithful sidecar and displays typed
     // declines rather than silently presenting an empty graph.
-    .with_deep_semantic_analysis(registry, semantic_context);
+    .with_retained_deep_semantic_analysis(registry);
 
     ExplorerResult {
         source: source.to_owned(),
@@ -284,6 +276,43 @@ mod tests {
         let mut sorted = procs.to_vec();
         sorted.sort_unstable();
         assert_eq!(procs, sorted.as_slice());
+    }
+
+    #[test]
+    fn deep_pipeline_preserves_the_actual_source_metadata_owner() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let result = run_pipeline(
+            "::puts TOP; proc p {} {::puts PROC}; namespace eval n {::puts BODY}",
+            "tcl8.6",
+        );
+        let snapshots = result.all_snapshots();
+        assert!(
+            snapshots
+                .iter()
+                .any(|snapshot| snapshot.kind == FunctionSnapshotKind::Procedure)
+        );
+        assert!(
+            snapshots
+                .iter()
+                .any(|snapshot| snapshot.kind == FunctionSnapshotKind::BodyUnit)
+        );
+        for snapshot in snapshots {
+            let input = snapshot.unit.source_metadata_input().unwrap();
+            assert_eq!(
+                snapshot.unit.semantic_facts.metadata_context(),
+                Some(input.availability_context())
+            );
+            assert!(snapshot.unit.semantic_facts.context().is_none());
+        }
+        let procedure = &result.unit.procedures["::p"];
+        assert!(
+            procedure
+                .semantic_facts
+                .executable()
+                .world_state_ssa()
+                .is_some()
+        );
     }
 
     #[test]

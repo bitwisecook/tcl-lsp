@@ -20,6 +20,7 @@ impl NativeJimCommandTableKey {
             projection.purpose(),
             NativeNamePurpose::CommandPublication
                 | NativeNamePurpose::AliasPublication
+                | NativeNamePurpose::ChildAliasPublication
                 | NativeNamePurpose::RenameDestination
         ) {
             return None;

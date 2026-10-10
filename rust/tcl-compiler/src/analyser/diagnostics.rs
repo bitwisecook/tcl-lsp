@@ -482,10 +482,8 @@ impl Analyser {
         // per-function `scan_scope_aliases` only sees a function's own traces;
         // fold the module-wide traced globals into every function's
         // suppression context (which already covers both W211 and W220).
-        let trace_context = crate::registry_invocation::retained_source_metadata_context(
-            registry,
-            cu.ir_module.source_metadata_input.as_ref(),
-        );
+        let trace_context =
+            crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
         let mut traced_globals =
             crate::optimiser::elimination::scan_module_traced_globals_with_metadata_context(
                 cu,

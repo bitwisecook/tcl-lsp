@@ -760,7 +760,8 @@ mod tests {
                 crate::command::Command::Native(std::rc::Rc::new(ObserveTwice(
                     std::rc::Rc::clone(&callbacks),
                 ))),
-            );
+            )
+            .unwrap();
             vm.register("returns", |_, _| {
                 Completion::new(
                     Code::Return,
@@ -774,7 +775,8 @@ mod tests {
                     crate::command::Command::Native(std::rc::Rc::new(ObserveTwice(
                         std::rc::Rc::clone(&callbacks),
                     ))),
-                );
+                )
+                .unwrap();
             }
             let originals: Vec<_> = lines[1]
                 .split('\t')

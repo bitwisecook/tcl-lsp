@@ -1,0 +1,48 @@
+{
+  "provider": "9.1.0",
+  "case": {
+    "index": 2,
+    "id": "string-literal-zero"
+  },
+  "command": [
+    "/workspace/.proofs/native-encoding-utf8-object306-capture/9.1.0/probe.elf",
+    "2"
+  ],
+  "exit": 0,
+  "seconds": 0.009045168000739068,
+  "rows": [
+    "VERSION|0|392e312e30",
+    "INPUT|string-literal-zero|none|1|00",
+    "RETURN|0|bytearray|0",
+    "INPUT_AFTER|none|1",
+    "RAW|1|00"
+  ],
+  "executable_sha256": "6af3c849b249dafa0483fda77ef3882b7ce27cb412262f473fbb30ae0931d6d4",
+  "compile_receipt_sha256": "10b098dbf3a39205e8edf5148fda08c8a1d763e98ad22289ac02f16dabe03308",
+  "source_sha256": "4209e7d447c59412bc4b0b576d3efe890fd08de75ddab991060ccdd7a675a427",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c": "f7880cfc3cd9787502134b22832475df5ebad0432e66c8fae2281ddd98abe59d",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclPkg.c": "b21d3d4578ac6ad532f53782a8c2aa6d08087e9ecc6638d1b6850b1ca2aca684",
+    "/workspace/.proofs/native-info-original-dispatch292-capture/probe.c": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclProc.c": "2c5cf8968a3176aa8e5c316063594186f50109cecd2fbe3c3dff2f3035cefd1a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdAH.c": "56db5fdd8c4bd688cb0beda3b91ad60111adb802fd63c28821055140b582fe04",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclEncoding.c": "a8e40415c4e984eb2d8b888f79a3fc09fe1074233f8ee3d6b6bdb0b270d8b770",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtf.c": "f388adf112e56d3d07bd86b6878e73a1f8c56a2d751f2bb5d860d3464f4db265",
+    "/workspace/.proofs/native-encoding-utf8-object306-capture/probe.c": "4209e7d447c59412bc4b0b576d3efe890fd08de75ddab991060ccdd7a675a427"
+  },
+  "stdout_sha256": "4e88f651b01fa4e047de9d4216971718b1d5b17d99cec1bec49a333323223c7c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "request_sha256": "fa52426a47920f82b850eb32dde48bc8cdf3ee7dfdbd9816333339804f82c853",
+  "provider_version_row": "VERSION|0|392e312e30",
+  "channel": "Original C object vector {encoding convertto utf-8 originalOperand} via Tcl_EvalObjv TCL_EVAL_GLOBAL. No source parser or CLI Unicode encoding substitutes the fixed counted input; each case executes in a fresh fullInit interpreter and process. Public Tcl_Obj primary/residency observations precede binary/string getters. Jim separately calls its original inventory plus catches the actual encoding invocation; no C worker or ByteArray substitute."
+}

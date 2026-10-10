@@ -32,6 +32,13 @@ use super::{
 };
 use crate::code_actions::ActionKind;
 
+mod source_subject;
+pub use source_subject::{
+    OriginalExactCaseSource, OriginalExactSwitchSource, OriginalScalarVariableSubject,
+    ScalarVariableSourceSyntax, original_exact_case_source_at_analysis,
+    original_exact_switch_source_at_analysis, scalar_variable_source_syntax,
+};
+
 /// A generated data-group artefact (separate from the iRule edits).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataGroupDefinition {
@@ -163,7 +170,7 @@ const EQ_OPS: &[&str] = &["==", "!=", "eq", "ne"];
 /// Parse a simple equality test `(var, value, negated)`.  Used by the
 /// datagroup transform; mirrors the shape of
 /// `if_to_switch::parse_eq_test` minus the operator capture.
-fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
+fn parse_eq(cond: &str, config: LexerConfig) -> Option<(ScalarVariableSourceSyntax, String, bool)> {
     let mut cond = cond.trim();
     if cond.starts_with('{') && cond.ends_with('}') && cond.len() >= 2 {
         cond = cond[1..cond.len() - 1].trim();
@@ -181,7 +188,7 @@ fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
     for op in EQ_OPS {
         let needle = format!(" {op} ");
         if let Some(pos) = cond.find(&needle)
-            && let Some(var) = parse_var_word(cond[..pos].trim())
+            && let Some(var) = scalar_variable_source_syntax(cond[..pos].trim(), config)
         {
             let is_ne = *op == "ne" || *op == "!=";
             return Some((
@@ -195,7 +202,8 @@ fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
     for op in EQ_OPS {
         let needle = format!(" {op} ");
         if let Some(pos) = cond.rfind(&needle)
-            && let Some(var) = parse_var_word(cond[pos + needle.len()..].trim())
+            && let Some(var) =
+                scalar_variable_source_syntax(cond[pos + needle.len()..].trim(), config)
         {
             let is_ne = *op == "ne" || *op == "!=";
             return Some((var, cond[..pos].trim().to_owned(), negated ^ is_ne));
@@ -204,24 +212,11 @@ fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
     None
 }
 
-/// Parse `$var` / `${var}` / `"$var"` to its bare name.
-fn parse_var_word(word: &str) -> Option<String> {
-    let mut w = word.trim();
-    if w.len() >= 2 && w.starts_with('"') && w.ends_with('"') {
-        w = &w[1..w.len() - 1];
-    }
-    let w = w.strip_prefix('$')?;
-    let w = w.strip_prefix('{').unwrap_or(w);
-    let w = w.strip_suffix('}').unwrap_or(w);
-    if !w.is_empty() && w.chars().all(|c| c.is_alphanumeric() || c == '_') {
-        Some(w.to_owned())
-    } else {
-        None
-    }
-}
-
 /// Detect `$var eq "a" || $var eq "b" || …` chains.
-fn try_or_chain(condition: &str) -> Option<(String, Vec<String>)> {
+fn try_or_chain(
+    condition: &str,
+    config: LexerConfig,
+) -> Option<(ScalarVariableSourceSyntax, Vec<String>)> {
     let mut cond = condition.trim();
     if cond.starts_with('{') && cond.ends_with('}') && cond.len() >= 2 {
         cond = cond[1..cond.len() - 1].trim();
@@ -230,16 +225,16 @@ fn try_or_chain(condition: &str) -> Option<(String, Vec<String>)> {
     if parts.len() < 2 {
         return None;
     }
-    let mut target_var: Option<String> = None;
+    let mut target_var: Option<ScalarVariableSourceSyntax> = None;
     let mut values = Vec::new();
     for part in parts {
-        let (var, value, negated) = parse_eq(part.trim())?;
+        let (var, value, negated) = parse_eq(part.trim(), config)?;
         if negated {
             return None;
         }
         match &target_var {
             None => target_var = Some(var),
-            Some(v) if *v != var => return None,
+            Some(v) if v.name() != var.name() => return None,
             _ => {}
         }
         values.push(value);
@@ -249,25 +244,6 @@ fn try_or_chain(condition: &str) -> Option<(String, Vec<String>)> {
         return None;
     }
     Some((target_var, values))
-}
-
-/// Extract a variable name from `$var` / `${var}` subject.
-fn extract_var_name(subject: &str) -> Option<String> {
-    let s = subject.trim();
-    if let Some(inner) = s.strip_prefix("${").and_then(|x| x.strip_suffix('}')) {
-        return Some(inner.to_owned());
-    }
-    if let Some(name) = s.strip_prefix('$')
-        && !name.is_empty()
-        && name
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_alphabetic() || c == '_')
-        && name.chars().all(|c| c.is_alphanumeric() || c == '_')
-    {
-        return Some(name.to_owned());
-    }
-    None
 }
 
 // set/return body parsing
@@ -396,7 +372,7 @@ pub fn extract_to_datagroup_from_if(
         return None;
     }
     let cmd = find_command_at(source, cursor, Some("if"), registry, config)?;
-    let chain = parse_if_chain(&cmd.texts)?;
+    let chain = parse_if_chain(&cmd.texts, config)?;
     if chain.values.len() < 2 {
         return None;
     }
@@ -407,7 +383,7 @@ pub fn extract_to_datagroup_from_if(
         .map(|v| strip_quotes(v).to_owned())
         .collect();
     let value_type = infer_value_type(&stripped_values);
-    let dg_name = resolve_dg_name(dg_name, &format!("{}_whitelist", chain.target_var));
+    let dg_name = resolve_dg_name(dg_name, &format!("{}_whitelist", chain.target_var.name()));
 
     let indent = command_indent(source, &cmd, line_index).to_owned();
     let bodies_identical = {
@@ -420,7 +396,7 @@ pub fn extract_to_datagroup_from_if(
             &stripped_values,
             value_type,
             &dg_name,
-            &chain.target_var,
+            chain.target_var.reference(),
             &chain.bodies[0],
             chain.else_body.as_deref(),
             &indent,
@@ -440,16 +416,20 @@ pub fn extract_to_datagroup_from_if(
             records,
         };
         let replacement = if use_return {
-            format!("return [class lookup ${} {dg_name}]", chain.target_var)
+            format!(
+                "return [class lookup {} {dg_name}]",
+                chain.target_var.reference()
+            )
         } else {
             format!(
-                "set {set_var} [class lookup ${} {dg_name}]",
-                chain.target_var
+                "set {set_var} [class lookup {} {dg_name}]",
+                chain.target_var.reference()
             )
         };
         (dg, replacement)
     };
 
+    complete_single_command_source(&replacement, config)?;
     Some(build_result(
         source,
         &cmd,
@@ -460,9 +440,20 @@ pub fn extract_to_datagroup_from_if(
     ))
 }
 
+/// Proposed syntax is checked independently of scalar grammar and permissions.
+fn complete_single_command_source(source: &str, config: LexerConfig) -> Option<()> {
+    let generated = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(source),
+        tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    (generated.fatal_tail.is_none() && generated.commands.len() == 1).then_some(())
+}
+
 /// A parsed if/elseif equality chain.
 struct IfChain {
-    target_var: String,
+    target_var: ScalarVariableSourceSyntax,
     values: Vec<String>,
     bodies: Vec<String>,
     else_body: Option<String>,
@@ -482,11 +473,11 @@ fn body_index_after(texts: &[String], cond: usize) -> Option<usize> {
 
 /// Parse the if/elseif chain (OR-chain in a single condition, or an
 /// `elseif` ladder).
-fn parse_if_chain(texts: &[String]) -> Option<IfChain> {
+fn parse_if_chain(texts: &[String], config: LexerConfig) -> Option<IfChain> {
     // OR-chain in a single condition.
     if texts.len() >= 3
         && let Some(body) = body_index_after(texts, 1)
-        && let Some((target_var, values)) = try_or_chain(&texts[1])
+        && let Some((target_var, values)) = try_or_chain(&texts[1], config)
     {
         return Some(IfChain {
             target_var,
@@ -496,7 +487,7 @@ fn parse_if_chain(texts: &[String]) -> Option<IfChain> {
         });
     }
 
-    let mut target_var: Option<String> = None;
+    let mut target_var: Option<ScalarVariableSourceSyntax> = None;
     let mut values: Vec<String> = Vec::new();
     let mut bodies: Vec<String> = Vec::new();
     let mut else_body: Option<String> = None;
@@ -518,7 +509,7 @@ fn parse_if_chain(texts: &[String]) -> Option<IfChain> {
         // its body, so it has to be skipped when the body offset is worked
         // out, not at the top of the loop.
         let body_at = body_index_after(texts, i)?;
-        let (var, value, negated) = parse_eq(word)?;
+        let (var, value, negated) = parse_eq(word, config)?;
         let body = texts[body_at].clone();
         i = body_at + 1;
         if negated {
@@ -526,7 +517,7 @@ fn parse_if_chain(texts: &[String]) -> Option<IfChain> {
         }
         match &target_var {
             None => target_var = Some(var),
-            Some(v) if *v != var => return None,
+            Some(v) if v.name() != var.name() => return None,
             _ => {}
         }
         values.push(value);
@@ -545,7 +536,7 @@ fn membership_extraction(
     stripped_values: &[String],
     value_type: &str,
     dg_name: &str,
-    target_var: &str,
+    subject_reference: &str,
     body: &str,
     else_body: Option<&str>,
     indent: &str,
@@ -563,19 +554,21 @@ fn membership_extraction(
     let replacement = if let Some(eb) = else_body {
         let else_text = reindent_body(eb, &format!("{indent}    "));
         format!(
-            "if {{ [class match ${target_var} equals {dg_name}] }} {{\n{body_text}\n{indent}}} else {{\n{else_text}\n{indent}}}"
+            "if {{ [class match {subject_reference} equals {dg_name}] }} {{\n{body_text}\n{indent}}} else {{\n{else_text}\n{indent}}}"
         )
     } else {
-        format!("if {{ [class match ${target_var} equals {dg_name}] }} {{\n{body_text}\n{indent}}}")
+        format!(
+            "if {{ [class match {subject_reference} equals {dg_name}] }} {{\n{body_text}\n{indent}}}"
+        )
     };
     (dg, replacement)
 }
 
-/// Pair stripped keys with stripped values into data-group records.
+/// Pair completed keys with stripped body values into data-group records.
 fn zip_records(keys: &[String], values: &[String]) -> Vec<(String, String)> {
     keys.iter()
         .zip(values.iter())
-        .map(|(k, v)| (strip_quotes(k).to_owned(), strip_quotes(v).to_owned()))
+        .map(|(k, v)| (k.clone(), strip_quotes(v).to_owned()))
         .collect()
 }
 
@@ -640,8 +633,9 @@ pub fn extract_to_datagroup_from_switch(
         return None;
     }
     let cmd = find_command_at(source, cursor, Some("switch"), registry, config)?;
-    let (subject, pairs) = super::parse_exact_switch(&cmd.texts)?;
-    let subject_var = extract_var_name(&subject)?;
+    let original = source_subject::standalone_exact_switch_source(source, &cmd, registry, config)?;
+    let subject = original.subject();
+    let pairs = original.pairs();
     if pairs.len() < 3 {
         return None;
     }
@@ -649,7 +643,7 @@ pub fn extract_to_datagroup_from_switch(
     // Separate default from regular arms.
     let mut default_body: Option<String> = None;
     let mut regular_pairs: Vec<(String, String)> = Vec::new();
-    for (pattern, body) in &pairs {
+    for (pattern, body) in pairs {
         if pattern == "default" {
             default_body = Some(body.clone());
         } else if body.trim() == "-" {
@@ -662,12 +656,9 @@ pub fn extract_to_datagroup_from_switch(
         return None;
     }
 
-    let keys: Vec<String> = regular_pairs
-        .iter()
-        .map(|(p, _)| strip_quotes(p).to_owned())
-        .collect();
+    let keys: Vec<String> = regular_pairs.iter().map(|(p, _)| p.clone()).collect();
     let value_type = infer_value_type(&keys);
-    let dg_name = resolve_dg_name(dg_name, &format!("{subject_var}_map"));
+    let dg_name = resolve_dg_name(dg_name, &format!("{}_map", subject.name()));
     let indent = command_indent(source, &cmd, line_index).to_owned();
 
     let all_same = {
@@ -681,7 +672,7 @@ pub fn extract_to_datagroup_from_switch(
             &keys,
             value_type,
             &dg_name,
-            &subject_var,
+            subject.reference(),
             &regular_pairs[0].1,
             default_body.as_deref(),
             &indent,
@@ -690,7 +681,7 @@ pub fn extract_to_datagroup_from_switch(
         switch_mapping_extraction(
             &regular_pairs,
             &keys,
-            &subject_var,
+            subject.reference(),
             &dg_name,
             default_body.as_deref(),
             &indent,
@@ -698,6 +689,7 @@ pub fn extract_to_datagroup_from_switch(
         )?
     };
 
+    complete_single_command_source(&replacement, config)?;
     Some(build_result(
         source,
         &cmd,
@@ -712,7 +704,7 @@ pub fn extract_to_datagroup_from_switch(
 fn switch_mapping_extraction(
     regular_pairs: &[(String, String)],
     keys: &[String],
-    subject_var: &str,
+    subject_reference: &str,
     dg_name: &str,
     default_body: Option<&str>,
     indent: &str,
@@ -736,17 +728,17 @@ fn switch_mapping_extraction(
         let default_val = extract_single_value(default, use_return, &target_var, config)?;
         if use_return {
             format!(
-                "if {{ [class match ${subject_var} equals {dg_name}] }} {{\n{indent}    return [class lookup ${subject_var} {dg_name}]\n{indent}}} else {{\n{indent}    return {default_val}\n{indent}}}"
+                "if {{ [class match {subject_reference} equals {dg_name}] }} {{\n{indent}    return [class lookup {subject_reference} {dg_name}]\n{indent}}} else {{\n{indent}    return {default_val}\n{indent}}}"
             )
         } else {
             format!(
-                "if {{ [class match ${subject_var} equals {dg_name}] }} {{\n{indent}    set {target_var} [class lookup ${subject_var} {dg_name}]\n{indent}}} else {{\n{indent}    set {target_var} {default_val}\n{indent}}}"
+                "if {{ [class match {subject_reference} equals {dg_name}] }} {{\n{indent}    set {target_var} [class lookup {subject_reference} {dg_name}]\n{indent}}} else {{\n{indent}    set {target_var} {default_val}\n{indent}}}"
             )
         }
     } else if use_return {
-        format!("return [class lookup ${subject_var} {dg_name}]")
+        format!("return [class lookup {subject_reference} {dg_name}]")
     } else {
-        format!("set {target_var} [class lookup ${subject_var} {dg_name}]")
+        format!("set {target_var} [class lookup {subject_reference} {dg_name}]")
     };
     Some((dg, replacement))
 }
@@ -769,6 +761,78 @@ pub fn extract_to_datagroup(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn selected_if_scalar_source_keeps_reference_spelling_in_proposals() {
+        // Implementation contract: naming.refactor.selected-if-scalar-source-syntax
+        // docs/design/analysis/name-resolution-proofs/selected-if-scalar-source-syntax.md
+        for subject in [
+            "${a b}",
+            "\"${café}\"",
+            "${literal$name}",
+            "${a(k)tail}",
+            r"${a\b}",
+        ] {
+            let source = format!(
+                "if {{{subject} eq \"a\"}} {{drop}} elseif {{{subject} eq \"b\"}} {{drop}}"
+            );
+            let action = if_dg(&source, "subjects").expect("selected scalar membership syntax");
+            let proposed = action.apply(&source);
+            assert!(
+                proposed.contains(&format!("class match {subject} equals subjects")),
+                "{proposed}"
+            );
+            let source = format!(
+                "if {{{subject} eq \"a\"}} {{return one}} elseif {{{subject} eq \"b\"}} {{return two}}"
+            );
+            let proposed = if_dg(&source, "subjects")
+                .expect("selected scalar mapping syntax")
+                .apply(&source);
+            assert_eq!(
+                proposed,
+                format!("return [class lookup {subject} subjects]")
+            );
+        }
+        for subject in [
+            "$a(k)",
+            "${a(k)}",
+            "$café",
+            "\"$x[set y]\"",
+            "{$x}",
+            "$x.tail",
+        ] {
+            let source = format!(
+                "if {{{subject} eq \"a\"}} {{drop}} elseif {{{subject} eq \"b\"}} {{drop}}"
+            );
+            assert!(if_dg(&source, "subjects").is_none(), "{subject:?}");
+        }
+    }
+
+    #[test]
+    fn selected_if_scalar_conditions_keep_eq_and_or_shape_under_actual_config() {
+        // Implementation contract: naming.refactor.selected-if-scalar-source-syntax
+        // docs/design/analysis/name-resolution-proofs/selected-if-scalar-source-syntax.md
+        let first = LexerConfig::for_dialect("tcl8.6");
+        let nested = LexerConfig::for_dialect("tcl9.1");
+        let jim = LexerConfig::for_dialect("jim");
+        assert!(parse_eq("${a{b}c} eq one", first).is_none());
+        assert_eq!(
+            parse_eq("${a{b}c} eq one", nested).unwrap().0.name(),
+            "a{b}c"
+        );
+        assert!(parse_eq("$café eq one", first).is_none());
+        assert_eq!(parse_eq("one eq $café", jim).unwrap().0.name(), "café");
+        let (subject, values) = try_or_chain("${a b} eq one || \"${a b}\" eq two", first).unwrap();
+        assert_eq!(subject.name(), "a b");
+        assert_eq!(subject.reference(), "${a b}");
+        assert_eq!(values, ["one", "two"]);
+        assert!(try_or_chain("$x eq one || $y eq two", first).is_none());
+        assert!(try_or_chain("$x eq one || !($x eq two)", first).is_none());
+        for subject in ["$a(k)", "${a(k)}", "${missing", "\"$x[set y]\""] {
+            assert!(parse_eq(&format!("{subject} eq one"), first).is_none());
+        }
+    }
+
     use super::*;
     use tcl_dialect::model::{Family, SurfaceLayer};
 

@@ -647,7 +647,8 @@ mod tests {
     #[test]
     fn original_command_replacement_uses_native_node_liveness_without_epoch_drift() {
         let mut vm = actual_jim();
-        vm.register_written_command("opaque", Command::Native(Rc::new(ResultCommand(1))));
+        vm.register_written_command("opaque", Command::Native(Rc::new(ResultCommand(1))))
+            .unwrap();
         let original = Value::from_native_string_bytes(b"opaque".as_slice());
         let (_, first_command) = vm
             .native_jim_command_from_original_at(ROOT_NS, &original)
@@ -678,7 +679,8 @@ mod tests {
             ns_refs + 1
         );
         drop(duplicate);
-        vm.register_written_command("opaque", Command::Native(Rc::new(ResultCommand(2))));
+        vm.register_written_command("opaque", Command::Native(Rc::new(ResultCommand(2))))
+            .unwrap();
         assert_eq!(vm.name_world.borrow().jim_procedure_epoch, epoch);
         let (_, second_command) = vm
             .native_jim_command_from_original_at(ROOT_NS, &original)
@@ -702,7 +704,9 @@ mod tests {
     #[test]
     fn original_deleted_active_command_survives_only_its_actual_invocation_lease() {
         let mut vm = actual_jim();
-        let key = vm.register_written_command("active", Command::Native(Rc::new(ResultCommand(1))));
+        let key = vm
+            .register_written_command("active", Command::Native(Rc::new(ResultCommand(1))))
+            .unwrap();
         let original = Value::from_native_string_bytes(b"active".as_slice());
         vm.native_jim_command_from_original_at(ROOT_NS, &original)
             .unwrap()

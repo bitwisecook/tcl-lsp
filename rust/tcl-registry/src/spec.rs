@@ -3932,6 +3932,10 @@ pub struct SubCommand {
     /// Returns a filesystem path.
     pub returns_path: bool,
 
+    /// Conditional source path algebra operation, independent of runtime
+    /// handler, current filename, filesystem state and execution admission.
+    pub source_path_operation: Option<crate::source_path::SourcePathOperation>,
+
     /// Performs unescaping / decoding.
     pub is_unescape: bool,
 
@@ -4203,6 +4207,7 @@ impl SubCommand {
         literal_argument_validator: None,
         destructive: false,
         returns_path: false,
+        source_path_operation: None,
         is_unescape: false,
         cfg_rewrite_name: None,
         sub_subcommands: &[],

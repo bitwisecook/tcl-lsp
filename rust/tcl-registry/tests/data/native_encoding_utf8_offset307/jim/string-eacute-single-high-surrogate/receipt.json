@@ -1,0 +1,43 @@
+{
+  "provider": "jim",
+  "case": {
+    "index": 0,
+    "id": "string-eacute-single-high-surrogate"
+  },
+  "command": [
+    "/workspace/.proofs/native-encoding-utf8-offset307-capture/jim/probe.elf",
+    "0"
+  ],
+  "exit": 0,
+  "seconds": 0.007937362999655306,
+  "rows": [
+    "VERSION|0|302e38342d392d6735626163376339",
+    "AVAILABILITY|0|302031207b696e76616c696420636f6d6d616e64206e616d652022656e636f64696e67227d"
+  ],
+  "executable_sha256": "f6227c055e0214327c43d9c81f960e497a4f0b80e0081bb05e06d306511a40fe",
+  "compile_receipt_sha256": "dd14faf051db4ef230b6aa6b0a331e784a8cc05f5b13ce583a449fd7859f575c",
+  "source_sha256": "9c31cd70428ddfe871d8f1f28ee11a422bae6beb0ecbf6dec5ee2b40494d807b",
+  "required_sha256": {
+    "/workspace/.proofs/native-providers/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/workspace/.proofs/native-providers/jimtcl/libjim.a": "a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da",
+    "/workspace/.proofs/native-providers/jimtcl/Makefile": "983469f71a073b757f3ce8869ebf846e7fbb358abd0e5d5d73b07796e366ce77",
+    "/workspace/.proofs/native-providers/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/.proofs/native-providers/jimtcl/jim-subcmd.c": "80f274c72d403c5d7906e22da58cc8f79fd7541e42f34e90e34cc7c5c5248ecb",
+    "/workspace/.proofs/native-providers/jimtcl/jim-interp.c": "6913a5abf6518b9bdf6b953130ae006e4369207baab2d70bd58b4a55bd0edee9",
+    "/workspace/.proofs/native-providers/jimtcl/oo.tcl": "42f6b0150881a8d286c1ee9a9b30bdf1b06cf39850c576d9dfc104ef3c0eeef5",
+    "/workspace/.proofs/native-providers/jimtcl/_oo.c": "a3f26330db47cdfd64377059db2a11b5fcc53d3ae112dfb390686b4f7836eca3",
+    "/workspace/.proofs/native-providers/jimtcl/_load-static-exts.c": "69742674664cfa4ca43495d61075ee681b1c55ed9215eb27ebd2902b69d66979",
+    "/workspace/.proofs/native-providers/jimtcl/jimsh": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+    "/workspace/.proofs/native-info-original-dispatch292-capture/probe.c": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759",
+    "/workspace/.proofs/native-providers/jimtcl/stdlib.tcl": "3597b76b785f697242a5354816792ad5fa538dd0a41b3973bdcbcb5edbb8893a",
+    "/workspace/.proofs/native-providers/jimtcl/_stdlib.c": "593b57426539e77ab00efb961a77c1f8a3845ce0c82f29943516f30db4142751",
+    "/workspace/.proofs/native-providers/jimtcl/jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+    "/workspace/.proofs/native-encoding-utf8-offset307-capture/probe.c": "9c31cd70428ddfe871d8f1f28ee11a422bae6beb0ecbf6dec5ee2b40494d807b"
+  },
+  "stdout_sha256": "e2203213036a1c3f2d9e5f74348e24efbdd7f4ed4cc390992bf92c6d2d10af43",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {},
+  "request_sha256": "e09732a749b29eae6897bcd6c87433f0844818e367b5d291dd27c6303aaea08a",
+  "provider_version_row": "VERSION|0|302e38342d392d6735626163376339",
+  "channel": "Original C object vector {encoding convertto utf-8 originalOperand} via Tcl_EvalObjv TCL_EVAL_GLOBAL. No source parser or CLI Unicode encoding substitutes the fixed counted input; each case executes in a fresh fullInit interpreter and process. Public Tcl_Obj primary/residency observations precede binary/string getters. Jim separately calls its original inventory plus catches the actual encoding invocation; no C worker or ByteArray substitute."
+}

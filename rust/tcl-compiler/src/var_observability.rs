@@ -99,7 +99,7 @@ impl EscapeFlag {
 ///
 /// `pub(crate)` so [`crate::cfg_builder::global_write_info`] can thread the
 /// same state type through its own flow-insensitive whole-body walk (it
-/// reuses [`stmt_gen`] rather than re-deriving the `global`/`variable`/
+/// reuses [`stmt_gen_with_metadata_context`] for `global`/`variable`/
 /// `upvar` recognition logic).
 pub(crate) type State = HashMap<String, EscapeFlag>;
 
@@ -132,16 +132,6 @@ fn alias_flag(
             }
         },
     }
-}
-
-/// Apply `stmt`'s alias / trace declarations to `state` in place.
-///
-/// `pub(crate)`: reused by [`crate::cfg_builder::global_write_info`] for its
-/// own flow-insensitive whole-body scan — the recognition logic for
-/// `global` / `variable` / `upvar` / `trace` lives here once.
-pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
-    let context = standalone_observability_context(registry);
-    stmt_gen_with_metadata_context(stmt, state, registry, context);
 }
 
 fn standalone_observability_context(
@@ -387,10 +377,9 @@ pub fn scan_module_global_names(
 ) -> std::collections::HashSet<String> {
     use crate::ir::{Script, Statement, for_each_statement};
     let mut names = std::collections::HashSet::new();
-    let Some(context) = crate::registry_invocation::retained_source_metadata_context(
-        registry,
-        ir_module.source_metadata_input.as_ref(),
-    ) else {
+    let Some(context) =
+        crate::registry_invocation::retained_module_metadata_context(registry, ir_module)
+    else {
         return names;
     };
     let mut visit = |script: &Script| {
@@ -903,6 +892,44 @@ mod tests {
         assert!(obs.escaping_var_names().is_empty());
         assert!(EscapeFlag::empty().is_empty());
     }
+    #[test]
+    fn module_global_advice_withholds_stale_profile_and_lexer_input() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // This is MAY source exposure, not a completed global link or a closed inventory.
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&current),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            "proc writer {} {global shared; set shared VALUE}",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: current.commands(),
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        assert!(scan_module_global_names(&unit.ir_module, current.commands()).contains("shared"));
+        let mut wrong_profile = unit.ir_module.clone();
+        wrong_profile.dialect_profile = tcl_dialect::DialectProfile::find("tcl8.6");
+        let mut wrong_config = unit.ir_module.clone();
+        wrong_config.lexer_config.strict_quoting = !wrong_config.lexer_config.strict_quoting;
+        for module in [wrong_profile, wrong_config] {
+            assert_eq!(module.source_metadata_input.as_ref(), Some(&input));
+            assert!(scan_module_global_names(&module, current.commands()).is_empty());
+        }
+    }
+
     #[test]
     fn scan_module_global_names_finds_proc_body_global() {
         let c = cu("proc ::p {} { global n\nset n 2 }");

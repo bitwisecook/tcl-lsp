@@ -1,0 +1,43 @@
+{
+  "request_id": "naming.alias.jim-original-alias-diagnostic-name-extent",
+  "question": "For an original counted name containing middle/leading NUL, UTF-8 or invalid byte, what exact missing-command and not-an-alias errors does current Jim info alias publish, independently of the original name character count and successful nonalias procedure lookup?",
+  "problem": "Original-object alias lookup and diagnostic formatting have separate name extents. Jim_SetResultFormatted counts %#s for allocation but prints snprintf CString extent. The shared error presenter must not use a reporting byte extent as lookup identity or eagerly format successful alias members.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "cases": [
+    {
+      "id": "original-missing-alias-diagnostic-extent",
+      "source_file": "/workspace/.proofs/native-jim-alias-error-extent279-request/original-missing-alias-diagnostic-extent.tcl",
+      "source_sha256": "ba0eaf0acacb5370a9ebb1f30444236923e2013d96d15519e4f8d73d373bf02e",
+      "source_encoding": "ASCII LF source. All NUL/UTF-8/invalid bytes are produced by binary format H* at evaluation; the source contains no literal NUL or non-ASCII character. Exact hex operands are retained."
+    },
+    {
+      "id": "original-nonalias-alias-diagnostic-extent",
+      "source_file": "/workspace/.proofs/native-jim-alias-error-extent279-request/original-nonalias-alias-diagnostic-extent.tcl",
+      "source_sha256": "d093be2d03231dea36e32da47fad49135d9d7b26b0aaa6dca871892d494ae409",
+      "source_encoding": "ASCII LF source. All NUL/UTF-8/invalid bytes are produced by binary format H* at evaluation; the source contains no literal NUL or non-ASCII character. Exact hex operands are retained."
+    }
+  ],
+  "source_anchors": [
+    {
+      "source_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "copy_file": "/workspace/.proofs/native-jim-alias-error-extent279-request/jim.c",
+      "excerpt_file": "/workspace/.proofs/native-jim-alias-error-extent279-request/Jim_SetResultFormatted.c.txt",
+      "excerpt_lines": [
+        17112,
+        17178
+      ],
+      "excerpt_sha256": "6594903ebcd01fd3242fcaeed9be04baa434799636b02db02d814dbc87a279d1",
+      "function": "Jim_SetResultFormatted"
+    }
+  ],
+  "driver": "Reuse unchanged original-counted fullInit Native236/245/274 CAPI driver with the same six exact provider build pins. One fresh Tcl_Init or Jim core plus Jim_InitStaticExtensions interpreter per original file. Preserve source bytes, complete original code/result hex/stdout/stderr/version/exit/pins. C info -commands capability guard is unchanged and explicit NOT_APPLICABLE, no interp-alias substitution. No outer source wrapper or result normalization.",
+  "scope": "Two public original source windows with four counted original names each. Original name string length and caught error bytes are independent fields; nonalias source executes genuine proc creation to answer a distinct lookup outcome. No address, private hash table/cell/cache identity, character-count inference for C unavailable rows, BIGIP/TMM behavior, or Rust backend pass is claimed."
+}

@@ -881,7 +881,7 @@ mod tests {
                 tcl_dialect::BracedVarStyle::FirstClose,
                 tcl_dialect::BracedVarStyle::Tcl9Nesting,
             ] {
-                let mut selected = *profile;
+                let mut selected = profile.clone();
                 selected.grammar.braced_var = style;
                 let context = ExprParseContext::for_profile(&selected);
                 for (source, accepts) in [("${a{b}", !style.nests()), ("${a{b}c}", style.nests())] {

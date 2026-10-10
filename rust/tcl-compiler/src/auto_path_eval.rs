@@ -41,10 +41,13 @@
 //! list-manipulation command returns `None` and the caller skips the
 //! entry.  We never guess.
 //!
-//! The `signature_scan` handler records only the raw literal of
-//! each entry; this evaluator resolves those idioms.  It is consulted
-//! when a workspace / package index has the analysed file's path (the
-//! `[info script]` value) available.
+//! The standalone evaluators consume explicit authoring expressions. A
+//! consumer with retained analysis uses [`capture_source_path_expression`]:
+//! it selects the authored [`tcl_registry::SourcePathOperation`] and effective
+//! original arguments, including bound alias values. It does not infer an
+//! operation from a written or reported head. The resulting plan retains the
+//! actual source, configuration and context; it supplies conditional path
+//! advice, not observed runtime values or filesystem state.
 //!
 //! # Path space
 //!
@@ -280,6 +283,24 @@ pub fn evaluate_auto_path_expr_with_resolver(
     info_script: Option<&str>,
     resolve_var: &dyn Fn(&str) -> Option<String>,
 ) -> Option<String> {
+    evaluate_auto_path_expr_with_resolver_and_braced_vars(
+        raw,
+        info_script,
+        resolve_var,
+        tcl_dialect::BracedVarStyle::default(),
+    )
+}
+
+/// The source path algebra with an explicitly retained variable-delimiter
+/// grammar. Other source syntax and command premises belong to the caller's
+/// checked original words; this helper supplies no invocation authority.
+#[must_use]
+pub fn evaluate_auto_path_expr_with_resolver_and_braced_vars(
+    raw: &str,
+    info_script: Option<&str>,
+    resolve_var: &dyn Fn(&str) -> Option<String>,
+    braced_vars: tcl_dialect::BracedVarStyle,
+) -> Option<String> {
     let raw = raw.trim();
     if raw.is_empty() {
         return None;
@@ -297,44 +318,22 @@ pub fn evaluate_auto_path_expr_with_resolver(
     let info_script = info_script
         .map(to_tcl_slash_form)
         .filter(|p| !is_drive_relative(p));
-    let result = eval(&node, info_script.as_deref(), resolve_var)?;
+    let result = eval(&node, info_script.as_deref(), resolve_var, braced_vars)?;
     // Expand `~` and normalise (collapsing `..`) so the parent-dir idiom
     // resolves to a real directory.  A rootless result is left for the
     // caller to anchor.
     fold_path_value(&result)
 }
 
-/// Path-valued variables `source` assigns **exactly once** at its top level,
-/// mapped to their folded values — the map
-/// [`evaluate_auto_path_expr_with_constants`] consumes.
+/// Explicit standalone path-source simulation under a supplied dialect.
+/// Top-level writes and supported namespace declarations retain lexical homes;
+/// ordinary procedure/control bodies contribute no entered-scope facts. Values
+/// fold in source order, and multiply written homes remain unavailable.
 ///
-/// Assignments fold in document order, each one seeing the constants
-/// established before it, so a chain resolves:
-///
-/// ```tcl
-/// set dir       [file dirname [file normalize [info script]]]
-/// set sourceDir [file join $dir src]
-/// source [file join $sourceDir generalClasses.tcl]
-/// ```
-///
-/// Without the chain only `dir` folds, and every `source` built on
-/// `$sourceDir` abstains — the shape that leaves a whole package's worth of
-/// `source` lines unresolved.
-///
-/// Deliberately narrow in two ways it must stay narrow:
-///
-/// * A name written by more than one top-level `set` is dropped **outright**,
-///   counted in a pre-pass rather than as the walk goes.  Last-write-wins
-///   would be wrong for a `source` sitting between the two writes, and
-///   first-write-wins wrong for one after both — so a re-assigned name
-///   contributes nothing, and contributes nothing to anything computed from
-///   it either.
-/// * Only values this evaluator can fold are kept, so nothing here can invent
-///   a target that the single-expression path would have refused.
-///
-/// Only top-level `set`s are seen at all: a body is one braced word to the
-/// segmenter, so an assignment inside a `proc` or an `if` never enters the
-/// map and never has to be reasoned about.
+/// Consumers with an actual analysis use
+/// [`constant_path_assignments_from_analysis`] or its retained inventory,
+/// whose original words, selected operations, full context and configuration
+/// remain attached. This wrapper cannot restore missing analysis premises.
 #[must_use]
 pub fn constant_path_vars(
     source: &str,
@@ -344,13 +343,22 @@ pub fn constant_path_vars(
     fold_constant_assignments(&constant_path_assignments(source, dialect), info_script)
 }
 
+mod source_expression;
+pub use source_expression::{
+    OriginalSourceAutoPathExpression, OriginalSourcePathExpression,
+    capture_source_auto_path_expression, capture_source_path_expression,
+    capture_source_path_expression_at_analysis, capture_source_target_path_expression,
+};
+
 mod path_constants;
+pub(crate) use path_constants::extend_path_constant_assignments_from_analysis_commands;
 pub use path_constants::{
     FoldedPathConstants, PathConstantAssignments, PathConstantImports, PathConstantLookup,
     PathConstantValue, PathConstantView, PathConstantWrite, constant_path_assignments,
-    constant_path_assignments_from_commands, constant_path_assignments_in_namespace,
-    constant_path_assignments_with_naming_policy, fold_constant_assignments,
-    fold_constant_assignments_with_imports,
+    constant_path_assignments_from_analysis, constant_path_assignments_from_commands,
+    constant_path_assignments_in_namespace, constant_path_assignments_with_naming_policy,
+    fold_constant_assignments, fold_constant_assignments_with_imports,
+    path_source_word_is_available,
 };
 
 /// A plain scalar variable word: no substitution markers, no array element.
@@ -407,25 +415,9 @@ fn namespace_body_index(
     head: &str,
     args: &[&str],
 ) -> Option<usize> {
-    let spec = registry.get(head)?;
-    let declares = spec
-        .traits
-        .contains(tcl_registry::Traits::DECLARES_NAMESPACE)
-        || args
-            .first()
-            .and_then(|word| spec.resolve_subcommand(word))
-            .is_some_and(|sub| {
-                sub.traits
-                    .contains(tcl_registry::Traits::DECLARES_NAMESPACE)
-            });
-    if !declares {
-        return None;
-    }
-    let bodies = registry.arg_indices_for_role(head, args, tcl_registry::ArgRole::Body);
-    let [body_index] = bodies.as_slice() else {
-        return None;
-    };
-    (*body_index + 1 == args.len()).then_some(*body_index)
+    tcl_registry::model::resolve_invocation_in_context(registry, None, head, args)?
+        .authored_source_namespace_body_arguments()
+        .map(|(_, body)| body)
 }
 
 /// The `(name index, value index)` argument pairs a load-time command
@@ -454,31 +446,9 @@ fn assigned_name_value_indices(
     head: &str,
     args: &[&str],
 ) -> Vec<(usize, Option<usize>)> {
-    let Some(spec) = registry.get(head) else {
-        return Vec::new();
-    };
-    if spec.traits.intersects(
-        tcl_registry::Traits::READS_BEFORE_WRITE.union(tcl_registry::Traits::WHOLE_ARRAY_ARG),
-    ) {
-        return Vec::new();
-    }
-    let Some(base) = spec.assigns_variable_at.map(usize::from) else {
-        return Vec::new();
-    };
-    let writes = registry.arg_indices_for_role(head, args, tcl_registry::ArgRole::VarWrite);
-    let paired_tail = spec.repeated_args.iter().any(|layout| {
-        layout.role == tcl_registry::ArgRole::VarWrite
-            && layout.stride == 2
-            && usize::from(layout.start) == base
-            && !layout.conditional_binding
-    });
-    if paired_tail {
-        return writes.into_iter().map(|i| (i, Some(i + 1))).collect();
-    }
-    if spec.repeated_args.is_empty() && writes == [base] && args.len() == base + 2 {
-        return vec![(base, Some(base + 1))];
-    }
-    Vec::new()
+    tcl_registry::model::resolve_invocation_in_context(registry, None, head, args)
+        .and_then(|schema| schema.authored_source_assignment_arguments())
+        .unwrap_or_default()
 }
 
 /// A native filesystem path as Tcl's slash form.
@@ -676,6 +646,7 @@ fn eval(
     node: &Node,
     info_script: Option<&str>,
     resolve_var: &dyn Fn(&str) -> Option<String>,
+    braced_vars: tcl_dialect::BracedVarStyle,
 ) -> Option<String> {
     match node {
         Node::Lit(value) => {
@@ -693,38 +664,42 @@ fn eval(
         // Resolution happens on the parsed word, via the interpolation
         // folder's own segment grammar (which also rejects array-indexed
         // names and stray `[`) — never by splicing text and re-lexing.
-        // `${…}` is delimited by the shared owner
-        // ([`tcl_lexer::braced_var_name_end`]) rather than a local scan. This
-        // entry point is dialect-free — the LSP server folds an `auto_path`
-        // expression with no document profile in hand — so the *default*
-        // release rule applies, which is the one a document with no explicit
-        // dialect is lexed under. A name this misreads simply fails to
-        // resolve, abstaining the whole fold.
-        Node::Subst(word) => crate::text::fold_interpolation_single(
-            word,
-            tcl_dialect::BracedVarStyle::default(),
-            |name| resolve_var(name),
-        )
-        .map(|v| to_tcl_slash_form(&v)),
+        // Variable delimiters are selected by the caller. Standalone callers
+        // choose their explicit default abstraction; retained source callers
+        // keep the actual source grammar.
+        Node::Subst(word) => {
+            crate::text::fold_interpolation_single(word, braced_vars, |name| resolve_var(name))
+                .map(|v| to_tcl_slash_form(&v))
+        }
         Node::Cmd(name, args) => {
             if name == "info" && args.len() == 1 {
-                return match eval(&args[0], info_script, resolve_var).as_deref() {
+                return match eval(&args[0], info_script, resolve_var, braced_vars).as_deref() {
                     Some("script") => info_script.map(str::to_owned),
                     _ => None,
                 };
             }
             if name == "file" && args.len() >= 2 {
-                let sub = eval(&args[0], info_script, resolve_var)?;
+                let sub = eval(&args[0], info_script, resolve_var, braced_vars)?;
                 if sub == "dirname" && args.len() == 2 {
-                    return Some(path_dirname(&eval(&args[1], info_script, resolve_var)?));
+                    return Some(path_dirname(&eval(
+                        &args[1],
+                        info_script,
+                        resolve_var,
+                        braced_vars,
+                    )?));
                 }
                 if sub == "normalize" && args.len() == 2 {
-                    return eval_file_normalize(&eval(&args[1], info_script, resolve_var)?);
+                    return eval_file_normalize(&eval(
+                        &args[1],
+                        info_script,
+                        resolve_var,
+                        braced_vars,
+                    )?);
                 }
                 if sub == "join" && args.len() >= 2 {
                     let mut parts: Vec<String> = Vec::new();
                     for a in &args[1..] {
-                        parts.push(eval(a, info_script, resolve_var)?);
+                        parts.push(eval(a, info_script, resolve_var, braced_vars)?);
                     }
                     if parts.is_empty() {
                         return None;

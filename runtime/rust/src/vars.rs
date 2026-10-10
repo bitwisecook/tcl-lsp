@@ -137,6 +137,8 @@ enum Resolved {
 #[derive(Clone, Debug)]
 pub(crate) struct ArrayCellTarget {
     id: VarId,
+    home: VarHome,
+    root: Vec<u8>,
     array_cell: Option<crate::frame::RetainedArrayCell>,
     cell: crate::frame::NativeArrayTargetCell,
 }
@@ -144,6 +146,21 @@ pub(crate) struct ArrayCellTarget {
 impl ArrayCellTarget {
     pub(crate) const fn id(&self) -> VarId {
         self.id
+    }
+
+    fn selected_trace_home(&self, member: Option<(Vec<u8>, VarId)>) -> TraceHome {
+        let (namespace, level) = match self.home {
+            VarHome::Namespace(namespace) => (Some(namespace), None),
+            VarHome::Frame(level) => (None, Some(level)),
+        };
+        TraceHome {
+            binding_id: Some(self.id),
+            selected_member: member,
+            ns: namespace,
+            level,
+            base: self.root.clone(),
+            link_elem: None,
+        }
     }
 
     pub(crate) fn original_array_cell(&self) -> Option<&crate::frame::RetainedArrayCell> {
@@ -306,7 +323,16 @@ fn ns_scope_fallback(ns: &Namespaces, home: VarHome, name: &[u8]) -> VarHome {
 }
 
 /// Follow `global`/`variable`/`upvar` links from `place` to the concrete cell.
-fn follow_links(frames: &FrameStack, ns: &Namespaces, mut place: Place) -> Result<Place, VarError> {
+fn follow_links(frames: &FrameStack, ns: &Namespaces, place: Place) -> Result<Place, VarError> {
+    follow_selected_links(frames, ns, place, false)
+}
+
+fn follow_selected_links(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    mut place: Place,
+    trace_registration: bool,
+) -> Result<Place, VarError> {
     for _ in 0..LINK_LIMIT {
         if place.array_cell.is_some() || place.scalar_entry.is_some() {
             break;
@@ -326,11 +352,13 @@ fn follow_links(frames: &FrameStack, ns: &Namespaces, mut place: Place) -> Resul
         if link.array_cell.as_ref().is_some_and(|cell| !cell.is_live()) {
             return Err(VarError::DeletedArray);
         }
-        if link
-            .native_element_entry
-            .as_ref()
-            .is_some_and(|entry| !entry.is_live())
-        {
+        if link.native_element_entry.as_ref().is_some_and(|entry| {
+            if trace_registration {
+                !entry.permits_trace_registration()
+            } else {
+                !entry.is_live()
+            }
+        }) {
             return Err(VarError::DeletedArray);
         }
         if link.array_cell.is_none()
@@ -424,6 +452,21 @@ fn resolve(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8]) 
         Resolved::Place(p) => {
             follow_links(frames, ns, p).map_or_else(Resolved::Error, Resolved::Place)
         }
+        other => other,
+    }
+}
+
+/// Trace registration can reach the exact entry held by its active unset
+/// callback. That receipt grants no read/write access to a retired member.
+fn resolve_trace_registration(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+) -> Resolved {
+    match classify(frames, ns, current_ns, name) {
+        Resolved::Place(place) => follow_selected_links(frames, ns, place, true)
+            .map_or_else(Resolved::Error, Resolved::Place),
         other => other,
     }
 }
@@ -535,6 +578,36 @@ pub(crate) fn prepare_upvar_target(
     if ns.variable_link_binding != tcl_dialect::VariableLinkBinding::StableCell {
         return Ok(());
     }
+    // An unresolved namespace declaration can already be an alias. Follow its
+    // actual link before retaining a cell: retaining the intermediate alias
+    // would make later physical reads inspect Var::Link as if it were a scalar.
+    // Targets that already retain a physical owner keep that exact generation.
+    if target.native_scalar_entry.is_none()
+        && target.native_element_entry.is_none()
+        && target.array_cell.is_none()
+        && target.array_identity.is_none()
+    {
+        let selected = follow_links(
+            frames,
+            ns,
+            Place {
+                home: target.home,
+                name: target.name.clone(),
+                elem: target.elem.clone(),
+                array_cell: None,
+                scalar_entry: None,
+            },
+        )?;
+        target.home = selected.home;
+        target.name = selected.name;
+        target.elem = selected.elem;
+        target.array_identity = selected
+            .array_cell
+            .as_ref()
+            .map(crate::frame::RetainedArrayCell::identity);
+        target.array_cell = selected.array_cell;
+        target.native_scalar_entry = selected.scalar_entry.map(|entry| entry.new_binding());
+    }
     let target_table = table_mut(frames, ns, target.home);
     if target.elem.is_none() {
         if target.native_scalar_entry.is_none() {
@@ -595,6 +668,8 @@ pub(crate) fn array_target_at(
     let array_cell = cell.array();
     Some(ArrayCellTarget {
         id,
+        home: place.home,
+        root: place.name,
         array_cell,
         cell,
     })
@@ -838,13 +913,14 @@ pub(crate) fn array_search_element_exists_at_target(target: &ArrayCellTarget, ke
 
 /// Remove a byte key only from the array binding captured for this operation.
 pub(crate) fn unset_element_at_target(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
     target: &ArrayCellTarget,
     key: &[u8],
-) -> bool {
-    let _ = (frames, ns);
-    target.cell.array().is_some_and(|array| array.remove(key))
+) -> Option<(bool, TraceHome)> {
+    let array = target.cell.array()?;
+    let member = array.trace_member_identity(key)?;
+    let receiver = array.capture_receiver(key.to_vec());
+    let home = target.selected_trace_home(Some((key.to_vec(), member)));
+    receiver.unset().ok().map(|removed| (removed, home))
 }
 
 pub(crate) fn array_default_state_at_target(
@@ -1020,7 +1096,12 @@ pub(crate) fn trace_home(
     current_ns: NsId,
     name: &[u8],
 ) -> TraceHome {
-    trace_home_from_resolved(frames, ns, resolve(frames, ns, current_ns, name), name)
+    trace_home_from_resolved(
+        frames,
+        ns,
+        resolve_trace_registration(frames, ns, current_ns, name),
+        name,
+    )
 }
 
 fn trace_home_from_resolved(
@@ -1350,33 +1431,6 @@ pub(crate) fn unset_at(
     existed
 }
 
-/// Frame-addressed array-element removal. `name` and `key` remain a pair at
-/// the storage boundary for the same reason as [`get_elem_at`].
-pub(crate) fn unset_elem_at(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
-    name: &[u8],
-    key: &[u8],
-    level: usize,
-) -> bool {
-    let Ok(key) = separate_element(ns, name, key) else {
-        return false;
-    };
-    match resolve_at(frames, ns, name, level) {
-        Resolved::Place(p) if p.elem.is_none() => {
-            let p = Place {
-                elem: Some(key.clone()),
-                ..p
-            };
-            if let Some(result) = unset_retained(&p) {
-                return result.unwrap_or(false);
-            }
-            table_mut(frames, ns, p.home).remove_elem(&p.name, &key)
-        }
-        _ => false,
-    }
-}
-
 /// Frame-addressed [`exists`].
 pub(crate) fn exists_at(frames: &FrameStack, ns: &Namespaces, name: &[u8], level: usize) -> bool {
     match resolve_at(frames, ns, name, level) {
@@ -1560,7 +1614,7 @@ pub(crate) fn ensure_trace_element(
     name: &[u8],
     key: &[u8],
 ) -> Result<(), VarError> {
-    let Resolved::Place(place) = resolve(frames, ns, current_ns, name) else {
+    let Resolved::Place(place) = resolve_trace_registration(frames, ns, current_ns, name) else {
         return Err(VarError::NoSuchNamespace);
     };
     let key = place.elem.as_deref().unwrap_or(key);
@@ -2225,6 +2279,54 @@ mod tests {
     }
 
     #[test]
+    fn stable_alias_preparation_follows_existing_namespace_alias_before_capture() {
+        // naming.tcloo.original-constant-link-introspection
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-constant-link-introspection.md
+        // Cell correspondence control for the shared preparation owner. Actual
+        // TclOO public results are tested independently in cmd_info; this test
+        // does not attribute Rust cell identities to the native observation.
+        leak_free(|frames, ns| {
+            set(frames, ns, GLOBAL, b"G", sobj(b"9")).unwrap();
+            make_upvar_in(
+                frames,
+                ns,
+                GLOBAL,
+                b"X",
+                Link {
+                    original_jim_target: None,
+                    native_scalar_entry: None,
+                    native_element_entry: None,
+                    home: VarHome::Namespace(GLOBAL),
+                    name: b"G".to_vec(),
+                    elem: None,
+                    array_identity: None,
+                    array_cell: None,
+                },
+            );
+            frames.push(GLOBAL);
+            make_variable(frames, ns, GLOBAL, GLOBAL, b"X");
+            let local = frames
+                .table(frames.current_level())
+                .unwrap()
+                .cell(b"X")
+                .unwrap();
+            let Var::Link(link) = &*local else {
+                panic!("actual local alias")
+            };
+            assert_eq!(link.home, VarHome::Namespace(GLOBAL));
+            assert_eq!(link.name, b"G");
+            assert!(link.native_scalar_entry.is_some());
+            drop(local);
+            assert_eq!(as_str(get(frames, ns, GLOBAL, b"X")), Some(b"9".to_vec()));
+            set(frames, ns, GLOBAL, b"X", sobj(b"10")).unwrap();
+            assert_eq!(
+                as_str(get(frames, ns, GLOBAL, b"::G")),
+                Some(b"10".to_vec())
+            );
+        });
+    }
+
+    #[test]
     fn global_scalar_set_get_unset() {
         leak_free(|f, ns| {
             set(f, ns, GLOBAL, b"x", sobj(b"hello")).unwrap();
@@ -2473,6 +2575,40 @@ pub(crate) fn capture_original_namespace_receiver(
     };
     place.elem = element;
     let place = follow_links(frames, ns, place)?;
+    capture_resolved_receiver(frames, ns, place, create)
+}
+
+/// A genuine addressed frame supplies the naming context; missing frames do
+/// not donate the root namespace. No original operand/cache grant is issued.
+pub(crate) fn capture_variable_receiver_at(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    name: &[u8],
+    element: Option<Vec<u8>>,
+    level: usize,
+) -> Result<Option<(crate::frame::VariableReceiver, TraceHome)>, VarError> {
+    if frames.table(level).is_none() {
+        return Err(VarError::NameProtocolUnavailable);
+    }
+    let mut place = match resolve_at(frames, ns, name, level) {
+        Resolved::Place(place) => place,
+        Resolved::Error(error) => return Err(error),
+    };
+    if let Some(element) = element {
+        if place.elem.is_some() {
+            return Err(VarError::IsScalar);
+        }
+        place.elem = Some(separate_element(ns, name, &element)?);
+    }
+    capture_resolved_receiver(frames, ns, place, false)
+}
+
+fn capture_resolved_receiver(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    place: Place,
+    create: bool,
+) -> Result<Option<(crate::frame::VariableReceiver, TraceHome)>, VarError> {
     let selected = if let (Some(array), Some(element)) = (&place.array_cell, &place.elem) {
         if !array.is_live() {
             return Err(VarError::DeletedArray);

@@ -9,7 +9,8 @@
 /// identity, command presence or successful execution authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SourceNavigationOperand {
-    /// Filename-only source form; no native option grammar is selected.
+    /// Source filename after the descriptor option prefix; no native
+    /// loader or runtime option grammar is selected.
     File {
         /// Original argument ordinal, excluding the command head.
         argument: usize,
@@ -39,6 +40,42 @@ pub struct SourcePackageReference {
 }
 
 impl crate::resolved_invocation::ResolvedInvocation<'_, '_> {
+    /// Original namespace-name and sole trailing body operands from the
+    /// selected source vocabulary. This describes same-invocation source
+    /// syntax, without an entered namespace, frame or executed body.
+    #[must_use]
+    pub fn authored_source_namespace_body_arguments(&self) -> Option<(usize, usize)> {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        use crate::{ArgRole, BodyInterpreter, ScriptTiming, Traits};
+        if !self.semantics.traits.contains(Traits::DECLARES_NAMESPACE)
+            || self.semantics.body_interpreter != BodyInterpreter::Current
+        {
+            return None;
+        }
+        let count = self.words.arguments().exact_argv_len()?;
+        let (roles, complete) = self.authored_source_argument_roles();
+        if !complete {
+            return None;
+        }
+        let indices = |role| {
+            roles
+                .iter()
+                .filter(|(_, current)| *current == role)
+                .map(|(argument, _)| self.semantics.argument_offset + usize::from(*argument))
+                .collect::<Vec<_>>()
+        };
+        let names = indices(ArgRole::NamespaceName);
+        let bodies = indices(ArgRole::Body);
+        let ([name], [body]) = (names.as_slice(), bodies.as_slice()) else {
+            return None;
+        };
+        (*body + 1 == count
+            && *name < *body
+            && self.authored_source_script_timing_at(*body) == Some(ScriptTiming::SameInvocation))
+        .then_some((*name, *body))
+    }
+
     /// Original post-head rule/procedure operand from the selected authored
     /// user-procedure schema and option grammar. This is a report candidate
     /// ordinal only; it supplies no owning rule, lookup or successful call.
@@ -121,8 +158,17 @@ impl crate::resolved_invocation::ResolvedInvocation<'_, '_> {
             return None;
         }
         match self.semantics.analyser_hook? {
-            AnalyserHookId::Source if offset == 0 && count == 1 => {
-                Some(SourceNavigationOperand::File { argument: 0 })
+            AnalyserHookId::Source => {
+                if offset == 0 && count == 1 {
+                    return Some(SourceNavigationOperand::File { argument: 0 });
+                }
+                let prefix = self
+                    .semantics
+                    .options
+                    .leading_word_count(arguments.slice_from(offset))?;
+                let argument = offset.checked_add(prefix)?;
+                (count == argument.checked_add(1)?)
+                    .then_some(SourceNavigationOperand::File { argument })
             }
             AnalyserHookId::PackageRequire => {
                 let prefix = self
@@ -141,6 +187,48 @@ impl crate::resolved_invocation::ResolvedInvocation<'_, '_> {
 mod tests {
     use super::*;
     use crate::InvocationWord;
+
+    #[test]
+    fn authored_path_roles_preserve_namespace_body_and_assignment_layouts() {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        let actual =
+            crate::model::ingress::context_for_profile(tcl_dialect::DialectProfile::plain_tcl());
+        let registry = actual.commands();
+        let select = |head, args: &[&str]| {
+            let schema = crate::model::resolve_invocation_in_context(
+                registry,
+                Some(actual.context()),
+                head,
+                args,
+            )
+            .unwrap();
+            (
+                schema.authored_source_namespace_body_arguments(),
+                schema.authored_source_assignment_arguments(),
+            )
+        };
+        assert_eq!(
+            select("namespace", &["eval", "N", "set x /tmp"]).0,
+            Some((1, 2))
+        );
+        assert!(
+            select("namespace", &["inscope", "N", "set x /tmp"])
+                .0
+                .is_none()
+        );
+        assert!(
+            select("namespace", &["eval", "N", "set", "x", "/tmp"])
+                .0
+                .is_none()
+        );
+        assert_eq!(select("set", &["name", "/tmp"]).1, Some(vec![(0, Some(1))]));
+        assert_eq!(
+            select("variable", &["a", "/A", "b"]).1,
+            Some(vec![(0, Some(1)), (2, None)])
+        );
+        assert_eq!(select("append", &["name", "/tmp"]).1, Some(vec![]));
+    }
 
     #[test]
     fn authored_navigation_operands_preserve_actual_templates_and_option_ordinals() {

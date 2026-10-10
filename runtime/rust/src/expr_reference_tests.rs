@@ -92,9 +92,9 @@ fn original_expression_source_matches_48_public_reference_boundaries() {
                 tcl_registry::special_vars::NativeBootstrapInputs::default(),
             )
             .expect("actual selected native bootstrap recipe");
-            // The captured interpreter includes the selected distribution,
-            // including Jim's binary extension used by the unchanged source.
-            crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
+            // Supply the byte constructor used by the unchanged CLI source.
+            // This fixture does not test its distribution binding or procedure.
+            crate::cmd_binary::install(&mut interp);
             assert_eq!(
                 interp.eval_str(source),
                 Code::Ok,

@@ -45,9 +45,9 @@ use crate::memory_ssa::MemorySsaFunction;
 use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props};
 use crate::sccp::SccpResult;
 use crate::semantic_analysis::SemanticAnalysisBundle;
-use crate::ssa::{SsaFunction, ValueKey, build_ssa_with_context_for_entry};
+use crate::ssa::{SsaFunction, ValueKey, build_ssa_with_context_for_entry_and_metadata};
 use crate::taint::{TaintGraph, TaintLattice, instance_classes_for_function, propagate_taints};
-use crate::type_infer::{propagate_types_with_metadata_context, TypePropagationMetadata};
+use crate::type_infer::{TypePropagationMetadata, propagate_types_with_metadata_context};
 use crate::types::TypeLattice;
 use crate::unit_scope::{
     build_extra_call_site_scan_contexts, collect_call_site_constants,
@@ -574,6 +574,12 @@ fn relocate_statement_variable_proofs(
     }
 }
 
+#[derive(Clone, Copy)]
+enum RetainedSemanticDepth {
+    Interactive,
+    Full,
+}
+
 impl FunctionUnit {
     /// Complete actual source input, independently of Native execution grants.
     #[must_use]
@@ -593,10 +599,37 @@ impl FunctionUnit {
         &'a self,
         registry: &CommandRegistry,
     ) -> Option<crate::registry_invocation::InvocationMetadataContext<'a>> {
-        crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
-            registry,
-            self.source_metadata_input()?,
-        )
+        let input = self.source_metadata_input()?;
+        if self.source_config.normalized() != input.lexer_config().normalized() {
+            return None;
+        }
+        crate::registry_invocation::InvocationMetadataContext::for_analysis_input(registry, input)
+    }
+
+    /// Borrow source metadata only when this function and module retain the
+    /// same actual availability owner and source profiles. Each producer's
+    /// lexer configuration is checked independently, so a genuine nested-body
+    /// BOM rule does not have to equal the file-level rule.
+    #[must_use]
+    pub fn invocation_metadata_context_for_module<'a>(
+        &'a self,
+        registry: &CommandRegistry,
+        module: &crate::ir::Module,
+    ) -> Option<crate::registry_invocation::InvocationMetadataContext<'a>> {
+        let module_input =
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?
+                .source_analysis_input()?;
+        let input = self.source_metadata_input()?;
+        if !std::ptr::eq(
+            input.borrowed_context_registry(),
+            module_input.borrowed_context_registry(),
+        ) || input.analyser_profile().cache_key() != module_input.analyser_profile().cache_key()
+            || input.unit_profile().cache_key() != module_input.unit_profile().cache_key()
+            || input.vendor_source_policy() != module_input.vendor_source_policy()
+        {
+            return None;
+        }
+        self.invocation_metadata_context(registry)
     }
 
     fn with_source_metadata(
@@ -769,7 +802,11 @@ impl FunctionUnit {
             name,
             cfg,
             params,
-            UnitDialect { registry, config, source_metadata_input: None },
+            UnitDialect {
+                registry,
+                config,
+                source_metadata_input: None,
+            },
             param_constants,
             &HashSet::new(),
             ModuleTraceFacts::none(),
@@ -832,7 +869,12 @@ impl FunctionUnit {
         inputs: FunctionLatticeInputs<'_>,
     ) -> Self {
         let FunctionLatticeInputs {
-            dialect: UnitDialect { registry, config, source_metadata_input },
+            dialect:
+                UnitDialect {
+                    registry,
+                    config,
+                    source_metadata_input,
+                },
             param_constants,
             known_classes,
             trace_facts,
@@ -842,7 +884,8 @@ impl FunctionUnit {
         let entry = match event_body {
             Some((event, body)) => {
                 let Some(entry) = event.conditional_lattice_entry(body, config, registry) else {
-                    return Self::trivial_guarded(name, cfg).with_source_metadata(source_metadata_input, config);
+                    return Self::trivial_guarded(name, cfg)
+                        .with_source_metadata(source_metadata_input, config);
                 };
                 Some(entry)
             }
@@ -885,7 +928,11 @@ impl FunctionUnit {
         trace_facts: ModuleTraceFacts<'_>,
         command_trust: &crate::command_binding::ModuleCommandMutations,
     ) -> Self {
-        let UnitDialect { registry, config, source_metadata_input } = dialect;
+        let UnitDialect {
+            registry,
+            config,
+            source_metadata_input,
+        } = dialect;
         Self::build_full(
             "::top",
             cfg,
@@ -961,7 +1008,11 @@ impl FunctionUnit {
             entry_context = original.context().clone();
         }
         let no_extra_escaping = HashSet::new();
-        let UnitDialect { registry, config, source_metadata_input } = dialect;
+        let UnitDialect {
+            registry,
+            config,
+            source_metadata_input,
+        } = dialect;
         let mut unit = Self::build_full(
             name,
             cfg,
@@ -1025,7 +1076,8 @@ impl FunctionUnit {
         // Backstop for every path through here — `build`, methods, and the
         // salsa `function_lattice` callbacks.
         if crate::ssa::is_complexity_guarded(&cfg) {
-            return Self::trivial_guarded(name, cfg).with_source_metadata(source_metadata_input, config);
+            return Self::trivial_guarded(name, cfg)
+                .with_source_metadata(source_metadata_input, config);
         }
         let entry = function_source_entry(&cfg, entry_context);
         let fold_policy = crate::tcl_expr_eval::FoldPolicy::for_retained_entry(
@@ -1033,7 +1085,22 @@ impl FunctionUnit {
             entry.invocation_dialect,
             &config,
         );
-        let ssa = build_ssa_with_context_for_entry(&cfg, registry, config, entry, Some(params));
+        let metadata = source_metadata_input.and_then(|input| {
+            crate::registry_invocation::InvocationMetadataContext::for_source_input(
+                registry,
+                input,
+                config,
+                Some(input.unit_profile()),
+            )
+        });
+        let ssa = build_ssa_with_context_for_entry_and_metadata(
+            &cfg,
+            registry,
+            config,
+            entry,
+            Some(params),
+            metadata,
+        );
         let def_use = build_def_use_chains(&ssa, Some(&cfg), config);
         // The registry carries its dialect profile's fold policy: the octal
         // rule, which fixes how a bare leading-zero literal (`08`, `010`) is
@@ -1072,19 +1139,31 @@ impl FunctionUnit {
             },
             crate::sccp::ExistenceMetadataInputs {
                 registry,
-                context: source_metadata_input.and_then(|input| crate::registry_invocation::InvocationMetadataContext::for_analysis_input(registry, input)),
+                context: source_metadata_input.and_then(|input| {
+                    crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                        registry, input,
+                    )
+                }),
             },
             config,
         );
+        let type_metadata = TypePropagationMetadata {
+            registry,
+            context: source_metadata_input.and_then(|input| {
+                crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                    registry, input,
+                )
+            }),
+            config,
+            numbers: source_metadata_input.map_or(registry.numbers(), |input| {
+                input.unit_profile().grammar.numbers
+            }),
+        };
         let types = propagate_types_with_metadata_context(
             &cfg,
             &ssa,
             &sccp,
-            TypePropagationMetadata {
-                registry,
-                context: source_metadata_input.and_then(|input| crate::registry_invocation::InvocationMetadataContext::for_analysis_input(registry, input)),
-                numbers: source_metadata_input.map_or(registry.numbers(), |input| input.unit_profile().grammar.numbers),
-            },
+            type_metadata,
             known_classes,
             extra_global_escaping,
             trace_facts,
@@ -1093,7 +1172,7 @@ impl FunctionUnit {
             &cfg,
             &sccp,
             &types,
-            registry,
+            type_metadata,
             known_classes,
             &ssa,
         );
@@ -1232,6 +1311,15 @@ impl FunctionUnit {
         registry: &tcl_registry::CommandRegistry,
         context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
     ) -> Self {
+        self.memory_ssa = Some(self.memory_ssa_for_metadata(registry, context));
+        self
+    }
+
+    fn memory_ssa_for_metadata(
+        &self,
+        registry: &CommandRegistry,
+        context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    ) -> crate::memory_ssa::MemorySsaFunction {
         let fallback;
         let points = if let Some(points) = &self.ssa.point_contexts {
             points
@@ -1241,17 +1329,14 @@ impl FunctionUnit {
             );
             &fallback
         };
-        self.memory_ssa = Some(
-            crate::memory_ssa::build_memory_ssa_with_cfg_with_metadata_context(
-                &self.cfg, &self.ssa, points, registry, context,
-            ),
-        );
-        self
+        crate::memory_ssa::build_memory_ssa_with_cfg_with_metadata_context(
+            &self.cfg, &self.ssa, points, registry, context,
+        )
     }
 
     /// Attach semantic facts for a compilation unit's top-level script.
     ///
-    /// The top-level script is modelled as evaluated in a fresh interpreter
+    /// This explicit standalone context models the top-level script in a fresh interpreter
     /// whose dispatch state is the registry baseline; every other unit kind
     /// runs after arbitrary interposed history and must use
     /// [`Self::with_semantic_analysis`] with an unknown-world entry contract.
@@ -1270,8 +1355,9 @@ impl FunctionUnit {
         )
     }
 
-    /// Attach source-faithful, target-neutral semantic facts under an
-    /// explicitly resolved semantic context and dispatch entry contract.
+    /// Attach standalone source facts under an explicitly supplied default
+    /// context and dispatch contract. Current unit consumers use
+    /// [`Self::with_retained_semantic_analysis`] for their actual input.
     ///
     /// A missing source script remains an explicit unavailable state. A
     /// structured source shape outside the executable compatibility subset is
@@ -1296,6 +1382,69 @@ impl FunctionUnit {
             },
         );
         self
+    }
+
+    /// Attach current source facts using this unit's retained input and grammar.
+    /// Missing, foreign or differently parsed input stays unavailable. This
+    /// metadata selection supplies no Native command entry or dispatch proof.
+    #[must_use]
+    pub fn with_retained_semantic_analysis(
+        mut self,
+        registry: &CommandRegistry,
+        script: Option<&crate::ir::Script>,
+        entry_assumption: crate::dispatch_proof::DispatchEntryAssumption,
+    ) -> Self {
+        self.semantic_facts = self.retained_semantic_facts(
+            registry,
+            script,
+            entry_assumption,
+            RetainedSemanticDepth::Interactive,
+        );
+        self
+    }
+
+    fn retained_semantic_facts(
+        &self,
+        registry: &CommandRegistry,
+        script: Option<&crate::ir::Script>,
+        entry_assumption: crate::dispatch_proof::DispatchEntryAssumption,
+        depth: RetainedSemanticDepth,
+    ) -> SemanticAnalysisBundle {
+        Self::semantic_facts_with_metadata(
+            registry,
+            self.invocation_metadata_context(registry),
+            script,
+            entry_assumption,
+            depth,
+        )
+    }
+
+    fn semantic_facts_with_metadata(
+        registry: &CommandRegistry,
+        metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        script: Option<&crate::ir::Script>,
+        entry_assumption: crate::dispatch_proof::DispatchEntryAssumption,
+        depth: RetainedSemanticDepth,
+    ) -> SemanticAnalysisBundle {
+        script.map_or_else(
+            || SemanticAnalysisBundle::unavailable_with_metadata_context(registry, metadata),
+            |script| match depth {
+                RetainedSemanticDepth::Interactive => {
+                    SemanticAnalysisBundle::build_for_interactive_analysis_with_metadata_context(
+                        registry,
+                        metadata,
+                        script,
+                        entry_assumption,
+                    )
+                }
+                RetainedSemanticDepth::Full => SemanticAnalysisBundle::build_with_metadata_context(
+                    registry,
+                    metadata,
+                    script,
+                    entry_assumption,
+                ),
+            },
+        )
     }
 
     /// Re-run interprocedural taint propagation for this unit against `ia`,
@@ -1469,6 +1618,7 @@ fn lower_and_build_cfg(
     body_cache: Option<&BodyLoweringCache<'_>>,
     source_entry: Option<&crate::command_binding::SourceAnalysisEntry>,
     context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
+    input: Option<&crate::analyser::ResolvedAnalysisInput>,
 ) -> (
     IrModule,
     CfgModule,
@@ -1482,10 +1632,37 @@ fn lower_and_build_cfg(
     let mut lowerer = crate::lowering::Lowerer::with_config(registry, options.config)
         .with_dialect(options.dialect)
         .with_declared_commands(options.declared_commands);
-    if let Some(context) = context {
+    let context_input = context
+        .as_ref()
+        .zip(options.dialect)
+        .map(|(context, profile)| {
+            crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::clone(context),
+                options.config,
+            )
+        });
+    let input = input.or(context_input.as_ref());
+    if let Some(input) = input {
+        lowerer = lowerer.with_resolved_analysis_input(input.clone());
+    } else if let Some(context) = context {
         lowerer = lowerer.with_context_registry(context);
     }
-    if let Some(entry) = source_entry {
+    let supplied_entry = source_entry
+        .is_none()
+        .then(|| {
+            input.map(|input| {
+                crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+                    registry,
+                    input,
+                    options.config,
+                    options.dialect,
+                )
+            })
+        })
+        .flatten();
+    if let Some(entry) = source_entry.or(supplied_entry.as_ref()) {
         lowerer.set_source_analysis_options(entry.options());
     }
     let mut ir_module = match body_cache {
@@ -1512,6 +1689,14 @@ fn lower_and_build_cfg(
     let tainted_global_writes =
         crate::interprocedural::enrich_instance_taint_cfg(&ir_module, &mut cfg_module, registry);
     (ir_module, cfg_module, tainted_global_writes, cfg_context)
+}
+
+fn module_source_metadata_input<'a>(
+    module: &'a IrModule,
+    registry: &CommandRegistry,
+) -> Option<&'a crate::analyser::ResolvedAnalysisInput> {
+    crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?
+        .source_analysis_input()
 }
 
 /// Resolve everything the interprocedural constant seed needs to know about
@@ -1566,7 +1751,7 @@ fn resolve_unit_scope(
             dialect: options
                 .dialect
                 .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
-            input: ir_module.source_metadata_input.as_ref(),
+            input: module_source_metadata_input(ir_module, registry),
             identities: &identities,
         },
     );
@@ -1603,20 +1788,9 @@ fn prepared_command_trust(
     )
 }
 
-/// The semantic context a unit's executable IR is resolved under: the
-/// environment the build's already-resolved profile names. `None` — the build
-/// named no dialect — carries no environment, and the semantic bundle records
-/// its `ContextUnavailable` decline rather than inventing one.
-///
-/// Keyed on the environment, not on a name→`SpecSurface` projection: parsing
-/// the profile's own name selects a single bit, which answers `None` (no
-/// executable facts at all) for every environment such an ingress cannot
-/// resolve — the lenient `tcl` sink and the six EDA shells — and a bare
-/// vendor surface for the composite environments. The context's authoring
-/// point is the environment's real one, the same one the deep-analysis and
-/// Explorer paths pass, so the interactive path sees the same registry rather
-/// than a narrower one. It is `pub` so `tcl-lsp-db`'s per-item unit build
-/// reads the **same** projection instead of resolving the environment itself.
+/// Select an explicitly requested default metadata generation.
+/// Actual source consumers retain their `ResolvedAnalysisInput` instead;
+/// this static handle cannot substitute for its keyed store or availability.
 #[must_use]
 pub fn semantic_context(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
@@ -1636,7 +1810,6 @@ struct BodyUnitContext<'a> {
     /// Whole-module command-mutation trust — see
     /// [`FunctionBuildInputs::command_trust`].
     command_trust: &'a crate::command_binding::ModuleCommandMutations,
-    semantic_context: Option<SemanticContext>,
     config: tcl_lexer::LexerConfig,
 }
 
@@ -1701,9 +1874,8 @@ fn retain_procedure_source_analysis(
     context: &ProcedureBuildContext<'_>,
     procedure: Option<&crate::ir::Procedure>,
 ) -> FunctionUnit {
-    unit.with_semantic_analysis(
+    unit.with_retained_semantic_analysis(
         context.registry,
-        semantic_context(context.dialect),
         procedure.map(|procedure| &procedure.body),
         crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
     )
@@ -1728,6 +1900,8 @@ fn build_procedure_units(
     // lexical policy while stripping only source-coordinate bookkeeping so a
     // moved but unchanged body keeps the same cache identity.
     let memo_config = config.nested().normalized();
+    let memo_input = module_source_metadata_input(ctx.ir_module, ctx.registry)
+        .map(crate::analyser::ResolvedAnalysisInput::for_nested_source);
     let mut procedures: HashMap<String, FunctionUnit> = HashMap::new();
     let mut param_constants_by_proc: BTreeMap<String, Vec<(String, u32, String)>> = BTreeMap::new();
     for (qname, cfg) in &ctx.cfg_module.procedures {
@@ -1751,7 +1925,10 @@ fn build_procedure_units(
         // generated proc is block-light yet byte-huge, so the byte test is
         // what catches it.
         if procedure_is_complexity_guarded(proc, cfg) {
-            let mut unit = FunctionUnit::trivial_guarded(qname, cfg.clone()).with_source_metadata(ctx.ir_module.source_metadata_input.as_ref(), config);
+            let mut unit = FunctionUnit::trivial_guarded(qname, cfg.clone()).with_source_metadata(
+                module_source_metadata_input(ctx.ir_module, ctx.registry),
+                config,
+            );
             unit.irules_event_body = event_body;
             procedures.insert(qname.clone(), unit);
             continue;
@@ -1821,7 +1998,7 @@ fn build_procedure_units(
                     proc_params,
                     global_write_procs,
                     command_bindings,
-                    source_metadata_input: ctx.ir_module.source_metadata_input.as_ref(),
+                    source_metadata_input: memo_input.as_ref(),
                     lexer_config: memo_config,
                     dialect: ctx.dialect,
                     plain_command_dispatch: ctx.ir_module.plain_command_dispatch,
@@ -1905,7 +2082,7 @@ fn build_procedure_unit_fresh(
         qname,
         cfg.clone(),
         FunctionBuildInputs {
-            source_metadata_input: ctx.ir_module.source_metadata_input.as_ref(),
+            source_metadata_input: module_source_metadata_input(ctx.ir_module, ctx.registry),
             entry_context: event_entry.as_ref(),
             config,
             params,
@@ -2147,6 +2324,20 @@ impl CompilationUnit {
         Self::build_with_entry(source, options, None, None, entry, Some(context))
     }
 
+    /// Build using the caller's complete source input and independent entry.
+    /// With no supplied entry, matching Logical and hosted inputs retain their
+    /// source advice. Runtime history stays unknown for other supplied inputs;
+    /// catalogue availability never establishes an execution entry.
+    #[must_use]
+    pub fn build_with_analysis_input(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Self {
+        Self::build_with_retained_entry(source, options, None, None, entry, None, Some(input))
+    }
+
     fn build_with_entry(
         source: &str,
         options: UnitBuildOptions<'_>,
@@ -2155,6 +2346,18 @@ impl CompilationUnit {
         entry: Option<&crate::command_binding::SourceAnalysisEntry>,
         context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
     ) -> Self {
+        Self::build_with_retained_entry(source, options, cache, body_cache, entry, context, None)
+    }
+
+    fn build_with_retained_entry(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        cache: Option<&mut ProcLatticeCache<'_>>,
+        body_cache: Option<&BodyLoweringCache<'_>>,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
+        input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    ) -> Self {
         let UnitBuildOptions {
             registry,
             dialect,
@@ -2162,7 +2365,7 @@ impl CompilationUnit {
             ..
         } = options;
         let (ir_module, cfg_module, tainted_global_writes, prepared_cfg_context) =
-            lower_and_build_cfg(source, options, body_cache, entry, context);
+            lower_and_build_cfg(source, options, body_cache, entry, context, input);
         let (command_mutations, proc_binding_trust) =
             prepared_command_trust(&ir_module, registry, &prepared_cfg_context);
         // Module-wide upvar/param context — the CFG-determining context a
@@ -2191,16 +2394,23 @@ impl CompilationUnit {
             traced_variables: &ir_module.traced_variables,
             has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
         };
-        let semantic_context = semantic_context(dialect);
         let top_level = FunctionUnit::build_top_level(
             cfg_module.top_level.clone(),
-            UnitDialect { registry, config: options.config, source_metadata_input: ir_module.source_metadata_input.as_ref() },
+            UnitDialect {
+                registry,
+                config: options.config,
+                source_metadata_input: module_source_metadata_input(&ir_module, registry),
+            },
             &known_class_set,
             &top_level_extra_escaping,
             trace_facts,
             &command_mutations,
         )
-        .with_top_level_semantic_analysis(registry, semantic_context, &ir_module.top_level);
+        .with_retained_semantic_analysis(
+            registry,
+            Some(&ir_module.top_level),
+            crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
+        );
         let caller_view = crate::unit_scope::UnitCallerView {
             linkage,
             has_cross_file_evidence,
@@ -2232,7 +2442,6 @@ impl CompilationUnit {
             known_class_set: &known_class_set,
             trace_facts,
             command_trust: &command_mutations,
-            semantic_context,
             config: options.config,
         };
         let methods = Self::build_method_units(&ir_module, &extra_callers, body_unit_context);
@@ -2281,7 +2490,6 @@ impl CompilationUnit {
             known_class_set,
             trace_facts,
             command_trust,
-            semantic_context,
             config,
         } = ctx;
         if ir_module.methods.is_empty() {
@@ -2334,7 +2542,10 @@ impl CompilationUnit {
                     // deep lattices are skipped, but every consumer of "which
                     // names are bound in this method's frame" must read the
                     // same carrier as the deep path.
-                    let mut fu = FunctionUnit::trivial_guarded(mqname, cfg).with_source_metadata(ir_module.source_metadata_input.as_ref(), config);
+                    let mut fu = FunctionUnit::trivial_guarded(mqname, cfg).with_source_metadata(
+                        module_source_metadata_input(ir_module, registry),
+                        config,
+                    );
                     fu.method_facts = Some(Arc::new(MethodBodyFacts::from_method(method)));
                     fu
                 } else {
@@ -2342,15 +2553,20 @@ impl CompilationUnit {
                         mqname,
                         cfg,
                         method,
-                        UnitDialect { registry, config, source_metadata_input: ir_module.source_metadata_input.as_ref() },
+                        UnitDialect {
+                            registry,
+                            config,
+                            source_metadata_input: module_source_metadata_input(
+                                ir_module, registry,
+                            ),
+                        },
                         known_class_set,
                         trace_facts,
                         command_trust,
                     )
                 }
-                .with_semantic_analysis(
+                .with_retained_semantic_analysis(
                     registry,
-                    semantic_context,
                     Some(&method.body),
                     crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
                 );
@@ -2398,7 +2614,6 @@ impl CompilationUnit {
             known_class_set,
             trace_facts,
             command_trust,
-            semantic_context,
             config,
         } = ctx;
         if ir_module.body_units.is_empty() {
@@ -2445,13 +2660,18 @@ impl CompilationUnit {
                 };
                 entry_context.namespace_cells.closed = false;
                 let fu = if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
-                    FunctionUnit::trivial_guarded(qname, cfg).with_source_metadata(ir_module.source_metadata_input.as_ref(), config)
+                    FunctionUnit::trivial_guarded(qname, cfg).with_source_metadata(
+                        module_source_metadata_input(ir_module, registry),
+                        config,
+                    )
                 } else {
                     FunctionUnit::build_full(
                         qname,
                         cfg,
                         FunctionBuildInputs {
-                            source_metadata_input: ir_module.source_metadata_input.as_ref(),
+                            source_metadata_input: module_source_metadata_input(
+                                ir_module, registry,
+                            ),
                             entry_context: Some(&entry_context),
                             config,
                             params: &proc.params,
@@ -2466,9 +2686,8 @@ impl CompilationUnit {
                         },
                     )
                 }
-                .with_semantic_analysis(
+                .with_retained_semantic_analysis(
                     registry,
-                    semantic_context,
                     Some(&proc.body),
                     crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
                 );
@@ -2685,35 +2904,84 @@ impl CompilationUnit {
         self
     }
 
-    /// Populate memory-SSA on the top-level and every procedure under
-    /// `dialect`.
+    /// Populate memory facts from retained module and function inputs.
+    /// The compatibility context argument is ignored; it cannot replace an
+    /// absent or stale actual owner. Actual consumers use
+    /// [`Self::with_retained_memory_ssa`].
     #[must_use]
     pub fn with_memory_ssa(
-        mut self,
+        self,
         registry: &tcl_registry::CommandRegistry,
         _context: Option<SemanticContext>,
     ) -> Self {
-        let actual = crate::registry_invocation::retained_source_metadata_context(
-            registry,
-            self.ir_module.source_metadata_input.as_ref(),
-        );
-        let context = actual.as_deref().map(Into::into);
-        self.top_level = self
+        self.with_retained_memory_ssa(registry)
+    }
+
+    /// Populate top-level and procedure memory facts from their matching
+    /// actual source owners. Missing, foreign or stale metadata retains
+    /// opaque variable-memory obligations instead of borrowing a profile.
+    #[must_use]
+    pub fn with_retained_memory_ssa(mut self, registry: &CommandRegistry) -> Self {
+        let context = self
             .top_level
-            .with_memory_ssa_with_metadata_context(registry, context);
-        let mut out: HashMap<String, FunctionUnit> = HashMap::with_capacity(self.procedures.len());
-        for (k, fu) in self.procedures.drain() {
-            out.insert(
-                k,
-                fu.with_memory_ssa_with_metadata_context(registry, context),
-            );
+            .invocation_metadata_context_for_module(registry, &self.ir_module);
+        self.top_level.memory_ssa = Some(self.top_level.memory_ssa_for_metadata(registry, context));
+        for unit in self.procedures.values_mut() {
+            let context = unit.invocation_metadata_context_for_module(registry, &self.ir_module);
+            unit.memory_ssa = Some(unit.memory_ssa_for_metadata(registry, context));
         }
-        self.procedures = out;
         self
     }
 
-    /// Rebuild source-faithful executable facts, including world-state SSA,
-    /// for Explorer and other explicit deep-inspection consumers.
+    /// Build full source sidecars from every function's actual retained input.
+    /// Missing or foreign availability and stale grammar remain unavailable;
+    /// no default metadata context is reconstructed for deep inspection.
+    #[must_use]
+    pub fn with_retained_deep_semantic_analysis(mut self, registry: &CommandRegistry) -> Self {
+        use crate::dispatch_proof::DispatchEntryAssumption;
+        self.top_level.semantic_facts = FunctionUnit::semantic_facts_with_metadata(
+            registry,
+            self.top_level
+                .invocation_metadata_context_for_module(registry, &self.ir_module),
+            Some(&self.ir_module.top_level),
+            DispatchEntryAssumption::PristineRegistryWorld,
+            RetainedSemanticDepth::Full,
+        );
+        for (name, unit) in &mut self.procedures {
+            unit.semantic_facts = FunctionUnit::semantic_facts_with_metadata(
+                registry,
+                unit.invocation_metadata_context_for_module(registry, &self.ir_module),
+                self.ir_module
+                    .procedures
+                    .get(name)
+                    .map(|procedure| &procedure.body),
+                DispatchEntryAssumption::UnknownWorld,
+                RetainedSemanticDepth::Full,
+            );
+        }
+        for (name, unit) in &mut self.methods {
+            unit.semantic_facts = FunctionUnit::semantic_facts_with_metadata(
+                registry,
+                unit.invocation_metadata_context_for_module(registry, &self.ir_module),
+                self.ir_module.methods.get(name).map(|method| &method.body),
+                DispatchEntryAssumption::UnknownWorld,
+                RetainedSemanticDepth::Full,
+            );
+        }
+        for (name, unit) in &mut self.body_units {
+            unit.semantic_facts = FunctionUnit::semantic_facts_with_metadata(
+                registry,
+                unit.invocation_metadata_context_for_module(registry, &self.ir_module),
+                self.ir_module.body_units.get(name).map(|body| &body.body),
+                DispatchEntryAssumption::UnknownWorld,
+                RetainedSemanticDepth::Full,
+            );
+        }
+        self
+    }
+
+    /// Rebuild full facts under an explicitly supplied standalone context.
+    /// Actual source consumers use [`Self::with_retained_deep_semantic_analysis`].
     ///
     /// Ordinary interactive analysis intentionally avoids materialising a
     /// world graph when no reusable-value proof can consume it.  A caller
@@ -2941,10 +3209,11 @@ fn extend_existence_folds(
     metadata: crate::sccp::ExistenceMetadataInputs<'_>,
     config: tcl_lexer::LexerConfig,
 ) {
-    sccp.constant_branches
-        .extend(crate::sccp::existence_constant_branches_with_ssa_with_metadata_context(
+    sccp.constant_branches.extend(
+        crate::sccp::existence_constant_branches_with_ssa_with_metadata_context(
             cfg, frame, metadata, config, ssa,
-        ));
+        ),
+    );
 }
 
 /// Preserve the actual retained activation before applying a method overlay.
@@ -3132,6 +3401,664 @@ mod tests {
         }
     }
 
+    fn semantic_bundle_has_selected_invocation(
+        unit: &crate::compilation_unit::FunctionUnit,
+    ) -> bool {
+        unit.semantic_facts.executable().invocations().any(|call| {
+            matches!(
+                call.resolution,
+                crate::executable_ir::InvocationResolution::Resolved(_)
+            )
+        })
+    }
+
+    #[test]
+    fn semantic_bundle_requires_retained_availability_and_source_grammar() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // These are source metadata and availability assertions, not Native entry facts.
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut puts = registry.get("puts").unwrap().clone();
+        puts.name = "metadata_current";
+        puts.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(puts);
+        let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        let registry = current.commands();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&current),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            "metadata_current VALUE",
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let selected = &unit.top_level;
+        assert_eq!(
+            selected.semantic_facts.metadata_context(),
+            Some(current.context())
+        );
+        assert!(semantic_bundle_has_selected_invocation(selected));
+        let input = selected.source_metadata_input().unwrap();
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(registry)),
+        );
+        assert!(Arc::ptr_eq(older.commands(), registry));
+        let mut unavailable = selected.clone();
+        unavailable.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            older,
+            input.lexer_config(),
+        ));
+        let unavailable = unavailable.with_retained_semantic_analysis(
+            registry,
+            Some(&unit.ir_module.top_level),
+            crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
+        );
+        assert!(!semantic_bundle_has_selected_invocation(&unavailable));
+        let mut foreign = selected.clone();
+        foreign.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            input.lexer_config(),
+        ));
+        let mut missing = selected.clone();
+        missing.source_metadata_input = None;
+        let mut different_grammar = selected.clone();
+        different_grammar.source_config.strict_quoting =
+            !different_grammar.source_config.strict_quoting;
+        for negative in [foreign, missing, different_grammar] {
+            let refused = negative.with_retained_semantic_analysis(
+                registry,
+                Some(&unit.ir_module.top_level),
+                crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
+            );
+            assert!(matches!(
+                refused.semantic_facts.executable(),
+                crate::semantic_analysis::ExecutableAnalysisAvailability::ContextUnavailable
+            ));
+        }
+    }
+
+    #[test]
+    fn retained_deep_sidecars_keep_availability_and_refuse_missing_function_input() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut registry = baseline.commands().project_for_profile(profile);
+        let mut puts = registry.get("puts").unwrap().clone();
+        puts.name = "metadata_current";
+        puts.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(puts);
+        let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        let registry = current.commands();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&current),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            "metadata_current VALUE",
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let selected = unit.clone().with_retained_deep_semantic_analysis(registry);
+        assert!(semantic_bundle_has_selected_invocation(&selected.top_level));
+        assert!(
+            selected
+                .top_level
+                .semantic_facts
+                .executable()
+                .world_state_ssa()
+                .is_some()
+        );
+        let input = unit.top_level.source_metadata_input().unwrap();
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(registry)),
+        );
+        let mut unavailable = unit.clone();
+        unavailable.top_level.source_metadata_input =
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                older,
+                input.lexer_config(),
+            ));
+        unavailable.ir_module.source_metadata_input =
+            unavailable.top_level.source_metadata_input.clone();
+        let unavailable = unavailable.with_retained_deep_semantic_analysis(registry);
+        assert!(!semantic_bundle_has_selected_invocation(
+            &unavailable.top_level
+        ));
+        let mut missing = unit.clone();
+        missing.top_level.source_metadata_input = None;
+        let mut foreign = unit.clone();
+        foreign.top_level.source_metadata_input =
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                tcl_registry::model::ingress::resolve_environment("tcl9.1")
+                    .default_context_registry(),
+                input.lexer_config(),
+            ));
+        let mut stale = unit.clone();
+        stale.top_level.source_config.strict_quoting =
+            !stale.top_level.source_config.strict_quoting;
+        for negative in [missing, foreign, stale] {
+            let refused = negative.with_retained_deep_semantic_analysis(registry);
+            assert!(matches!(
+                refused.top_level.semantic_facts.executable(),
+                crate::semantic_analysis::ExecutableAnalysisAvailability::ContextUnavailable
+            ));
+        }
+    }
+
+    #[test]
+    fn retained_deep_sidecars_require_the_module_source_owner() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Full source sidecars borrow Module scripts; no Native entry is established.
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = current.commands();
+        let mut unit = retained_memory_fixture(&current);
+        let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
+        let mut missing = unit.clone();
+        missing.ir_module.source_metadata_input = None;
+        let mut stale = unit.clone();
+        stale.ir_module.lexer_config.strict_quoting = !stale.ir_module.lexer_config.strict_quoting;
+        let mut different_owner = unit.clone();
+        different_owner.ir_module.source_metadata_input =
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                Arc::new(current.with_command_store(Arc::clone(registry))),
+                input.lexer_config(),
+            ));
+        assert!(semantic_bundle_has_selected_invocation(
+            &unit
+                .clone()
+                .with_retained_deep_semantic_analysis(registry)
+                .top_level
+        ));
+        for refused in [missing, stale, different_owner] {
+            let refused = refused.with_retained_deep_semantic_analysis(registry);
+            assert!(matches!(
+                refused.top_level.semantic_facts.executable(),
+                crate::semantic_analysis::ExecutableAnalysisAvailability::ContextUnavailable
+            ));
+        }
+        // FU's explicit API owns its own supplied script independently of a Module.
+        unit.ir_module.source_metadata_input = None;
+        let standalone = unit.top_level.clone().with_retained_semantic_analysis(
+            registry,
+            Some(&unit.ir_module.top_level),
+            crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
+        );
+        assert!(semantic_bundle_has_selected_invocation(&standalone));
+    }
+
+    fn retained_memory_fixture(
+        context: &Arc<tcl_registry::model::ContextRegistry>,
+    ) -> CompilationUnit {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        CompilationUnit::build_with_context_registry(
+            "dict create key value",
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            Arc::clone(context),
+        )
+    }
+
+    #[test]
+    fn retained_memory_facts_require_matching_module_and_function_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // This checks metadata admission and opaque memory obligations, not Native entry.
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = current.commands();
+        let unit = retained_memory_fixture(&current);
+        let original = unit.top_level.source_metadata_input().unwrap();
+        let annotated = unit.clone().with_retained_memory_ssa(registry);
+        assert!(
+            !annotated
+                .top_level
+                .memory_ssa
+                .unwrap()
+                .has_wildcard_aliasing
+        );
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(registry)),
+        );
+        let mut unavailable = unit.clone();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            original.analyser_profile(),
+            original.unit_profile(),
+            Arc::clone(&older),
+            original.lexer_config(),
+        );
+        unavailable.ir_module.source_metadata_input = Some(input.clone());
+        unavailable.top_level.source_metadata_input = Some(input);
+        assert!(
+            unavailable
+                .top_level
+                .invocation_metadata_context_for_module(registry, &unavailable.ir_module)
+                .is_some()
+        );
+        let mut missing_module = unit.clone();
+        missing_module.ir_module.source_metadata_input = None;
+        let mut missing_function = unit.clone();
+        missing_function.top_level.source_metadata_input = None;
+        let mut stale_module = unit.clone();
+        stale_module.ir_module.lexer_config.strict_quoting =
+            !stale_module.ir_module.lexer_config.strict_quoting;
+        let mut stale_function = unit.clone();
+        stale_function.top_level.source_config.strict_quoting =
+            !stale_function.top_level.source_config.strict_quoting;
+        let mut different_owner = unit.clone();
+        different_owner.ir_module.source_metadata_input =
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                original.analyser_profile(),
+                original.unit_profile(),
+                older,
+                original.lexer_config(),
+            ));
+        let mut foreign = unit.clone();
+        foreign.top_level.source_metadata_input =
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                original.analyser_profile(),
+                original.unit_profile(),
+                tcl_registry::model::ingress::resolve_environment("tcl9.1")
+                    .default_context_registry(),
+                original.lexer_config(),
+            ));
+        let mut different_profile = unit.clone();
+        different_profile.top_level.source_metadata_input =
+            Some(crate::analyser::ResolvedAnalysisInput::new(
+                tcl_dialect::DialectProfile::find("tcl8.4").unwrap(),
+                original.unit_profile(),
+                Arc::clone(&current),
+                original.lexer_config(),
+            ));
+        for refused in [
+            missing_module,
+            missing_function,
+            stale_module,
+            stale_function,
+            different_owner,
+            foreign,
+            different_profile,
+        ] {
+            assert!(
+                refused
+                    .top_level
+                    .invocation_metadata_context_for_module(registry, &refused.ir_module)
+                    .is_none()
+            );
+            let refused = refused.with_retained_memory_ssa(registry);
+            assert!(refused.top_level.memory_ssa.unwrap().has_wildcard_aliasing);
+        }
+        let unavailable = unavailable.with_retained_memory_ssa(registry);
+        assert!(
+            unavailable
+                .top_level
+                .memory_ssa
+                .unwrap()
+                .has_wildcard_aliasing
+        );
+    }
+
+    fn retained_memo_fixture_unit(
+        req: &LatticeRequest<'_>,
+        registry: &CommandRegistry,
+    ) -> FunctionUnit {
+        let prepared = PreparedCfgContext::from_source_input(
+            (
+                req.upvar_procs.clone(),
+                req.proc_params.clone(),
+                req.global_write_procs.clone(),
+                req.command_bindings.clone(),
+            ),
+            registry,
+            req.source_metadata_input,
+        );
+        let cfg = crate::cfg_builder::build_cfg_function_with_prepared_context(
+            req.qname,
+            req.body,
+            true,
+            registry,
+            req.plain_command_dispatch,
+            &prepared,
+            req.lexer_config,
+        );
+        let known_classes = req.known_classes.iter().cloned().collect();
+        let traced_variables = req.traced_variables.iter().cloned().collect();
+        let parameters = decode_param_constants(req.param_constants);
+        FunctionUnit::build_for_lattice(
+            req.qname,
+            cfg,
+            req.params,
+            FunctionLatticeInputs {
+                dialect: UnitDialect {
+                    registry,
+                    config: req.lexer_config,
+                    source_metadata_input: req.source_metadata_input,
+                },
+                param_constants: parameters.as_ref(),
+                known_classes: &known_classes,
+                trace_facts: ModuleTraceFacts {
+                    traced_variables: &traced_variables,
+                    has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+                },
+                command_trust: req.command_trust,
+                event_body: req.irules_event_body.map(|event| (event, req.body)),
+            },
+        )
+        .with_retained_semantic_analysis(
+            registry,
+            Some(req.body),
+            crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
+        )
+    }
+
+    #[test]
+    fn memoised_source_facts_retain_nested_bom_and_lexer_overlays() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = current.commands();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig {
+            escapes: tcl_dialect::EscapeSyntax::Tcl84,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let mut requests = 0;
+        let mut memo = |req: &LatticeRequest<'_>| {
+            requests += 1;
+            let input = req.source_metadata_input.unwrap();
+            assert!(Arc::ptr_eq(&input.context_registry(), &current));
+            assert_eq!(input.lexer_config(), config.nested().normalized());
+            assert_eq!(input.lexer_config(), req.lexer_config);
+            assert_eq!(input.unit_profile().cache_key(), profile.cache_key());
+            let selected = retained_memo_fixture_unit(req, registry);
+            assert!(semantic_bundle_has_selected_invocation(&selected));
+            let mut stale = selected.clone();
+            stale.source_config.escapes = tcl_dialect::EscapeSyntax::Tcl86;
+            assert!(stale.invocation_metadata_context(registry).is_none());
+            let stale = stale.with_retained_semantic_analysis(
+                registry,
+                Some(req.body),
+                crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
+            );
+            assert!(matches!(
+                stale.semantic_facts.executable(),
+                crate::semantic_analysis::ExecutableAnalysisAvailability::ContextUnavailable
+            ));
+            selected
+        };
+        let unit = CompilationUnit::build_with_entry(
+            r"proc p {} {::puts \U00000041}",
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&mut memo),
+            None,
+            None,
+            Some(Arc::clone(&current)),
+        );
+        assert_eq!(requests, 1);
+        assert!(semantic_bundle_has_selected_invocation(
+            &unit.procedures["::p"]
+        ));
+        assert!(
+            unit.procedures["::p"]
+                .invocation_metadata_context_for_module(registry, &unit.ir_module)
+                .is_some()
+        );
+        let deep = unit.with_retained_deep_semantic_analysis(registry);
+        assert!(semantic_bundle_has_selected_invocation(
+            &deep.procedures["::p"]
+        ));
+    }
+
+    #[test]
+    fn supplied_source_input_retains_axes_and_independent_logical_entry() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Source declarations and aliases are conditional authored facts, not Native entry.
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&current),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let options = UnitBuildOptions {
+            registry: current.commands(),
+            defer_top_level: false,
+            config: input.lexer_config(),
+            dialect: Some(input.unit_profile()),
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let unit = CompilationUnit::build_with_analysis_input(
+            "proc aliaser {} {global ::n::shared; set shared 1}",
+            options,
+            None,
+            &input,
+        );
+        assert_eq!(unit.ir_module.source_metadata_input.as_ref(), Some(&input));
+        assert_eq!(
+            unit.ir_module.source_entry.logical_source_input.as_ref(),
+            Some(&input)
+        );
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        assert!(unit.procedures.contains_key("::aliaser"));
+        let explicit = crate::command_binding::SourceAnalysisEntry::default();
+        let unknown = CompilationUnit::build_with_analysis_input(
+            "proc aliaser {} {global ::n::shared; set shared 1}",
+            options,
+            Some(&explicit),
+            &input,
+        );
+        assert!(
+            unknown
+                .ir_module
+                .source_entry
+                .logical_source_input
+                .is_none()
+        );
+        assert!(unknown.ir_module.source_entry.native_entry.is_none());
+        assert_eq!(
+            unknown.ir_module.source_metadata_input.as_ref(),
+            Some(&input)
+        );
+        let native_profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let native = crate::analyser::ResolvedAnalysisInput::new(
+            native_profile,
+            native_profile,
+            Arc::clone(&current),
+            input.lexer_config(),
+        );
+        let native_unit = CompilationUnit::build_with_analysis_input(
+            "puts VALUE",
+            UnitBuildOptions {
+                dialect: Some(native_profile),
+                ..options
+            },
+            None,
+            &native,
+        );
+        assert!(
+            native_unit
+                .ir_module
+                .source_entry
+                .logical_source_input
+                .is_none()
+        );
+        assert!(native_unit.ir_module.source_entry.native_entry.is_none());
+        assert!(native_unit.ir_module.source_entry.unknown_entry);
+        assert_eq!(
+            native_unit.ir_module.source_metadata_input.as_ref(),
+            Some(&native)
+        );
+    }
+
+    #[test]
+    fn supplied_source_producer_refuses_changed_profile_and_lexer_metadata() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Actual input is retained for reporting; unrelated producer options grant no facts.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let options = UnitBuildOptions {
+            registry: context.commands(),
+            defer_top_level: false,
+            config: input.lexer_config(),
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        };
+        let selected =
+            CompilationUnit::build_with_analysis_input("puts VALUE", options, None, &input);
+        assert!(
+            selected
+                .top_level
+                .invocation_metadata_context_for_module(context.commands(), &selected.ir_module,)
+                .is_some()
+        );
+        let mut wrong_config = options;
+        wrong_config.config.strict_quoting = !wrong_config.config.strict_quoting;
+        let wrong_profile = UnitBuildOptions {
+            dialect: Some(tcl_dialect::DialectProfile::find("tcl8.6").unwrap()),
+            ..options
+        };
+        for options in [wrong_config, wrong_profile] {
+            let refused =
+                CompilationUnit::build_with_analysis_input("puts VALUE", options, None, &input);
+            assert_eq!(
+                refused.ir_module.source_metadata_input.as_ref(),
+                Some(&input)
+            );
+            assert!(refused.ir_module.source_entry.unknown_entry);
+            assert!(
+                refused
+                    .ir_module
+                    .source_entry
+                    .logical_source_input
+                    .is_none()
+            );
+            assert!(refused.top_level.source_metadata_input().is_none());
+            assert!(
+                refused
+                    .top_level
+                    .invocation_metadata_context_for_module(context.commands(), &refused.ir_module,)
+                    .is_none()
+            );
+            assert!(matches!(
+                refused.top_level.semantic_facts.executable(),
+                crate::semantic_analysis::ExecutableAnalysisAvailability::ContextUnavailable
+            ));
+        }
+        let mut stale_module = selected.ir_module.clone();
+        stale_module.dialect_profile = wrong_profile.dialect;
+        assert!(
+            selected
+                .top_level
+                .invocation_metadata_context_for_module(context.commands(), &stale_module,)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn supplied_hosted_source_entry_retains_advice_without_activation() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        for environment in ["f5-irules", "f5-iapps"] {
+            let environment = tcl_registry::model::ingress::resolve_environment(environment);
+            let profile = environment.unit_profile();
+            let context = environment.default_context_registry();
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::clone(&context),
+                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            );
+            let unit = CompilationUnit::build_with_analysis_input(
+                "set source_value VALUE",
+                UnitBuildOptions {
+                    registry: context.commands(),
+                    defer_top_level: false,
+                    config: input.lexer_config(),
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            );
+            let entry = &unit.ir_module.source_entry;
+            assert_eq!(entry.vendor_source_input.as_ref(), Some(&input));
+            assert!(entry.unknown_entry);
+            assert!(entry.native_entry.is_none());
+            assert!(entry.logical_source_input.is_none());
+            assert!(entry.hosted_execution_context.is_none());
+            assert!(entry.execution_name_policy.is_none());
+        }
+    }
+
     fn test_context() -> SemanticContext {
         SemanticContext::for_environment("tcl8.6")
     }
@@ -3163,7 +4090,11 @@ mod tests {
         let cfg = crate::cfg_builder::build_cfg_with_registry(&module, false, &registry);
         let unit = FunctionUnit::build_top_level(
             cfg.top_level,
-            UnitDialect { registry: &registry, config: module.lexer_config, source_metadata_input: module.source_metadata_input.as_ref() },
+            UnitDialect {
+                registry: &registry,
+                config: module.lexer_config,
+                source_metadata_input: module.source_metadata_input.as_ref(),
+            },
             &HashSet::new(),
             &HashSet::new(),
             ModuleTraceFacts::none(),
@@ -3599,7 +4530,13 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let facts = &linear.top_level.semantic_facts;
-        assert_eq!(facts.context(), Some(test_context()));
+        assert_eq!(
+            facts.metadata_context(),
+            linear
+                .top_level
+                .source_metadata_input()
+                .map(|input| { input.borrowed_context_registry().context() }),
+        );
         let executable = facts.executable();
         assert_eq!(executable.invocations().count(), 1);
         assert!(executable.world_state_ssa().is_none());

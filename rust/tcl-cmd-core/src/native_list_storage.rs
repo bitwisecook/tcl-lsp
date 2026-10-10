@@ -69,7 +69,7 @@ pub enum NativeListRangeAction {
     OriginalEmpty,
     /// Allocate native `Tcl_NewObj` without a List primary.
     FreshEmpty,
-    /// C9 command range installs an empty List store of capacity one.
+    /// C9.0 command range installs an empty List store of capacity one.
     /// This is distinct from an opcode's native `Tcl_NewObj` result.
     EmptyList,
     /// Allocate a genuine new store owning these original members.
@@ -118,8 +118,9 @@ pub fn range_action(
 }
 
 /// Select the reached ordinary C command range after both original index
-/// getters. C9's `TclListObjRange` always installs a List primary, including
-/// an empty range; the immediate opcode has its separate early empty result.
+/// getters. C9.0's `TclListObjRange` installs a List primary for an empty
+/// range. C9.1's public `Tcl_ListObjRange` returns `Tcl_NewObj` for it.
+/// The immediate opcode has its separate early empty result.
 ///
 /// # Errors
 /// A C9 span decision needs the originally issued allocation extent.
@@ -133,7 +134,7 @@ pub fn command_range_action(
     let first = i128::from(first).max(0);
     let last = i128::from(last).min(end);
     if first > last {
-        return Ok(if version >= TclVersion::V9_0 {
+        return Ok(if version == TclVersion::V9_0 {
             NativeListRangeAction::EmptyList
         } else {
             NativeListRangeAction::FreshEmpty
@@ -431,7 +432,7 @@ mod tests {
         }
     }
     #[test]
-    fn command_empty_range_keeps_c9_list_birth_separate_from_opcode_empty() {
+    fn command_empty_range_keeps_c90_list_birth_separate_from_c91_and_opcode_empty() {
         // naming.list.original-range-objects-and-instructions
         // docs/design/analysis/name-resolution-proofs/list.original-range-objects-and-instructions.md
         // Actual R3 has no listRangeImm in either C9 captured instruction stream.
@@ -450,12 +451,17 @@ mod tests {
                 .find(|line| line.starts_with("R|3|"))
                 .unwrap();
             let fields = row.split('|').collect::<Vec<_>>();
-            assert_eq!(&fields[3..6], &["list", "0", "1"]);
+            let (header, action) = if version == TclVersion::V9_0 {
+                (["list", "0", "1"], NativeListRangeAction::EmptyList)
+            } else {
+                (["none", "1", "1"], NativeListRangeAction::FreshEmpty)
+            };
+            assert_eq!(&fields[3..6], &header);
             assert!(!fields[7].contains("listRangeImm"));
             let state = shared(3, 3);
             assert_eq!(
                 command_range_action(version, 12, 2, state).unwrap(),
-                NativeListRangeAction::EmptyList
+                action
             );
             assert_eq!(
                 range_action(version, coordinates(12, -2), state).unwrap(),

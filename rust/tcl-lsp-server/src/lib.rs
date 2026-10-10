@@ -6810,7 +6810,7 @@ fn source_diagnostic_consumers_with_sources(
             resolve_source_edge(
                 &source.uri,
                 &source.raw_path,
-                source.is_literal,
+                source.original_path_expression.as_ref(),
                 source.range.start(),
                 replaced.constants,
                 &index.imported_path_constants_for(&source.uri),
@@ -14563,7 +14563,7 @@ impl Backend {
         // file really is in force here.
         let inherited_prefer = {
             let index = self.workspace_index.read().await;
-            if index.source_ancestor_prefers_latest(uri.as_str(), resolve_source_uri) {
+            if index.source_ancestor_prefers_latest_from_resolved(uri.as_str()) {
                 tcl_lsp_core::package_resolver::PackagePrefer::Latest
             } else {
                 self.default_package_prefer().await
@@ -31838,7 +31838,7 @@ fn compute_inherited_requires(
     folder_root: Option<&Path>,
 ) -> Vec<String> {
     if entry_points.is_empty() {
-        return index.source_ancestor_package_requires(uri.as_str(), resolve_source_uri);
+        return index.source_ancestor_package_requires_from_resolved(uri.as_str());
     }
     // Explicit entry points: the union of their requires, project-wide.
     let mut out: Vec<String> = Vec::new();
@@ -31865,26 +31865,7 @@ fn compute_inherited_requires(
 fn workspace_source_edges(
     index: &core_workspace_index::WorkspaceIndex,
 ) -> Vec<tcl_lsp_core::source_graph::RunEdge> {
-    index
-        .sources()
-        .filter_map(|s| {
-            resolve_source_edge(
-                &s.uri,
-                &s.raw_path,
-                s.is_literal,
-                s.range.start(),
-                index.path_constant_assignments(&s.uri),
-                &index.imported_path_constants_for(&s.uri),
-            )
-            .map(|child| tcl_lsp_core::source_graph::RunEdge {
-                parent: s.uri.clone(),
-                child,
-                at: s.range.start(),
-                enclosing_body: s.enclosing_body,
-                kind: tcl_lsp_core::source_graph::RunEdgeKind::Source,
-            })
-        })
-        .collect()
+    index.resolved_source_edges()
 }
 
 /// Everything the `source` graph says about `uri` — both directions plus the
@@ -31917,7 +31898,7 @@ fn compute_source_inheritance(
     default_prefer: tcl_lsp_core::package_resolver::PackagePrefer,
 ) -> SourceInheritance {
     let ambient = compute_inherited_requires(index, uri, entry_points, folder_root);
-    let prefer = if index.source_ancestor_prefers_latest(uri.as_str(), resolve_source_uri) {
+    let prefer = if index.source_ancestor_prefers_latest_from_resolved(uri.as_str()) {
         tcl_lsp_core::package_resolver::PackagePrefer::Latest
     } else {
         default_prefer
@@ -31925,7 +31906,7 @@ fn compute_source_inheritance(
     let mut advice: HashMap<String, Vec<tcl_lsp_core::package_resolver::PackageRequirementAdvice>> =
         HashMap::new();
     for required in index.package_requires() {
-        let default = if index.source_ancestor_prefers_latest(&required.uri, resolve_source_uri) {
+        let default = if index.source_ancestor_prefers_latest_from_resolved(&required.uri) {
             tcl_lsp_core::package_resolver::PackagePrefer::Latest
         } else {
             default_prefer
@@ -31987,7 +31968,8 @@ fn compute_source_inheritance(
         match resolve_source_edge(
             uri_str,
             &src.raw_path,
-            src.is_literal,
+            tcl_compiler::auto_path_eval::capture_source_target_path_expression(analysis, src)
+                .as_ref(),
             src.range.start(),
             &analysis.path_constant_assignments,
             &index.imported_path_constants_for(uri_str),
@@ -32150,29 +32132,24 @@ fn fold_document_constants(
     )
 }
 
-/// [`resolve_source_uri`] extended with the computed-path tier:
-/// a literal resolves as before; a computed path is statically folded through
-/// [`tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants`]
-/// (`[file join …]` / `[file dirname [info script]]` forms, with the parent
-/// file standing in for `[info script]`) and resolved when the fold succeeds.
-/// Anything the folder cannot prove returns `None` — never a guess.
-///
-/// `raw_constants` is the parent document's raw single-assignment `set`
-/// facts ([`AnalysisResult::path_constant_assignments`], carried by the
-/// index), chain-folded here — where the parent's own path is known — so a
-/// `source [file join $sourceDir x.tcl]` behind `set sourceDir [file join
-/// $dir src]` resolves as an edge exactly as it resolves as a document link
-/// — one expression must not resolve as a link and fail as a definition.
+/// Resolve conditional source advice from a genuine original expression and
+/// the same retained source inventory. Reported path text is not evaluated.
+/// The host supplies the parent document filename and URI/path mapping; the
+/// selected typed source algebra supplies no actual file evaluation.
 fn resolve_source_edge(
     parent_uri: &str,
-    raw_path: &str,
-    is_literal: bool,
+    _raw_path: &str,
+    expression: Option<&tcl_compiler::auto_path_eval::OriginalSourcePathExpression>,
     source_offset: u32,
     raw_constants: &tcl_compiler::auto_path_eval::PathConstantAssignments,
     imported: &tcl_compiler::auto_path_eval::FoldedPathConstants,
 ) -> Option<String> {
-    if is_literal {
-        return resolve_source_uri(parent_uri, raw_path);
+    let expression = expression?;
+    if !expression.matches_assignments(raw_constants)
+        || expression.source_span().start() > source_offset
+        || source_offset >= expression.source_span().end()
+    {
+        return None;
     }
     let parent = Uri::from_str(parent_uri).ok()?;
     let parent_path = parent.to_file_path()?;
@@ -32181,11 +32158,12 @@ fn resolve_source_edge(
         parent_path.to_str(),
         imported,
     );
-    let folded = tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants(
-        raw_path,
-        parent_path.to_str(),
-        &constants.at(source_offset),
-    )?;
+    let folded = expression.evaluate(parent_path.to_str(), &|name| {
+        tcl_compiler::auto_path_eval::PathConstantLookup::path_constant(
+            &constants.at(source_offset),
+            name,
+        )
+    })?;
     let child = tcl_lsp_core::source_graph::resolve_source_target(parent_path.as_ref(), &folded);
     canonical_file_uri(&child).map(|u| u.as_str().to_owned())
 }
@@ -32955,27 +32933,12 @@ fn extend_resolver_with_document_auto_paths(
     resolver
 }
 
-/// The directories one document's `auto_path` mutations statically resolve to
-/// — see [`extend_resolver_with_document_auto_paths`] for the rationale and
-/// the abstention rule.  `uri` supplies `[info script]`.
-///
-/// One record can name several directories (`set auto_path` assigns a *list*),
-/// so the fold is
-/// [`tcl_compiler::auto_path_eval::evaluate_auto_path_entry`] rather than the
-/// single-expression evaluator — it owns both the list grammar and the
-/// slash-form path arithmetic that keeps a native Windows `[info script]`
-/// (`C:\repo\user.tcl`, which is what `Uri::to_file_path` yields there)
-/// resolving against its own directory.  It returns slash form, which
-/// `PathBuf` accepts on every host.
-///
-/// A `lappend auto_path lib` folds to a **relative** directory: Tcl resolves
-/// it against the interpreter's run-time working directory, which no static
-/// analysis knows (tclsh 8.6.16 / 9.0.4-verified), so the evaluator returns
-/// it unanchored rather than pinning it to the language server's own launch
-/// directory — an editor artefact unrelated to the user's program. This is
-/// the caller that owns the closest base the editor actually has: the
-/// analysed document's own directory, which is what the run-from-its-own
-/// -directory convention every relocatable Tcl project uses makes true.
+/// Candidate package directories under the same actual retained analysis.
+/// The selected mutation and genuine whole argument own list parsing:
+/// assignment splits the completed value; list append keeps one element.
+/// Unknown/foreign source, local receiver ambiguity and unsupported operations
+/// contribute no directories. Relative advice is anchored on the explicit
+/// document directory, independently of the interpreter's unknown cwd.
 fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf> {
     if analysis.auto_path_entries.is_empty() {
         return Vec::new();
@@ -32995,12 +32958,20 @@ fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf>
         if dirs.len() >= DOCUMENT_AUTO_PATH_DIR_CAP {
             break;
         }
-        for folded in tcl_compiler::auto_path_eval::evaluate_auto_path_entry_with_constants(
-            entry,
-            file_path.to_str(),
-            &constants.at(entry.range.start()),
-            Some(tcl_lsp_core::profile_for_dialect(&analysis.dialect)),
-        ) {
+        let Some(expression) =
+            tcl_compiler::auto_path_eval::capture_source_auto_path_expression(analysis, entry)
+        else {
+            continue;
+        };
+        let Some(values) = expression.evaluate(file_path.to_str(), &|name| {
+            tcl_compiler::auto_path_eval::PathConstantLookup::path_constant(
+                &constants.at(entry.range.start()),
+                name,
+            )
+        }) else {
+            continue;
+        };
+        for folded in values {
             if dirs.len() >= DOCUMENT_AUTO_PATH_DIR_CAP {
                 break;
             }
@@ -40261,6 +40232,84 @@ info exists ::N::v\uD800";
             "a triple-nested `[file dirname …]` auto_path entry must reach the \
              repo-root package directory",
         );
+    }
+
+    #[test]
+    fn retained_source_and_package_paths_consume_actual_plans() {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        let source = "interp alias {} build {} file join /ROOT; source [build {literal$é.tcl}]";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let target = analysis
+            .source_targets
+            .first()
+            .expect("original source target");
+        let expression =
+            tcl_compiler::auto_path_eval::capture_source_target_path_expression(&analysis, target)
+                .unwrap();
+        let imported = tcl_compiler::auto_path_eval::FoldedPathConstants::default();
+        let expected = Uri::from_file_path("/ROOT/literal$é.tcl").unwrap();
+        assert_eq!(
+            resolve_source_edge(
+                "file:///ROOT/main.tcl",
+                "reported-unrelated.tcl",
+                Some(&expression),
+                target.range.start(),
+                &analysis.path_constant_assignments,
+                &imported
+            )
+            .as_deref(),
+            Some(expected.as_str())
+        );
+        assert!(
+            resolve_source_edge(
+                "file:///ROOT/main.tcl",
+                &target.raw_path,
+                None,
+                target.range.start(),
+                &analysis.path_constant_assignments,
+                &imported
+            )
+            .is_none()
+        );
+        let other = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            resolve_source_edge(
+                "file:///ROOT/main.tcl",
+                &target.raw_path,
+                Some(&expression),
+                target.range.start(),
+                &other.path_constant_assignments,
+                &imported
+            )
+            .is_none()
+        );
+        let uri = Uri::from_file_path("/ROOT/main.tcl").unwrap();
+        for (source, expected) in [
+            (
+                "set auto_path [file join /ROOT {a b}]",
+                vec![PathBuf::from("/ROOT/a"), PathBuf::from("/ROOT/b")],
+            ),
+            (
+                "lappend auto_path [file join /ROOT {a b}]",
+                vec![PathBuf::from("/ROOT/a b")],
+            ),
+            (
+                "interp alias {} build {} file join /ROOT; lappend auto_path [build {literal$é}]",
+                vec![PathBuf::from("/ROOT/literal$é")],
+            ),
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+            assert_eq!(
+                document_auto_path_dirs(&uri, &analysis),
+                expected,
+                "{source}"
+            );
+        }
+        let source = "proc file {args} {}; lappend auto_path [file join /ROOT leaf]";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(!analysis.auto_path_entries.is_empty());
+        assert!(document_auto_path_dirs(&uri, &analysis).is_empty());
     }
 
     /// A *relative* `auto_path` entry

@@ -1,0 +1,7 @@
+
+running 2 tests
+test commands::tcl::info_jim::tests::original_jim_core_arity_precedes_generic_info_parser_reporting ... ok
+test source_path::tests::authored_source_path_operations_keep_selected_members_and_exact_effective_argv ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 1511 filtered out; finished in 0.01s
+

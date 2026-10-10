@@ -102,8 +102,8 @@ impl NativeLiteralWorld {
             || new_registered_string(&original, protocol),
         )
     }
-    fn release(&mut self, index: usize) {
-        self.shared.borrow_mut().release(index);
+    fn release(&mut self, index: usize) -> Option<Value> {
+        self.shared.borrow_mut().release(index)
     }
 }
 
@@ -179,9 +179,9 @@ pub(crate) struct NativeLiteralPool {
 impl Drop for NativeLiteralPool {
     fn drop(&mut self) {
         if let Some(world) = self.world.upgrade() {
-            let mut world = world.borrow_mut();
             for &index in self.registrations.iter().flatten() {
-                world.release(index);
+                let retired = world.borrow_mut().release(index);
+                drop(retired);
             }
         }
     }
@@ -361,7 +361,8 @@ impl NativeLiteralPool {
                 }
                 *value = duplicate;
                 if let Some(registration) = self.registrations[*index].take() {
-                    input.world.borrow_mut().release(registration);
+                    let retired = input.world.borrow_mut().release(registration);
+                    drop(retired);
                 }
             }
             _ => self.prime_literal_action(action, input, effect)?,
@@ -581,7 +582,8 @@ impl NativeLiteralPool {
                 };
                 let (registration, original) =
                     input.world.borrow_mut().register(key, self.protocol)?;
-                input.world.borrow_mut().release(registration);
+                let retired = input.world.borrow_mut().release(registration);
+                drop(retired);
                 self.registrations.push(None);
                 original
             }

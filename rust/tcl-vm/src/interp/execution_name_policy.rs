@@ -71,8 +71,13 @@ impl Vm {
         let Some(id) = self.child_id(child) else {
             return false;
         };
-        self.in_interp(id, |vm| vm.register_native_command(name, command));
-        true
+        match self.in_interp(id, |vm| vm.try_register_native_command(name, command)) {
+            Ok(()) => true,
+            Err(error) => {
+                let _ = self.refuse_host_command(error.to_string());
+                false
+            }
+        }
     }
 
     /// Retain a caller-owned exact event issuer for the duration of its body.

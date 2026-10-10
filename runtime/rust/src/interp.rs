@@ -672,6 +672,8 @@ pub enum Command {
     Alias {
         target: Vec<u8>,
         prefix: Vec<Vec<u8>>,
+        /// Registration report retained independently from the lookup slot.
+        publication_name: Vec<u8>,
         /// Jim aliases retain their actual original prefix objects.
         jim_prefix: Option<obj::Owned>,
         /// Per-instance identity — see [`Command::is_same_binding`].
@@ -717,6 +719,8 @@ pub enum Command {
     ParentAlias {
         target: Vec<u8>,
         prefix: Vec<Vec<u8>>,
+        /// Selected child registration spelling, independent of command lookup.
+        publication_name: Vec<u8>,
         /// Jim's original prefix List belongs to the live parent interpreter.
         /// Reported byte fields do not substitute for this original owner.
         jim_prefix: Option<obj::Owned>,
@@ -3111,6 +3115,15 @@ impl Interp {
         prefix: Vec<Vec<u8>>,
         jim_prefix: Option<obj::Owned>,
     ) -> Result<(), Vec<u8>> {
+        let publication_name = self
+            .name_policy_protocol()
+            .ok_or_else(|| b"alias publication protocol unavailable".to_vec())?
+            .recipe()
+            .alias_publication_input(tcl_syntax::naming::NativeNameContext::root(), name)
+            .map_err(|_| b"alias publication input unavailable".to_vec())?
+            .alias_registration_report_bytes()
+            .ok_or_else(|| b"alias report unavailable".to_vec())?
+            .to_vec();
         let current = self.current_ns.get();
         let publication = self.namespaces_mut().alias_publication_at(current, name);
         let (ns, simple) =
@@ -3126,6 +3139,7 @@ impl Interp {
             Command::Alias {
                 target,
                 prefix,
+                publication_name,
                 jim_prefix,
                 identity: Rc::new(()),
             },
@@ -3157,7 +3171,13 @@ impl Interp {
         target: Vec<u8>,
         prefix: Vec<Vec<u8>>,
     ) -> bool {
-        self.install_parent_alias_with_original(child, name, target, prefix, None)
+        match self.install_parent_alias_with_original(child, name, target, prefix, None) {
+            Ok(installed) => installed,
+            Err(error) => {
+                self.report_cmd_error(error.into());
+                false
+            }
+        }
     }
 
     fn install_parent_alias_with_original(
@@ -3167,26 +3187,63 @@ impl Interp {
         target: Vec<u8>,
         prefix: Vec<Vec<u8>>,
         jim_prefix: Option<obj::Owned>,
-    ) -> bool {
+    ) -> Result<bool, tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        let producer =
+            self.name_policy_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "parent alias publication issuer",
+                ))?;
         self.with_child(child, |c| {
+            let receiver =
+                c.name_policy_protocol()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "child alias publication issuer",
+                    ))?;
+            if producer != receiver {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "child alias producer realm",
+                ));
+            }
+            let selected = receiver
+                .recipe()
+                .child_alias_publication_input(tcl_syntax::naming::NativeNameContext::root(), name)
+                .map_err(|_| {
+                    ValueError::CommandProtocolUnavailable("child alias publication input")
+                })?;
+            let publication_name = selected
+                .alias_registration_report_bytes()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "child alias registration report",
+                ))?
+                .to_vec();
             let current = c.current_ns.get();
-            let Some((namespace, simple)) = c.namespaces_mut().alias_publication_at(current, name)
-            else {
-                return false;
-            };
-            c.bind_command_replacement(
+            let report = c.namespaces().jim_command_table_key_at(
+                current,
+                name,
+                tcl_syntax::naming::NativeNamePurpose::ChildAliasPublication,
+            );
+            let (namespace, simple) = c
+                .namespaces_mut()
+                .child_alias_publication_at(current, name)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "child alias publication holder",
+                ))?;
+            c.bind_command_replacement_with_jim_key(
                 namespace,
                 &simple,
                 Command::ParentAlias {
                     target,
                     prefix,
+                    publication_name,
                     jim_prefix,
                     identity: Rc::new(()),
                 },
+                report,
             );
-            true
+            Ok(true)
         })
-        .unwrap_or(false)
+        .unwrap_or(Ok(false))
     }
 
     /// The `(target, prefix)` of the alias bound to `name` (the query form), or
@@ -4543,10 +4600,10 @@ impl Interp {
         let snapshot =
             tcl_platform::bootstrap::snapshot(&*self.host(), "treewalk", env!("CARGO_PKG_VERSION"));
         for name in tcl_platform::bootstrap::HOST_ARRAYS {
-            self.var_unset_at(format!("::{name}").as_bytes(), 0);
+            self.quiet_var_unset_at(format!("::{name}").as_bytes(), 0);
         }
         for name in tcl_platform::bootstrap::HOST_PATH_GLOBALS {
-            self.var_unset_at(format!("::{name}").as_bytes(), 0);
+            self.quiet_var_unset_at(format!("::{name}").as_bytes(), 0);
         }
         self.ensure_array(b"::tcl_platform")
             .expect("fresh tcl_platform array");
@@ -5220,8 +5277,24 @@ impl Interp {
         )
     }
 
-    /// Frame-addressed [`var_unset`](Self::var_unset).
+    /// Operational byte removal in a genuine addressed variable frame.
     pub(crate) fn var_unset_at(&mut self, name: &[u8], level: usize) -> bool {
+        if self.observed_names.borrow().is_some() {
+            return self.observed_variable_unset(name, level).unwrap_or(false);
+        }
+        if level == self.frames.borrow().current_level() {
+            return self.var_unset(name);
+        }
+        let Ok(input) = self.combined_variable_input(name) else {
+            return false;
+        };
+        let root = input.root().selected().to_vec();
+        let element = input.element().map(|element| element.selected().to_vec());
+        self.unset_byte_variable_at(name, &root, element.as_deref(), level, false)
+    }
+
+    /// Storage-only removal for the quiet bootstrap clear/install boundary.
+    pub(crate) fn quiet_var_unset_at(&mut self, name: &[u8], level: usize) -> bool {
         if self.observed_names.borrow().is_some() {
             return self.observed_variable_unset(name, level).unwrap_or(false);
         }
@@ -5238,16 +5311,24 @@ impl Interp {
 
     /// Frame-addressed `unset name(key)`.
     pub(crate) fn var_unset_elem_at(&mut self, name: &[u8], key: &[u8], level: usize) -> bool {
-        if self.require_variable_name_protocol().is_err() {
+        if level == self.frames.borrow().current_level() {
+            return self.var_unset_elem(name, key);
+        }
+        let Ok(input) = self.separate_variable_input(name, Some(key)) else {
             return false;
         };
-        crate::vars::unset_elem_at(
-            &mut self.frames.borrow_mut(),
-            &mut self.namespaces.borrow_mut(),
-            name,
-            key,
-            level,
-        )
+        let root = input.root().selected().to_vec();
+        let key = input
+            .element()
+            .expect("separate member")
+            .selected()
+            .to_vec();
+        // Presentation only: the receiver retains separate original parts.
+        let mut spelling = name.to_vec();
+        spelling.push(b'(');
+        spelling.extend_from_slice(&key);
+        spelling.push(b')');
+        self.unset_byte_variable_at(&spelling, &root, Some(&key), level, true)
     }
 
     /// Frame-addressed [`var_exists`](Self::var_exists).
@@ -6330,16 +6411,21 @@ impl Interp {
         key: &[u8],
     ) -> bool {
         if let Some(record) = self.array_operation_target(target) {
-            crate::vars::unset_element_at_target(
-                &mut self.frames.borrow_mut(),
-                &mut self.namespaces.borrow_mut(),
-                &record,
-                key,
-            )
-        } else if target.cell_id().is_some() {
-            false
+            let Some((removed, home)) = crate::vars::unset_element_at_target(&record, key) else {
+                return false;
+            };
+            if removed && self.has_variable_traces() {
+                self.fire_selected_unset_callbacks(
+                    &home,
+                    target.name_bytes(),
+                    Some(key),
+                    target.name_bytes(),
+                    true,
+                );
+            }
+            removed
         } else {
-            self.var_unset_elem_at(target.name_bytes(), key, target.frame().0)
+            false
         }
     }
 
@@ -11297,7 +11383,12 @@ impl Interp {
                 let alias = obj_bytes(argv[2]);
                 let target = obj_bytes(argv[3]);
                 let prefix: Vec<Vec<u8>> = argv[4..].iter().map(|&a| obj_bytes(a)).collect();
-                self.install_parent_alias(name, &alias, target, prefix);
+                if !self.install_parent_alias(name, &alias, target, prefix) {
+                    if self.host_refusal_pending() {
+                        return Code::Error;
+                    }
+                    return self.error(b"could not find interpreter");
+                }
                 self.set_result(obj::new_string_bytes(&alias));
                 Code::Ok
             }
@@ -12069,6 +12160,7 @@ impl Interp {
             Command::ParentAlias {
                 target: b"clock".to_vec(),
                 prefix: Vec::new(),
+                publication_name: b"clock".to_vec(),
                 jim_prefix: None,
                 identity: Rc::new(()),
             },
@@ -12865,8 +12957,10 @@ impl Interp {
         };
         let Ok(bindings) = native_compilation::native_parameter_plan(params, supplied, grammar)
         else {
-            let message = self.proc_wrong_args(usage, params, supplied, meta.quote_name);
-            return self.wrong_arguments_message(&message);
+            return match self.proc_wrong_args(usage, params, supplied, meta.quote_name) {
+                Ok(message) => self.wrong_arguments_message(&message),
+                Err(error) => self.report_cmd_error(error.into()),
+            };
         };
         if grammar.skips_empty_body_activation() && body.is_empty() {
             self.set_result_bytes(b"");
@@ -13128,6 +13222,34 @@ impl Interp {
         self.native_proc_dispatches.get()
     }
 
+    fn ensemble_wrong_args_for_invocation(
+        &mut self,
+        argv: &[*mut TclObj],
+        parameters: &[Vec<u8>],
+    ) -> Code {
+        let Some(configuration) = self
+            .native_invocation_dialect()
+            .native_ensemble_configuration_protocol()
+        else {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "ensemble argument usage",
+                )
+                .into(),
+            );
+        };
+        let mut message = b"wrong # args: should be \"".to_vec();
+        message.extend_from_slice(&obj_bytes(argv[0]));
+        for parameter in parameters {
+            message.push(b' ');
+            crate::list::append_list_element(&mut message, parameter, false);
+        }
+        message.push(b' ');
+        message.extend_from_slice(configuration.missing_selector_usage());
+        message.push(b'"');
+        self.wrong_arguments_message(&message)
+    }
+
     /// The ensemble trampoline: resolve `argv[1]` against the subcommand set
     /// (exact, then unambiguous prefix unless `-prefixes 0`), map it to a target
     /// command prefix (`-map`, else `<ns>::<sub>`), and re-dispatch
@@ -13147,14 +13269,7 @@ impl Interp {
             let Some(layout) =
                 tcl_cmd_core::ensemble::invocation_layout(argv.len(), 1, cfg.parameters.len())
             else {
-                let mut m = b"wrong # args: should be \"".to_vec();
-                m.extend_from_slice(&obj_bytes(argv[0]));
-                for p in &cfg.parameters {
-                    m.push(b' ');
-                    crate::list::append_list_element(&mut m, p, false);
-                }
-                m.extend_from_slice(b" subcommand ?arg ...?\"");
-                return self.wrong_arguments_message(&m);
+                return self.ensemble_wrong_args_for_invocation(argv, &cfg.parameters);
             };
             let Some(configuration) = self
                 .native_invocation_dialect()
@@ -13218,14 +13333,7 @@ impl Interp {
                             1,
                             live.parameters.len(),
                         ) else {
-                            let mut m = b"wrong # args: should be \"".to_vec();
-                            m.extend_from_slice(&obj_bytes(argv[0]));
-                            for parameter in &live.parameters {
-                                m.push(b' ');
-                                crate::list::append_list_element(&mut m, parameter, false);
-                            }
-                            m.extend_from_slice(b" subcommand ?arg ...?\"");
-                            return self.wrong_arguments_message(&m);
+                            return self.ensemble_wrong_args_for_invocation(argv, &live.parameters);
                         };
                         let source: Vec<_> = argv
                             .iter()
@@ -14316,7 +14424,13 @@ impl Interp {
         params: &[Param<O>],
         supplied: usize,
         quote_name: bool,
-    ) -> Vec<u8> {
+    ) -> Result<Vec<u8>, tcl_syntax::value::ValueError> {
+        let protocol = self
+            .native_invocation_dialect()
+            .usage_protocol(Some(
+                tcl_registry::native_usage::LogicalUsageProvider::Tcl84CoreSimulation,
+            ))
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable("procedure usage"))?;
         if let Some(rw) = self.ensemble_rewrite() {
             // Print the first `removed` words of `source` (the chained
             // `numRemovedObjs`) in place of the target prefix, then the formal
@@ -14337,19 +14451,21 @@ impl Interp {
                     .map(|word| obj_bytes(word.as_ptr()))
                     .collect();
                 let prefix: Vec<_> = values.iter().map(Vec::as_slice).collect();
-                return proc_usage_words(
+                return Ok(proc_usage_words(
+                    protocol,
                     &prefix,
                     &params[drop..],
                     self.native_invocation_dialect().parameter_grammar(),
-                );
+                ));
             }
         }
-        proc_usage(
+        Ok(proc_usage(
+            protocol,
             called,
             params,
             quote_name,
             self.native_invocation_dialect().parameter_grammar(),
-        )
+        ))
     }
 }
 
@@ -14357,53 +14473,41 @@ impl Interp {
 /// formal `shown` parameters (`all` is the full parameter list, for the `args`
 /// catch-all test). Shared by the plain and ensemble-rewritten forms.
 fn proc_usage_words<O: obj::ObjectPointer>(
+    protocol: tcl_registry::native_usage::NativeUsageProtocol,
     words: &[&[u8]],
     shown: &[Param<O>],
     grammar: Option<tcl_dialect::ParameterGrammar>,
 ) -> Vec<u8> {
-    let mut message = b"wrong # args: should be \"".to_vec();
+    let mut header = Vec::new();
     for (index, word) in words.iter().enumerate() {
         if index > 0 {
-            message.push(b' ');
+            header.push(b' ');
         }
-        message.extend_from_slice(word);
+        header.extend_from_slice(word);
     }
-    append_formal_usage(&mut message, shown, grammar);
-    message.push(b'"');
-    message
+    protocol.render_procedure_message(&header, &formal_usage(shown, grammar))
 }
 
-fn append_formal_usage<O: obj::ObjectPointer>(
-    message: &mut Vec<u8>,
+fn formal_usage<O: obj::ObjectPointer>(
     params: &[Param<O>],
     grammar: Option<tcl_dialect::ParameterGrammar>,
-) {
+) -> Vec<u8> {
     let Some(grammar) = grammar else {
-        return;
+        return Vec::new();
     };
     let parameters = native_compilation::formal_parameters(params, grammar);
-    let suffix = tcl_syntax::formal_params::formal_parameter_usage_bytes(&parameters, grammar);
-    if !suffix.is_empty() {
-        message.push(b' ');
-        message.extend_from_slice(&suffix);
-    }
+    tcl_syntax::formal_params::formal_parameter_usage_bytes(&parameters, grammar)
 }
 
 fn proc_usage<O: obj::ObjectPointer>(
+    protocol: tcl_registry::native_usage::NativeUsageProtocol,
     called: &[u8],
     params: &[Param<O>],
     quote_name: bool,
     grammar: Option<tcl_dialect::ParameterGrammar>,
 ) -> Vec<u8> {
-    let mut message = b"wrong # args: should be \"".to_vec();
-    if quote_name {
-        crate::list::append_list_element(&mut message, called, false);
-    } else {
-        message.extend_from_slice(called);
-    }
-    append_formal_usage(&mut message, params, grammar);
-    message.push(b'"');
-    message
+    let header = protocol.render_procedure_name(called, quote_name);
+    protocol.render_procedure_message(&header, &formal_usage(params, grammar))
 }
 
 /// The word a call was written with — `argv[0]`, C's `objv[0]`.
@@ -15838,6 +15942,7 @@ mod tests {
             let alias = |target: &[u8]| Command::Alias {
                 target: target.to_vec(),
                 prefix: Vec::new(),
+                publication_name: target.to_vec(),
                 jim_prefix: None,
                 identity: Rc::new(()),
             };
@@ -17331,3 +17436,6 @@ mod native_command_traces;
 mod native_error_headers;
 mod native_return_instruction;
 mod native_trace_result;
+
+#[cfg(test)]
+mod native_child_alias_publication_tests;

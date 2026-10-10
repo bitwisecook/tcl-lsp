@@ -193,6 +193,22 @@ impl NativeElementAliasEntry {
             epoch: self.epoch,
         })
     }
+    /// The active retirement callback retains this original entry for trace
+    /// list changes, even after value access has become invalid.
+    pub(crate) fn permits_trace_registration(&self) -> bool {
+        self.is_live()
+            || (self.entry.trace_refs.get() != 0
+                && self.entry.table_owned.get()
+                && self.array.upgrade().is_some_and(|array| {
+                    array.borrow().detached_arrays.values().any(|old| {
+                        old.native_keys
+                            .0
+                            .get(&self.entry.id)
+                            .is_some_and(|entry| Rc::ptr_eq(entry, &self.entry))
+                    })
+                }))
+    }
+
     pub(crate) fn is_live(&self) -> bool {
         !self.entry.retired.get()
             && self.array.upgrade().is_some_and(|array| {
@@ -406,6 +422,30 @@ mod tests {
         assert_eq!(unsafe { (*key.as_ptr()).ref_count }, 1);
         assert_eq!(unsafe { (*replacement.as_ptr()).ref_count }, 2);
         assert!(table.load_elem(b"a", b"k").is_some());
+    }
+
+    #[test]
+    fn active_retirement_keeps_trace_registration_separate_from_value_access() {
+        // naming.variable.original-array-member-trace-retirement-horizon
+        // docs/design/analysis/name-resolution-proofs/variable-original-array-member-trace-retirement-horizon.md
+        // Software allocation control; the native proof observes callback logs.
+        let mut table = VarTable::default();
+        let value = Owned::fresh(obj::new_string_bytes(b"one"));
+        table
+            .prepare_original_native_element(b"a", b"k", None)
+            .unwrap();
+        table.store_elem(b"a", b"k", value.as_ptr()).unwrap();
+        let original = table.capture_array_cell(b"a").unwrap();
+        let alias = original.retain_element_alias(b"k").unwrap();
+        let retired = table.begin_array_destruction(b"a").unwrap();
+        let trace = retired.begin_member_retirement(b"k", true, true).unwrap();
+        retired.retire_member(b"k");
+        assert!(!alias.is_live());
+        assert!(alias.permits_trace_registration());
+        drop(trace);
+        assert!(!alias.permits_trace_registration());
+        retired.finish_destruction();
+        assert!(!alias.permits_trace_registration());
     }
 
     #[test]

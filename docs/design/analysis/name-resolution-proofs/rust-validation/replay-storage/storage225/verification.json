@@ -1,0 +1,30 @@
+{
+  "rust-elf-lossless-storage225.jsonl": {
+    "journal_sha256": "10204732d51bcece163d0e7a4c13cc70a25d4ea55f5c1bd313ce8840c81ad941",
+    "journal_bytes": 1870,
+    "entries": 3,
+    "original_bytes": 294777560,
+    "compressed_bytes": 58976477,
+    "archive_members": 0
+  },
+  "inactive-run-receipt-storage225.jsonl": {
+    "journal_sha256": "8dbd0dc42d751589c08f4f0d654bff6d104dcebb7b2c61920f27aaf0e6f5a752",
+    "journal_bytes": 378159,
+    "entries": 591,
+    "original_bytes": 1345411143,
+    "compressed_bytes": 230356966,
+    "archive_members": 0
+  },
+  "inactive-publication-staging225.jsonl": {
+    "journal_sha256": "0762776871251b82915ddb83cb1af365f6b59e0390eeb46b2c15cbb33693d78e",
+    "journal_bytes": 1971372,
+    "entries": 85,
+    "original_bytes": 4037367360,
+    "compressed_bytes": 549665054,
+    "archive_members": 8923
+  },
+  "verification": {
+    "seconds": 39.01998249802273,
+    "method": "Every compressed byte stream SHA/length and every decompressed original byte stream or tar member SHA/length/mode independently checked. Original artifacts are neither restored nor edited; no source/provider/replay pin changes or native/Rust launches."
+  }
+}

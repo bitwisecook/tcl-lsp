@@ -79,22 +79,16 @@ pub fn switch_to_dict(
         tcl_registry::hooks::LoweringHookId::Switch,
         RewriteObligation::FreshStoreAndInsertion,
     )?;
+    let original = super::original_exact_case_source_at_analysis(
+        source,
+        analysis,
+        cmd.argv.first()?.span.start(),
+    )?;
     if let Some(obligation) = obligation {
         return Some(obligation.refusal("Convert to dict lookup"));
     }
-    let texts = &cmd.texts;
-    if texts.len() < 3 {
-        return None;
-    }
-
-    // Only `-exact` mode is convertible; the helper yields the subject and
-    // the pattern/body pairs (single braced list or separate words).
-    let (subject, pairs) = super::parse_exact_switch(texts)?;
-    if pairs.is_empty() {
-        return None;
-    }
-
-    let arms = parse_arms(&pairs, config)?;
+    let subject = original.subject().try_text().ok()?;
+    let arms = parse_arms(original.pairs(), config)?;
     if arms.dict_entries.len() < 2 {
         return None;
     }
@@ -103,7 +97,16 @@ pub fn switch_to_dict(
         .split('\n')
         .nth(line_index.line_at(cmd.span.start()) as usize)
         .map_or("", super::line_indent);
-    let replacement = build_dict_replacement(&arms, &subject, indent);
+    let replacement = build_dict_replacement(&arms, subject, indent, config)?;
+    let generated = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(&replacement),
+        tcl_lexer::Span::new(0, u32::try_from(replacement.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    if generated.fatal_tail.is_some() || generated.commands.len() != 2 {
+        return None;
+    }
 
     let (start, end) = super::command_span_offsets(source, &cmd);
     let title = if arms.use_return {
@@ -191,13 +194,40 @@ fn parse_arms(pairs: &[(String, String)], config: LexerConfig) -> Option<ParsedA
     })
 }
 
+/// Completed literal keys enter proposed Tcl source through the shared list
+/// renderer, then the same selected source grammar verifies one literal word.
+fn literal_pattern_source(value: &str, config: LexerConfig) -> Option<String> {
+    let proposed = tcl_syntax::list::list_element(value);
+    let parsed = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(&proposed),
+        tcl_lexer::Span::new(0, u32::try_from(proposed.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    let [command] = parsed.commands.as_slice() else {
+        return None;
+    };
+    let [word] = command.words.as_slice() else {
+        return None;
+    };
+    (parsed.fatal_tail.is_none()
+        && tcl_syntax::word_rules::original_static_word_source_bytes(word)?.as_slice()
+            == value.as_bytes())
+    .then_some(proposed)
+}
+
 /// Build the `dict create` + lookup replacement from the parsed arms.
-fn build_dict_replacement(arms: &ParsedArms, subject: &str, indent: &str) -> String {
+fn build_dict_replacement(
+    arms: &ParsedArms,
+    subject: &str,
+    indent: &str,
+    config: LexerConfig,
+) -> Option<String> {
     let dict_items = arms
         .dict_entries
         .iter()
-        .map(|(k, v)| format!("{k} {v}"))
-        .collect::<Vec<_>>()
+        .map(|(k, v)| Some(format!("{} {v}", literal_pattern_source(k, config)?)))
+        .collect::<Option<Vec<_>>>()?
         .join(" ");
     let dict_name = if arms.use_return {
         "result_map".to_owned()
@@ -232,7 +262,7 @@ fn build_dict_replacement(arms: &ParsedArms, subject: &str, indent: &str) -> Str
             "{indent}set {target_var} [dict get ${dict_name} {subject}]"
         ));
     }
-    parts.join("\n")
+    Some(parts.join("\n"))
 }
 
 #[cfg(test)]
@@ -254,11 +284,10 @@ mod tests {
         let r = run(source, 0).expect("result");
         assert!(r.title.to_lowercase().contains("dict"));
         let applied = r.apply(source);
-        // The segmenter canonicalises the `$method` subject to
-        // `${method}`.
+        // The genuine subject retains its original source spelling.
         assert_eq!(
             applied,
-            "set handler_map [dict create GET handle_get POST handle_post PUT handle_put]\nset handler [dict get $handler_map ${method}]"
+            "set handler_map [dict create GET handle_get POST handle_post PUT handle_put]\nset handler [dict get $handler_map $method]"
         );
         assert!(applied.contains("dict create"), "{applied:?}");
         assert!(applied.contains("dict get"), "{applied:?}");
@@ -318,5 +347,120 @@ mod tests {
         let analysis = super::super::source_rewrite::lexical_analysis(source, &reg);
         let r = switch_to_dict(source, cursor, &analysis, &li).expect("nested result");
         assert!(r.title.to_lowercase().contains("dict"));
+    }
+
+    #[test]
+    fn original_dictionary_conversion_keeps_selected_case_shape_and_original_subject() {
+        // Implementation contract: naming.refactor.original-exact-case-source
+        // docs/design/analysis/name-resolution-proofs/original-exact-case-source.md
+        for subject in ["{$x}", "fixed", "\"literal$x\"", "$array(key)", "${a b}"] {
+            let source =
+                format!("switch -exact -- {subject} {{a {{return one}} b {{return two}}}}");
+            let registry = super::super::test_registry();
+            let analysis = super::super::source_rewrite::lexical_analysis(&source, &registry);
+            let original =
+                super::super::original_exact_case_source_at_analysis(&source, &analysis, 0)
+                    .expect("genuine exact source layout");
+            assert_eq!(original.subject().try_text().unwrap(), subject);
+            assert_eq!(
+                original.pairs(),
+                &[
+                    ("a".to_owned(), "return one".to_owned()),
+                    ("b".to_owned(), "return two".to_owned())
+                ]
+            );
+            let result = switch_to_dict(&source, 0, &analysis, &LineIndex::new(&source))
+                .expect("explicit Logical source rewrite");
+            assert!(result.disabled.is_none());
+            assert_eq!(result.edits.len(), 1);
+            assert!(
+                result
+                    .apply(&source)
+                    .contains(&format!("dict get $result_map {subject}")),
+                "{subject}"
+            );
+            if subject != "${a b}" {
+                assert!(
+                    super::super::original_exact_switch_source_at_analysis(&source, &analysis, 0)
+                        .is_none()
+                );
+            }
+        }
+        let source = "switch -exact -- {$x} {{a b} {return one} {$literal} {return two} {[get]} {return three}}";
+        let applied = run(source, 0).expect("literal case data").apply(source);
+        assert_eq!(
+            applied,
+            "set result_map [dict create {a b} one {$literal} two {[get]} three]\nreturn [dict get $result_map {$x}]"
+        );
+        let positional = "switch -- -nocase {a {return one} b {return two}}";
+        assert!(
+            run(positional, 0)
+                .expect("option-shaped subject is data after --")
+                .apply(positional)
+                .contains("dict get $result_map -nocase")
+        );
+        for options in [
+            "-nocase --",
+            "-exact -nocase --",
+            "-unknown --",
+            "-glob --",
+            "$options --",
+            "{*}$options --",
+        ] {
+            let source = format!("switch {options} $x {{a {{return one}} b {{return two}}}}");
+            assert!(run(&source, 0).is_none(), "{options}");
+        }
+    }
+
+    #[test]
+    fn original_dictionary_conversion_keeps_effective_alias_layout_and_current_source() {
+        // Implementation contract: naming.refactor.original-exact-case-source
+        // docs/design/analysis/name-resolution-proofs/original-exact-case-source.md
+        let source = "interp alias {} choose {} switch -exact --\nchoose {$x} {a {return one} b {return two}}";
+        let cursor = u32::try_from(source.rfind("choose").unwrap()).unwrap();
+        let registry = super::super::test_registry();
+        let mut analysis = super::super::source_rewrite::lexical_analysis(source, &registry);
+        let original =
+            super::super::original_exact_case_source_at_analysis(source, &analysis, cursor)
+                .expect("selected bound prefix with genuine call operand");
+        assert_eq!(original.subject().try_text().unwrap(), "{$x}");
+        let result = switch_to_dict(source, cursor, &analysis, &LineIndex::new(source))
+            .expect("Logical alias source rewrite");
+        assert_eq!(result.edits[0].start, cursor);
+        assert!(result.apply(source).contains("dict get $result_map {$x}"));
+        assert!(
+            switch_to_dict(
+                &format!("# changed\n{source}"),
+                cursor,
+                &analysis,
+                &LineIndex::new(source)
+            )
+            .is_none()
+        );
+        analysis.resolved_input = None;
+        assert!(switch_to_dict(source, cursor, &analysis, &LineIndex::new(source)).is_none());
+        let shadow = "proc switch {args} {}\nswitch -exact -- $x {a {return one} b {return two}}";
+        let cursor = u32::try_from(shadow.rfind("switch").unwrap()).unwrap();
+        assert!(run(shadow, cursor).is_none());
+    }
+
+    #[test]
+    fn original_dictionary_case_receipt_does_not_grant_native_rewrite_permissions() {
+        // Implementation contract: naming.refactor.original-exact-case-source
+        // docs/design/analysis/name-resolution-proofs/original-exact-case-source.md
+        let source = "switch -exact -- {$x} {a {return one} b {return two}}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let original = super::super::original_exact_case_source_at_analysis(source, &analysis, 0)
+            .expect("conditional original source layout");
+        assert_eq!(original.subject().try_text().unwrap(), "{$x}");
+        let result = switch_to_dict(source, 0, &analysis, &LineIndex::new(source))
+            .expect("selected source action with independent missing permission");
+        assert!(result.edits.is_empty());
+        assert!(
+            result
+                .disabled
+                .unwrap()
+                .starts_with("missing-fresh-store-and-insertion:")
+        );
     }
 }

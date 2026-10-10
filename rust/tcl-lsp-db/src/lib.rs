@@ -2258,7 +2258,6 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
     let global_write_procs: HashMap<String, GlobalWriteInfo> =
         context.global_write_ctx(db).iter().cloned().collect();
     let registry = key.snapshot(db).registry.registry();
-    let profile = key.snapshot(db).profile.map(|snapshot| snapshot.profile());
     // The request's exact grammar, not one reconstructed from the registry or
     // environment name: grammar overrides are part of the memo identity.
     let config = key.lexer_config(db);
@@ -2296,7 +2295,11 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
             cfg,
             key.params(db),
             tcl_compiler::compilation_unit::FunctionLatticeInputs {
-                dialect: tcl_compiler::compilation_unit::UnitDialect { registry, config, source_metadata_input: key.entry(db).source_metadata_input.as_ref() },
+                dialect: tcl_compiler::compilation_unit::UnitDialect {
+                    registry,
+                    config,
+                    source_metadata_input: key.entry(db).source_metadata_input.as_ref(),
+                },
                 param_constants: param_constants.as_ref(),
                 known_classes: &known_classes,
                 trace_facts,
@@ -2308,9 +2311,8 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
                     .map(|event| (event, key.body(db))),
             },
         )
-        .with_semantic_analysis(
+        .with_retained_semantic_analysis(
             registry,
-            tcl_compiler::compilation_unit::semantic_context(profile),
             Some(key.body(db)),
             // A procedure body runs only after arbitrary interposed history,
             // so its dispatch proofs start from an unknown world.
@@ -5194,6 +5196,80 @@ p\uD801 ordinary";
             );
         }
         assert!(Arc::ptr_eq(&current, &function_lattice(&db, selected)));
+    }
+
+    fn semantic_bundle_has_selected_invocation(
+        unit: &tcl_compiler::compilation_unit::FunctionUnit,
+    ) -> bool {
+        unit.semantic_facts.executable().invocations().any(|call| {
+            matches!(
+                call.resolution,
+                tcl_compiler::executable_ir::InvocationResolution::Resolved(_)
+            )
+        })
+    }
+
+    #[test]
+    fn function_lattice_semantic_bundle_uses_retained_availability() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let db = TclDatabase::default();
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut puts = registry.get("puts").unwrap().clone();
+        puts.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(puts);
+        let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        let mut lowerer = tcl_compiler::lowering::Lowerer::with_config(current.commands(), config)
+            .with_dialect(current.commands().profile())
+            .with_context_registry(Arc::clone(&current));
+        let module = lowerer.lower("puts VALUE").clone();
+        let input = module.source_metadata_input.as_ref().unwrap();
+        let selected = supplied_cfg_lattice_key(&db, &module, Some(input.clone()));
+        assert!(semantic_bundle_has_selected_invocation(&function_lattice(
+            &db, selected
+        )));
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(current.commands())),
+        );
+        let unavailable = supplied_cfg_lattice_key(
+            &db,
+            &module,
+            Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                older,
+                input.lexer_config(),
+            )),
+        );
+        assert!(selected != unavailable);
+        assert!(!semantic_bundle_has_selected_invocation(&function_lattice(
+            &db,
+            unavailable
+        )));
+        let foreign = supplied_cfg_lattice_key(
+            &db,
+            &module,
+            Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                input.analyser_profile(),
+                input.unit_profile(),
+                tcl_registry::model::ingress::resolve_environment("tcl9.1")
+                    .default_context_registry(),
+                input.lexer_config(),
+            )),
+        );
+        let missing = supplied_cfg_lattice_key(&db, &module, None);
+        for negative in [foreign, missing] {
+            assert!(selected != negative);
+            assert!(matches!(
+                function_lattice(&db, negative).semantic_facts.executable(),
+                tcl_compiler::semantic_analysis::ExecutableAnalysisAvailability::ContextUnavailable
+            ));
+        }
     }
 
     #[test]

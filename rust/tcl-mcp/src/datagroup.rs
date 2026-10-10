@@ -25,8 +25,9 @@
 //! analysis independently selects lexical editing advice and the deterministic
 //! extractor ([`extract_to_datagroup`]) accepts the construct.
 //!
-//! This is an AI-only heuristic: segmentation comes from [`walk_commands`] and
-//! the static-extractability check from [`extract_to_datagroup`].
+//! Syntax traversal retains the actual source and selected grammar. Switch
+//! subjects and case layouts use Core's shared original source receipt; body
+//! descriptions remain heuristic advice with independent edit eligibility.
 
 use std::net::{Ipv4Addr, Ipv6Addr};
 
@@ -35,16 +36,13 @@ use serde_json::{Value, json};
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LexerConfig, LineIndex};
-use tcl_lsp_core::refactor::{extract_to_datagroup, walk_commands};
-use tcl_syntax::switch_body::parse_braced_pairs;
+use tcl_lsp_core::refactor::{
+    OriginalExactSwitchSource, extract_to_datagroup, original_exact_switch_source_at_analysis,
+    scalar_variable_source_syntax,
+};
+use tcl_lsp_core::source_structure::SourceSyntaxStructure;
 
 const DIALECT: &str = "f5-irules";
-
-/// This module's whole job is scanning iRules source (`DIALECT` is fixed),
-/// so its lexing grammar is resolved once, here, rather than per call.
-fn config() -> LexerConfig {
-    LexerConfig::from_grammar(crate::environment::profile_for_dialect(DIALECT).grammar)
-}
 
 /// MCP handler: `{candidates:[…], total:int}` for the `source` argument.
 pub fn suggest_datagroup_extractions(args: &Value) -> Value {
@@ -104,16 +102,21 @@ fn suggest_for_analysis(source: &str, analysis: &AnalysisResult) -> Vec<Value> {
     let line_index = LineIndex::new(source);
     let mut out = Vec::new();
 
-    for (texts, line, character) in walk_commands(source, registry, config) {
-        let Some(head) = texts.first() else { continue };
-        let mut cand = match head.as_str() {
-            "if" => analyse_if_chain(&texts, line),
-            "switch" => analyse_switch(&texts, line),
-            _ => None,
+    let Some(structure) = SourceSyntaxStructure::capture(source, analysis) else {
+        return out;
+    };
+    for command in structure.commands() {
+        let Some(head) = command.argv.first() else {
+            continue;
         };
+        let cursor = head.span.start();
+        let line = line_index.position_at_utf16(cursor, source).line;
+        let mut cand = original_exact_switch_source_at_analysis(source, analysis, cursor)
+            .and_then(|original| analyse_switch(&original, line, config));
+        if cand.is_none() && command.texts.first().is_some_and(|head| head == "if") {
+            cand = analyse_if_chain(&command.texts, line, config);
+        }
         if let Some(c) = cand.as_mut() {
-            let cursor =
-                line_index.offset_at_utf16(line, tcl_lexer::Utf16Col::new(character), source);
             c.has_static_extraction = analysis.allows_lexical_declaration_advice()
                 && extract_to_datagroup(source, cursor, "", registry, &line_index, config)
                     .is_some();
@@ -231,22 +234,18 @@ fn eq_regexes() -> &'static EqRegexes {
     static RE: std::sync::OnceLock<EqRegexes> = std::sync::OnceLock::new();
     RE.get_or_init(|| EqRegexes {
         // `$var OP value` / `"$var" OP value`.
-        forward: Regex::new(
-            r#"(?x) ^ \s* (?: \$ \{? (\w+) \}? | " \$ \{? (\w+) \}? " ) \s+ (eq|==|ne|!=) \s+ (.+?) \s* $ "#,
-        )
-        .expect("forward eq regex"),
+        forward: Regex::new(r#"(?x) ^ \s* (.+?) \s+ (eq|==|ne|!=) \s+ (.+?) \s* $ "#)
+            .expect("forward eq regex"),
         // `value OP $var` / `value OP "$var"`.
-        reverse: Regex::new(
-            r#"(?x) ^ \s* (.+?) \s+ (eq|==|ne|!=) \s+ (?: \$ \{? (\w+) \}? | " \$ \{? (\w+) \}? " ) \s* $ "#,
-        )
-        .expect("reverse eq regex"),
+        reverse: Regex::new(r#"(?x) ^ \s* (.+) \s+ (eq|==|ne|!=) \s+ (.+?) \s* $ "#)
+            .expect("reverse eq regex"),
         or_split: Regex::new(r"\s*\|\|\s*").expect("or-split regex"),
     })
 }
 
 /// Parse a simple equality test into `(var, value, negated)` (unwraps
 /// `{ … }`, handles a leading `!( … )` negation).
-fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
+fn parse_eq(cond: &str, config: LexerConfig) -> Option<(String, String, bool)> {
     let mut cond = cond.trim();
     if cond.len() >= 2 && cond.starts_with('{') && cond.ends_with('}') {
         cond = cond[1..cond.len() - 1].trim();
@@ -262,26 +261,28 @@ fn parse_eq(cond: &str) -> Option<(String, String, bool)> {
     }
 
     let res = eq_regexes();
-    if let Some(m) = res.forward.captures(cond) {
-        let var = m.get(1).or_else(|| m.get(2))?.as_str().to_owned();
-        let op = m.get(3)?.as_str();
+    if let Some(m) = res.forward.captures(cond)
+        && let Some(subject) = scalar_variable_source_syntax(m.get(1)?.as_str().trim(), config)
+    {
+        let op = m.get(2)?.as_str();
         let is_ne = op == "ne" || op == "!=";
-        let value = m.get(4)?.as_str().trim().to_owned();
-        return Some((var, value, negated ^ is_ne));
+        let value = m.get(3)?.as_str().trim().to_owned();
+        return Some((subject.name().to_owned(), value, negated ^ is_ne));
     }
-    if let Some(m) = res.reverse.captures(cond) {
-        let var = m.get(3).or_else(|| m.get(4))?.as_str().to_owned();
+    if let Some(m) = res.reverse.captures(cond)
+        && let Some(subject) = scalar_variable_source_syntax(m.get(3)?.as_str().trim(), config)
+    {
         let op = m.get(2)?.as_str();
         let is_ne = op == "ne" || op == "!=";
         let value = m.get(1)?.as_str().trim().to_owned();
-        return Some((var, value, negated ^ is_ne));
+        return Some((subject.name().to_owned(), value, negated ^ is_ne));
     }
     None
 }
 
 /// Detect `$var eq "a" || $var eq "b" || …` chains — returns the shared
 /// variable and its compared values.
-fn try_or_chain(condition: &str) -> Option<(String, Vec<String>)> {
+fn try_or_chain(condition: &str, config: LexerConfig) -> Option<(String, Vec<String>)> {
     let mut cond = condition.trim();
     if cond.len() >= 2 && cond.starts_with('{') && cond.ends_with('}') {
         cond = cond[1..cond.len() - 1].trim();
@@ -293,7 +294,7 @@ fn try_or_chain(condition: &str) -> Option<(String, Vec<String>)> {
     let mut target_var: Option<String> = None;
     let mut values = Vec::new();
     for part in parts {
-        let (var, value, negated) = parse_eq(part.trim())?;
+        let (var, value, negated) = parse_eq(part.trim(), config)?;
         if negated {
             return None;
         }
@@ -311,25 +312,6 @@ fn try_or_chain(condition: &str) -> Option<(String, Vec<String>)> {
     Some((target_var, values))
 }
 
-/// Extract a variable name from a `$var` / `${var}` switch subject.
-fn extract_var_name(subject: &str) -> Option<String> {
-    let s = subject.trim();
-    if let Some(inner) = s.strip_prefix("${").and_then(|x| x.strip_suffix('}')) {
-        return Some(inner.to_owned());
-    }
-    if let Some(name) = s.strip_prefix('$')
-        && !name.is_empty()
-        && name
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
-        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
-    {
-        return Some(name.to_owned());
-    }
-    None
-}
-
 // ── Body-shape analysis ───────────────────────────────────────────────
 
 /// A single-command arm body parsed as `set var val` or `return val`.
@@ -340,8 +322,8 @@ enum SetOrReturn {
 
 /// Parse a single-command arm body via the segmenter (like the Rust static
 /// extractor's `parse_set_or_return`, keeping only the kind + `set` variable).
-fn parse_set_or_return(text: &str) -> Option<SetOrReturn> {
-    let commands = segment_commands_with_offset_and_config(text, 0, config());
+fn parse_set_or_return(text: &str, config: LexerConfig) -> Option<SetOrReturn> {
+    let commands = segment_commands_with_offset_and_config(text, 0, config);
     if commands.len() != 1 || commands[0].texts.is_empty() {
         return None;
     }
@@ -357,7 +339,7 @@ fn parse_set_or_return(text: &str) -> Option<SetOrReturn> {
 
 /// Classify a set of arm bodies as `set_mapping`, `return_mapping`, or
 /// `complex`.
-fn classify_body_shape(bodies: &[String]) -> &'static str {
+fn classify_body_shape(bodies: &[String], config: LexerConfig) -> &'static str {
     let mut target_var: Option<String> = None;
     let mut use_return: Option<bool> = None;
 
@@ -366,7 +348,7 @@ fn classify_body_shape(bodies: &[String]) -> &'static str {
         if text.len() >= 2 && text.starts_with('{') && text.ends_with('}') {
             text = text[1..text.len() - 1].trim();
         }
-        match parse_set_or_return(text) {
+        match parse_set_or_return(text, config) {
             Some(SetOrReturn::Set(var)) => match &target_var {
                 None => {
                     target_var = Some(var);
@@ -395,12 +377,12 @@ fn classify_body_shape(bodies: &[String]) -> &'static str {
 
 /// The body shape: `identical` when every body is the same trimmed text, else
 /// the [`classify_body_shape`] result.
-fn body_shape(bodies: &[String]) -> &'static str {
+fn body_shape(bodies: &[String], config: LexerConfig) -> &'static str {
     let set: std::collections::BTreeSet<&str> = bodies.iter().map(|b| b.trim()).collect();
     if set.len() == 1 {
         "identical"
     } else {
-        classify_body_shape(bodies)
+        classify_body_shape(bodies, config)
     }
 }
 
@@ -416,7 +398,7 @@ fn confidence_for(shape: &str) -> &'static str {
 
 /// Analyse an `if`/`elseif` chain (or single OR-chain condition) comparing one
 /// variable to literals.
-fn analyse_if_chain(texts: &[String], line: u32) -> Option<Candidate> {
+fn analyse_if_chain(texts: &[String], line: u32, config: LexerConfig) -> Option<Candidate> {
     if texts.len() < 3 {
         return None;
     }
@@ -425,7 +407,7 @@ fn analyse_if_chain(texts: &[String], line: u32) -> Option<Candidate> {
     let mut values: Vec<String> = Vec::new();
     let mut bodies: Vec<String> = Vec::new();
 
-    if let Some((var, or_values)) = try_or_chain(&texts[1]) {
+    if let Some((var, or_values)) = try_or_chain(&texts[1], config) {
         target_var = Some(var);
         values = or_values;
         bodies.push(texts[2].clone());
@@ -446,7 +428,7 @@ fn analyse_if_chain(texts: &[String], line: u32) -> Option<Candidate> {
             let body = texts[i + 1].clone();
             i += 2;
 
-            let (var, value, negated) = parse_eq(word)?;
+            let (var, value, negated) = parse_eq(word, config)?;
             if negated {
                 return None;
             }
@@ -468,7 +450,7 @@ fn analyse_if_chain(texts: &[String], line: u32) -> Option<Candidate> {
     let stripped: Vec<String> = values.iter().map(|v| strip_quotes(v).to_owned()).collect();
     let value_type = infer_value_type(&stripped);
     let has_cidr = any_cidr(&stripped);
-    let shape = body_shape(&bodies);
+    let shape = body_shape(&bodies, config);
     let value_count = values.len();
 
     Some(Candidate {
@@ -487,56 +469,27 @@ fn analyse_if_chain(texts: &[String], line: u32) -> Option<Candidate> {
 }
 
 /// Analyse a `switch -exact` over literal patterns.
-fn analyse_switch(texts: &[String], line: u32) -> Option<Candidate> {
-    let mut i = 1;
-    let mut mode = "exact";
-    while i < texts.len() && texts[i].starts_with('-') {
-        let flag = texts[i].as_str();
-        match flag {
-            "-exact" | "-glob" | "-regexp" => mode = &flag[1..],
-            "--" => {
-                i += 1;
-                break;
-            }
-            _ => {}
-        }
-        i += 1;
-    }
+fn analyse_switch(
+    original: &OriginalExactSwitchSource,
+    line: u32,
+    config: LexerConfig,
+) -> Option<Candidate> {
+    let subject_var = original.subject().name().to_owned();
+    let pairs = original.pairs();
 
-    if mode != "exact" || i >= texts.len() {
-        return None;
-    }
-
-    let subject_var = extract_var_name(&texts[i])?;
-    i += 1;
-
-    let pairs: Vec<(String, String)> = if i + 1 == texts.len() {
-        parse_braced_pairs(&texts[i])
-    } else {
-        let mut p = Vec::new();
-        while i + 1 < texts.len() {
-            p.push((texts[i].clone(), texts[i + 1].clone()));
-            i += 2;
-        }
-        p
-    };
-
-    let regular: Vec<(String, String)> = pairs
-        .into_iter()
+    let regular: Vec<&(String, String)> = pairs
+        .iter()
         .filter(|(pat, body)| pat != "default" && body.trim() != "-")
         .collect();
     if regular.len() < 3 {
         return None;
     }
 
-    let keys: Vec<String> = regular
-        .iter()
-        .map(|(p, _)| strip_quotes(p).to_owned())
-        .collect();
+    let keys: Vec<String> = regular.iter().map(|(p, _)| p.clone()).collect();
     let value_type = infer_value_type(&keys);
     let has_cidr = any_cidr(&keys);
     let bodies: Vec<String> = regular.iter().map(|(_, b)| b.trim().to_owned()).collect();
-    let shape = body_shape(&bodies);
+    let shape = body_shape(&bodies, config);
     let value_count = regular.len();
 
     Some(Candidate {
@@ -556,6 +509,53 @@ fn analyse_switch(texts: &[String], line: u32) -> Option<Candidate> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn selected_if_suggestions_share_actual_scalar_reference_grammar() {
+        // Implementation contract: naming.refactor.selected-if-scalar-source-syntax
+        // docs/design/analysis/name-resolution-proofs/selected-if-scalar-source-syntax.md
+        for (dialect, subject, root) in [
+            ("tcl8.6", "${a b}", "a b"),
+            ("tcl9.1", "${a{b}c}", "a{b}c"),
+            ("f5-irules", "\"${café}\"", "café"),
+            ("jim", "$café", "café"),
+            ("tcl8.6", "${a(k)tail}", "a(k)tail"),
+            ("tcl8.6", "${literal$name}", "literal$name"),
+        ] {
+            let source = format!("if {{{subject} eq \"a\" || {subject} eq \"b\"}} {{drop}}");
+            let analysis = crate::tools::analyse(&source, dialect);
+            let candidates = suggest_for_analysis(&source, &analysis);
+            assert_eq!(candidates.len(), 1, "{dialect}: {source}");
+            assert_eq!(candidates[0]["variable"], root);
+            assert_eq!(candidates[0]["value_count"], 2);
+            assert_eq!(candidates[0]["has_static_extraction"], false);
+        }
+        for subject in [
+            "$a(k)",
+            "${a(k)}",
+            "$café",
+            "\"$x[set y]\"",
+            "{$x}",
+            "$x.tail",
+        ] {
+            let source = format!(
+                "if {{{subject} eq \"a\"}} {{drop}} elseif {{{subject} eq \"b\"}} {{drop}}"
+            );
+            let analysis = crate::tools::analyse(&source, "tcl8.6");
+            assert!(
+                suggest_for_analysis(&source, &analysis).is_empty(),
+                "{subject:?}"
+            );
+        }
+        let first = LexerConfig::for_dialect("tcl8.6");
+        let jim = LexerConfig::for_dialect("jim");
+        assert!(parse_eq("$café eq one", first).is_none());
+        assert_eq!(parse_eq("one\teq\t$café", jim).unwrap().0, "café");
+        assert!(parse_eq("${missing eq one", first).is_none());
+        assert!(try_or_chain("$x eq one || $y eq two", first).is_none());
+        assert!(try_or_chain("$x eq one || !($x eq two)", first).is_none());
+    }
+
     use super::*;
 
     fn candidates(source: &str) -> Vec<Value> {
@@ -681,5 +681,67 @@ mod tests {
         let out = suggest_datagroup_extractions(&json!({ "source": source }));
         assert_eq!(out["total"], 1);
         assert!(out["candidates"].is_array());
+    }
+
+    #[test]
+    fn original_switch_suggestions_share_scalar_subject_and_literal_case_values() {
+        // Implementation contract: naming.refactor.original-datagroup-variable-subject
+        // docs/design/analysis/name-resolution-proofs/original-datagroup-variable-subject.md
+        for (subject, name) in [
+            ("${café}", "café"),
+            ("\"${a b}\"", "a b"),
+            ("${literal$name}", "literal$name"),
+            (r"${a\b}", r"a\b"),
+            ("${a(}", "a("),
+            ("${a(k)tail}", "a(k)tail"),
+        ] {
+            let source =
+                format!("switch -exact -- {subject} {{GET {{drop}} POST {{drop}} PUT {{drop}}}}");
+            let c = candidates(&source);
+            assert_eq!(c.len(), 1, "{subject}");
+            assert_eq!(c[0]["variable"], name);
+            assert_eq!(c[0]["values"], json!(["GET", "POST", "PUT"]));
+            assert_eq!(c[0]["has_static_extraction"], false);
+        }
+        for subject in [
+            "{$x}", "{${x}}", r"\$x", "$x-tail", "$a(k)", "${a(k)}", "[get]", "$café",
+        ] {
+            let source =
+                format!("switch -exact -- {subject} {{GET {{drop}} POST {{drop}} PUT {{drop}}}}");
+            assert!(candidates(&source).is_empty(), "{subject}");
+        }
+        let source = "switch -exact -- $x {{\"quoted\"} {drop} plain {drop} third {drop}}";
+        let c = candidates(source);
+        assert_eq!(c.len(), 1);
+        assert_eq!(c[0]["values"], json!(["\"quoted\"", "plain", "third"]));
+    }
+
+    #[test]
+    fn original_switch_suggestions_keep_selected_alias_and_current_analysis() {
+        // Implementation contract: naming.refactor.original-datagroup-variable-subject
+        // docs/design/analysis/name-resolution-proofs/original-datagroup-variable-subject.md
+        let source = "interp alias {} select {} switch -exact --\nselect ${café} {GET {drop} POST {drop} PUT {drop}}";
+        let mut analysis = crate::tools::analyse(source, DIALECT);
+        let c = suggest_for_analysis(source, &analysis);
+        assert_eq!(c.len(), 1);
+        assert_eq!(c[0]["variable"], "café");
+        assert_eq!(c[0]["line"], 1);
+        assert_eq!(c[0]["has_static_extraction"], false);
+        assert!(suggest_for_analysis(&format!("# changed\n{source}"), &analysis).is_empty());
+        analysis.resolved_input = None;
+        assert!(suggest_for_analysis(source, &analysis).is_empty());
+        let shadow =
+            "proc switch {args} {}\nswitch -exact -- $x {GET {drop} POST {drop} PUT {drop}}";
+        assert!(candidates(shadow).is_empty());
+        for options in ["-nocase --", "-glob --", "$options --", "{*}$options --"] {
+            let source = format!("switch {options} $x {{GET {{drop}} POST {{drop}} PUT {{drop}}}}");
+            assert!(candidates(&source).is_empty(), "{options}");
+        }
+        let source = "switch -exact -- $x {GET {drop} POST {drop} PUT {drop}}";
+        let mut analysis = crate::tools::analyse(source, DIALECT);
+        assert_eq!(suggest_for_analysis(source, &analysis).len(), 1);
+        let config = analysis.body_lexer_config.as_mut().unwrap();
+        config.strict_quoting = !config.strict_quoting;
+        assert!(suggest_for_analysis(source, &analysis).is_empty());
     }
 }

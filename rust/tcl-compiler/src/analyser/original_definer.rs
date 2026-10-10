@@ -115,6 +115,47 @@ impl OriginalClassCallSource {
     }
 }
 
+/// Whole selected configuration source, independent of Native definition entry.
+pub(super) struct OriginalClassConfigurationSource {
+    pub(super) target: crate::command_binding::OriginalSourceConfiguredClassReference,
+    pub(super) arguments: Vec<String>,
+    pub(super) tokens: Vec<Token>,
+    pub(super) single: Vec<bool>,
+}
+impl OriginalClassConfigurationSource {
+    fn capture(source: &str, analysis: &AnalysisResult, offset: u32) -> Option<Self> {
+        // naming.source.original-class-reference
+        // docs/design/analysis/name-resolution-proofs/source-original-class-reference.md
+        let target = crate::registry_invocation::source_structure::source_configured_class_at(
+            source, analysis, offset,
+        )?;
+        let declaration = target.class_declaration();
+        if analysis.allows_retained_logical_declaration_advice() {
+            declaration.logical_source_class(analysis)?;
+        } else {
+            declaration.source_class(analysis)?;
+        }
+        let context = analysis.resolved_input.as_ref()?.context_registry();
+        (declaration.grammar(&context)?.family == DefinerFamily::TclOo).then_some(())?;
+        let mut arguments = Vec::new();
+        let mut tokens = Vec::new();
+        let mut single = Vec::new();
+        for argument in target.consumer().arguments() {
+            let (value, token) =
+                original_argument_projection(&argument.original, argument.value.as_deref()?)?;
+            arguments.push(value);
+            tokens.push(token);
+            single.push(argument.original.tokens().len() == 1);
+        }
+        Some(Self {
+            target,
+            arguments,
+            tokens,
+            single,
+        })
+    }
+}
+
 fn original_argument_projection(
     word: &tcl_lexer::NativeWord,
     value: &[u8],
@@ -152,6 +193,19 @@ pub(super) struct ClassDefinerCall<'a> {
 }
 
 impl Analyser {
+    pub(super) fn dispatch_original_class_configuration(
+        &mut self,
+        token: Token,
+        scope_path: &[usize],
+    ) -> Option<bool> {
+        let original = OriginalClassConfigurationSource::capture(
+            &self.source,
+            &self.result,
+            token.span.start(),
+        )?;
+        Some(self.handle_oo_define_source(&original, scope_path))
+    }
+
     pub(super) fn dispatch_original_class_definer(
         &mut self,
         token: Token,

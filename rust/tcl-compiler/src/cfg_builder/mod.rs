@@ -493,6 +493,11 @@ impl<'a> CfgBuilder<'a> {
     /// Read every embedded `[…]` substitution under the document's own
     /// grammar (see [`Self::config`]).
     fn with_lexer_config(mut self, config: tcl_lexer::LexerConfig) -> Self {
+        if matches!(&self.command_classes.metadata, CfgMetadataContext::SuppliedSource(input) if input.lexer_config().normalized() != config.normalized())
+        {
+            self.command_classes.metadata = CfgMetadataContext::Unavailable;
+        }
+
         self.config = config;
         self
     }
@@ -1243,13 +1248,22 @@ impl<'a> CfgBuilder<'a> {
     /// Condition-position effects combine registry variable roles, resolved
     /// procedure summaries, and timeline-resolved handler barriers.
     fn condition_out_vars(&self, condition: &ExprNode, span: Span) -> ConditionEffects {
-        let mut defs = crate::ir_helpers::condition_command_out_vars(condition, self.registry);
         let bindings = self
             .source_binding_timeline
             .as_ref()
             .and_then(|timeline| timeline.before_substitutions(span))
             .cloned()
             .unwrap_or_else(|| self.command_bindings.clone());
+        let metadata = self.command_classes.metadata_context().flatten();
+        let writes = crate::ir_helpers::expression_possible_writes_with_metadata_context(
+            condition,
+            self.registry,
+            &bindings,
+            &self.invocation_namespace,
+            metadata,
+            self.config,
+        );
+        let mut defs = writes.names;
         let state = std::cell::RefCell::new(bindings);
         let registry_barrier = std::cell::Cell::new(false);
         let resolve = |head: &str| {
@@ -1260,21 +1274,25 @@ impl<'a> CfgBuilder<'a> {
         let observe = |words: &[crate::ir_helpers::CommandWord], conditional: bool| {
             let found = state
                 .borrow_mut()
-                .source_order_registry_barrier_for_command(
+                .source_order_registry_barrier_for_command_with_metadata_context(
                     words,
                     conditional,
                     self.registry,
                     &self.invocation_namespace,
                     REGISTRY_BARRIER_TRAITS,
+                    metadata,
                 );
             registry_barrier.set(registry_barrier.get() || found);
         };
-        let embedded = crate::ir_helpers::expression_command_substitutions_with_replay(
-            condition,
-            self.registry,
-            Some(&resolve),
-            Some(&observe),
-        );
+        let embedded =
+            crate::ir_helpers::expression_command_substitutions_with_replay_and_metadata_context(
+                condition,
+                self.registry,
+                Some(&resolve),
+                Some(&observe),
+                metadata,
+                self.config,
+            );
         let upvar = self.upvar_effects_from_commands(&embedded.commands);
         let opaque_upvar = upvar.opaque_arguments;
         for name in upvar.defs {
@@ -1285,32 +1303,13 @@ impl<'a> CfgBuilder<'a> {
         let (global_defs, mut opaque_global) =
             self.global_write_defs_from_commands(&embedded.commands);
         opaque_global |= embedded.opaque || opaque_upvar;
-        let writes = crate::ir_helpers::variable_write_effects_from_commands(
-            embedded.all_commands(),
-            self.registry,
-        );
         opaque_global |= writes.opaque;
-        for name in writes.names {
-            if !defs.contains(&name) {
-                defs.push(name);
-            }
-        }
         for name in global_defs {
             if !defs.contains(&name) {
                 defs.push(name);
             }
         }
-        let mut reads = writes.read_names;
-        for name in crate::ir_helpers::variable_read_effects_from_commands(
-            embedded.all_commands(),
-            self.registry,
-        )
-        .names
-        {
-            if !reads.contains(&name) {
-                reads.push(name);
-            }
-        }
+        let reads = writes.read_names;
         ConditionEffects {
             defs,
             reads,
@@ -2524,6 +2523,7 @@ fn detect_upvar_procs_with_bindings(
                 registry,
                 command_bindings,
                 namespace,
+                crate::registry_invocation::InvocationMetadataContext::for_module(registry, module).and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input),
             ),
         ));
     }
@@ -2715,7 +2715,10 @@ pub(crate) fn prepare_cfg_context_bundle(
         ),
         command_classes: CfgCommandClasses::from_source_input(
             registry,
-            module.source_metadata_input.as_ref(),
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+                .and_then(
+                    crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
+                ),
         ),
     }
 }
@@ -3215,6 +3218,7 @@ fn dedup_preserve_order(v: &mut Vec<String>) {
 enum CfgMetadataContext {
     Standalone,
     Supplied(Arc<tcl_registry::model::ContextRegistry>),
+    SuppliedSource(Box<crate::analyser::ResolvedAnalysisInput>),
     Unavailable,
 }
 
@@ -3259,7 +3263,18 @@ impl CfgCommandClasses {
         registry: &CommandRegistry,
         input: Option<&crate::analyser::ResolvedAnalysisInput>,
     ) -> Self {
-        Self::from_metadata(registry, input.map(|input| input.context_registry()))
+        let mut classes = Self::from_registry(registry);
+        classes.metadata = input
+            .and_then(|input| {
+                crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                    registry, input,
+                )
+                .map(|_| input)
+            })
+            .map_or(CfgMetadataContext::Unavailable, |input| {
+                CfgMetadataContext::SuppliedSource(Box::new(input.clone()))
+            });
+        classes
     }
 
     fn from_metadata(
@@ -3280,6 +3295,12 @@ impl CfgCommandClasses {
         let context: Option<crate::registry_invocation::InvocationMetadataContext<'_>> =
             match &self.metadata {
                 CfgMetadataContext::Supplied(context) => Some(context.as_ref().into()),
+                CfgMetadataContext::SuppliedSource(input) => Some(
+                    crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                        self.registry.registry(),
+                        input,
+                    )?,
+                ),
                 CfgMetadataContext::Standalone => self
                     .registry
                     .registry()
@@ -3313,6 +3334,17 @@ impl CfgCommandClasses {
                 crate::registry_invocation::logical_structured_invocation_with_metadata_context(
                     self.registry.registry(),
                     context.as_ref().into(),
+                    tokens,
+                    None,
+                )
+            }
+            CfgMetadataContext::SuppliedSource(input) => {
+                crate::registry_invocation::logical_structured_invocation_with_metadata_context(
+                    self.registry.registry(),
+                    crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                        self.registry.registry(),
+                        input,
+                    )?,
                     tokens,
                     None,
                 )
@@ -4435,6 +4467,127 @@ mod tests {
     }
 
     #[test]
+    fn cfg_condition_possible_writes_keep_original_aliases_and_replacements() {
+        // naming.diagnostic.original-materialized-write-footprint
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+        // These are analysis-only <cond> footprints, not native stores/entry.
+        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let registry = context.commands();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        for (source, expected) in [
+            (
+                "if {[catch {set {café(open} VALUE} result]} {puts ${café(open}}",
+                Some("café(open"),
+            ),
+            (
+                "interp alias {} assign {} set {$literal}; if {[assign VALUE]} {puts ${$literal}}",
+                Some("$literal"),
+            ),
+            (
+                "proc catch args {}; if {[catch {set hidden VALUE} result]} {puts $hidden}",
+                None,
+            ),
+        ] {
+            let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            );
+            let defs = find_call_defs(&unit.top_level.cfg, "<cond>").unwrap_or_default();
+            if let Some(expected) = expected {
+                assert!(
+                    defs.iter().any(|name| name == expected),
+                    "{source}: {defs:?}"
+                );
+            } else {
+                assert!(
+                    !defs.iter().any(|name| name == "hidden" || name == "result"),
+                    "known replacement: {defs:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn prepared_cfg_refuses_changed_module_profile_and_body_configuration() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let registry = context.commands();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            "if {[set output VALUE]} {puts $output}",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let module = &unit.ir_module;
+        assert!(
+            prepare_cfg_context_bundle(module, registry)
+                .command_classes
+                .metadata_context()
+                .is_some()
+        );
+        let mut wrong_profile = module.clone();
+        wrong_profile.dialect_profile = Some(tcl_dialect::DialectProfile::find("tcl9.0").unwrap());
+        assert!(
+            prepare_cfg_context_bundle(&wrong_profile, registry)
+                .command_classes
+                .metadata_context()
+                .is_none()
+        );
+        let prepared = prepare_cfg_context_bundle(module, registry);
+        let bad_config = tcl_lexer::LexerConfig {
+            expand_syntax: !config.expand_syntax,
+            ..config
+        };
+        let builder = CfgBuilder::new_with_upvars_and_classes(
+            true,
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+            prepared.context.3.clone(),
+            registry,
+            prepared.command_classes.clone(),
+        )
+        .with_lexer_config(bad_config);
+        assert!(builder.command_classes.metadata_context().is_none());
+        // Complete source metadata is still independently retained by its owner.
+        assert_eq!(wrong_profile.source_metadata_input.as_ref(), Some(&input));
+    }
+
+    #[test]
     fn prepared_cfg_source_metadata_is_shared_by_module_and_body_builders() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
@@ -4455,10 +4608,10 @@ mod tests {
             registry,
             module.source_metadata_input.as_ref(),
         );
-        let CfgMetadataContext::Supplied(retained) = &shared.command_classes.metadata else {
+        let CfgMetadataContext::SuppliedSource(retained) = &shared.command_classes.metadata else {
             panic!("the actual body request retains its original context");
         };
-        assert!(Arc::ptr_eq(retained, &context));
+        assert!(Arc::ptr_eq(&retained.context_registry(), &context));
         let cfg = build_cfg_with_registry(&module, false, registry);
         let body = build_cfg_function_with_prepared_context(
             "::top",

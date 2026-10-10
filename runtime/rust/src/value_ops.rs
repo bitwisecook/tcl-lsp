@@ -1009,6 +1009,18 @@ impl ValueOps for Interp {
         obj::new_native_unicode_obj(units, dialect)
     }
 
+    fn native_external_utf8_result(
+        &mut self,
+        bytes: &[u8],
+        version: tcl_dialect::TclVersion,
+    ) -> Result<Self::Value, ValueError> {
+        let dialect = self.native_invocation_dialect();
+        let recipe = dialect.byte_array_string_recipe(None)
+            .filter(|recipe| recipe.protocol() == tcl_syntax::native_string::NativeStringProtocol::C(version))
+            .ok_or(ValueError::CommandProtocolUnavailable("native external UTF-8 binary result issuer"))?;
+        Ok(crate::bytearray::new_byte_array(bytes, recipe))
+    }
+
     fn discard_native_internal_representation(
         &mut self,
         value: &Self::Value,

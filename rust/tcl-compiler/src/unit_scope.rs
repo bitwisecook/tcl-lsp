@@ -2154,10 +2154,8 @@ fn scan_source_call_sites_with_entry<S: std::hash::BuildHasher>(
     // just as an in-unit one would.  Without the same var facts and fixpoint
     // here, an unreadable dispatch would stop retracting seeds across the
     // file boundary.
-    let metadata_context = crate::registry_invocation::retained_source_metadata_context(
-        registry,
-        ir_module.source_metadata_input.as_ref(),
-    );
+    let metadata_context =
+        crate::registry_invocation::retained_module_metadata_context(registry, &ir_module);
     let var_facts = collect_module_scope_var_facts(
         &cfg_module,
         &extra,
@@ -2199,7 +2197,10 @@ fn scan_source_call_sites_with_entry<S: std::hash::BuildHasher>(
         let ctx = CallSiteScanCtx {
             known,
             registry,
-            source_input: ir_module.source_metadata_input.as_ref(),
+            source_input: crate::registry_invocation::InvocationMetadataContext::for_module(
+                registry, &ir_module,
+            )
+            .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input),
             metadata_context: metadata_context.as_deref(),
             identities: &identities,
             declared,
@@ -2252,10 +2253,9 @@ pub fn scan_unit_linkage(
     registry: &CommandRegistry,
     _dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Traits {
-    let Some(context) = crate::registry_invocation::retained_source_metadata_context(
-        registry,
-        ir_module.source_metadata_input.as_ref(),
-    ) else {
+    let Some(context) =
+        crate::registry_invocation::retained_module_metadata_context(registry, ir_module)
+    else {
         return Traits::empty();
     };
     let context = Some(context.as_ref().into());

@@ -150,6 +150,8 @@ pub enum NativeNamePurpose {
     RenameSource,
     RenameDestination,
     AliasPublication,
+    /// Child-interpreter alias extension registration, including Jim's C-string constructor.
+    ChildAliasPublication,
     NamespaceAddress,
     /// C lambda namespace object construction before namespace lookup.
     LambdaNamespace,
@@ -323,6 +325,25 @@ impl<'a> NativeNameProjection<'a> {
             Cow::Owned(_) => None,
         }
     }
+    /// Report extent retained independently of the actual registration slot.
+    /// C interp aliases keeps the original counted alias-record name; Jim's
+    /// child extension reports its newly constructed registration spelling.
+    /// This projection supplies bytes only, never an alias object or inventory.
+    #[must_use]
+    pub fn alias_registration_report_bytes(&self) -> Option<&[u8]> {
+        if !matches!(
+            self.purpose,
+            NativeNamePurpose::AliasPublication | NativeNamePurpose::ChildAliasPublication
+        ) {
+            return None;
+        }
+        Some(if self.protocol.is_jim084() {
+            self.selected()
+        } else {
+            self.original()
+        })
+    }
+
     #[must_use]
     pub const fn protocol(&self) -> NativeNameProtocol {
         self.protocol
@@ -600,6 +621,35 @@ impl NativeNameProtocol {
                 NativeNamePurpose::AliasPublication,
                 original,
                 Cow::Borrowed(original),
+                Some(NativeNameContext::root()),
+            )),
+        }
+    }
+
+    /// Child alias extensions construct their command name independently of the
+    /// standalone alias command. Jim's Jim_RegisterCmd receives Jim_String and
+    /// builds a new -1-length string at the child root; original counted input
+    /// remains separate from the selected C-string extent and report spelling.
+    /// C uses its existing alias-registration rule in the selected child realm.
+    ///
+    /// # Errors
+    /// Refuses an unavailable registration purpose or context.
+    pub fn child_alias_publication_input<'a>(
+        self,
+        context: NativeNameContext<'a>,
+        original: &'a [u8],
+    ) -> Result<NativeNameProjection<'a>, NameProjectionUnavailable> {
+        match self {
+            Self::C(_) => {
+                let mut selected = self.alias_publication_input(context, original)?;
+                selected.purpose = NativeNamePurpose::ChildAliasPublication;
+                Ok(selected)
+            }
+            Self::Jim084 => Ok(projection(
+                self,
+                NativeNamePurpose::ChildAliasPublication,
+                original,
+                Cow::Borrowed(c_string_extent(original)),
                 Some(NativeNameContext::root()),
             )),
         }
@@ -1587,6 +1637,7 @@ fn is_command_purpose(purpose: NativeNamePurpose) -> bool {
             | NativeNamePurpose::RenameSource
             | NativeNamePurpose::RenameDestination
             | NativeNamePurpose::AliasPublication
+            | NativeNamePurpose::ChildAliasPublication
             | NativeNamePurpose::OoObjectPublication
     )
 }
@@ -3956,4 +4007,62 @@ fn jim_two_word_factory_publication_uses_original_units_and_existing_publication
         .unwrap_err(),
         NameProjectionUnavailable::PurposeNotModelled
     );
+}
+
+#[test]
+fn child_alias_publication_has_its_own_counted_input_and_c_string_registration() {
+    // naming.alias.original-child-publication-and-inventory
+    // docs/design/analysis/name-resolution-proofs/alias-original-child-publication-and-inventory.md
+    // Native298 separately measures child invocation/inventories. This pure
+    // projection grants no installed command, original header or parent realm.
+    let context_path = ByteNamespacePath::from_segments([b"N".as_slice()]);
+    let context = NativeNameContext::new(&context_path);
+    for protocol in TclVersion::ALL
+        .map(NativeNameProtocol::C)
+        .into_iter()
+        .chain([NativeNameProtocol::Jim084])
+    {
+        for input in [
+            b"::::r2286".as_slice(),
+            b"r2286\0_tail",
+            b"r2286_tail\0",
+            b"r2286_\xc3\xa9",
+            b"r2286_\xff",
+        ] {
+            let selected = protocol
+                .child_alias_publication_input(context, input)
+                .unwrap();
+            assert_eq!(selected.original(), input);
+            assert_eq!(selected.selected(), c_string_extent(input));
+            assert_eq!(selected.purpose(), NativeNamePurpose::ChildAliasPublication);
+            assert_eq!(
+                selected.alias_registration_report_bytes(),
+                Some(if protocol.is_jim084() {
+                    c_string_extent(input)
+                } else {
+                    input
+                })
+            );
+            let slot = protocol
+                .child_alias_publication_projection(context, input)
+                .unwrap();
+            assert!(slot.slot().namespace.is_root());
+            if protocol.is_jim084() {
+                let table = super::NativeJimCommandTableKey::from_projection(&selected).unwrap();
+                assert_eq!(table.report_bytes(), c_string_extent(input));
+                assert_eq!(
+                    table.comparison_bytes(),
+                    strip_jim_root(c_string_extent(input))
+                );
+                assert_eq!(slot.slot().simple.as_bytes(), table.comparison_bytes());
+                assert_eq!(
+                    protocol
+                        .alias_publication_input(context, input)
+                        .unwrap()
+                        .selected(),
+                    input
+                );
+            }
+        }
+    }
 }

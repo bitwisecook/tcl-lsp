@@ -1352,7 +1352,7 @@ mod tests {
             lowerer.dialect_context = unavailable;
             assert!(lowerer.selected_body_provider(&segment, &tokens).is_none());
         }
-        lowerer.dialect_context = Some(context);
+        lowerer.dialect_context = Some(std::sync::Arc::clone(&context));
         assert!(lowerer.selected_body_provider(&segment, &tokens).is_some());
     }
 

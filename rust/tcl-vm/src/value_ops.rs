@@ -469,6 +469,18 @@ impl ValueOps for Vm {
         Value::from_native_unicode_units(units, dialect)
     }
 
+    fn native_external_utf8_result(
+        &mut self,
+        bytes: &[u8],
+        version: tcl_dialect::TclVersion,
+    ) -> Result<Value, ValueError> {
+        let dialect = self.actual_native_invocation_dialect();
+        if dialect.native_string_protocol() != Some(tcl_syntax::native_string::NativeStringProtocol::C(version)) {
+            return Err(ValueError::CommandProtocolUnavailable("native external UTF-8 binary result issuer"));
+        }
+        Value::from_native_byte_array(Rc::from(bytes), dialect)
+    }
+
     fn concat_policy(&self) -> Option<tcl_dialect::ConcatPolicy> {
         self.actual_native_invocation_dialect().concat_policy()
     }

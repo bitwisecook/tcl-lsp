@@ -1221,6 +1221,10 @@ Path-aware checks then follow the value — e.g. the path-taint colours \
 that prove a user-influenced path stays inside a known root.",
     ),
     (
+        "source_path_operation",
+        "A source path operation selected from the current authored schema and exact argument values. It describes conditional navigation advice, without proving a runtime handler, current filename or filesystem result.",
+    ),
+    (
         "is_unescape",
         "The subcommand *decodes* — URL-decoding, HTML-unescaping. In taint \
 terms it undoes sanitisation: a value that was safe because it was \
@@ -1432,6 +1436,11 @@ Drives the binary-data corruption check.",
         "Ways a command changes which commands exist: defining a procedure, \
 renaming or deleting one, or creating an alias. Keeps \"unknown \
 command\" honest after such calls.",
+    ),
+    (
+        "sourcePathOperation",
+        "Source path operations",
+        "The shared source algebra for joining paths, taking a parent directory, lexically normalising an anchored path or using an explicitly supplied document filename. Runtime execution and filesystem state remain separate.",
     ),
     (
         "patternType",

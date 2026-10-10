@@ -1880,21 +1880,6 @@ fn scan_dollar_names(text: &str, out: &mut Vec<String>) {
     }
 }
 
-/// Literal source alias and write-trace hazards selected from retained operands.
-/// The standalone wrapper uses the explicitly supplied Registry profile.
-pub(crate) fn scan_scope_aliases(cfg: &CfgFunction, registry: &CommandRegistry) -> HashSet<String> {
-    scan_scope_aliases_with_metadata_context(cfg, registry, standalone_scan_context(registry))
-}
-
-fn standalone_scan_context(
-    registry: &CommandRegistry,
-) -> Option<crate::registry_invocation::InvocationMetadataContext<'_>> {
-    registry
-        .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile)
-        .map(Into::into)
-}
-
 /// Supplied availability refines original alias and write-trace declarations.
 /// Missing or foreign metadata contributes no declarations; callers must not
 /// interpret this absence as completed lookup or an unobserved physical cell.
@@ -1964,18 +1949,6 @@ fn statement_write_trace_targets(
     }).collect()
 }
 
-/// Standalone source startup-alias scan using the supplied Registry profile.
-pub(crate) fn scan_global_scope_aliases(
-    cfg: &CfgFunction,
-    registry: &CommandRegistry,
-) -> HashSet<String> {
-    scan_global_scope_aliases_with_metadata_context(
-        cfg,
-        registry,
-        standalone_scan_context(registry),
-    )
-}
-
 /// Literal source aliases that name the interpreter's root startup variable.
 /// A qualified target in another namespace does not inherit a root binding.
 /// These are analytical source names; Native storage identity remains separate.
@@ -2013,18 +1986,6 @@ pub(crate) fn scan_global_scope_aliases_with_metadata_context(
         }
     }
     aliases
-}
-
-/// Standalone module-wide source write-trace scan using the supplied profile.
-pub(crate) fn scan_module_traced_globals(
-    cu: &crate::compilation_unit::CompilationUnit,
-    registry: &CommandRegistry,
-) -> HashSet<String> {
-    scan_module_traced_globals_with_metadata_context(
-        cu,
-        registry,
-        standalone_scan_context(registry),
-    )
 }
 
 /// Namespace-qualified write-trace hazards under supplied source availability.

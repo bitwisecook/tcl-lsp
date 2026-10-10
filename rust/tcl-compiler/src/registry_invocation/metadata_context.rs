@@ -30,6 +30,36 @@ impl<'a> InvocationMetadataContext<'a> {
         context.matches_registry(registry).then_some(context)
     }
 
+    /// Select metadata only when the source producer retains the input's exact
+    /// unit profile and lexer policy. Catalogue availability remains independent.
+    #[must_use]
+    pub fn for_source_input(
+        registry: &CommandRegistry,
+        input: &'a crate::analyser::ResolvedAnalysisInput,
+        config: tcl_lexer::LexerConfig,
+        profile: Option<&tcl_dialect::DialectProfile>,
+    ) -> Option<Self> {
+        if config.normalized() != input.lexer_config().normalized()
+            || !profile
+                .is_some_and(|profile| profile.cache_key() == input.unit_profile().cache_key())
+        {
+            return None;
+        }
+        Self::for_analysis_input(registry, input)
+    }
+
+    /// Borrow a Module's retained input only for the actual source producer.
+    /// Missing input, changed grammar/profile and foreign command stores refuse.
+    #[must_use]
+    pub fn for_module(registry: &CommandRegistry, module: &'a crate::ir::Module) -> Option<Self> {
+        Self::for_source_input(
+            registry,
+            module.source_metadata_input.as_ref()?,
+            module.lexer_config,
+            module.dialect_profile,
+        )
+    }
+
     /// Complete supplied availability, including packages and authoring scope.
     /// This does not supply native implementation or invocation presence.
     #[must_use]
@@ -89,4 +119,17 @@ pub(crate) fn retained_source_metadata_context(
     InvocationMetadataContext::from(context.as_ref())
         .matches_registry(registry)
         .then_some(context)
+}
+
+/// Retain metadata only for this Module's actual source producer. The complete
+/// input remains owned by the Module even when this query refuses its use.
+pub(crate) fn retained_module_metadata_context(
+    registry: &CommandRegistry,
+    module: &crate::ir::Module,
+) -> Option<std::sync::Arc<ContextRegistry>> {
+    Some(
+        InvocationMetadataContext::for_module(registry, module)?
+            .source_analysis_input()?
+            .context_registry(),
+    )
 }

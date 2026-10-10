@@ -207,6 +207,19 @@ impl NativeNameProtocol {
         command_slot_projection(&self.alias_publication_input(context, original)?)
     }
 
+    /// Original child-alias registration uses its own constructor extent.
+    /// The selected slot is still materialised in the actual child's realm.
+    ///
+    /// # Errors
+    /// Refuses an unavailable registration purpose.
+    pub fn child_alias_publication_projection(
+        self,
+        context: NativeNameContext<'_>,
+        original: &[u8],
+    ) -> Result<NativeCommandSlotProjection, NameProjectionUnavailable> {
+        command_slot_projection(&self.child_alias_publication_input(context, original)?)
+    }
+
     /// Rename destination geometry without procedure-publication reparsing.
     ///
     /// # Errors
@@ -276,7 +289,9 @@ pub(super) fn command_slot_projection(
     let global_unqualified = input.qualification == NativeNameQualification::Unqualified
         && matches!(
             input.purpose,
-            NativeNamePurpose::CommandCApiPublication | NativeNamePurpose::AliasPublication
+            NativeNamePurpose::CommandCApiPublication
+                | NativeNamePurpose::AliasPublication
+                | NativeNamePurpose::ChildAliasPublication
         );
     let namespace_route =
         if input.qualification == NativeNameQualification::Absolute || global_unqualified {

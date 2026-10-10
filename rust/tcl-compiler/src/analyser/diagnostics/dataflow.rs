@@ -1928,10 +1928,9 @@ file; this call falls through to the 'unknown' handler."
                 stmt_opt,
                 cell_name,
                 ctx.exists_guards,
-                &fu.ssa,
+                fu,
                 use_site,
                 self.analysis_context().commands(),
-                self.lexer_config(),
             ) {
                 continue;
             }
@@ -3856,7 +3855,11 @@ pub(crate) fn report_original_store_diagnostic_gates(
                 chain.definition.statement_index,
                 &chain.key.0
             ),
-            reportable_dead_assignment(statement, registry, None),
+            reportable_dead_assignment(
+                statement,
+                registry,
+                fu.invocation_metadata_context(registry)
+            ),
             original_overwrite_advice(fu, &chain.definition, variable, registry),
             tokens.map(|tokens| &tokens.argv_texts),
             tokens
@@ -3866,11 +3869,13 @@ pub(crate) fn report_original_store_diagnostic_gates(
                     .declaration_operand_layout_advice(tokens))
                 .is_some(),
             tokens
-                .and_then(
-                    |tokens| crate::registry_invocation::normal_transfer_invocation(
-                        registry, None, tokens
+                .and_then(|tokens| {
+                    crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+                        registry,
+                        fu.invocation_metadata_context(registry),
+                        tokens,
                     )
-                )
+                })
                 .is_some(),
         );
         eprintln!(
@@ -3980,17 +3985,23 @@ fn existence_query_cells(
     stmt: &crate::ir::Statement,
     registry: &tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) -> Vec<crate::var_resolve::VariableCellKey> {
     let Some(tokens) = stmt.tokens() else {
         return Vec::new();
     };
     let mut queries = Vec::new();
-    if let Some(query) = crate::existence_query::in_tokens_for_diagnostics(tokens, registry) {
+    if let Some(query) = crate::existence_query::in_tokens_for_diagnostics_with_metadata_context(
+        tokens, registry, metadata,
+    ) {
         queries.push(query);
     }
     for call in crate::word_subst::checked_lifted_calls(tokens, config).unwrap_or_default() {
         if let Some(nested) = call.tokens.as_ref()
-            && let Some(query) = crate::existence_query::in_tokens_for_diagnostics(nested, registry)
+            && let Some(query) =
+                crate::existence_query::in_tokens_for_diagnostics_with_metadata_context(
+                    nested, registry, metadata,
+                )
         {
             queries.push(query);
         }
@@ -4012,20 +4023,25 @@ fn existence_exempt(
     stmt_opt: Option<&crate::ir::Statement>,
     cell: &crate::var_resolve::VariableCellKey,
     exists_guards: &[super::helpers::ExistenceGuard],
-    ssa: &crate::ssa::SsaFunction,
+    fu: &crate::compilation_unit::FunctionUnit,
     use_site: &crate::def_use::UseSite,
     registry: &tcl_registry::CommandRegistry,
-    config: tcl_lexer::LexerConfig,
 ) -> bool {
+    let ssa = &fu.ssa;
     let Some(use_id) = ssa.block_id(&use_site.block) else {
         return false;
     };
     let index = usize::try_from(use_site.statement_index).unwrap_or(usize::MAX);
     if use_site.kind == crate::def_use::UseKind::VariableName
         && let Some(stmt) = stmt_opt
-        && existence_query_cells(stmt, registry, config)
-            .iter()
-            .any(|query| query == cell)
+        && existence_query_cells(
+            stmt,
+            registry,
+            fu.source_lexer_config(),
+            fu.invocation_metadata_context(registry),
+        )
+        .iter()
+        .any(|query| query == cell)
     {
         return true;
     }

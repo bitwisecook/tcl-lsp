@@ -20,12 +20,14 @@ use tcl_registry::{CommandRegistry, EffectFootprint};
 use crate::completion::CompletionObligations;
 use crate::dispatch_proof::DispatchEntryAssumption;
 use crate::executable_ir::{
-    EvaluatedRegionCompletion, ExecutableFunction, ExecutableFunctionId, GenericInvoke,
-    InvocationResolution, LoweredOperation, OpaqueRegion, SourceCompatibilityDecline,
-    StructuredRegion, build_linear_executable_ir,
+    EvaluatedRegionCompletion, ExecutableFunction, ExecutableFunctionId,
+    ExecutableMetadataBuildDecline, GenericInvoke, InvocationResolution, LoweredOperation,
+    OpaqueRegion, SourceCompatibilityDecline, StructuredRegion,
+    build_linear_executable_ir_with_metadata_context,
 };
 use crate::ir::Script;
 use crate::mixed_region_plan::{MixedPlanBuildError, MixedRegionPlan};
+use crate::registry_invocation::InvocationMetadataContext;
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use crate::world_state_ssa::{
     ExecutableWorldStateSsa, WorldStateSsaDecline, build_executable_world_state_ssa,
@@ -51,17 +53,38 @@ pub(crate) const fn test_common_analysis_provenance() -> CommonAnalysisProvenanc
 /// Target-neutral semantic facts attached to one
 /// [`crate::compilation_unit::FunctionUnit`].
 ///
-/// The context is an explicitly resolved environment handle
-/// ([`SemanticContext`]) rather than an inferred target choice — the
-/// executable-IR re-key described in redesign §11.2 D1.  A function
-/// with no
-/// retained source IR records a typed unavailable state; a source script the
-/// linear compatibility builder cannot represent records its exact decline.
+/// Source analyses retain their actual metadata owner independently of the
+/// dispatch entry contract. Explicit standalone callers may supply their own
+/// [`SemanticContext`]. A function with no retained source IR records a typed
+/// unavailable state; unsupported source records its exact decline.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SemanticAnalysisBundle {
     context: Option<SemanticContext>,
+    metadata_context: Option<RetainedSemanticMetadataContext>,
     executable: ExecutableAnalysisAvailability,
     entry_assumption: DispatchEntryAssumption,
+}
+
+/// Retain a source driver's shared context without rebuilding its profile.
+/// Explicitly borrowed metadata callers retain a complete availability view.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum RetainedSemanticMetadataContext {
+    Source(crate::analyser::ResolvedAnalysisInput),
+    Borrowed(std::sync::Arc<tcl_registry::model::ResolvedContext>),
+}
+impl RetainedSemanticMetadataContext {
+    fn from_supplied(context: InvocationMetadataContext<'_>) -> Self {
+        context.source_analysis_input().map_or_else(
+            || Self::Borrowed(std::sync::Arc::new(context.context().clone())),
+            |input| Self::Source(input.clone()),
+        )
+    }
+    fn context(&self) -> &tcl_registry::model::ResolvedContext {
+        match self {
+            Self::Source(input) => input.borrowed_context_registry().context(),
+            Self::Borrowed(context) => context,
+        }
+    }
 }
 
 impl SemanticAnalysisBundle {
@@ -74,14 +97,36 @@ impl SemanticAnalysisBundle {
         script: &Script,
         entry_assumption: DispatchEntryAssumption,
     ) -> Self {
+        let mut bundle = Self::build_with_metadata_context(
+            registry,
+            context.map(Into::into),
+            script,
+            entry_assumption,
+        );
+        bundle.context = context;
+        bundle.metadata_context = None;
+        bundle
+    }
+
+    /// Build full semantic facts with the exact supplied metadata owner.
+    /// Missing or foreign availability remains unavailable; source metadata
+    /// supplies no entered Native command, frame or compiler admission.
+    #[must_use]
+    pub fn build_with_metadata_context(
+        registry: &CommandRegistry,
+        context: Option<InvocationMetadataContext<'_>>,
+        script: &Script,
+        entry_assumption: DispatchEntryAssumption,
+    ) -> Self {
+        let context = context.filter(|context| context.matches_registry(registry));
         if context.is_none() {
             return Self::from_executable(
-                context,
+                None,
                 ExecutableAnalysisAvailability::ContextUnavailable,
                 entry_assumption,
             );
         }
-        let executable = match build_linear_executable_ir(
+        let executable = match build_linear_executable_ir_with_metadata_context(
             registry,
             context,
             ExecutableFunctionId::new(0),
@@ -98,9 +143,16 @@ impl SemanticAnalysisBundle {
                     ExecutableAnalysisAvailability::WorldStateDeclined { function, decline }
                 }
             },
-            Err(decline) => ExecutableAnalysisAvailability::SourceDeclined(decline),
+            Err(ExecutableMetadataBuildDecline::Source(decline)) => {
+                ExecutableAnalysisAvailability::SourceDeclined(decline)
+            }
+            Err(ExecutableMetadataBuildDecline::ContextUnavailable) => {
+                ExecutableAnalysisAvailability::ContextUnavailable
+            }
         };
-        Self::from_executable(context, executable, entry_assumption)
+        let mut bundle = Self::from_executable(None, executable, entry_assumption);
+        bundle.metadata_context = context.map(RetainedSemanticMetadataContext::from_supplied);
+        bundle
     }
 
     /// Build the executable invocation facts used by interactive GVN, and
@@ -112,15 +164,36 @@ impl SemanticAnalysisBundle {
     /// indexing must not pay that graph cost merely to discover that every
     /// invocation fails GVN's closed-world eligibility predicate.
     #[must_use]
-    pub(crate) fn build_for_interactive_analysis(
+    pub fn build_for_interactive_analysis(
         registry: &CommandRegistry,
         context: Option<SemanticContext>,
         script: &Script,
         entry_assumption: DispatchEntryAssumption,
     ) -> Self {
+        let mut bundle = Self::build_for_interactive_analysis_with_metadata_context(
+            registry,
+            context.map(Into::into),
+            script,
+            entry_assumption,
+        );
+        bundle.context = context;
+        bundle.metadata_context = None;
+        bundle
+    }
+
+    /// Interactive facts under the supplied source availability, with no
+    /// profile-context fallback. Retained source grammar stays independent.
+    #[must_use]
+    pub fn build_for_interactive_analysis_with_metadata_context(
+        registry: &CommandRegistry,
+        context: Option<InvocationMetadataContext<'_>>,
+        script: &Script,
+        entry_assumption: DispatchEntryAssumption,
+    ) -> Self {
+        let context = context.filter(|context| context.matches_registry(registry));
         if context.is_none() {
             return Self::from_executable(
-                context,
+                None,
                 ExecutableAnalysisAvailability::ContextUnavailable,
                 entry_assumption,
             );
@@ -132,7 +205,7 @@ impl SemanticAnalysisBundle {
         // is that proof. The deep [`Self::build`] path is unaffected: code
         // generation and auditing consume the graph directly.
         let proof_can_succeed = entry_assumption != DispatchEntryAssumption::UnknownWorld;
-        let executable = match build_linear_executable_ir(
+        let executable = match build_linear_executable_ir_with_metadata_context(
             registry,
             context,
             ExecutableFunctionId::new(0),
@@ -152,9 +225,16 @@ impl SemanticAnalysisBundle {
                 }
             }
             Ok(function) => ExecutableAnalysisAvailability::WorldStateNotRequired { function },
-            Err(decline) => ExecutableAnalysisAvailability::SourceDeclined(decline),
+            Err(ExecutableMetadataBuildDecline::Source(decline)) => {
+                ExecutableAnalysisAvailability::SourceDeclined(decline)
+            }
+            Err(ExecutableMetadataBuildDecline::ContextUnavailable) => {
+                ExecutableAnalysisAvailability::ContextUnavailable
+            }
         };
-        Self::from_executable(context, executable, entry_assumption)
+        let mut bundle = Self::from_executable(None, executable, entry_assumption);
+        bundle.metadata_context = context.map(RetainedSemanticMetadataContext::from_supplied);
+        bundle
     }
 
     /// Build an explicit unavailable bundle for a function build that did not
@@ -172,11 +252,42 @@ impl SemanticAnalysisBundle {
         )
     }
 
-    /// The resolved semantic context every invocation resolution in this
-    /// bundle was made under.
+    /// Record missing source independently of supplied metadata availability.
+    /// A valid retained owner remains visible without creating invocation,
+    /// frame or execution facts; missing or foreign input stays unavailable.
+    #[must_use]
+    pub fn unavailable_with_metadata_context(
+        registry: &CommandRegistry,
+        context: Option<InvocationMetadataContext<'_>>,
+    ) -> Self {
+        let context = context.filter(|context| context.matches_registry(registry));
+        let executable = if context.is_some() {
+            ExecutableAnalysisAvailability::SourceUnavailable
+        } else {
+            ExecutableAnalysisAvailability::ContextUnavailable
+        };
+        let mut bundle =
+            Self::from_executable(None, executable, DispatchEntryAssumption::UnknownWorld);
+        bundle.metadata_context = context.map(RetainedSemanticMetadataContext::from_supplied);
+        bundle
+    }
+
+    /// The explicit standalone context, when this bundle used that ingress.
+    /// Supplied source analyses expose their actual [`Self::metadata_context`]
+    /// instead of constructing a default environment handle.
     #[must_use]
     pub const fn context(&self) -> Option<SemanticContext> {
         self.context
+    }
+
+    /// Exact retained availability used to select this bundle's invocation
+    /// metadata. This is independent of source grammar and Native execution.
+    #[must_use]
+    pub fn metadata_context(&self) -> Option<&tcl_registry::model::ResolvedContext> {
+        self.metadata_context
+            .as_ref()
+            .map(RetainedSemanticMetadataContext::context)
+            .or_else(|| self.context.map(SemanticContext::context))
     }
 
     /// The executable-IR availability, including every typed decline.
@@ -224,7 +335,11 @@ impl SemanticAnalysisBundle {
             (_, baseline) => return baseline,
         };
         let provenance = CommonAnalysisProvenance { _private: () };
-        let runtime_version = self.context.and_then(SemanticContext::runtime_version);
+        let runtime_version = self
+            .metadata_context()
+            .or_else(|| self.context.map(SemanticContext::context))
+            .and_then(|context| context.environment.point())
+            .and_then(tcl_dialect::model::DialectPoint::tcl_version);
         match plan.select_guarded_boxed_intrinsics(function, runtime_version, &provenance) {
             Ok(plan) => MixedRegionPlanAvailability::Available(plan),
             Err(error) => {
@@ -246,6 +361,7 @@ impl SemanticAnalysisBundle {
     ) -> Self {
         Self {
             context,
+            metadata_context: None,
             executable,
             entry_assumption,
         }
@@ -543,6 +659,109 @@ mod tests {
     use crate::mixed_region_plan::{InvocationSelection, RegionPlan};
 
     #[test]
+    fn supplied_semantic_bundle_retains_owner_and_keeps_missing_context_unavailable() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        use std::sync::Arc;
+        let generation = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let actual = Arc::new(generation.with_command_store(Arc::clone(generation.commands())));
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&actual),
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        );
+        let module = lower_to_ir("puts VALUE", actual.commands());
+        let context = InvocationMetadataContext::for_analysis_input(actual.commands(), &input);
+        let bundle = SemanticAnalysisBundle::build_for_interactive_analysis_with_metadata_context(
+            actual.commands(),
+            context,
+            &module.top_level,
+            DispatchEntryAssumption::UnknownWorld,
+        );
+        assert!(bundle.context().is_none());
+        assert!(std::ptr::eq(
+            bundle.metadata_context().unwrap(),
+            actual.context()
+        ));
+        assert!(matches!(
+            bundle.executable(),
+            ExecutableAnalysisAvailability::WorldStateNotRequired { .. }
+        ));
+        assert_eq!(
+            bundle.dispatch_entry_assumption(),
+            DispatchEntryAssumption::UnknownWorld
+        );
+        drop(input);
+        assert!(std::ptr::eq(
+            bundle.metadata_context().unwrap(),
+            actual.context()
+        ));
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        for context in [None, Some(InvocationMetadataContext::from(foreign))] {
+            let bundle =
+                SemanticAnalysisBundle::build_for_interactive_analysis_with_metadata_context(
+                    actual.commands(),
+                    context,
+                    &module.top_level,
+                    DispatchEntryAssumption::PristineRegistryWorld,
+                );
+            assert_eq!(
+                bundle.executable(),
+                &ExecutableAnalysisAvailability::ContextUnavailable
+            );
+            assert!(bundle.metadata_context().is_none());
+            assert!(bundle.executable().invocations().next().is_none());
+        }
+    }
+
+    #[test]
+    fn absent_source_keeps_valid_supplied_metadata_without_invocation_facts() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let actual =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&actual),
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        );
+        let context = InvocationMetadataContext::for_analysis_input(actual.commands(), &input);
+        let bundle =
+            SemanticAnalysisBundle::unavailable_with_metadata_context(actual.commands(), context);
+        assert!(matches!(
+            bundle.executable(),
+            ExecutableAnalysisAvailability::SourceUnavailable
+        ));
+        assert!(std::ptr::eq(
+            bundle.metadata_context().unwrap(),
+            actual.context()
+        ));
+        assert!(bundle.context().is_none());
+        assert_eq!(
+            bundle.dispatch_entry_assumption(),
+            DispatchEntryAssumption::UnknownWorld
+        );
+        assert!(bundle.executable().invocations().next().is_none());
+        assert!(bundle.executable().world_state_ssa().is_none());
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        for context in [None, Some(foreign.into())] {
+            let bundle = SemanticAnalysisBundle::unavailable_with_metadata_context(
+                actual.commands(),
+                context,
+            );
+            assert!(matches!(
+                bundle.executable(),
+                ExecutableAnalysisAvailability::ContextUnavailable
+            ));
+            assert!(bundle.metadata_context().is_none());
+        }
+    }
+
+    #[test]
     fn evaluated_wrapper_metadata_is_not_an_ordinary_invocation() {
         let availability = ExecutableAnalysisAvailability::WorldStateNotRequired {
             function: crate::execution_region::evaluated_region_test_fixture(),
@@ -553,6 +772,71 @@ mod tests {
             availability
                 .effect_inputs()
                 .any(|effect| effect == InvocationEffectInput::ConservativeUnknown)
+        );
+    }
+
+    #[test]
+    fn guarded_intrinsics_keep_explicit_standalone_and_supplied_protocols() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Metadata-selection control; no Native command or execution receipt is issued.
+        use std::sync::Arc;
+        let registry = Arc::new(CommandRegistry::build_default());
+        let module = lower_to_ir("string length value", &registry);
+        let node = NodeId::from_path(vec![0]);
+        let config = SemanticOptimisationConfig::new()
+            .with_enabled(SemanticOptimisationPassId::GuardedIntrinsic);
+        for (name, version) in [
+            ("tcl8.6", tcl_dialect::TclVersion::V8_6),
+            ("tcl9.0", tcl_dialect::TclVersion::V9_0),
+        ] {
+            let explicit = SemanticContext::for_environment(name);
+            let standalone = SemanticAnalysisBundle::build(
+                &registry,
+                Some(explicit),
+                &module.top_level,
+                DispatchEntryAssumption::PristineRegistryWorld,
+            );
+            assert_eq!(standalone.context(), Some(explicit));
+            assert!(std::ptr::eq(
+                standalone.metadata_context().unwrap(),
+                explicit.context(),
+            ));
+            let actual = tcl_registry::model::ingress::static_context_for(name)
+                .with_command_store(Arc::clone(&registry));
+            let supplied = SemanticAnalysisBundle::build_with_metadata_context(
+                &registry,
+                Some(InvocationMetadataContext::from(&actual)),
+                &module.top_level,
+                DispatchEntryAssumption::PristineRegistryWorld,
+            );
+            assert!(supplied.context().is_none());
+            assert_eq!(supplied.metadata_context(), Some(actual.context()));
+            for bundle in [standalone, supplied] {
+                let plan = bundle.mixed_plan_with_optimisations(config);
+                let RegionPlan::Invocation(region) = plan.plan().unwrap().region(&node).unwrap()
+                else {
+                    panic!("original invocation");
+                };
+                let InvocationSelection::GuardedIntrinsic(evidence) = region.selection() else {
+                    panic!("selected guarded intrinsic");
+                };
+                assert_eq!(evidence.runtime_version(), version);
+            }
+        }
+        let missing = SemanticAnalysisBundle::build_with_metadata_context(
+            &registry,
+            None,
+            &module.top_level,
+            DispatchEntryAssumption::PristineRegistryWorld,
+        );
+        assert!(missing.context().is_none());
+        assert!(missing.metadata_context().is_none());
+        assert!(
+            missing
+                .mixed_plan_with_optimisations(config)
+                .plan()
+                .is_none()
         );
     }
 

@@ -1521,3 +1521,257 @@ No command executes assertions, produces a final libtest summary or supplies a s
 | [all-consumer-build209](frozen209/all-consumer-build209/receipt.json.gz) · [log](frozen209/all-consumer-build209/tests.log) | Exit101 after81.94s; 12 coded diagnostics; no assertions |
 | [all-consumer-build210](frozen210/all-consumer-build210/receipt.json.gz) · [log](frozen210/all-consumer-build210/tests.log) | Exit101 after2.65s; 1 coded diagnostics; no assertions |
 | [runtime-build211](frozen211/runtime-build211/receipt.json.gz) · [log](frozen211/runtime-build211/tests.log) | Exit101 after55.75s; 7 coded diagnostics; no assertions |
+
+## Retained source 213–217 commands
+
+Eight actual commands retain complete immutable source inventories and `uniform_source: true`. Four requested builds exit101 without assertions: the thirteen-package213 and Runtime214 commands each report E0621; the thirteen-package215 command reports E0308 and E0425; the thirteen-package217 command reports six E0433 diagnostics for `tcl_registry`. Exact elapsed times, locations and whole Cargo output are retained per command. None supplies a successful requested executable pin.
+
+The independent Runtime216 build exits0 after65.85 seconds and reports a rebuilt test artifact (`fresh: false`). Its executable SHA7c8117990ac985199fdf173b70a83de4503ab695307885746c8b0b0ce3f57fda, successful build receipt and full source inventory are verified together. The listing records1291 tests without assertions. The [selection inventory](frozen216/runtime-selection216.json) retains83 filters and91 exact listed names with no zero-match filter. One named deep host-limit control runs separately; the finite command passes its other90 names directly.
+
+Both assertion commands explicitly remove `RUST_MIN_STACK` from the environment. The exact deep control completes1 passed,0 failed and1290 filtered after1.67 seconds. It tests the implemented host evaluation limit, separately from native nested-source observations. The finite command exits101 after42.52 seconds with84 passed,6 failed and1201 filtered. The six failures, full panic output and both final summaries remain intact. Neither command establishes a full-suite/current-source success or Native stack capacity.
+
+All eight original receipts are losslessly compressed with their whole logs. Only the independently successful Runtime216 image is pinned; other requested consumer images, native observations, Clippy and Python results are not supplied by this group.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [all-consumer-build213](frozen213/all-consumer-build213/receipt.json.gz) · [log](frozen213/all-consumer-build213/tests.log) | Exit101 after33.36s; 1 coded diagnostics; no assertions |
+| [runtime-build214](frozen214/runtime-build214/receipt.json.gz) · [log](frozen214/runtime-build214/tests.log) | Exit101 after26.28s; 1 coded diagnostics; no assertions |
+| [all-consumer-build215](frozen215/all-consumer-build215/receipt.json.gz) · [log](frozen215/all-consumer-build215/tests.log) | Exit101 after70.28s; 2 coded diagnostics; no assertions |
+| [runtime-build216](frozen216/runtime-build216/receipt.json.gz) · [log](frozen216/runtime-build216/tests.log) | Independent Runtime build passes after65.85s; no assertions |
+| [runtime-list216](frozen216/runtime-list216/receipt.json.gz) · [log](frozen216/runtime-list216/tests.log) | 1291 tests listed; no assertions |
+| [runtime-default-stack216](frozen216/runtime-default-stack216/receipt.json.gz) · [log](frozen216/runtime-default-stack216/tests.log) | Default-stack exact host-limit control:1 passed,0 failed,1290 filtered after1.67s |
+| [runtime-finite216](frozen216/runtime-finite216/receipt.json.gz) · [log](frozen216/runtime-finite216/tests.log) | Default-stack90 selected assertions:84 passed,6 failed,1201 filtered after42.52s |
+| [all-consumer-build217](frozen217/all-consumer-build217/receipt.json.gz) · [log](frozen217/all-consumer-build217/tests.log) | Exit101 after4.09s; 6 coded diagnostics; no assertions |
+
+| Exact executable pin | Artifact reported fresh |
+| --- | --- |
+| [runtime](frozen216/pinned-runtime216.json) | `false` |
+
+## Retained source 218 build command
+
+One actual thirteen-package `--lib --no-run` command retains its complete immutable source inventory and `uniform_source: true`. It exits101 after30.25 seconds with E0507: cannot move out of `*profile` behind a shared reference. The full Cargo log retains the exact test-fixture location and compiler explanation.
+
+No assertion executes, no final libtest summary is emitted and the failed requested build supplies no successful requested executable pin. Its lossless original gzip receipt and whole log preserve the command, elapsed time, source image and error location. Current edited source, dependency artifacts, other images, native observations, Clippy and Python remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [all-consumer-build218](frozen218/all-consumer-build218/receipt.json.gz) · [log](frozen218/all-consumer-build218/tests.log) | Exit101 after30.25s; 1 coded diagnostics; no assertions |
+
+## Retained source 219 Runtime commands
+
+Five closed actual commands retain the same complete immutable source inventory and `uniform_source: true`. The independent Runtime build passes after 49.25 seconds and reports its rebuilt test artifact (`fresh: false`). Executable SHA 66adb54dd78edcaaacfdea25c5986fc5647b1c227e516c73b5a1454e003a7029, successful build receipt and complete source inventory are verified together. The listing records 1301 tests without executing assertions.
+
+All three assertion commands explicitly remove `RUST_MIN_STACK`. The separate exact deep host-limit control completes 1 passed, 0 failed and 1300 filtered after 1.73 seconds. The [selection inventory](frozen219/runtime-selection219.json) retains 85 filters / 101 exact names with no zero-match filter; the finite command passes the other 100 names directly. It aborts with SIGABRT(-6) after 28.71 seconds and emits no aggregate libtest summary. Its whole log records 77 completed passed events, 1 completed failed event and 1 incomplete event; 21 selected names are not entered. These are partial events, not a completed 100-assertion result.
+
+The completed failure retains the original C8.4 info -nons message mismatch. The final incomplete namespace control retains its literal-pool borrow panic, cleanup backtrace and non-unwinding abort text. A separate command enters those 21 names and completes 21 passed, 0 failed and 1280 filtered after 15.18 seconds. Its exact names are verified against the names absent from the aborted command. This separate result supplies no aggregate summary for the aborted command. Whole diagnostics and exact source/executable associations are preserved. The separate deep pass, inventory and successful build do not supply a finite/full-suite/current-source pass or native stack capacity.
+
+All five lossless original gzip receipts, whole logs, executable pin and selection inventory remain independent of other consumer/source images, Native provider outcomes, Clippy and Python.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [runtime-build219](frozen219/runtime-build219/receipt.json.gz) · [log](frozen219/runtime-build219/tests.log) | Independent rebuilt Runtime build0 after49.25s; no assertions |
+| [runtime-list219](frozen219/runtime-list219/receipt.json.gz) · [log](frozen219/runtime-list219/tests.log) | 1301 tests listed; no assertions |
+| [runtime-default-stack219](frozen219/runtime-default-stack219/receipt.json.gz) · [log](frozen219/runtime-default-stack219/tests.log) | Default-stack exact host-limit control1P/0F/1300filtered after1.73s |
+| [runtime-finite219](frozen219/runtime-finite219/receipt.json.gz) · [log](frozen219/runtime-finite219/tests.log) | Default-stack100-name command SIGABRT(-6) after28.71s; partial77passed/1failed/1incomplete, no aggregate summary |
+| [runtime-remaining219](frozen219/runtime-remaining219/receipt.json.gz) · [log](frozen219/runtime-remaining219/tests.log) | Separate remaining 21-name command: 21 passed / 0 failed / 1280 filtered after 15.18s |
+
+| Exact executable pin | Artifact reported fresh |
+| --- | --- |
+| [runtime](frozen219/pinned-runtime219.json) | `false` |
+
+## Retained source 220 build command
+
+One actual thirteen-package `--lib --no-run` command retains its complete immutable source inventory and `uniform_source: true`. It exits 101 after 149.47 seconds. The whole Cargo output retains 15 coded diagnostic events: seven E0308, one E0433, two E0277, four E0599 and one E0505, including the repeated command-binding location as separate actual events. Exact locations, messages and explanations remain in the immutable log.
+
+No assertion executes, no final libtest summary is emitted and the failed requested build supplies no successful requested executable pin. Its lossless original gzip receipt and whole log preserve the command, elapsed time, source image and error location. Current edited source, dependency artifacts, other images, native observations, Clippy and Python remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [all-consumer-build220](frozen220/all-consumer-build220/receipt.json.gz) · [log](frozen220/all-consumer-build220/tests.log) | Exit 101 after 149.47s; 15 coded diagnostics; no assertions |
+
+## Retained sources 221 and 222 build commands
+
+Two independent actual `--lib --no-run` commands retain their own complete immutable source inventories and `uniform_source: true`. Runtime221 exits 101 after 56.69 seconds with E0599: OptionTable has no index_of_original method. The thirteen-package Main222 command exits 101 after 136.41 seconds with two E0425 diagnostics for missing CommandRegistry type imports. Each whole Cargo log preserves its own exact locations, compiler explanations and warnings.
+
+No assertion executes, no final libtest summary is emitted and neither failed requested build supplies a successful requested executable pin. Both lossless original gzip receipts and whole logs preserve each exact command, elapsed time, independent source image and diagnostic locations. Current edited source, dependency artifacts, other images, native observations, Clippy and Python remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [runtime-build221](frozen221/runtime-build221/receipt.json.gz) · [log](frozen221/runtime-build221/tests.log) | Exit 101 after 56.69s; 1 coded diagnostics; no assertions |
+| [all-consumer-build222](frozen222/all-consumer-build222/receipt.json.gz) · [log](frozen222/all-consumer-build222/tests.log) | Exit 101 after 136.41s; 2 coded diagnostics; no assertions |
+
+## Retained sources 223 and 224 commands
+
+The three Runtime223 commands retain one complete immutable source inventory and `uniform_source: true`. Its independent build passes after 22.73 seconds and reports a rebuilt test artifact (`fresh: false`). Executable SHA 995bca81ccf44b031ca0b8cec4946bd3c2954f84a6db79ed561b0abc017670f0, successful build receipt and complete source inventory are verified together. The listing records 1304 tests without executing assertions.
+
+The [selection inventory](frozen223/runtime-selection223.json) retains 88 filters / 104 names with no zero-match filter. The actual finite command supplies the other 103 names with `--exact`; its complete log records 101 passed, 2 failed, 0 ignored and 1201 filtered after 35.39 seconds. No selected name is incomplete. The two failures retain the C8.5 info missing-selector arity mismatch and the literal-retirement fixture's missing selected original Bytecode assertion. The namespace source comparator completes in this image. These are measured results for the exact Runtime223 test definitions; edited fixtures, the separately identified deep control, current source and full-suite results have no result from this command.
+
+The independent thirteen-package Main224 `--lib --no-run` command exits 101 after 152.37 seconds and retains its own different source image. Its whole Cargo log contains E0425 for `tcl_lexer::whole_var_ref` in Core rename and an uncoded FnOnce lifetime diagnostic in Core document links. No assertions execute and the failed requested build supplies no successful requested executable pin or aggregate consumer result. Individual dependency artifacts cannot supply a completed requested build.
+
+All four lossless original gzip receipts, whole logs, Runtime executable pin and exact selection remain independent of native provider outcomes, other source images, Clippy and Python.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [runtime-build223](frozen223/runtime-build223/receipt.json.gz) · [log](frozen223/runtime-build223/tests.log) | Runtime build0 after22.73s; no assertions |
+| [runtime-list223](frozen223/runtime-list223/receipt.json.gz) · [log](frozen223/runtime-list223/tests.log) | 1304 tests listed; no assertions |
+| [runtime-finite223](frozen223/runtime-finite223/receipt.json.gz) · [log](frozen223/runtime-finite223/tests.log) | Exact103-name command101P/2F/1201filtered after35.39s; completed final summary |
+| [all-consumer-build224](frozen224/all-consumer-build224/receipt.json.gz) · [log](frozen224/all-consumer-build224/tests.log) | Independent13-package buildFAIL101 after152.37s; two compiler diagnostics, no assertions |
+
+| Exact executable pin | Artifact reported fresh |
+| --- | --- |
+| [runtime](frozen223/pinned-runtime223.json) | `false` |
+
+## Independent compiler224 and runtime225 commands
+
+The independent compiler-only224b build passes after 190.01 seconds and pins executable SHA bf4eacb0fdec7783289da44a91a762251b5870485642118465368ac2ad5eec9f to its successful build receipt and complete immutable source image. Its listing records 8516 tests without executing assertions. This build supplies no successful thirteen-package Main224 outcome.
+
+The two exact compiler batches retain 29 names / 11 passed / 18 failed and 32 names / 11 passed / 21 failed after 24.15 and 21.60 seconds. Complete selection inventories, individual events, failed assertions and final summaries remain intact. The32-name inventory explicitly excludes optimiser::chain_fold::tests::deeply_nested_if_survives_fold_script; it supplies no result for that selector. The separate exact standalone-protocol selector is absent from this executable; exit0 with all8516 filtered executes zero assertions.
+
+The unchanged depth1000 unknown-handler extraction control completes1P after710.74 seconds under its test's explicit64MiB stack. The exact log records62920 complete-world nested visits and1001 layouts, source completion547541ms and later lowering709311ms. This test asserts that the original source returns; it does not assert semantic output, provider equivalence or a current edited source performance improvement.
+
+The command labeled Runtime225 without an explicit manifest selects the root Cargo workspace and exits101 after217.67 seconds with two ENOSPC diagnostics in rustls and Core. It is not Runtime verification and supplies no requested Runtime executable pin. The independent225b command explicitly selects runtime/rust/Cargo.toml and a clean target, passes after104.10 seconds and reports a rebuilt artifact (`fresh: false`). Executable SHA87e448c12aa30ca90f085365575564ff90796e0e73009a16329504c3cccd5302 is verified with that successful receipt and source inventory. Its listing records1304 tests without executing assertions.
+
+The exact103-name Runtime225 command completes102P/1F/0ignored/1201filtered after38.14 seconds. The sole failed selector is the original Info-dispatch comparator, whose whole log retains the Jim bare-info arity difference. C-provider Info windows and the genuine Bytecode-retirement software control complete in this image. These measured results apply only to this exact executable and its selected definitions; no current-source, full-suite, generic native-dispatch or private provider identity result follows.
+
+All ten lossless original gzip receipts, whole logs, two executable pins and three exact selection inventories retain their own commands and source associations. Other source images, native provider observations, Clippy and Python remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [compiler-build224b](frozen224/compiler-build224b/receipt.json.gz) · [log](frozen224/compiler-build224b/tests.log) | Independent requested buildPASS0 after190.01s; no assertions |
+| [compiler-list224](frozen224/compiler-list224/receipt.json.gz) · [log](frozen224/compiler-list224/tests.log) | 8516 tests listed; no assertions |
+| [compiler-aot224](frozen224/compiler-aot224/receipt.json.gz) · [log](frozen224/compiler-aot224/tests.log) | 11P/18F/8487filtered after24.15s; complete final summary |
+| [compiler-consumers224](frozen224/compiler-consumers224/receipt.json.gz) · [log](frozen224/compiler-consumers224/tests.log) | 11P/21F/8484filtered after21.60s; complete final summary |
+| [compiler-standalone-protocol224](frozen224/compiler-standalone-protocol224/receipt.json.gz) · [log](frozen224/compiler-standalone-protocol224/tests.log) | 0P/0F/8516filtered after0.06s; zero assertions |
+| [compiler-deep-phase-trace224](frozen224/compiler-deep-phase-trace224/receipt.json.gz) · [log](frozen224/compiler-deep-phase-trace224/tests.log) | 1P/0F/8515filtered after710.74s; complete final summary |
+| [runtime-build225](frozen225/runtime-build225/receipt.json.gz) · [log](frozen225/runtime-build225/tests.log) | Root-workspace commandFAIL101 after217.67s; two ENOSPC diagnostics; not Runtime verification |
+| [runtime-build225b](frozen225/runtime-build225b/receipt.json.gz) · [log](frozen225/runtime-build225b/tests.log) | Independent requested buildPASS0 after104.10s; no assertions |
+| [runtime-list225](frozen225/runtime-list225/receipt.json.gz) · [log](frozen225/runtime-list225/tests.log) | 1304 tests listed; no assertions |
+| [runtime-finite225](frozen225/runtime-finite225/receipt.json.gz) · [log](frozen225/runtime-finite225/tests.log) | 102P/1F/1201filtered after38.14s; complete final summary |
+
+| Exact executable pin | Artifact reported fresh |
+| --- | --- |
+| [compiler](frozen224/pinned-compiler224.json) | `false` |
+| [runtime](frozen225/pinned-runtime225.json) | `false` |
+
+## Exact replay artifact storage
+
+The [closed storage225 journals](replay-storage/storage225/README.md) preserve three pinned Rust executables, 591 inactive command receipts/logs and 85 archived artifact directories. Independent streaming checks verify compressed and original SHA-256 digests, byte lengths, every tar leaf and permission mode. Restore an exact pinned artifact before attempting its recorded command; storage verification or restoration executes no assertion and supplies no new result. Disposable Cargo cache removal is separate from replay artifact storage.
+
+## Independent aggregate226 and runtime227 commands
+
+The actual Main226 command requests fourteen packages with --lib --no-run and exits101 after95.72 seconds. Its complete Cargo log retains E0603 for the private authored_policy helper and an uncoded FnOnce lifetime error, both in Compiler auto_path_eval/source_expression.rs. No assertion executes and this failed requested build supplies no successful aggregate executable pin. Its complete immutable source inventory remains separate from Runtime227.
+
+The explicit Runtime227 build passes after63.13 seconds and reports a rebuilt artifact (fresh: false). Executable SHA4e528e880cec535c9e1dac91d7c7f10f8900266a64dd6878a44bb1d6c4033232 is verified with its successful build receipt and complete immutable source image. Its listing records1306 tests without executing assertions. The exact selection retains103 existing names plus two independently identified child-alias names; every selected name occurs in the listing.
+
+The105-name finite command completes103 passed,2 failed,0 ignored and1201 filtered after34.04 seconds. The whole-source child-alias comparator fails at the Jim produced-NUL diagnostic bytes; the separate missing/foreign issuer control fails its expected child refusal-state assertion. All other103 selected names complete in this exact image, including the original Info comparator and genuine Bytecode-retirement control. These measured events establish no pass for edited child controls, current source, the full suite or additional native/private provider behavior.
+
+All four lossless original gzip receipts, whole logs, exact selection and executable pin retain their commands and independent source associations. Storage restoration, other binaries, current implementation edits, native provider captures, Clippy and Python supply no result to these commands.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [all-consumer-build226](frozen226/all-consumer-build226/receipt.json.gz) · [log](frozen226/all-consumer-build226/tests.log) | 14-package aggregate buildFAIL101 after95.72s; two compiler diagnostics, no assertions |
+| [runtime-build227](frozen227/runtime-build227/receipt.json.gz) · [log](frozen227/runtime-build227/tests.log) | Independent Runtime buildPASS0 after63.13s; no assertions |
+| [runtime-list227](frozen227/runtime-list227/receipt.json.gz) · [log](frozen227/runtime-list227/tests.log) | 1306 tests listed; no assertions |
+| [runtime-finite227](frozen227/runtime-finite227/receipt.json.gz) · [log](frozen227/runtime-finite227/tests.log) | Exact105-name command103P/2F/1201filtered after34.04s; complete final summary |
+
+| Exact executable pin | Artifact reported fresh |
+| --- | --- |
+| [runtime](frozen227/pinned-runtime227.json) | `false` |
+
+## Independent compiler/Registry228 and Runtime229 commands
+
+The compiler-only228 build exits101 after122.25 seconds with E0308 in common_aot_plan.rs:2536: its test assigns None to a CommandTokens value. The whole Cargo log retains the exact expected/found types and source location. No assertion executes and this failed requested compiler build supplies no successful compiler executable pin.
+
+The independently requested Registry228 build passes after144.20 seconds and pins executable SHAcb73fa67611ff5803ff759507d515070c01f9b3b20a1a39f8ea3e48cad77ca64 to its successful build receipt and complete immutable source inventory. Its listing records1513 tests without executing assertions. Its exact two-name batch completes2P/0F/1511filtered after0.02 seconds: the typed authored path-operation control and registered Jim Info-arity recipe. These are source/API software assertions, independent of external native provider observations and the failed compiler-only build.
+
+The independent Runtime229 build passes after20.46 seconds and pins executable SHA4dcbd78ee0c09a2c7a298a7271a0445d2617345ac6f6d114ee649eb852c41e88 to its own successful receipt and different complete source inventory. Its listing records1306 tests without executing assertions. Its exact105-name selection completes104P/1F/0ignored/1201filtered after35.36 seconds. The whole child-alias comparator fails at tcl8.4/original-unicode-child-alias; its full byte arrays and original assertion remain intact. The independently authored child refusal control and all other103 selected names complete in this exact image. This command supplies no successful whole36-window child comparison, edited-definition result or full-suite result.
+
+Both successful build artifacts report fresh: false. All seven lossless original gzip receipts, whole logs, two exact selections and two executable pins retain their separate requested commands, images and outcomes. External native measurements, current edits, other binaries, Clippy and Python remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [compiler-build228](frozen228/compiler-build228/receipt.json.gz) · [log](frozen228/compiler-build228/tests.log) | Compiler-only buildFAIL101 after122.25s; one E0308 test diagnostic, no assertions |
+| [registry-build228](frozen228/registry-build228/receipt.json.gz) · [log](frozen228/registry-build228/tests.log) | Independent requested buildPASS0 after144.20s; no assertions |
+| [registry-list228](frozen228/registry-list228/receipt.json.gz) · [log](frozen228/registry-list228/tests.log) | 1513 tests listed; no assertions |
+| [registry-finite228](frozen228/registry-finite228/receipt.json.gz) · [log](frozen228/registry-finite228/tests.log) | Exact2-name command2P/0F/1511filtered after0.02s; complete final summary |
+| [runtime-build229](frozen229/runtime-build229/receipt.json.gz) · [log](frozen229/runtime-build229/tests.log) | Independent requested buildPASS0 after20.46s; no assertions |
+| [runtime-list229](frozen229/runtime-list229/receipt.json.gz) · [log](frozen229/runtime-list229/tests.log) | 1306 tests listed; no assertions |
+| [runtime-finite229](frozen229/runtime-finite229/receipt.json.gz) · [log](frozen229/runtime-finite229/tests.log) | Exact105-name command104P/1F/1201filtered after35.36s; complete final summary |
+
+| Exact executable pin | Artifact reported fresh |
+| --- | --- |
+| [registry](frozen228/pinned-registry228.json) | `false` |
+| [runtime](frozen229/pinned-runtime229.json) | `false` |
+
+## Compiler230 build command
+
+The actual compiler-only230 --lib --no-run command exits101 after72.94 seconds with uniform_source: true. Its complete Cargo output retains one E0599 fixture diagnostic: Arc<[SourceInstalledProcedureBody]> has no clear method. The exact original receipt retains the whole immutable source inventory, command and elapsed time; the whole log retains the source location, compiler explanation and warnings.
+
+No assertion executes, no libtest summary is emitted and the blocked requested compiler build supplies no successful executable pin. Current edited fixtures, other source images, dependency artifacts, native provider outcomes, Clippy and Python remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [compiler-build230](frozen230/compiler-build230/receipt.json.gz) · [log](frozen230/compiler-build230/tests.log) | Compiler-only buildFAIL101 after72.94s; one E0599 fixture diagnostic; no assertions |
+
+## Compiler231 build command
+
+The actual compiler-only231 --lib --no-run command exits101 after138.64 seconds with uniform_source: true. Its complete Cargo output retains two fixture diagnostics: E0599 uses an absent NativeWord.source method, and E0597 retains a loop closure borrow beyond its valid lifetime. The exact original receipt retains the whole immutable source inventory, command and elapsed time; the whole log retains the source location, compiler explanation and warnings.
+
+No assertion executes, no libtest summary is emitted and the blocked requested compiler build supplies no successful executable pin. Current edited fixtures, other source images, dependency artifacts, native provider outcomes, Clippy and Python remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [compiler-build231](frozen231/compiler-build231/receipt.json.gz) · [log](frozen231/compiler-build231/tests.log) | Compiler-only buildFAIL101 after138.64s; E0599 and E0597 fixture diagnostics; no assertions |
+
+## Runtime233 commands
+
+The independently requested Runtime233 build passes after77.12 seconds with uniform_source: true. Its exact successful build receipt and complete immutable source inventory pin executable SHA52a23ee9409925987b604fb0789d32bac4cc212128a78245fef2c2b66f68ea8c. The listing records1306 tests without executing assertions.
+
+The exact105-name command completes105P/0F/0ignored/1201filtered after41.08 seconds with its complete final libtest summary. The whole36 original child-alias comparison, independently authored refusal control and all other103 selected names pass in this precise executable. The complete selection has zero missing names and remains identical to the independently retained Runtime229 selection. These software comparisons add no native execution, private provider identity or full-suite result. This source image contains production308; this selection executes none of the new Controls30955-window encoding comparison definitions.
+
+All three whole logs, exact original gzip receipts, original selection and executable pin retain their separate commands, source image and channels. Current edits, other binaries/images, external native provider outcomes, Clippy and Python remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [runtime-build233](frozen233/runtime-build233/receipt.json.gz) · [log](frozen233/runtime-build233/tests.log) | Requested Runtime buildPASS0 after77.12s; no assertions |
+| [runtime-list233](frozen233/runtime-list233/receipt.json.gz) · [log](frozen233/runtime-list233/tests.log) | 1306 tests listed; no assertions |
+| [runtime-finite233](frozen233/runtime-finite233/receipt.json.gz) · [log](frozen233/runtime-finite233/tests.log) | Exact105-name command105P/0F/1201filtered after41.08s; complete final summary |
+
+[Exact executable pin](frozen233/pinned-runtime233.json) reports artifact fresh: `false`.
+
+## Runtime234 commands
+
+The independently requested Runtime234 build passes after43.44 seconds with uniform_source: true. Its exact successful build receipt and complete immutable source inventory pin executable SHA1901bff0ecbc8c1a1ab7cd1ac15bb188e00d13cf5206645f8a23c9260790257f. The listing records1308 tests without executing assertions.
+
+The exact107-name command completes107P/0F/0ignored/1201filtered after51.13 seconds with its complete final libtest summary. The whole36 original child-alias comparison, independently authored refusal control and all other103 selected names pass in this precise executable. The complete selection has zero missing names and retains the independently recorded Runtime233105 names plus the original encoding comparator and its foreign/Jim API refusal control. These software comparisons add no native execution, private provider identity or full-suite result. The actual Runtime encoding comparator passes all55 original C constructor/storage/output/error windows against unchanged Native306/307 columns. Its separate foreign/Jim API refusal control also passes. The CmdCore pure codec and VM comparator are not selected by this Runtime command.
+
+All three whole logs, exact original gzip receipts, original selection and executable pin retain their separate commands, source image and channels. Current edits, other binaries/images, external native provider outcomes, Clippy and Python remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [runtime-build234](frozen234/runtime-build234/receipt.json.gz) · [log](frozen234/runtime-build234/tests.log) | Requested Runtime buildPASS0 after43.44s; no assertions |
+| [runtime-list234](frozen234/runtime-list234/receipt.json.gz) · [log](frozen234/runtime-list234/tests.log) | 1308 tests listed; no assertions |
+| [runtime-finite234](frozen234/runtime-finite234/receipt.json.gz) · [log](frozen234/runtime-finite234/tests.log) | Exact107-name command107P/0F/1201filtered after51.13s; complete final summary |
+
+[Exact executable pin](frozen234/pinned-runtime234.json) reports artifact fresh: `false`.
+
+## Main232 commands
+
+The independently requested Compiler-only232 build passes after198.85 seconds with uniform_source: true and pins executable SHAc90a6ab0224527fa64518b401872ece4149b386093b3c2ca01dd6efd8dd18d67. The listing records8543 tests without assertions. Its exact15-name structural command completes5P/10F after8.79 seconds; the separate exact61-name baseline command completes26P/35F after41.84 seconds. Both retain complete final summaries, every actual event and zero-missing original selections. Results belong only to this unchanged pinned image.
+
+The separate all-consumer check fails101 after84.55 seconds with one Explorer private-field pattern error. It executes no assertions and supplies no successful requested consumer image; its failure remains independent of the successful Compiler-only build.
+
+The unchanged original depth1000 selector completes1P/0F after497.52 seconds under its recorded command and environment. Its full trace records62920 layout visits,1000 inputs and1000 parsed commands; the source trace ends at388772 milliseconds with1001 layouts. This is one exact test outcome and its observed trace, not proof of semantic output, native-provider equivalence or a current-source performance improvement.
+
+All six complete logs, exact original gzip receipts, separate selections and successful Compiler-only pin retain the complete immutable source inventory and original command channels. Current edits, other images, Runtime validation, external native outcomes, Clippy and Python remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [compiler-build232](frozen232/compiler-build232/receipt.json.gz) · [log](frozen232/compiler-build232/tests.log) | Requested Compiler-only buildPASS0 after198.85s; no assertions |
+| [compiler-list232](frozen232/compiler-list232/receipt.json.gz) · [log](frozen232/compiler-list232/tests.log) | 8543 tests listed; no assertions |
+| [compiler-structural232](frozen232/compiler-structural232/receipt.json.gz) · [log](frozen232/compiler-structural232/tests.log) | Exact15-name command5P/10F/8528filtered after8.79s; complete final summary |
+| [compiler-baseline232](frozen232/compiler-baseline232/receipt.json.gz) · [log](frozen232/compiler-baseline232/tests.log) | Exact61-name command26P/35F/8482filtered after41.84s; complete final summary |
+| [all-consumer-check232](frozen232/all-consumer-check232/receipt.json.gz) · [log](frozen232/all-consumer-check232/tests.log) | All-consumer checkFAIL101 after84.55s; one Explorer private-field pattern error; no assertions or successful consumer pin |
+| [compiler-deep-phase-trace232](frozen232/compiler-deep-phase-trace232/receipt.json.gz) · [log](frozen232/compiler-deep-phase-trace232/tests.log) | Exact1-name command1P/0F/8542filtered after497.52s; complete final summary |
+
+[Exact Compiler-only executable pin](frozen232/pinned-compiler232.json) reports artifact fresh: `false`.

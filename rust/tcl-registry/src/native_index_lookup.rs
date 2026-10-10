@@ -261,6 +261,47 @@ impl NativeIndexLookupProtocol {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn original_info_option_lookup_is_separate_from_ensemble_and_jim_dispatch() {
+        // naming.info.original-root-and-explicit-nons-command-inventory
+        // docs/design/analysis/name-resolution-proofs/info-original-root-and-explicit-nons-command-inventory.md
+        // naming.info.original-missing-and-empty-selector-dispatch
+        // docs/design/analysis/name-resolution-proofs/info-original-missing-and-empty-selector-dispatch.md
+        // Pure purpose selection; both backends compare the whole original
+        // six-provider inventory programs independently of this API control.
+        for engine in [
+            "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim", "irules",
+        ] {
+            let dialect = crate::InvocationDialect::of_profile(
+                crate::model::ingress::resolve_environment(engine).unit_profile(),
+            );
+            assert_eq!(
+                dialect.native_info_original_option_protocol().is_some(),
+                engine == "tcl8.4"
+            );
+            let expected_usage: Option<&[u8]> = match engine {
+                "tcl8.4" => Some(b"option ?arg arg ...?"),
+                "tcl8.5" => Some(b"subcommand ?argument ...?"),
+                "tcl8.6" | "tcl9.0" | "tcl9.1" => Some(b"subcommand ?arg ...?"),
+                "jim" | "irules" => None,
+                _ => unreachable!(),
+            };
+            assert_eq!(
+                dialect.native_info_original_missing_selector_usage(),
+                expected_usage
+            );
+        }
+        let mut unknown = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+        unknown.core_point = None;
+        unknown.native_family = None;
+        assert!(unknown.native_info_original_option_protocol().is_none());
+        assert!(
+            unknown
+                .native_info_original_missing_selector_usage()
+                .is_none()
+        );
+    }
+
+    #[test]
     fn selected_trace_type_bytes_keep_raw_and_encoded_zero_distinct() {
         // Native proof: naming.trace.original-type-wrong-arity-inputs
         // docs/design/analysis/name-resolution-proofs/trace-original-type-wrong-arity-inputs.md
@@ -306,6 +347,31 @@ mod tests {
 }
 
 impl crate::InvocationDialect {
+    /// C8.4 info dispatches its original selector through GetIndexFromObj's
+    /// option table. C8.5+ dispatches through the actual namespace ensemble;
+    /// Jim has its separately selected command-inventory and helper protocol.
+    /// This selection grants no table/header object or lookup result.
+    #[must_use]
+    pub fn native_info_original_option_protocol(self) -> Option<NativeIndexLookupProtocol> {
+        self.native_index_lookup_protocol()
+            .filter(|protocol| protocol.version() == TclVersion::V8_4)
+    }
+
+    /// Missing-selector usage of the selected original C info dispatcher.
+    /// C8.4's option command and C8.5's ensemble retain their own wording;
+    /// Jim's independent dispatch protocol owns its own arity rendering.
+    #[must_use]
+    pub fn native_info_original_missing_selector_usage(self) -> Option<&'static [u8]> {
+        if self.native_index_lookup_protocol()?.version() == TclVersion::V8_4 {
+            Some(b"option ?arg arg ...?")
+        } else {
+            Some(
+                self.native_ensemble_configuration_protocol()?
+                    .missing_selector_usage(),
+            )
+        }
+    }
+
     /// `GetIndex` is a C native object operation; Jim uses its distinct Enum owner.
     #[must_use]
     pub fn native_index_lookup_protocol(self) -> Option<NativeIndexLookupProtocol> {

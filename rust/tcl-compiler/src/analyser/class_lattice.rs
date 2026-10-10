@@ -452,10 +452,9 @@ fn collect_assign_kinds<S: std::hash::BuildHasher + Clone>(
 ) -> HashMap<String, Vec<AssignKind>> {
     let mut out: HashMap<String, Vec<AssignKind>> = HashMap::new();
     let registry = cu.ir_module.resolved_registry();
-    let Some(context) = crate::registry_invocation::retained_source_metadata_context(
-        registry,
-        cu.ir_module.source_metadata_input.as_ref(),
-    ) else {
+    let Some(context) =
+        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module)
+    else {
         return out;
     };
     let metadata = Some(context.as_ref().into());

@@ -1270,6 +1270,9 @@ impl Namespaces {
             NativeNamePurpose::AliasPublication => {
                 protocol.alias_publication_input(context, original)
             }
+            NativeNamePurpose::ChildAliasPublication => {
+                protocol.child_alias_publication_input(context, original)
+            }
             NativeNamePurpose::RenameDestination => {
                 protocol.rename_destination_input(context, original)
             }
@@ -1365,7 +1368,7 @@ impl Namespaces {
         self.ensure_child(namespace, simple)
     }
 
-    /// Select the alias purpose for both local and child interpreter publication.
+    /// Select standalone alias publication in the actual interpreter realm.
     pub(crate) fn alias_publication_at(
         &mut self,
         current: NsId,
@@ -1380,6 +1383,28 @@ impl Namespaces {
         let path = self.native_context_path(current)?;
         let selected = protocol
             .alias_publication_projection(
+                tcl_syntax::naming::NativeNameContext::new(&path),
+                original,
+            )
+            .ok()?;
+        Some(self.materialise_command_publication_slot(current, &selected))
+    }
+
+    /// Select the child extension's distinct registration constructor.
+    pub(crate) fn child_alias_publication_at(
+        &mut self,
+        current: NsId,
+        original: &[u8],
+    ) -> Option<(NsId, Vec<u8>)> {
+        let protocol = self.variable_name_protocol?;
+        let current = if protocol.is_jim084() {
+            GLOBAL
+        } else {
+            current
+        };
+        let path = self.native_context_path(current)?;
+        let selected = protocol
+            .child_alias_publication_projection(
                 tcl_syntax::naming::NativeNameContext::new(&path),
                 original,
             )
@@ -2067,32 +2092,22 @@ impl Namespaces {
         }
     }
 
-    /// Every alias command's fully-qualified name across the tree (`interp
-    /// aliases`). Global aliases keep their simple name (aliases are registered
-    /// interpreter-wide); namespaced ones are qualified.
+    /// Selected alias-record publication names, independently of lookup slots.
+    /// Original C interp aliases preserves its registration spelling; command
+    /// inventory has its own normalized reporting and lookup purpose.
     #[must_use]
     pub fn alias_names(&self) -> Vec<Vec<u8>> {
-        let mut found: Vec<(NsId, Vec<u8>)> = Vec::new();
-        for (id, ns) in self.arena.iter().enumerate() {
-            for (key, cmd) in ns.commands.iter() {
-                // Both single-interp aliases and cross-interp (child→parent)
-                // aliases are reported by `interp aliases` / `$child aliases`.
-                if matches!(cmd, Command::Alias { .. } | Command::ParentAlias { .. }) {
-                    found.push((id, key.clone()));
+        self.arena
+            .iter()
+            .flat_map(|namespace| namespace.commands.iter())
+            .filter_map(|(_, command)| match command {
+                Command::Alias {
+                    publication_name, ..
                 }
-            }
-        }
-        found
-            .into_iter()
-            .map(|(id, key)| {
-                if id == GLOBAL {
-                    key
-                } else {
-                    let mut q = self.qualified_name(id);
-                    q.extend_from_slice(b"::");
-                    q.extend_from_slice(&key);
-                    q
-                }
+                | Command::ParentAlias {
+                    publication_name, ..
+                } => Some(publication_name.clone()),
+                _ => None,
             })
             .collect()
     }

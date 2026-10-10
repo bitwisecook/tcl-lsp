@@ -975,3 +975,6 @@ mod tests {
         std::env::temp_dir().join(format!("tcl-test-support-{tag}-{}", std::process::id()))
     }
 }
+
+/// Original UTF-8 conversion constructor/observation fixtures shared by all consumers.
+pub mod encoding_utf8;

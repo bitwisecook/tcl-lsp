@@ -371,7 +371,7 @@ mod tests {
     use tcl_syntax::native_compiled_index::NativeCompiledListIndex;
 
     #[test]
-    fn command_range_empty_result_has_actual_list_store_only_from_c9() {
+    fn command_range_empty_result_has_actual_list_store_only_in_c90() {
         // naming.list.original-range-objects-and-instructions
         // docs/design/analysis/name-resolution-proofs/list.original-range-objects-and-instructions.md
         // R3's physical header is observed before any string/list result getter.
@@ -393,13 +393,13 @@ mod tests {
             .unwrap();
             assert_eq!(
                 core::ptr::eq(obj::obj_type_ptr(result.as_ptr()), &TCL_LIST_TYPE),
-                version >= TclVersion::V9_0
+                version == TclVersion::V9_0
             );
             assert_eq!(
                 obj::has_string_rep(result.as_ptr()),
-                version < TclVersion::V9_0
+                version != TclVersion::V9_0
             );
-            if version >= TclVersion::V9_0 {
+            if version == TclVersion::V9_0 {
                 let result_list = unsafe { list_ref(result.as_ptr()) };
                 assert_eq!(result_list.elems.len(), 0);
                 assert_eq!(result_list.elems.backing.capacity.get(), Some(1));

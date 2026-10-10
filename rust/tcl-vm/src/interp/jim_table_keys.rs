@@ -34,6 +34,9 @@ impl Vm {
             NativeNamePurpose::AliasPublication => {
                 protocol.alias_publication_input(context, original)
             }
+            NativeNamePurpose::ChildAliasPublication => {
+                protocol.child_alias_publication_input(context, original)
+            }
             NativeNamePurpose::RenameDestination => {
                 protocol.rename_destination_input(context, original)
             }

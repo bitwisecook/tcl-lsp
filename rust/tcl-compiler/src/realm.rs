@@ -323,6 +323,19 @@ impl CommandBindingRealm {
             .original_written_name_input_at_span_in_source(image, span, config)
     }
 
+    /// Genuine whole original word and parent head under exact source currency.
+    /// This is source geometry only, independently of values and selection.
+    #[must_use]
+    pub fn original_written_word_at_span_in_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<(tcl_lexer::NativeWord, u32)> {
+        self.bindings
+            .original_written_word_at_span_in_source(image, span, config)
+    }
+
     /// Purpose-specific readonly C array operand root. Genuine whole-vector
     /// ownership and the unknown index remain independent of value/cell lookup.
     #[must_use]

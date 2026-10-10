@@ -18,7 +18,7 @@
 
 //! Original procedure-body layouts independent of command installation.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use super::declaration_layout::{
@@ -70,6 +70,79 @@ impl NestedDeclarationLayoutKey {
             source: source.clone(),
             parents,
         }
+    }
+}
+
+/// Pure original source geometry. Lookup worlds remain separate traversal inputs.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct NestedLayoutSyntaxKey {
+    source: ExecutedScriptSource,
+    config: tcl_lexer::LexerConfig,
+}
+
+struct NestedLayoutCommand {
+    site: CommandAllocationSite,
+    tokens: Box<crate::ir::CommandTokens>,
+}
+
+/// A collector-local source tape, with no selected invocation or read/store facts.
+#[derive(Default)]
+struct NestedLayoutSyntax {
+    commands: HashMap<NestedLayoutSyntaxKey, Option<Arc<[NestedLayoutCommand]>>>,
+    #[cfg(test)]
+    parsed_scripts: usize,
+}
+
+impl NestedLayoutSyntax {
+    fn commands(
+        &mut self,
+        source: &ExecutedScriptSource,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<Arc<[NestedLayoutCommand]>> {
+        let key = NestedLayoutSyntaxKey {
+            source: source.clone(),
+            config,
+        };
+        if let Some(commands) = self.commands.get(&key) {
+            return commands.clone();
+        }
+        #[cfg(test)]
+        {
+            self.parsed_scripts += 1;
+        }
+        let commands = Self::parse(source, config);
+        self.commands.insert(key, commands.clone());
+        commands
+    }
+
+    fn parse(
+        source: &ExecutedScriptSource,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<Arc<[NestedLayoutCommand]>> {
+        let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+            &source.text,
+            source.base(),
+            config,
+        )?;
+        Some(
+            segments
+                .iter()
+                .take_while(|segment| !segment.is_partial)
+                .map(|segment| NestedLayoutCommand {
+                    site: CommandAllocationSite {
+                        source: Arc::clone(&source.origin),
+                        offset: segment.span.start(),
+                    },
+                    tokens: super::source_command_tokens_boxed(
+                        &source.text,
+                        source.base(),
+                        config,
+                        segment,
+                    ),
+                })
+                .collect::<Vec<_>>()
+                .into(),
+        )
     }
 }
 
@@ -289,7 +362,37 @@ impl SourceCommandBindings {
     fn retain_nested_declared_layouts_with(
         &mut self,
         registry: &tcl_registry::CommandRegistry,
+        visit: impl FnMut(&ExecutedScriptSource, &[DeclarationLayoutObservation]) -> bool,
+    ) -> usize {
+        let mut syntax = NestedLayoutSyntax::default();
+        let visits =
+            self.retain_nested_declared_layouts_using(registry, visit, |source, config| {
+                syntax.commands(source, config)
+            });
+        #[cfg(any(test, debug_assertions))]
+        if std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some() {
+            let commands: usize = syntax
+                .commands
+                .values()
+                .filter_map(Option::as_ref)
+                .map(|commands| commands.len())
+                .sum();
+            eprintln!(
+                "SOURCE_LAYOUT_SYNTAX_SUMMARY visits={visits} inputs={} parsed_commands={commands}",
+                syntax.commands.len()
+            );
+        }
+        visits
+    }
+
+    fn retain_nested_declared_layouts_using(
+        &mut self,
+        registry: &tcl_registry::CommandRegistry,
         mut visit: impl FnMut(&ExecutedScriptSource, &[DeclarationLayoutObservation]) -> bool,
+        mut parse: impl FnMut(
+            &ExecutedScriptSource,
+            tcl_lexer::LexerConfig,
+        ) -> Option<Arc<[NestedLayoutCommand]>>,
     ) -> usize {
         #[cfg(any(test, debug_assertions))]
         let trace = NestedLayoutTrace::new();
@@ -342,25 +445,11 @@ impl SourceCommandBindings {
                     self.declaration_layouts.len(),
                 );
             }
-            let config = parents[0].config;
-            let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
-                &source.text,
-                source.base(),
-                config,
-            ) else {
+            let Some(commands) = parse(&source, parents[0].config) else {
                 continue;
             };
-            for segment in segments {
-                if segment.is_partial {
-                    break;
-                }
-                if !self.retain_nested_layout_segment(
-                    &source,
-                    &parents,
-                    &segment,
-                    registry,
-                    &mut pending,
-                ) {
+            for command in commands.iter() {
+                if !self.retain_nested_layout_command(command, &parents, registry, &mut pending) {
                     break;
                 }
             }
@@ -375,21 +464,15 @@ impl SourceCommandBindings {
         visits
     }
 
-    fn retain_nested_layout_segment(
+    fn retain_nested_layout_command(
         &mut self,
-        source: &ExecutedScriptSource,
+        command: &NestedLayoutCommand,
         parents: &[DeclarationLayoutObservation],
-        segment: &crate::segmenter::SegmentedCommand,
         registry: &tcl_registry::CommandRegistry,
         pending: &mut Vec<(ExecutedScriptSource, Vec<DeclarationLayoutObservation>)>,
     ) -> bool {
-        let config = parents[0].config;
-        let tokens =
-            super::source_command_tokens_boxed(&source.text, source.base(), config, segment);
-        let site = CommandAllocationSite {
-            source: Arc::clone(&source.origin),
-            offset: segment.span.start(),
-        };
+        let tokens = command.tokens.as_ref();
+        let site = &command.site;
         let observations: Vec<_> = parents
             .iter()
             .map(|parent| DeclarationLayoutObservation {
@@ -403,9 +486,9 @@ impl SourceCommandBindings {
                 retained.push(observation.clone());
             }
         }
-        let originals = parent_declaration_layouts(&site, &tokens, &observations, registry);
+        let originals = parent_declaration_layouts(site, tokens, &observations, registry);
         pending.extend(unanimous_nested_layouts_from_parents(
-            &site, &originals, registry,
+            site, &originals, registry,
         ));
         originals.iter().all(|row| {
             row.original
@@ -1409,6 +1492,105 @@ mod tests {
             .collect();
         let tokens = declaration_tokens(site, &parents[0]).unwrap();
         unanimous_nested_layouts(site, &tokens, &parents, registry).remove(0)
+    }
+
+    #[test]
+    fn nested_layout_syntax_shares_only_exact_original_geometry() {
+        // naming.source.original-declaration-layout-visits
+        // docs/design/analysis/name-resolution-proofs/source-original-declaration-layout-visits.md
+        // Pure lexical sharing, independently of any Native lookup/frame/header claim.
+        let (source, parents) = nested_layout_key_fixture();
+        let config = parents[0].config;
+        let mut syntax = NestedLayoutSyntax::default();
+        let first = syntax.commands(&source, config).unwrap();
+        let second = syntax.commands(&source, config).unwrap();
+        assert!(Arc::ptr_eq(&first, &second));
+        assert_eq!(syntax.parsed_scripts, 1);
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].site.source, source.origin);
+        assert_eq!(first[0].site.offset, source.base());
+        assert_eq!(first[0].tokens.argv_texts, ["puts", "done"]);
+        assert!(first[0].tokens.source_binding.is_none());
+        assert!(first[0].tokens.variable_accesses.is_empty());
+        assert!(first[0].tokens.nested_bindings.is_empty());
+
+        let mut changed_config = config;
+        changed_config.strict_quoting = !config.strict_quoting;
+        let changed = syntax.commands(&source, changed_config).unwrap();
+        assert!(!Arc::ptr_eq(&first, &changed));
+        let materialised = ExecutedScriptSource::materialised(
+            CommandAllocationSite {
+                source: Arc::clone(&source.origin),
+                offset: source.base(),
+            },
+            vec![0],
+            source.try_text().unwrap(),
+        );
+        let changed = syntax.commands(&materialised, config).unwrap();
+        assert!(!Arc::ptr_eq(&first, &changed));
+        assert_eq!(changed[0].site.source, materialised.origin);
+        assert_eq!(changed[0].site.offset, 0);
+        assert_eq!(changed[0].tokens.argv[0].start(), 0);
+        let mut changed_channel = source.clone();
+        changed_channel.text = tcl_lexer::SourceImage::document(source.try_text().unwrap());
+        let changed = syntax.commands(&changed_channel, config).unwrap();
+        assert!(!Arc::ptr_eq(&first, &changed));
+        assert_eq!(syntax.parsed_scripts, 4);
+    }
+
+    #[test]
+    fn nested_layout_syntax_reuse_keeps_original_owner_refusal() {
+        // naming.source.original-declaration-layout-visits
+        // docs/design/analysis/name-resolution-proofs/source-original-declaration-layout-visits.md
+        // A retained pure tape cannot fill a missing source or frame owner.
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let (source, parents) = nested_layout_key_fixture();
+        let mut syntax = NestedLayoutSyntax::default();
+        let tape = syntax.commands(&source, parents[0].config).unwrap();
+        let command = &tape[0];
+        let rows = parent_declaration_layouts(&command.site, &command.tokens, &parents, registry);
+        assert!(rows[0].original.is_some());
+        let original = &parents[0].snapshot.state;
+        let mut lost_source = original.clone();
+        lost_source.current_source_origin = None;
+        let mut lost_frame = original.clone();
+        lost_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Unknown;
+        for state in [lost_source, lost_frame] {
+            let mut changed = parents.clone();
+            changed[0].snapshot = Arc::new(SourceLookupSnapshot::in_realm(
+                state,
+                changed[0].snapshot.realm,
+            ));
+            let rows =
+                parent_declaration_layouts(&command.site, &command.tokens, &changed, registry);
+            assert!(rows[0].original.is_none());
+        }
+        assert_eq!(syntax.parsed_scripts, 1);
+    }
+
+    #[test]
+    fn nested_layout_syntax_memo_matches_original_parser_world_inventory() {
+        // naming.source.original-declaration-layout-visits
+        // docs/design/analysis/name-resolution-proofs/source-original-declaration-layout-visits.md
+        // Compare complete retained layouts; neither path claims entered execution.
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for source in [
+            "if {1} {if {1} {if {1} {puts done}}}",
+            "proc p {condition} {if {$condition} {if {1} {puts done}}}",
+            "proc p {condition} {if {[rename puts saved; expr 1]} {puts done}}",
+        ] {
+            let (mut cached, _) = inventory(source, "puts done");
+            let mut original = cached.clone();
+            let cached_visits = cached.retain_nested_declared_layouts(registry);
+            let mut visited = HashSet::new();
+            let original_visits = original.retain_nested_declared_layouts_using(
+                registry,
+                |source, parents| visited.insert(NestedDeclarationLayoutKey::new(source, parents)),
+                NestedLayoutSyntax::parse,
+            );
+            assert_eq!(cached_visits, original_visits, "{source}");
+            assert_eq!(cached, original, "{source}");
+        }
     }
 
     #[test]

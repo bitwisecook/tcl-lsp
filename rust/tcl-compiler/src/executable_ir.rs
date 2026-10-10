@@ -35,10 +35,13 @@ use tcl_registry::{CommandRegistry, SemanticOperationId};
 
 use crate::expr_ast::ExprNode;
 use crate::ir::{NodeId, Script, SourceSite, Statement, SwitchMode, WordExpr};
+use crate::registry_invocation::{
+    InvocationMetadataContext, RegistryInvocationDecline,
+    resolve_command_tokens_with_metadata_context,
+};
 pub use crate::registry_invocation::{
     OwnedInvocationResolutionUnresolved, RegistryInvocationResolution as InvocationResolution,
 };
-use crate::registry_invocation::{RegistryInvocationDecline, resolve_command_tokens};
 
 /// Identity of one independently executable function body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -2239,6 +2242,40 @@ pub fn build_linear_executable_ir(
     function: ExecutableFunctionId,
     script: &Script,
 ) -> Result<ExecutableFunction, SourceCompatibilityDecline> {
+    build_executable_ir_with_metadata_context(registry, context.map(Into::into), function, script)
+}
+
+/// Why executable metadata could not be built from the supplied context.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExecutableMetadataBuildDecline {
+    /// Missing or foreign source availability supplies no registry facts.
+    ContextUnavailable,
+    /// The retained source lies outside the executable compatibility subset.
+    Source(SourceCompatibilityDecline),
+}
+
+/// Build under the exact supplied availability generation. Missing and
+/// foreign input refuse before visiting source; nested bodies retain the same
+/// owner. This supplies no Native invocation or compilation authority.
+pub fn build_linear_executable_ir_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    function: ExecutableFunctionId,
+    script: &Script,
+) -> Result<ExecutableFunction, ExecutableMetadataBuildDecline> {
+    let context = context
+        .filter(|context| context.matches_registry(registry))
+        .ok_or(ExecutableMetadataBuildDecline::ContextUnavailable)?;
+    build_executable_ir_with_metadata_context(registry, Some(context), function, script)
+        .map_err(ExecutableMetadataBuildDecline::Source)
+}
+
+fn build_executable_ir_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    function: ExecutableFunctionId,
+    script: &Script,
+) -> Result<ExecutableFunction, SourceCompatibilityDecline> {
     if script.statements.is_empty() {
         return Err(SourceCompatibilityDecline::EmptyScript);
     }
@@ -2353,7 +2390,7 @@ enum ScriptTail {
 }
 
 struct RegionEmissionSite<'a> {
-    context: Option<SemanticContext>,
+    context: Option<InvocationMetadataContext<'a>>,
     statement: &'a Statement,
     node: &'a NodeId,
     control: ControlContext,
@@ -2472,7 +2509,7 @@ impl FunctionBuilder {
     fn emit_nested(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         script: &Script,
         path: &[u32],
         block: ExecutableBlockId,
@@ -2494,7 +2531,7 @@ impl FunctionBuilder {
     fn emit_script(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         script: &Script,
         path: &[u32],
         block: ExecutableBlockId,
@@ -2540,7 +2577,7 @@ impl FunctionBuilder {
     fn emit_statement(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
         node: &NodeId,
         block: ExecutableBlockId,
@@ -2604,7 +2641,7 @@ impl FunctionBuilder {
     fn emit_call(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
         node: &NodeId,
         block: ExecutableBlockId,
@@ -2666,7 +2703,7 @@ impl FunctionBuilder {
     fn emit_structured_region(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
         node: &NodeId,
         block: ExecutableBlockId,
@@ -3002,7 +3039,7 @@ impl FunctionBuilder {
     fn emit_if(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
         clauses: &[crate::ir::IfClause],
         else_body: Option<&Script>,
@@ -3053,7 +3090,7 @@ impl FunctionBuilder {
     fn emit_condition_loop(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
         parts: &LoopParts<'_>,
         node: &NodeId,
@@ -3120,7 +3157,7 @@ impl FunctionBuilder {
     fn emit_cursor_loop(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
         iterators: &[crate::ir::ForeachIterator],
         body: &Script,
@@ -3194,7 +3231,7 @@ impl FunctionBuilder {
     fn emit_catch(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
         body: &Script,
         result_var: Option<&str>,
@@ -3256,7 +3293,7 @@ impl FunctionBuilder {
     fn emit_try(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
         body: &Script,
         handlers: &[crate::ir::TryHandler],
@@ -3345,7 +3382,7 @@ impl FunctionBuilder {
     fn emit_try_handlers(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         handlers: &[crate::ir::TryHandler],
         caught: CompletionId,
         node: &NodeId,
@@ -3448,7 +3485,7 @@ impl FunctionBuilder {
     fn emit_switch(
         &mut self,
         registry: &CommandRegistry,
-        context: Option<SemanticContext>,
+        context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
         parts: &SwitchParts<'_>,
         node: &NodeId,
@@ -4073,11 +4110,11 @@ fn exact_words(
 /// retained in executable IR.
 fn resolve_invocation_facts(
     registry: &CommandRegistry,
-    context: Option<SemanticContext>,
+    context: Option<InvocationMetadataContext<'_>>,
     tokens: &crate::ir::CommandTokens,
     statement_index: usize,
 ) -> Result<InvocationResolution, SourceCompatibilityDecline> {
-    match resolve_command_tokens(registry, context, tokens) {
+    match resolve_command_tokens_with_metadata_context(registry, context, tokens) {
         Ok(resolution) => Ok(resolution),
         Err(RegistryInvocationDecline::MissingCommandHead) => {
             Err(SourceCompatibilityDecline::MissingCommandHead { statement_index })
@@ -4372,6 +4409,107 @@ mod tests {
                 _ => None,
             })
             .expect("generic invocation")
+    }
+
+    #[test]
+    fn supplied_executable_metadata_keeps_availability_inside_nested_regions() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Fixed IR metadata control, without a Native entry or execution claim.
+        use std::sync::Arc;
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut puts = registry.get("puts").unwrap().clone();
+        puts.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(puts);
+        let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        let registry = current.commands();
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(registry)),
+        );
+        let call = call(vec![literal("puts", 0), literal("VALUE", 5)]);
+        let script = Script::from_statements(vec![
+            Statement::If {
+                span: Span::new(0, 20),
+                clauses: vec![crate::ir::IfClause {
+                    condition: ExprNode::Literal {
+                        text: "1".into(),
+                        start: 0,
+                        end: 1,
+                    },
+                    condition_span: Span::new(0, 1),
+                    body: Script::from_statements(vec![call.clone()]),
+                    body_span: Span::new(0, 20),
+                    condition_base: None,
+                }],
+                else_body: None,
+                else_span: None,
+            },
+            call,
+        ]);
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        for (availability, expected) in [(Arc::clone(&current), true), (older, false)] {
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                availability,
+                tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+            );
+            let context = InvocationMetadataContext::for_analysis_input(registry, &input);
+            let function = build_linear_executable_ir_with_metadata_context(
+                registry,
+                context,
+                ExecutableFunctionId::new(398),
+                &script,
+            )
+            .expect("complete supplied metadata");
+            function.validate().unwrap();
+            let calls: Vec<_> = function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .filter_map(|instruction| match instruction {
+                    ExecutableInstruction::Invoke(call) => Some(call),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(calls.len(), 2);
+            assert!(calls.iter().any(|call| call.node.path().len() > 1));
+            assert!(
+                calls.iter().all(|call| matches!(
+                    call.resolution,
+                    InvocationResolution::Resolved(_)
+                ) == expected)
+            );
+        }
+    }
+
+    #[test]
+    fn supplied_executable_metadata_refuses_missing_and_foreign_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let current = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        let script =
+            Script::from_statements(vec![call(vec![literal("puts", 0), literal("VALUE", 5)])]);
+        assert_ne!(
+            current.commands().snapshot().semantic_key(),
+            foreign.commands().snapshot().semantic_key()
+        );
+        for context in [None, Some(InvocationMetadataContext::from(foreign))] {
+            assert_eq!(
+                build_linear_executable_ir_with_metadata_context(
+                    current.commands(),
+                    context,
+                    ExecutableFunctionId::new(397),
+                    &script,
+                ),
+                Err(ExecutableMetadataBuildDecline::ContextUnavailable)
+            );
+        }
     }
 
     #[test]

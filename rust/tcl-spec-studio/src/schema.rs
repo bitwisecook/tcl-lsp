@@ -2245,6 +2245,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Returns a filesystem path.",
     ),
     f(
+        "source_path_operation",
+        "Source path operation",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "sourcePathOperation",
+            optional: true,
+        },
+        "Conditional source path algebra; no runtime handler, current filename or filesystem fact.",
+    ),
+    f(
         "is_unescape",
         "Unescapes",
         BEHAVIOUR,
@@ -2389,7 +2399,7 @@ fn custom_catalogues() -> [(&'static str, Value); 5] {
 /// The variant catalogues the form's pickers read, keyed by catalogue id.
 #[must_use]
 pub fn catalogues() -> Value {
-    let standard: [(&str, &[catalogue::Variant]); 27] = [
+    let standard: [(&str, &[catalogue::Variant]); 28] = [
         ("argRole", catalogue::ARG_ROLES),
         ("tclType", catalogue::TCL_TYPES),
         ("bodyKind", catalogue::BODY_KINDS),
@@ -2405,6 +2415,7 @@ pub fn catalogues() -> Value {
         ),
         ("commandTableEffect", catalogue::COMMAND_TABLE_EFFECTS),
         ("patternType", catalogue::PATTERN_TYPES),
+        ("sourcePathOperation", catalogue::SOURCE_PATH_OPERATIONS),
         (
             "taintTransformCondition",
             catalogue::TAINT_TRANSFORM_CONDITIONS,

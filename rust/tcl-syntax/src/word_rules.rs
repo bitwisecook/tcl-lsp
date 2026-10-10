@@ -386,7 +386,11 @@ pub fn original_static_word_ascii_presentation(word: &tcl_lexer::NativeWord) -> 
     value.is_ascii().then_some(value)
 }
 
-fn original_static_word_source_bytes(word: &tcl_lexer::NativeWord) -> Option<Vec<u8>> {
+/// Static source presentation bytes from an authentic Document word, using
+/// the selected shared literal/escape/brace-continuation grammar. These
+/// counted bytes supply no native object, lookup or successful evaluation.
+#[must_use]
+pub fn original_static_word_source_bytes(word: &tcl_lexer::NativeWord) -> Option<Vec<u8>> {
     use tcl_lexer::{ExecutablePart, ExecutableText, SourceChannel, WordKind};
     if word.image().channel() != SourceChannel::Document || word.group().expand {
         return None;

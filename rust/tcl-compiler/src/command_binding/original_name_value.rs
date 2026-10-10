@@ -1169,6 +1169,34 @@ impl super::SourceCommandBindings {
         selected
     }
 
+    /// Unanimous genuine whole source word and its original parent head.
+    /// Complete source/channel/configuration correspondence is required. This
+    /// geometry supplies no value, selected schema, name, cell or execution.
+    #[must_use]
+    pub fn original_written_word_at_span_in_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<(tcl_lexer::NativeWord, u32)> {
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let mut selected = None;
+        for (word, _, binding) in self.original_written_word_observations_at_span(span, config)? {
+            let site = binding.invocation_site()?;
+            (site.source.source_image() == image).then_some(())?;
+            let current = (word, site.offset);
+            if selected
+                .as_ref()
+                .is_some_and(|previous| previous != &current)
+            {
+                return None;
+            }
+            selected = Some(current);
+        }
+        selected
+    }
+
     fn original_written_word_observations_at_span(
         &self,
         span: tcl_lexer::Span,

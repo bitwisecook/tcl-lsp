@@ -2331,7 +2331,7 @@ fn build_var_ref_replacement(
         return None;
     }
     let text = source.get(whole.as_range())?;
-    let reference = tcl_lexer::whole_var_ref(text.as_bytes(), config).ok()??;
+    let reference = tcl_lexer::word_parts::whole_var_ref(text.as_bytes(), config).ok()??;
     let root =
         tcl_syntax::naming::variable_reference_root_bytes(text.as_bytes(), config).ok()??;
     let root = std::str::from_utf8(root).ok()?;

@@ -24,6 +24,10 @@ use tcl_syntax::naming::{NamePolicyProtocol, NativeNameContext, NativeNameProtoc
 
 use super::{assigned_name_value_indices, is_plain_scalar_name, namespace_body_index, raw_value};
 
+mod original;
+pub(crate) use original::extend_path_constant_assignments_from_analysis_commands;
+pub use original::{constant_path_assignments_from_analysis, path_source_word_is_available};
+
 /// A selected global home or an original lexical local activation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Home {
@@ -67,6 +71,9 @@ pub enum PathConstantValue {
         /// Braced single-token value.
         literal: bool,
     },
+    /// A checked original source expression with typed selected operations
+    /// and authentic effective argument values. This supplies no native value.
+    Original(super::OriginalSourcePathExpression),
     /// Membership and optional local link without an assignment.
     Declared,
     /// Mutation with an unavailable value or receiver.
@@ -77,6 +84,11 @@ pub enum PathConstantValue {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PathConstantAssignments {
     policy: Option<NamePolicyProtocol>,
+    source_config: Option<tcl_lexer::LexerConfig>,
+    source_input: Option<crate::analyser::ResolvedAnalysisInput>,
+    source_image: Option<tcl_lexer::SourceImage>,
+    source_realm: Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
+    recorded_end: u32,
     writes: Vec<PathConstantWrite>,
     scopes: Vec<Scope>,
     barriers: Vec<u32>,
@@ -88,6 +100,11 @@ impl PathConstantAssignments {
     pub fn unknown() -> &'static Self {
         static UNKNOWN: PathConstantAssignments = PathConstantAssignments {
             policy: None,
+            source_config: None,
+            source_input: None,
+            source_image: None,
+            source_realm: None,
+            recorded_end: 0,
             writes: Vec::new(),
             scopes: Vec::new(),
             barriers: Vec::new(),
@@ -100,6 +117,22 @@ impl PathConstantAssignments {
     pub const fn naming_policy(&self) -> Option<NamePolicyProtocol> {
         self.policy
     }
+    /// Exact immutable source inventory owner, independent of folded values.
+    pub(super) fn matches_source_owner(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        realm: &std::sync::Arc<crate::realm::CommandBindingRealm>,
+    ) -> bool {
+        self.source_input.as_ref() == Some(input)
+            && self.source_config == Some(input.lexer_config())
+            && self.source_image.as_ref() == Some(image)
+            && self
+                .source_realm
+                .as_ref()
+                .is_some_and(|original| std::sync::Arc::ptr_eq(original, realm))
+    }
+
     /// Read original observations without discarding their inventory issuer.
     pub fn iter(&self) -> std::slice::Iter<'_, PathConstantWrite> {
         self.writes.iter()
@@ -126,7 +159,13 @@ impl PathConstantAssignments {
             && self.barriers.is_empty()
         {
             *self = batch;
-        } else if self.policy == batch.policy {
+        } else if self.policy == batch.policy
+            && self.source_config == batch.source_config
+            && self.source_input == batch.source_input
+            && self.source_image == batch.source_image
+            && self.source_realm == batch.source_realm
+        {
+            self.recorded_end = self.recorded_end.max(batch.recorded_end);
             self.writes.append(&mut batch.writes);
             for scope in batch.scopes {
                 if !self.scopes.contains(&scope) {
@@ -404,7 +443,7 @@ impl<S: std::hash::BuildHasher> PathConstantImports for HashMap<String, String, 
     }
 }
 
-fn authored_policy(profile: &'static DialectProfile) -> Option<NamePolicyProtocol> {
+pub(super) fn authored_policy(profile: &'static DialectProfile) -> Option<NamePolicyProtocol> {
     tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
 }
 fn global_key(protocol: NativeNameProtocol, namespace: &str, name: &str) -> String {
@@ -850,7 +889,7 @@ pub fn fold_constant_assignments_with_imports<I: PathConstantImports + ?Sized>(
         out.members.insert((write.home, write.name.clone()));
         let count = counts.entry((write.home, write.name.clone())).or_default();
         *count += match write.value {
-            PathConstantValue::Raw { .. } => 1,
+            PathConstantValue::Raw { .. } | PathConstantValue::Original(_) => 1,
             PathConstantValue::Poisoned => 2,
             PathConstantValue::Declared => 0,
         };
@@ -865,18 +904,30 @@ pub fn fold_constant_assignments_with_imports<I: PathConstantImports + ?Sized>(
             out.aliases
                 .insert((write.scope, alias.clone()), (write.name.clone(), write.at));
         }
-        let PathConstantValue::Raw { text, literal } = &write.value else {
-            continue;
-        };
         if counts.get(&(write.home, write.name.clone())) != Some(&1) {
             continue;
         }
-        let value = if !literal && super::carries_substitution(text) {
-            super::evaluate_auto_path_expr_with_resolver(text, info_script, &|name| {
-                out.lookup_at(name, write.at)
-            })
-        } else {
-            Some(text.clone())
+        let value = match &write.value {
+            PathConstantValue::Original(expression) => {
+                expression.evaluate(info_script, &|name| out.lookup_at(name, write.at))
+            }
+            PathConstantValue::Raw { text, literal } => {
+                if !literal && super::carries_substitution(text) {
+                    super::evaluate_auto_path_expr_with_resolver_and_braced_vars(
+                        text,
+                        info_script,
+                        &|name| out.lookup_at(name, write.at),
+                        assignments
+                            .source_config
+                            .map_or_else(tcl_dialect::BracedVarStyle::default, |config| {
+                                config.braced_var
+                            }),
+                    )
+                } else {
+                    Some(text.clone())
+                }
+            }
+            _ => continue,
         };
         if let Some(value) = value {
             match write.home {

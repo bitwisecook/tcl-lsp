@@ -230,15 +230,18 @@ static SUBCOMMANDS: &[SubCommand] = &[
         None,
         Traits::empty(),
     ),
-    member(
-        "script",
-        "info script ?filename?",
-        Arity::new(0, 1),
-        "Returns or replaces the interpreter's current filename object.",
-        &[],
-        Some(TclType::String),
-        Traits::empty(),
-    ),
+    SubCommand {
+        source_path_operation: Some(crate::source_path::SourcePathOperation::ScriptPath),
+        ..member(
+            "script",
+            "info script ?filename?",
+            Arity::new(0, 1),
+            "Returns or replaces the interpreter's current filename object.",
+            &[],
+            Some(TclType::String),
+            Traits::empty(),
+        )
+    },
     member(
         "source",
         "info source source ?filename line?",
@@ -323,14 +326,19 @@ impl crate::InvocationDialect {
     /// not issue its physical lookup cache or select any current helper command.
     #[must_use]
     pub fn native_jim_info_protocol(self) -> Option<NativeJimInfoProtocol> {
-        self.native_jim_info_member_names()
-            .map(NativeJimInfoProtocol)
+        Some(NativeJimInfoProtocol(
+            self.native_jim_info_member_names()?,
+            self.native_usage_protocol()?,
+        ))
     }
 }
 
 /// Independently selected Jim info parser, with no object-cache authority.
 #[derive(Clone, Copy, Debug)]
-pub struct NativeJimInfoProtocol(&'static [&'static str]);
+pub struct NativeJimInfoProtocol(
+    &'static [&'static str],
+    crate::native_usage::NativeUsageProtocol,
+);
 
 /// Whether the original Jim invocation allows current namespace forwarding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -341,37 +349,7 @@ pub enum NativeJimInfoScope {
     DirectCore,
 }
 
-/// The command flag selected by Jim's original inventory member.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum NativeJimCommandInventoryKind {
-    /// Every live command entry.
-    Commands,
-    /// Actual procedure entries.
-    Procs,
-    /// Actual entries marked as aliases.
-    Aliases,
-}
-
-/// Failure after original-object alias lookup has selected an actual outcome.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum NativeJimAliasLookupFailure {
-    /// The original command getter selected no current binding.
-    MissingCommand,
-    /// The selected binding is not an alias.
-    NotAlias,
-}
-
-impl NativeJimAliasLookupFailure {
-    /// Jim's original-object diagnostic uses the formatter's CString extent.
-    #[must_use]
-    pub fn message(self, original_name: &[u8]) -> Vec<u8> {
-        let (prefix, suffix): (&[u8], &[u8]) = match self {
-            Self::MissingCommand => (b"invalid command name \"", b"\""),
-            Self::NotAlias => (b"command \"", b"\" is not an alias"),
-        };
-        [prefix, tcl_core_types::c_string_extent(original_name), suffix].concat()
-    }
-}
+pub use tcl_runtime_api::{NativeJimAliasLookupFailure, NativeJimCommandInventoryKind};
 
 /// A selected inventory operation; no actual table or helper is retained here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -460,6 +438,8 @@ pub struct NativeJimInfoReport {
 
 #[derive(Clone, Copy, Debug)]
 enum JimInfoReportKind {
+    /// Registered Jim_InfoCoreCommand arity, checked before Jim_ParseSubCmd.
+    CoreWrongArity(crate::native_usage::NativeUsageProtocol),
     Missing,
     Commands,
     Usage,
@@ -496,6 +476,16 @@ impl NativeJimInfoProtocol {
         mut original: impl FnMut(usize) -> Result<std::rc::Rc<[u8]>, E>,
     ) -> Result<NativeJimInfoDispatch, E> {
         use JimInfoReportKind as K;
+        // Jim_CoreCommandsTable registers this worker with minargs=1 and its
+        // native usage. JimCallNative checks that arity before entering the
+        // generic parser; the selected worker is independent of argv[0].
+        if word_count < 2 {
+            return Ok(NativeJimInfoDispatch::Report(NativeJimInfoReport {
+                head: 0,
+                selector: 1,
+                kind: K::CoreWrongArity(self.1),
+            }));
+        }
         let mut head = 0;
         let mut selector = 1;
         if word_count > 2 && tcl_core_types::c_string_extent(&original(selector)?) == b"-nons" {
@@ -615,9 +605,13 @@ impl NativeJimInfoReport {
     #[must_use]
     pub fn message(self, head: &[u8], selector: &[u8], choices: &[u8]) -> Vec<u8> {
         use JimInfoReportKind as K;
+        if let K::CoreWrongArity(usage) = self.kind {
+            return usage.render_command_usage_message(head, b"subcommand ?arg ...?");
+        }
         let head = tcl_core_types::c_string_extent(head);
         let mut result = Vec::new();
         match self.kind {
+            K::CoreWrongArity(_) => unreachable!("registered arity rendered above"),
             K::Commands => return choices.to_vec(),
             K::Missing => {
                 result.extend_from_slice(b"wrong # args: should be \"");
@@ -772,6 +766,40 @@ mod tests {
                 Ok::<_, std::convert::Infallible>(std::rc::Rc::from(words[index]))
             })
             .unwrap()
+    }
+
+    #[test]
+    fn original_jim_core_arity_precedes_generic_info_parser_reporting() {
+        // naming.info.original-missing-and-empty-selector-dispatch
+        // docs/design/analysis/name-resolution-proofs/info-original-missing-and-empty-selector-dispatch.md
+        // Native292 measures bare info independently from empty selector input.
+        // Pinned JimCallNative checks the genuine worker's minargs before
+        // Jim_ParseSubCmd. The renamed/NUL cases below are renderer controls,
+        // not additional public native invocations or command-table claims.
+        let NativeJimInfoDispatch::Report(report) = parse(&[b"renamed info"]) else {
+            panic!("selected core worker enforces registered minimum arity")
+        };
+        assert!(!report.succeeds());
+        assert_eq!(report.head(), 0);
+        assert_eq!(report.selector(), None);
+        assert_eq!(report.choices_separator(), None);
+        assert_eq!(
+            report.message(b"renamed info", b"", b"UNUSED"),
+            b"wrong # args: should be \"renamed info subcommand ?arg ...?\""
+        );
+        assert_eq!(
+            report.message(b"renamed\0tail", b"", b"UNUSED"),
+            b"wrong # args: should be \"renamed\""
+        );
+        let NativeJimInfoDispatch::Report(empty_selector) = parse(&[b"info", b""]) else {
+            panic!("empty selector enters generic parser")
+        };
+        assert_eq!(empty_selector.selector(), Some(1));
+        assert_eq!(empty_selector.choices_separator(), Some(b", ".as_slice()));
+        assert_eq!(
+            empty_selector.message(b"info", b"", b"CHOICES"),
+            b"info, ambiguous command \"\": should be CHOICES"
+        );
     }
 
     #[test]

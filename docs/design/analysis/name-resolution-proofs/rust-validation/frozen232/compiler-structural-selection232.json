@@ -1,0 +1,24 @@
+{
+  "source_image": 232,
+  "executable_sha256": "c90a6ab0224527fa64518b401872ece4149b386093b3c2ca01dd6efd8dd18d67",
+  "inventory_log_sha256": "3f5081eac9a8e4f358aebb8a2279cad63bbdc3531509c260be4c4200bf624902",
+  "inventory_count": 8543,
+  "zero_matches": [],
+  "selected": [
+    "codegen::wasm::backend::tests::assignment_source_metadata_retains_nested_lexer_overlays",
+    "codegen::wasm::backend::tests::structural_assignments_need_unanimous_original_source_carriers",
+    "codegen::wasm::backend::tests::structural_assignments_require_actual_availability_and_grammar",
+    "common_aot_plan::tests::original_declared_argument_slots_do_not_borrow_the_parent_native_frame",
+    "common_aot_plan::tests::original_direct_expression_body_requires_the_actual_nested_operation_receipts",
+    "common_aot_plan::tests::original_empty_procedure_direct_call_keeps_formals_without_body_specialisation",
+    "common_aot_plan::tests::original_source_queries_require_unanimous_statement_carriers",
+    "common_aot_plan::tests::retained_aot_metadata_cannot_borrow_missing_or_foreign_function_input",
+    "common_aot_plan::tests::structural_call_candidates_keep_original_nested_words_and_literal_boundaries",
+    "compilation_unit::tests::supplied_source_producer_refuses_changed_profile_and_lexer_metadata",
+    "optimiser::end_offset::tests::end_offset_applicability_requires_actual_module_availability",
+    "optimiser::method_barrier::tests::dispatch_metadata_requires_actual_module_availability",
+    "optimiser::propagation::tests::retained_expression_argument_folding_requires_actual_availability",
+    "optimiser::tests::pass_metadata_requires_the_module_producer_profile_and_lexer",
+    "var_observability::tests::module_global_advice_withholds_stale_profile_and_lexer_input"
+  ]
+}

@@ -42,6 +42,7 @@ pub mod channel;
 pub mod clock;
 pub mod dict;
 pub mod ensemble;
+pub mod encoding;
 pub mod error;
 pub mod event;
 pub mod format;

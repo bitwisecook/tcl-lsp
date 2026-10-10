@@ -595,6 +595,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         literal_argument_validator: _,
         destructive: _,
         returns_path: _,
+        source_path_operation: _,
         is_unescape: _,
         cfg_rewrite_name: _,
         sub_subcommands: _,
@@ -728,6 +729,10 @@ pub const SUB_COMMAND: &[Field] = &[
     ),
     f("destructive", Surface::Key("destructive")),
     f("returns_path", Surface::Key("returns_path")),
+    f(
+        "source_path_operation",
+        Surface::Key("source_path_operation"),
+    ),
     f("is_unescape", Surface::Key("is_unescape")),
     f("cfg_rewrite_name", Surface::Key("cfg_rewrite_name")),
     f("sub_subcommands", Surface::Key("sub_subcommands")),

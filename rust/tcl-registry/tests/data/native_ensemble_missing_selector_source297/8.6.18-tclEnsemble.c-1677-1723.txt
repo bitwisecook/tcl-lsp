@@ -1,0 +1,47 @@
+static int
+NsEnsembleImplementationCmdNR(
+    ClientData clientData,
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const objv[])
+{
+    EnsembleConfig *ensemblePtr = (EnsembleConfig *)clientData;
+				/* The ensemble itself. */
+    Tcl_Obj *prefixObj;		/* An object containing the prefix words of
+				 * the command that implements the
+				 * subcommand. */
+    Tcl_HashEntry *hPtr;	/* Used for efficient lookup of fully
+				 * specified but not yet cached command
+				 * names. */
+    int reparseCount = 0;	/* Number of reparses. */
+    Tcl_Obj *errorObj;		/* Used for building error messages. */
+    Tcl_Obj *subObj;
+    int subIdx;
+
+    /*
+     * Must recheck objc since numParameters might have changed. See test
+     * namespace-53.9.
+     */
+
+  restartEnsembleParse:
+    subIdx = 1 + ensemblePtr->numParameters;
+    if (objc < subIdx + 1) {
+	/*
+	 * No subcommand argument. Make error message.
+	 */
+
+	Tcl_DString buf;	/* Message being built */
+
+	Tcl_DStringInit(&buf);
+	if (ensemblePtr->parameterList) {
+	    Tcl_DStringAppend(&buf,
+		    TclGetString(ensemblePtr->parameterList), -1);
+	    TclDStringAppendLiteral(&buf, " ");
+	}
+	TclDStringAppendLiteral(&buf, "subcommand ?arg ...?");
+	Tcl_WrongNumArgs(interp, 1, objv, Tcl_DStringValue(&buf));
+	Tcl_DStringFree(&buf);
+
+	return TCL_ERROR;
+    }
+

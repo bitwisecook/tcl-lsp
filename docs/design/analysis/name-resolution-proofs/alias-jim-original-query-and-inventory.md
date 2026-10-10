@@ -16,7 +16,7 @@ The Jim prefix-query source completes with code0 and {list FIRST SECOND} {list F
 
 ## Scope
 
-Four unchanged ASCII LF source windows independently evaluated in fresh fully initialised interpreters under the counted-source driver. All six provider/compile/executable/archive/header/source pins and entire streams/receipts are retained, including actual namespace helper errors and the explicit unsupported C branch. Whole pinned jim.c, jim-namespace.c and nshelper.tcl copies are separate source artifacts, not a claim about returned loaded procedure-body bytes or arbitrary helper currency. BIG-IP, native command-table identity and executed Rust controls are not tested.
+Four unchanged ASCII LF source windows independently evaluated in fresh fully initialised interpreters under the counted-source driver. All six provider/compile/executable/archive/header/source pins and entire streams/receipts are retained, including actual namespace helper errors and the explicit unsupported C branch. Whole pinned jim.c, jim-namespace.c and nshelper.tcl copies are separate source artifacts, not a claim about returned loaded procedure-body bytes or arbitrary helper currency. BIG-IP, native command-table identity and executed Rust controls are not tested. Runtime and VM linked controls compare24 original completion codes and23 whole original results each, including the twenty explicit unavailable C branches. For the one Jim namespace source, the helper failure code/message and explicit -nons completion remain exact first-three fields; only the final alias inventory field is compared as an alias-member multiset. The complete raw observed field retains its original order. This bounded comparison does not assert a matching native hash iteration order, table seed/capacity or object/header ownership.
 
 ## Provider answers
 
@@ -185,7 +185,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [runtime/rust/src/cmd_info/native_jim_inventory_tests.rs](../../../../runtime/rust/src/cmd_info/native_jim_inventory_tests.rs), `cmd_info::native_jim_inventory_tests::original_alias_queries_and_inventory_compare_all_24_native_windows` (linked): Four unchanged originals × six providers compare24 guest completions and23 whole results. The one Jim namespace result compares exact first-three fields and a member multiset for its final alias inventory only; raw streams remain byte-identical immutable evidence and no physical table order/header/cache identity is inferred.
 
 A named test is a coverage binding, not a claim that it executed.
 

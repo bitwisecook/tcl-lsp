@@ -57,7 +57,9 @@ use std::collections::HashMap;
 use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
-use tcl_registry::{ByteArrayEffect, BytePayloadSpec, CommandRegistry, TclType};
+#[cfg(test)]
+use tcl_registry::CommandRegistry;
+use tcl_registry::{ByteArrayEffect, BytePayloadSpec, TclType};
 
 use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::{Statement, WordExpr, WordPart};
@@ -869,7 +871,6 @@ pub(crate) fn find_byte_array_warnings_with_context(
 mod tests {
     use super::*;
     use crate::compilation_unit::CompilationUnit;
-    use tcl_registry::CommandRegistry;
 
     fn irules_registry() -> std::sync::Arc<CommandRegistry> {
         tcl_registry::model::ingress::static_context_for("f5-irules")
@@ -897,7 +898,10 @@ mod tests {
     fn assignment_proof_summary(src: &str, registry: &CommandRegistry) -> Vec<String> {
         let unit = CompilationUnit::build_for(src, registry, false);
         let layouts = registry.byte_array_payload_layouts();
-        let tracker = ByteCorruption::new(super::ShimmerContext::standalone(registry), &layouts);
+        let tracker = ByteCorruption::new(
+            crate::shimmer::ShimmerContext::standalone(registry),
+            &layouts,
+        );
         let mut summary = Vec::new();
         for function in unit.analysable_functions() {
             for (&block, body) in &function.ssa.blocks {

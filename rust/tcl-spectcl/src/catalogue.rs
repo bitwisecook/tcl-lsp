@@ -214,6 +214,17 @@ pub const BYTE_ARRAY_EFFECTS: &[Variant] = &[
     ),
 ];
 
+/// [`tcl_registry::SourcePathOperation`] conditional source path algebra.
+pub const SOURCE_PATH_OPERATIONS: &[Variant] = &[
+    v("Join", "join exact source argument values"),
+    v("Dirname", "parent directory in the explicit path algebra"),
+    v(
+        "Normalize",
+        "lexical normalisation of an anchored source path",
+    ),
+    v("ScriptPath", "explicit caller-supplied document filename"),
+];
+
 /// [`tcl_registry::deprecation::SourceDeprecationAdvice`] source review plans.
 pub const SOURCE_DEPRECATION_ADVICE: &[Variant] = &[v(
     "IruleMatchclass",
@@ -955,6 +966,15 @@ mod tests {
         }
     }
 
+    fn covered_source_path_operation(operation: tcl_registry::SourcePathOperation) -> bool {
+        match operation {
+            tcl_registry::SourcePathOperation::Join
+            | tcl_registry::SourcePathOperation::Dirname
+            | tcl_registry::SourcePathOperation::Normalize
+            | tcl_registry::SourcePathOperation::ScriptPath => true,
+        }
+    }
+
     fn covered_source_deprecation_advice(advice: tcl_registry::SourceDeprecationAdvice) -> bool {
         match advice {
             tcl_registry::SourceDeprecationAdvice::IruleMatchclass => true,
@@ -963,6 +983,9 @@ mod tests {
 
     #[test]
     fn enum_witnesses_compile_and_hold() {
+        for operation in tcl_registry::SourcePathOperation::ALL {
+            assert!(covered_source_path_operation(*operation));
+        }
         assert!(covered_source_deprecation_advice(
             tcl_registry::SourceDeprecationAdvice::IruleMatchclass
         ));
@@ -989,6 +1012,7 @@ mod tests {
             STORAGE_TYPES,
             BYTE_ARRAY_EFFECTS,
             SOURCE_DEPRECATION_ADVICE,
+            SOURCE_PATH_OPERATIONS,
             COMMAND_TABLE_EFFECTS,
             PATTERN_TYPES,
             TAINT_TRANSFORM_CONDITIONS,

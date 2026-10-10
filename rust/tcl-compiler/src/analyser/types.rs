@@ -2474,10 +2474,10 @@ pub struct AnalysisResult {
     pub has_dynamic_providers: bool,
     /// Source-target records.
     pub source_targets: Vec<SignatureSource>,
-    /// Every path-constant fact the document's load-time surface records —
-    /// top-level `set`s, and `variable`/`set` writes inside literal
-    /// `namespace eval` bodies — in document order, values **unfolded**
-    /// ([`crate::auto_path_eval::constant_path_assignments`]).
+    /// Conditional source path writes from the same retained analysis input,
+    /// immutable realm, whole source and grammar, in document order, values
+    /// **unfolded** ([`crate::auto_path_eval::constant_path_assignments_from_analysis`]).
+    /// Constructed namespace source scopes supply no entered frame or current value.
     ///
     /// Recorded raw rather than folded because folding the
     /// `[file dirname [info script]]` idiom needs the document's own
@@ -3152,6 +3152,14 @@ impl AnalysisResult {
     #[must_use]
     pub fn retained_command_realm(&self) -> Option<&crate::realm::CommandBindingRealm> {
         self.command_realm.as_deref()
+    }
+
+    /// Borrow the same immutable interpretation owner for source-derived
+    /// batch currency. Arc identity grants no invocation or execution facts.
+    pub(crate) fn retained_command_realm_arc(
+        &self,
+    ) -> Option<&std::sync::Arc<crate::realm::CommandBindingRealm>> {
+        self.command_realm.as_ref()
     }
 
     /// Independently completed Normal source publication world. This is final
@@ -4126,9 +4134,11 @@ pub struct InstanceCommandBinding {
 /// | `set auto_path {/o/p1 /o/p2}` | 2 — the right-hand side is a *list* |
 /// | `set auto_path {/o/a {/o/w s} /o/b}` | 3 — the braced element stays one |
 ///
-/// [`crate::auto_path_eval::evaluate_auto_path_entry`] is the consumer that
-/// applies the distinction; it is the only supported way to turn one of these
-/// records into directories.
+/// Retained-analysis consumers use
+/// [`crate::auto_path_eval::capture_source_auto_path_expression`] to join the
+/// row to its original selected mutation and apply the actual list grammar.
+/// [`crate::auto_path_eval::evaluate_auto_path_entry`] is the separate
+/// standalone authoring simulation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AutoPathForm {
     /// `lappend auto_path WORD …` — one record per argument word, and that

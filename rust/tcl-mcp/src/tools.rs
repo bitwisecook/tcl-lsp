@@ -338,42 +338,39 @@ fn split_keep_ends(s: &str) -> Vec<String> {
 
 // ── Individual tool handlers ──────────────────────────────────────────
 
-fn call_graph(args: &Value) -> Value {
+type SourceGraphBuilder = fn(
+    &str,
+    &CommandRegistry,
+    Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
+) -> Result<Value, tcl_lsp_core::graphs::GraphSourceInputDecline>;
+
+fn supplied_source_graph(args: &Value, build: SourceGraphBuilder) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    tcl_lsp_core::graphs::call_graph(
-        source,
-        &registry(&dialect),
-        tcl_lsp_core::profile_for_dialect(&dialect),
-    )
+    let analysis = analyse(source, &dialect);
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return json!({ "error": "The graph's retained source input is unavailable" });
+    };
+    let context = input.context_registry();
+    build(source, context.commands(), Some(input))
+        .unwrap_or_else(|reason| json!({ "error": reason.to_string() }))
+}
+
+fn call_graph(args: &Value) -> Value {
+    supplied_source_graph(args, tcl_lsp_core::graphs::call_graph_with_source_input)
 }
 
 fn symbol_graph(args: &Value) -> Value {
-    let source = arg_str(args, "source");
-    tcl_lsp_core::graphs::symbol_graph(
-        source,
-        tcl_lsp_core::profile_for_dialect(&resolve_dialect(args, source)),
-    )
+    supplied_source_graph(args, tcl_lsp_core::graphs::symbol_graph_with_source_input)
 }
 
 fn dataflow_graph(args: &Value) -> Value {
-    let source = arg_str(args, "source");
-    let dialect = resolve_dialect(args, source);
-    tcl_lsp_core::graphs::dataflow_graph(
-        source,
-        &registry(&dialect),
-        tcl_lsp_core::profile_for_dialect(&dialect),
-    )
+    supplied_source_graph(args, tcl_lsp_core::graphs::dataflow_graph_with_source_input)
 }
 
 fn def_use_chains(args: &Value) -> Value {
-    let source = arg_str(args, "source");
-    let dialect = resolve_dialect(args, source);
-    let mut graph = tcl_lsp_core::graphs::def_use_graph(
-        source,
-        &registry(&dialect),
-        tcl_lsp_core::profile_for_dialect(&dialect),
-    );
+    let mut graph =
+        supplied_source_graph(args, tcl_lsp_core::graphs::def_use_graph_with_source_input);
     // Optional variable filter.
     let variable = arg_str(args, "variable");
     if !variable.is_empty()
@@ -395,12 +392,9 @@ fn def_use_chains(args: &Value) -> Value {
 }
 
 fn memory_aliases(args: &Value) -> Value {
-    let source = arg_str(args, "source");
-    let dialect = resolve_dialect(args, source);
-    tcl_lsp_core::graphs::memory_alias_graph(
-        source,
-        &registry(&dialect),
-        tcl_lsp_core::profile_for_dialect(&dialect),
+    supplied_source_graph(
+        args,
+        tcl_lsp_core::graphs::memory_alias_graph_with_source_input,
     )
 }
 
@@ -2418,5 +2412,43 @@ mod original_event_source_tests {
         }
         let shadow = "proc when {args} {}; when HTTP_REQUEST {}";
         assert!(detect_events(shadow, &analyse(shadow, "f5-irules")).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod retained_graph_input_tests {
+    #[test]
+    fn memory_alias_tool_keeps_authored_exposure_and_unknown_storage() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let graph = super::memory_aliases(&serde_json::json!({
+            "source": "proc aliaser {} {global ::shared; set shared 1}", "dialect": "tcl",
+        }));
+        let function = graph["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|function| function["name"] == "::aliaser")
+            .unwrap();
+        assert!(
+            function["alias_sets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|alias| {
+                    alias["reason"] == "global-cell"
+                        && alias["names"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .any(|name| name == "::shared")
+                        && alias["names"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .any(|name| name == "shared")
+                })
+        );
+        assert_eq!(function["has_wildcard_aliasing"].as_bool(), Some(true));
     }
 }

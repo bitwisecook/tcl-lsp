@@ -348,6 +348,14 @@ pub fn formal_parameter_usage_bytes(
             } else {
                 &parameter.name
             };
+            // JimCmdUsage appends a required name through Jim_String/-1,
+            // independently of its counted formal storage key. Defaulted
+            // names instead use Jim_AppendObj and retain their counted extent.
+            let name = if grammar == ParameterGrammar::Jim && parameter.default.is_none() {
+                tcl_core_types::c_string_extent(name)
+            } else {
+                name
+            };
             let mut word = Vec::new();
             if parameter.default.is_some() {
                 word.push(b'?');
@@ -399,6 +407,41 @@ mod tests {
                 b"k"
             );
         }
+    }
+
+    #[test]
+    fn jim_required_usage_extent_is_independent_of_counted_default_and_storage_names() {
+        // naming.procedure.original-called-name-and-formal-usage-extents
+        // docs/design/analysis/name-resolution-proofs/procedure-original-called-name-and-formal-usage-extents.md
+        // Pure suffix construction; Runtime/VM independently compare unchanged
+        // native public sources and their final formatted messages. Storage
+        // keys stay counted, and this control creates no native call frame.
+        let mut parameters = vec![
+            ByteFormalParameter::<Vec<u8>> {
+                name: b"a\0tail".to_vec(),
+                default: None,
+            },
+            ByteFormalParameter::<Vec<u8>> {
+                name: b"b".to_vec(),
+                default: None,
+            },
+        ];
+        assert_eq!(
+            formal_parameter_usage_bytes(&parameters, ParameterGrammar::Jim),
+            b"a b"
+        );
+        assert_eq!(parameters[0].name, b"a\0tail");
+        parameters[0].name = b"&a\0tail".to_vec();
+        assert_eq!(
+            formal_parameter_usage_bytes(&parameters, ParameterGrammar::Jim),
+            b"a b"
+        );
+        parameters[0].name = b"a\0tail".to_vec();
+        parameters[0].default = Some(b"DEFAULT".to_vec());
+        assert_eq!(
+            formal_parameter_usage_bytes(&parameters, ParameterGrammar::Jim),
+            b"?a\0tail? b"
+        );
     }
 
     #[test]

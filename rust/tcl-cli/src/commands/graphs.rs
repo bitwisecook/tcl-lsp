@@ -348,12 +348,34 @@ fn append_symbolgraph_scope(
     }
 }
 
+/// Retain the CLI's selected profile and pack store before graph projection.
+fn graph_analysis(source: &str, profile: &'static tcl_dialect::DialectProfile) -> AnalysisResult {
+    let registry = registry_for_dialect(profile.name);
+    let context = tcl_registry::model::ingress::context_for_profile(profile);
+    let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        std::sync::Arc::new(context.with_command_store(registry)),
+        tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+    );
+    Analyser::new()
+        .with_resolved_input(input)
+        .analyse(source, profile.name)
+}
+
 /// `tcl symbolgraph` — scope hierarchy with proc/variable references.
 pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
-    let data = graphs::symbol_graph(&source, dialect);
+    let analysis = graph_analysis(&source, dialect);
+    let source_input = analysis
+        .resolved_input
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("the graph's retained source input is unavailable"))?;
+    let context = source_input.context_registry();
+    let data =
+        graphs::symbol_graph_with_source_input(&source, context.commands(), Some(source_input))?;
 
     let summary = data.get("summary").cloned().unwrap_or_else(|| json!({}));
     let count = |key: &str| summary.get(key).and_then(Value::as_i64).unwrap_or(0);
@@ -406,8 +428,14 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(dialect.name);
-    let data = graphs::call_graph(&source, &registry, dialect);
+    let analysis = graph_analysis(&source, dialect);
+    let source_input = analysis
+        .resolved_input
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("the graph's retained source input is unavailable"))?;
+    let context = source_input.context_registry();
+    let data =
+        graphs::call_graph_with_source_input(&source, context.commands(), Some(source_input))?;
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 
@@ -509,8 +537,14 @@ pub fn run_dataflow(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
-    let registry = registry_for_dialect(dialect.name);
-    let data = graphs::dataflow_graph(&source, &registry, dialect);
+    let analysis = graph_analysis(&source, dialect);
+    let source_input = analysis
+        .resolved_input
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("the graph's retained source input is unavailable"))?;
+    let context = source_input.context_registry();
+    let data =
+        graphs::dataflow_graph_with_source_input(&source, context.commands(), Some(source_input))?;
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 
@@ -554,6 +588,31 @@ pub fn run_dataflow(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn graph_analysis_retains_selected_profile_grammar_and_source_projection() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile {
+            grammar: tcl_dialect::LexerGrammar {
+                escapes: tcl_dialect::EscapeSyntax::Tcl84,
+                ..tcl_dialect::DialectProfile::plain_tcl().grammar
+            },
+            ..tcl_dialect::DialectProfile::plain_tcl().clone()
+        }));
+        let source = "proc p {} {}";
+        let analysis = graph_analysis(source, profile);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        assert!(std::ptr::eq(input.unit_profile(), profile));
+        assert_eq!(
+            input.lexer_config().escapes,
+            tcl_dialect::EscapeSyntax::Tcl84
+        );
+        let context = input.context_registry();
+        let graph = graphs::symbol_graph_with_source_input(source, context.commands(), Some(input))
+            .unwrap();
+        assert_eq!(graph["summary"]["total_procs"].as_u64(), Some(1));
+    }
 
     #[test]
     fn event_symbols_use_top_level_rooted_normalised_owner() {

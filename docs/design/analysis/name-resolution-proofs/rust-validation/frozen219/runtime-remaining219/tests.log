@@ -1,0 +1,26 @@
+
+running 21 tests
+test interp::native_variable_teardown::tests::original_undefined_member_callbacks_match_six_native_retirement_sources ... ok
+test interp::native_variable_teardown::tests::original_unset_alias_refills_match_six_native_source_results ... ok
+test interp::native_variable_teardown::tests::unretained_array_target_cannot_remove_same_named_member ... ok
+test interp::stock_ensembles::tests::actual_maps_and_redefined_private_workers_control_runtime_dispatch ... ok
+test interp::tests::logical_provider_changes_stale_only_interpreter_policy_guards ... ok
+test interp::tests::missing_arity_protocol_refuses_before_guest_state_changes ... ok
+test interp::tests::native_wrong_arguments_string_result_requires_the_structured_presenter ... ok
+test interp::tests::unchanged_primitive_projection_preserves_the_original_string_result ... ok
+test list::native_list_storage::tests::command_range_empty_result_has_actual_list_store_only_in_c90 ... ok
+test list::tests::lifetime_views_do_not_create_native_headers_or_force_member_cow ... ok
+test namespace::jim_table_key_tests::original_jim_table_key_public_results_match_replacement_rename_and_namespace_sources ... ok
+test native_arithseries::tests::finite_arithmetic_index_paths_preserve_or_convert_the_original_primary ... ok
+test native_arithseries::tests::multiple_index_path_reports_the_host_materialisation_limit ... ok
+test native_arithseries::tests::public_arithmetic_length_and_single_index_do_not_materialize_huge_series ... ok
+test native_source::tests::original_jim_source_length_preserves_resident_bytes_and_child_source ... ok
+test obj::double_precision_tests::native_double_precision_is_lazy_shared_and_preserves_cached_strings ... ok
+test value_ops::tests::original_value_append_does_not_rebuild_after_unavailable_storage ... ok
+test value_ops::tests::original_value_append_preserves_storage_for_the_next_native_mutation ... ok
+test vars::tests::selected_member_trace_home_requires_original_root_correspondence ... ok
+test vars::tests::selected_scalar_trace_home_retains_the_actual_undefined_root_binding ... ok
+test vars::tests::stable_alias_preparation_follows_existing_namespace_alias_before_capture ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 1280 filtered out; finished in 15.14s
+

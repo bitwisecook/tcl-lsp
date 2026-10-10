@@ -1,0 +1,53 @@
+{
+  "request_id": "naming.info.original-missing-and-empty-selector-dispatch",
+  "problem": "The original bare info public diagnostic must use the selected registered InfoCore native-worker arity before generic Jim_ParseSubCmd dispatch. Generic parser missing-selector reporting is a distinct mechanism and must not replace the registered worker usage. Original called-name bytes are independent of the stock spelling.",
+  "source_anchors": [
+    {
+      "function": "JimCmdUsage",
+      "source_file": "jim.c",
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "lines": [
+        11828,
+        11877
+      ],
+      "excerpt_file": "JimCmdUsage.txt",
+      "excerpt_sha256": "4bc787f3e3f9b2479608949926bc8395c2dc8f27552d93a91754a8dbc4a96024"
+    },
+    {
+      "function": "JimCallNative",
+      "source_file": "jim.c",
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "lines": [
+        12038,
+        12066
+      ],
+      "excerpt_file": "JimCallNative.txt",
+      "excerpt_sha256": "de897d9bd73b65aeaa7ba2836d5b59f699c08aed28efcdc570489d2b457321c2"
+    },
+    {
+      "function": "Jim_InfoCoreCommand",
+      "source_file": "jim.c",
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "lines": [
+        15985,
+        16069
+      ],
+      "excerpt_file": "Jim_InfoCoreCommand.txt",
+      "excerpt_sha256": "3e048ffede3a1365f68a07e3cdc55f852ce30d8a1943d979f7aab9ff58969887"
+    },
+    {
+      "function": "Jim_CoreCommandsTable_Info",
+      "source_file": "jim.c",
+      "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "lines": [
+        16822,
+        16865
+      ],
+      "excerpt_file": "Jim_CoreCommandsTable_Info.txt",
+      "excerpt_sha256": "b947bf8233aef6a936712d4ab510afc086cb8e1185139145816a2201564e6463"
+    }
+  ],
+  "scope": "Read-only independently retained source interpretation for the existing completed Native292 public question. Full source hashes match that actual compile receipt; no new process, private worker identity or consumer execution claim.",
+  "owner": "NativeJimInfoProtocol::dispatch; NativeUsageProtocol::render_command_usage_message",
+  "selector": "commands::tcl::info_jim::tests::original_jim_core_arity_precedes_generic_info_parser_reporting"
+}

@@ -1043,6 +1043,7 @@ fn enum_type_name(catalogue: &str) -> &'static str {
         "byteArrayEffect" => "ByteArrayEffect",
         "commandTableEffect" => "CommandTableEffect",
         "patternType" => "PatternType",
+        "sourcePathOperation" => "SourcePathOperation",
         "formatType" => "FormatType",
         "formKind" => "FormKind",
         "definedSymbolKind" => "DefinedSymbolKind",

@@ -1,0 +1,40 @@
+Tcl_InfoObjCmd(clientData, interp, objc, objv)
+    ClientData clientData;	/* Arbitrary value passed to the command. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* Argument objects. */
+{
+    static CONST char *subCmds[] = {
+	     "args", "body", "cmdcount", "commands",
+	     "complete", "default", "exists",
+#ifdef TCL_TIP280
+	     "frame",
+#endif
+	     "functions",
+	     "globals", "hostname", "level", "library", "loaded",
+	     "locals", "nameofexecutable", "patchlevel", "procs",
+	     "script", "sharedlibextension", "tclversion", "vars",
+	     (char *) NULL};
+    enum ISubCmdIdx {
+	    IArgsIdx, IBodyIdx, ICmdCountIdx, ICommandsIdx,
+	    ICompleteIdx, IDefaultIdx, IExistsIdx,
+#ifdef TCL_TIP280
+	    IFrameIdx,
+#endif
+	    IFunctionsIdx,
+	    IGlobalsIdx, IHostnameIdx, ILevelIdx, ILibraryIdx, ILoadedIdx,
+	    ILocalsIdx, INameOfExecutableIdx, IPatchLevelIdx, IProcsIdx,
+	    IScriptIdx, ISharedLibExtensionIdx, ITclVersionIdx, IVarsIdx
+    };
+    int index, result;
+
+    if (objc < 2) {
+        Tcl_WrongNumArgs(interp, 1, objv, "option ?arg arg ...?");
+        return TCL_ERROR;
+    }
+    
+    result = Tcl_GetIndexFromObj(interp, objv[1], subCmds, "option", 0,
+	    (int *) &index);
+    if (result != TCL_OK) {
+	return result;
+    }

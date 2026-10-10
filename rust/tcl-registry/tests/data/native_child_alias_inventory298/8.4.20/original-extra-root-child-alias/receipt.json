@@ -1,0 +1,47 @@
+{
+  "provider": "8.4.20",
+  "command": [
+    "/workspace/.proofs/native-child-alias-inventory298-capture/8.4.20/probe.elf",
+    "-",
+    "/workspace/.proofs/native-child-alias-inventory298-capture/original-extra-root-child-alias.tcl",
+    "-"
+  ],
+  "exit": 0,
+  "seconds": 0.0033626100048422813,
+  "rows": [
+    "VERSION|0|382e342e3230",
+    "ORIGINAL|0|7b4e414d455f4245464f5245203135203361336133613361373233323332333833363566363537383734373236317d207b444546494e4954494f4e2030203a3a3a3a72323238365f65787472617d207b43414c4c20302056414c55457d207b434f4d4d414e445320302072323238365f6578747261207b7b313120373233323332333833363566363537383734373236317d7d7d207b414c49415345532030203a3a3a3a72323238365f6578747261207b7b3135203361336133613361373233323332333833363566363537383734373236317d7d7d207b4f544845525f414c4941535f535552464143452031207b626164206f7074696f6e2022616c6961736573223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f7220766172737d7d"
+  ],
+  "executable_sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+  "compile_receipt_sha256": "737332289c1fa998c8e71792b3d34986f545625806a5cf7974fa1457fc5cedd0",
+  "source_sha256": {
+    "original": "c82975599257e612b9141e6f3e391b99e1297ce9f150ad3f49b2d67ca9e6fb92"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInterp.c": "76c22a84c35e960f7936999f0f19a1aef60c83756a4f3d26d885cfdbd4288230",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclPkg.c": "b2cfb209be52a7caff1fec7cbcdea3970559646555c5a9081e89daecacd57ce9",
+    "/workspace/.proofs/native-info-original-dispatch292-capture/probe.c": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclNamesp.c": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclProc.c": "bfeecc7c08dabce16946efad9c0e7eb3cacf43d4a5376bf622fa4b69483eb879",
+    "/workspace/.proofs/native-child-alias-inventory298-capture/probe.c": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759",
+    "/workspace/.proofs/native-child-alias-inventory298-capture/original-rooted-child-alias.tcl": "8aba34ed88751cdf2f4b0747cd3a2b6fbab27d2428a89da0b8a4532cec14cae0",
+    "/workspace/.proofs/native-child-alias-inventory298-capture/original-extra-root-child-alias.tcl": "c82975599257e612b9141e6f3e391b99e1297ce9f150ad3f49b2d67ca9e6fb92",
+    "/workspace/.proofs/native-child-alias-inventory298-capture/original-nul-before-suffix-child-alias.tcl": "3f23b4a3f6932fab38cf013506d174b67cde12970ad6808187fc950c8e0288f0",
+    "/workspace/.proofs/native-child-alias-inventory298-capture/original-nul-after-suffix-child-alias.tcl": "f65271180333ad48e4e42a446829ea19696ae298648e82fc26caaa4d377f415b",
+    "/workspace/.proofs/native-child-alias-inventory298-capture/original-unicode-child-alias.tcl": "693efc57ab7ea0bb9a3ab6169ba2baeb15c05f1e05b2274a4d6753305ac76c61",
+    "/workspace/.proofs/native-child-alias-inventory298-capture/original-ff-child-alias.tcl": "73030effd5475037edd1d58a73708579059198290b1d07c3cd2b6476e01b8a69"
+  },
+  "stdout_sha256": "d4d688bdd4b0eb218dc5462bacbda3776f44462e52e81c928dc2592237327b05",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "request_sha256": "32264d2d29b77612d556009096085e7805676cec7135251e104c1f67df5b06cb",
+  "provider_version_row": "VERSION|0|382e342e3230",
+  "channel": "External byte-identical original-counted C API fullInit driver. Fresh interpreter/process per unchanged source, no outer eval/catch/puts wrapper. C Tcl_EvalEx flags0 or Jim_EvalObj actual counted source; whole public result bytes hex. Explicit original source catches individual operation APIs independently."
+}

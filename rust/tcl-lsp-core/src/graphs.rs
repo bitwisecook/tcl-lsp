@@ -22,8 +22,9 @@
 //! This is the shared, consumer-agnostic home for the graph shapes. Every
 //! consumer — the `tcl` CLI (`callgraph` / `symbolgraph` / `dataflow`
 //! verbs), the LSP server, `tcl-mcp` and the WASM hosts — builds the *same*
-//! graphs from this one implementation. Callers supply a resolved
-//! [`CommandRegistry`] and the dialect string; every position is 0-based
+//! graphs from this one implementation. Actual consumers retain their complete
+//! [`ResolvedAnalysisInput`]; explicit standalone profile APIs select their own
+//! requested authoring context. Every position is 0-based
 //! and UTF-16 counted, matching the LSP wire convention.
 
 mod original;
@@ -44,6 +45,50 @@ use tcl_compiler::taint::{
 use tcl_compiler::uri_split::find_uri_split_suggestions;
 use tcl_lexer::{LineIndex, Span};
 use tcl_registry::CommandRegistry;
+
+/// Refusal at a supplied-source graph ingress, independent of execution entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GraphSourceInputDecline {
+    /// The caller has no retained complete source input.
+    MissingSourceInput,
+    /// The retained availability describes a different command generation.
+    ForeignCommandStore,
+}
+
+impl std::fmt::Display for GraphSourceInputDecline {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::MissingSourceInput => "the graph's retained source input is unavailable",
+            Self::ForeignCommandStore => "the graph's retained command store is unavailable",
+        })
+    }
+}
+impl std::error::Error for GraphSourceInputDecline {}
+
+fn supplied_graph_input<'a>(
+    registry: &CommandRegistry,
+    input: Option<&'a ResolvedAnalysisInput>,
+) -> Result<&'a ResolvedAnalysisInput, GraphSourceInputDecline> {
+    let input = input.ok_or(GraphSourceInputDecline::MissingSourceInput)?;
+    tcl_compiler::registry_invocation::InvocationMetadataContext::for_analysis_input(
+        registry, input,
+    )
+    .ok_or(GraphSourceInputDecline::ForeignCommandStore)?;
+    Ok(input)
+}
+
+fn standalone_graph_input(
+    registry: &CommandRegistry,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> ResolvedAnalysisInput {
+    let context = tcl_registry::model::ingress::context_for_profile(profile);
+    ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        std::sync::Arc::new(context.with_command_store(registry.snapshot().shared_registry())),
+        tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+    )
+}
 
 /// The synthetic caller node for calls made outside any proc body.
 const TOP_LEVEL: &str = "<top-level>";
@@ -267,14 +312,26 @@ fn count_namespaces(scope: &Scope, depth: u32) -> usize {
 #[must_use]
 pub fn symbol_graph(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> Value {
     let context = tcl_registry::model::ingress::context_for_profile(dialect);
+    symbol_graph_for_input(source, &standalone_graph_input(context.commands(), dialect))
+}
+
+/// Build a symbol graph under the complete supplied source input.
+/// Missing or foreign metadata refuses; no Native entry is inferred.
+pub fn symbol_graph_with_source_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: Option<&ResolvedAnalysisInput>,
+) -> Result<Value, GraphSourceInputDecline> {
+    Ok(symbol_graph_for_input(
+        source,
+        supplied_graph_input(registry, input)?,
+    ))
+}
+
+fn symbol_graph_for_input(source: &str, input: &ResolvedAnalysisInput) -> Value {
     let result = Analyser::new()
-        .with_resolved_input(ResolvedAnalysisInput::new(
-            dialect,
-            dialect,
-            context,
-            tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
-        ))
-        .analyse(source, dialect.name);
+        .with_resolved_input(input.clone())
+        .analyse(source, input.analyser_profile().name);
     let line_index = LineIndex::new(source);
 
     let scopes = vec![scope_to_value(
@@ -508,21 +565,39 @@ fn build_nodes(
 fn document_unit(
     source: &str,
     registry: &CommandRegistry,
-    profile: &'static tcl_dialect::DialectProfile,
+    input: &ResolvedAnalysisInput,
 ) -> CompilationUnit {
-    let declared =
-        tcl_compiler::analyser::utils::document_declared_surface(source, None, profile.name);
-    CompilationUnit::build_with_options(
+    let declared = tcl_compiler::analyser::utils::document_declared_surface(
+        source,
+        None,
+        input.unit_profile().name,
+    );
+    CompilationUnit::build_with_analysis_input(
         source,
         tcl_compiler::compilation_unit::UnitBuildOptions {
             registry,
             defer_top_level: false,
-            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
-            dialect: Some(profile),
+            config: input.lexer_config(),
+            dialect: Some(input.unit_profile()),
             external_call_sites: None,
             declared_commands: Some(&declared),
         },
+        None,
+        input,
     )
+}
+
+/// Source declarations missing an authenticated compiled body remain opaque
+/// graph cards. Matching a display name never creates a function or frame.
+fn uncompiled_source_declarations(
+    source: &str,
+    input: &ResolvedAnalysisInput,
+    module: &IrModule,
+) -> Vec<Value> {
+    let analysis = Analyser::new()
+        .with_resolved_input(input.clone())
+        .analyse(source, input.analyser_profile().name);
+    original::uncompiled_procedure_nodes(source, &analysis, module)
 }
 
 /// Build the full call-graph payload.
@@ -532,25 +607,42 @@ pub fn call_graph(
     registry: &CommandRegistry,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Value {
+    call_graph_for_input(source, registry, &standalone_graph_input(registry, dialect))
+}
+
+/// Build the graph under the complete supplied source input.
+/// Source metadata supplies no Native handler, entered frame or completed link.
+pub fn call_graph_with_source_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: Option<&ResolvedAnalysisInput>,
+) -> Result<Value, GraphSourceInputDecline> {
+    Ok(call_graph_for_input(
+        source,
+        registry,
+        supplied_graph_input(registry, input)?,
+    ))
+}
+
+fn call_graph_for_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: &ResolvedAnalysisInput,
+) -> Value {
+    let dialect = input.unit_profile();
     // Build the full compilation unit (via `ensure_compilation_unit`) so the
     // interprocedural pass sees the same lowered IR — raw `lower_to_ir` alone
     // does not surface nested `[cmd …]` call sites to the call scanner.
     let profile = dialect;
-    let cu = document_unit(source, registry, profile).with_interprocedural(registry, Some(profile));
+    let cu = document_unit(source, registry, input).with_interprocedural(registry, Some(profile));
     let ir_module = &cu.ir_module;
     let interproc = cu
         .interproc
         .as_ref()
         .expect("with_interprocedural populates the summary");
-    let context = tcl_registry::model::ingress::context_for_profile(dialect);
     let analysis = Analyser::new()
-        .with_resolved_input(ResolvedAnalysisInput::new(
-            dialect,
-            dialect,
-            std::sync::Arc::new(context.with_command_store(registry.snapshot().shared_registry())),
-            ir_module.lexer_config,
-        ))
-        .analyse(source, dialect.name);
+        .with_resolved_input(input.clone())
+        .analyse(source, input.analyser_profile().name);
     let line_index = LineIndex::new(source);
 
     // Proc qnames in sorted order (iterates the summary dict, which is
@@ -885,8 +977,31 @@ pub fn dataflow_graph(
     registry: &CommandRegistry,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Value {
+    dataflow_graph_for_input(source, registry, &standalone_graph_input(registry, dialect))
+}
+
+/// Build the graph under the complete supplied source input.
+/// Source metadata supplies no Native handler, entered frame or completed link.
+pub fn dataflow_graph_with_source_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: Option<&ResolvedAnalysisInput>,
+) -> Result<Value, GraphSourceInputDecline> {
+    Ok(dataflow_graph_for_input(
+        source,
+        registry,
+        supplied_graph_input(registry, input)?,
+    ))
+}
+
+fn dataflow_graph_for_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: &ResolvedAnalysisInput,
+) -> Value {
+    let dialect = input.unit_profile();
     let profile = dialect;
-    let cu = document_unit(source, registry, profile).with_interprocedural(registry, Some(profile));
+    let cu = document_unit(source, registry, input).with_interprocedural(registry, Some(profile));
     let line_index = LineIndex::new(source);
 
     let mut proc_names: Vec<&String> = cu.procedures.keys().collect();
@@ -968,6 +1083,8 @@ pub fn dataflow_graph(
         }));
     }
 
+    let source_declarations = uncompiled_source_declarations(source, input, &cu.ir_module);
+    proc_effects.extend(source_declarations.iter().map(source_effect_card));
     json!({
         "taint_warnings": taint_warnings,
         "tainted_variables": tainted_variables,
@@ -977,11 +1094,20 @@ pub fn dataflow_graph(
             "tainted_variable_count": tainted_variables.len(),
             "pure_proc_count": pure_count,
             "impure_proc_count": impure_count,
+            "source_only_proc_count": source_declarations.len(),
         },
     })
 }
 
 // def-use / SSA data-flow graph
+
+fn source_effect_card(declaration: &Value) -> Value {
+    json!({
+        "name": declaration["name"], "source_declaration": declaration,
+        "projection": "original-source-declaration", "pure": null,
+        "reads": null, "writes": null, "has_barrier": null,
+    })
+}
 
 /// One function unit's SSA def-use view, serialised to the camelCase wire dict.
 fn function_dataflow_json(f: &tcl_compiler::dataflow_graph::FunctionDataFlowGraph) -> Value {
@@ -1056,6 +1182,29 @@ pub fn def_use_graph(
     registry: &CommandRegistry,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Value {
+    def_use_graph_for_input(source, registry, &standalone_graph_input(registry, dialect))
+}
+
+/// Build the graph under the complete supplied source input.
+/// Source metadata supplies no Native handler, entered frame or completed link.
+pub fn def_use_graph_with_source_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: Option<&ResolvedAnalysisInput>,
+) -> Result<Value, GraphSourceInputDecline> {
+    Ok(def_use_graph_for_input(
+        source,
+        registry,
+        supplied_graph_input(registry, input)?,
+    ))
+}
+
+fn def_use_graph_for_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: &ResolvedAnalysisInput,
+) -> Value {
+    let dialect = input.unit_profile();
     fn build_inputs(fu: &FunctionUnit) -> FunctionInputs<'_> {
         FunctionInputs {
             name: fu.name.as_str(),
@@ -1068,7 +1217,7 @@ pub fn def_use_graph(
     }
 
     let profile = dialect;
-    let cu = document_unit(source, registry, profile).with_interprocedural(registry, Some(profile));
+    let cu = document_unit(source, registry, input).with_interprocedural(registry, Some(profile));
 
     let mut proc_names: Vec<&String> = cu.procedures.keys().collect();
     proc_names.sort();
@@ -1077,7 +1226,14 @@ pub fn def_use_graph(
     inputs.extend(proc_names.iter().map(|q| build_inputs(&cu.procedures[*q])));
 
     let graph = extract_dataflow_graph(&inputs);
-    let functions: Vec<Value> = graph.functions.iter().map(function_dataflow_json).collect();
+    let mut functions: Vec<Value> = graph.functions.iter().map(function_dataflow_json).collect();
+    for declaration in uncompiled_source_declarations(source, input, &cu.ir_module) {
+        functions.push(json!({
+            "name": declaration["name"], "source_declaration": declaration,
+            "projection": "original-source-declaration", "has_wildcard_aliasing": true,
+            "nodes": [], "edges": [], "aliases": [], "summary": null,
+        }));
+    }
 
     json!({
         "functions": functions,
@@ -1085,7 +1241,7 @@ pub fn def_use_graph(
             "totalDefs": graph.total_defs(),
             "totalUses": graph.total_uses(),
             "totalAliases": graph.total_aliases(),
-            "functionCount": graph.functions.len(),
+            "functionCount": functions.len(),
         },
     })
 }
@@ -1108,7 +1264,8 @@ fn memory_function_json(
     mem: Option<&tcl_compiler::memory_ssa::MemorySsaFunction>,
 ) -> Value {
     let Some(mem) = mem else {
-        return json!({ "name": name, "alias_sets": [], "memory_ops": 0 });
+        return json!({ "name": name, "alias_sets": [], "memory_ops": 0,
+            "has_wildcard_aliasing": true });
     };
     let alias_sets: Vec<Value> = mem
         .alias_sets
@@ -1124,6 +1281,7 @@ fn memory_function_json(
     json!({
         "name": name,
         "alias_sets": alias_sets,
+        "has_wildcard_aliasing": mem.has_wildcard_aliasing,
         "memory_ops": mem.memory_ops.len(),
         "memory_defs": mem.count_defs,
         "memory_uses": mem.count_uses,
@@ -1132,23 +1290,42 @@ fn memory_function_json(
 }
 
 /// Build the memory-SSA **alias** graph — per-function alias sets (variables the
-/// analysis proved may refer to the same storage, via `upvar` / `global` /
-/// `variable`) with the reason and locations, plus memory-op counts.
+/// source analysis reports as MAY exposure through selected alias descriptors).
+/// The wildcard flag preserves unresolved effects; these sets establish no
+/// completed runtime link or physical cell identity.
 #[must_use]
 pub fn memory_alias_graph(
     source: &str,
     registry: &CommandRegistry,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Value {
+    memory_alias_graph_for_input(source, registry, &standalone_graph_input(registry, dialect))
+}
+
+/// Build the graph under the complete supplied source input.
+/// Source metadata supplies no Native handler, entered frame or completed link.
+pub fn memory_alias_graph_with_source_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: Option<&ResolvedAnalysisInput>,
+) -> Result<Value, GraphSourceInputDecline> {
+    Ok(memory_alias_graph_for_input(
+        source,
+        registry,
+        supplied_graph_input(registry, input)?,
+    ))
+}
+
+fn memory_alias_graph_for_input(
+    source: &str,
+    registry: &CommandRegistry,
+    input: &ResolvedAnalysisInput,
+) -> Value {
+    let dialect = input.unit_profile();
     let profile = dialect;
-    let cu = document_unit(source, registry, profile)
+    let cu = document_unit(source, registry, input)
         .with_interprocedural(registry, Some(profile))
-        .with_memory_ssa(
-            registry,
-            Some(tcl_registry::model::semantic::SemanticContext::for_profile(
-                profile,
-            )),
-        );
+        .with_retained_memory_ssa(registry);
 
     let mut functions: Vec<Value> = vec![memory_function_json(
         "::top",
@@ -1161,6 +1338,14 @@ pub fn memory_alias_graph(
             qname,
             cu.procedures[*qname].memory_ssa.as_ref(),
         ));
+    }
+
+    for declaration in uncompiled_source_declarations(source, input, &cu.ir_module) {
+        functions.push(json!({
+            "name": declaration["name"], "source_declaration": declaration,
+            "projection": "original-source-declaration", "has_wildcard_aliasing": true,
+            "alias_sets": [], "memory_ops": 0,
+        }));
     }
 
     let total_alias_sets: usize = functions

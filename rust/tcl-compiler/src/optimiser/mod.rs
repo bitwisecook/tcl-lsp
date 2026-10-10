@@ -349,9 +349,9 @@ impl<'a> PassContext<'a> {
     pub fn retained_metadata_context(
         &self,
     ) -> Option<std::sync::Arc<tcl_registry::model::ContextRegistry>> {
-        crate::registry_invocation::retained_source_metadata_context(
+        crate::registry_invocation::retained_module_metadata_context(
             self.registry?,
-            self.ir_module?.source_metadata_input.as_ref(),
+            self.ir_module?,
         )
     }
 
@@ -643,6 +643,67 @@ pub fn run_passes(ctx: &mut PassContext<'_>, cu: &CompilationUnit, passes: &[Pas
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pass_metadata_requires_the_module_producer_profile_and_lexer() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&current),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            "puts SOURCE",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: current.commands(),
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        fn metadata(
+            registry: &CommandRegistry,
+            module: &IrModule,
+        ) -> Option<std::sync::Arc<tcl_registry::model::ContextRegistry>> {
+            PassContext {
+                registry: Some(registry),
+                ir_module: Some(module),
+                // A reporting label cannot replace the Module's actual source owner.
+                dialect: tcl_dialect::DialectProfile::find("tcl9.1"),
+                ..PassContext::default()
+            }
+            .retained_metadata_context()
+        }
+        assert!(std::sync::Arc::ptr_eq(
+            &metadata(current.commands(), &unit.ir_module).unwrap(),
+            &current
+        ));
+        let mut wrong_profile = unit.ir_module.clone();
+        wrong_profile.dialect_profile = tcl_dialect::DialectProfile::find("tcl8.6");
+        let mut wrong_config = unit.ir_module.clone();
+        wrong_config.lexer_config.strict_quoting = !wrong_config.lexer_config.strict_quoting;
+        let mut missing = unit.ir_module.clone();
+        missing.source_metadata_input = None;
+        let mut foreign = unit.ir_module.clone();
+        foreign.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            input.lexer_config(),
+        ));
+        for module in [wrong_profile, wrong_config, missing, foreign] {
+            assert!(metadata(current.commands(), &module).is_none());
+        }
+    }
 
     #[test]
     fn optimisation_new_defaults() {

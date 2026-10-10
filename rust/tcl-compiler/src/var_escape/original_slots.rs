@@ -122,6 +122,62 @@ pub(crate) fn original_procedure_argument_slots(
         .then_some(slots)
 }
 
+/// Argument positions in a newly compiled original procedure declaration.
+/// This receipt selects a proposed calling convention, not a borrowed frame's
+/// compiled-local cache. Admission, contents and observer closure are separate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalDeclaredProcedureArgumentSlots {
+    arguments: OriginalScalarArgumentSlots,
+    topology: std::sync::Arc<OriginalFormalTopology>,
+    declaration: tcl_lexer::Span,
+    protocol: tcl_syntax::naming::NativeCompiledVariableProtocol,
+}
+
+impl OriginalDeclaredProcedureArgumentSlots {
+    pub(crate) fn from_module(module: &Module, procedure: &Procedure) -> Option<Self> {
+        use tcl_syntax::naming::NativeCompiledVariableEnvironment;
+        if module.source_entry.compilation_scope
+            != tcl_runtime_api::SourceCompilationScope::WholeModule
+        {
+            return None;
+        }
+        let protocol = module.source_entry.options().compiled_variable_protocol()?;
+        if !protocol.supports_environment(NativeCompiledVariableEnvironment::DeclareProcedure) {
+            return None;
+        }
+        let topology = original_procedure_topology(module, procedure)?;
+        let arguments = original_procedure_argument_slots(module, procedure)?;
+        Some(Self {
+            arguments,
+            topology: std::sync::Arc::new(topology.clone()),
+            declaration: procedure.span,
+            protocol,
+        })
+    }
+
+    /// Original fixed counted argument keys and calling-convention ordinals.
+    #[must_use]
+    pub const fn arguments(&self) -> &OriginalScalarArgumentSlots {
+        &self.arguments
+    }
+
+    /// Independently selected compiler recipe for creating this declaration.
+    #[must_use]
+    pub const fn protocol(&self) -> tcl_syntax::naming::NativeCompiledVariableProtocol {
+        self.protocol
+    }
+
+    /// Exact original declaration extent in the retained source image.
+    #[must_use]
+    pub const fn declaration_span(&self) -> tcl_lexer::Span {
+        self.declaration
+    }
+
+    pub(crate) fn topology(&self) -> &OriginalFormalTopology {
+        &self.topology
+    }
+}
+
 /// One actual retained native layout slot. Source-formal and escape inventories
 /// cannot construct this receipt or establish its current layout incarnation.
 #[derive(Debug, Clone, PartialEq, Eq)]

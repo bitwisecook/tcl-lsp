@@ -213,6 +213,7 @@ pub mod side_effects;
 pub mod snapshot;
 pub mod source_file;
 pub mod source_navigation;
+pub mod source_path;
 pub mod spec;
 pub mod special_vars;
 pub mod state_transition;
@@ -313,6 +314,7 @@ pub mod prelude {
     pub use crate::side_effects::{
         ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
     };
+    pub use crate::source_path::SourcePathOperation;
     pub use crate::spec::{
         BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ConstraintReport,
         ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord, InlineCaseClause,
@@ -499,3 +501,4 @@ pub mod native_jim_enum;
 pub mod native_property_lookup;
 
 pub use deprecation::SourceDeprecationAdvice;
+pub use source_path::SourcePathOperation;

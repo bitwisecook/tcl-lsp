@@ -81,7 +81,8 @@ impl NativeRuntimeLiteralArray {
         if self.protocol == NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4) {
             for (value, registration) in self.values.iter().zip(&self.registrations) {
                 if registration.is_some() {
-                    drop(value.borrow_mut().take());
+                    let retired = value.borrow_mut().take();
+                    drop(retired);
                 }
             }
         }
@@ -92,7 +93,8 @@ impl Drop for NativeRuntimeLiteralArray {
     fn drop(&mut self) {
         if let Some(world) = self.world.upgrade() {
             for registration in self.registrations.iter().flatten() {
-                world.borrow_mut().release(*registration);
+                let retired = world.borrow_mut().release(*registration);
+                drop(retired);
             }
         }
         // Rust drops the actual local member owners after the registrations.
@@ -259,7 +261,8 @@ impl Interp {
                     // source-cycle prevention is a later String-only operation.
                     let hidden = obj::Owned::fresh(obj::duplicate(original));
                     if let Some(registration) = array.registrations[*index].take() {
-                        self.native_literal_world.borrow_mut().release(registration);
+                        let retired = self.native_literal_world.borrow_mut().release(registration);
+                        drop(retired);
                     }
                     *array.values[*index].borrow_mut() = Some(hidden);
                     continue;
@@ -393,7 +396,8 @@ impl Interp {
                             |value| dict::native_object_bytes(value.as_ptr(), protocol),
                             || registered_string(bytes, dialect),
                         )?;
-                    self.native_literal_world.borrow_mut().release(registration);
+                    let retired = self.native_literal_world.borrow_mut().release(registration);
+                    drop(retired);
                     (None, original)
                 }
                 NativeRuntimeLiteral::UnsharedOriginal(original) => (None, original.clone()),
@@ -426,7 +430,8 @@ impl Interp {
                     let bytes = dict::native_object_bytes(source, protocol)?;
                     let copied = obj::Owned::fresh(obj::new_string_bytes(&bytes));
                     if let Some(registration) = array.registrations[slot].take() {
-                        self.native_literal_world.borrow_mut().release(registration);
+                        let retired = self.native_literal_world.borrow_mut().release(registration);
+                        drop(retired);
                     }
                     *array.values[slot].borrow_mut() = Some(copied);
                 }
@@ -680,6 +685,68 @@ mod tests {
             assert_eq!(unsafe { (*member.as_ptr()).ref_count }, 1);
         }
     }
+    #[test]
+    fn retiring_registered_bytecode_releases_nested_literals_outside_world_borrow() {
+        // naming.runtime.original-literal-owner-retirement
+        // docs/design/analysis/name-resolution-proofs/runtime-original-literal-owner-retirement.md
+        // Software original-object allocation control, separate from native
+        // namespace teardown's public values and callback logs.
+        let mut interp = Interp::with_native_core(
+            super::super::default_host(),
+            crate::environment::profile_for_dialect("tcl8.4"),
+            tcl_registry::special_vars::NativeBootstrapInputs {
+                package_path: Vec::new(),
+                default_library: None,
+            },
+        )
+        .expect("authenticated C84 original compiler constructor");
+        assert!(interp
+            .native_compiler_cache_epochs(crate::namespace::GLOBAL)
+            .is_some());
+        let source = obj::Owned::fresh(obj::new_string_bytes(b"other source"));
+        let array = interp
+            .create_native_literal_array(
+                source.as_ptr(),
+                &[NativeRuntimeLiteral::RegisteredBytes {
+                    bytes: b"set nested retained".to_vec(),
+                    namespace: None,
+                }],
+            )
+            .unwrap();
+        let original = array.original(0).unwrap();
+        let artifact = interp
+            .prepare_original_c_body(original, crate::namespace::GLOBAL, None)
+            .unwrap()
+            .expect("actual original Bytecode owns nested literal registrations");
+        assert_eq!(
+            super::super::native_body_artifact::cache_snapshot(original),
+            Some(
+                tcl_syntax::native_object::NativeObjectCacheSnapshot::Bytecode {
+                    version: tcl_dialect::TclVersion::V8_4,
+                }
+            ),
+        );
+        assert!(
+            interp
+                .native_literal_world
+                .borrow()
+                .registered_values()
+                .count()
+                > 1
+        );
+        drop(artifact);
+        array.retire_registered_members();
+        drop(array);
+        assert_eq!(
+            interp
+                .native_literal_world
+                .borrow()
+                .registered_values()
+                .count(),
+            0
+        );
+    }
+
     #[test]
     fn source_finalization_uses_original_pointer_and_all_c84_registered_slots() {
         for version in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl9.1"] {

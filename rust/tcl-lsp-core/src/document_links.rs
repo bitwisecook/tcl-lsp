@@ -53,7 +53,7 @@
 //! must not span code.  A link is painted as one flat run, so a range
 //! covering a whole `[file join $dir x.tcl]` hides every token boundary
 //! inside it and the substitution stops looking like the command sequence
-//! it is.  [`link_anchor`] is the rule — a literal word links
+//! it is.  [`link_anchor_with_config`] is the rule — a literal word links
 //! whole, a substitution links on its trailing literal word alone — and
 //! `tests/e2e/semantic_tokens.rs` pins the invariant it exists to keep: no
 //! link range covers more than one semantic token.
@@ -462,7 +462,7 @@ fn lexical_document_links_in_context(
     analysis: &tcl_compiler::analyser::AnalysisResult,
     ctx: &LinkContext<'_>,
 ) -> Vec<DocumentLink> {
-    let Some(dialect) = analysis.resolved_profile() else {
+    let Some(input) = analysis.resolved_input.as_ref() else {
         return Vec::new();
     };
     let Some(config) = analysis.body_lexer_config else {
@@ -471,12 +471,7 @@ fn lexical_document_links_in_context(
     let Some(registry) = analysis.resolved_registry() else {
         return Vec::new();
     };
-    let LinkContext {
-        workspace_root,
-        home,
-        script_path,
-        imported_constants: _,
-    } = *ctx;
+    let script_path = ctx.script_path;
     let line_index = LineIndex::new(source);
     let mut links = Vec::new();
     // Constant single-assignment `set` map for the `set dir [file dirname
@@ -486,7 +481,11 @@ fn lexical_document_links_in_context(
     // an import view from the host makes values sourced-in from ancestor
     // documents resolve exactly as they do for navigation.
     let no_imports = tcl_compiler::auto_path_eval::FoldedPathConstants::default();
-    let assignments = tcl_compiler::auto_path_eval::constant_path_assignments(source, dialect);
+    let Some(assignments) =
+        tcl_compiler::auto_path_eval::constant_path_assignments_from_analysis(source, analysis)
+    else {
+        return Vec::new();
+    };
     let constants = tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
         &assignments,
         script_path,
@@ -510,95 +509,116 @@ fn lexical_document_links_in_context(
         }
     }
     commands.sort_by_key(|command| command.span.start());
-    for seg in commands {
-        if seg.texts.is_empty() {
+    for segment in commands {
+        let Some(words) =
+            tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                source, analysis, &segment,
+            )
+        else {
             continue;
+        };
+        let Some(navigation) = words
+            .with_source_schema(input.borrowed_context_registry(), |schema| {
+                schema.authored_source_navigation_operand()
+            })
+            .flatten()
+        else {
+            continue;
+        };
+        if let Some(link) = lexical_navigation_link(
+            &segment,
+            &words,
+            navigation,
+            &LexicalNavigationInputs {
+                source,
+                analysis,
+                constants: &constants,
+                line_index: &line_index,
+                link_context: ctx,
+            },
+        ) {
+            links.push(link);
         }
-        // `package require <pkg> ?version?` — surface a link on the package
-        // name (no on-disk target; the tooltip carries the package).
-        if seg.texts[0] == "package"
-            && seg.texts.get(1).is_some_and(|s| s == "require")
-            && seg.texts.len() >= 3
-        {
-            if let Some(tok) = seg.argv.get(2) {
-                // Start at the word *content*, not the opening `{`/`"` delimiter,
-                // so a braced/quoted package name underlines the name only.
-                let start = line_index
-                    .position_at_utf16(tok.span.start() + u32::from(tok.content_offset), source);
-                let end = line_index.position_at_utf16(tok.span.end(), source);
-                links.push(DocumentLink {
-                    start_line: start.line,
-                    start_character: start.character.get(),
-                    end_line: end.line,
-                    end_character: end.character.get(),
-                    target: String::new(),
-                    tooltip: Some(format!("package require {}", seg.texts[2])),
-                });
-            }
-            continue;
-        }
-        if seg.texts[0] != "source" {
-            continue;
-        }
-        // `source` may take optional flags (`-encoding NAME`)
-        // before the path argument; locate the first non-flag
-        // arg.
-        let Some(idx) = source_path_argument_index(&seg.texts) else {
-            continue;
-        };
-        let path = &seg.texts[idx];
-        // Literal `[file join a b c]` resolution: when the
-        // arg is a command substitution whose head is `file
-        // join` and every remaining sub-arg is a literal,
-        // build the joined path on the fly.  Falls through
-        // to the literal-path resolver below so tilde
-        // expansion / `workspace_root` anchoring stays
-        // consistent.
-        let Some(path_owned) = resolve_source_argument(
-            path.as_str(),
-            seg.single_token_word.get(idx).copied(),
-            script_path,
-            &constants.at(seg.span.start()),
-        ) else {
-            continue;
-        };
-        let Some(target) = resolve_path(&path_owned, workspace_root, home) else {
-            continue;
-        };
-        let arg_tok = seg.argv.get(idx);
-        let Some(arg_tok) = arg_tok else { continue };
-        let Some((anchor_start, anchor_end)) = link_anchor(source, dialect, arg_tok) else {
-            continue;
-        };
-        let start = line_index.position_at_utf16(anchor_start, source);
-        let end = line_index.position_at_utf16(anchor_end, source);
-        links.push(DocumentLink {
-            start_line: start.line,
-            start_character: start.character.get(),
-            end_line: end.line,
-            end_character: end.character.get(),
-            target,
-            tooltip: Some(path_owned),
-        });
     }
-
     links
 }
 
-fn source_path_argument_index(words: &[String]) -> Option<usize> {
-    let mut i = 1;
-    while i < words.len() {
-        if words[i].starts_with('-') {
-            if matches!(words[i].as_str(), "-encoding" | "--encoding") {
-                i += 2;
-                continue;
-            }
-            i += 1;
-            continue;
+struct LexicalNavigationInputs<'a> {
+    source: &'a str,
+    analysis: &'a tcl_compiler::analyser::AnalysisResult,
+    constants: &'a tcl_compiler::auto_path_eval::FoldedPathConstants,
+    line_index: &'a LineIndex,
+    link_context: &'a LinkContext<'a>,
+}
+
+fn lexical_navigation_link(
+    segment: &tcl_compiler::segmenter::SegmentedCommand,
+    words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    navigation: tcl_registry::source_navigation::SourceNavigationOperand,
+    inputs: &LexicalNavigationInputs<'_>,
+) -> Option<DocumentLink> {
+    // naming.navigation.retained-path-source-inventory
+    // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+    use tcl_registry::source_navigation::SourceNavigationOperand;
+    let (SourceNavigationOperand::File { argument }
+    | SourceNavigationOperand::Package { argument }) = navigation;
+    let tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written) =
+        *words.origins().get(argument + 1)?
+    else {
+        return None;
+    };
+    let word = words.operands().get(argument)?.as_ref()?.word()?;
+    let token = segment.argv.get(written)?;
+    let content = word.content_span().ok()?;
+    let config = inputs.analysis.body_lexer_config?;
+    let (target, tooltip, anchor) = match navigation {
+        SourceNavigationOperand::Package { .. } => {
+            let name =
+                std::str::from_utf8(words.arguments().get(argument)?.literal_bytes()?).ok()?;
+            (
+                String::new(),
+                format!("package require {name}"),
+                (content.start(), content.end()),
+            )
         }
-        return Some(i);
-    }
-    None
+        SourceNavigationOperand::File { .. } => {
+            let value = if let Some(bytes) = words.arguments().get(argument)?.literal_bytes() {
+                std::str::from_utf8(bytes).ok()?.to_owned()
+            } else {
+                let expression = tcl_compiler::auto_path_eval::capture_source_path_expression(
+                    inputs.source,
+                    inputs.analysis,
+                    word,
+                )?;
+                expression.evaluate(inputs.link_context.script_path, &|name| {
+                    tcl_compiler::auto_path_eval::PathConstantLookup::path_constant(
+                        &inputs.constants.at(segment.span.start()),
+                        name,
+                    )
+                })?
+            };
+            let target = resolve_path(
+                &value,
+                inputs.link_context.workspace_root,
+                inputs.link_context.home,
+            )?;
+            (
+                target,
+                value,
+                link_anchor_with_config(inputs.source, config, token)?,
+            )
+        }
+    };
+    let start = inputs.line_index.position_at_utf16(anchor.0, inputs.source);
+    let end = inputs.line_index.position_at_utf16(anchor.1, inputs.source);
+    Some(DocumentLink {
+        start_line: start.line,
+        start_character: start.character.get(),
+        end_line: end.line,
+        end_character: end.character.get(),
+        target,
+        tooltip: Some(tooltip),
+    })
 }
 
 /// Every `include NAME` row of a spec pack, as a link to the sibling file it
@@ -723,18 +743,6 @@ fn pack_include_links(
 ///
 /// A single-word substitution (`[pwd]`) has only its command name to offer
 /// and so abstains too, hence the `1..` lower bound.
-fn link_anchor(
-    source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    arg: &Token,
-) -> Option<(u32, u32)> {
-    link_anchor_with_config(
-        source,
-        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-        arg,
-    )
-}
-
 fn link_anchor_with_config(
     source: &str,
     config: tcl_lexer::LexerConfig,
@@ -763,102 +771,6 @@ fn link_anchor_with_config(
         tok.span.start() + u32::from(tok.content_offset),
         tok.span.end(),
     ))
-}
-
-/// The path a `source` argument denotes, or `None` when it cannot be
-/// resolved and the provider must emit no link.
-///
-/// Three tiers, strongest first:
-///
-/// 1. A plain literal — no `$`, no `[`, and a single word.
-/// 2. The literal `[file join a b c]` shorthand ([`literal_file_join`]).
-/// 3. The **source graph's own** path evaluator
-///    ([`tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants`],
-///    the same one `resolve_source_edge` uses for the namespace-rehoming
-///    source graph), with the document's single-assignment `set` constants
-///    substituted — which is what carries the corpus idiom `set dir [file
-///    dirname [info script]]; source [file join $dir x.tcl]`, and its chained
-///    form through an intermediate directory.
-///
-/// Anything else abstains.  A multi-token word (`$dir/x.tcl` spliced from
-/// several tokens) abstains too, for the same reason.
-fn resolve_source_argument<C: tcl_compiler::auto_path_eval::PathConstantLookup + ?Sized>(
-    path: &str,
-    single_token_word: Option<bool>,
-    script_path: Option<&str>,
-    constants: &C,
-) -> Option<String> {
-    if !carries_substitution(path) {
-        // Genuinely literal — but still only when the word is one token, so
-        // a spliced multi-token word never masquerades as a path.
-        if single_token_word == Some(false) {
-            return None;
-        }
-        return Some(path.to_owned());
-    }
-    if let Some(joined) = literal_file_join(path) {
-        return Some(joined);
-    }
-    tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants(
-        path,
-        script_path,
-        constants,
-    )
-}
-
-/// Try to interpret `arg` as a literal `[file join …]`
-/// command substitution and return the joined path.  Returns
-/// `None` if the shape doesn't match — typically because the
-/// argument is a different command, or because one of the
-/// sub-arguments contains a substitution that we can't resolve
-/// statically.
-///
-/// Handles the literal-only case that recognises `[file join …]`
-/// source-arg expressions.
-fn literal_file_join(arg: &str) -> Option<String> {
-    let inner = arg.strip_prefix('[')?.strip_suffix(']')?;
-    let inner = inner.trim();
-    let rest = inner.strip_prefix("file")?.trim_start();
-    let rest = rest.strip_prefix("join")?.trim_start();
-    if rest.is_empty() {
-        return None;
-    }
-    // Each remaining token must be a simple literal — no `$`,
-    // no nested `[…]`, no continuation lines.  Quoted strings
-    // strip the surrounding `"`; braced strings strip the `{}`.
-    let mut parts: Vec<String> = Vec::new();
-    for tok in rest.split_whitespace() {
-        let literal = if let Some(b) = tok.strip_prefix('{').and_then(|t| t.strip_suffix('}')) {
-            b.to_string()
-        } else if let Some(q) = tok.strip_prefix('"').and_then(|t| t.strip_suffix('"')) {
-            q.to_string()
-        } else {
-            tok.to_string()
-        };
-        if literal.contains('$') || literal.contains('[') || literal.is_empty() {
-            return None;
-        }
-        parts.push(literal);
-    }
-    if parts.is_empty() {
-        return None;
-    }
-    // `[file join a b c]` joins with `/` on POSIX-style paths
-    // (Tcl uses platform-native separator at runtime; for
-    // document-link surfacing the editor's URI is always
-    // `file:///...` which uses `/`).  If any part is absolute
-    // it resets the joined accumulator (matches Tcl's `file
-    // join` semantics).
-    let mut joined = String::new();
-    for part in parts {
-        if std::path::Path::new(&part).is_absolute() || joined.is_empty() {
-            joined = part;
-        } else {
-            let trimmed = joined.trim_end_matches('/');
-            joined = format!("{trimmed}/{part}");
-        }
-    }
-    Some(joined)
 }
 
 /// Resolve `path` against `workspace_root` (when provided).
@@ -1089,36 +1001,121 @@ mod tests {
         assert_eq!(links[0].target, "file:///usr/lib/tcl/init.tcl");
     }
 
+    fn path_analysis(
+        source: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+        config: tcl_lexer::LexerConfig,
+    ) -> tcl_compiler::analyser::AnalysisResult {
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            config,
+        );
+        tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
     #[test]
     fn original_namespace_source_links_use_typed_jim_local_scope_without_export() {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
         let source = "namespace eval N {set dir /FIRST; source $dir/a.tcl}; namespace eval N {source $dir/b.tcl}; source $dir/c.tcl";
-        // naming.minifier.complete-logical-metadata
-        // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
-        let native_profile =
-            tcl_registry::model::ingress::resolve_environment("jim").analyser_profile();
-        assert!(document_links(source, native_profile, Some("/workspace")).is_empty());
-        let profile = tcl_dialect::DialectProfile::projected_from_point(
-            "logical-jim-local-source-links",
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").analyser_profile();
+        assert_eq!(
+            tcl_registry::InvocationDialect::of_profile(profile)
+                .authored_name_policy()
+                .unwrap()
+                .recipe(),
+            tcl_syntax::naming::NativeNameProtocol::Jim084
+        );
+        let analysis = path_analysis(
+            source,
+            profile,
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        let context = LinkContext {
+            workspace_root: Some("/workspace"),
+            ..LinkContext::default()
+        };
+        // Public Native links need current values independently of source advice.
+        assert!(document_links_from_analysis(source, &analysis, &context).is_empty());
+        let inventory = tcl_compiler::auto_path_eval::constant_path_assignments_from_analysis(
+            source, &analysis,
+        )
+        .unwrap();
+        let constants = tcl_compiler::auto_path_eval::fold_constant_assignments(&inventory, None);
+        assert!(constants.exported().is_empty());
+        // This direct helper is explicit source simulation, not public Native lookup.
+        let links = lexical_document_links_in_context(source, &analysis, &context);
+        assert_eq!(links.len(), 1, "{links:?}");
+        assert_eq!(links[0].target, "file:///FIRST/a.tcl");
+        let unknown = tcl_dialect::DialectProfile::projected_from_point(
+            "source-path-jim079",
             &[],
-            "Logical Jim source links",
+            "Unknown Jim source path recipe",
             tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
         )
         .intern();
-        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, profile.name);
-        assert!(analysis.allows_lexical_declaration_advice());
-        assert!(analysis.original_completed_command_world().is_none());
-        let links = document_links_from_analysis(
+        let unavailable = path_analysis(
             source,
-            &analysis,
-            &LinkContext {
-                imported_constants: None,
-                workspace_root: Some("/workspace"),
-                home: None,
-                script_path: None,
-            },
+            unknown,
+            tcl_lexer::LexerConfig::for_profile(Some(unknown)),
         );
-        assert_eq!(links.len(), 1, "{links:?}");
-        assert_eq!(links[0].target, "file:///FIRST/a.tcl");
+        assert!(
+            tcl_compiler::auto_path_eval::constant_path_assignments_from_analysis(
+                source,
+                &unavailable
+            )
+            .is_none()
+        );
+        assert!(lexical_document_links_in_context(source, &unavailable, &context).is_empty());
+        assert!(document_links_from_analysis(source, &unavailable, &context).is_empty());
+    }
+
+    #[test]
+    fn original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input() {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let context = LinkContext {
+            workspace_root: Some("/workspace"),
+            ..LinkContext::default()
+        };
+        for source in [
+            "::source /tmp/é.tcl",
+            "rename source load; load /tmp/é.tcl",
+            "interp alias {} load {} source; load /tmp/é.tcl",
+        ] {
+            let analysis = path_analysis(source, profile, config);
+            let links = lexical_document_links_in_context(source, &analysis, &context);
+            assert_eq!(links.len(), 1, "{source}: {links:?}");
+            assert_eq!(links[0].target, "file:///tmp/%C3%A9.tcl");
+            assert_eq!(links[0].tooltip.as_deref(), Some("/tmp/é.tcl"));
+            assert!(
+                lexical_document_links_in_context(&source.replace("é", "x"), &analysis, &context)
+                    .is_empty()
+            );
+            let mut stale = analysis.clone();
+            stale.body_lexer_config = Some(tcl_lexer::LexerConfig {
+                braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+                ..config
+            });
+            assert!(lexical_document_links_in_context(source, &stale, &context).is_empty());
+        }
+        for source in [
+            "proc source {path} {}; source /tmp/a.tcl",
+            "proc file {args} {return /BAD}; set d [file join /tmp sub]; source $d/a.tcl",
+            "interp alias {} load {} source /tmp/fixed.tcl; load",
+        ] {
+            let analysis = path_analysis(source, profile, config);
+            assert!(
+                lexical_document_links_in_context(source, &analysis, &context).is_empty(),
+                "{source}"
+            );
+        }
     }
 
     #[test]
@@ -1638,7 +1635,10 @@ mod tests {
     fn file_join_joins_literal_segments() {
         // `[file join lib core init.tcl]` → `lib/core/init.tcl`.
         assert_eq!(
-            literal_file_join("[file join lib core init.tcl]"),
+            tcl_compiler::auto_path_eval::evaluate_auto_path_expr(
+                "[file join lib core init.tcl]",
+                None
+            ),
             Some("lib/core/init.tcl".to_owned()),
         );
     }
@@ -1646,7 +1646,10 @@ mod tests {
     #[test]
     fn file_join_handles_quoted_and_braced_segments() {
         assert_eq!(
-            literal_file_join(r#"[file join "lib" {core} init.tcl]"#),
+            tcl_compiler::auto_path_eval::evaluate_auto_path_expr(
+                r#"[file join "lib" {core} init.tcl]"#,
+                None
+            ),
             Some("lib/core/init.tcl".to_owned()),
         );
     }
@@ -1656,21 +1659,34 @@ mod tests {
         // Per Tcl's `file join` semantics, an absolute path
         // resets the joined accumulator.
         assert_eq!(
-            literal_file_join("[file join /etc /opt/foo bar]"),
+            tcl_compiler::auto_path_eval::evaluate_auto_path_expr(
+                "[file join /etc /opt/foo bar]",
+                None
+            ),
             Some("/opt/foo/bar".to_owned()),
         );
     }
 
     #[test]
     fn file_join_returns_none_for_variable_segments() {
-        assert!(literal_file_join("[file join $dir foo]").is_none());
-        assert!(literal_file_join("[file join [pwd] foo]").is_none());
+        assert!(
+            tcl_compiler::auto_path_eval::evaluate_auto_path_expr("[file join $dir foo]", None)
+                .is_none()
+        );
+        assert!(
+            tcl_compiler::auto_path_eval::evaluate_auto_path_expr("[file join [pwd] foo]", None)
+                .is_none()
+        );
     }
 
     #[test]
     fn file_join_returns_none_for_non_file_join_subst() {
-        assert!(literal_file_join("[exec ls]").is_none());
-        assert!(literal_file_join("[file dirname /foo]").is_none());
+        assert!(tcl_compiler::auto_path_eval::evaluate_auto_path_expr("[exec ls]", None).is_none());
+        assert_eq!(
+            tcl_compiler::auto_path_eval::evaluate_auto_path_expr("[file dirname /foo]", None)
+                .as_deref(),
+            Some("/")
+        );
     }
 
     #[test]
@@ -1816,5 +1832,32 @@ mod original_hosted_document_link_tests {
         let source = "source a.tcl\npackage require P";
         let analysis = Analyser::new().analyse(source, "f5-irules");
         assert!(document_links_from_analysis(source, &analysis, &context).is_empty());
+    }
+    #[test]
+    fn original_source_path_links_use_selected_operations_and_authentic_bound_values() {
+        // naming.navigation.retained-path-source-inventory
+        // docs/design/analysis/name-resolution-proofs/retained-path-source-inventory.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let context = LinkContext {
+            workspace_root: Some("/workspace"),
+            ..LinkContext::default()
+        };
+        let source =
+            "interp alias {} build {} file join {/ROOT with space}; source [build {literal$é.tcl}]";
+        let analysis = path_analysis(source, profile, config);
+        let links = lexical_document_links_in_context(source, &analysis, &context);
+        assert_eq!(links.len(), 1, "{links:?}");
+        assert_eq!(
+            links[0].target,
+            file_uri_for_path("/ROOT with space/literal$é.tcl")
+        );
+        for source in [
+            "rename file moved; interp alias {} file {} list; source [file join /ROOT leaf]",
+            "proc file {args} {}; source [file join /ROOT leaf]",
+        ] {
+            let analysis = path_analysis(source, profile, config);
+            assert!(lexical_document_links_in_context(source, &analysis, &context).is_empty());
+        }
     }
 }

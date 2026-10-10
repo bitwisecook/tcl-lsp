@@ -1212,6 +1212,42 @@ pub(super) fn source_expression_script_bodies(
     if expressions.next().is_some() {
         return None;
     }
+    source_expression_script_bodies_for_argument(words, input, argument)
+}
+
+/// Expression substitution regions at the genuine content base retained by
+/// the expression AST. Multiple Expr operands remain separate source owners.
+pub(crate) fn source_expression_script_bodies_at(
+    words: &super::source_structure::OriginalRegistryWords,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    expression_base: u32,
+) -> Option<Vec<OriginalSourceScriptBody>> {
+    let context = input.context_registry();
+    if words.context() != Some(context.context()) || !words.matches_registry(context.commands()) {
+        return None;
+    }
+    let arguments = words
+        .roles()?
+        .iter()
+        .filter_map(|&(argument, role)| {
+            if role != ArgRole::Expr {
+                return None;
+            }
+            let geometry = source_operand_body(words.operands().get(argument)?.as_ref()?)?;
+            (geometry.content.start() == expression_base).then_some(argument)
+        })
+        .collect::<Vec<_>>();
+    let [argument] = arguments.as_slice() else {
+        return None;
+    };
+    source_expression_script_bodies_for_argument(words, input, *argument)
+}
+
+fn source_expression_script_bodies_for_argument(
+    words: &super::source_structure::OriginalRegistryWords,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    argument: usize,
+) -> Option<Vec<OriginalSourceScriptBody>> {
     let geometry = source_operand_body(words.operands().get(argument)?.as_ref()?)?;
     let config = input.lexer_config();
     if !words.matches_source(geometry.container.image(), config)

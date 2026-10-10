@@ -32,32 +32,6 @@ pub(crate) struct ExistenceQuery {
     pub(crate) kind: ExistenceKind,
 }
 
-/// Recognise one expression condition as a registry-owned existence query.
-#[must_use]
-pub(crate) fn in_expr(
-    node: &ExprNode,
-    registry: &tcl_registry::CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-) -> Option<ExistenceQuery> {
-    match node {
-        ExprNode::Unary {
-            op: UnaryOp::Not,
-            operand,
-        } => in_expr(operand, registry, config).map(|query| ExistenceQuery {
-            negated: !query.negated,
-            ..query
-        }),
-        ExprNode::Command { text, .. } => {
-            in_text(text, registry, config).map(|(var, kind)| ExistenceQuery {
-                var,
-                negated: false,
-                kind,
-            })
-        }
-        _ => None,
-    }
-}
-
 /// Recognise an existence query at its exact retained nested dispatch point.
 /// Explicit unknown or absent implementations never recover facts from spelling.
 #[must_use]
@@ -182,6 +156,7 @@ fn in_tokens_inner(
 
 /// Diagnostic-only selection under the exact original declaration lookup.
 /// Its context cannot establish actual contents presence or permit erasure.
+#[cfg(test)]
 pub(crate) fn in_tokens_for_diagnostics(
     tokens: &crate::ir::CommandTokens,
     registry: &tcl_registry::CommandRegistry,
@@ -268,28 +243,8 @@ fn in_tokens_for_diagnostics_inner(
     ))
 }
 
-/// Conditional branch guard selection for diagnostics. Actual SCCP presence
-/// and edit queries use `in_expr_at` and cannot consume this declaration door.
-pub(crate) fn in_expr_for_diagnostics_at(
-    node: &ExprNode,
-    expression_base: u32,
-    parent: &crate::ir::CommandTokens,
-    registry: &tcl_registry::CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-) -> Option<(
-    ExistenceQuery,
-    std::sync::Arc<crate::var_resolve::ResolveContext>,
-)> {
-    in_expr_for_diagnostics_at_inner(
-        node,
-        expression_base,
-        parent,
-        registry,
-        config,
-        standalone_context(registry),
-    )
-}
-
+/// Conditional branch guard advice under actual supplied metadata. Runtime
+/// presence and edit queries retain their own original invocation premises.
 pub(crate) fn in_expr_for_diagnostics_at_with_metadata_context(
     node: &ExprNode,
     expression_base: u32,
@@ -424,6 +379,7 @@ pub(crate) fn in_expr_with_metadata_context(
     }
 }
 
+#[cfg(test)]
 fn standalone_context(
     registry: &tcl_registry::CommandRegistry,
 ) -> Option<crate::registry_invocation::InvocationMetadataContext<'_>> {
@@ -435,6 +391,7 @@ fn standalone_context(
 
 /// Recognise one bracketed command substitution as an existence query.
 #[must_use]
+#[cfg(test)]
 pub(crate) fn in_text(
     text: &str,
     registry: &tcl_registry::CommandRegistry,
@@ -776,7 +733,7 @@ mod tests {
         assert!(query.negated);
         assert!(super::in_expr_with_metadata_context(&node, registry, config, None).is_none());
         let availability_only =
-            crate::registry_invocation::InvocationMetadataContext::from(context);
+            crate::registry_invocation::InvocationMetadataContext::from(context.as_ref());
         assert!(
             super::in_expr_with_metadata_context(&node, registry, config, Some(availability_only))
                 .is_none()

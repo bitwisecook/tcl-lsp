@@ -545,7 +545,7 @@ fn switch_fewer_than_three_arms_declines() {
 
 #[test]
 fn switch_glob_mode_declines() {
-    // `-glob` mode is not `exact` → `parse_exact_switch` returns None.
+    // The selected case descriptor reports glob mode, so exact advice declines.
     let source = "switch -glob -- $e {\n    a* { drop }\n    b* { drop }\n    c* { drop }\n}";
     assert!(switch_dg(source, "x").is_none());
 }
@@ -647,7 +647,7 @@ fn cidr_with_non_ip_address_part_is_not_ip() {
 
 #[test]
 fn switch_subject_braced_var_form_resolves() {
-    // A `${ext}` switch subject takes `extract_var_name`'s `${…}` branch.
+    // The shared scanner retains one complete braced variable substitution.
     let source = "switch -exact -- ${ext} {\n    .a { drop }\n    .b { drop }\n    .c { drop }\n}";
     let r = switch_dg(source, "").expect("result");
     assert_eq!(dg(&r).name, "ext_map");
@@ -655,9 +655,7 @@ fn switch_subject_braced_var_form_resolves() {
 
 #[test]
 fn switch_subject_bare_dollar_var_resolves() {
-    // A plain `$method` switch subject (no braces) takes
-    // `extract_var_name`'s `$`-prefix let-chain branch — leading alpha, all
-    // alnum/underscore.
+    // The shared selected grammar retains the complete bare substitution.
     let source =
         "switch -exact -- $method {\n    GET { drop }\n    POST { drop }\n    PUT { drop }\n}";
     let r = switch_dg(source, "").expect("result");
@@ -666,8 +664,7 @@ fn switch_subject_bare_dollar_var_resolves() {
 
 #[test]
 fn switch_subject_var_starting_with_underscore_resolves() {
-    // A `$_x` subject: leading `_` is accepted by the `is_alphabetic() || '_'`
-    // first-char guard.
+    // The shared selected grammar includes the leading underscore in the root.
     let source = "switch -exact -- $_x {\n    GET { drop }\n    POST { drop }\n    PUT { drop }\n}";
     let r = switch_dg(source, "dgname").expect("result");
     assert_eq!(dg(&r).records.len(), 3);
@@ -675,10 +672,8 @@ fn switch_subject_var_starting_with_underscore_resolves() {
 
 #[test]
 fn or_chain_with_invalid_var_word_declines() {
-    // `parse_var_word` rejects an array-style word: `$a(k)` is not all
-    // alnum/underscore, so the `parse_eq` var parse fails, `try_or_chain`
-    // returns None, and the elseif ladder cannot parse it either → overall
-    // None.
+    // The shared selected reference owner classifies `$a(k)` as an element,
+    // so the scalar subject projection declines both OR and ladder shapes.
     let source = "if {$a(k) eq \"x\" || $a(k) eq \"y\"} {\n    drop\n}";
     assert!(if_dg(source, "x").is_none());
 }
@@ -758,4 +753,90 @@ fn if_chain_trailing_condition_without_body_declines() {
     let source =
         "if {$h eq \"a\"} {\n    drop\n} elseif {$h eq \"b\"} {\n    drop\n} elseif {$h eq \"c\"}";
     assert!(if_dg(source, "x").is_none());
+}
+
+#[test]
+fn original_switch_subject_keeps_complete_scalar_spelling() {
+    // Implementation contract: naming.refactor.original-datagroup-variable-subject
+    // docs/design/analysis/name-resolution-proofs/original-datagroup-variable-subject.md
+    for subject in [
+        "${café}",
+        "${a b}",
+        "\"${a b}\"",
+        "${literal$name}",
+        r"${a\b}",
+        "${a(}",
+        "${a(k)tail}",
+    ] {
+        let source =
+            format!("switch -exact -- {subject} {{GET {{drop}} POST {{drop}} PUT {{drop}}}}");
+        let result = switch_dg(&source, "subjects").expect("genuine scalar subject");
+        assert_eq!(dg(&result).records.len(), 3);
+        assert!(
+            result.edits[0]
+                .new_text
+                .contains(&format!("class match {subject} equals subjects")),
+            "{subject}"
+        );
+    }
+    let source =
+        r"switch -exact -- ${a b} {GET {set out one} POST {set out two} PUT {set out three}}";
+    let result = switch_dg(source, "subjects").expect("scalar mapping");
+    assert!(
+        result.edits[0]
+            .new_text
+            .contains("class lookup ${a b} subjects")
+    );
+}
+
+#[test]
+fn original_switch_subject_declines_data_compounds_and_arrays() {
+    // Implementation contract: naming.refactor.original-datagroup-variable-subject
+    // docs/design/analysis/name-resolution-proofs/original-datagroup-variable-subject.md
+    for subject in [
+        "{$x}",
+        "{${x}}",
+        r"\$x",
+        "$x-tail",
+        "\"prefix$x\"",
+        "[get]",
+        "$a(k)",
+        "${a(k)}",
+        "$café",
+    ] {
+        let source =
+            format!("switch -exact -- {subject} {{GET {{drop}} POST {{drop}} PUT {{drop}}}}");
+        assert!(switch_dg(&source, "subjects").is_none(), "{subject}");
+    }
+    assert!(switch_dg("switch -exact -- ${unterminated", "subjects").is_none());
+}
+
+#[test]
+fn original_switch_subject_uses_supplied_brace_grammar_and_complete_generated_source() {
+    // Implementation contract: naming.refactor.original-datagroup-variable-subject
+    // docs/design/analysis/name-resolution-proofs/original-datagroup-variable-subject.md
+    // This is explicit source authoring with an iRules emission store and a
+    // supplied lexical grammar; it does not describe an F5 runtime release.
+    let nested = "switch -exact -- ${a{b}c} {GET {drop} POST {drop} PUT {drop}}";
+    assert!(switch_dg(nested, "subjects").is_none());
+    let grammar =
+        LexerConfig::from_grammar(tcl_registry::model::resolve_environment("tcl9.0").grammar());
+    let result = extract_to_datagroup_from_switch(
+        nested,
+        0,
+        "subjects",
+        reg(),
+        &LineIndex::new(nested),
+        grammar,
+    )
+    .expect("nested braced scalar under its selected grammar");
+    assert!(
+        result.edits[0]
+            .new_text
+            .contains("class match ${a{b}c} equals subjects")
+    );
+    // First-close `${a{b}` is one scalar in the original command but its
+    // unmatched inner brace cannot enter the proposed outer braced expression.
+    let unbalanced = "switch -exact -- ${a{b} {GET {drop} POST {drop} PUT {drop}}";
+    assert!(switch_dg(unbalanced, "subjects").is_none());
 }

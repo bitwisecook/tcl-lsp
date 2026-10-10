@@ -86,6 +86,31 @@ fn trace_source_lowering(
     }
 }
 
+/// Debug timings of one original script descent, without source payloads.
+#[cfg(any(test, debug_assertions))]
+fn trace_source_script_lowering(
+    start: Option<std::time::Instant>,
+    phase: &str,
+    source_len: usize,
+    depth: u32,
+    commands: usize,
+    statements: usize,
+) {
+    if let Some(start) = start
+        && (depth <= 1 || depth.is_multiple_of(64))
+    {
+        eprintln!(
+            "LOWER_SCRIPT_PHASE bytes={} depth={} phase={} ms={} commands={} statements={}",
+            source_len,
+            depth,
+            phase,
+            start.elapsed().as_millis(),
+            commands,
+            statements
+        );
+    }
+}
+
 /// Stand-in `Script` for a body past [`MAX_LOWER_NEST_DEPTH`]: a single
 /// [`Statement::Barrier`] spanning `[base_offset, base_offset + len)`, so
 /// downstream passes treat the unanalysed region as having unknown effects
@@ -972,6 +997,7 @@ pub struct Lowerer<'r> {
     invocation_dialect: Option<tcl_registry::InvocationDialect>,
     hosted_execution_context: Option<tcl_registry::f5::BigIpExecutionContext>,
     execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
+    metadata_input: Option<crate::analyser::ResolvedAnalysisInput>,
     logical_source_input: Option<crate::analyser::ResolvedAnalysisInput>,
     vendor_source_input: Option<crate::analyser::ResolvedAnalysisInput>,
     compiled_variable_provider:
@@ -1253,6 +1279,7 @@ impl<'r> Lowerer<'r> {
             compiled_variable_provider: None,
             hosted_execution_context: None,
             execution_name_policy: None,
+            metadata_input: None,
             logical_source_input: None,
             vendor_source_input: None,
             native_entry: None,
@@ -1353,6 +1380,31 @@ impl<'r> Lowerer<'r> {
         // consumers then refuse it instead of rebuilding a profile fallback.
         self.dialect_context = Some(context);
         self.metadata_origin = LoweringMetadataOrigin::Supplied;
+        self
+    }
+
+    /// Retain the complete caller input independently of execution entry.
+    /// Missing or foreign source metadata cannot acquire a profile fallback.
+    #[must_use]
+    pub fn with_resolved_analysis_input(
+        mut self,
+        input: crate::analyser::ResolvedAnalysisInput,
+    ) -> Self {
+        self.dialect = self.dialect.or(Some(input.unit_profile()));
+        let source_entry = (self.source_entry_origin == SourceEntryOrigin::Authoring).then(|| {
+            crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+                self.registry,
+                &input,
+                self.config,
+                self.dialect,
+            )
+        });
+        self.dialect_context = Some(input.context_registry());
+        self.metadata_input = Some(input);
+        self.metadata_origin = LoweringMetadataOrigin::Supplied;
+        if let Some(entry) = source_entry {
+            self.set_source_analysis_options(entry.options());
+        }
         self
     }
 
@@ -1487,8 +1539,9 @@ impl<'r> Lowerer<'r> {
         self.module.dialect_profile = self.dialect.or_else(|| self.registry.profile());
         self.module.registry_snapshot = Some(self.registry.snapshot());
         self.module.source_metadata_input = self
-            .logical_source_input
+            .metadata_input
             .clone()
+            .or_else(|| self.logical_source_input.clone())
             .or_else(|| self.vendor_source_input.clone())
             .or_else(|| {
                 let profile = self.module.dialect_profile?;
@@ -1771,6 +1824,7 @@ impl<'r> Lowerer<'r> {
             .as_ref()
             .or(self.vendor_source_input.as_ref())
         {
+            self.dialect = self.dialect.or(Some(input.unit_profile()));
             self.dialect_context = Some(input.context_registry());
             self.metadata_origin = LoweringMetadataOrigin::Supplied;
         } else if self.metadata_origin == LoweringMetadataOrigin::Standalone {
@@ -1814,6 +1868,10 @@ impl<'r> Lowerer<'r> {
             self.nest_depth -= 1;
             return over_depth_script(0, source.len());
         }
+        #[cfg(any(test, debug_assertions))]
+        let trace_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(std::time::Instant::now);
         // `source` starts a span space: its statements' offsets are relative
         // to it, whether it is the document or a literal materialised inside
         // one.  Swap it in for the descent and restore the enclosing one after
@@ -1862,9 +1920,36 @@ impl<'r> Lowerer<'r> {
             self.nest_depth -= 1;
             return over_depth_script(0, source.len());
         };
+        #[cfg(any(test, debug_assertions))]
+        trace_source_script_lowering(
+            trace_start,
+            "binding-analysis",
+            source.len(),
+            self.nest_depth,
+            0,
+            0,
+        );
         let enclosing_bindings = self.source_bindings.replace(bindings);
         let result = self.lower_script_inner(source, namespace);
+        #[cfg(any(test, debug_assertions))]
+        trace_source_script_lowering(
+            trace_start,
+            "script",
+            source.len(),
+            self.nest_depth,
+            0,
+            result.statements.len(),
+        );
         self.restore_script_bindings(enclosing_bindings);
+        #[cfg(any(test, debug_assertions))]
+        trace_source_script_lowering(
+            trace_start,
+            "restore",
+            source.len(),
+            self.nest_depth,
+            0,
+            result.statements.len(),
+        );
         self.source = enclosing_source;
         self.nest_depth -= 1;
         result
@@ -1917,13 +2002,35 @@ impl<'r> Lowerer<'r> {
     }
 
     fn lower_script_inner(&mut self, source: &str, namespace: &str) -> Script {
+        #[cfg(any(test, debug_assertions))]
+        let trace_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(std::time::Instant::now);
         let Some(commands) = self.segment_source(source, 0) else {
             return over_depth_script(0, source.len());
         };
+        #[cfg(any(test, debug_assertions))]
+        trace_source_script_lowering(
+            trace_start,
+            "segmented",
+            source.len(),
+            self.nest_depth,
+            commands.len(),
+            0,
+        );
         self.const_map_stack.push(HashMap::new());
         self.command_binding_site_stack.push(Vec::new());
         let stmts =
             self.in_word_space(source, 0, |this| this.lower_segmented(&commands, namespace));
+        #[cfg(any(test, debug_assertions))]
+        trace_source_script_lowering(
+            trace_start,
+            "commands",
+            source.len(),
+            self.nest_depth,
+            commands.len(),
+            stmts.len(),
+        );
         let command_binding_sites = self
             .command_binding_site_stack
             .pop()
@@ -1933,7 +2040,26 @@ impl<'r> Lowerer<'r> {
             Script::from_lowered_parts(stmts, command_binding_sites),
             0,
         );
-        self.retain_script_source(script, source, 0)
+        #[cfg(any(test, debug_assertions))]
+        trace_source_script_lowering(
+            trace_start,
+            "admission",
+            source.len(),
+            self.nest_depth,
+            commands.len(),
+            script.statements.len(),
+        );
+        let script = self.retain_script_source(script, source, 0);
+        #[cfg(any(test, debug_assertions))]
+        trace_source_script_lowering(
+            trace_start,
+            "source",
+            source.len(),
+            self.nest_depth,
+            commands.len(),
+            script.statements.len(),
+        );
+        script
     }
 
     /// Lower a body argument (inside braces/brackets) to an IR script.
@@ -2039,15 +2165,37 @@ impl<'r> Lowerer<'r> {
     }
 
     fn lower_body_inner(&mut self, text: &str, base_offset: u32, namespace: &str) -> Script {
+        #[cfg(any(test, debug_assertions))]
+        let trace_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(std::time::Instant::now);
         let Some(commands) = self.segment_source(text, base_offset) else {
             return over_depth_script(base_offset, text.len());
         };
+        #[cfg(any(test, debug_assertions))]
+        trace_source_script_lowering(
+            trace_start,
+            "segmented",
+            text.len(),
+            self.nest_depth,
+            commands.len(),
+            0,
+        );
         let inherited = self.const_map_stack.last().cloned().unwrap_or_default();
         self.const_map_stack.push(inherited);
         self.command_binding_site_stack.push(Vec::new());
         let stmts = self.in_word_space(text, base_offset, |this| {
             this.lower_segmented(&commands, namespace)
         });
+        #[cfg(any(test, debug_assertions))]
+        trace_source_script_lowering(
+            trace_start,
+            "commands",
+            text.len(),
+            self.nest_depth,
+            commands.len(),
+            stmts.len(),
+        );
         let command_binding_sites = self
             .command_binding_site_stack
             .pop()
@@ -2057,7 +2205,26 @@ impl<'r> Lowerer<'r> {
             Script::from_lowered_parts(stmts, command_binding_sites),
             base_offset,
         );
-        self.retain_script_source(script, text, base_offset)
+        #[cfg(any(test, debug_assertions))]
+        trace_source_script_lowering(
+            trace_start,
+            "admission",
+            text.len(),
+            self.nest_depth,
+            commands.len(),
+            script.statements.len(),
+        );
+        let script = self.retain_script_source(script, text, base_offset);
+        #[cfg(any(test, debug_assertions))]
+        trace_source_script_lowering(
+            trace_start,
+            "source",
+            text.len(),
+            self.nest_depth,
+            commands.len(),
+            script.statements.len(),
+        );
+        script
     }
 
     /// Retain only a failure agreed by every reached compilation entry.
@@ -2220,24 +2387,12 @@ impl<'r> Lowerer<'r> {
         &self,
         tokens: &CommandTokens,
     ) -> Option<crate::registry_invocation::LogicalStructuredInvocation> {
-        match self.dialect_context.as_deref() {
-            Some(context) => {
-                crate::registry_invocation::logical_structured_invocation_with_metadata_context(
-                    self.registry,
-                    context.into(),
-                    tokens,
-                    self.source_bindings.as_ref(),
-                )
-            }
-            None if self.source_entry_origin == SourceEntryOrigin::Authoring => {
-                crate::registry_invocation::logical_structured_invocation(
-                    self.registry,
-                    tokens,
-                    self.source_bindings.as_ref(),
-                )
-            }
-            None => None,
-        }
+        crate::registry_invocation::logical_structured_invocation_with_metadata_context(
+            self.registry,
+            self.invocation_metadata_context()?,
+            tokens,
+            self.source_bindings.as_ref(),
+        )
     }
 
     /// Build a `CommandTokens` snapshot from a segmented command, decomposing
@@ -4429,6 +4584,19 @@ impl<'r> Lowerer<'r> {
     fn invocation_metadata_context(
         &self,
     ) -> Option<crate::registry_invocation::InvocationMetadataContext<'_>> {
+        if let Some(input) = self
+            .metadata_input
+            .as_ref()
+            .or(self.logical_source_input.as_ref())
+            .or(self.vendor_source_input.as_ref())
+        {
+            return crate::registry_invocation::InvocationMetadataContext::for_source_input(
+                self.registry,
+                input,
+                self.config,
+                self.dialect,
+            );
+        }
         match self.dialect_context.as_deref() {
             Some(context) => Some(context.into()),
             None if self.source_entry_origin == SourceEntryOrigin::Authoring => self
@@ -6336,10 +6504,7 @@ impl Lowerer<'_> {
 fn populate_trace_facts(module: &mut Module, registry: &CommandRegistry, standalone: bool) {
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-    let actual = crate::registry_invocation::retained_source_metadata_context(
-        registry,
-        module.source_metadata_input.as_ref(),
-    );
+    let actual = crate::registry_invocation::retained_module_metadata_context(registry, module);
     let context = actual.as_deref().map(Into::into).or_else(|| {
         (standalone && module.source_metadata_input.is_none())
             .then(|| {
@@ -9283,6 +9448,130 @@ mod tests {
                 "a stored command prefix cannot affect its registration invocation: {stmt:?}",
             );
         }
+    }
+
+    #[test]
+    fn complete_logical_source_keeps_original_structure_and_native_absence() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let source = "proc subject {} {return VALUE}; set result VALUE";
+        let mut current = Lowerer::with_config(context.commands(), input.lexer_config())
+            .with_resolved_analysis_input(input.clone());
+        let module = current.lower(source);
+        assert!(module.procedures.contains_key("::subject"));
+        assert!(module.top_level.statements.iter().any(|statement| {
+            matches!(statement, Statement::AssignConst { name, .. } if name == "result")
+        }));
+        assert_eq!(
+            module.source_entry.logical_source_input.as_ref(),
+            Some(&input)
+        );
+        assert!(module.source_entry.native_entry.is_none());
+        assert!(module.source_entry.execution_name_policy.is_none());
+
+        let mut stale = Lowerer::with_config(context.commands(), input.lexer_config());
+        stale.config.strict_quoting = !stale.config.strict_quoting;
+        stale = stale.with_resolved_analysis_input(input.clone());
+        assert!(!stale.lower(source).procedures.contains_key("::subject"));
+        let foreign = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            input.lexer_config(),
+        );
+        let mut foreign = Lowerer::with_config(context.commands(), foreign.lexer_config())
+            .with_resolved_analysis_input(foreign);
+        assert!(!foreign.lower(source).procedures.contains_key("::subject"));
+
+        let native_profile = context.commands().profile().unwrap();
+        let native = crate::analyser::ResolvedAnalysisInput::new(
+            native_profile,
+            native_profile,
+            std::sync::Arc::clone(&context),
+            tcl_lexer::LexerConfig::for_file_grammar(native_profile.grammar),
+        );
+        let mut absent = Lowerer::with_config(context.commands(), native.lexer_config())
+            .with_resolved_analysis_input(native);
+        let module = absent.lower(source);
+        assert!(!module.procedures.contains_key("::subject"));
+        assert!(module.source_entry.logical_source_input.is_none());
+        assert!(module.source_entry.native_entry.is_none());
+        assert!(module.source_entry.unknown_entry);
+    }
+
+    #[test]
+    fn logical_original_declaration_layout_keeps_unicode_and_qualified_alias_heads() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // These exact UTF-8 source spellings exercise conditional Logical
+        // layout selection, independently of any Native slot or execution.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        for source in [
+            "rename proc ::α; ::α subject {} {return VALUE}",
+            "interp alias {} ::α {} proc; ::α subject {} {return VALUE}",
+            "rename proc ::α; interp alias {} ::β {} ::α; ::β subject {} {return VALUE}",
+            r"rename proc ::α; \u003a\u003aα subject {} {return VALUE}",
+        ] {
+            let mut lowerer = Lowerer::with_config(context.commands(), input.lexer_config())
+                .with_resolved_analysis_input(input.clone());
+            let module = lowerer.lower(source);
+            assert!(module.procedures.contains_key("::subject"), "{source}");
+            assert!(module.source_entry.native_entry.is_none());
+            assert!(module.source_entry.execution_name_policy.is_none());
+            assert_eq!(
+                module.source_entry.logical_source_input.as_ref(),
+                Some(&input)
+            );
+        }
+        let source = "rename proc ::α; ::α ::α args {return PAYLOAD}; ::α subject {} {}";
+        let mut replaced = Lowerer::with_config(context.commands(), input.lexer_config())
+            .with_resolved_analysis_input(input);
+        assert!(!replaced.lower(source).procedures.contains_key("::subject"));
+    }
+
+    #[test]
+    fn complete_source_input_declines_changed_unit_profile_without_authoring_fallback() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        );
+        let selected = Lowerer::with_config(context.commands(), input.lexer_config())
+            .with_resolved_analysis_input(input.clone());
+        assert!(selected.invocation_metadata_context().is_some());
+        assert_eq!(selected.logical_source_input.as_ref(), Some(&input));
+        let mut wrong = Lowerer::with_config(context.commands(), input.lexer_config())
+            .with_dialect(Some(tcl_dialect::DialectProfile::find("tcl8.6").unwrap()))
+            .with_resolved_analysis_input(input.clone());
+        assert!(wrong.invocation_metadata_context().is_none());
+        assert!(wrong.unknown_entry);
+        let module = wrong.lower("puts VALUE");
+        assert_eq!(module.source_metadata_input.as_ref(), Some(&input));
+        assert!(module.source_entry.unknown_entry);
+        assert!(module.source_entry.logical_source_input.is_none());
     }
 
     #[test]

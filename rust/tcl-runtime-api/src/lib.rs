@@ -1534,8 +1534,9 @@ pub trait VarStore {
         self.unset_elem(target.frame(), target.name(), key)
     }
 
-    /// Remove an exact byte key from the captured array. Unicode-only stores
-    /// refuse an unrepresentable key before attempting the mutation.
+    /// Remove an exact byte key for the selected ArrayUnset operation.
+    /// Native adapters select their release's retained-array or original-name
+    /// lookup rule. Unicode-only stores refuse an unrepresentable key first.
     fn unset_elem_bytes_at(
         &mut self,
         target: &ArrayTarget,
@@ -1663,6 +1664,38 @@ pub trait Commands {
     /// stale or fabricated id yields an error completion. This is what makes a
     /// `CommandId` *do* something: resolve once via `find_command`, invoke here.
     fn dispatch_id(&mut self, cmd: CommandId, argv: &[Self::Value]) -> Completion<Self::Value>;
+}
+
+/// The command flag selected by Jim's original inventory member.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeJimCommandInventoryKind {
+    /// Every live command entry.
+    Commands,
+    /// Actual procedure entries.
+    Procs,
+    /// Actual entries marked as aliases.
+    Aliases,
+}
+
+/// Failure after original-object alias lookup has selected an actual outcome.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeJimAliasLookupFailure {
+    /// The original command getter selected no current binding.
+    MissingCommand,
+    /// The selected binding is not an alias.
+    NotAlias,
+}
+
+impl NativeJimAliasLookupFailure {
+    /// Jim's original-object diagnostic uses the formatter's CString extent.
+    #[must_use]
+    pub fn message(self, original_name: &[u8]) -> Vec<u8> {
+        let (prefix, suffix): (&[u8], &[u8]) = match self {
+            Self::MissingCommand => (b"invalid command name \"", b"\""),
+            Self::NotAlias => (b"command \"", b"\" is not an alias"),
+        };
+        [prefix, tcl_core_types::c_string_extent(original_name), suffix].concat()
+    }
 }
 
 /// The result of original-object alias lookup in an actual command table.

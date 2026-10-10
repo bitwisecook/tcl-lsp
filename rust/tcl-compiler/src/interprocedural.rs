@@ -1151,6 +1151,9 @@ fn build_method_summaries(
     let mut method_known = known.clone();
     method_known.extend(ir_module.methods.keys().cloned());
 
+    let source_input =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, ir_module)
+            .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input);
     let mut out: HashMap<String, MethodSummary> = HashMap::with_capacity(ir_module.methods.len());
     for (mqname, method) in &ir_module.methods {
         let mut facts = LocalFacts {
@@ -1179,7 +1182,7 @@ fn build_method_summaries(
                     dialect,
                     identities,
                     declared,
-                    source_input: ir_module.source_metadata_input.as_ref(),
+                    source_input,
                     source_procedures: &ir_module.procedures,
                 },
                 &mut facts,
@@ -1624,6 +1627,9 @@ fn scan_all_procs(
     identities: &crate::realm::CommandBindingRealm,
     declared: Option<&tcl_registry::model::DeclaredSurface>,
 ) -> HashMap<String, LocalFacts> {
+    let source_input =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, ir_module)
+            .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input);
     let mut local: HashMap<String, LocalFacts> = HashMap::with_capacity(known.len());
     for (qname, proc) in &ir_module.procedures {
         local.insert(
@@ -1637,7 +1643,7 @@ fn scan_all_procs(
                 object_types,
                 identities,
                 declared,
-                source_input: ir_module.source_metadata_input.as_ref(),
+                source_input,
                 source_procedures: &ir_module.procedures,
             }),
         );
@@ -3819,6 +3825,94 @@ mod tests {
             .unwrap_or_default();
         calls.sort();
         calls
+    }
+
+    #[test]
+    fn procedure_and_method_callback_advice_requires_the_module_source_producer() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Callback edges are conditional authored reachability. This source
+        // control does not establish a native invocation or callback frame.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let source = "proc ::cb args {}; proc ::direct args {}; \
+                      proc ::caller {} {::direct; ::lsort -command ::cb {x y}}; \
+                      oo::class create C {method run {} {::direct; ::lsort -command ::cb {x y}}}";
+        let module = crate::lowering::lower_to_ir_with_dialect(
+            source,
+            registry,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            Some(profile),
+        );
+        let input = module
+            .source_metadata_input
+            .as_ref()
+            .expect("retained source input");
+        let identities = crate::realm::document_realm_bindings_with_source_entry(
+            source,
+            module.lexer_config,
+            registry,
+            &module.source_entry,
+        )
+        .with_resolved_analysis_input(input.clone());
+        let analysis = |module: &crate::ir::Module| {
+            build_interprocedural_analysis(
+                module,
+                registry,
+                // A display profile cannot replace the source producer.
+                tcl_dialect::DialectProfile::find("tcl9.1"),
+                ObjectTypeMap::none(),
+                &identities,
+                None,
+            )
+        };
+        let current = analysis(&module);
+        let proc = current
+            .procedures
+            .get("::caller")
+            .expect("procedure summary");
+        let method = current.methods.get("::C::run").expect("method summary");
+        for summary in [proc, &method.base] {
+            assert!(summary.direct_calls.iter().any(|name| name == "::cb"));
+            assert!(summary.direct_calls.iter().any(|name| name == "::direct"));
+        }
+
+        let mut wrong_profile = module.clone();
+        wrong_profile.dialect_profile = tcl_dialect::DialectProfile::find("tcl9.1");
+        let mut wrong_config = module.clone();
+        wrong_config.lexer_config.strict_quoting = !wrong_config.lexer_config.strict_quoting;
+        let mut missing = module.clone();
+        missing.source_metadata_input = None;
+        let mut foreign = module.clone();
+        foreign.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            input.lexer_config(),
+        ));
+        for withheld in [wrong_profile, wrong_config, missing, foreign] {
+            let result = analysis(&withheld);
+            let proc = result
+                .procedures
+                .get("::caller")
+                .expect("retained procedure");
+            let method = result.methods.get("::C::run").expect("retained method");
+            for summary in [proc, &method.base] {
+                assert!(
+                    !summary.direct_calls.iter().any(|name| name == "::cb"),
+                    "withheld metadata cannot donate callback advice: {:?}",
+                    summary.direct_calls
+                );
+                assert!(
+                    summary.direct_calls.iter().any(|name| name == "::direct"),
+                    "an independently retained direct target remains reachable"
+                );
+                assert!(!summary.pure, "withheld selected effects remain opaque");
+            }
+        }
     }
 
     #[test]

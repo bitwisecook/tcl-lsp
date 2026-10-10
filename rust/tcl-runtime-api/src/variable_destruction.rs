@@ -28,3 +28,13 @@ pub enum VariableDestructionProtocol {
     /// these captured receivers or callback registrations.
     ArrayLookupThenRootCallbacksThenMembers,
 }
+
+/// Selected C ArrayUnset member lookup after the original array callback.
+/// The whole-root operation separately relooks up its original name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NativeArrayUnsetMemberLookup {
+    /// C84/85 obtain each member through the original array-name operand.
+    OriginalName,
+    /// C86+ retain the located physical array for each member removal.
+    SelectedArray,
+}

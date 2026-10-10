@@ -198,19 +198,42 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
     } else {
         let Some((sub, rest)) = args.split_first() else {
-            return crate::command::native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"info subcommand ?arg ...?\"",
-            );
+            let Some(head) = vm.invoked_name_value() else {
+                return vm.refuse_host_command("original info invocation is unavailable".into());
+            };
+            let mut usage = match vm.native_argument_usage_header(std::slice::from_ref(&head)) {
+                Ok(usage) => usage,
+                Err(error) => return error,
+            };
+            let suffix = vm
+                .native_invocation_dialect()
+                .native_info_original_missing_selector_usage()
+                .unwrap_or(b"subcommand ?arg ...?");
+            usage.push(b' ');
+            usage.extend_from_slice(suffix);
+            return crate::command::native_wrong_args_bytes(vm, &usage);
         };
-        let sub_bytes = match vm.native_name_operand_bytes(sub) {
-            Ok(bytes) => bytes,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        let Some(canon) = canonical_info_sub(subs, &sub_bytes) else {
-            return err(tcl_cmd_core::ensemble::unknown_subcommand_message(
-                subs, &sub_bytes, true, INFO_NS,
-            ));
+        let canon = if vm
+            .native_invocation_dialect()
+            .native_info_original_option_protocol()
+            .is_some()
+        {
+            let table = tcl_cmd_core::prefix::OptionTable::abbreviating("option", subs);
+            match table.index_of_original(vm, sub) {
+                Ok(index) => subs[index],
+                Err(error) => return completion_from_cmd_error(vm, error),
+            }
+        } else {
+            let sub_bytes = match vm.native_name_operand_bytes(sub) {
+                Ok(bytes) => bytes,
+                Err(error) => return vm.refuse_host_command(error.to_string()),
+            };
+            let Some(canon) = canonical_info_sub(subs, &sub_bytes) else {
+                return err(tcl_cmd_core::ensemble::unknown_subcommand_message(
+                    subs, &sub_bytes, true, INFO_NS,
+                ));
+            };
+            canon
         };
         (canon, rest)
     };

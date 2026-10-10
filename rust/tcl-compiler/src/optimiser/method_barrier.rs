@@ -161,10 +161,7 @@ fn method_dispatch_facts<'a>(
     comp_of: &HashMap<String, usize>,
     proc_facts: &HashMap<&str, DispatchFacts>,
 ) -> HashMap<&'a str, DispatchFacts> {
-    let actual = crate::registry_invocation::retained_source_metadata_context(
-        registry,
-        ir.source_metadata_input.as_ref(),
-    );
+    let actual = crate::registry_invocation::retained_module_metadata_context(registry, ir);
 
     let mut method_facts: HashMap<&str, DispatchFacts> = HashMap::new();
     for (qname, m) in &ir.methods {
@@ -298,10 +295,7 @@ fn proc_dispatch_facts<'a>(
     registry: &CommandRegistry,
     comp_of: &HashMap<String, usize>,
 ) -> HashMap<&'a str, DispatchFacts> {
-    let actual = crate::registry_invocation::retained_source_metadata_context(
-        registry,
-        ir.source_metadata_input.as_ref(),
-    );
+    let actual = crate::registry_invocation::retained_module_metadata_context(registry, ir);
 
     // Direct facts + direct proc callees per proc.
     let mut facts: HashMap<&str, DispatchFacts> = HashMap::new();
@@ -611,13 +605,34 @@ mod tests {
     fn dispatch_metadata_requires_actual_module_availability() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-        let current = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        // Actual original registrations are retained independently of metadata
+        // availability. The owner stays alive through every refusal control.
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let registry = current.commands();
-        let mut module = crate::compilation_unit::CompilationUnit::build_for_dialect(
+        let profile = registry.profile().unwrap();
+        let (_owner, native) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            invocation_dialect: registry
+                .profile()
+                .map(tcl_registry::InvocationDialect::of_profile),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            native_entry: Some(std::sync::Arc::new(native)),
+            ..crate::command_binding::SourceAnalysisEntry::default()
+        };
+        let mut module = crate::compilation_unit::CompilationUnit::build_with_context_registry(
             "proc helper {} {dict create key value}",
-            registry,
-            false,
-            "tcl8.6",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&current),
         )
         .ir_module;
         let components = std::collections::HashMap::new();
@@ -627,7 +642,7 @@ mod tests {
             .with_command_store(std::sync::Arc::clone(registry));
         for context in [
             std::sync::Arc::new(older),
-            std::sync::Arc::new(tcl_registry::model::ingress::static_context_for("tcl9.1").clone()),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
         ] {
             module.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
                 input.analyser_profile(),

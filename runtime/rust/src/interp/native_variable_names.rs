@@ -1219,7 +1219,11 @@ impl Interp {
         element: Option<*mut TclObj>,
         purpose: NativeVariableNameLookupPurpose,
     ) -> Result<Option<OriginalCVariableCapture>, Code> {
-        let mut selected = self.prepare_original_c_name(root, purpose.creates_entries())?;
+        // The root lookup cannot publish a root-only error before the original
+        // element operand reaches the caller's separate-input presenter.
+        let Some(mut selected) = self.prepare_original_c_name_for(root, purpose)? else {
+            return Ok(None);
+        };
         if selected.element.is_some() {
             return Err(self.report_cmd_error(
                 ValueError::CommandProtocolUnavailable("compiled separate base-name geometry")

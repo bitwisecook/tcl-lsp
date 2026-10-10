@@ -170,10 +170,33 @@ fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(b"utf-8 unicode ascii iso8859-1");
             Code::Ok
         }
-        // `convertto`/`convertfrom ?encoding? data` — pass through (UTF-8 internal).
-        b"convertto" | b"convertfrom" => {
+        b"convertto" => {
+            // naming.encoding.original-utf8-convertto-object-storage
+            // docs/design/analysis/name-resolution-proofs/encoding-original-utf8-convertto-object-storage.md
+            let data = match argv {
+                [_, _, data] if interp.system_encoding() == tcl_platform::SystemEncoding::Utf8 => *data,
+                [_, _, encoding, data] => {
+                    let encoding = match interp.native_object_string_bytes(*encoding) {
+                        Ok(bytes) => bytes,
+                        Err(error) => return interp.report_cmd_error(error.into()),
+                    };
+                    if encoding.as_ref() != b"utf-8" {
+                        return interp.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable("external encoding target").into());
+                    }
+                    *data
+                }
+                [_, _, _] => return interp.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable("external system encoding target").into()),
+                _ => return interp.wrong_args(b"encoding convertto ?encoding? data"),
+            };
+            match tcl_cmd_core::encoding::convert_to_utf8(interp, &data) {
+                Ok(result) => { interp.set_result(result); Code::Ok }
+                Err(error) => interp.report_cmd_error(error),
+            }
+        }
+        // External decoding is a separate, currently unmodelled conversion.
+        b"convertfrom" => {
             let Some(&data) = argv.last() else {
-                return interp.wrong_args(b"encoding convertto ?encoding? data");
+                return interp.wrong_args(b"encoding convertfrom ?encoding? data");
             };
             interp.set_result(data);
             Code::Ok
@@ -249,3 +272,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod native_encoding_tests;

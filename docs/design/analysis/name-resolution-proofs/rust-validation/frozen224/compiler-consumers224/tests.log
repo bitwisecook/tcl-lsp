@@ -1,0 +1,142 @@
+
+running 32 tests
+test cfg_builder::global_write_info::tests::supplied_global_write_call_closure_includes_source_expression_targets ... 
+thread 'cfg_builder::global_write_info::tests::supplied_global_write_call_closure_includes_source_expression_targets' (825987) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1315:9:
+assertion failed: detect_global_write_procs(&module)["::p"].names.contains("g")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test cfg_builder::global_write_info::tests::supplied_global_write_metadata_keeps_alias_arguments_and_literal_names ... 
+thread 'cfg_builder::global_write_info::tests::supplied_global_write_metadata_keeps_alias_arguments_and_literal_names' (825988) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1209:28:
+no entry found for key
+FAILED
+test cfg_builder::global_write_info::tests::supplied_global_write_summary_refuses_missing_foreign_and_stale_grammar ... 
+thread 'cfg_builder::global_write_info::tests::supplied_global_write_summary_refuses_missing_foreign_and_stale_grammar' (825996) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1232:9:
+assertion failed: detect_global_write_procs_with_registry(&module,
+                &registry)["::p"].names.contains("g")
+FAILED
+test cfg_builder::global_write_info::tests::supplied_script_write_projection_uses_current_roles_instead_of_call_defs ... ok
+test cfg_builder::upvar_info::tests::caller_frame_metadata_keeps_actual_availability_and_missing_owner_hazards ... 
+thread 'cfg_builder::upvar_info::tests::caller_frame_metadata_keeps_actual_availability_and_missing_owner_hazards' (826012) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2516:9:
+assertion failed: selected["::helper"].uplevel_literal_writes.contains("target")
+FAILED
+test compilation_unit::tests::function_consumers_keep_the_actual_generation_and_grammar ... ok
+test compilation_unit::tests::memoised_source_facts_retain_nested_bom_and_lexer_overlays ... 
+thread 'compilation_unit::tests::memoised_source_facts_retain_nested_bom_and_lexer_overlays' (826014) panicked at rust/tcl-compiler/src/compilation_unit.rs:3692:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+FAILED
+test compilation_unit::tests::retained_deep_sidecars_keep_availability_and_refuse_missing_function_input ... 
+thread 'compilation_unit::tests::retained_deep_sidecars_keep_availability_and_refuse_missing_function_input' (826015) panicked at rust/tcl-compiler/src/compilation_unit.rs:3443:9:
+assertion failed: !semantic_bundle_has_selected_invocation(&unavailable.top_level)
+FAILED
+test compilation_unit::tests::retained_memory_facts_require_matching_module_and_function_owners ... ok
+test compilation_unit::tests::semantic_bundle_requires_retained_availability_and_source_grammar ... 
+thread 'compilation_unit::tests::semantic_bundle_requires_retained_availability_and_source_grammar' (826017) panicked at rust/tcl-compiler/src/compilation_unit.rs:3368:9:
+assertion failed: !semantic_bundle_has_selected_invocation(&unavailable)
+FAILED
+test memory_ssa::tests::actual_memory_metadata_keeps_availability_foreign_and_missing_owner_refusal ... ok
+test optimiser::chain_fold::tests::chain_breaks_on_interleaved_dynamic_statement ... ok
+test optimiser::chain_fold::tests::chain_continues_past_interleaved_literal_set ... 
+thread 'optimiser::chain_fold::tests::chain_continues_past_interleaved_literal_set' (826020) panicked at rust/tcl-compiler/src/optimiser/chain_fold.rs:819:9:
+assertion `left == right` failed
+  left: "set s \"\"\nset t 1\nappend s foo\nappend s bar"
+ right: "set t 1\n::set s foobar"
+FAILED
+test optimiser::chain_fold::tests::chain_preserves_literal_scalar_names_and_closed_array_refusal ... 
+thread 'optimiser::chain_fold::tests::chain_preserves_literal_scalar_names_and_closed_array_refusal' (826021) panicked at rust/tcl-compiler/src/optimiser/chain_fold.rs:635:13:
+set {$scalar(open} {}; append {$scalar(open} A; append {$scalar(open} B: []
+FAILED
+test optimiser::chain_fold::tests::chain_requires_supplied_function_and_module_metadata ... 
+thread 'optimiser::chain_fold::tests::chain_requires_supplied_function_and_module_metadata' (826022) panicked at rust/tcl-compiler/src/optimiser/chain_fold.rs:662:9:
+assertion failed: run_unit(&original, &registry).iter().any(|opt| opt.code == DiagCode::O104)
+FAILED
+test optimiser::chain_fold::tests::chain_uses_authentic_alias_captures_and_moved_append ... 
+thread 'optimiser::chain_fold::tests::chain_uses_authentic_alias_captures_and_moved_append' (826023) panicked at rust/tcl-compiler/src/optimiser/chain_fold.rs:601:13:
+interp alias {} extend {} append s PRE; set s {}; extend A; extend B: []
+FAILED
+test optimiser::chain_fold::tests::chain_uses_retained_availability_over_catalogue_generation ... 
+thread 'optimiser::chain_fold::tests::chain_uses_retained_availability_over_catalogue_generation' (826024) panicked at rust/tcl-compiler/src/optimiser/chain_fold.rs:706:9:
+assertion failed: run_unit(&available, &registry).iter().any(|opt| opt.code == DiagCode::O104)
+FAILED
+test optimiser::chain_fold::tests::cross_event_var_not_folded ... ok
+test optimiser::chain_fold::tests::dynamic_name_write_blocks_chain_fold ... ok
+test optimiser::chain_fold::tests::dynamic_trace_target_blocks_chain_fold ... ok
+test optimiser::chain_fold::tests::dynamic_value_ends_the_run ... 
+thread 'optimiser::chain_fold::tests::dynamic_value_ends_the_run' (826036) panicked at rust/tcl-compiler/src/optimiser/chain_fold.rs:874:9:
+assertion failed: opts.iter().any(|o|
+        o.code == DiagCode::O104 && o.replacement == "::set s foo")
+FAILED
+test optimiser::chain_fold::tests::escaping_global_var_not_folded ... ok
+test optimiser::chain_fold::tests::folds_inside_proc_body ... 
+thread 'optimiser::chain_fold::tests::folds_inside_proc_body' (826051) panicked at rust/tcl-compiler/src/optimiser/chain_fold.rs:926:9:
+assertion `left == right` failed
+  left: "proc ::f {} {\n    set s \"\"\n    append s a\n    append s b\n}"
+ right: "proc ::f {} {\n    ::set s ab\n}"
+FAILED
+test optimiser::chain_fold::tests::intervening_read_ends_the_run_but_folds_prefix ... 
+thread 'optimiser::chain_fold::tests::intervening_read_ends_the_run_but_folds_prefix' (826052) panicked at rust/tcl-compiler/src/optimiser/chain_fold.rs:892:9:
+assertion `left == right` failed: got []
+  left: []
+ right: ["::set s foo"]
+FAILED
+test optimiser::chain_fold::tests::list_chain_folds_with_lappend ... 
+thread 'optimiser::chain_fold::tests::list_chain_folds_with_lappend' (826053) panicked at rust/tcl-compiler/src/optimiser/chain_fold.rs:844:9:
+assertion `left == right` failed
+  left: "set l {}\nlappend l a\nlappend l b c"
+ right: "::set l {a b c}"
+FAILED
+test optimiser::chain_fold::tests::list_chain_quotes_spacey_elements ... 
+thread 'optimiser::chain_fold::tests::list_chain_quotes_spacey_elements' (826054) panicked at rust/tcl-compiler/src/optimiser/chain_fold.rs:853:9:
+assertion `left == right` failed
+  left: "set l {}\nlappend l {a b}\nlappend l c"
+ right: "::set l {{a b} c}"
+FAILED
+test optimiser::chain_fold::tests::native_chain_layout_never_grants_erasure ... 
+thread 'optimiser::chain_fold::tests::native_chain_layout_never_grants_erasure' (826055) panicked at rust/tcl-compiler/src/optimiser/chain_fold.rs:751:22:
+called `Option::unwrap()` on a `None` value
+FAILED
+test optimiser::chain_fold::tests::single_write_does_not_fold ... 
+thread 'optimiser::chain_fold::tests::single_write_does_not_fold' (826056) panicked at rust/tcl-compiler/src/optimiser/chain_fold.rs:863:9:
+assertion failed: opts.iter().any(|o| o.code == DiagCode::O104)
+FAILED
+test optimiser::chain_fold::tests::string_chain_folds_to_single_set ... 
+thread 'optimiser::chain_fold::tests::string_chain_folds_to_single_set' (826066) panicked at rust/tcl-compiler/src/optimiser/chain_fold.rs:793:14:
+expected an O104 fold
+FAILED
+test optimiser::chain_fold::tests::string_chain_rewrite_applies_cleanly ... 
+thread 'optimiser::chain_fold::tests::string_chain_rewrite_applies_cleanly' (826067) panicked at rust/tcl-compiler/src/optimiser/chain_fold.rs:804:9:
+assertion `left == right` failed
+  left: "set s \"\"\nappend s foo\nappend s bar"
+ right: "::set s foobar"
+FAILED
+test optimiser::chain_fold::tests::traced_interleaved_write_ends_chain ... ok
+test optimiser::chain_fold::tests::traced_variable_blocks_chain_fold ... ok
+
+failures:
+
+failures:
+    cfg_builder::global_write_info::tests::supplied_global_write_call_closure_includes_source_expression_targets
+    cfg_builder::global_write_info::tests::supplied_global_write_metadata_keeps_alias_arguments_and_literal_names
+    cfg_builder::global_write_info::tests::supplied_global_write_summary_refuses_missing_foreign_and_stale_grammar
+    cfg_builder::upvar_info::tests::caller_frame_metadata_keeps_actual_availability_and_missing_owner_hazards
+    compilation_unit::tests::memoised_source_facts_retain_nested_bom_and_lexer_overlays
+    compilation_unit::tests::retained_deep_sidecars_keep_availability_and_refuse_missing_function_input
+    compilation_unit::tests::semantic_bundle_requires_retained_availability_and_source_grammar
+    optimiser::chain_fold::tests::chain_continues_past_interleaved_literal_set
+    optimiser::chain_fold::tests::chain_preserves_literal_scalar_names_and_closed_array_refusal
+    optimiser::chain_fold::tests::chain_requires_supplied_function_and_module_metadata
+    optimiser::chain_fold::tests::chain_uses_authentic_alias_captures_and_moved_append
+    optimiser::chain_fold::tests::chain_uses_retained_availability_over_catalogue_generation
+    optimiser::chain_fold::tests::dynamic_value_ends_the_run
+    optimiser::chain_fold::tests::folds_inside_proc_body
+    optimiser::chain_fold::tests::intervening_read_ends_the_run_but_folds_prefix
+    optimiser::chain_fold::tests::list_chain_folds_with_lappend
+    optimiser::chain_fold::tests::list_chain_quotes_spacey_elements
+    optimiser::chain_fold::tests::native_chain_layout_never_grants_erasure
+    optimiser::chain_fold::tests::single_write_does_not_fold
+    optimiser::chain_fold::tests::string_chain_folds_to_single_set
+    optimiser::chain_fold::tests::string_chain_rewrite_applies_cleanly
+
+test result: FAILED. 11 passed; 21 failed; 0 ignored; 0 measured; 8484 filtered out; finished in 21.38s
+

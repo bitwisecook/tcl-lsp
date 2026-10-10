@@ -1635,6 +1635,9 @@ impl Analyser {
         if let Some(handled) = self.dispatch_original_class_definer(cmd_tok, scope_path) {
             return handled;
         }
+        if let Some(handled) = self.dispatch_original_class_configuration(cmd_tok, scope_path) {
+            return handled;
+        }
         let Some(ResolvedAnalyserHook { hook, traits }) =
             self.resolve_analyser_hook_call(cmd_name, args)
         else {
@@ -4627,6 +4630,12 @@ impl Analyser {
         // Each handler returns whether it claimed the command; nothing
         // follows this dispatch, so an unclaimed command simply ends the
         // substitution walk the same way a claimed one does.
+        if self
+            .dispatch_original_class_configuration(cmd_tok, scope_path)
+            .is_some()
+        {
+            return;
+        }
         {
             use tcl_registry::hooks::AnalyserHookId as Hook;
             match self.resolve_analyser_hook(&cmd_name, args) {

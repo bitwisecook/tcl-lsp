@@ -240,6 +240,12 @@ pub(super) fn collect_existence_guards(
 ) -> Vec<ExistenceGuard> {
     use crate::cfg::Terminator;
     let mut guards = Vec::new();
+    let Some(metadata) = fu.invocation_metadata_context(registry) else {
+        return guards;
+    };
+    if config.normalized() != fu.source_lexer_config().normalized() {
+        return guards;
+    }
     for (&condition_block, block) in &fu.cfg.blocks {
         if let Some(Terminator::Branch {
             condition,
@@ -257,16 +263,28 @@ pub(super) fn collect_existence_guards(
                         usize::MAX,
                     )
                     .source_tokens()?;
-                    let (query, context) = crate::existence_query::in_expr_for_diagnostics_at(
-                        condition, base, tokens, registry, config,
-                    )?;
+                    let (query, context) =
+                        crate::existence_query::in_expr_for_diagnostics_at_with_metadata_context(
+                            condition,
+                            base,
+                            tokens,
+                            registry,
+                            config,
+                            Some(metadata),
+                        )?;
                     let place = crate::var_resolve::resolve_literal_place(
                         &query.var, &context, false, registry,
                     );
                     Some((query, crate::var_resolve::canonical_place_key(&place)?))
                 })
             } else {
-                crate::existence_query::in_expr(condition, registry, config).and_then(|query| {
+                crate::existence_query::in_expr_with_metadata_context(
+                    condition,
+                    registry,
+                    config,
+                    Some(metadata),
+                )
+                .and_then(|query| {
                     let symbol = fu
                         .ssa
                         .var_symbol_at_terminator(condition_block, &query.var)?;
@@ -808,32 +826,184 @@ impl UndefSuppression {
 fn collect_expr_cmd_sub_writes(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
-    registry: &tcl_registry::CommandRegistry,
+    semantics: UndefSuppressionSemantics<'_>,
 ) -> FxHashSet<String> {
-    use crate::ir::Statement;
     let mut out = FxHashSet::default();
-    for &bn in considered {
-        let Some(block) = fu.cfg.blocks.get(&bn) else {
+    let registry = semantics.context.commands();
+    let Some(metadata) = fu.invocation_metadata_context(registry) else {
+        return out;
+    };
+    let Some(input) = metadata.source_analysis_input() else {
+        return out;
+    };
+    if semantics.analysis.resolved_input.as_ref() != Some(input)
+        || input.lexer_config().normalized() != semantics.lexer_config.normalized()
+    {
+        return out;
+    }
+    for &block_id in considered {
+        let Some(block) = fu.ssa.blocks.get(&block_id) else {
             continue;
         };
-        for stmt in &block.statements {
-            if let Statement::AssignExpr { expr, .. } = stmt {
-                out.extend(crate::ir_helpers::condition_command_out_vars(
-                    expr, registry,
-                ));
-            }
+        for (index, statement) in block.statements.iter().enumerate() {
+            let crate::ir::Statement::AssignExpr {
+                expr_base: Some(base),
+                ..
+            } = &statement.statement
+            else {
+                continue;
+            };
+            let Some(tokens) =
+                crate::ssa::SsaSourceView::at_statement(&fu.ssa, block_id, index).source_tokens()
+            else {
+                continue;
+            };
+            collect_original_expression_writes(tokens, *base, semantics, metadata, &mut out);
         }
-        // A branch condition (`if {![catch {set x 1}]} …`) evaluates its command
-        // substitutions before either arm, so any variables they write — the
-        // catch result var *and* the catch body's assignments — are (maybe) set
-        // in the taken arm and must not look read-before-set.
-        if let Some(crate::cfg::Terminator::Branch { condition, .. }) = &block.terminator {
-            out.extend(crate::ir_helpers::condition_command_out_vars(
-                condition, registry,
-            ));
+        if let Some(crate::cfg::Terminator::Branch {
+            condition_base: Some(base),
+            ..
+        }) = fu
+            .cfg
+            .blocks
+            .get(&block_id)
+            .and_then(|block| block.terminator.as_ref())
+        {
+            if let Some(tokens) =
+                crate::ssa::SsaSourceView::at_statement(&fu.ssa, block_id, usize::MAX)
+                    .source_tokens()
+            {
+                collect_original_expression_writes(tokens, *base, semantics, metadata, &mut out);
+            }
         }
     }
     out
+}
+
+/// Select the authentic Expr operand at its own original source site. An
+/// outer assignment's post-substitution lookup cannot replace a child lookup.
+fn collect_original_expression_writes(
+    tokens: &crate::ir::CommandTokens,
+    expression_base: u32,
+    semantics: UndefSuppressionSemantics<'_>,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    out: &mut FxHashSet<String>,
+) {
+    // naming.diagnostic.original-materialized-write-footprint
+    // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+    let Some(input) = metadata.source_analysis_input() else {
+        return;
+    };
+    let positions = tokens
+        .source_binding
+        .iter()
+        .filter_map(|binding| binding.invocation_site().map(|site| site.offset))
+        .chain(tokens.nested_bindings.iter().map(|(offset, _)| *offset));
+    let mut visited = FxHashSet::default();
+    for offset in positions.filter(|offset| visited.insert(*offset)) {
+        let Some(words) = crate::registry_invocation::source_structure::source_registry_words_at(
+            semantics.source,
+            semantics.analysis,
+            offset,
+        ) else {
+            continue;
+        };
+        let Some(bodies) = words.source_expression_script_bodies_at(input, expression_base) else {
+            continue;
+        };
+        for body in bodies {
+            collect_original_expression_body_writes(&body, semantics, metadata, out);
+        }
+    }
+}
+
+fn collect_original_expression_body_writes(
+    body: &crate::registry_invocation::OriginalSourceScriptBody,
+    semantics: UndefSuppressionSemantics<'_>,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    out: &mut FxHashSet<String>,
+) {
+    let Some(realm) = semantics.analysis.retained_command_realm() else {
+        return;
+    };
+    let Some(text) = semantics.source.get(body.content_span().as_range()) else {
+        return;
+    };
+    if !body.matches_context(semantics.context)
+        || !body.matches_source(
+            &tcl_lexer::SourceImage::document(semantics.source),
+            semantics.lexer_config,
+        )
+    {
+        return;
+    }
+    let source = tcl_lexer::SourceMap::new(semantics.source);
+    let segments = crate::segmenter::segment_commands_with_offset_and_config(
+        text,
+        body.content_span().start(),
+        semantics.lexer_config.nested(),
+    );
+    for segment in segments {
+        let tokens =
+            crate::ir::CommandTokens::from_segmented(&source, semantics.lexer_config, &segment);
+        let Some(head) = tokens.argv.first() else {
+            continue;
+        };
+        let binding = realm.invocation_at_source("", head.start());
+        let Some((_, original)) = binding.original_recorded_command() else {
+            continue;
+        };
+        // The lifted geometry is genuine original syntax. Its own source
+        // issuer below validates the complete vector and lookup horizon.
+        for nested in crate::word_subst::checked_lifted_calls(&original, semantics.lexer_config)
+            .unwrap_or_default()
+        {
+            if let Some(nested) = nested.tokens {
+                if let Some(head) = nested.argv.first() {
+                    collect_original_command_writes(head.start(), semantics, metadata, out);
+                }
+            }
+        }
+        collect_original_command_writes(head.start(), semantics, metadata, out);
+    }
+}
+
+fn collect_original_command_writes(
+    offset: u32,
+    semantics: UndefSuppressionSemantics<'_>,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    out: &mut FxHashSet<String>,
+) {
+    let Some(realm) = semantics.analysis.retained_command_realm() else {
+        return;
+    };
+    let binding = realm.invocation_at_source("", offset);
+    let Some((_, tokens)) = binding.original_recorded_command() else {
+        return;
+    };
+    let Some(footprint) = binding.original_materialized_footprint(
+        &tokens,
+        semantics.source,
+        semantics.context.commands(),
+        Some(metadata),
+    ) else {
+        return;
+    };
+    let Some(words) =
+        crate::registry_invocation::source_structure::original_registry_words_for_tokens(
+            semantics.source,
+            semantics.analysis,
+            &tokens,
+        )
+    else {
+        return;
+    };
+    for name in footprint.invocation_writes(&words).names {
+        let root = tcl_syntax::naming::split_array_name_braced(&name, true).0;
+        if !root.is_empty() {
+            out.insert(root.to_owned());
+        }
+    }
 }
 
 /// Names written by a [`tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS`]
@@ -889,6 +1059,7 @@ fn collect_script_concat_writes(
                     .traits
                     .contains(tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS)
                     && schema.semantics.body_kind == tcl_registry::BodyKind::Plain
+                    && schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current
             }) == Some(true);
             if !same_frame_concat {
                 continue;
@@ -898,6 +1069,35 @@ fn collect_script_concat_writes(
                     (role == tcl_registry::ArgRole::Body).then_some(index)
                 })
             }) else {
+                continue;
+            };
+            if words.with_source_schema(semantics.context, |schema| {
+                schema.authored_source_script_timing_at(first)
+            }) != Some(Some(tcl_registry::ScriptTiming::SameInvocation))
+            {
+                continue;
+            }
+            let Some(metadata) = fu.invocation_metadata_context(semantics.context.commands())
+            else {
+                continue;
+            };
+            let Some(input) = metadata.source_analysis_input() else {
+                continue;
+            };
+            if semantics.analysis.resolved_input.as_ref() != Some(input)
+                || input.lexer_config().normalized() != semantics.lexer_config.normalized()
+            {
+                continue;
+            }
+            let Some(binding) = tokens.source_binding.as_ref() else {
+                continue;
+            };
+            let Some(footprint) = binding.original_materialized_footprint(
+                tokens,
+                semantics.source,
+                semantics.context.commands(),
+                Some(metadata),
+            ) else {
                 continue;
             };
             let tail = &words.arguments()[first..];
@@ -946,13 +1146,7 @@ fn collect_script_concat_writes(
             let Ok(script) = std::str::from_utf8(&script) else {
                 continue;
             };
-            let mut writes = Vec::new();
-            crate::ir_helpers::script_text_out_vars(
-                script,
-                semantics.context.commands(),
-                &mut writes,
-            );
-            out.extend(writes);
+            out.extend(footprint.script_writes(script).names);
         }
     }
     out
@@ -1201,7 +1395,7 @@ pub(super) fn build_undef_suppression(
     let loop_entry_only_undef =
         build_loop_entry_only_undef(fu, &can_undef, &undef_ctx, rules, &mut memo);
     let mut s = UndefSuppression {
-        cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered, semantics.context.commands()),
+        cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered, semantics),
         script_concat_writes: collect_script_concat_writes(fu, considered, semantics),
         killed,
         can_undef,
@@ -1467,9 +1661,11 @@ pub(super) fn original_definition_places(
     let Some(binding) = &tokens.source_binding else {
         return Vec::new();
     };
-    let Some(normal) =
-        crate::registry_invocation::normal_transfer_invocation(registry, None, tokens)
-    else {
+    let Some(normal) = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        registry,
+        fu.invocation_metadata_context(registry),
+        tokens,
+    ) else {
         return Vec::new();
     };
     if normal
@@ -1657,7 +1853,11 @@ pub(super) fn special_variable_definition_at_span(
                 crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index).source_tokens()?;
             let binding = tokens.source_binding.as_ref()?;
             let normal =
-                crate::registry_invocation::normal_transfer_invocation(registry, None, tokens)?;
+                crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+                    registry,
+                    fu.invocation_metadata_context(registry),
+                    tokens,
+                )?;
             if normal
                 .variable_traits()
                 .contains(tcl_registry::Traits::DESTROYS_VARIABLE)
@@ -1924,6 +2124,283 @@ mod exact_cell_diagnostic_tests {
             ),
             None
         );
+    }
+
+    fn footprint_inputs(
+        source: &str,
+    ) -> (
+        crate::compilation_unit::CompilationUnit,
+        crate::analyser::AnalysisResult,
+        crate::analyser::ResolvedAnalysisInput,
+    ) {
+        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let input = crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: input.borrowed_context_registry().commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "tcl");
+        (unit, analysis, input)
+    }
+
+    fn footprint_semantics<'a>(
+        source: &'a str,
+        analysis: &'a crate::analyser::AnalysisResult,
+        input: &'a crate::analyser::ResolvedAnalysisInput,
+    ) -> super::UndefSuppressionSemantics<'a> {
+        super::UndefSuppressionSemantics {
+            dialect: Some(
+                input
+                    .borrowed_context_registry()
+                    .context()
+                    .authoring_query(),
+            ),
+            rules: tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
+            lexer_config: input.lexer_config(),
+            source,
+            analysis,
+            context: input.borrowed_context_registry(),
+        }
+    }
+
+    #[test]
+    fn materialized_suppression_keeps_original_aliases_and_literal_names() {
+        // naming.diagnostic.original-materialized-write-footprint
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+        // The real diagnostic suppression consumer receives possible names,
+        // never a Native write, successful evaluation or child argv receipt.
+        for (source, expected) in [
+            (
+                "proc f {} {eval set {café(open} VALUE; puts ${café(open}}",
+                Some("café(open"),
+            ),
+            (
+                "interp alias {} emit {} eval set {$literal}; proc f {} {emit VALUE; puts ${$literal}}",
+                Some("$literal"),
+            ),
+            (
+                "rename set moved; interp alias {} write {} moved café; proc f {} {eval write VALUE; puts $café}",
+                Some("café"),
+            ),
+            (
+                "proc set args {}; proc f {} {eval set hidden VALUE; puts $hidden}",
+                None,
+            ),
+        ] {
+            let (unit, analysis, input) = footprint_inputs(source);
+            let function = unit.function("::f").unwrap();
+            let considered = function.ssa.blocks.keys().copied().collect();
+            let names = super::collect_script_concat_writes(
+                function,
+                &considered,
+                footprint_semantics(source, &analysis, &input),
+            );
+            if let Some(expected) = expected {
+                assert!(names.contains(expected), "{source}: {names:?}");
+            } else {
+                assert!(!names.contains("hidden"), "known replacement: {names:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn expression_suppression_uses_each_original_child_lookup_horizon() {
+        // naming.diagnostic.original-materialized-write-footprint
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+        for (source, expected) in [
+            (
+                "proc f {} {set result [expr {[catch {set {café(open} VALUE} status] || $status}]}",
+                Some("café(open"),
+            ),
+            (
+                "interp alias {} assign {} set {$literal}; proc f {} {set result [expr {[assign VALUE]}]}",
+                Some("$literal"),
+            ),
+            (
+                "proc f {} {set result [expr {[set x VALUE] + [rename set replaced]}]}",
+                Some("x"),
+            ),
+            (
+                "proc f {} {if {[catch {set x VALUE} first]} {} elseif {[set y VALUE]} {}}",
+                Some("x"),
+            ),
+            (
+                "proc f {} {if {[catch {set x VALUE} first]} {} elseif {[set y VALUE]} {}}",
+                Some("y"),
+            ),
+            (
+                "proc catch args {}; proc f {} {set result [expr {[catch {set hidden VALUE} status]}]}",
+                None,
+            ),
+        ] {
+            let (unit, analysis, input) = footprint_inputs(source);
+            let function = unit.function("::f").unwrap();
+            let considered = function.ssa.blocks.keys().copied().collect();
+            let names = super::collect_expr_cmd_sub_writes(
+                function,
+                &considered,
+                footprint_semantics(source, &analysis, &input),
+            );
+            if let Some(expected) = expected {
+                assert!(names.contains(expected), "{source}: {names:?}");
+            } else {
+                assert!(
+                    !names.contains("hidden") && !names.contains("status"),
+                    "known child replacement: {names:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn materialized_suppression_refuses_missing_foreign_and_stale_source_input() {
+        // naming.diagnostic.original-materialized-write-footprint
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+        let source = "proc f {} {eval set output VALUE; puts $output}";
+        let (unit, analysis, input) = footprint_inputs(source);
+        let function = unit.function("::f").unwrap();
+        let considered = function.ssa.blocks.keys().copied().collect();
+        let semantics = footprint_semantics(source, &analysis, &input);
+        assert!(
+            super::collect_script_concat_writes(function, &considered, semantics)
+                .contains("output")
+        );
+        let mut missing = function.clone();
+        missing.source_metadata_input = None;
+        assert!(super::collect_script_concat_writes(&missing, &considered, semantics).is_empty());
+        let mut foreign = function.clone();
+        foreign.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            input.lexer_config(),
+        ));
+        assert!(super::collect_script_concat_writes(&foreign, &considered, semantics).is_empty());
+        let stale = super::UndefSuppressionSemantics {
+            source: "proc f {} {eval set output OTHER; puts $output}",
+            ..semantics
+        };
+        assert!(super::collect_script_concat_writes(function, &considered, stale).is_empty());
+    }
+
+    #[test]
+    fn original_definition_advice_refuses_missing_and_foreign_function_metadata() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // These are selected source/API definition places, not measured native stores.
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let source = "proc f {} {scan {a b} {%s %s} local ::auto_path}";
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            source, registry, false, "tcl8.6",
+        );
+        let original = unit.procedures.values().next().unwrap();
+        let span = occurrence_span(source, "::auto_path");
+        assert_eq!(
+            special_variable_definition_at_span(original, span, registry),
+            Some("auto_path".to_owned())
+        );
+        let mut missing = original.clone();
+        missing.source_metadata_input = None;
+        assert_eq!(
+            special_variable_definition_at_span(&missing, span, registry),
+            None
+        );
+        let mut foreign = original.clone();
+        let input = original.source_metadata_input().unwrap();
+        foreign.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry(),
+            input.lexer_config(),
+        ));
+        assert_eq!(
+            special_variable_definition_at_span(&foreign, span, registry),
+            None
+        );
+    }
+
+    #[test]
+    fn original_existence_guards_use_retained_availability_and_refuse_missing_foreign() {
+        // naming.compiler.retained-existence-metadata
+        // docs/design/analysis/name-resolution-proofs/retained-existence-metadata.md
+        // Conditional branch advice only; no native query result or current contents proof.
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let info = registry.get("info").unwrap().clone();
+        registry.insert(tcl_registry::CommandSpec {
+            surface: registry.get("dict").unwrap().surface,
+            ..info
+        });
+        let context = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl9.0")
+                .with_command_store(registry.snapshot().shared_registry()),
+        );
+        let profile = tcl_registry::model::ingress::static_context_for("tcl")
+            .commands()
+            .profile()
+            .unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+            "proc f {} {if {[info exists {scalar(open}]} {puts ${scalar(open}}}",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: &registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            context,
+        );
+        let original = unit.procedures.values().next().unwrap();
+        assert!(
+            original
+                .source_metadata_input()
+                .unwrap()
+                .has_logical_source_name_context()
+        );
+        assert_eq!(
+            collect_existence_guards(original, &registry, config).len(),
+            1
+        );
+        let input = original.source_metadata_input().unwrap();
+        let mut unavailable = original.clone();
+        unavailable.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            std::sync::Arc::new(
+                tcl_registry::model::ingress::static_context_for("tcl8.4")
+                    .with_command_store(registry.snapshot().shared_registry()),
+            ),
+            input.lexer_config(),
+        ));
+        assert!(collect_existence_guards(&unavailable, &registry, config).is_empty());
+        let mut missing = original.clone();
+        missing.source_metadata_input = None;
+        assert!(collect_existence_guards(&missing, &registry, config).is_empty());
+        let mut foreign = original.clone();
+        foreign.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry(),
+            input.lexer_config(),
+        ));
+        assert!(collect_existence_guards(&foreign, &registry, config).is_empty());
     }
 
     #[test]
