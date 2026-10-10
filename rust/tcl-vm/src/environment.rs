@@ -29,9 +29,9 @@
 
 use std::sync::{Mutex, OnceLock};
 
+use tcl_dialect::DialectProfile;
 use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::model::surface_admits;
-use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::{PinError, PinnedContext};
 use tcl_runtime_api::RuntimeContext;
@@ -83,26 +83,6 @@ pub(crate) fn store_for_profile(profile: &'static DialectProfile) -> &'static Co
 /// `the_document_point_matches_the_threaded_profile`.
 pub(crate) fn surface_point(profile: &'static DialectProfile) -> SurfaceQuery<'static> {
     tcl_registry::model::static_document_context_for_profile(profile).authoring_query()
-}
-
-/// The profile a `namespace` or `trace` subcommand table is gated under: the
-/// profile the VM exposes commands under — the pinned dialect profile, unless
-/// a host broadened the surface — as it states one, and the plain profile of
-/// the release the VM emulates when that is the permissive fallback, which
-/// states none.
-///
-/// Reading the release name alone answered for a vendor pin with the plain
-/// release's table: an iRules VM, which emulates 8.4, took `trace add` from
-/// `tcl8.4` though the TMM's Tcl has only the three legacy forms.
-pub(crate) fn gate_profile(
-    surface: &'static DialectProfile,
-    release: TclVersion,
-) -> &'static DialectProfile {
-    if surface.is_fallback() {
-        profile_for_dialect(release.dialect_profile_name())
-    } else {
-        surface
-    }
 }
 
 /// One memoised answer: `(command, release name, the release's slice of the

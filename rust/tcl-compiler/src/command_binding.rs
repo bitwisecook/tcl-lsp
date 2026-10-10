@@ -12970,6 +12970,22 @@ pub(crate) enum ResolvedFrameBody {
 }
 
 impl ResolvedBindingInvocation {
+    /// Explicit standalone frame-body shape under the caller's catalogue.
+    /// A deliberate unprofiled query keeps its own-surface route; it does not
+    /// manufacture an analysis input, native entry or default context.
+    pub(crate) fn resolved_frame_body_standalone(
+        &self,
+        registry: &CommandRegistry,
+        bindings: &ModuleCommandBindings,
+        namespace: &crate::ir_helpers::ExecutionNamespace,
+    ) -> ResolvedFrameBody {
+        let metadata = registry
+            .profile()
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+            .map(crate::registry_invocation::InvocationMetadataContext::from);
+        self.resolved_frame_body_with_optional_metadata(registry, bindings, namespace, metadata)
+    }
+
     /// Frame-body layout under actual supplied availability, without a
     /// Native frame-entry or execution grant. Missing input widens selection.
     pub(crate) fn resolved_frame_body_with_metadata_context(

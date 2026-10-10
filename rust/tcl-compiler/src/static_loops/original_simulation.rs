@@ -24,13 +24,11 @@
 //! iteration (capped by `DEFAULT_MAX_STATIC_LOOP_ITERS`) to
 //! catch pathological inputs.
 
-use std::collections::HashMap;
-
 use crate::expr_ast::ExprNode;
 use crate::ir::{IfClause, Script, Statement, SwitchArm, SwitchMode};
 use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue};
 
-use super::{DEFAULT_MAX_STATIC_LOOP_ITERS, StaticEnv, StaticValue, simple_var_ref};
+use super::{StaticEnv, StaticValue, simple_var_ref};
 
 impl StaticValue {
     /// Project mathematical contents, without proving a fresh native object.

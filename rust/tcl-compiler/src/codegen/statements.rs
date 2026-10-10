@@ -826,7 +826,6 @@ impl CodegenCtx<'_> {
             Statement::Switch {
                 raw_args,
                 raw_arg_braced,
-                command,
                 ..
             } => {
                 self.emit_opaque_switch(raw_args, raw_arg_braced, used_generic_invoke);

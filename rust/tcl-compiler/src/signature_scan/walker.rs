@@ -286,15 +286,14 @@ struct ResolvedScanDispatch {
     analyser: Option<AnalyserHookId>,
     lowering: Option<LoweringHookId>,
     clause_plan: Option<ClausePlan>,
-    appends_list_elements: bool,
-    writes_value_word: bool,
+    auto_path: Option<(usize, Vec<usize>)>,
     option_end: usize,
     definition_body: Option<&'static tcl_registry::definer::DefinitionBodyGrammar>,
     traits: Traits,
     manufacturer: Option<tcl_registry::definer::ManufacturerMethod>,
     procedure_words: Option<tcl_registry::ProcedureWords>,
     transitions: tcl_registry::StateTransitions,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    source_path: Option<(usize, bool)>,
 }
 
 /// Every body position comes from the selected shared clause walk. Its argument
@@ -331,31 +330,72 @@ fn resolve_scan_dispatch(
             })
             .filter(|method| method.visibility == tcl_registry::definer::MemberVisibility::Exported)
             .copied();
-        let procedure_words = schema.authored_source_procedure_arguments().map(|words| {
-            tcl_registry::ProcedureWords {
-                name: words.name,
-                params: words.parameters,
-                statics: None,
-                body: words.body,
-            }
+        let procedure_words = schema
+            .semantics
+            .procedure_definition
+            .and_then(|descriptor| {
+                use tcl_registry::native_procedure::NativeProcedureDefinitionSelection;
+                match descriptor.select(schema.words.arguments()) {
+                    NativeProcedureDefinitionSelection::Valid(words) => {
+                        Some(tcl_registry::ProcedureWords {
+                            name: words.name_at,
+                            params: words.parameters_at,
+                            statics: words.statics_at,
+                            body: words.body_at,
+                        })
+                    }
+                    NativeProcedureDefinitionSelection::Invalid => None,
+                    // Authored source-only shape is its own selected purpose. It
+                    // does not acquire a native parameter parser or definition.
+                    NativeProcedureDefinitionSelection::Unknown => schema
+                        .authored_source_procedure_arguments()
+                        .map(|words| tcl_registry::ProcedureWords {
+                            name: words.name,
+                            params: words.parameters,
+                            statics: None,
+                            body: words.body,
+                        }),
+                }
+            });
+        let (roles, complete) = schema.authored_source_argument_roles();
+        let mut targets = roles.iter().filter_map(|&(ordinal, role)| {
+            (role == ArgRole::VarWrite)
+                .then_some(schema.semantics.argument_offset + usize::from(ordinal) + 1)
+        });
+        let target = targets.next().filter(|_| targets.next().is_none());
+        let count = schema.words.arguments().exact_argv_len();
+        let auto_path = complete.then_some(()).and_then(|()| {
+            let target = target?;
+            let count = count?;
+            let values = match schema.semantics.var_elements_effect {
+                Some(tcl_registry::VarElementsEffect::AppendsListElements { values_from }) => {
+                    (schema.semantics.argument_offset + usize::from(values_from) + 1..=count)
+                        .collect()
+                }
+                _ if schema.semantics.value.writes_value_word() && count > 1 => vec![count],
+                _ => return None,
+            };
+            Some((target, values))
         });
         ResolvedScanDispatch {
             canonical_command: schema.canonical_command,
             analyser: schema.semantics.analyser_hook,
             lowering: schema.semantics.lowering_hook,
             clause_plan: schema.clause_plan(),
-            appends_list_elements: matches!(
-                schema.semantics.var_elements_effect,
-                Some(tcl_registry::VarElementsEffect::AppendsListElements { .. })
-            ),
-            writes_value_word: schema.semantics.value.writes_value_word(),
+            auto_path,
             option_end: schema.option_effects().option_end + 1,
             definition_body: schema.authored_source_definition_body_grammar(),
             traits: schema.semantics.traits,
             manufacturer,
             procedure_words,
             transitions: schema.state_transitions(),
-            dialect: schema.words.dialect(),
+            source_path: match tcl_registry::source_file::path_candidate(schema.words.arguments()) {
+                tcl_registry::source_file::SourceFileSelection::Selected(path) => Some((
+                    path.path_at + 1,
+                    schema.words.arguments().literal_at(path.path_at).is_some(),
+                )),
+                _ => None,
+            },
         }
     })
 }
@@ -423,13 +463,22 @@ fn dispatch_signature_handler(
             record_package_ifneeded(texts, argv, ctx);
         }
         Some(AnalyserHookId::Source) => {
-            handlers::handle_source(
-                texts,
-                argv,
-                compatibility_namespace,
-                dispatch.dialect,
-                &mut ctx.result,
-            );
+            if let Some((path, is_literal)) = dispatch.source_path
+                && let (Some(text), Some(token)) = (texts.get(path), argv.get(path))
+            {
+                ctx.result
+                    .source_targets
+                    .push(super::types::SignatureSource {
+                        original_interpreter_source_load: None,
+                        raw_path: text.clone(),
+                        range: token.span,
+                        is_literal,
+                        site_namespace: crate::naming::qualify_namespace(
+                            compatibility_namespace,
+                            "",
+                        ),
+                    });
+            }
         }
         // Alias publication is handled only by the same selected transition.
         // Queries and invalid/computed layouts cannot borrow positional names.
@@ -450,19 +499,12 @@ fn dispatch_signature_handler(
         {
             handle_clause_bodies(dispatch, texts, argv, ns_prefix, known_commands, ctx);
         }
-        // `lappend` carries no analyser hook either; a command that
-        // appends list elements to its target variable is exactly `lappend`
-        // (`append` writes a string, not list elements), the same registry
-        // fact the full analyser's own `auto_path` handling reads.
-        _ if dispatch.appends_list_elements => {
-            handlers::handle_auto_path(texts, argv, &mut ctx.result);
-        }
-        // `set` carries no analyser hook either: a
-        // command whose declared semantics stores its value word into the
-        // variable it names assigns the search path, the registry fact the
-        // full analyser's `bind_value_word_assignment` reads.
-        _ if dispatch.writes_value_word => {
-            handlers::handle_auto_path(texts, argv, &mut ctx.result);
+        // Search-path records use the selected receiver and value operands,
+        // including their member offset. This is possible source metadata,
+        // not a completed assignment or actual list contents.
+        _ if dispatch.auto_path.is_some() => {
+            let (target, values) = dispatch.auto_path.as_ref().expect("selected operands");
+            handlers::handle_auto_path_at(texts, argv, *target, values, &mut ctx.result);
         }
         _ => return false,
     }
@@ -925,6 +967,196 @@ mod tests {
     }
 
     #[test]
+    fn selected_scan_clauses_use_availability_and_original_keyword_values() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Source/API contract: naming.source.original-registry-header-advice
+        // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
+        // These are readonly signature projections, not executed Tcl results.
+        for (environment, count) in [("tcl8.4", 0), ("tcl8.6", 2)] {
+            let registry = tcl_registry::model::ingress::static_context_for(environment).commands();
+            let result = super::super::extract_signatures(
+                "try {proc guarded {} {}} finally {proc cleanup {} {}}",
+                registry,
+            );
+            assert_eq!(result.procs.len(), count, "{environment}");
+        }
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let escaped =
+            super::super::extract_signatures("if 1 th\\en {proc selected {} {}}", registry);
+        assert!(escaped.procs.contains_key("::selected"));
+        let computed =
+            super::super::extract_signatures("if 1 $keyword {proc withheld {} {}}", registry);
+        assert!(computed.procs.is_empty());
+    }
+
+    #[test]
+    fn selected_scan_variable_elements_use_member_effect_and_written_offsets() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "search-path",
+            subcommands: &[tcl_registry::SubCommand {
+                name: "grow",
+                arity: tcl_registry::Arity::exact(2),
+                arg_roles: &[(0, ArgRole::VarWrite)],
+                var_elements_effect: Some(tcl_registry::VarElementsEffect::AppendsListElements {
+                    values_from: 1,
+                }),
+                ..tcl_registry::SubCommand::DEFAULT
+            }],
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let result =
+            super::super::extract_signatures("search-path grow auto_path /opt/library", &registry);
+        assert_eq!(result.auto_path_entries.len(), 1);
+        assert_eq!(result.auto_path_entries[0].raw, "/opt/library");
+        let selected =
+            crate::segmenter::segment_commands("search-path grow auto_path /opt/library");
+        assert_eq!(result.auto_path_entries[0].range, selected[0].argv[3].span);
+        assert!(
+            super::super::extract_signatures("search-path grow unrelated /opt/library", &registry,)
+                .auto_path_entries
+                .is_empty()
+        );
+    }
+
+    fn selected_inventory(
+        source: &str,
+        registry: &tcl_registry::CommandRegistry,
+        metadata: crate::registry_invocation::InvocationMetadataInput<'_>,
+    ) -> (
+        tcl_lexer::LexerConfig,
+        crate::command_binding::SourceCommandBindings,
+    ) {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let bindings = crate::command_binding::SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            registry,
+            crate::command_binding::SourceAnalysisOptions {
+                metadata_context: metadata,
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                    mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        );
+        (config, bindings)
+    }
+
+    #[test]
+    fn selected_scan_inventory_keeps_replacements_and_direct_renamed_operands() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Source/API contract: naming.source.original-registry-header-advice
+        // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for (source, expected) in [
+            ("rename catch guard; guard {proc selected {} {}}", true),
+            ("proc catch args {}; catch {proc selected {} {}}", false),
+            ("rename catch {}; catch {proc selected {} {}}", false),
+        ] {
+            let (config, bindings) = selected_inventory(source, registry, Default::default());
+            let selected = super::super::extract_signatures_with_original_bindings(
+                source, config, registry, &bindings,
+            );
+            assert_eq!(
+                selected.procs.contains_key("::selected"),
+                expected,
+                "{source}"
+            );
+        }
+        // Compatibility describes the supplied header, without claiming its
+        // current installer. Only an actual inventory can exclude replacement.
+        let header = super::super::extract_signatures(
+            "proc catch args {}; catch {proc header_only {} {}}",
+            registry,
+        );
+        assert!(header.procs.contains_key("::header_only"));
+    }
+
+    #[test]
+    fn selected_scan_supplied_availability_and_missing_owner_are_terminal() {
+        // Source/API contract: naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let source = "try {proc selected {} {}} finally {}";
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(registry)),
+        );
+        let input = crate::analyser::ResolvedAnalysisInput::new(profile, profile, older, config);
+        for metadata in [
+            crate::registry_invocation::InvocationMetadataInput::SuppliedSource(Some(&input)),
+            crate::registry_invocation::InvocationMetadataInput::SuppliedSource(None),
+        ] {
+            let (config, bindings) = selected_inventory(source, registry, metadata);
+            let result = super::super::extract_signatures_with_original_bindings(
+                source, config, registry, &bindings,
+            );
+            assert!(result.procs.is_empty());
+        }
+        assert!(
+            super::super::extract_signatures(source, registry)
+                .procs
+                .contains_key("::selected")
+        );
+    }
+
+    #[test]
+    fn selected_scan_captured_prefixes_cannot_borrow_written_body_tokens() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Source/API contract: naming.source.original-registry-header-advice
+        // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let source = "interp alias {} branch {} if 1; branch {proc withheld {} {}}";
+        let (config, bindings) = selected_inventory(source, registry, Default::default());
+        let result = super::super::extract_signatures_with_original_bindings(
+            source, config, registry, &bindings,
+        );
+        assert!(!result.procs.contains_key("::withheld"));
+        assert!(
+            result
+                .command_invocations
+                .iter()
+                .any(|invocation| invocation.name == "branch")
+        );
+        let expanded = super::super::extract_signatures("catch {*}{proc withheld {} {}}", registry);
+        assert!(expanded.procs.is_empty());
+    }
+
+    #[test]
+    fn factory_scan_shares_selected_clause_values_and_dynamic_withdrawal() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for (source, count) in [
+            ("proc wrapper {} {if 1 th\\en {DEFC made args {body}}}", 1),
+            ("proc wrapper {} {if 1 $keyword {DEFC made args {body}}}", 0),
+        ] {
+            let (body, token) = extract_proc_body(source);
+            let mut ctx = ScanCtx {
+                registry: Some(registry),
+                original_image: Some(tcl_lexer::SourceImage::document(source)),
+                skip_heads: registry.command_names().map(str::to_owned).collect(),
+                ..Default::default()
+            };
+            scan_factory_candidates(&body, token, "", &mut ctx);
+            assert_eq!(ctx.candidates.len(), count, "{source}");
+        }
+    }
+
+    #[test]
     fn top_level_proc_emits_invocation_and_record() {
         let mut ctx = registry_ctx();
         scan(
@@ -1169,6 +1401,7 @@ mod tests {
         let src = "proc factwrapper {a b c} { DEFC bar args {body} }";
         let (body, body_tok) = extract_proc_body(src);
         let mut ctx = registry_ctx();
+        ctx.original_image = Some(tcl_lexer::SourceImage::document(src));
         scan_factory_candidates(&body, body_tok, "", &mut ctx);
         assert_eq!(ctx.candidates.len(), 1);
     }
@@ -1178,6 +1411,7 @@ mod tests {
         let src = "proc init {} { if {1} { DEFC bar args {body} } }";
         let (body, body_tok) = extract_proc_body(src);
         let mut ctx = registry_ctx();
+        ctx.original_image = Some(tcl_lexer::SourceImage::document(src));
         scan_factory_candidates(&body, body_tok, "", &mut ctx);
         assert_eq!(ctx.candidates.len(), 1);
     }
@@ -1187,6 +1421,7 @@ mod tests {
         let src = "proc init {} { try { DEFC a {x} {b} } finally { DEFC c {y} {d} } }";
         let (body, body_tok) = extract_proc_body(src);
         let mut ctx = registry_ctx();
+        ctx.original_image = Some(tcl_lexer::SourceImage::document(src));
         scan_factory_candidates(&body, body_tok, "", &mut ctx);
         assert_eq!(ctx.candidates.len(), 2);
     }

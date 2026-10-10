@@ -32,8 +32,6 @@ use std::io::{self, Write};
 use std::rc::{Rc, Weak};
 type OutputWriter = Rc<RefCell<Box<dyn Write>>>;
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use tcl_dialect::{PackagePrefer, model::SurfaceQuery};
 
 use native_error_stack::NativeErrorStack;
@@ -55,8 +53,8 @@ use tcl_runtime_api::{
     ArrayElementRead, ArrayInvalidation, ArrayReadFailure, ArrayReadMiss, ArrayTarget,
     ArtefactIdentityManifest, Code, CommandId, Commands, CompileService, Completion, FatalTail,
     FrameId, FrameLinkOrigin, Frames, Introspect, Namespaces, NsId, ProcInfo, ProcParam,
-    ProcedureCompileTarget, ProcedureDispatch, Procs, ROOT_NS, RegisteredBacking, Rung,
-    RuntimeContext, ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
+    ProcedureDispatch, Procs, ROOT_NS, RegisteredBacking, Rung, RuntimeContext,
+    ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
 };
 use tcl_syntax::expr::eval;
 
@@ -4138,7 +4136,7 @@ impl Vm {
             // from the command's rendered spelling.
             self.declare_namespace_key(&holder);
         }
-        self.register_command(canonical, Command::Builtin(f))
+        self.register_command(canonical, Command::Builtin(f));
     }
 
     /// Engine bootstrap alone can identify an actual stock implementation.
@@ -4376,40 +4374,6 @@ impl Vm {
             self.visible_command_generation(spec.name.strip_prefix("::").unwrap_or(spec.name))
         {
             self.attest(generation, None, identities);
-        }
-    }
-
-    /// Register a builtin under its registry's own spelling — rooted, as
-    /// `::tcl::dict::get` — and keep that spelling as its registry identity, so
-    /// the release surface gates it by the name the registry knows it under
-    /// wherever a rename, import, hide or expose later takes it. The registry
-    /// has no spec for the unrooted spelling these commands are stored under,
-    /// which is why the spelling has to be kept.
-    pub(crate) fn register_spelled(&mut self, name: &str, f: BuiltinFn) {
-        self.register_stock_builtin(name, f);
-    }
-
-    /// Register a builtin and attest `identities` for the token it is bound
-    /// under. The token it displaces takes its attestation with it.
-    fn register_attested(
-        &mut self,
-        name: &str,
-        displaced_key: &str,
-        f: BuiltinFn,
-        identities: BTreeSet<GuardIdentity>,
-    ) {
-        let displaced = self.visible_command_generation(displaced_key);
-        self.register(name, f);
-        let Some(key) = self.resolve_command_fqn("", name) else {
-            return;
-        };
-        if let Some(generation) = self.visible_command_generation(&key) {
-            self.attest(generation, displaced, identities);
-        } else if let Some(displaced) = displaced {
-            self.guarded_commands
-                .attested
-                .borrow_mut()
-                .remove(&displaced);
         }
     }
 
@@ -7115,20 +7079,6 @@ impl Vm {
         ))
     }
 
-    /// Refuse an unset of `name` — a whole variable, or an element spelt
-    /// `a(k)` — resolved from level `start`, that would remove a variable
-    /// outside the activation while stores are confined. The refusal is an
-    /// ordinary Tcl error raised before anything is removed.
-    pub(crate) fn confine_unset(&self, name: &str, start: usize) -> Result<(), Completion<Value>> {
-        if !self.store_confined(name, start) {
-            return Ok(());
-        }
-        Err(crate::command::err_with_code(
-            format!("can't unset \"{name}\": stores are confined to the activation"),
-            "TCL UNSET VARNAME",
-        ))
-    }
-
     /// Refuse `rand()` and `srand()` while stores are confined. The
     /// generator's seed is interpreter state every invocation shares:
     /// `srand` writes it and `rand` reads and advances what an earlier
@@ -7565,11 +7515,13 @@ impl Vm {
     }
 
     /// Active native chunks retain their admitted chunk-entry operations.
-    /// Document-procedure inlining dependencies remain live at every boundary.
+    /// Document-procedure inlining dependencies, retained artifact identity and
+    /// pack claims remain live at every command boundary.
     pub(crate) fn function_live_command_bindings_match(
         &self,
         asm: &FunctionAsm,
         selected: &[&tcl_runtime_api::CommandBindingIdentity],
+        manifest: Option<&ArtefactIdentityManifest>,
     ) -> bool {
         self.compiled_local_layout_matches(asm)
             && asm
@@ -7583,6 +7535,7 @@ impl Vm {
                 .procedure_bindings
                 .iter()
                 .all(|binding| self.procedure_binding_matches(binding))
+            && self.function_identity_claims_match(asm, manifest)
     }
 
     fn function_command_bindings_match_at(
@@ -7612,8 +7565,17 @@ impl Vm {
                 .procedure_bindings
                 .iter()
                 .all(|binding| self.procedure_binding_matches(binding))
-            && self.site_claims_hold(asm)
-            && self.manifest_admits(asm, manifest)
+            && self.function_identity_claims_match(asm, manifest)
+    }
+
+    /// Retained artifact identity and pack claims at admission or live revalidation.
+    /// This does not supply compiler, command, procedure or activation authority.
+    pub(crate) fn function_identity_claims_match(
+        &self,
+        asm: &FunctionAsm,
+        manifest: Option<&ArtefactIdentityManifest>,
+    ) -> bool {
+        self.site_claims_hold(asm) && self.manifest_admits(asm, manifest)
     }
 
     /// The manifest check, per rung: the fields in which the module's
@@ -15701,15 +15663,6 @@ impl Vm {
             ));
         }
         Ok(module)
-    }
-
-    pub(crate) fn compile_plain_function_cached(
-        &mut self,
-        target: ScriptCompileTarget<'_>,
-    ) -> Result<Rc<FunctionAsm>, TclError> {
-        let module = self.compile_plain_cached_module(target)?;
-        self.merge_procs(&module);
-        Ok(Rc::new(module.top_level.clone()))
     }
 
     fn compile_plain_cached_module(

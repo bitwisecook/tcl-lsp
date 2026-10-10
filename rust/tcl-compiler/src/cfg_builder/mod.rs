@@ -2005,12 +2005,7 @@ impl<'a> CfgBuilder<'a> {
                 braced,
                 ..
             } => value.is_none() || *braced || value_word.as_ref().is_some_and(literal),
-            Statement::Call {
-                command,
-                canonical_command,
-                tokens,
-                ..
-            } => {
+            Statement::Call { tokens, .. } => {
                 if self.plain_command_dispatch
                     || !tokens
                         .as_ref()

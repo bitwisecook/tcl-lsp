@@ -56,7 +56,7 @@ use crate::error::TclError;
 use crate::interp::Vm;
 use crate::value::Value;
 use tcl_core_types::NameBytes;
-use tcl_runtime_api::{Code, Completion, ScriptCompileTarget};
+use tcl_runtime_api::{Code, Completion};
 
 /// A host compilation boundary preserves native Tcl diagnostics and provider
 /// refusals as separate cases. Host failures cannot become guest completions.

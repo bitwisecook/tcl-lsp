@@ -204,7 +204,7 @@ impl ScanCtx<'_> {
         );
         let dialect = crate::environment_ingress::authoring_invocation_dialect(
             registry,
-            registry.profile(),
+            self.authoring_profile(),
             self.config,
         );
         let values: Vec<_> = tokens
@@ -272,13 +272,30 @@ impl ScanCtx<'_> {
             tokens.source_binding = Some(binding.clone());
             // Matching original inventory is authoritative, including refusal.
             // A replaced/deleted installer never borrows a header's callback role.
-            return binding.original_callback_prefix(&tokens, written, registry);
+            let owner = bindings.source_metadata_owner();
+            owner.metadata_context_for_source(registry, self.config, self.authoring_profile())?;
+            return match owner {
+                crate::registry_invocation::OwnedInvocationMetadataContext::Supplied(context) => {
+                    binding.original_callback_prefix_in_context(&tokens, written, context)
+                }
+                crate::registry_invocation::OwnedInvocationMetadataContext::SuppliedSource(
+                    input,
+                ) => binding.original_callback_prefix_in_context(
+                    &tokens,
+                    written,
+                    input.borrowed_context_registry(),
+                ),
+                crate::registry_invocation::OwnedInvocationMetadataContext::Standalone => {
+                    binding.original_callback_prefix(&tokens, written, registry)
+                }
+                crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable => None,
+            };
         }
         // Without a matching site issuer, only a readonly static operand can
         // survive. Registry metadata chooses its evaluator; lookup stays absent.
         let dialect = crate::environment_ingress::authoring_invocation_dialect(
             registry,
-            registry.profile(),
+            self.authoring_profile(),
             self.config,
         );
         let native = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
@@ -317,9 +334,16 @@ impl ScanCtx<'_> {
         )
     }
 
+    fn authoring_profile(&self) -> Option<&tcl_dialect::DialectProfile> {
+        self.original_bindings
+            .and_then(|bindings| bindings.source_metadata_owner().source_analysis_input())
+            .map(crate::analyser::ResolvedAnalysisInput::unit_profile)
+            .or_else(|| self.registry?.profile())
+    }
+
     /// Pure source assistance; the policy never supplies a runtime lookup receipt.
     pub(super) fn name_policy(&self) -> Option<tcl_syntax::naming::NamePolicyProtocol> {
-        self.registry?.profile().and_then(|profile| {
+        self.authoring_profile().and_then(|profile| {
             tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
         })
     }
@@ -533,6 +557,7 @@ impl ScanCtx<'_> {
 
 /// Project source declarations with an explicitly authored policy. The returned
 /// analytical key carries no entered command identity or execution authority.
+#[cfg(test)]
 pub(super) fn authored_publication_key(
     namespace: &str,
     written: &str,

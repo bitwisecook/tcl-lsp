@@ -22,32 +22,9 @@
 //! traits via `spec.traits.contains(Traits::CONTROL_FLOW)` instead of matching
 //! on command name strings.
 //!
-//! # Why an enum and not `bitflags`
-//!
-//! Every flag is declared **once**, by name, in `declare_traits!` below. Its
-//! bit is the enum discriminant the compiler assigns — no bit number is ever
-//! written down, so two flags cannot be given the same one. That is not a
-//! checked invariant; it is an unrepresentable state.
-//!
-//! This matters because it already went wrong. Under `bitflags` these were
-//! spelled `1 << 61` and `1 << 61`:
-//!
-//! ```text
-//! const TRANSFERS_CONTROL  = 1 << 61;
-//! const SAFE_INTERP_HIDDEN = 1 << 61;
-//! ```
-//!
-//! `bitflags` cannot reject that — two constants sharing a value is a
-//! supported feature there, used for composite masks like `const RW = R | W`.
-//! So the `u64` silently held 65 flags in 64 bits and the two names became one
-//! flag: every `SAFE_INTERP_HIDDEN` command (`file`, `source`, `encoding`,
-//! `open`, …) read as control-transferring and therefore as *frame-sensitive*,
-//! suppressing the inline-proc code action on all of them, while `break`,
-//! `continue`, `yield`, `yieldto` and `tailcall` read as safe-interp-hidden.
-//!
-//! The macro also generates [`Trait::name`] as an exhaustive `match`, so a new
-//! flag fails to compile until it is named — the string table cannot drift
-//! from the flags either.
+//! Every flag is declared once in `declare_traits!`. Its enum discriminant
+//! supplies its bit, so distinct names cannot accidentally share a flag.
+//! The closed set also supplies exhaustive names and author-facing metadata.
 
 use std::fmt;
 use std::ops::{BitOr, BitOrAssign};
@@ -179,6 +156,27 @@ macro_rules! declare_traits {
 /// `Trait`, so the set cannot contain a flag that was never declared.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Traits(u128);
+
+/// Trait policy shared by catalogue and selected-invocation consumers.
+pub(crate) const FRAME_SENSITIVE_TRAITS: Traits = Traits::TERMINATES_BLOCK
+    .union(Traits::TRANSFERS_CONTROL)
+    .union(Traits::CREATES_SCOPE_ALIAS)
+    .union(Traits::CREATES_BARRIER);
+
+/// Whether selected traits permit frame-independent verbatim splicing.
+///
+/// Consumers separately establish the selected implementation, argument layout
+/// and original body-edit ownership. These traits supply no runtime admission.
+#[must_use]
+pub const fn is_splice_safe(traits: Traits) -> bool {
+    traits.contains(Traits::FRAMELESS_RUNTIME)
+        && !traits.intersects(
+            FRAME_SENSITIVE_TRAITS
+                .union(Traits::FIRST_ARG_VARNAME)
+                .union(Traits::FRAME_HASH_BUILTIN)
+                .union(Traits::DYNAMIC_EVAL_BODY),
+        )
+}
 
 impl Trait {
     /// This trait's bit. The discriminant *is* the bit index.

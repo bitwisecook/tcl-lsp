@@ -52,19 +52,130 @@ use std::collections::{BTreeSet, HashMap};
 use crate::command_binding::ModuleCommandBindings;
 use crate::ir::{Module, Script, Statement};
 use crate::ir_helpers::{ExecutionNamespace, nested_execution_bodies};
-use crate::registry_invocation::InvocationMetadataContext;
+use crate::registry_invocation::{InvocationMetadataContext, InvocationMetadataInput};
 use crate::var_observability::{State, stmt_gen_with_metadata_context};
 
 /// Exact borrowed input for conditional global/caller-frame source summaries.
 struct GlobalWriteSemantics<'a> {
     registry: &'a tcl_registry::CommandRegistry,
     aliases: &'a ModuleCommandBindings,
-    metadata: InvocationMetadataContext<'a>,
+    selection: InvocationMetadataInput<'a>,
+    metadata: Option<InvocationMetadataContext<'a>>,
     config: tcl_lexer::LexerConfig,
     input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
 }
 
 impl<'a> GlobalWriteSemantics<'a> {
+    fn standalone(&self) -> bool {
+        matches!(self.selection, InvocationMetadataInput::Standalone)
+    }
+
+    fn resolve_statement(
+        &self,
+        statement: &Statement,
+        namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
+    ) -> Vec<crate::command_binding::ResolvedBindingInvocation> {
+        if self.standalone() {
+            self.aliases
+                .resolve_statement(statement, self.registry, namespace)
+        } else {
+            self.aliases.resolve_statement_with_metadata_context(
+                statement,
+                self.registry,
+                self.metadata,
+                namespace,
+            )
+        }
+    }
+
+    fn resolve_words(
+        &self,
+        words: &[crate::ir_helpers::CommandWord],
+        namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
+    ) -> Vec<tcl_registry::InvocationFacts> {
+        if self.standalone() {
+            self.aliases
+                .resolve_command_words(words, self.registry, namespace)
+        } else {
+            self.aliases.resolve_command_words_with_metadata_context(
+                words,
+                self.registry,
+                self.metadata,
+                namespace,
+            )
+        }
+    }
+
+    fn statement_writes(
+        &self,
+        statement: &Statement,
+        namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
+    ) -> tcl_registry::VariableWriteProjection {
+        if !self.standalone() {
+            return self
+                .aliases
+                .variable_write_projection_with_metadata_context(
+                    statement,
+                    self.registry,
+                    namespace,
+                    self.metadata,
+                );
+        }
+        let mut projection = tcl_registry::VariableWriteProjection::default();
+        self.aliases
+            .for_each_resolved_invocation(statement, namespace, |target, words| {
+                if target.registry_backed {
+                    merge_write_projection(
+                        &mut projection,
+                        self.registry.variable_write_projection(words),
+                    );
+                }
+            });
+        projection
+    }
+
+    fn command_writes(
+        &self,
+        words: &[crate::ir_helpers::CommandWord],
+        namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
+    ) -> tcl_registry::VariableWriteProjection {
+        if !self.standalone() {
+            return self
+                .aliases
+                .variable_write_projection_for_command_words_with_metadata_context(
+                    words,
+                    self.registry,
+                    self.metadata,
+                    namespace,
+                );
+        }
+        let Some(head) = words
+            .first()
+            .and_then(crate::ir_helpers::CommandWord::literal)
+        else {
+            return tcl_registry::VariableWriteProjection {
+                opaque_variable_frame: true,
+                ..Default::default()
+            };
+        };
+        let mut projection = tcl_registry::VariableWriteProjection {
+            opaque_variable_frame: self
+                .aliases
+                .target_resolution_may_be_unknown(head, namespace),
+            ..Default::default()
+        };
+        self.aliases
+            .for_each_resolved_command_words(words, namespace, |target, invocation| {
+                if target.registry_backed {
+                    merge_write_projection(
+                        &mut projection,
+                        self.registry.variable_write_projection(invocation),
+                    );
+                }
+            });
+        projection
+    }
+
     fn from_module(
         module: &'a Module,
         registry: &'a tcl_registry::CommandRegistry,
@@ -75,10 +186,28 @@ impl<'a> GlobalWriteSemantics<'a> {
         Some(Self {
             registry,
             aliases,
-            metadata,
+            selection: InvocationMetadataInput::SuppliedSource(Some(input)),
+            metadata: Some(metadata),
             config: module.lexer_config,
             input: Some(input),
         })
+    }
+}
+
+fn merge_write_projection(
+    into: &mut tcl_registry::VariableWriteProjection,
+    from: tcl_registry::VariableWriteProjection,
+) {
+    into.opaque_variable_frame |= from.opaque_variable_frame;
+    for name in from.literal_names {
+        if !into.literal_names.contains(&name) {
+            into.literal_names.push(name);
+        }
+    }
+    for name in from.read_before_write_names {
+        if !into.read_before_write_names.contains(&name) {
+            into.read_before_write_names.push(name);
+        }
     }
 }
 
@@ -310,12 +439,50 @@ pub(crate) fn own_frame_global_writes_with_metadata_context<'a>(
     let semantics = GlobalWriteSemantics {
         registry,
         aliases,
-        metadata,
+        selection: if metadata.is_standalone() {
+            InvocationMetadataInput::Standalone
+        } else {
+            InvocationMetadataInput::SuppliedSource(metadata.source_analysis_input())
+        },
+        metadata: Some(metadata),
         config,
         input: metadata.source_analysis_input(),
     };
-    let mut info = own_body_global_writes(body, &semantics, namespace);
-    let (calls, calls_opaque) = direct_call_targets(body, &semantics, namespace);
+    frame_global_writes(body, &semantics, namespace, procedures)
+}
+
+/// Explicit source-only catalogue compatibility. An unprofiled catalogue has
+/// no SemanticContext; that deliberate absence never admits supplied refusal.
+pub(crate) fn own_frame_global_writes_standalone(
+    body: &Script,
+    registry: &tcl_registry::CommandRegistry,
+    aliases: &ModuleCommandBindings,
+    namespace: &str,
+    procedures: &HashMap<String, GlobalWriteInfo>,
+    config: tcl_lexer::LexerConfig,
+) -> GlobalWriteInfo {
+    let semantics = GlobalWriteSemantics {
+        registry,
+        aliases,
+        selection: InvocationMetadataInput::Standalone,
+        metadata: registry
+            .profile()
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+            .map(Into::into),
+        config,
+        input: None,
+    };
+    frame_global_writes(body, &semantics, namespace, procedures)
+}
+
+fn frame_global_writes(
+    body: &Script,
+    semantics: &GlobalWriteSemantics<'_>,
+    namespace: &str,
+    procedures: &HashMap<String, GlobalWriteInfo>,
+) -> GlobalWriteInfo {
+    let mut info = own_body_global_writes(body, semantics, namespace);
+    let (calls, calls_opaque) = direct_call_targets(body, semantics, namespace);
     info.opaque_global_frame |= calls_opaque;
     for callee in calls {
         match procedures.get(&callee) {
@@ -529,19 +696,18 @@ fn record_selected_global_body(
     let registry = semantics.registry;
     let aliases = semantics.aliases;
     let execution_namespace = ExecutionNamespace::exact(namespace);
-    for invocation in aliases.resolve_statement_with_metadata_context(
-        stmt,
-        registry,
-        Some(semantics.metadata),
-        namespace,
-    ) {
+    for invocation in semantics.resolve_statement(stmt, namespace) {
         use crate::command_binding::{ResolvedFrameBody, ResolvedFrameBodySelection};
-        let body = invocation.resolved_frame_body_with_metadata_context(
-            registry,
-            aliases,
-            &execution_namespace,
-            Some(semantics.metadata),
-        );
+        let body = if semantics.standalone() {
+            invocation.resolved_frame_body_standalone(registry, aliases, &execution_namespace)
+        } else {
+            invocation.resolved_frame_body_with_metadata_context(
+                registry,
+                aliases,
+                &execution_namespace,
+                semantics.metadata,
+            )
+        };
         let selected_global = |selection| match selection {
             ResolvedFrameBodySelection::Current => in_global_frame,
             ResolvedFrameBodySelection::Selected(FrameLevel::Absolute(0)) => true,
@@ -590,14 +756,19 @@ fn record_literal_global_body(
     info: &mut GlobalWriteInfo,
 ) -> bool {
     let registry = semantics.registry;
-    let Some(input) = semantics.input else {
+    let mut lowerer = crate::lowering::Lowerer::with_config(registry, semantics.config);
+    if let Some(input) = semantics.input {
+        lowerer = lowerer
+            .with_dialect(Some(input.unit_profile()))
+            .with_resolved_analysis_input(input.clone());
+        if let Some(entry) = crate::command_binding::SourceAnalysisEntry::for_logical_source(input)
+        {
+            lowerer.set_source_analysis_options(entry.options());
+        }
+    } else if semantics.standalone() {
+        lowerer = lowerer.with_dialect(registry.profile());
+    } else {
         return false;
-    };
-    let mut lowerer = crate::lowering::Lowerer::with_config(registry, semantics.config)
-        .with_dialect(Some(input.unit_profile()))
-        .with_resolved_analysis_input(input.clone());
-    if let Some(entry) = crate::command_binding::SourceAnalysisEntry::for_logical_source(input) {
-        lowerer.set_source_analysis_options(entry.options());
     }
     let module = crate::lowering::lower_to_ir_with(lowerer, source);
     // An alias-baked `uplevel #0` reaches this path as an ordinary call, so
@@ -661,10 +832,9 @@ fn accumulate_state(
     namespace: &ExecutionNamespace,
 ) {
     let registry = semantics.registry;
-    let aliases = semantics.aliases;
     for stmt in &script.statements {
         if let Some(command_namespace) = statement_command_namespace(stmt, namespace) {
-            stmt_gen_with_metadata_context(stmt, state, registry, Some(semantics.metadata));
+            stmt_gen_with_metadata_context(stmt, state, registry, semantics.metadata);
             collect_renamed_outer_alias(
                 stmt,
                 renamed_aliases,
@@ -683,12 +853,7 @@ fn accumulate_state(
             let Some(command_namespace) = namespace.for_head_context(head) else {
                 continue;
             };
-            for facts in aliases.resolve_command_words_with_metadata_context(
-                words,
-                registry,
-                Some(semantics.metadata),
-                command_namespace.as_ref(),
-            ) {
+            for facts in semantics.resolve_words(words, command_namespace.as_ref()) {
                 collect_renamed_outer_alias_facts(&facts, renamed_aliases, semantics);
             }
         }
@@ -704,13 +869,21 @@ fn source_substitutions(
     namespace: &ExecutionNamespace,
 ) -> crate::ir_helpers::EvaluatedCommandSubstitutions {
     let resolve = |head: &str| semantics.aliases.resolved_embedded_head(head, namespace);
-    crate::ir_helpers::evaluated_command_substitutions_with_heads_and_metadata_context(
-        stmt,
-        semantics.registry,
-        Some(&resolve),
-        Some(semantics.metadata),
-        semantics.config,
-    )
+    if semantics.standalone() {
+        crate::ir_helpers::evaluated_command_substitutions_with_heads(
+            stmt,
+            semantics.registry,
+            Some(&resolve),
+        )
+    } else {
+        crate::ir_helpers::evaluated_command_substitutions_with_heads_and_metadata_context(
+            stmt,
+            semantics.registry,
+            Some(&resolve),
+            semantics.metadata,
+            semantics.config,
+        )
+    }
 }
 
 /// Resolve the command namespace relevant to one statement in a selected
@@ -757,14 +930,7 @@ fn collect_renamed_outer_alias(
     semantics: &GlobalWriteSemantics<'_>,
     namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
 ) {
-    let registry = semantics.registry;
-    let aliases = semantics.aliases;
-    for invocation in aliases.resolve_statement_with_metadata_context(
-        stmt,
-        registry,
-        Some(semantics.metadata),
-        namespace,
-    ) {
+    for invocation in semantics.resolve_statement(stmt, namespace) {
         collect_renamed_outer_alias_facts(&invocation.facts, renamed_aliases, semantics);
     }
 }
@@ -804,9 +970,7 @@ fn selected_outer_alias_target(
                 .or_else(|| {
                     semantics
                         .metadata
-                        .context()
-                        .environment
-                        .point()
+                        .and_then(|metadata| metadata.context().environment.point())
                         .map(tcl_registry::InvocationDialect::of_point)
                 })
             else {
@@ -951,20 +1115,13 @@ fn own_write_targets(
     semantics: &GlobalWriteSemantics<'_>,
     namespace: &ExecutionNamespace,
 ) -> (Vec<String>, bool) {
-    let registry = semantics.registry;
-    let aliases = semantics.aliases;
     let structural = crate::ir_helpers::structural_variable_write_projection(stmt);
     let mut out = structural.literal_names;
     let Some(command_namespace) = statement_command_namespace(stmt, namespace) else {
         return (out, true);
     };
     let embedded = source_substitutions(stmt, semantics, namespace);
-    let direct = aliases.variable_write_projection_with_metadata_context(
-        stmt,
-        registry,
-        command_namespace.as_ref(),
-        Some(semantics.metadata),
-    );
+    let direct = semantics.statement_writes(stmt, command_namespace.as_ref());
     // Variable writes count from an in-frame expression word too: `set y
     // [expr {[incr ::hits]}]` writes the global exactly as `[incr ::hits]` in
     // a bare word does.
@@ -980,12 +1137,7 @@ fn own_write_targets(
             opaque = true;
             continue;
         };
-        let projection = aliases.variable_write_projection_for_command_words_with_metadata_context(
-            words,
-            registry,
-            Some(semantics.metadata),
-            holder.as_ref(),
-        );
+        let projection = semantics.command_writes(words, holder.as_ref());
         out.extend(projection.literal_names);
         opaque |= projection.opaque_variable_frame;
     }
@@ -1013,7 +1165,12 @@ pub(super) fn script_value_write_projection_with_metadata_context(
         &GlobalWriteSemantics {
             registry,
             aliases,
-            metadata,
+            selection: if metadata.is_standalone() {
+                InvocationMetadataInput::Standalone
+            } else {
+                InvocationMetadataInput::SuppliedSource(metadata.source_analysis_input())
+            },
+            metadata: Some(metadata),
             config,
             input: metadata.source_analysis_input(),
         },
@@ -1240,6 +1397,52 @@ mod tests {
             crate::command_binding::SourceAnalysisOptions::for_logical_source(&input).unwrap(),
         );
         crate::lowering::lower_to_ir_with(lowerer, src)
+    }
+
+    #[test]
+    fn standalone_frame_write_advice_keeps_unprofiled_catalogue_separate_from_missing_input() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Explicit catalogue advice proves no actual source input, frame or write.
+        let registry = CommandRegistry::build_default();
+        assert!(registry.profile().is_none());
+        let module = crate::lowering::lower_to_ir("set ::standalone VALUE", &registry);
+        let bindings = ModuleCommandBindings::analyse(&module, &registry);
+        let procedures = HashMap::new();
+        let compatible = own_frame_global_writes_standalone(
+            &module.top_level,
+            &registry,
+            &bindings,
+            "::",
+            &procedures,
+            module.lexer_config,
+        );
+        assert!(compatible.names.contains("::standalone"));
+        assert!(compatible.names.contains("standalone"));
+        let missing = own_frame_global_writes_with_metadata_context(
+            &module.top_level,
+            &registry,
+            &bindings,
+            "::",
+            &procedures,
+            None,
+            module.lexer_config,
+        );
+        assert!(missing.opaque_global_frame);
+        assert!(missing.names.is_empty());
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let refused = own_frame_global_writes_with_metadata_context(
+            &module.top_level,
+            &registry,
+            &bindings,
+            "::",
+            &procedures,
+            Some(foreign.as_ref().into()),
+            module.lexer_config,
+        );
+        assert!(refused.opaque_global_frame);
+        assert!(refused.names.is_empty());
     }
 
     #[test]

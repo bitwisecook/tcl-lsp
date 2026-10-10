@@ -197,6 +197,7 @@ fn binds(
                 .filter_map(|list| list_rules.split_list(list).ok())
                 .flatten()
                 .any(|word| {
+                    let word = word.as_ref();
                     tcl_syntax::naming::split_element_ref(word).map_or(word, |(root, _)| root)
                         == name
                 })
@@ -454,6 +455,9 @@ mod tests {
 
     #[test]
     fn decoded_binding_names_do_not_strip_reference_sigils() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Software literal-name classification only; no current read or erasure proof.
         let registry = tcl_registry::default_registry();
         let config = tcl_lexer::LexerConfig::default();
         for (script, name, expected) in [

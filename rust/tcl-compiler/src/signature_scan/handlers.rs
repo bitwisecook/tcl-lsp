@@ -34,10 +34,11 @@ use tcl_lexer::{Token, TokenType};
 use super::ctx::{FactoryCandidate, ProcBodyInfo, ScanCtx};
 use super::params::parse_param_list;
 use super::types::{
-    SignatureAutoPathEntry, SignatureClass, SignatureCommandAlias, SignatureCommandAliasTarget,
-    SignatureNamespaceForget, SignatureNamespaceImport, SignatureNamespaceImportSource,
-    SignaturePackageRequire, SignatureProc, SignatureScanResult, SignatureSource,
+    SignatureAutoPathEntry, SignatureClass, SignatureNamespaceForget, SignatureNamespaceImport,
+    SignatureNamespaceImportSource, SignaturePackageRequire, SignatureProc, SignatureScanResult,
 };
+#[cfg(test)]
+use super::types::{SignatureCommandAlias, SignatureCommandAliasTarget, SignatureSource};
 
 /// Fully qualify `name` within `ns_prefix` following Tcl scoping.
 ///
@@ -429,11 +430,9 @@ pub(super) fn handle_namespace_import_in_context(
     result: &mut SignatureScanResult,
 ) {
     let importing_ns = crate::naming::qualify_namespace(ns_prefix, "");
-    // Which leading words are options, and how many are consumed, is registry
-    // data, not a `-force` string match. That the
-    // option word *was* consumed is exactly "`-force` was given", since
-    // `IMPORT_OPTIONS` declares one option and `max_leading_option_words`
-    // caps it at one.
+    // The selected source schema supplies the original written boundary.
+    // Its ordinary import form has one optional force flag; unknown option
+    // values and foreign availability cannot select this handler's boundary.
     let flag_words = option_end.saturating_sub(2);
     let forced = flag_words > 0;
     let mut i = 2 + flag_words;
@@ -591,7 +590,8 @@ fn handle_package_require(
 /// establishes that the file is available or entered. The
 /// `is_literal` flag is set when the segmenter-reconstructed word
 /// contains no `$` or `[` substitution markers.
-pub(super) fn handle_source(
+#[cfg(test)]
+fn handle_source(
     texts: &[String],
     argv: &[Token],
     ns_prefix: &str,
@@ -636,7 +636,8 @@ pub(super) fn handle_source(
 /// resolved the subcommand through the registry's ensemble rule — which, matching
 /// tclsh, rejects `interp al` / `interp alia` as ambiguous with
 /// `aliases`, so in practice only the full spelling dispatches here.
-pub(super) fn handle_interp_alias(
+#[cfg(test)]
+fn handle_interp_alias(
     texts: &[String],
     policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
     result: &mut SignatureScanResult,
@@ -854,20 +855,39 @@ pub(super) fn maybe_handle_import_wrapper(
 /// package auto-load path the workspace indexer must resolve" is this
 /// consumer's own question, so the name match is deliberate, not a
 /// registry bypass.
-pub(super) fn handle_auto_path(texts: &[String], argv: &[Token], result: &mut SignatureScanResult) {
-    if texts.len() < 3 || texts[1] != "auto_path" {
+pub(super) fn handle_auto_path_at(
+    texts: &[String],
+    argv: &[Token],
+    target: usize,
+    values: &[usize],
+    result: &mut SignatureScanResult,
+) {
+    if texts.get(target).map(String::as_str) != Some("auto_path") {
         return;
     }
-    for i in 2..texts.len() {
-        let raw = &texts[i];
+    for &index in values {
+        let (Some(raw), Some(token)) = (texts.get(index), argv.get(index)) else {
+            continue;
+        };
         if raw.is_empty() {
             continue;
         }
         result.auto_path_entries.push(SignatureAutoPathEntry {
             raw: raw.clone(),
-            range: argv[i].span,
+            range: token.span,
         });
     }
+}
+
+#[cfg(test)]
+fn handle_auto_path(texts: &[String], argv: &[Token], result: &mut SignatureScanResult) {
+    handle_auto_path_at(
+        texts,
+        argv,
+        1,
+        &(2..texts.len()).collect::<Vec<_>>(),
+        result,
+    );
 }
 
 /// Handler for `itcl::class NAME BODY` (or `::itcl::class NAME BODY`).

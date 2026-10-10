@@ -1163,75 +1163,6 @@ fn get_at(items: &[Value], i: isize) -> Value {
         .unwrap_or_else(Value::empty)
 }
 
-/// Set the element at index `path` of `list` to `value`, returning the new
-/// (sub)list — the shared core of `INST_LSET_LIST` / `INST_LSET_FLAT` (C's
-/// `TclLsetList` / `TclLsetFlat`), and the runtime `lset` builtin's fallback
-/// (`cmd_list.rs::cmd_lset`). An empty `path` replaces the whole value
-/// (`lset x {} v` == `set x v`); each index is `end`/`end±N`-aware, with range
-/// `0..=len` where `len` appends a fresh (possibly nested) slot. Error messages
-/// match tclsh 9.0 (the reference standard).
-///
-/// Recursing once per path segment natively has no depth cap: an unguarded
-/// long flat index path (`INST_LSET_FLAT` / `lset listVar {*}[lrepeat 100000
-/// 0] v`) overflows the native stack (SIGABRT, empirically between depth 1800
-/// and 2000 on a 2 MiB thread). This walks `path` with an explicit
-/// work-stack instead of one native call per index, which eliminates the
-/// native-stack risk entirely rather than just capping it: it records each
-/// level's element vector and the index being set (or
-/// appended to) walking down, then rebuilds bottom-up. This is on the hot bytecode path
-/// (`INST_LSET_LIST`/`INST_LSET_FLAT`). Both opcode and native callers select
-/// the same registry-owned release policy for append-at-end bounds.
-pub(crate) fn lset_descend(
-    vm: &mut Vm,
-    list: &Value,
-    path: &[Value],
-    value: Value,
-) -> Result<Value, Completion<Value>> {
-    let bounds = vm
-        .native_invocation_dialect()
-        .list_set_bounds()
-        .ok_or_else(|| err("list assignment bounds are unknown for this dialect"))?;
-    let mut frames: Vec<(Vec<Value>, usize)> = Vec::with_capacity(path.len());
-    let mut cur = list.clone();
-    for spec in path {
-        let elems = match cur.as_list() {
-            Ok(e) => e,
-            Err(e) => return Err(crate::command::completion_from_tcl_error(vm, e)),
-        };
-        let len = elems.len();
-        let spec_str = spec.to_str();
-        let Some(idx) = crate::command::resolve_index(vm, &spec_str, len) else {
-            return Err(crate::command::bad_index(vm, &spec_str));
-        };
-        if idx < 0
-            || usize::try_from(idx).unwrap_or(usize::MAX) > len
-            || (usize::try_from(idx).ok() == Some(len)
-                && bounds == tcl_dialect::ListSetBounds::ExistingElement)
-        {
-            return Err(err(format!("index \"{spec_str}\" out of range")));
-        }
-        let idx = usize::try_from(idx).unwrap_or(0);
-        let appending = idx == len;
-        let child = if appending {
-            Value::list(Vec::new())
-        } else {
-            elems[idx].clone()
-        };
-        frames.push(((*elems).clone(), idx));
-        cur = child;
-    }
-    let mut new_value = value;
-    for (mut out, idx) in frames.into_iter().rev() {
-        if idx == out.len() {
-            out.push(new_value);
-        } else {
-            out[idx] = new_value;
-        }
-        new_value = Value::list(out);
-    }
-    Ok(new_value)
-}
-
 /// Sublist `[lo..=hi]` clamped to bounds; empty when the range is empty.
 fn slice(items: &[Value], lo: isize, hi: isize) -> Value {
     let len = isize::try_from(items.len()).unwrap_or(isize::MAX);
@@ -1594,6 +1525,11 @@ impl Vm {
         if !self.native_compiler_prerequisites_match(&unit.asm) {
             return self.refuse_host_command(
                 "native compiler preparation prerequisites are no longer available".into(),
+            );
+        }
+        if !self.function_identity_claims_match(&unit.asm, unit.manifest.as_deref()) {
+            return self.refuse_host_command(
+                "compiled artifact identity or pack claims are no longer available".into(),
             );
         }
         self.run_activation(Frame::new(unit, false))
@@ -3982,7 +3918,7 @@ impl Vm {
             .iter()
             .flat_map(|operation| &operation.requirements)
             .collect::<Vec<_>>();
-        self.function_live_command_bindings_match(asm, &selected)
+        self.function_live_command_bindings_match(asm, &selected, frame.manifest.as_deref())
     }
 
     fn enter_native_operations(
@@ -9241,7 +9177,7 @@ impl Vm {
 
 #[cfg(test)]
 mod tests {
-    use super::{brace_safe, char_find, imm_index, lset_descend, quote_for_script};
+    use super::{brace_safe, char_find, imm_index, quote_for_script};
     use crate::interp::Vm;
     use crate::value::Value;
     use tcl_bytecode::INDEX_END;
@@ -9722,3 +9658,7 @@ mod tests {
 #[cfg(test)]
 #[path = "exec/native_missing_command_result_tests.rs"]
 mod native_missing_command_result_tests;
+
+#[cfg(test)]
+#[path = "exec/active_manifest_tests.rs"]
+mod active_manifest_tests;

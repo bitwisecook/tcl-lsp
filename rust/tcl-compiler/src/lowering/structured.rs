@@ -1310,29 +1310,20 @@ impl Lowerer<'_> {
         // space plus an optional `body_arg_idx` into
         // `arg_tokens` so the body lowerer can still pick up
         // the right content offset / encoding flags.
-        let mut pairs: Vec<SwitchPair> = Vec::new();
-
-        // Patterns from a single braced body are literal list elements;
-        // patterns supplied as separate words undergo runtime
-        // `$var` / `[cmd]` substitution (the `switch $s $pat {body}`
-        // wrapper form).
-        let mut patterns_braced = true;
-
-        // Single braced body form: switch subject { pat1 body1 pat2 body2 ... }
-        if i == args.len() - 1 && i < arg_single.len() && arg_single[i] {
-            pairs = match self.switch_list_pairs(seg, i) {
-                Ok(pairs) => pairs,
-                Err(_) => return self.lower_default(seg, namespace),
+        // A single braced list supplies literal patterns; separate words
+        // retain their runtime substitutions.
+        let (pairs, patterns_braced) =
+            if i == args.len() - 1 && i < arg_single.len() && arg_single[i] {
+                match self.switch_list_pairs(seg, i) {
+                    Ok(pairs) => (pairs, true),
+                    Err(_) => return self.lower_default(seg, namespace),
+                }
+            } else {
+                match inline_switch_pairs(seg, &case, i) {
+                    Ok(pairs) => (pairs, false),
+                    Err(reason) => return self.barrier(seg, reason),
+                }
             };
-        } else {
-            // Multi-arg form: remaining args are pattern body pairs —
-            // each pattern word substitutes at runtime.
-            patterns_braced = false;
-            match inline_switch_pairs(seg, &case, i) {
-                Ok(inline) => pairs = inline,
-                Err(reason) => return self.barrier(seg, reason),
-            }
-        }
 
         if let Some(reason) = case_list_unrepresentable(&case, &pairs) {
             return self.barrier(seg, reason);

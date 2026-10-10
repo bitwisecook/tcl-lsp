@@ -24,7 +24,6 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::intervals::{Interval, compute_intervals_with};
 use crate::ir::{CommandTokens, Procedure, Statement};
 use crate::native_integer_proof::NativeIntegerDeclineReason;
-use crate::registry_invocation::resolve_command_tokens;
 use crate::registry_invocation::{
     InvocationMetadataContext, RegistryInvocationResolution,
     resolve_command_tokens_with_metadata_context,

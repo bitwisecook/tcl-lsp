@@ -106942,6 +106942,164 @@
       "tests": [],
       "question_ids": [],
       "limits": "This locked, offline Compiler and VM library check closes with 100 Compiler errors and 12 warnings and 29 VM errors and 4 warnings. It executes no test assertions and supplies no executable pin, aggregate pass or Native observation."
+    },
+    {
+      "id": "rust.frozen259.integration-registry-test-build259",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen259/integration-registry-test-build259/receipt.json.gz",
+        "sha256": "e751866f03270b12ef5bcee20d953088d098a4d661baa353b46e7bfc1ed2fc63",
+        "compression": "gzip",
+        "uncompressed_sha256": "d69bbe951f402e3e5755ac83eb38cf69f0522851b265194f40d926fbd35f9e4b"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen259/integration-registry-test-build259/tests.log",
+        "sha256": "860bdf2058b3e500d317f0fccccf115591893f63440d9e75f589bed78c316cde"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "tcl-registry",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 67.03068981599063,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "This exact locked, offline Registry no-run test build closes during development-dependency compilation with 59 Compiler errors and 12 warnings plus one VM error and four warnings. Registry libtest construction is not reached. It executes no test assertions and supplies no executable pin, aggregate pass or Native observation. Other source images, commands, providers and full validation gates retain independent scopes."
+    },
+    {
+      "id": "rust.frozen260.integration-compiler-vm-check260",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen260/integration-compiler-vm-check260/receipt.json.gz",
+        "sha256": "c0347c0a886580e44eb64523dfa2863c20eb7464e5083db571223f8c0807026a",
+        "compression": "gzip",
+        "uncompressed_sha256": "e6ba612aea33db6a153d866793ab1260d8f901c94ea73ae4901b0373acdcccac"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen260/integration-compiler-vm-check260/tests.log",
+        "sha256": "9125657d9a6154615c435b5ac1119591947201fbba15abf622afcbcf503dc128"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "check",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 53.884575536998454,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "This exact locked, offline Compiler and VM library check closes with eight Compiler errors and 12 warnings. The VM library compiles with nine warnings but supplies no test assertion or sealed test executable pin. The combined check supplies no aggregate pass or Native observation. Other source images, commands, providers and full validation gates retain independent scopes."
+    },
+    {
+      "id": "rust.frozen261.integration-compiler-vm-check261",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen261/integration-compiler-vm-check261/receipt.json.gz",
+        "sha256": "0378ede7b831b2361a1c67453de9b8a6390edf15c2efa1b3cff974d3b0af287e",
+        "compression": "gzip",
+        "uncompressed_sha256": "ad2f6419b13f032d48447539924c0204ca49f3afb96c6e4e5e4e4a6b0ef07926"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen261/integration-compiler-vm-check261/tests.log",
+        "sha256": "c0e72e57a262a20754f35318c060d0f7dda4f6e321a6bb980fd7971c1a82d70f"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "check",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--message-format=json"
+      ],
+      "exit": 0,
+      "seconds": 40.344003261008766,
+      "uniform_source": true,
+      "status": "compile-passed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "This exact locked, offline Compiler and VM library check succeeds at compilation with warnings. Both library artifact records have executable:null and test:false. It executes no test assertions and supplies no test executable pin, full validation-gate pass or Native observation. Other source images, commands and providers retain independent scopes."
+    },
+    {
+      "id": "rust.frozen261.integration-registry-compiler-vm-test-build261",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen261/integration-registry-compiler-vm-test-build261/receipt.json.gz",
+        "sha256": "fdb2b97406b625f4ed242c24590eb2af009870a6462157074fad4a2a41002cd3",
+        "compression": "gzip",
+        "uncompressed_sha256": "cccb7bdef0113c1abf69d826bd80d3c748c097f15b485134cad4c3619b08064d"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen261/integration-registry-compiler-vm-test-build261/tests.log",
+        "sha256": "1fafadcc8532fd29242c943e9c8932be554872624a31610c27022217c8b3250c"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 68.04913193901302,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The locked, offline Registry/Compiler/VM no-run library test build closes at six TclError field errors in the tcl-engine-tclvm development dependency. Ordinary Compiler library compilation supplies no test assertion; test inventory is not reached. No executable pin, full gate pass or Native outcome follows."
     }
   ]
 }

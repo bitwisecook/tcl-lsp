@@ -564,8 +564,8 @@ pub fn split<O: ValueOps>(
 mod tests {
     use super::*;
 
-    /// Text values whose lists render through the shared `Tcl_Merge` owner,
-    /// as 8.5 to 9.1 render them.
+    /// Unicode-only fixture values whose lists use the shared list formatter.
+    /// Byte construction requires the same bounded Unicode input domain.
     struct TextOps;
 
     impl ValueOps for TextOps {
@@ -585,8 +585,13 @@ mod tests {
         fn new_list(&mut self, items: Vec<String>) -> String {
             tcl_syntax::list::join_list(items.iter().map(String::as_str))
         }
-        fn as_str(&mut self, v: &String) -> std::rc::Rc<str> {
-            std::rc::Rc::from(v.as_str())
+        fn as_bytes(&mut self, v: &String) -> std::rc::Rc<[u8]> {
+            std::rc::Rc::from(v.as_bytes())
+        }
+        fn new_bytes(&mut self, bytes: &[u8]) -> String {
+            std::str::from_utf8(bytes)
+                .expect("TextOps fixture requires Unicode input")
+                .to_owned()
         }
         fn as_int(&mut self, v: &String) -> Result<i64, tcl_syntax::value::ValueError> {
             v.parse()
@@ -664,7 +669,8 @@ mod tests {
         ];
         for &(string, chars, expected) in cases {
             let chars = chars.map(str::to_owned);
-            let got = split(&mut TextOps, &string.to_owned(), chars.as_ref());
+            let got = split(&mut TextOps, &string.to_owned(), chars.as_ref())
+                .expect("Unicode-only original split control succeeds");
             assert_eq!(got, expected, "split {string:?} {chars:?}");
         }
     }

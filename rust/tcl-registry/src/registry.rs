@@ -52,7 +52,7 @@ use crate::side_effects::SideSwitchTarget;
 use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
 use crate::stamp_window::StampSelection;
 use crate::state_transition::{StateTransition, StateTransitions, TransitionSubject};
-use crate::traits::Traits;
+use crate::traits::{FRAME_SENSITIVE_TRAITS, Traits};
 use crate::types::VarWriteTyping;
 use crate::value_transfer::completion::ReturnDecoding;
 use crate::{InvocationArguments, InvocationWords};
@@ -69,13 +69,6 @@ use tcl_dialect::model::surface_breadth;
 use tcl_dialect::model::surface_nearness;
 use tcl_dialect::model::{SpecProvider, SpecSurface, SurfaceLayer, surface_provided_by};
 use tcl_dialect::version_satisfies;
-
-/// The trait union defining a **frame-sensitive** command — see
-/// [`CommandRegistry::is_frame_sensitive`].
-const FRAME_SENSITIVE_TRAITS: Traits = Traits::TERMINATES_BLOCK
-    .union(Traits::TRANSFERS_CONTROL)
-    .union(Traits::CREATES_SCOPE_ALIAS)
-    .union(Traits::CREATES_BARRIER);
 
 /// Resolved metadata for an iRules event — the result of
 /// [`CommandRegistry::event_info`].
@@ -6722,15 +6715,8 @@ impl CommandRegistry {
     /// `tests/registry_commands.rs`.
     #[must_use]
     pub fn is_splice_safe(&self, name: &str) -> bool {
-        self.get(name).is_some_and(|s| {
-            s.traits.contains(Traits::FRAMELESS_RUNTIME)
-                && !s.traits.intersects(
-                    FRAME_SENSITIVE_TRAITS
-                        .union(Traits::FIRST_ARG_VARNAME)
-                        .union(Traits::FRAME_HASH_BUILTIN)
-                        .union(Traits::DYNAMIC_EVAL_BODY),
-                )
-        })
+        self.get(name)
+            .is_some_and(|spec| crate::traits::is_splice_safe(spec.traits))
     }
 
     /// How *name* crosses stack frames, if it does — the registry's

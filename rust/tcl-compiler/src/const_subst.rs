@@ -407,7 +407,6 @@ impl ConstSubstCtx<'_> {
             // Subcommand-dispatched builtin (`string`, `namespace`, …): the
             // fold lives on the matching subcommand and sees the args after
             // it.
-            let sub = resolved.sub?;
             let (_, sub_rest) = rest.split_first()?;
             let arg_refs: Vec<&str> = sub_rest.iter().map(String::as_str).collect();
             let subcommand = resolved.sub?;

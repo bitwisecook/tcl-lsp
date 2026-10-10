@@ -1964,3 +1964,23 @@ These three closed commands retain separate outcomes with `uniform_source: true`
 | Compiler and VM check258 | [receipt](frozen258/integration-compiler-vm-check258/receipt.json.gz) | [log](frozen258/integration-compiler-vm-check258/tests.log) | Compiler and VM compilation blocked |
 
 Each exact receipt is retained as a lossless gzip payload with compressed and uncompressed SHA256. Every immutable source archive leaf is independently checked against the original receipt map. Original commands, paths, source associations, diagnostic streams and timings remain unchanged.
+
+## Registry test-build dependency check259
+
+The exact `cargo test --locked --offline -p tcl-registry --lib --no-run --message-format=json` command closes with exit101 after 67.030690s and `uniform_source: true`. The full log records 59 Compiler compilation errors and 12 warnings, plus one VM compilation error and four warnings. Development-dependency compilation blocks Registry libtest construction. This no-run build executes no test assertions and supplies no test executable pin or aggregate pass; it is not a Native provider failure.
+
+The [original receipt](frozen259/integration-registry-test-build259/receipt.json.gz) is retained as a lossless gzip payload with compressed and uncompressed SHA256. The [complete log](frozen259/integration-registry-test-build259/tests.log) preserves all diagnostics. Every immutable source archive leaf is independently checked against the original receipt map. Original command, paths, source association and timing remain unchanged.
+
+## Compiler and VM library check260
+
+The exact `cargo check --locked --offline --target-dir /workspace/.targets/naming-upstream-clean -p tcl-compiler -p tcl-vm --lib --message-format=json` command closes with exit101 after 53.884576s and `uniform_source: true`. The full log records eight Compiler compilation errors and 12 warnings. The VM library compiles with nine warnings. The independently compiled VM library supplies no test assertion or sealed test executable pin. This combined library check executes no test assertions and supplies no test executable pin or aggregate pass; it is not a Native provider failure.
+
+The [original receipt](frozen260/integration-compiler-vm-check260/receipt.json.gz) is retained as a lossless gzip payload with compressed and uncompressed SHA256. The [complete log](frozen260/integration-compiler-vm-check260/tests.log) preserves all diagnostics. Every immutable source archive leaf is independently checked against the original receipt map. Original command, paths, source association and timing remain unchanged.
+
+## Library compilation and no-run test build261
+
+The exact `cargo check --locked --offline --target-dir /workspace/.targets/naming-upstream-clean -p tcl-compiler -p tcl-vm --lib --message-format=json` command closes with exit0 after 40.344003s and `uniform_source: true`. The Compiler and VM libraries compile with warnings. Both library artifact records have executable:null and test:false. This library check executes no test assertions and supplies no test executable pin, full validation-gate pass or Native provider result.
+
+The [original receipt](frozen261/integration-compiler-vm-check261/receipt.json.gz) is retained as a lossless gzip payload with compressed and uncompressed SHA256. The [complete log](frozen261/integration-compiler-vm-check261/tests.log) preserves all diagnostics. Every immutable source archive leaf is independently checked against the original receipt map. Original command, paths, source association and timing remain unchanged.
+
+The separate `cargo test --locked --offline --target-dir /workspace/.targets/naming-upstream-clean -p tcl-registry -p tcl-compiler -p tcl-vm --lib --no-run --message-format=json` command closes with exit101 after 68.049132s and `uniform_source: true`. Six TclError field errors in the tcl-engine-tclvm development dependency block test construction. Ordinary Compiler library compilation supplies no unit-test result; test inventory is not reached. Its [exact original receipt](frozen261/integration-registry-compiler-vm-test-build261/receipt.json.gz) and [complete log](frozen261/integration-registry-compiler-vm-test-build261/tests.log) retain this independent outcome with no test pin or Native claim.

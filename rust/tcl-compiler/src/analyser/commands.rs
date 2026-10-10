@@ -1783,7 +1783,7 @@ impl Analyser {
         if let Some(handled) = self.dispatch_original_class_configuration(cmd_tok, scope_path) {
             return handled;
         }
-        let Some(ResolvedAnalyserHook { hook, traits }) =
+        let Some(ResolvedAnalyserHook { hook, .. }) =
             self.resolve_analyser_hook_call(cmd_name, args)
         else {
             // No stamped family — the definition-grammar-driven definers
@@ -5458,7 +5458,7 @@ impl Analyser {
 
         // Per-item bodies retain the exact source producer site until their
         // canonical declarations join the shell metadata during replay.
-        if let Some(pending) = self.pending_instances.as_mut() {
+        if self.pending_instances.is_some() {
             let shape_a =
                 crate::registry_invocation::source_structure::source_handle_construction_at(
                     &self.source,

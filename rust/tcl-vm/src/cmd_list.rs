@@ -823,11 +823,13 @@ mod tests {
                     );
                 }
             }
-            let appended = crate::exec::lset_descend(
+            let release = vm.runtime_version();
+            let appended = list_core::lset(
                 &mut vm,
                 &Value::string("a"),
                 &[Value::string("1")],
                 Value::string("z"),
+                release,
             );
             let may_append = dialect.list_set_bounds() == Some(ListSetBounds::AppendAtEnd);
             assert_eq!(appended.is_ok(), may_append, "{}", profile.name);

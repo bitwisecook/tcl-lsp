@@ -1482,7 +1482,12 @@ fn literal_list_assignment(
     {
         return None;
     }
-    cmd.args().get(value_index).cloned()
+    let value = cmd.args().get(value_index)?;
+    Some(
+        tcl_syntax::word_rules::WordValueRules::from_config(&lexer_config)
+            .collapse_braced_word(value)
+            .into_owned(),
+    )
 }
 
 /// True when a `(first, last)` index pair resolves to a provably-empty

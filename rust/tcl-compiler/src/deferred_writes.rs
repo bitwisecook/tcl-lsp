@@ -66,13 +66,14 @@ use tcl_registry::{
 use tcl_syntax::word_rules::WordValueRules;
 
 use crate::cfg_builder::global_write_info::{
-    GlobalWriteInfo, detect_global_write_procs_with_registry, own_frame_global_writes,
+    GlobalWriteInfo, detect_global_write_procs_with_registry, own_frame_global_writes_standalone,
+    own_frame_global_writes_with_metadata_context,
 };
 use crate::command_binding::ModuleCommandBindings;
 use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
 use crate::ir::{DeferredWrites, Module, Script, Statement, WordExpr};
 use crate::ir_helpers::{CommandWord, evaluated_command_substitutions, tokenise_command_words};
-use crate::registry_invocation::EffectiveInvocationWord;
+use crate::registry_invocation::{EffectiveInvocationWord, InvocationMetadataContext};
 
 /// The names the callback scripts of `module` write, destroy or bind.
 ///
@@ -85,7 +86,7 @@ pub(crate) fn scan_module(module: &Module, registry: &CommandRegistry) -> Deferr
     let mut scan = Scan {
         module,
         registry,
-        config: LexerConfig::for_profile(registry.profile()),
+        config: module.lexer_config,
         procedure_writes: OnceCell::new(),
         bindings: OnceCell::new(),
         out: DeferredWrites::default(),
@@ -539,8 +540,8 @@ impl Scan<'_> {
     /// procedure runs its body, so it writes in the global frame what a
     /// procedure with that body would: the names its `global`, `variable`,
     /// `upvar #0` and qualified spellings reach, and what the procedures it
-    /// calls write there ([`own_frame_global_writes`]); and the callbacks the
-    /// body registers are callbacks too. `apply` reads the lambda as a list of
+    /// calls write there ([`own_frame_global_writes_with_metadata_context`]);
+    /// and the callbacks the body registers are callbacks too. `apply` reads the lambda as a list of
     /// its parameters, its body and the namespace the body runs in; a word that
     /// is no such list raises before the body runs.
     fn lambda(&mut self, text: &str, depth: u32) {
@@ -548,8 +549,7 @@ impl Scan<'_> {
             self.out.any = true;
             return;
         }
-        let Ok(elements) = WordValueRules::of_profile(self.registry.profile()).split_list(text)
-        else {
+        let Ok(elements) = WordValueRules::from_config(&self.config).split_list(text) else {
             return;
         };
         let (Some(body), 2..=3) = (elements.get(1), elements.len()) else {
@@ -559,12 +559,28 @@ impl Scan<'_> {
             || "::".to_owned(),
             |namespace| tcl_syntax::naming::qualify("::", namespace),
         );
-        let lowered = crate::lowering::lower_to_ir_with_dialect(
-            body,
-            self.registry,
-            self.config,
-            self.registry.profile(),
-        );
+        let metadata = InvocationMetadataContext::for_module(self.registry, self.module);
+        if metadata.is_none()
+            && (self.module.source_metadata_input.is_some()
+                || !self.module.source_entry.metadata_context.is_standalone())
+        {
+            self.out.any = true;
+            return;
+        }
+        let config = self.config.nested().normalized();
+        let lowered = match metadata.and_then(InvocationMetadataContext::source_analysis_input) {
+            Some(input) => crate::lowering::lower_to_ir_with(
+                crate::lowering::Lowerer::with_config(self.registry, config)
+                    .with_resolved_analysis_input(input.for_nested_source()),
+                body,
+            ),
+            None => crate::lowering::lower_to_ir_with_dialect(
+                body,
+                self.registry,
+                config,
+                self.module.dialect_profile,
+            ),
+        };
         let procedures = self
             .procedure_writes
             .get_or_init(|| detect_global_write_procs_with_registry(self.module, self.registry));
@@ -586,8 +602,25 @@ impl Scan<'_> {
         );
         let mut names = Vec::new();
         for (body, namespace) in frames {
-            let info =
-                own_frame_global_writes(body, self.registry, bindings, &namespace, procedures);
+            let info = match metadata {
+                Some(metadata) => own_frame_global_writes_with_metadata_context(
+                    body,
+                    self.registry,
+                    bindings,
+                    &namespace,
+                    procedures,
+                    Some(metadata),
+                    config,
+                ),
+                None => own_frame_global_writes_standalone(
+                    body,
+                    self.registry,
+                    bindings,
+                    &namespace,
+                    procedures,
+                    config,
+                ),
+            };
             self.out.any |= info.opaque_global_frame;
             names.extend(info.names);
         }
@@ -802,6 +835,55 @@ mod tests {
 
     fn names(source: &str) -> Vec<String> {
         writes(source).names.into_iter().collect()
+    }
+
+    #[test]
+    fn lambda_deferred_writes_retain_module_metadata_and_refuse_withdrawn_input() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let profile = crate::environment_ingress::resolve_environment("tcl").unit_profile();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let source = "after 10 {apply {{} {set ::done 1}}}";
+        let module = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(registry, input.lexer_config())
+                .with_resolved_analysis_input(input.clone()),
+            source,
+        );
+        assert!(module.source_entry.native_entry.is_none());
+        assert!(scan_module(&module, registry).names.contains("done"));
+
+        let mut missing = module.clone();
+        missing.source_metadata_input = None;
+        let effects = scan_module(&missing, registry);
+        assert!(effects.any);
+        assert!(!effects.names.contains("done"));
+
+        let foreign =
+            crate::environment_ingress::resolve_environment("tcl9.1").default_context_registry();
+        let mut foreign_module = module.clone();
+        foreign_module.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            foreign,
+            input.lexer_config(),
+        ));
+        let effects = scan_module(&foreign_module, registry);
+        assert!(effects.any);
+        assert!(!effects.names.contains("done"));
+
+        let mut stale = module;
+        stale.lexer_config.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        let effects = scan_module(&stale, registry);
+        assert!(effects.any);
+        assert!(!effects.names.contains("done"));
     }
 
     /// The callbacks `after`, `after idle`, `trace`, `bind`, `fileevent`,

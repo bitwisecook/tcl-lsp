@@ -512,10 +512,7 @@ fn remove_prepared_host_command(
 
 fn provide_package(vm: &mut Vm, name: &str, version: &str) -> Result<(), EngineError> {
     vm.package_provide(name, version)
-        .map_err(|error| EngineError::Script {
-            message: error.message,
-            code: error.error_code,
-        })
+        .map_err(|error| internal_error(error, vm.native_scalar_carrier_dialect()))
 }
 
 fn read_variable(vm: &mut Vm, name: &str) -> Result<Value, EngineError> {
@@ -546,26 +543,9 @@ fn unset_variable(vm: &mut Vm, name: &str) -> Result<(), EngineError> {
 fn evaluate(vm: &mut Vm, script: &str) -> Result<HostOutcome, EngineError> {
     let completion = match vm.eval_source(script) {
         Ok(completion) => completion,
-        Err(error) => {
-            let options = error
-                .error_code
-                .as_deref()
-                .map_or_else(tcl_vm::Value::empty, |code| {
-                    tcl_vm::Value::list(vec![
-                        tcl_vm::Value::string("-errorcode"),
-                        tcl_vm::Value::string(code),
-                    ])
-                });
-            vm.publish_caught_error(&Completion::new(
-                Code::Error,
-                tcl_vm::Value::string(error.message.as_str()),
-                options,
-            ));
-            return Err(EngineError::Script {
-                message: error.message,
-                code: error.error_code,
-            });
-        }
+        Err(error) => error
+            .into_completion()
+            .map_err(|failure| EngineError::ExecutionRefusal(failure.to_string()))?,
     };
     let code = match completion.code {
         Code::Ok => CompletionCode::Ok,
@@ -605,6 +585,17 @@ fn script_error(
 ) -> EngineError {
     TclVmEngine::completion_to_result(completion, dialect)
         .expect_err("an error completion has no normal value")
+}
+
+/// Export an internal VM failure without rebuilding its guest completion.
+fn internal_error(
+    error: tcl_vm::TclError,
+    dialect: tcl_registry::InvocationDialect,
+) -> EngineError {
+    match error.into_completion() {
+        Ok(completion) => script_error(&completion, dialect),
+        Err(failure) => EngineError::ExecutionRefusal(failure.to_string()),
+    }
 }
 
 /// The message the VM reports when a body outruns `kind` of budget.
@@ -2308,6 +2299,28 @@ mod tests {
     }
 
     #[test]
+    fn invocation_evaluation_keeps_host_refusal_outside_guest_completion() {
+        let mut engine = TclVmEngine::new();
+        engine
+            .define_command("host_refuse", Rc::new(RefusingHostCommand))
+            .unwrap();
+        let collector = Rc::new(Collector {
+            emitted: RefCell::new(Vec::new()),
+        });
+        engine.define_command("record", collector.clone()).unwrap();
+        let error = engine
+            .eval_in_invocation("record BEFORE; catch {host_refuse} result; record AFTER")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            EngineError::ExecutionRefusal("host provider unavailable".into())
+        );
+        assert_eq!(*collector.emitted.borrow(), [vec!["BEFORE".to_owned()]]);
+        assert!(error.script_message_bytes().is_none());
+        assert!(error.script_options_bytes().is_none());
+    }
+
+    #[test]
     fn checked_dictionary_import_materializes_original_keys_with_the_actual_issuer() {
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         let protocol = dialect.native_string_protocol().unwrap();
@@ -3150,11 +3163,10 @@ mod tests {
             ]),
         );
         let expected_options = completion.options.string_bytes();
-        let error = TclVmEngine::completion_to_result(
-            &completion,
+        let error = super::internal_error(
+            tcl_vm::TclError::from_completion(completion),
             tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0),
-        )
-        .expect_err("guest error");
+        );
         let EngineError::ScriptBytes {
             message,
             code,

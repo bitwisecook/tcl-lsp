@@ -2874,44 +2874,6 @@ impl<'r> Lowerer<'r> {
         lower(self).map(Box::new)
     }
 
-    /// The structured lowering a command head selects, with the two facts the
-    /// dispatch reads beside the hook: the operation's inline-body error
-    /// context and the canonical command.
-    ///
-    /// Resolved at the registry's own point: a profile-built registry
-    /// suppresses the structured lowering of a command its release does not
-    /// have (`lmap` at 8.4), so the call flows to `lower_default` and reaches
-    /// the runtime's availability gate as a generic dispatch. A profile-less
-    /// registry keeps the dialect-blind resolution.
-    ///
-    /// Its own frame, never inlined into [`Self::try_dispatch_structured_hook`]:
-    /// the dispatcher stays on the stack while the lowerer recurses into the
-    /// command's bodies, and the resolution is kilobytes the braced-body
-    /// depth budget (`depth_guard::SOURCE_WALK_BYTES_PER_LEVEL`) would
-    /// otherwise pay at every nesting level.
-    #[inline(never)]
-    fn structured_dispatch(
-        &self,
-        cmd_name: &str,
-        args: &[String],
-    ) -> Option<(
-        LoweringHookId,
-        Option<tcl_registry::InlineBodyErrorContext>,
-        &'static str,
-    )> {
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let resolved = self.registry.resolve_invocation(
-            cmd_name,
-            &arg_refs,
-            self.registry.own_surface_query(),
-        )?;
-        Some((
-            resolved.semantics.lowering_hook?,
-            resolved.semantics.operation.inline_body_error_context(),
-            resolved.canonical_command,
-        ))
-    }
-
     /// Retain the resolved head of a command whose typed lowering consumes its
     /// live command semantics. This is recorded before lowering nested bodies,
     /// while the enclosing script's site scope is current.
