@@ -1,0 +1,25 @@
+
+    iPtr->result = iPtr->resultSpace;
+    iPtr->freeProc = NULL;
+    iPtr->errorLine = 0;
+    TclNewObj(iPtr->objResultPtr);
+    Tcl_IncrRefCount(iPtr->objResultPtr);
+    iPtr->handle = TclHandleCreate(iPtr);
+    iPtr->globalNsPtr = NULL;
+    iPtr->hiddenCmdTablePtr = NULL;
+    iPtr->interpInfo = NULL;
+
+    TCL_CT_ASSERT(sizeof(iPtr->extra) <= sizeof(Tcl_HashTable));
+    iPtr->extra.optimizer = TclOptimizeBytecode;
+
+    iPtr->numLevels = 0;
+    iPtr->maxNestingDepth = MAX_NESTING_DEPTH;
+    iPtr->framePtr = NULL;	/* Initialise as soon as :: is available */
+    iPtr->varFramePtr = NULL;	/* Initialise as soon as :: is available */
+
+    /*
+     * TIP #280 - Initialize the arrays used to extend the ByteCode and Proc
+     * structures.
+     */
+
+    iPtr->cmdFramePtr = NULL;

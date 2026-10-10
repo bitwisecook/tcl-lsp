@@ -1,0 +1,79 @@
+{
+  "question": "naming.numeric.original-logical-operand-truth-sites",
+  "request_sha256": "b554cf39546d1978dfe3311329f3f7e58e3275e4121abf52aab5dc4ceccabee9",
+  "providers": [
+    {
+      "provider": "8.4.20",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "executions": [
+        {
+          "exit": 0,
+          "timeout": false,
+          "rows": 648
+        }
+      ]
+    },
+    {
+      "provider": "8.5.19",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "executions": [
+        {
+          "exit": 0,
+          "timeout": false,
+          "rows": 648
+        }
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "executions": [
+        {
+          "exit": 0,
+          "timeout": false,
+          "rows": 648
+        }
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "executions": [
+        {
+          "exit": 0,
+          "timeout": false,
+          "rows": 648
+        }
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "executions": [
+        {
+          "exit": 0,
+          "timeout": false,
+          "rows": 648
+        }
+      ]
+    },
+    {
+      "provider": "jim",
+      "compile_exit": 0,
+      "cli_version_exit": 0,
+      "executions": [
+        {
+          "exit": 0,
+          "timeout": false,
+          "rows": 648
+        }
+      ]
+    }
+  ],
+  "scope": "Whole original streams and all unexpected compile/process errors retained. Assertions and Native application grants remain separate."
+}
