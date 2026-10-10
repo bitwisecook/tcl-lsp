@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-compiler309.elf",
+  "sha256": "af3d7310d72c75c03c8d69cb24931b92515c26305ea23ac8aa746f213bf8757d",
+  "build_receipt": "/workspace/.proofs/integration-shared-owner-own-test-build309.json",
+  "build_receipt_sha256": "aca9fb33bf8fa45411ccf0f2e62c996c9e763b88cea982af571a45293fceecbd",
+  "source_snapshot_sha256": "69a296eeb7ec4899faa9d492f4d664972d17578ee9fbdbf041e3f6a1533d87cd"
+}

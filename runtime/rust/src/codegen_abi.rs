@@ -49,19 +49,20 @@
 //!
 //! A word shape the emitter cannot prove — `{*}` expansion, backslash
 //! substitution, a computed variable name — keeps its whole statement on the
-//! older tier, which boxes the command / condition as a Tcl string in the
-//! module's data section and hands it to the runtime to interpret. Conditions
-//! always take this path:
+//! source-evaluation tier, which boxes a Tcl string from the module's data
+//! section and hands it to the runtime. Conditions use the completion-bearing
+//! `tcl_codegen_expr_bool` to retain Guest and Host outcomes independently:
 //!
 //! ```text
 //! command   :  code = tcl_eval_code(tcl_obj_new_string(off, len)); …dispatch on code…
-//! condition :  if (tcl_expr_bool(tcl_obj_new_string(off, len)))  …
+//! condition :  status = tcl_codegen_expr_bool(owned_expr, completion, truth); …
 //! ```
 //!
 //! The emitted control flow inspects the completion `code` a leaf command
-//! returns and honours it — an `error` / `return` unwinds the function, a
-//! `break` / `continue` re-enters the enclosing loop's structural scopes — so
-//! abrupt completion propagates like the tree-walker's command loop.
+//! returns and honours it — an `error` / `return` unwinds the function, and a
+//! `break` / `continue` follows the appropriate enclosing loop boundary. A
+//! condition's Guest completion remains independent of its success-only truth
+//! output. Host refusal writes neither completion nor truth.
 //! [`tcl_eval`] (returning the result object) is retained
 //! for a host that wants the *value* of an evaluated script (the whole-program
 //! bootstrap reads a query result through it), but the AOT command emitter uses
@@ -94,15 +95,18 @@ use core::cell::Cell;
 use core::ptr;
 #[cfg(target_arch = "wasm32")]
 use core::sync::atomic::{AtomicUsize, Ordering};
-use std::alloc::{Layout, alloc, dealloc, handle_alloc_error};
+use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use tcl_dialect::model::SurfaceQuery;
 use tcl_registry::{CommandRegistry, IntrinsicId, SemanticOperationId};
 use tcl_runtime_api::guard::{GuardDomains, GuardIdentity, GuardToken};
 
-use crate::interp::{Interp, NativeProcEntry, drop_fresh, obj_bytes};
-use crate::obj::{self, TclObj, new_string_bytes};
+use crate::interp::native_operation_currency::NativeOperationScope;
+#[cfg(test)]
+use crate::interp::obj_bytes;
+use crate::interp::{drop_fresh, Interp, NativeProcEntry};
+use crate::obj::{self, new_string_bytes, TclObj};
 #[cfg(target_arch = "wasm32")]
 use tcl_runtime_api::codegen_abi::{
     WASM32_COMPLETION_ALIGN, WASM32_COMPLETION_CODE_OFFSET, WASM32_COMPLETION_OPTIONS_OFFSET,
@@ -356,18 +360,90 @@ fn detached_error_completion(message: &[u8]) -> TclCompletionAbi {
 ///
 /// # Safety
 /// `out` must be non-null, aligned, and writable for one [`TclCompletionAbi`].
-unsafe fn write_completion(out: *mut TclCompletionAbi, completion: TclCompletionAbi) {
-    // SAFETY: the active interpreter is retained by the surrounding ABI call.
-    if unsafe { current_interp().as_ref() }.is_some_and(Interp::host_refusal_pending) {
-        // Captured handles, if any, remain ours when no output is published.
-        unsafe {
-            obj::decr_ref_count(completion.result);
-            obj::decr_ref_count(completion.options);
-        }
-        return;
-    }
-    // SAFETY: guaranteed by the caller of this helper.
+unsafe fn write_detached_completion(out: *mut TclCompletionAbi, completion: TclCompletionAbi) {
+    // SAFETY: detached transport has no interpreter or entered Guest producer.
     unsafe { out.write(completion) };
+}
+
+/// Transport adapter over the shared entered-operation and completion owners.
+/// The retained original interpreter, rather than mutable TLS after a callback,
+/// supplies every getter, reached effect and completion in this operation.
+struct CodegenOperation {
+    interpreter: Interp,
+    scope: NativeOperationScope,
+}
+
+impl CodegenOperation {
+    fn enter() -> Result<Self, i32> {
+        // SAFETY: the host retains its installed interpreter through ABI entry.
+        let Some(mut interpreter) = (unsafe { current_interp().as_ref() }).cloned() else {
+            return Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP);
+        };
+        let scope = NativeOperationScope::enter(&interpreter).map_err(|first| {
+            interpreter.refuse_native_execution(first);
+            TCL_INVOKE_ABI_HOST_REFUSED
+        })?;
+        Ok(Self { interpreter, scope })
+    }
+
+    fn ensure_current(&self) -> Result<(), i32> {
+        self.scope
+            .currency()
+            .ensure_current_or_refuse()
+            .map_err(|_| TCL_INVOKE_ABI_HOST_REFUSED)
+    }
+
+    fn original_string(&mut self, value: *mut TclObj) -> Result<std::rc::Rc<[u8]>, i32> {
+        self.ensure_current()?;
+        let result = self.interpreter.native_object_string_bytes(value);
+        self.ensure_current()?;
+        result.map_err(|error| {
+            self.interpreter.report_cmd_error(error.into());
+            self.ensure_current().map_or_else(|status| status, |_| 1)
+        })
+    }
+
+    fn finish_code(&self, code: crate::interp::Code) -> i32 {
+        self.ensure_current().map_or_else(
+            |status| status,
+            |_| i32::try_from(code.as_int()).unwrap_or(1),
+        )
+    }
+
+    /// Capture while the activation still owns its Guest error state, then
+    /// unwind it before final output publication. All cleanup remains reached.
+    unsafe fn settle(
+        &mut self,
+        code: crate::interp::Code,
+        mut activation: Option<AbiActivation>,
+        out: *mut TclCompletionAbi,
+        status: i32,
+    ) -> i32 {
+        let captured = crate::state_traits::capture_completion_checked(
+            &mut self.interpreter,
+            self.scope.currency(),
+            code,
+        );
+        if let Some(active) = activation.as_mut() {
+            active.code = code;
+        }
+        drop(activation);
+        let completion = match captured {
+            Ok(completion) => completion_abi(completion),
+            Err(_) => return TCL_INVOKE_ABI_HOST_REFUSED,
+        };
+        if self.ensure_current().is_err() {
+            // SAFETY: capture owns each non-null handle until publication.
+            unsafe {
+                obj::decr_ref_count(completion.result);
+                obj::decr_ref_count(completion.options);
+            }
+            return TCL_INVOKE_ABI_HOST_REFUSED;
+        }
+        // SAFETY: the ABI caller provided writable output storage.
+        unsafe { out.write(completion) };
+        status
+    }
 }
 
 /// Keep caller-owned argv references alive for exactly one dispatch.
@@ -855,11 +931,6 @@ impl AbiActivation {
             interp,
             code: crate::interp::Code::Ok,
         })
-    }
-
-    /// Record the completion this activation ends with, before it is left.
-    fn complete(&mut self, code: tcl_runtime_api::Code) {
-        self.code = crate::interp::Code::from_int(i32::try_from(code.as_int()).unwrap_or(1));
     }
 }
 
@@ -1405,27 +1476,36 @@ pub unsafe extern "C" fn tcl_codegen_word_concat(
     let Ok(count) = usize::try_from(count) else {
         return ptr::null_mut();
     };
-    let joined = if count == 0 {
-        Vec::new()
+    if count > 0 && parts.is_null() {
+        return ptr::null_mut();
+    }
+    let words = if count == 0 {
+        &[][..]
     } else {
-        if parts.is_null() {
-            return ptr::null_mut();
-        }
-        // SAFETY: the caller guarantees `count` readable pointers.
-        let words = unsafe { core::slice::from_raw_parts(parts, count) };
-        if words.iter().any(|word| word.is_null()) {
-            return ptr::null_mut();
-        }
-        let mut joined = Vec::new();
-        for &word in words {
-            joined.extend_from_slice(&obj_bytes(word));
-        }
-        joined
+        // SAFETY: the caller retains count readable pointer slots.
+        unsafe { core::slice::from_raw_parts(parts, count) }
     };
-    let value = new_string_bytes(&joined);
-    // SAFETY: a generated operand-stack value owns one reference.
-    unsafe { obj::incr_ref_count(value) };
-    value
+    if words.iter().any(|word| word.is_null()) {
+        return ptr::null_mut();
+    }
+    let Ok(mut operation) = CodegenOperation::enter() else {
+        return ptr::null_mut();
+    };
+    // SAFETY: each word is live and caller-owned; this temporary borrow is balanced.
+    let borrowed = unsafe { BorrowedArgv::retain(words) };
+    let mut joined = Vec::new();
+    for &word in words {
+        let bytes = match operation.original_string(word) {
+            Ok(bytes) => bytes,
+            Err(_) => return ptr::null_mut(),
+        };
+        joined.extend_from_slice(&bytes);
+    }
+    drop(borrowed);
+    if operation.ensure_current().is_err() {
+        return ptr::null_mut();
+    }
+    obj::Owned::fresh(new_string_bytes(&joined)).into_raw()
 }
 
 /// Add two owned stack values through Tcl's numeric tower.
@@ -1714,28 +1794,26 @@ pub unsafe extern "C" fn tcl_obj_new_string_owned(ptr: *const u8, len: i32) -> *
 /// interp (if set) must be live.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_eval(script: *mut TclObj) -> *mut TclObj {
-    // Copy the script text out, then free the adopted script object.
-    let src = obj_bytes(script);
-    drop_fresh(script);
-
-    let interp = current_interp();
-    if interp.is_null() {
-        // Misuse (no current interp); stay leak-safe — return an owned empty.
-        let empty = new_string_bytes(b"");
-        // SAFETY: `empty` is a live fresh object.
-        unsafe { obj::incr_ref_count(empty) };
-        return empty;
-    }
-    // SAFETY: `interp` is the live current interp; `eval_str` takes `&mut`.
-    let result = unsafe {
-        (*interp).eval_str(&src);
-        (*interp).get_obj_result()
+    // This legacy input transfers a fresh rc-0 object, including refusal paths.
+    let script = obj::Owned::fresh(script);
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP) => {
+            return obj::Owned::fresh(new_string_bytes(b"")).into_raw();
+        }
+        Err(_) => return ptr::null_mut(),
     };
-    // The result is borrowed (interp keeps its `+1`); take our own `+1` so the
-    // caller's `tcl_obj_release` does not free the interp's reference.
-    // SAFETY: `result` is the live interp result object.
-    unsafe { obj::incr_ref_count(result) };
-    result
+    let source = match operation.original_string(script.as_ptr()) {
+        Ok(source) => source,
+        Err(_) => return ptr::null_mut(),
+    };
+    operation.interpreter.eval_str(&source);
+    let result = obj::Owned::retain(operation.interpreter.get_obj_result());
+    drop(script);
+    if operation.ensure_current().is_err() {
+        return ptr::null_mut();
+    }
+    result.into_raw()
 }
 
 /// `tcl_eval_code(script) -> i32` — evaluate `script` against the current interp
@@ -1756,19 +1834,20 @@ pub unsafe extern "C" fn tcl_eval(script: *mut TclObj) -> *mut TclObj {
 /// interp (if set) must be live.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_eval_code(script: *mut TclObj) -> i32 {
-    // Copy the script text out, then free the adopted script object.
-    let src = obj_bytes(script);
-    drop_fresh(script);
-
-    let interp = current_interp();
-    if interp.is_null() {
-        return 0; // Misuse (no current interp): nothing ran — report ok.
-    }
-    // SAFETY: `interp` is the live current interp; `eval_str` takes `&mut`.
-    let code = unsafe { (*interp).eval_str(&src) };
-    // Every completion code (0..=4 or a `return -code N`) is an `i32`; the
-    // `unwrap_or` is unreachable (kept so a future wider code degrades to error).
-    i32::try_from(code.as_int()).unwrap_or(1)
+    let script = obj::Owned::fresh(script);
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        // Explicit detached compatibility: no interpreter exists to execute.
+        Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP) => return 0,
+        Err(status) => return status,
+    };
+    let source = match operation.original_string(script.as_ptr()) {
+        Ok(source) => source,
+        Err(status) => return status,
+    };
+    let code = operation.interpreter.eval_str(&source);
+    drop(script);
+    operation.finish_code(code)
 }
 
 /// `tcl_obj_release(obj)` — release one owned reference (the result of
@@ -1816,44 +1895,58 @@ fn intrinsic_registry() -> &'static CommandRegistry {
 /// This examines only already-boxed argv values. It neither parses source nor
 /// replays substitutions, and a non-text Tcl word is conservatively declined.
 fn resolve_intrinsic_argv(
+    operation: &mut CodegenOperation,
     words: &[*mut TclObj],
     dialect: Option<SurfaceQuery<'_>>,
-) -> Option<ResolvedIntrinsicArgv> {
-    let spellings: Vec<String> = words
-        .iter()
-        .map(|word| String::from_utf8(obj_bytes(*word)).ok())
-        .collect::<Option<_>>()?;
-    let (head, arguments) = spellings.split_first()?;
-    let arguments: Vec<_> = arguments.iter().map(String::as_str).collect();
-    let resolved = intrinsic_registry().resolve_invocation(head, &arguments, dialect)?;
-    let SemanticOperationId::Intrinsic(intrinsic) = resolved.semantics.operation else {
-        return None;
+) -> Result<Option<ResolvedIntrinsicArgv>, i32> {
+    let mut spellings = Vec::with_capacity(words.len());
+    for &word in words {
+        let bytes = operation.original_string(word)?;
+        let Ok(spelling) = String::from_utf8(bytes.to_vec()) else {
+            return Ok(None);
+        };
+        spellings.push(spelling);
+    }
+    let Some((head, arguments)) = spellings.split_first() else {
+        return Ok(None);
     };
-    Some(ResolvedIntrinsicArgv {
+    let arguments: Vec<_> = arguments.iter().map(String::as_str).collect();
+    let Some(resolved) = intrinsic_registry().resolve_invocation(head, &arguments, dialect) else {
+        return Ok(None);
+    };
+    let SemanticOperationId::Intrinsic(intrinsic) = resolved.semantics.operation else {
+        return Ok(None);
+    };
+    Ok(Some(ResolvedIntrinsicArgv {
         intrinsic,
         argument_offset: resolved.semantics.argument_offset,
         head: head.as_bytes().to_vec(),
-    })
+    }))
 }
 
 fn guarded_intrinsic_request(
+    operation: &mut CodegenOperation,
     intrinsic_id: u32,
     words: &[*mut TclObj],
     expected: GuardIdentity,
     characters: tcl_dialect::StringCharacterModel,
     dialect: Option<SurfaceQuery<'_>>,
-) -> Option<ResolvedIntrinsicArgv> {
-    let intrinsic = IntrinsicId::from_stable_id(intrinsic_id)?;
+) -> Result<Option<ResolvedIntrinsicArgv>, i32> {
+    let Some(intrinsic) = IntrinsicId::from_stable_id(intrinsic_id) else {
+        return Ok(None);
+    };
     if expected
         != GuardIdentity::registry_intrinsic_with_semantics(
             intrinsic.stable_id(),
             intrinsic.guard_semantics_key_for_characters(characters),
         )
     {
-        return None;
+        return Ok(None);
     }
-    let resolved = resolve_intrinsic_argv(words, dialect)?;
-    (resolved.intrinsic == intrinsic).then_some(resolved)
+    let Some(resolved) = resolve_intrinsic_argv(operation, words, dialect)? else {
+        return Ok(None);
+    };
+    Ok((resolved.intrinsic == intrinsic).then_some(resolved))
 }
 
 fn guard_domains_from_abi(domains: i32) -> Option<GuardDomains> {
@@ -1886,7 +1979,7 @@ pub unsafe extern "C" fn tcl_codegen_guard_prepare(
     if argv.is_null() {
         return 0;
     }
-    // SAFETY: the caller contract guarantees `argc` readable entries.
+    // SAFETY: caller guarantees these readable pointer slots.
     let words = unsafe { core::slice::from_raw_parts(argv, argc) };
     if words.iter().any(|word| word.is_null()) {
         return 0;
@@ -1894,30 +1987,37 @@ pub unsafe extern "C" fn tcl_codegen_guard_prepare(
     let Some(domains) = guard_domains_from_abi(domains) else {
         return 0;
     };
-    let expected = GuardIdentity::new(identity_namespace, identity_value);
-    let interp = current_interp();
-    if interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return 0;
-    }
-    // The guard carries the actual engine's character protocol. Source-assistance
-    // profiles and their C anchor cannot replace an independently selected Jim axis.
-    let native = unsafe { (*interp).native_invocation_dialect() };
+    };
+    // Retain borrowed words before the first original getter.
+    let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    let native = operation.interpreter.native_invocation_dialect();
     let (Some(characters), Some(dialect)) = (native.characters, native.authoring_query()) else {
         return 0;
     };
-    let Some(resolved) =
-        guarded_intrinsic_request(intrinsic_id, words, expected, characters, Some(dialect))
-    else {
-        return 0;
+    let expected = GuardIdentity::new(identity_namespace, identity_value);
+    let resolved = match guarded_intrinsic_request(
+        &mut operation,
+        intrinsic_id,
+        words,
+        expected,
+        characters,
+        Some(dialect),
+    ) {
+        Ok(Some(resolved)) => resolved,
+        Ok(None) | Err(_) => return 0,
     };
-    // SAFETY: every word was validated non-null and is caller-owned.
-    let _borrowed = unsafe { BorrowedArgv::retain(words) };
-    // SAFETY: `interp` is the live current interpreter.
-    unsafe {
-        (*interp)
-            .prepare_command_guard(&resolved.head, expected, domains)
-            .map_or(0, GuardToken::raw)
+    let token = operation
+        .interpreter
+        .prepare_command_guard(&resolved.head, expected, domains);
+    if operation.ensure_current().is_err() {
+        if let Ok(token) = token {
+            let _ = operation.interpreter.release_command_guard(token);
+        }
+        return 0;
     }
+    token.map_or(0, GuardToken::raw)
 }
 
 /// `tcl_codegen_guard_check(token, intrinsic, argv, argc) -> i32`.
@@ -1942,7 +2042,6 @@ pub unsafe extern "C" fn tcl_codegen_guard_check(
     if argv.is_null() {
         return 0;
     }
-    // SAFETY: the caller contract guarantees `argc` readable entries.
     let words = unsafe { core::slice::from_raw_parts(argv, argc) };
     if words.iter().any(|word| word.is_null()) {
         return 0;
@@ -1950,11 +2049,11 @@ pub unsafe extern "C" fn tcl_codegen_guard_check(
     let Some(intrinsic) = IntrinsicId::from_stable_id(intrinsic_id) else {
         return 0;
     };
-    let interp = current_interp();
-    if interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return 0;
-    }
-    let native = unsafe { (*interp).native_invocation_dialect() };
+    };
+    let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    let native = operation.interpreter.native_invocation_dialect();
     let (Some(characters), Some(dialect)) = (native.characters, native.authoring_query()) else {
         return 0;
     };
@@ -1962,21 +2061,26 @@ pub unsafe extern "C" fn tcl_codegen_guard_check(
         intrinsic.stable_id(),
         intrinsic.guard_semantics_key_for_characters(characters),
     );
-    let Some(resolved) =
-        guarded_intrinsic_request(intrinsic_id, words, expected, characters, Some(dialect))
-    else {
-        return 0;
+    let resolved = match guarded_intrinsic_request(
+        &mut operation,
+        intrinsic_id,
+        words,
+        expected,
+        characters,
+        Some(dialect),
+    ) {
+        Ok(Some(resolved)) => resolved,
+        Ok(None) | Err(_) => return 0,
     };
-    // SAFETY: every word was validated non-null and is caller-owned.
-    let _borrowed = unsafe { BorrowedArgv::retain(words) };
-    // SAFETY: `interp` is the live current interpreter.
-    i32::from(unsafe {
-        (*interp).check_command_guard_identity(
-            GuardToken::from_raw(token),
-            &resolved.head,
-            expected,
-        )
-    })
+    let valid = operation.interpreter.check_command_guard_identity(
+        GuardToken::from_raw(token),
+        &resolved.head,
+        expected,
+    );
+    if operation.ensure_current().is_err() {
+        return 0;
+    }
+    i32::from(valid)
 }
 
 /// `tcl_codegen_guard_release(token)` — release a token exactly once.
@@ -2013,17 +2117,21 @@ pub unsafe extern "C" fn tcl_intrinsic_invoke_argv(
     if out.is_null() {
         return TCL_INVOKE_ABI_NULL_OUT;
     }
-    let interp = current_interp();
-    if interp.is_null() {
-        // SAFETY: `out` was checked above and meets this function's contract.
-        unsafe {
-            write_completion(
-                out,
-                detached_error_completion(b"no current interpreter for tcl_intrinsic_invoke_argv"),
-            )
-        };
-        return TCL_INVOKE_ABI_NO_CURRENT_INTERP;
-    }
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP) => {
+            unsafe {
+                write_detached_completion(
+                    out,
+                    detached_error_completion(
+                        b"no current interpreter for tcl_intrinsic_invoke_argv",
+                    ),
+                )
+            };
+            return TCL_INVOKE_ABI_NO_CURRENT_INTERP;
+        }
+        Err(status) => return status,
+    };
     let argc = match usize::try_from(argc) {
         Ok(argc) if argc > 0 => argc,
         _ => return TCL_INTRINSIC_ABI_DECLINED,
@@ -2031,7 +2139,6 @@ pub unsafe extern "C" fn tcl_intrinsic_invoke_argv(
     if argv.is_null() {
         return TCL_INTRINSIC_ABI_DECLINED;
     }
-    // SAFETY: the caller contract guarantees `argc` readable entries.
     let words = unsafe { core::slice::from_raw_parts(argv, argc) };
     if words.iter().any(|word| word.is_null()) {
         return TCL_INTRINSIC_ABI_DECLINED;
@@ -2039,11 +2146,18 @@ pub unsafe extern "C" fn tcl_intrinsic_invoke_argv(
     let Some(intrinsic) = IntrinsicId::from_stable_id(intrinsic_id) else {
         return TCL_INTRINSIC_ABI_DECLINED;
     };
-    let Some(dialect) = (unsafe { (*interp).native_invocation_dialect() }).authoring_query() else {
+    let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    let Some(dialect) = operation
+        .interpreter
+        .native_invocation_dialect()
+        .authoring_query()
+    else {
         return TCL_INTRINSIC_ABI_DECLINED;
     };
-    let Some(resolved) = resolve_intrinsic_argv(words, Some(dialect)) else {
-        return TCL_INTRINSIC_ABI_DECLINED;
+    let resolved = match resolve_intrinsic_argv(&mut operation, words, Some(dialect)) {
+        Ok(Some(resolved)) => resolved,
+        Ok(None) => return TCL_INTRINSIC_ABI_DECLINED,
+        Err(status) => return status,
     };
     if resolved.intrinsic != intrinsic {
         return TCL_INTRINSIC_ABI_DECLINED;
@@ -2054,45 +2168,24 @@ pub unsafe extern "C" fn tcl_intrinsic_invoke_argv(
     let Some(args) = words.get(args_start..) else {
         return TCL_INTRINSIC_ABI_DECLINED;
     };
-    // SAFETY: every word was validated non-null and is caller-owned.
-    let _borrowed = unsafe { BorrowedArgv::retain(words) };
-    // An intrinsic reached from generated code is an activation for the same
-    // reason a dispatched command is (see [`AbiActivation`]): the implementation
-    // may evaluate a body, and this call is the only enclosing activation there
-    // is.
-    // SAFETY: the current interpreter is live for this ABI call.
-    let Some(mut activation) = (unsafe { AbiActivation::enter(interp) }) else {
-        // SAFETY: current interp and `out` are live per the function contract.
-        unsafe {
-            write_completion(
-                out,
-                completion_abi(crate::state_traits::capture_completion(
-                    &mut *interp,
-                    crate::interp::Code::Error,
-                )),
-            );
-        }
-        return if unsafe { (*interp).host_refusal_pending() } {
-            TCL_INVOKE_ABI_HOST_REFUSED
-        } else {
-            TCL_INVOKE_ABI_OK
+    let activation = unsafe { AbiActivation::enter(&mut operation.interpreter) };
+    if activation.is_none() {
+        return unsafe {
+            operation.settle(crate::interp::Code::Error, None, out, TCL_INVOKE_ABI_OK)
         };
-    };
-    // SAFETY: `interp` is live; direct execution only borrows `args`.
-    let Some(code) = (unsafe { (*interp).execute_intrinsic(intrinsic, args) }) else {
-        return TCL_INTRINSIC_ABI_DECLINED;
-    };
-    // SAFETY: `interp` is live and `out` is caller-provided writable storage.
-    let completion = unsafe { crate::state_traits::capture_completion(&mut *interp, code) };
-    activation.complete(completion.code);
-    drop(activation);
-    // SAFETY: `out` is caller-provided writable storage.
-    unsafe { write_completion(out, completion_abi(completion)) };
-    if unsafe { (*interp).host_refusal_pending() } {
-        TCL_INVOKE_ABI_HOST_REFUSED
-    } else {
-        TCL_INVOKE_ABI_OK
     }
+    let code = operation.interpreter.execute_intrinsic(intrinsic, args);
+    if operation.ensure_current().is_err() {
+        drop(activation);
+        return TCL_INVOKE_ABI_HOST_REFUSED;
+    }
+    let Some(code) = code else {
+        drop(activation);
+        return operation
+            .ensure_current()
+            .map_or_else(|status| status, |_| TCL_INTRINSIC_ABI_DECLINED);
+    };
+    unsafe { operation.settle(code, activation, out, TCL_INVOKE_ABI_OK) }
 }
 
 /// `tcl_invoke_argv(argv, argc, out) -> status` — invoke an already-evaluated
@@ -2107,9 +2200,9 @@ pub unsafe extern "C" fn tcl_intrinsic_invoke_argv(
 ///
 /// The return value reports ABI handling only: [`TCL_INVOKE_ABI_OK`] means
 /// `out` was written, even when `out.code` is Tcl `error`; a negative status
-/// reports a malformed boundary request. When `out` is valid, every status
-/// except [`TCL_INVOKE_ABI_NULL_OUT`] still writes an owned error completion so
-/// the caller has a uniform release path.
+/// reports a malformed boundary request or an operational Host refusal.
+/// Host refusal leaves `out` untouched. Other boundary failures with valid
+/// output storage write an owned error completion for the caller's release path.
 ///
 /// ## Ownership
 ///
@@ -2136,99 +2229,51 @@ pub unsafe extern "C" fn tcl_invoke_argv(
     if out.is_null() {
         return TCL_INVOKE_ABI_NULL_OUT;
     }
-
-    let interp = current_interp();
-    if interp.is_null() {
-        // SAFETY: `out` was checked above and meets this function's contract.
-        unsafe {
-            write_completion(
-                out,
-                detached_error_completion(b"no current interpreter for tcl_invoke_argv"),
-            )
-        };
-        return TCL_INVOKE_ABI_NO_CURRENT_INTERP;
-    }
-
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP) => {
+            unsafe {
+                write_detached_completion(
+                    out,
+                    detached_error_completion(b"no current interpreter for tcl_invoke_argv"),
+                )
+            };
+            return TCL_INVOKE_ABI_NO_CURRENT_INTERP;
+        }
+        Err(status) => return status,
+    };
     let argc = match usize::try_from(argc) {
         Ok(argc) if argc > 0 => argc,
         _ => {
-            // SAFETY: current interp and `out` are live per the function contract.
-            unsafe {
-                let code = (*interp).set_error(b"tcl_invoke_argv requires a command head");
-                write_completion(
-                    out,
-                    completion_abi(crate::state_traits::capture_completion(&mut *interp, code)),
-                );
-            }
-            return TCL_INVOKE_ABI_INVALID_ARGC;
+            let code = operation
+                .interpreter
+                .set_error(b"tcl_invoke_argv requires a command head");
+            return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_INVALID_ARGC) };
         }
     };
     if argv.is_null() {
-        // SAFETY: current interp and `out` are live per the function contract.
-        unsafe {
-            let code = (*interp).set_error(b"tcl_invoke_argv received a null argv");
-            write_completion(
-                out,
-                completion_abi(crate::state_traits::capture_completion(&mut *interp, code)),
-            );
-        }
-        return TCL_INVOKE_ABI_NULL_ARGV;
+        let code = operation
+            .interpreter
+            .set_error(b"tcl_invoke_argv received a null argv");
+        return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_NULL_ARGV) };
     }
-
-    // SAFETY: caller guarantees `argv` references `argc` readable pointers.
     let words = unsafe { core::slice::from_raw_parts(argv, argc) };
     if words.iter().any(|word| word.is_null()) {
-        // SAFETY: current interp and `out` are live per the function contract.
-        unsafe {
-            let code = (*interp).set_error(b"tcl_invoke_argv received a null word");
-            write_completion(
-                out,
-                completion_abi(crate::state_traits::capture_completion(&mut *interp, code)),
-            );
-        }
-        return TCL_INVOKE_ABI_NULL_WORD;
+        let code = operation
+            .interpreter
+            .set_error(b"tcl_invoke_argv received a null word");
+        return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_NULL_WORD) };
     }
-
-    // Keep the caller's borrowed words alive through dispatch. `Drop` restores
-    // their exact pre-call reference counts after the completion has captured
-    // independent result/options references.
-    // SAFETY: null words were rejected; the caller guarantees every word is
-    // live and holds an owned reference for this call.
+    // All caller-owned argv references remain borrowed through dispatch and capture.
     let _borrowed = unsafe { BorrowedArgv::retain(words) };
-    // Dispatching directly skips the eval loop, so this call *is* the enclosing
-    // activation: it must count as one while the dispatched command runs (a
-    // `catch` body would otherwise trip the outermost-eval rule and lose its
-    // `-errorcode`), and it applies that rule itself on the way out — which is
-    // what publishes an uncaught error's trace to `::errorInfo`/`::errorCode`.
-    // SAFETY: the current interpreter is live for this ABI call.
-    let Some(mut activation) = (unsafe { AbiActivation::enter(interp) }) else {
-        // SAFETY: current interp and `out` are live per the function contract.
-        unsafe {
-            write_completion(
-                out,
-                completion_abi(crate::state_traits::capture_completion(
-                    &mut *interp,
-                    crate::interp::Code::Error,
-                )),
-            );
-        }
-        return if unsafe { (*interp).host_refusal_pending() } {
-            TCL_INVOKE_ABI_HOST_REFUSED
-        } else {
-            TCL_INVOKE_ABI_OK
+    let activation = unsafe { AbiActivation::enter(&mut operation.interpreter) };
+    if activation.is_none() {
+        return unsafe {
+            operation.settle(crate::interp::Code::Error, None, out, TCL_INVOKE_ABI_OK)
         };
-    };
-    // SAFETY: the current interpreter is live for this ABI call.
-    let completion = unsafe { crate::state_traits::dispatch_prebuilt_argv(&mut *interp, words) };
-    activation.complete(completion.code);
-    drop(activation);
-    // SAFETY: `out` is live and properly aligned per this function's contract.
-    unsafe { write_completion(out, completion_abi(completion)) };
-    if unsafe { (*interp).host_refusal_pending() } {
-        TCL_INVOKE_ABI_HOST_REFUSED
-    } else {
-        TCL_INVOKE_ABI_OK
     }
+    let code = operation.interpreter.dispatch(words);
+    unsafe { operation.settle(code, activation, out, TCL_INVOKE_ABI_OK) }
 }
 
 /// Release both owned object references in a [`TclCompletionAbi`] and reset its
@@ -2261,36 +2306,39 @@ pub unsafe extern "C" fn tcl_completion_release(completion: *mut TclCompletionAb
 }
 
 /// `tcl_expr_bool(expr) -> i32` — evaluate `expr` as a Tcl boolean (`1`/`0`).
-/// **Adopts (frees)** the `rc 0` `expr`. On an expression error — or in a build
+/// **Adopts (frees)** the `rc 0` `expr`. On a genuine Guest expression error — or in a build
 /// without the numeric tower (no `expr` evaluator) — yields `0`. The wasm
 /// runtime now links libtommath (`build.rs`), so `have_tommath` is set and this
-/// uses the real evaluator there too — AOT-emitted `if`/`while` conditions
-/// evaluate correctly.
+/// uses the real evaluator there too. This compatibility export projects
+/// genuine Guest failure to false; full compiler conditions use the completion-
+/// bearing `tcl_codegen_expr_bool`. Host refusal returns `-6` and stays in the
+/// independent interpreter channel.
 ///
 /// # Safety
 /// `expr` must be a live `rc 0` object from [`tcl_obj_new_string`]; the current
 /// interp (if set) must be live.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_expr_bool(expr: *mut TclObj) -> i32 {
-    let interp = current_interp();
-    // SAFETY: `expr` is live for the duration of the read; `interp` (if non-null)
-    // is the live current interp.
-    let truth = unsafe { expr_bool_impl(interp, expr) };
-    drop_fresh(expr);
-    truth
+    let expr = obj::Owned::fresh(expr);
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP) => return 0,
+        Err(status) => return status,
+    };
+    let truth = unsafe { expr_bool_impl(&mut operation.interpreter, expr.as_ptr()) };
+    drop(expr);
+    operation
+        .ensure_current()
+        .map_or_else(|status| status, |_| truth)
 }
 
 /// The expression-condition path, present only with the numeric tower.
 ///
 /// # Safety
-/// `expr` must be live; `interp` must be null or the live current interp.
+/// `expr` must be live; `interp` is the retained original operation target.
 #[cfg(have_tommath)]
-unsafe fn expr_bool_impl(interp: *mut Interp, expr: *mut TclObj) -> i32 {
-    if interp.is_null() {
-        return 0;
-    }
-    // SAFETY: `interp` is the live current interp.
-    let ok = crate::builtins::eval_bool_expr(unsafe { &mut *interp }, expr);
+unsafe fn expr_bool_impl(interp: &mut Interp, expr: *mut TclObj) -> i32 {
+    let ok = crate::builtins::eval_bool_expr(interp, expr);
     i32::from(matches!(ok, Ok(true)))
 }
 
@@ -2303,7 +2351,7 @@ unsafe fn expr_bool_impl(interp: *mut Interp, expr: *mut TclObj) -> i32 {
 /// # Safety
 /// Trivially safe (dereferences nothing).
 #[cfg(not(have_tommath))]
-unsafe fn expr_bool_impl(_interp: *mut Interp, _expr: *mut TclObj) -> i32 {
+unsafe fn expr_bool_impl(_interp: &mut Interp, _expr: *mut TclObj) -> i32 {
     0
 }
 
@@ -2604,7 +2652,13 @@ mod tests {
             let domains = i32::from(GuardDomains::one(GuardDomain::CommandEnvironment).bits());
             let native = (*interp).native_invocation_dialect();
             assert!(
-                resolve_intrinsic_argv(&words, native.authoring_query()).is_some(),
+                resolve_intrinsic_argv(
+                    &mut CodegenOperation::enter().unwrap(),
+                    &words,
+                    native.authoring_query()
+                )
+                .unwrap()
+                .is_some(),
                 "actual Jim StringLength form is retained"
             );
             let identity = GuardIdentity::registry_intrinsic_with_semantics(
@@ -2755,7 +2809,13 @@ mod tests {
             );
             let native = (*interp).native_invocation_dialect();
             assert!(
-                resolve_intrinsic_argv(&words, native.authoring_query()).is_some(),
+                resolve_intrinsic_argv(
+                    &mut CodegenOperation::enter().unwrap(),
+                    &words,
+                    native.authoring_query()
+                )
+                .unwrap()
+                .is_some(),
                 "actual Jim StringLength form is retained"
             );
             let identity = GuardIdentity::registry_intrinsic_with_semantics(
@@ -5651,3 +5711,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "codegen_abi/original_ingress_tests.rs"]
+mod original_ingress_tests;

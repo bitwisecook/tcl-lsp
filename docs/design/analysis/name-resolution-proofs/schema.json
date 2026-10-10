@@ -16,13 +16,14 @@
       "required": ["id", "kind", "document", "problem_statement", "question", "conclusion", "scope", "providers", "evidence", "source_anchors", "tests", "owners", "replay"],
       "properties": {
         "id": {"type": "string", "pattern": "^naming\\.[a-z0-9][a-z0-9._-]+$"},
-        "kind": {"enum": ["native-observation", "source-anchor", "implementation-contract", "environment-observation"]},
+        "kind": {"enum": ["native-observation", "native-attempt", "source-anchor", "implementation-contract", "environment-observation"]},
         "document": {"$ref": "#/$defs/text"},
         "problem_statement": {"$ref": "#/$defs/text"},
         "question": {"$ref": "#/$defs/text"},
         "conclusion": {"$ref": "#/$defs/text"},
         "scope": {"$ref": "#/$defs/text"},
         "providers": {"type": "array", "minItems": 7, "maxItems": 7, "items": {"$ref": "#/$defs/provider"}},
+        "attempt": {"$ref": "#/$defs/native_attempt"},
         "environments": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/environment"}},
         "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
         "source_anchors": {"type": "array", "items": {"$ref": "#/$defs/source"}},
@@ -31,6 +32,8 @@
         "replay": {"type":"object","additionalProperties":false,"required":["command","limitations"],"properties":{"command":{"type":"array","items":{"$ref":"#/$defs/text"}},"limitations":{"$ref":"#/$defs/text"}}}
       }
     },
+    "native_attempt": {"type":"object","additionalProperties":false,"required":["intended_question","intended_question_reached","probe","limitations","captures"],"properties":{"intended_question":{"$ref":"#/$defs/text"},"intended_question_reached":{"type":"boolean","const":false},"probe":{"$ref":"#/$defs/text"},"limitations":{"const":"The intended question was not reached. The setup captures cannot be used as a positive answer or as execution, teardown or implementation equivalence evidence."},"captures":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/attempt_capture"}}}},
+    "attempt_capture": {"type":"object","additionalProperties":false,"required":["provider","input","receipt","observation","stderr","guest_code","completion_row","failure_stage"],"properties":{"provider":{"enum":["tcl8.4","tcl8.5","tcl8.6","tcl9.0","tcl9.1","jim","bigip"]},"input":{"$ref":"#/$defs/text"},"receipt":{"$ref":"#/$defs/text"},"observation":{"$ref":"#/$defs/text"},"stderr":{"$ref":"#/$defs/text"},"guest_code":{"type":"integer","minimum":1},"completion_row":{"type":"string","pattern":"^ORIGINAL\\|[1-9][0-9]*\\|([0-9a-f]{2})*$"},"failure_stage":{"$ref":"#/$defs/text"}}},
     "environment": {
       "type":"object","additionalProperties":false,
       "required":["id","version","build","target","input_channel","status","answer","evidence"],

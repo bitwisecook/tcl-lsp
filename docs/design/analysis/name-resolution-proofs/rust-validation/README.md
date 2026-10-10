@@ -2849,3 +2849,89 @@ source/head/command/archive associations are unchanged and every source leaf
 is byte-verified. The [whole original log](frozen306/integration-shared-owner-own-test-build306/tests.log)
 has SHA-256 `cd3398370de3952b02110cb565f2e045dd0aba0584128e712d0d1bb29e0f5c80`. Original sources, outcomes and mutable proof anchors
 are preserved; no later-source result is donated to this operation.
+
+## Source307 failed six-owner library-test build
+
+The exact Compiler/Registry/Syntax/CmdCore/VM/RuntimeAPI no-run command closes
+exit101 after 161.01232246900327 seconds with uniform_source true on the unchanged
+33037-leaf image, HEAD56331a02b691a085ded93416ce9dfe642f2070b0. Four VM fixture errors are retained: undeclared tcl_host_c_abi at value_scalar_tests.rs:321; Rc<[u8]> conversion from &[u8;11] and &[u8;3] at command.rs:3977–3978; and E0308 at command.rs:3983.
+
+The 4 actual executable artifact events remain unsealed. Their original
+Cargo fresh/features fields are preserved; the failed command admits no
+successful producer, strict pin, inventory or assertion for any package.
+The [complete original receipt](frozen307/integration-shared-owner-own-test-build307/receipt.json.gz)
+restores to SHA-256 `37004170fb7b9daa29d382bf0826d9451ca29992d11b534bd5048cd574060c68`. The [whole log](frozen307/integration-shared-owner-own-test-build307/tests.log)
+has SHA-256 `52aae3f4a90dbe4e831923ca1cd53fdbdafa0168765b87208dcf14c0243fce36`. Every source association is byte-verified.
+No later-source assertion, original Native answer or combined gate result is
+transferred to this compile-only operation.
+
+
+## Source308 failed six-owner library-test build
+
+The exact Compiler/Registry/Syntax/CmdCore/VM/RuntimeAPI no-run command closes
+exit101 after 154.49609750299715 seconds with uniform_source true on the unchanged
+33041-leaf image, HEAD8177220bf85568de21dc1db5553d6d3d83450332. The Compiler fixture E0308 at analyser/oo.rs:6003 compares a selected CommandSpec pointer with an Option<StateTransitionDescriptor>; the complete compiler message and expected/actual types remain retained.
+
+The 5 actual executable artifact events remain unsealed. Their original
+Cargo fresh/features fields are preserved; the failed command admits no
+successful producer, strict pin, inventory or assertion for any package.
+The [complete original receipt](frozen308/integration-shared-owner-own-test-build308/receipt.json.gz)
+restores to SHA-256 `8e99434b522d1c67ecf2a8e1a7809d12f0726464c0e546a9a64663a8ffbb761f`. The [whole log](frozen308/integration-shared-owner-own-test-build308/tests.log)
+has SHA-256 `19d791683518a0229fe20485a2c914142a3e6d41437f2f87d3a54f1d9c9f97b7`. Every source association is byte-verified.
+No later-source assertion, original Native answer or combined gate result is
+transferred to this compile-only operation.
+
+## Source309 six-owner producer, inventories and closed selections
+
+The exact Compiler/Registry/Syntax/CmdCore/VM/RuntimeAPI own no-run command
+succeeds on the unchanged33,097-leaf image. Its six exact executable payloads,
+strict metadata and complete source companion are losslessly retained.
+Actual Cargo fresh/features fields distinguish three reused outputs from
+three produced outputs; compilation executes no assertion and compiles no
+separate Runtime crate. The six actual inventories are Compiler9200, VM778,
+Registry1724, Syntax645, CmdCore196 and RuntimeAPI85.
+
+The complete Syntax645, CmdCore196 and RuntimeAPI85 selections each pass all
+actual tests with zero failures, ignored, measured or filtered tests. The
+separate Compiler primary31 selection closes8P23F with9169 filtered; every
+failure remains in the original full log and ledger. Active VM55 and Compiler
+alias30 selections are excluded from this archive. No complete Compiler,
+VM, Registry, separate Runtime, Native provider or combined gate result is
+inferred from these closed scopes.
+
+| Closed operation | Exact outcome | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-shared-owner-own-test-build309` | `compile-passed`, exit0, 327.232875651s; no assertions | [lossless original](frozen309/integration-shared-owner-own-test-build309/receipt.json.gz) | [whole log](frozen309/integration-shared-owner-own-test-build309/tests.log) |
+| `integration-compiler-inventory309` | `listed`, exit0, 0.019228478s; no assertions | [lossless original](frozen309/integration-compiler-inventory309/receipt.json.gz) | [whole log](frozen309/integration-compiler-inventory309/tests.log) |
+| `integration-vm-inventory309` | `listed`, exit0, 0.142167157s; no assertions | [lossless original](frozen309/integration-vm-inventory309/receipt.json.gz) | [whole log](frozen309/integration-vm-inventory309/tests.log) |
+| `integration-registry-inventory309` | `listed`, exit0, 0.194193872s; no assertions | [lossless original](frozen309/integration-registry-inventory309/receipt.json.gz) | [whole log](frozen309/integration-registry-inventory309/tests.log) |
+| `integration-syntax-inventory309` | `listed`, exit0, 0.003253155s; no assertions | [lossless original](frozen309/integration-syntax-inventory309/receipt.json.gz) | [whole log](frozen309/integration-syntax-inventory309/tests.log) |
+| `integration-cmd-core-inventory309` | `listed`, exit0, 0.006875844s; no assertions | [lossless original](frozen309/integration-cmd-core-inventory309/receipt.json.gz) | [whole log](frozen309/integration-cmd-core-inventory309/tests.log) |
+| `integration-api-inventory309` | `listed`, exit0, 0.004130934s; no assertions | [lossless original](frozen309/integration-api-inventory309/receipt.json.gz) | [whole log](frozen309/integration-api-inventory309/tests.log) |
+| `integration-syntax-all-tests309` | `passed`, exit0, 1.701034346s; 645 passed/0 failed/0 filtered | [lossless original](frozen309/integration-syntax-all-tests309/receipt.json.gz) | [whole log](frozen309/integration-syntax-all-tests309/tests.log) |
+| `integration-cmd-core-all-tests309` | `passed`, exit0, 0.361128833s; 196 passed/0 failed/0 filtered | [lossless original](frozen309/integration-cmd-core-all-tests309/receipt.json.gz) | [whole log](frozen309/integration-cmd-core-all-tests309/tests.log) |
+| `integration-api-all-tests309` | `passed`, exit0, 0.018188826s; 85 passed/0 failed/0 filtered | [lossless original](frozen309/integration-api-all-tests309/receipt.json.gz) | [whole log](frozen309/integration-api-all-tests309/tests.log) |
+| `integration-compiler-primary-tests309` | `failed`, exit101, 23.757505962s; 8 passed/23 failed/9169 filtered | [lossless original](frozen309/integration-compiler-primary-tests309/receipt.json.gz) | [whole log](frozen309/integration-compiler-primary-tests309/tests.log) |
+
+The [complete original source companion](frozen309/sealed-six-owner-images/source-snapshot.json.gz) and exact [Syntax](frozen309/selections/syntax-all-selection309.json), [CmdCore](frozen309/selections/cmd-core-all-selection309.json), [RuntimeAPI](frozen309/selections/api-all-selection309.json) and [Compiler primary](frozen309/selections/compiler-primary-selection309.json) selections preserve original requests, strict pins and inventory associations. All364,067 source associations across these eleven operations are byte-verified. Current question links require exact whole-current-leaf equality with the immutable source; later controls receive no transferred assertion result. Original Native answers and mutable proof contexts remain unchanged.
+
+Restore each complete measured executable with its recorded integrity checks:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen309/sealed-six-owner-images")
+for kind in ("compiler", "vm", "registry", "syntax", "cmd-core", "api"):
+    record = json.loads((base / f"lossless-{kind}-image-storage.json").read_text())
+    packed = (base / f"pinned-{kind}309.elf.gz").read_bytes()
+    assert len(packed) == record["stored_bytes"]
+    assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+    original = gzip.decompress(packed)
+    assert len(original) == record["original_bytes"]
+    assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+    restored = Path(f"/tmp/pinned-{kind}309.elf")
+    restored.write_bytes(original)
+    restored.chmod(0o755)
+```
+
+Restoration runs no assertion and does not replace an active original executable. The unchanged strict pin and successful producer receipt retain each exact measured source/image identity.

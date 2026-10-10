@@ -3657,8 +3657,19 @@ mod tests {
         let registry = context.commands();
         let module = &unit.ir_module;
         let input = module.source_metadata_input.as_ref().unwrap();
-        let foreign_context =
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let mut foreign_registry = CommandRegistry::build_default();
+        foreign_registry.insert(tcl_registry::CommandSpec {
+            name: "foreign_projection_owner_axis",
+            ..foreign_registry.get("set").unwrap().clone()
+        });
+        let foreign_context = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl9.0")
+                .with_command_store(foreign_registry.snapshot().shared_registry()),
+        );
+        assert_ne!(
+            registry.snapshot().semantic_key(),
+            foreign_context.commands().snapshot().semantic_key()
+        );
         let foreign = crate::analyser::ResolvedAnalysisInput::new(
             input.analyser_profile(),
             input.unit_profile(),

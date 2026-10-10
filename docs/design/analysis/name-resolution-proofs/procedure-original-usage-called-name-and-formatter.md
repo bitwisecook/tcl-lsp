@@ -52,7 +52,7 @@ This Jim-specific source inspection supplies no provider execution or C/BIG-IP s
 
 ### jim
 
-Status: `observed`. Version: Exact independently pinned jim.c; executable version not measured by this appendix.. Build: Read-only source content only; no interpreter/compiler/build invocation.. Channel: Whole original source plus three exact independently hashed function excerpts.. Dialect: Jim original source implementation.
+Status: `inspected`. Version: Exact independently pinned jim.c; executable version not measured by this appendix.. Build: Read-only source content only; no interpreter/compiler/build invocation.. Channel: Whole original source plus three exact independently hashed function excerpts.. Dialect: Jim original source implementation.
 
 Read-only source inspection: JimCmdUsage duplicates original cmdNameObj before appending formal usage; JimSetProcWrongArgs passes the assembled object via %#s; Jim_SetResultFormatted sizes from counted length then snprintf consumes CString extent. No procedure-NUL execution, actual table/header/lifetime or Rust pass is observed.
 

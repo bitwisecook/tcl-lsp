@@ -84,8 +84,19 @@ pub unsafe extern "C" fn Tcl_CreateObjCommand(
     };
     // SAFETY: caller guarantees a terminated name and a live interpreter.
     let (name, interp) = unsafe { (CStr::from_ptr(cmdName).to_bytes(), &mut *interp) };
-    interp
-        .create_obj_command(name, ObjCommand::new(proc_, clientData, deleteProc))
+    let _scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+    {
+        Ok(scope) => scope,
+        Err(cause) => {
+            interp.refuse_native_execution(cause);
+            return core::ptr::null_mut();
+        }
+    };
+    let created = interp.create_obj_command(name, ObjCommand::new(proc_, clientData, deleteProc));
+    if _scope.currency().ensure_current_or_refuse().is_err() {
+        return core::ptr::null_mut();
+    }
+    created
         .and_then(|generation| generation.checked_add(1))
         .and_then(|token| usize::try_from(token).ok())
         .map_or(core::ptr::null_mut(), |token| token as *mut c_void)
@@ -103,7 +114,19 @@ pub unsafe extern "C" fn Tcl_DeleteCommand(interp: *mut Interp, cmdName: *const 
     }
     // SAFETY: caller guarantees a terminated name and a live interpreter.
     let (name, interp) = unsafe { (CStr::from_ptr(cmdName).to_bytes(), &mut *interp) };
-    match interp.rename_command(name, b"") {
+    let _scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+    {
+        Ok(scope) => scope,
+        Err(cause) => {
+            interp.refuse_native_execution(cause);
+            return -1;
+        }
+    };
+    let outcome = interp.rename_command(name, b"");
+    if _scope.currency().ensure_current_or_refuse().is_err() {
+        return -1;
+    }
+    match outcome {
         RenameOutcome::Deleted => 0,
         _ => -1,
     }
@@ -714,7 +737,9 @@ pub unsafe extern "C" fn Tcl_PkgProvideEx(
     match provide_package(interp, &name, &version) {
         Code::Ok => TCL_OK,
         _ => {
-            interp.note_c_api_error();
+            if !interp.host_refusal_pending() {
+                interp.note_c_api_error();
+            }
             TCL_ERROR
         }
     }

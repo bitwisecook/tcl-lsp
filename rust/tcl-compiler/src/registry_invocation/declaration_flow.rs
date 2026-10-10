@@ -7,7 +7,8 @@
 use super::{
     CommandRegistry, CommandTokens, EffectiveCommandWords, EffectiveInvocationWord, InvocationWord,
     InvocationWords, RegistryInvocationResolution, effective_invocation_word,
-    effective_words_for_target, frozen_argument_words, resolve_registry_words_in_realm,
+    effective_words_for_target, frozen_argument_words,
+    resolve_registry_words_in_realm_with_metadata_context,
 };
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::script_body_flow::ScriptBodyFlow;
@@ -89,6 +90,11 @@ pub(crate) fn declaration_lifecycle_invocation(
         .source_binding
         .as_ref()?
         .declaration_operand_layout_advice(tokens)?;
+    let metadata = tokens
+        .source_binding
+        .as_ref()?
+        .original_invocation_metadata_at_point(tokens, registry)
+        .ok()?;
     let dialect = advice.dialect();
     let mut agreed = None;
     for target in advice.targets() {
@@ -97,8 +103,14 @@ pub(crate) fn declaration_lifecycle_invocation(
         let mut words = vec![InvocationWord::Literal(&target.command)];
         words.extend(values.iter().map(EffectiveInvocationWord::as_registry_word));
         let RegistryInvocationResolution::Resolved(facts) =
-            resolve_registry_words_in_realm(registry, None, &words, Some(dialect), advice.realm())
-                .ok()?
+            resolve_registry_words_in_realm_with_metadata_context(
+                registry,
+                metadata,
+                &words,
+                Some(dialect),
+                advice.realm(),
+            )
+            .ok()?
         else {
             return None;
         };
@@ -143,6 +155,11 @@ pub(crate) fn declaration_invocation_flow(
     tokens: &CommandTokens,
     advice: &crate::command_binding::OriginalCompilationLookupAdvice,
 ) -> Option<DeclarationInvocationFlow> {
+    let metadata = tokens
+        .source_binding
+        .as_ref()?
+        .original_invocation_metadata_at_point(tokens, registry)
+        .ok()?;
     let dialect = advice.dialect();
     let mut agreed = None;
     for target in advice.targets() {
@@ -158,8 +175,14 @@ pub(crate) fn declaration_invocation_flow(
             .map(EffectiveInvocationWord::as_registry_word)
             .collect();
         let RegistryInvocationResolution::Resolved(facts) =
-            resolve_registry_words_in_realm(registry, None, &words, Some(dialect), advice.realm())
-                .ok()?
+            resolve_registry_words_in_realm_with_metadata_context(
+                registry,
+                metadata,
+                &words,
+                Some(dialect),
+                advice.realm(),
+            )
+            .ok()?
         else {
             return None;
         };

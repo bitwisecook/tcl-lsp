@@ -75,7 +75,7 @@ def schema_errors(value: object, schema: dict, document: dict, label: str) -> li
             value, pointer(document, schema["$ref"][1:]), document, label
         )
     errors = []
-    kinds = {"object": dict, "array": list, "string": str, "integer": int}
+    kinds = {"object": dict, "array": list, "string": str, "integer": int, "boolean": bool}
     kind = schema.get("type")
     if kind and (
         not isinstance(value, kinds[kind])
@@ -366,6 +366,100 @@ def environment_errors(record: dict, evidence: dict, doc: str) -> list[str]:
     return errors
 
 
+def native_attempt_errors(record: dict, evidence: dict, selected: dict, doc: str) -> list[str]:
+    """Retain failed setup captures without answering the intended native question."""
+    label = record["id"]
+    attempt = record.get("attempt")
+    if record["kind"] != "native-attempt":
+        return [f"{label}: attempt fields require their own record kind"] if attempt is not None else []
+    errors = []
+    if not isinstance(attempt, dict):
+        return [f"{label}: native attempt has no explicit setup-failure record"]
+    if any(provider["status"] != "not-tested" for provider in record["providers"]):
+        errors.append(f"{label}: native attempt cannot answer the intended provider question")
+    if "environments" in record:
+        errors.append(f"{label}: native attempt cannot issue an environment answer")
+    if attempt.get("intended_question_reached") is not False:
+        errors.append(f"{label}: native attempt requires an unreached intended question")
+    limits = (
+        "The intended question was not reached. The setup captures cannot be used "
+        "as a positive answer or as execution, teardown or implementation equivalence evidence."
+    )
+    if attempt.get("limitations") != limits:
+        errors.append(f"{label}: native attempt lacks its strict setup-only limitation")
+    if normalized(limits) not in normalized(record["conclusion"]) or normalized(limits) not in normalized(doc):
+        errors.append(f"{label}: native attempt conclusion omits its setup-only limitation")
+    intended = attempt.get("intended_question", "")
+    if not intended or normalized(intended) not in normalized(doc):
+        errors.append(f"{label}: document omits the exact unreached intended question")
+    probe_id = attempt.get("probe")
+    probe = evidence.get(probe_id)
+    if not probe or probe["role"] != "input" or probe_id not in selected:
+        errors.append(f"{label}: native attempt lacks the retained original probe input")
+    captures = attempt.get("captures", [])
+    if not captures:
+        errors.append(f"{label}: native attempt has no reached setup capture")
+    providers = {item["id"]: item for item in record["providers"]}
+    seen = set()
+    for capture in captures:
+        provider_id = capture.get("provider")
+        context = f"{label}/{provider_id}"
+        provider = providers.get(provider_id)
+        if provider is None:
+            errors.append(f"{context}: setup capture has no provider answer")
+            continue
+        input_id = capture.get("input")
+        pair = (provider_id, input_id)
+        if pair in seen:
+            errors.append(f"{context}: duplicate original setup input capture")
+        seen.add(pair)
+        linked = True
+        for field, role in [("input", "input"), ("receipt", "provider"), ("observation", "observation"), ("stderr", "observation")]:
+            key = capture.get(field)
+            item = evidence.get(key)
+            if not item or item["role"] != role or key not in selected:
+                errors.append(f"{context}: setup capture lacks retained {field} evidence")
+                linked = False
+            elif key not in provider["evidence"]:
+                errors.append(f"{context}: setup {field} is not attached to this provider")
+        if probe_id not in provider["evidence"]:
+            errors.append(f"{context}: original probe is not attached to this provider")
+        stage = capture.get("failure_stage", "")
+        if not stage or normalized(stage) not in normalized(doc):
+            errors.append(f"{context}: document omits the reached setup failure stage")
+        code = capture.get("guest_code")
+        row = capture.get("completion_row", "")
+        match = re.fullmatch(r"ORIGINAL\|([1-9][0-9]*)\|([0-9a-f]*)", row)
+        if type(code) is not int or code <= 0 or not match or int(match[1]) != code or len(match[2]) % 2:
+            errors.append(f"{context}: setup capture is not an original failed guest completion")
+        if not linked or not probe:
+            continue
+        try:
+            receipt = json.loads(selected[capture["receipt"]])
+            stdout = selected[capture["observation"]]
+            stderr = selected[capture["stderr"]]
+            if not isinstance(receipt, dict) or not isinstance(stdout, str) or not isinstance(stderr, str):
+                raise ValueError("expected complete original receipt and streams")
+            rows = stdout.splitlines()
+            if receipt.get("rows") != rows or row not in rows:
+                raise ValueError("completion row differs from the retained receipt or stream")
+            if receipt.get("exit") != 0:
+                raise ValueError("setup capture lacks its closed driver process outcome")
+            if receipt.get("stdout_sha256") != evidence[capture["observation"]]["sha256"] or receipt.get("stderr_sha256") != evidence[capture["stderr"]]["sha256"]:
+                raise ValueError("original process stream digests do not match the receipt")
+            if receipt.get("source_sha256", {}).get("original") != evidence[input_id]["sha256"]:
+                raise ValueError("setup receipt does not retain the original source input")
+            required = receipt.get("required_sha256", {})
+            if not isinstance(required, dict) or probe["sha256"] not in required.values():
+                raise ValueError("setup receipt does not retain the original probe input")
+            versions = [line for line in rows if line.startswith("VERSION|0|")]
+            if len(versions) != 1 or bytes.fromhex(versions[0].split("|", 2)[2]).decode() != provider["version"]:
+                raise ValueError("setup version stream does not match this provider answer")
+        except (ValueError, TypeError, KeyError, AttributeError, UnicodeError) as exc:
+            errors.append(f"{context}: {exc}")
+    return errors
+
+
 def validate(root: Path, structure_only: bool = False) -> tuple[list[str], dict]:
     errors: list[str] = []
     schema = json.loads((root / DIRECTORY / "schema.json").read_text())
@@ -480,6 +574,7 @@ def validate(root: Path, structure_only: bool = False) -> tuple[list[str], dict]
                         f"{label}/{provider['id']}: source inspection lacks its own pinned excerpt"
                     )
         errors.extend(environment_errors(record, evidence, doc))
+        errors.extend(native_attempt_errors(record, evidence, selected, doc))
         if record["kind"] == "native-observation" and not any(
             p["status"] in {"observed", "unsupported"} for p in providers
         ):

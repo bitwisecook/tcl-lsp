@@ -3797,12 +3797,12 @@ impl Interp {
 
     /// Remove one command generation without recovering an address from its report.
     pub(crate) fn delete_command_generation(&mut self, generation: u64) -> bool {
-        if self.host_refusal_pending() {
+        if self.check_entered_native_operation().is_err() {
             return false;
         }
         let original = self.raw_command_by_generation(generation);
         crate::cmd_coro::on_command_deleted(self, generation);
-        if self.host_refusal_pending() {
+        if self.check_entered_native_operation().is_err() {
             return false;
         }
         let slot = self.namespaces().native_command_slot_at_node(generation);
@@ -3821,6 +3821,9 @@ impl Interp {
         }
         // The original extension delete callback runs outside every table borrow.
         drop(original);
+        if self.check_entered_native_operation().is_err() {
+            return false;
+        }
         removed
     }
 
@@ -4139,6 +4142,13 @@ impl Interp {
         command: Command,
         incoming: Option<tcl_syntax::naming::NativeJimCommandTableKey>,
     ) {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return;
+            }
+        };
         let native_entry = self
             .namespaces
             .borrow_mut()
@@ -4153,10 +4163,15 @@ impl Interp {
                 .borrow_mut()
                 .bind_jim_local(native_entry, tail, command);
             self.retire_pending_native_ensemble_roles();
+            let _ = scope.currency().ensure_current_or_refuse();
             return;
         }
         let displaced = self.namespaces.borrow().command_in(ns, tail);
+        let had_displaced = displaced.is_some();
         self.on_bound_command_replaced(ns, tail);
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
         if let Some(owner) = displaced.as_ref().and_then(Command::oo_object) {
             // The old object command's delete trace has run while the token was
             // still visible. Unlink that exact binding before TclOO teardown so
@@ -4175,12 +4190,47 @@ impl Interp {
                 self.namespaces.borrow_mut().remove_in(ns, tail);
             }
             self.oo_command_renamed(owner, None);
+            if scope.currency().ensure_current_or_refuse().is_err() {
+                return;
+            }
         }
+        // Keep the actual old handle while unlinking its exact slot. Releasing
+        // it outside the table borrow runs an idle extension's deleteProc before
+        // publication; a running call's independent Rc still defers retirement.
+        let still_displaced =
+            self.namespaces
+                .borrow()
+                .command_in(ns, tail)
+                .is_some_and(|current| {
+                    displaced
+                        .as_ref()
+                        .is_some_and(|old| old.is_same_binding(&current))
+                });
+        if still_displaced {
+            self.namespaces.borrow_mut().remove_in(ns, tail);
+        }
+        drop(displaced);
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
+        // TclCreateObjCommandInNs deletes the original once and discards a
+        // callback-recreated slot rather than repeating deletion (C8.6
+        // generic/tclBasic.c). This adapter currently drops that recreated
+        // handle normally; its extra deleteProc is a distinct source gap, not
+        // native equivalence. Retain it so that drop never borrows the table.
+        let recreated = self.namespaces.borrow().command_in(ns, tail);
         self.namespaces
             .borrow_mut()
             .bind_after_native_creation_entry(native_entry, tail, command);
+        drop(recreated);
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
         self.retire_pending_native_ensemble_roles();
-        if displaced.is_some() {
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
+        if had_displaced {
             let (fqn, generation) = {
                 let namespaces = self.namespaces.borrow();
                 (
@@ -4226,8 +4276,12 @@ impl Interp {
             return;
         }
         self.fire_delete_traces_of_token(&fqn, dying);
+        if self.check_entered_native_operation().is_err() {
+            return;
+        }
         if let Some(generation) = dying {
             crate::cmd_coro::on_command_deleted(self, generation);
+            let _ = self.check_entered_native_operation();
         }
     }
 
@@ -11966,6 +12020,13 @@ impl Interp {
     /// Unqualified names bind globally; qualified relative names use the actual
     /// current namespace. Answers the installed token without relooking up a name.
     pub(crate) fn create_obj_command(&mut self, name: &[u8], command: ObjCommand) -> Option<u64> {
+        let scope = match native_operation_currency::NativeOperationScope::enter(self) {
+            Ok(scope) => scope,
+            Err(first) => {
+                self.refuse_native_execution(first);
+                return None;
+            }
+        };
         let selected = self
             .namespaces_mut()
             .command_c_api_publication_at(self.current_ns(), name);
@@ -11974,7 +12035,7 @@ impl Interp {
             return None;
         };
         self.bind_command_replacement(namespace, &simple, Command::ObjCmd(Rc::new(command)));
-        if self.host_refusal_pending() {
+        if scope.currency().ensure_current_or_refuse().is_err() {
             return None;
         }
         self.namespaces().command_generation(namespace, &simple)
@@ -15572,6 +15633,219 @@ fn jim_list_bytes(words: impl IntoIterator<Item = Vec<u8>>) -> Vec<u8> {
 mod tests {
     use super::*;
     use crate::counters;
+
+    struct PublicationRetirement {
+        interpreter: std::rc::Weak<InterpState>,
+        calls: Rc<std::cell::Cell<usize>>,
+        absent: Rc<std::cell::Cell<bool>>,
+        active_calls: Rc<std::cell::Cell<usize>>,
+        mode: u8,
+    }
+
+    unsafe extern "C" fn publication_noop(
+        _: *mut c_void,
+        _: *mut Interp,
+        _: c_int,
+        _: *const *mut TclObj,
+    ) -> c_int {
+        0
+    }
+
+    unsafe extern "C" fn publication_retire(data: *mut c_void) {
+        // SAFETY: this exact command owns one boxed client record until its
+        // final Rc is retired; the delete procedure consumes it once.
+        let state = unsafe { Box::from_raw(data.cast::<PublicationRetirement>()) };
+        state.calls.set(state.calls.get() + 1);
+        let mut interpreter = state.interpreter.upgrade().map(Interp).unwrap();
+        state
+            .absent
+            .set(interpreter.resolve_cmd_token(b"retiring").is_none());
+        match state.mode {
+            1 => {
+                interpreter.refuse_native_access(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original delete procedure refusal",
+                    ),
+                );
+            }
+            2 => {
+                let original = interpreter.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("publication-retirement".into(), "1.0".into())];
+                interpreter.pin_context(&changed).unwrap();
+                interpreter.pin_context(&original).unwrap();
+            }
+            _ => {}
+        }
+    }
+
+    unsafe extern "C" fn publication_active(
+        data: *mut c_void,
+        interpreter: *mut Interp,
+        _: c_int,
+        _: *const *mut TclObj,
+    ) -> c_int {
+        // SAFETY: dispatch retains the original command throughout this call.
+        let state = unsafe { &*data.cast::<PublicationRetirement>() };
+        let interpreter = unsafe { &mut *interpreter };
+        let created = interpreter.create_obj_command(
+            b"retiring",
+            ObjCommand::new(publication_noop, core::ptr::null_mut(), None),
+        );
+        state.active_calls.set(state.calls.get());
+        c_int::from(created.is_none())
+    }
+
+    fn retirement_state(interpreter: &Interp, mode: u8) -> Box<PublicationRetirement> {
+        Box::new(PublicationRetirement {
+            interpreter: Rc::downgrade(&interpreter.0),
+            calls: Rc::new(std::cell::Cell::new(0)),
+            absent: Rc::new(std::cell::Cell::new(false)),
+            active_calls: Rc::new(std::cell::Cell::new(usize::MAX)),
+            mode,
+        })
+    }
+
+    #[test]
+    fn idle_original_delete_procedure_runs_before_publication_and_preserves_first_refusal() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual software object-command retirement, not a new native-provider
+        // observation or an assertion about callback-recreated-slot discard.
+        for mode in 0..3 {
+            leak_free(|interpreter| {
+                interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+                let state = retirement_state(interpreter, mode);
+                let calls = state.calls.clone();
+                let absent = state.absent.clone();
+                let original = interpreter
+                    .create_obj_command(
+                        b"retiring",
+                        ObjCommand::new(
+                            publication_noop,
+                            Box::into_raw(state).cast(),
+                            Some(publication_retire),
+                        ),
+                    )
+                    .unwrap();
+                interpreter.set_result_bytes(b"SEEDED RESULT");
+                let result = interpreter.get_obj_result();
+                let replacement = interpreter.create_obj_command(
+                    b"retiring",
+                    ObjCommand::new(publication_noop, core::ptr::null_mut(), None),
+                );
+                assert_eq!(calls.get(), 1);
+                assert!(
+                    absent.get(),
+                    "the exact original slot was unlinked before deleteProc"
+                );
+                assert_eq!(interpreter.get_obj_result(), result);
+                match mode {
+                    0 => {
+                        assert_ne!(replacement.unwrap(), original);
+                        assert!(interpreter.native_execution_refusal().is_none());
+                    }
+                    _ => {
+                        assert!(replacement.is_none());
+                        assert!(interpreter.resolve_cmd_token(b"retiring").is_none());
+                        let reason = if mode == 1 {
+                            "original delete procedure refusal"
+                        } else {
+                            "stale entered native operation"
+                        };
+                        assert_eq!(interpreter.native_execution_refusal(), Some(
+                            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(reason))));
+                    }
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn active_original_command_keeps_client_data_until_dispatch_releases_its_handle() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // This tests this adapter's documented active Rc lifetime separately
+        // from C Tcl's callback timing.
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            let state = retirement_state(interpreter, 0);
+            let calls = state.calls.clone();
+            let active_calls = state.active_calls.clone();
+            let original = interpreter
+                .create_obj_command(
+                    b"retiring",
+                    ObjCommand::new(
+                        publication_active,
+                        Box::into_raw(state).cast(),
+                        Some(publication_retire),
+                    ),
+                )
+                .unwrap();
+            let word = obj::Owned::fresh(new_string(b"retiring"));
+            let refs = unsafe { (*word.as_ptr()).ref_count };
+            assert_eq!(interpreter.dispatch(&[word.as_ptr()]), Code::Ok);
+            assert_eq!(
+                active_calls.get(),
+                0,
+                "clientData stayed live inside the actual call"
+            );
+            assert_eq!(
+                calls.get(),
+                1,
+                "dispatch released the last original command handle"
+            );
+            assert_ne!(
+                interpreter.resolve_cmd_token(b"retiring").unwrap(),
+                original
+            );
+            assert_eq!(unsafe { (*word.as_ptr()).ref_count }, refs);
+            assert!(interpreter.native_execution_refusal().is_none());
+        });
+    }
+
+    #[test]
+    fn c_command_publication_preserves_pending_host_before_namespace_or_output_changes() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            interpreter
+                .create_obj_command(
+                    b"kept",
+                    ObjCommand::new(publication_noop, core::ptr::null_mut(), None),
+                )
+                .unwrap();
+            let kept = interpreter.resolve_cmd_token(b"kept");
+            let children = interpreter.namespaces().children(crate::namespace::GLOBAL);
+            interpreter.set_result_bytes(b"SEEDED RESULT");
+            let result = interpreter.get_obj_result();
+            interpreter.refuse_host_command("original C publication refusal");
+            let first = interpreter.native_execution_refusal();
+            assert!(unsafe {
+                crate::capi::Tcl_CreateObjCommand(
+                    interpreter,
+                    c"untouched::command".as_ptr(),
+                    Some(publication_noop),
+                    core::ptr::null_mut(),
+                    None,
+                )
+            }
+            .is_null());
+            assert_eq!(
+                unsafe { crate::capi::Tcl_DeleteCommand(interpreter, c"kept".as_ptr()) },
+                -1
+            );
+            assert_eq!(interpreter.resolve_cmd_token(b"kept"), kept);
+            assert_eq!(
+                interpreter.namespaces().children(crate::namespace::GLOBAL),
+                children
+            );
+            assert_eq!(interpreter.get_obj_result(), result);
+            assert_eq!(interpreter.native_execution_refusal(), first);
+        });
+    }
 
     #[test]
     fn c84_primitive_invalid_code_is_preserved_until_actual_script_propagation() {

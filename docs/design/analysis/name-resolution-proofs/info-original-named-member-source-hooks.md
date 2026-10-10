@@ -22,31 +22,31 @@ Five whole pinned canonical tclCmdIL.c files and exact selector/table excerpts r
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Source-only exact pinned tclCmdIL.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact selected table/selector excerpt.. Dialect: Pinned original C release source.
+Status: `inspected`. Version: 8.4.20. Build: Source-only exact pinned tclCmdIL.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact selected table/selector excerpt.. Dialect: Pinned original C release source.
 
 Complete subCmds excerpt contains no cmdtype/constant/consts member rows.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Source-only exact pinned tclCmdIL.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact selected table/selector excerpt.. Dialect: Pinned original C release source.
+Status: `inspected`. Version: 8.5.19. Build: Source-only exact pinned tclCmdIL.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact selected table/selector excerpt.. Dialect: Pinned original C release source.
 
 Complete defaultInfoMap excerpt contains no cmdtype/constant/consts member rows.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Source-only exact pinned tclCmdIL.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact selected table/selector excerpt.. Dialect: Pinned original C release source.
+Status: `inspected`. Version: 8.6.18. Build: Source-only exact pinned tclCmdIL.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact selected table/selector excerpt.. Dialect: Pinned original C release source.
 
 Complete defaultInfoMap excerpt contains no cmdtype/constant/consts member rows.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Source-only exact pinned tclCmdIL.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact selected table/selector excerpt.. Dialect: Pinned original C release source.
+Status: `inspected`. Version: 9.0.4. Build: Source-only exact pinned tclCmdIL.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact selected table/selector excerpt.. Dialect: Pinned original C release source.
 
 Complete defaultInfoMap declares cmdtype and constant with TclCompileBasic1ArgCmd, consts with TclCompileBasic0Or1ArgCmd; cmdtype final flag1 remains exact. This is source declaration only, not actual installed hook/opcode admission.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Source-only exact pinned tclCmdIL.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact selected table/selector excerpt.. Dialect: Pinned original C release source.
+Status: `inspected`. Version: 9.1.0. Build: Source-only exact pinned tclCmdIL.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact selected table/selector excerpt.. Dialect: Pinned original C release source.
 
 Complete tclInfoImplMap declares cmdtype and constant with TclCompileBasic1ArgCmd, consts with TclCompileBasic0Or1ArgCmd; cmdtype final flag1 remains exact. This is source declaration only, not actual installed hook/opcode admission.
 

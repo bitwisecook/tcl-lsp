@@ -22,31 +22,31 @@ Read-only inspection retains the unchanged question request, all eight independe
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Read-only exact pinned original source; no interpreter/compiler/build invocation.. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source.. Dialect: Pinned original C release source.
+Status: `inspected`. Version: 8.4.20. Build: Read-only exact pinned original source; no interpreter/compiler/build invocation.. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source.. Dialect: Pinned original C release source.
 
 The complete original info table has no coroutine member or compiler hook.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Read-only exact pinned original source; no interpreter/compiler/build invocation.. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source.. Dialect: Pinned original C release source.
+Status: `inspected`. Version: 8.5.19. Build: Read-only exact pinned original source; no interpreter/compiler/build invocation.. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source.. Dialect: Pinned original C release source.
 
 The complete original info table has no coroutine member or compiler hook.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Read-only exact pinned original source; no interpreter/compiler/build invocation.. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source.. Dialect: Pinned original C release source.
+Status: `inspected`. Version: 8.6.18. Build: Read-only exact pinned original source; no interpreter/compiler/build invocation.. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source.. Dialect: Pinned original C release source.
 
 Original info table registers TclCompileInfoCoroutineCmd; its complete function rejects numWords !=1, emits one COROUTINE_NAME instruction and returns TCL_OK. This is source declaration/worker interpretation only, not actual installed compiler/token admission or public coroutine output.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Read-only exact pinned original source; no interpreter/compiler/build invocation.. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source.. Dialect: Pinned original C release source.
+Status: `inspected`. Version: 9.0.4. Build: Read-only exact pinned original source; no interpreter/compiler/build invocation.. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source.. Dialect: Pinned original C release source.
 
 Original info table registers TclCompileInfoCoroutineCmd; its complete function rejects numWords !=1, emits one COROUTINE_NAME instruction and returns TCL_OK. This is source declaration/worker interpretation only, not actual installed compiler/token admission or public coroutine output.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Read-only exact pinned original source; no interpreter/compiler/build invocation.. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source.. Dialect: Pinned original C release source.
+Status: `inspected`. Version: 9.1.0. Build: Read-only exact pinned original source; no interpreter/compiler/build invocation.. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source.. Dialect: Pinned original C release source.
 
 Original info table registers TclCompileInfoCoroutineCmd; its complete function rejects numWords !=1, emits one COROUTINE_NAME instruction and returns TCL_OK. This is source declaration/worker interpretation only, not actual installed compiler/token admission or public coroutine output.
 

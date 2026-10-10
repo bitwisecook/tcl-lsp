@@ -1,6 +1,6 @@
 # naming.variable.original-frame-array-trace-retirement-horizon
 
-Kind: `native-observation`
+Kind: `native-attempt`
 
 ## Problem statement
 
@@ -12,11 +12,22 @@ Do the two original namespace-alias frame probes reach trace teardown, and what 
 
 ## Conclusion
 
-Neither original supplies a frame array-trace retirement-horizon answer. C8.4 rejects the namespace alias with guest code1 and bad variable name "xx": upvar won't create namespace variable that refers to procedure variable. C8.5–C9.1 reject it with guest code1 and bad variable name "xx": can't create namespace variable that refers to procedure variable. Jim passes the source's preceding alias read and then rejects trace with guest code1 and invalid command name "trace". Those are the measured setup outcomes, not teardown chronology. All twelve driver processes exit0 with empty stderr; each whole counted completion/result, compile/ELF and input remains retained. The provider status stays not-tested for the proposed trace-retirement observation. These failures supply no entered callback, old-variable accessibility/mutation, private alias/cell/frame identity, Native authority or Rust assertion pass.
+Neither original supplies a frame array-trace retirement-horizon answer. C8.4 rejects the namespace alias with guest code1 and bad variable name "xx": upvar won't create namespace variable that refers to procedure variable. C8.5–C9.1 reject it with guest code1 and bad variable name "xx": can't create namespace variable that refers to procedure variable. Jim passes the source's preceding alias read and then rejects trace with guest code1 and invalid command name "trace". Those are the measured setup outcomes, not teardown chronology. All twelve driver processes exit0 with empty stderr; each whole counted completion/result, compile/ELF and input remains retained. The provider status stays not-tested for the proposed trace-retirement observation. These failures supply no entered callback, old-variable accessibility/mutation, private alias/cell/frame identity, Native authority or Rust assertion pass. The intended question was not reached. The setup captures cannot be used as a positive answer or as execution, teardown or implementation equivalence evidence.
 
 ## Scope
 
 Two untouched ASCII LF originals each run independently in six fresh fully initialised interpreters under the unchanged counted-source CAPI driver. Twelve actual process receipts/streams and six compile receipts/ELFs preserve the different provider setup failures. The initial request and expanded capture request remain separate inputs. No original reaches the requested trace-teardown horizon, and no substituted alias/trace API or corrected source is merged into these inputs. The independent bad-level owner-teardown inputs and any admitted caller-access source remain distinct questions. BIG-IP, opaque/NUL/Unicode names and software assertion execution are not tested. Current linked comparisons consume complete unchanged public code/result windows without host refusal, keeping admitted namespace/caller observations separate from rejected frame setups and no executed Rust pass claim. Software namespace teardown retains its actual original parent edge while callbacks run and retires only the selected root binding; same-spelled foreign state and private receiver correspondence require their independent software owners. Public logs do not prove those private identities.
+
+## Attempt scope
+
+The unreached intended question is: What original array-trace callback and variable-access retirement horizon occurs during procedure-frame teardown?
+
+The intended question was not reached. The setup captures cannot be used as a positive answer or as execution, teardown or implementation equivalence evidence.
+
+The original probe, both original source inputs, twelve complete process receipts and twelve stdout/stderr pairs retain their existing evidence IDs and whole-file digests. The reached failure stages are:
+
+- Namespace-alias setup fails before trace installation or procedure-frame teardown. C8.4–C9.1 each retain both independent source captures.
+- Trace-command setup fails after the preceding alias read and before trace installation or procedure-frame teardown. Jim retains both independent source captures.
 
 ## Provider answers
 

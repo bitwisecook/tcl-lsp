@@ -113,10 +113,19 @@ fn lower_original_boolean_unit(
     module: &crate::ir::Module,
 ) -> Result<(NativeFunction, FunctionReport), FunctionDecline> {
     let facts = &unit.top_level.semantic_facts;
-    let function = facts
-        .executable()
-        .function()
-        .expect("actual source builds executable IR");
+    let function = facts.executable().function().unwrap_or_else(|| {
+        panic!(
+            "actual source builds executable IR; retained availability={:?}; module metadata current={}; function metadata current={}; module grammar={:?}; function grammar={:?}",
+            facts.executable(),
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+                .is_some(),
+            unit.top_level
+                .invocation_metadata_context_for_module(registry, module)
+                .is_some(),
+            module.lexer_config,
+            unit.top_level.source_lexer_config(),
+        )
+    });
     let hints = BTreeMap::new();
     lower_function(&LoweringInput {
         registry,

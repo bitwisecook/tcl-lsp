@@ -147,14 +147,26 @@ a convention at the call site.
 | `tcl_codegen_expr_add(left, right)` | both `consumed` | `null_or_owned` | (n/a) | Consumes both operand-stack references on **every** path, including the error and null-argument paths, and returns a fresh `+1`. Without the `have_tommath` backend it consumes the operands and reports `arithmetic support is not available`. |
 | `tcl_codegen_puts(value)` | `consumed` | i32 (0 ok) | (n/a) | Dispatches the runtime's own `puts`, then releases the operand-stack reference. |
 | `tcl_codegen_proc_register(name, params, body)` | byte ranges, no handles | i32 (0 ok) | defines a `Command::Proc` | Registers source metadata without evaluating `proc`. The body object is fresh and dropped after `define_proc` takes its own copy. |
-| `tcl_eval(script)` | `script` `adopted` (`rc 0`, freed here) | `owned` (`+1` on the interp result) | (n/a) | Completion codes are discarded — use `tcl_eval_code` when they matter. With no current interp it returns an owned empty string rather than null, so the misuse path stays leak-safe. |
-| `tcl_eval_code(script)` | `script` `adopted` | i32 completion code | (n/a) | Returns 0/1/2/3/4 or a `return -code N` value; the result stays the interp's own (borrowed), so the emitter has nothing to release. Reports 0 with no current interp. |
-| `tcl_expr_bool(expr)` | `expr` `adopted` | i32 | (n/a) | The condition primitive for emitted control flow. Yields `0` on an expression error, with no current interp, or in a build without the numeric tower. |
-| `tcl_invoke_argv(argv, argc, out)` | every argv word `borrowed`; `out` writable `TclCompletionAbi` | i32 ABI status; on a write, `out.result` and `out.options` are each `owned` | normal interpreter result/error state only | Retains each argv word for the dispatch only, then releases those temporaries. Dispatches the prebuilt argv through the same `Interp::dispatch` as interpreted Tcl — namespaces, `unknown`, aliases, ensembles, TclOO — with no parsing or substitution. A Tcl error is `out.code == 1`; a negative return is a malformed ABI call. |
+| `tcl_eval(script)` | `script` `adopted` (`rc 0`, freed here) | `null_or_owned` (`+1` on the original interp result) | (n/a) | Guest completion codes are discarded. Host refusal returns null and retains its typed cause. No-interpreter compatibility returns an owned empty string. Input ownership is settled on every path. |
+| `tcl_eval_code(script)` | `script` `adopted` | i32 completion code or Host status | (n/a) | Genuine Guest codes retain the original interpreter result. Host refusal returns `-6` without Guest publication. Input ownership is settled on every path. Explicit no-interpreter compatibility reports 0. |
+| `tcl_expr_bool(expr)` | `expr` `adopted` | i32 | (n/a) | Compatibility truth projection: genuine Guest error yields false; Host refusal returns `-6` in the independent typed channel. Callers check that channel before consuming truth. Full compiler conditions use `tcl_codegen_expr_bool` and its whole completion. No interpreter or reduced numeric build yields 0. |
+| `tcl_invoke_argv(argv, argc, out)` | every argv word `borrowed`; `out` writable `TclCompletionAbi` | i32 ABI status; on a write, `out.result` and `out.options` are each `owned` | normal interpreter result/error state only | Retains each argv word for the dispatch only, then releases those temporaries. Dispatches the prebuilt argv through the same `Interp::dispatch` as interpreted Tcl — namespaces, `unknown`, aliases, ensembles, TclOO — with no parsing or substitution. A Tcl error is `out.code == 1`; Host refusal returns `-6` with output untouched. Capture and activation cleanup use the retained original interpreter. |
+| `tcl_intrinsic_invoke_argv(intrinsic, argv, argc, out)` | every argv word `borrowed` | i32 status; written result/options each `owned` | actual intrinsic result/error state | Form decline writes no completion. The checked original getter's Host refusal stops before fallback and leaves output untouched. Temporary argv references are balanced through capture and activation cleanup. |
+| `tcl_codegen_word_concat(parts, count)` | every part `borrowed` | `null_or_owned` | counted result bytes | Retains borrowed parts before checked original String access, preserving exact counted bytes. Getter/refusal stops before result publication; caller references are never adopted. |
 | `tcl_completion_release(out)` | `out.result` + `out.options` `consumed` | `void` | clears the output storage | Releases both handles exactly once and zeroes the fields. Idempotent on already-reset storage; mixing it with individual `tcl_obj_release` calls is not sound. |
 | `tcl_codegen_call_frame_alloc(bytes, align)` | validated positive layout | owned transient frame pointer | shared linear memory | Records the exact layout, increments the diagnostic outstanding-frame count. Frames are distinct and survive re-entrant command callbacks. |
 | `tcl_codegen_call_frame_free(frame)` | `frame` consumed once | i32 status | shared linear memory | Looks up the authoritative layout; unknown, forged, or repeated pointers fail without dereference or deallocation. Must run after the argv objects and completion output are released. |
 | `tcl_codegen_call_frame_outstanding()` | (n/a) | i32 | (n/a) | Diagnostic counter; no refcount interaction. |
+
+The compiler bridge's `CodegenOperation` retains the original interpreter and
+shared `NativeOperationScope` before getters or callbacks. Its argv and legacy
+source operations inherit that receipt, preserve reached effects and retain the
+first typed Host refusal. Registry form decline remains distinct from failed
+object access. Checked completion capture runs while the activation still owns
+its Guest error state; mandatory activation cleanup then runs before final
+publication. A refusal during capture or cleanup releases retained result and
+options and leaves caller output untouched. Mutable ambient interpreter state
+cannot retarget this settlement.
 
 ### `regex_capi.rs` — the ARE engine's C shim
 

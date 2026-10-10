@@ -4874,34 +4874,56 @@ mod tests {
     #[test]
     fn semantic_value_projection_uses_actual_jim_entry_over_c_catalogue() {
         let registry = registry();
-        let jim = tcl_registry::InvocationDialect::of_profile(
+        // The actual interpreter entry selects Jim independently of the C catalogue.
+        // This software fixture observes no external provider execution.
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        let context = Arc::new(
             tcl_registry::model::ingress::static_context_for("jim")
-                .commands()
-                .profile()
-                .unwrap(),
+                .with_command_store(registry.snapshot().shared_registry()),
         );
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let (_runtime_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            metadata_context:
+                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                    &input,
+                )),
+            native_entry: Some(Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
         let source =
             "set x 003; set y [expr {$x}]; set z [expr {9223372036854775807 + 1}]; expr {$z + 1}";
-        let mut lowerer = crate::lowering::Lowerer::new(&registry);
-        lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
-            invocation_dialect: Some(jim),
-            ..Default::default()
-        });
-        let module = lowerer.lower(source).clone();
-        let cfg = crate::cfg_builder::build_cfg_with_registry(&module, false, &registry);
-        let unit = FunctionUnit::build_top_level(
-            cfg.top_level,
-            UnitDialect {
+        let compiled = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
                 registry: &registry,
-                config: module.lexer_config,
-                source_metadata_input: module.source_metadata_input.as_ref(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
             },
-            &HashSet::new(),
-            &HashSet::new(),
-            ModuleTraceFacts::none(),
-            &crate::command_binding::ModuleCommandMutations::default(),
-            None,
+            Some(&entry),
+            &input,
         );
+        assert!(compiled.ir_module.source_entry.native_entry.is_some());
+        assert_eq!(
+            compiled.ir_module.source_metadata_input.as_ref(),
+            Some(&input)
+        );
+        let unit = &compiled.top_level;
         let facts = unit
             .semantic_values()
             .expect("retained actual engine inputs");

@@ -28,25 +28,25 @@ No source inspection or generic ensemble process for this provider is supplied b
 
 ### tcl8.5
 
-Status: `observed`. Version: Pinned source 8.5.19; no generic ensemble execution/version process.. Build: Existing independent Native292 compile receipt only: archive SHA 94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc; public header SHA c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5. No new compiler or generic ensemble process.. Channel: Read-only whole source and exact NsEnsembleImplementationCmd excerpt; independent build receipt metadata.. Dialect: Original C Tcl 8.5.19 ensemble source implementation.
+Status: `inspected`. Version: Pinned source 8.5.19; no generic ensemble execution/version process.. Build: Existing independent Native292 compile receipt only: archive SHA 94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc; public header SHA c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5. No new compiler or generic ensemble process.. Channel: Read-only whole source and exact NsEnsembleImplementationCmd excerpt; independent build receipt metadata.. Dialect: Original C Tcl 8.5.19 ensemble source implementation.
 
 Read-only source branch passes/appends the fixed suffix subcommand ?argument ...?. Parameter-prefix construction, original invocation/header, renderer and actual handler execution require their independent premises; this source observation grants no generic public result or software pass.
 
 ### tcl8.6
 
-Status: `observed`. Version: Pinned source 8.6.18; no generic ensemble execution/version process.. Build: Existing independent Native292 compile receipt only: archive SHA 980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb; public header SHA aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245. No new compiler or generic ensemble process.. Channel: Read-only whole source and exact NsEnsembleImplementationCmdNR excerpt; independent build receipt metadata.. Dialect: Original C Tcl 8.6.18 ensemble source implementation.
+Status: `inspected`. Version: Pinned source 8.6.18; no generic ensemble execution/version process.. Build: Existing independent Native292 compile receipt only: archive SHA 980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb; public header SHA aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245. No new compiler or generic ensemble process.. Channel: Read-only whole source and exact NsEnsembleImplementationCmdNR excerpt; independent build receipt metadata.. Dialect: Original C Tcl 8.6.18 ensemble source implementation.
 
 Read-only source branch passes/appends the fixed suffix subcommand ?arg ...?. Parameter-prefix construction, original invocation/header, renderer and actual handler execution require their independent premises; this source observation grants no generic public result or software pass.
 
 ### tcl9.0
 
-Status: `observed`. Version: Pinned source 9.0.4; no generic ensemble execution/version process.. Build: Existing independent Native292 compile receipt only: archive SHA dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4; public header SHA eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a. No new compiler or generic ensemble process.. Channel: Read-only whole source and exact NsEnsembleImplementationCmdNR excerpt; independent build receipt metadata.. Dialect: Original C Tcl 9.0.4 ensemble source implementation.
+Status: `inspected`. Version: Pinned source 9.0.4; no generic ensemble execution/version process.. Build: Existing independent Native292 compile receipt only: archive SHA dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4; public header SHA eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a. No new compiler or generic ensemble process.. Channel: Read-only whole source and exact NsEnsembleImplementationCmdNR excerpt; independent build receipt metadata.. Dialect: Original C Tcl 9.0.4 ensemble source implementation.
 
 Read-only source branch passes/appends the fixed suffix subcommand ?arg ...?. Parameter-prefix construction, original invocation/header, renderer and actual handler execution require their independent premises; this source observation grants no generic public result or software pass.
 
 ### tcl9.1
 
-Status: `observed`. Version: Pinned source 9.1.0; no generic ensemble execution/version process.. Build: Existing independent Native292 compile receipt only: archive SHA 513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db; public header SHA 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950. No new compiler or generic ensemble process.. Channel: Read-only whole source and exact NsEnsembleImplementationCmdNR excerpt; independent build receipt metadata.. Dialect: Original C Tcl 9.1.0 ensemble source implementation.
+Status: `inspected`. Version: Pinned source 9.1.0; no generic ensemble execution/version process.. Build: Existing independent Native292 compile receipt only: archive SHA 513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db; public header SHA 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950. No new compiler or generic ensemble process.. Channel: Read-only whole source and exact NsEnsembleImplementationCmdNR excerpt; independent build receipt metadata.. Dialect: Original C Tcl 9.1.0 ensemble source implementation.
 
 Read-only source branch passes/appends the fixed suffix subcommand ?arg ...?. Parameter-prefix construction, original invocation/header, renderer and actual handler execution require their independent premises; this source observation grants no generic public result or software pass.
 

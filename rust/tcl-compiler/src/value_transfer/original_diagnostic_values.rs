@@ -302,7 +302,7 @@ mod tests {
                             .argv_texts
                             .last()
                             .is_some_and(|word| word.contains('$')))
-                        .then_some((StatementId { block, index }, tokens.argv.len() - 1))
+                        .then(|| (StatementId { block, index }, tokens.argv.len() - 1))
                     })
             })
             .expect("the original variable-reading call")

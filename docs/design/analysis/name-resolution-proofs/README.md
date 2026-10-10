@@ -5,11 +5,12 @@ trigger, competing interpretations and why the distinction matters to a
 consumer. The question, provider answers and conclusion keep the measured
 input, release and execution context explicit.
 
-Four kinds of evidence have different authority:
+Five kinds of evidence have different authority:
 
 | Kind | What it establishes |
 | --- | --- |
 | `native-observation` | The retained program's actual result on the recorded provider and channel. A guest error is an observation. It does not establish an unexecuted branch or a Rust implementation result. |
+| `native-attempt` | The retained original probe stopped during setup before its intended question was reached. Explicit input/receipt/capture joins retain the failure; every provider answer remains `not-tested` for that question and supplies no execution, teardown or implementation equivalence. |
 | `source-anchor` | The attached source excerpt at its recorded revision. A C source inspection does not establish Jim or closed-source BIG-IP behaviour. |
 | `implementation-contract` | A Rust ownership, withdrawal or consumer invariant. Native observations can motivate it; they do not execute its assertions. |
 | `environment-observation` | A separately identified SDK/libc/tool environment's actual retained result, including failed execution. Its version/target/input channel and answers stay separate from the seven original Tcl/Jim/BIG-IP provider answers. |
@@ -22,6 +23,8 @@ Use `not-tested` when that provider did not answer this question, `unavailable`
 when required evidence bytes are absent, and `unsupported` only for an actual
 captured guest rejection. Never infer a release from a pathname or another
 probe's build. Unrecorded versions, channels and build details stay explicit.
+A `native-attempt` record names the unreached intended question, original probe and source inputs, closed provider receipts, exact failed completion rows and reached failure stages. Its strict setup-only limitation belongs in the conclusion; it cannot carry a positive provider or environment answer.
+
 Each `source-anchor` answer uses `inspected` and that provider's own pinned
 excerpt. An executed guest result belongs to a separate `native-observation`
 record; a C excerpt cannot supply a Jim or appliance answer. An environment record retains explicit measured-environment answers and keeps original providers unmeasured; matching widths or macros cannot certify another runtime library.
@@ -1085,7 +1088,7 @@ Provider-specific answers, original artifacts and limits are in each linked reco
 | [naming.variable.original-entered-receiver-body-context](original-entered-receiver-body-context.md) | `implementation-contract` | How do method IR facts retain the genuine entered provider, receiver axis, original formals and independent variable/execution context? |
 | [naming.variable.original-eval-container-storage-columns](variable-original-eval-container-storage-columns.md) | `native-observation` | What do the six pinned providers return for all ten original variable-container specimens in their exact isolated puts-[eval]-source-file envelope, and do these captured rows match the existing expectation columns byte for byte? |
 | [naming.variable.original-frame-array-trace-caller-access](variable-original-frame-array-trace-caller-access.md) | `native-observation` | What whole before-return/caller values and callback logs do the two original frame-teardown sources produce when unset callbacks use upvar1 and add traces through the resulting caller aliases? |
-| [naming.variable.original-frame-array-trace-retirement-horizon](variable-original-frame-array-trace-retirement-horizon.md) | `native-observation` | Do the two original namespace-alias frame probes reach trace teardown, and what exact completion/result prevents an admitted retirement-horizon observation? |
+| [naming.variable.original-frame-array-trace-retirement-horizon](variable-original-frame-array-trace-retirement-horizon.md) | `native-attempt` | Do the two original namespace-alias frame probes reach trace teardown, and what exact completion/result prevents an admitted retirement-horizon observation? |
 | [naming.variable.original-global-cache-token](variable-original-global-cache-token.md) | `native-observation` | How does reuse of a cached original dynamic global name differ between C8.4/8.5 and C8.6–9.1 source compilation? |
 | [naming.variable.original-increment-representation-frontiers](variable-original-increment-representation-frontiers.md) | `native-observation` | What original current/amount type, residency, reference and identity windows do the fifteen shapes with two sharing modes retain? |
 | [naming.variable.original-level-object-conversion-and-selection](variable.original-level-object-conversion-and-selection.md) | `native-observation` | At current procedure level 2, what original object-cache change, completion code and result bytes occur for the 16 C and independently specified 21 Jim original level operands? |

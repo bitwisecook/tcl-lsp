@@ -460,6 +460,8 @@ fn define_host_command(
     name: &[u8],
     command: Rc<dyn HostCommand>,
 ) -> Result<(), EngineError> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+        .map_err(value_error)?;
     if interp
         .name_policy_protocol()
         .is_some_and(|policy| policy.authority() == tcl_syntax::naming::NamePolicyAuthority::Native)
@@ -479,8 +481,18 @@ fn define_host_command(
             )
         })?;
     let old = interp.namespaces().command_generation(namespace, &simple);
-    retire_host(interp, hosts, panic, old)?;
-    install_host(interp, hosts, panic, namespace, &simple, command)
+    let retirement = retire_host(interp, hosts, panic, old);
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(value_error)?;
+    retirement?;
+    let installed = install_host(interp, hosts, panic, namespace, &simple, command);
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(value_error)?;
+    installed
 }
 
 fn define_prepared_host_command(
@@ -490,6 +502,8 @@ fn define_prepared_host_command(
     publication: &PreparedCommandPublication,
     command: Rc<dyn HostCommand>,
 ) -> Result<(), EngineError> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+        .map_err(value_error)?;
     let selected = native_host_publication::consume(
         interp,
         Rc::clone(hosts),
@@ -498,13 +512,23 @@ fn define_prepared_host_command(
     )?;
     let (namespace, simple, old) = selected
         .ok_or_else(|| EngineError::ExecutionRefusal("creation receipt has no slot".into()))?;
-    retire_host(interp, hosts, panic, old)?;
+    let retirement = retire_host(interp, hosts, panic, old);
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(value_error)?;
+    retirement?;
     if !interp.namespaces().namespace_is_live(namespace) {
         return Err(EngineError::ExecutionRefusal(
             "native publication namespace retired during callback".into(),
         ));
     }
-    install_host(interp, hosts, panic, namespace, &simple, command)
+    let installed = install_host(interp, hosts, panic, namespace, &simple, command);
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(value_error)?;
+    installed
 }
 
 fn retire_host(
@@ -591,6 +615,8 @@ fn remove_host_command(
     panic: &PanicSlot,
     name: &[u8],
 ) -> Result<bool, EngineError> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+        .map_err(value_error)?;
     if interp
         .name_policy_protocol()
         .is_some_and(|policy| policy.authority() == tcl_syntax::naming::NamePolicyAuthority::Native)
@@ -601,11 +627,21 @@ fn remove_host_command(
     }
     let generation = interp.resolve_cmd_token(name);
     native_host_publication::ensure_retirement(interp, Rc::clone(hosts), generation)?;
-    retire_host(interp, hosts, panic, generation)?;
-    Ok(generation.is_some_and(|generation| {
+    let retirement = retire_host(interp, hosts, panic, generation);
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(value_error)?;
+    retirement?;
+    let removed = generation.is_some_and(|generation| {
         hosts.borrow_mut().remove(&generation);
         interp.delete_command_generation(generation)
-    }))
+    });
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(value_error)?;
+    Ok(removed)
 }
 
 fn remove_prepared_host_command(
@@ -614,6 +650,8 @@ fn remove_prepared_host_command(
     panic: &PanicSlot,
     publication: &PreparedCommandPublication,
 ) -> Result<bool, EngineError> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+        .map_err(value_error)?;
     let selected = native_host_publication::consume(
         interp,
         Rc::clone(hosts),
@@ -623,20 +661,41 @@ fn remove_prepared_host_command(
     let Some((namespace, simple, generation)) = selected else {
         return Ok(false);
     };
-    retire_host(interp, hosts, panic, generation)?;
+    let retirement = retire_host(interp, hosts, panic, generation);
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(value_error)?;
+    retirement?;
     // A callback-created replacement has another generation and survives.
     if interp.namespaces().command_generation(namespace, &simple) != generation {
         return Ok(false);
     }
-    Ok(generation.is_some_and(|generation| {
+    let removed = generation.is_some_and(|generation| {
         hosts.borrow_mut().remove(&generation);
         interp.delete_command_generation(generation)
-    }))
+    });
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(value_error)?;
+    Ok(removed)
 }
 
 fn provide_package(interp: &mut Interp, name: &str, version: &str) -> Result<(), EngineError> {
+    let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+        .map_err(value_error)?;
     let code = crate::cmd_package::provide_package(interp, name.as_bytes(), version.as_bytes());
-    capture_answer(interp, code).map(|_| ())
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(value_error)?;
+    let answer = capture_answer(interp, code).map(|_| ());
+    scope
+        .currency()
+        .ensure_current_or_refuse()
+        .map_err(value_error)?;
+    answer
 }
 
 /// The procedure every host command is registered with: the words become the
@@ -1502,6 +1561,107 @@ mod tests {
                 Some("REPLACEMENT")
             );
         }
+    }
+
+    struct RetireChangingContext {
+        interpreter: std::rc::Weak<crate::interp::InterpState>,
+        calls: Rc<std::cell::Cell<usize>>,
+    }
+    impl HostCommand for RetireChangingContext {
+        fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+            Ok(Value::Empty.into())
+        }
+        fn retire_with_registrar(&self, _: &mut dyn CommandRegistrar) -> Result<(), EngineError> {
+            self.calls.set(self.calls.get() + 1);
+            let mut interpreter = self.interpreter.upgrade().map(Interp).unwrap();
+            let original = interpreter.runtime_context();
+            let mut changed = original.clone();
+            changed.packages = vec![("engine-retirement".into(), "1.0".into())];
+            interpreter.pin_context(&changed).unwrap();
+            interpreter.pin_context(&original).unwrap();
+            Err(EngineError::Script {
+                message: "later guest error".into(),
+                code: None,
+            })
+        }
+    }
+
+    #[test]
+    fn host_retirement_context_change_stops_later_definition_and_preserves_original_generation() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut engine = engine("tcl8.6");
+        let calls = Rc::new(std::cell::Cell::new(0));
+        let interpreter = Rc::downgrade(&engine.interp.0);
+        engine
+            .define_command(
+                "retiring",
+                Rc::new(RetireChangingContext {
+                    interpreter,
+                    calls: calls.clone(),
+                }),
+            )
+            .unwrap();
+        let original = engine.interp.resolve_cmd_token(b"retiring");
+        engine.interp.set_result_bytes(b"SEEDED RESULT");
+        let result = engine.interp.get_obj_result();
+        assert!(matches!(
+            engine.define_command("retiring", Rc::new(Constant)),
+            Err(EngineError::ExecutionRefusal(_))
+        ));
+        assert_eq!(calls.get(), 1);
+        assert_eq!(engine.interp.resolve_cmd_token(b"retiring"), original);
+        assert_eq!(engine.interp.get_obj_result(), result);
+        assert_eq!(
+            engine.interp.native_execution_refusal(),
+            Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "stale entered native operation"
+                )
+            ))
+        );
+    }
+
+    #[test]
+    fn package_and_host_publication_keep_pending_first_cause_without_mutation() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut engine = engine("tcl8.6");
+        engine.define_command("kept", Rc::new(Constant)).unwrap();
+        let original = engine.interp.resolve_cmd_token(b"kept");
+        engine.interp.set_result_bytes(b"SEEDED RESULT");
+        let result = engine.interp.get_obj_result();
+        engine
+            .interp
+            .refuse_host_command("original Engine publication refusal");
+        let first = engine.interp.native_execution_refusal();
+        assert!(matches!(
+            engine.provide_package("blocked", "1.0"),
+            Err(EngineError::ExecutionRefusal(_))
+        ));
+        assert!(matches!(
+            engine.define_command("untouched::command", Rc::new(Constant)),
+            Err(EngineError::ExecutionRefusal(_))
+        ));
+        assert!(matches!(
+            engine.remove_command("kept"),
+            Err(EngineError::ExecutionRefusal(_))
+        ));
+        assert_eq!(engine.interp.resolve_cmd_token(b"kept"), original);
+        assert!(engine
+            .interp
+            .resolve_cmd_token(b"untouched::command")
+            .is_none());
+        assert_eq!(engine.interp.get_obj_result(), result);
+        assert_eq!(engine.interp.native_execution_refusal(), first);
+        // An explicit new evaluation clears the refused operation; version2
+        // succeeds only if the refused publication did not install version1.
+        engine.interp.reset_native_compilation_admission();
+        assert!(engine.provide_package("blocked", "2.0").is_ok());
+        assert!(matches!(
+            engine.provide_package("blocked", "1.0"),
+            Err(EngineError::ScriptBytes { .. })
+        ));
     }
 
     struct RetireReplacing(Rc<RefCell<usize>>);

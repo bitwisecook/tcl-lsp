@@ -333,6 +333,19 @@ fn jim_require(interp: &mut Interp, name: &[u8]) -> Code {
 /// Host package provision uses the same selected C package protocol and keeps
 /// the interpreter result unchanged on success.
 pub(crate) fn provide_package(interp: &mut Interp, name: &[u8], version: &[u8]) -> Code {
+    let _scope = match crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
+    {
+        Ok(scope) => scope,
+        Err(cause) => return interp.refuse_native_execution(cause),
+    };
+    let code = provide_package_selected(interp, name, version);
+    if _scope.currency().ensure_current_or_refuse().is_err() {
+        return Code::Error;
+    }
+    code
+}
+
+fn provide_package_selected(interp: &mut Interp, name: &[u8], version: &[u8]) -> Code {
     let Some(protocol) = interp.native_invocation_dialect().native_package_protocol() else {
         return interp.refuse_host_command("package provision protocol");
     };

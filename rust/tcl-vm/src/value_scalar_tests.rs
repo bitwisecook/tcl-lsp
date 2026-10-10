@@ -313,6 +313,20 @@ fn primitive_boolean_storage_and_followup_wide_match_all_native_fixtures() {
             },
             |&version| tcl_registry::InvocationDialect::for_version(version),
         );
+        let jim_native = dialect
+            .native_scalar_getter_protocol()
+            .filter(|protocol| protocol.is_jim084())
+            .map(|_| {
+                crate::native_fixture::core(
+                    tcl_registry::model::ingress::resolve_known_environment("jim")
+                        .expect("known original Jim fixture ingress")
+                        .unit_profile(),
+                )
+            });
+        let jim_context = jim_native.as_ref().map(|vm| {
+            vm.native_jim_object_context()
+                .expect("actual Jim fixture retains its numeric host")
+        });
         for line in fixture.lines() {
             let input = inputs[field(line, "case").parse::<usize>().unwrap()];
             // The C fixture has both storage kinds; Jim's seven rows
@@ -323,6 +337,11 @@ fn primitive_boolean_storage_and_followup_wide_match_all_native_fixtures() {
                 Value::from_string_bytes(input)
             };
             let value = object;
+            if let Some(context) = &jim_context {
+                value
+                    .bind_native_jim_context(context)
+                    .expect("original scalar belongs to the actual Jim fixture");
+            }
             // Fresh C84 numeric Boolean requires the reached actual C stages;
             // the host layout does not donate object or expression authority.
             let boolean = value

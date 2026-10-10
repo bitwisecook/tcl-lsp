@@ -22,31 +22,31 @@ Read-only inspection retains five whole original provider source files, exact fo
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Source-only exact pinned tclCompile.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact forty-line resolver guard excerpt.. Dialect: Pinned original C release source.
+Status: `inspected`. Version: 8.4.20. Build: Source-only exact pinned tclCompile.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact forty-line resolver guard excerpt.. Dialect: Pinned original C release source.
 
 Inspected selector excludes VAR_ARGUMENT|VAR_TEMPORARY|VAR_RESOLVED. Source-branch fact only; no reached resolver, physical slot, runtime shadowing or Native admission observation.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Source-only exact pinned tclProc.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact forty-line resolver guard excerpt.. Dialect: Pinned original C release source.
+Status: `inspected`. Version: 8.5.19. Build: Source-only exact pinned tclProc.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact forty-line resolver guard excerpt.. Dialect: Pinned original C release source.
 
 Inspected path clears VAR_RESOLVED and excludes VAR_ARGUMENT|VAR_TEMPORARY when haveResolvers before namespace/interpreter compiled-variable resolver selection. Source-branch fact only; no reached resolver, physical slot, runtime shadowing or Native admission observation.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Source-only exact pinned tclProc.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact forty-line resolver guard excerpt.. Dialect: Pinned original C release source.
+Status: `inspected`. Version: 8.6.18. Build: Source-only exact pinned tclProc.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact forty-line resolver guard excerpt.. Dialect: Pinned original C release source.
 
 Inspected path clears VAR_RESOLVED and excludes VAR_ARGUMENT|VAR_TEMPORARY when haveResolvers before namespace/interpreter compiled-variable resolver selection. Source-branch fact only; no reached resolver, physical slot, runtime shadowing or Native admission observation.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Source-only exact pinned tclProc.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact forty-line resolver guard excerpt.. Dialect: Pinned original C release source.
+Status: `inspected`. Version: 9.0.4. Build: Source-only exact pinned tclProc.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact forty-line resolver guard excerpt.. Dialect: Pinned original C release source.
 
 Inspected path clears VAR_RESOLVED and excludes VAR_ARGUMENT|VAR_TEMPORARY when haveResolvers before namespace/interpreter compiled-variable resolver selection. Source-branch fact only; no reached resolver, physical slot, runtime shadowing or Native admission observation.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Source-only exact pinned tclProc.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact forty-line resolver guard excerpt.. Dialect: Pinned original C release source.
+Status: `inspected`. Version: 9.1.0. Build: Source-only exact pinned tclProc.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact forty-line resolver guard excerpt.. Dialect: Pinned original C release source.
 
 Inspected path clears VAR_RESOLVED and excludes VAR_ARGUMENT|VAR_TEMPORARY when haveResolvers before namespace/interpreter compiled-variable resolver selection. Source-branch fact only; no reached resolver, physical slot, runtime shadowing or Native admission observation.
 
