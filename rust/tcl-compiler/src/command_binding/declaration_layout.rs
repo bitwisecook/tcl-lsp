@@ -1148,6 +1148,12 @@ impl OriginalDeclarationCallLayoutAdvice {
     pub(crate) fn dialect(&self) -> tcl_registry::InvocationDialect {
         self.layout.dialect()
     }
+
+    /// Readonly closure of the original source candidates. This never closes
+    /// actual handler, operand, provider or activation alternatives.
+    pub(crate) fn source_targets_are_closed(&self) -> bool {
+        self.layout.closed_lookup() && !self.layout.has_opaque_handler_alternatives()
+    }
 }
 
 /// An original operand read in an accepted declaration's local frame.
@@ -1684,6 +1690,17 @@ impl SourceCommandBindings {
 }
 
 impl super::SourceInvocationBinding {
+    /// Original source-backed callees under this binding's unanimous declared
+    /// pre-operand table. No entered target or successful call is supplied.
+    pub(crate) fn declaration_call_layout_advice(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<OriginalDeclarationCallLayoutAdvice> {
+        Some(OriginalDeclarationCallLayoutAdvice {
+            layout: self.original_declared_layout_advice(tokens, true)?,
+        })
+    }
+
     /// Conditional diagnostic cell keys selected by exact original static
     /// operands at their own original point. Alias bindings and byte names
     /// come from every retained snapshot, never from reporting spellings or

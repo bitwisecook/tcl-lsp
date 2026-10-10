@@ -148,17 +148,29 @@ pub unsafe extern "C" fn tcl_engine_restrict(
     allowed: *mut TclObj,
     kept: *mut TclObj,
 ) {
-    let words = |list: *mut TclObj| -> Vec<String> {
-        crate::parse::split_list(&obj_bytes(list))
-            .unwrap_or_default()
-            .into_iter()
-            .map(|word| String::from_utf8_lossy(&word).into_owned())
-            .collect()
+    // SAFETY: caller guarantees the live interpreter and original list objects.
+    let interp = unsafe { &mut *interp };
+    if interp.admit_restriction_purpose().is_err() {
+        return;
+    }
+    let names = interp
+        .restriction_unicode_names(allowed)
+        .and_then(|allowed| {
+            interp
+                .restriction_unicode_names(kept)
+                .map(|kept| (allowed, kept))
+        });
+    let (allowed, kept) = match names {
+        Ok(names) => names,
+        Err(error) => {
+            interp.refuse_restriction_input(error);
+            return;
+        }
     };
-    let (allowed, kept) = (words(allowed), words(kept));
     let allowed: Vec<&str> = allowed.iter().map(String::as_str).collect();
-    // SAFETY: caller guarantees a live interpreter.
-    unsafe { (*interp).restrict_to(&allowed, &kept) }
+    // This compatibility ABI is void: its typed first cause is retained by the
+    // interpreter and must be inspected with the host-refusal query.
+    let _ = interp.restrict_to(&allowed, &kept);
 }
 
 /// `tcl_engine_set_release(interp, profile, length) -> status` — pin the

@@ -5371,10 +5371,7 @@ impl Vm {
                     return None;
                 }
                 let identity = self.builtin_identity_for_key(key)?;
-                let name = tcl_registry::mathfunc::global_command_bare_name(&identity)?;
-                if matches!(name, "rand" | "srand")
-                    || tcl_syntax::expr::mathfunc::spec(name).is_none()
-                {
+                if !tcl_registry::mathfunc::restricted_expression_command_identity(&identity) {
                     return None;
                 }
                 Some(NativeRegisteredCommandToken {

@@ -230,8 +230,9 @@ impl Engine for RuntimeEngine {
     fn restrict_commands(&mut self, allowed: &[&str]) -> Result<(), EngineError> {
         let mut kept: Vec<_> = self.host_commands.borrow().keys().copied().collect();
         kept.extend(self.unit_commands.iter().copied());
-        self.interp.restrict_to_tokens(allowed, &kept);
-        Ok(())
+        self.interp
+            .restrict_to_tokens(allowed, &kept)
+            .map_err(|cause| EngineError::ExecutionRefusal(cause.to_string()))
     }
 
     /// Define the unit as a procedure, `::spectcl::unit::N`. The runtime parses

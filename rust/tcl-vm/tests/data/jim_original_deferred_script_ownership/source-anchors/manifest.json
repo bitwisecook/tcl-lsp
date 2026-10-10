@@ -1,0 +1,36 @@
+{
+  "original_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "retained_version": "0.84-9-g5bac7c9",
+  "version_recipe_source": "rust/tcl-registry/tests/data/native_mathop_jim_original_source/request.json",
+  "scope": "Pinned C source interpretation of actual eval/uplevel fresh concat lifetime. No new provider process or pointer/window observation. Source286/288 diagnostics are independent failed VM software runs.",
+  "anchors": [
+    {
+      "path": "source-anchors/jim-evalobj-entry.c",
+      "original_source": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "line_start": 11554,
+      "line_end": 11580,
+      "sha256": "870fa0a2c577e0008525a845ff4b1a8f77428ca3a0e73dd99e11160a7dad2c92"
+    },
+    {
+      "path": "source-anchors/jim-evalobj-release.c",
+      "original_source": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "line_start": 11780,
+      "line_end": 11796,
+      "sha256": "68ee2734c0b5c05849b275dee752c9f5730ef239c7990221bbffbb24d45d7ecd"
+    },
+    {
+      "path": "source-anchors/jim-eval-core-command.c",
+      "original_source": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "line_start": 14202,
+      "line_end": 14214,
+      "sha256": "44bc2ffd0806d75f49e784f78ceeff4e992ee933ad81858c46cf402c795f6e3f"
+    },
+    {
+      "path": "source-anchors/jim-uplevel-core-command.c",
+      "original_source": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "line_start": 14217,
+      "line_end": 14252,
+      "sha256": "879080829a0cfd71eb731eee1b5a3490bcb2dd46752c70136fa3c56efbbce05a"
+    }
+  ]
+}

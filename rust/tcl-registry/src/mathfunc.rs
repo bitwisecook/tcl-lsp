@@ -252,6 +252,17 @@ pub fn global_command_bare_name(qualified: &str) -> Option<&str> {
     (!bare.is_empty() && !bare.contains("::")).then_some(bare)
 }
 
+/// Whether an authenticated stock registration is an expression worker retained
+/// by the restricted engine surface. The shared roster admits direct global
+/// functions and excludes the interpreter's stateful random generators.
+/// This metadata query never proves that a command is a stock registration.
+#[must_use]
+pub fn restricted_expression_command_identity(identity: &str) -> bool {
+    global_command_bare_name(identity).is_some_and(|bare| {
+        tcl_syntax::expr::mathfunc::spec(bare).is_some() && !matches!(bare, "rand" | "srand")
+    })
+}
+
 /// Whether `qualified` names a command inside *a* `tcl::mathfunc` namespace —
 /// the global `::tcl::mathfunc::sin` or a namespace-local override
 /// `::foo::tcl::mathfunc::f`.
@@ -878,6 +889,28 @@ mod tests {
             None
         );
         assert_eq!(global_command_bare_name("::tcl::mathop::sin"), None);
+    }
+
+    #[test]
+    fn restricted_expression_inventory_uses_shared_roster_and_stateful_policy() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        assert!(restricted_expression_command_identity(
+            "::tcl::mathfunc::abs"
+        ));
+        for identity in [
+            "::tcl::mathfunc::rand",
+            "::tcl::mathfunc::srand",
+            "::tcl::mathfunc::impostor",
+            "::local::tcl::mathfunc::abs",
+            "::tcl::mathfunc::nested::abs",
+            "::tcl::mathop::+",
+        ] {
+            assert!(
+                !restricted_expression_command_identity(identity),
+                "{identity}"
+            );
+        }
     }
 
     #[test]

@@ -2361,3 +2361,36 @@ Restoration preserves measured executable identity and supplies no new build, ru
 The original `cargo test` no-run command selects the five named packages and closes with exit101 after 202.570912s and `uniform_source: true`. Four Compiler fixture/import errors and three Server integration errors block this exact five-package no-run command. The whole Cargo log records no executable event; no test inventory, strict executable pin or unit assertion is produced by this invocation. This record supplies no Native provider failure, assertion outcome or aggregate gate result.
 
 The [unchanged original receipt](frozen287/integration-compiler-registry-core-db-server-test-build287/receipt.json.gz) is retained as lossless gzip with compressed and uncompressed SHA256. The [whole original log](frozen287/integration-compiler-registry-core-db-server-test-build287/tests.log) preserves all seven errors and Cargo events. All 31917 immutable source archive leaves are independently byte-checked. Original command, paths, source association and timing remain unchanged.
+
+## Sealed Source288 VM producer, inventory and independent software outcomes
+
+The exact successful no-run producer and strict copied VM288 image retain their original pin, complete source companion and measured executable identity. The actual inventory lists 752 tests. The paired Jim guard diagnostic fails0 passed/1 failed with Value::drop under eval_original_uplevel before later NativeJimScriptState::new retired access. The independent seven-control software run closes6 passed/1 failed: all five checked completion controls and supported inventory pass. The old negative fails its pre-getter expectation because genuine C8.6 core policy remains present after only the source profile/pin changes to Jim0.79. The later standalone-negative fixture and distinct core/source-positive control are separate unexecuted definitions for this image. No original external provider result, aggregate gate pass or deferred418 assertion outcome follows.
+
+| Closed operation | Recorded outcome | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-vm-own-test-build288` | `compile-passed`, exit0, 140.920935s; one successful artifact event; no assertions | [Original receipt](frozen288/integration-vm-own-test-build288/receipt.json.gz) | [Whole log](frozen288/integration-vm-own-test-build288/tests.log) |
+| `integration-vm-inventory288` | `listed`, exit0, 0.028622s; 752 listed; no assertions | [Original receipt](frozen288/integration-vm-inventory288/receipt.json.gz) | [Whole log](frozen288/integration-vm-inventory288/tests.log) |
+| `integration-vm-jim-retirement-diagnostic288` | `failed`, exit101, 0.274198s; 0 passed/1 failed | [Original receipt](frozen288/integration-vm-jim-retirement-diagnostic288/receipt.json.gz) | [Whole log](frozen288/integration-vm-jim-retirement-diagnostic288/tests.log) |
+| `integration-vm-completion-inventory-tests288` | `failed`, exit101, 2.229806s; 6 passed/1 failed | [Original receipt](frozen288/integration-vm-completion-inventory-tests288/receipt.json.gz) | [Whole log](frozen288/integration-vm-completion-inventory-tests288/tests.log) |
+
+The [exact selection](frozen288/selection/vm-completion-inventory-selection288.json), [original pin metadata](frozen288/sealed-vm-image/pinned-vm288.json), [lossless image record](frozen288/sealed-vm-image/lossless-image-storage.json) and [source companion](frozen288/source-snapshot.json.gz) retain their original associations. All 127688 source leaf associations are independently checked. Current proof IDs attach only where the entire current source leaf matches this frozen image; changed definitions borrow no outcome.
+
+Restore the exact measured executable with both compressed and original integrity checks:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/sealed-vm-image")
+record = json.loads((base / "lossless-image-storage.json").read_text())
+packed = (base / "pinned-vm288.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/pinned-vm288.elf")
+restored.write_bytes(original)
+restored.chmod(0o755)
+```
+
+Restoration proves payload identity only; it supplies no new build, run, Native private/header/frame observation or current assertion pass.

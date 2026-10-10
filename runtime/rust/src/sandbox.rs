@@ -25,42 +25,112 @@
 use crate::interp::Interp;
 
 impl Interp {
-    /// Keep only the commands `allowed` names and those `kept` names (a host's
-    /// commands, compiled units), as the bytecode VM's engine keeps them: an
-    /// allowed `expr` keeps the math functions, which from 8.5 are commands
-    /// (`tcl::mathfunc::abs`), but `rand` and `srand`, whose seed one
-    /// evaluation would leave for the next; and an allowed ensemble keeps the
-    /// commands its subcommands are (`tcl::dict::get` for `dict`). A whitelist,
-    /// never a blacklist: a command the runtime gains later is not reachable.
-    pub fn restrict_to(&mut self, allowed: &[&str], kept: &[String]) {
-        let math = allowed.contains(&"expr");
-        self.retain_commands(&|name: &str| {
-            allowed.contains(&name)
-                || kept.iter().any(|command| command == name)
-                || (math
-                    && name
-                        .strip_prefix("tcl::mathfunc::")
-                        .is_some_and(|function| !matches!(function, "rand" | "srand")))
-                || is_subcommand_of_allowed(name, allowed)
-        });
+    /// Select explicit Unicode names in the original global command table.
+    /// Stock dependencies come from installed generations, independently of
+    /// their current spelling. Host callbacks retain the first typed refusal.
+    pub fn restrict_to(
+        &mut self,
+        allowed: &[&str],
+        kept: &[String],
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        self.admit_restriction_purpose()?;
+        let kept = kept
+            .iter()
+            .filter_map(|name| {
+                self.namespaces()
+                    .resolve_generation(crate::namespace::GLOBAL, name.as_bytes())
+            })
+            .collect::<Vec<_>>();
+        self.restrict_to_tokens(allowed, &kept)
     }
 
-    /// Restrict the command surface while preserving actual host and unit tokens,
-    /// including bindings moved by rename. Opaque reporting bytes do not match
-    /// a Unicode whitelist by replacement decoding.
-    pub(crate) fn restrict_to_tokens(&mut self, allowed: &[&str], kept: &[u64]) {
-        let math = allowed.contains(&"expr");
-        self.retain_command_tokens(&|generation, report| {
-            kept.contains(&generation)
-                || core::str::from_utf8(report).is_ok_and(|name| {
-                    allowed.contains(&name)
-                        || (math
-                            && name
-                                .strip_prefix("tcl::mathfunc::")
-                                .is_some_and(|function| !matches!(function, "rand" | "srand")))
-                        || is_subcommand_of_allowed(name, allowed)
-                })
-        });
+    /// Retain actual host/unit generations and authenticated stock dependencies.
+    /// Displayed names never donate an implementation identity to a replacement.
+    pub(crate) fn restrict_to_tokens(
+        &mut self,
+        allowed: &[&str],
+        kept: &[u64],
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        self.admit_restriction_purpose()?;
+        let mut roots = kept.to_vec();
+        for name in allowed {
+            if let Some(generation) = self
+                .namespaces()
+                .resolve_generation(crate::namespace::GLOBAL, name.as_bytes())
+            {
+                if !roots.contains(&generation) {
+                    roots.push(generation);
+                }
+            }
+        }
+        let retained = self.stock_implementation_generations(&roots);
+        self.retain_command_tokens(&|generation, _| retained.contains(&generation))
+    }
+
+    /// Admit the authentic selected naming purpose before table or getter access.
+    pub(crate) fn admit_restriction_purpose(
+        &mut self,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        if let Some(cause) = self.native_execution_refusal() {
+            return Err(cause);
+        }
+        if self.name_policy_protocol().is_none() {
+            let cause =
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "engine command restriction naming purpose",
+                );
+            self.refuse_native_access(cause);
+            return Err(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                cause,
+            ));
+        }
+        Ok(())
+    }
+
+    /// Decode the complete original list through checked actual getters before
+    /// any restriction effects. An opaque Unicode adapter input is a host refusal.
+    pub(crate) fn restriction_unicode_names(
+        &mut self,
+        original: *mut crate::obj::TclObj,
+    ) -> Result<Vec<String>, tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueOps;
+        if let Some(cause) = self.native_access_refusal() {
+            return Err(cause.into());
+        }
+        if self.host_refusal_pending() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "earlier engine restriction host refusal",
+            ));
+        }
+        if original.is_null() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original engine restriction list",
+            ));
+        }
+        ValueOps::list_elements(self, &original)?
+            .into_iter()
+            .map(|value| {
+                let bytes = ValueOps::native_string_bytes(self, &value)?;
+                core::str::from_utf8(&bytes)
+                    .map(str::to_owned)
+                    .map_err(|error| {
+                        tcl_syntax::raw_string::UnicodeAccessError {
+                            valid_up_to: error.valid_up_to(),
+                            error_len: error.error_len(),
+                        }
+                        .into()
+                    })
+            })
+            .collect()
+    }
+
+    /// Retain the original getter cause outside the Tcl completion channel.
+    pub(crate) fn refuse_restriction_input(&mut self, error: tcl_syntax::value::ValueError) {
+        if let Some(cause) = error.native_access_refusal() {
+            self.refuse_native_access(cause);
+        } else {
+            self.refuse_host_command(format!("engine restriction input failed: {error}"));
+        }
     }
 
     /// Pin the interpreter to the profile `profile` names ([`release_profile`])
@@ -84,10 +154,5 @@ pub fn release_profile(profile: &str) -> Option<&'static tcl_dialect::DialectPro
         .filter(|resolved| resolved.runtime_base.is_some())
 }
 
-/// Whether `name` is the direct form of a subcommand of an ensemble `allowed`
-/// names: `tcl::ENSEMBLE::SUBCOMMAND`.
-fn is_subcommand_of_allowed(name: &str, allowed: &[&str]) -> bool {
-    name.strip_prefix("tcl::")
-        .and_then(|rest| rest.split_once("::"))
-        .is_some_and(|(ensemble, _)| allowed.contains(&ensemble))
-}
+#[cfg(test)]
+mod native_restriction_tests;

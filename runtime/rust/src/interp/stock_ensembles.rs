@@ -380,6 +380,99 @@ impl Interp {
         }
     }
 
+    /// Installed worker generations required by unchanged stock roots. A new
+    /// command at a former worker address never inherits the original receipt.
+    pub(crate) fn stock_implementation_generations(&self, roots: &[u64]) -> Vec<u64> {
+        let mut retained = roots.to_vec();
+        let registrations = self.stock_ensembles.borrow();
+        let stock = self.native_compilation.borrow();
+        let registry = crate::environment::store_for_profile(self.dialect_profile());
+        let mut cursor = 0;
+        while cursor < retained.len() {
+            let root = retained[cursor];
+            cursor += 1;
+            if self
+                .namespaces()
+                .native_command_slot_at_node(root)
+                .is_none()
+            {
+                continue;
+            }
+            let expression = stock.stock.get(&root).is_some_and(|identity| {
+                matches!(self.raw_command_by_generation(root), Some(Command::Builtin(_)))
+                    && std::str::from_utf8(identity).ok().is_some_and(|identity| {
+                        registry.native_compilation_for_registration(
+                            identity, self.native_invocation_dialect(),
+                        ).is_some_and(|spec| {
+                            spec.grammar == tcl_registry::native_compilation::NativeCompilationGrammar::Expression
+                        })
+                    })
+            });
+            if expression {
+                for (&generation, identity) in &stock.stock {
+                    if matches!(
+                        self.raw_command_by_generation(generation),
+                        Some(Command::Builtin(_))
+                    ) && std::str::from_utf8(identity)
+                        .ok()
+                        .is_some_and(tcl_registry::mathfunc::restricted_expression_command_identity)
+                        && self
+                            .namespaces()
+                            .native_command_slot_at_node(generation)
+                            .is_some()
+                        && !retained.contains(&generation)
+                    {
+                        retained.push(generation);
+                    }
+                }
+            }
+            for installed in registrations.families.values() {
+                if installed.generation != root || !self.stock_ensemble_config_matches(installed) {
+                    continue;
+                }
+                for (_, generation) in installed.members.iter().chain(&installed.scripted_helpers) {
+                    let generation = *generation;
+                    if self
+                        .namespaces()
+                        .native_command_slot_at_node(generation)
+                        .is_some()
+                        && !retained.contains(&generation)
+                    {
+                        retained.push(generation);
+                    }
+                }
+            }
+            // A nested stock ensemble can itself be an explicitly retained root.
+            for installed in registrations.families.values() {
+                for (_, generation, config, _) in &installed.nested {
+                    if *generation != root
+                        || !matches!(self.command_by_generation(root),
+                        super::CommandGenerationLookup::Found { command: Command::Ensemble(ensemble), .. }
+                            if ensemble.config() == *config)
+                    {
+                        continue;
+                    }
+                    for (_, prefix) in config.map.iter().flatten() {
+                        let Some(head) = prefix.first() else { continue };
+                        let Some(selected) = self.namespaces().resolve_generation(config.ns, head)
+                        else {
+                            continue;
+                        };
+                        if installed
+                            .members
+                            .iter()
+                            .any(|(_, token)| *token == selected)
+                            && !retained.contains(&selected)
+                        {
+                            retained.push(selected);
+                        }
+                    }
+                }
+            }
+        }
+        retained
+    }
+
     /// Actual distribution helper allocations retain their own runtime
     /// admission, independently of the primitive catalogue's fresh roster.
     pub(super) fn is_stock_scripted_worker(&self, generation: u64) -> bool {

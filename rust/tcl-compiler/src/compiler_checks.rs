@@ -65,6 +65,7 @@ pub struct DiagnosticSourceContext {
     image: tcl_lexer::SourceImage,
     config: tcl_lexer::LexerConfig,
     registry: tcl_registry::RegistrySnapshot,
+    input: crate::analyser::ResolvedAnalysisInput,
 }
 
 impl DiagnosticSourceContext {
@@ -77,6 +78,12 @@ impl DiagnosticSourceContext {
     #[must_use]
     pub const fn lexer_config(&self) -> tcl_lexer::LexerConfig {
         self.config
+    }
+    /// Complete actual availability and source policies used by the issuer.
+    /// This retained input supplies currency only, not an execution grant.
+    #[must_use]
+    pub const fn analysis_input(&self) -> &crate::analyser::ResolvedAnalysisInput {
+        &self.input
     }
     /// Immutable command store used by the diagnostic producer.
     #[must_use]
@@ -630,10 +637,18 @@ pub fn retain_diagnostic_source_context(
         .registry_snapshot
         .as_ref()
         .is_some_and(|snapshot| snapshot.semantic_key() == registry.snapshot().semantic_key());
-    let context = matching.then(|| DiagnosticSourceContext {
-        image: cu.ir_module.source.clone(),
-        config: cu.ir_module.lexer_config,
-        registry: registry.snapshot(),
+    let context = matching.then_some(()).and_then(|()| {
+        let input = crate::registry_invocation::InvocationMetadataContext::for_module(
+            registry,
+            &cu.ir_module,
+        )?
+        .source_analysis_input()?;
+        Some(DiagnosticSourceContext {
+            image: cu.ir_module.source.clone(),
+            config: cu.ir_module.lexer_config,
+            registry: registry.snapshot(),
+            input: input.clone(),
+        })
     });
     for diagnostic in diagnostics {
         diagnostic.source_context.clone_from(&context);

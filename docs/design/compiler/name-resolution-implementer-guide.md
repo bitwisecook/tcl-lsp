@@ -9512,6 +9512,32 @@ Native body admission, current contents, trace or alias absence, numeric
 representation, or runtime observer guards. The [slot-purpose contract](../analysis/name-resolution-proofs/aot-original-slot-purpose.md)
 keeps declaration positions, authored storage and retained frames separate.
 
+## Authored program source templates
+
+Use `OriginalAuthoredProgramSourcePlan::build(module, registry)` for readonly
+statement schemas and future scalar destination templates under an explicitly
+selected `AuthoredSimulation` naming policy. The query checks the retained
+Module source, complete input, configuration, entry and command-store owner,
+then the unanimous original vector and metadata at each statement. Literal
+contents and type advice use the shared original word decoder. Procedure
+candidates join their original allocation to the same retained header/body;
+argument ordinals come from `OriginalDeclaredProcedureArgumentSlots`.
+
+`statements()` records source categories, `storage_templates()` reports counted
+literal destinations and contents, and `residuals()` retains every incomplete
+source premise. `is_complete()` describes source schema accounting only.
+Missing or foreign input, a changed source owner, an unavailable descriptor,
+a replaced target or unsupported original operand cannot be recovered from a
+reporting name. The shared declaration-target lookup and checked original nested
+inventory preserve source horizons and captured operand provenance.
+
+This result cannot supply `ClosedProgramCoverageDecision`, `SealedProgramCell`,
+SSA value identity, a reached write, a Native frame or direct dispatch. A module
+without the independent Native entry/provider keeps its executable admission
+requirement, even when its original source templates are complete. Genuine
+Native compilation uses its own current entry and body admission; that entry
+cannot borrow authored-template applicability or new physical root slots.
+
 ## Original source context for procedure inlining
 
 The Compiler inliner selects `frame::SourceContext::for_module` before

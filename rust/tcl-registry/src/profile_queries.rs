@@ -98,15 +98,6 @@ pub trait ProfileQueries {
     /// The [`OptionSpec`]s of `spec` available under this profile, in
     /// declaration order. (`'static`: spec option tables are interned.)
     fn available_option_specs(&self, spec: &CommandSpec) -> Vec<&'static OptionSpec>;
-
-    /// The [`OptionSpec`]s of subcommand `sub` available under this
-    /// profile (same inheritance as
-    /// [`Self::available_sub_option_names`]).
-    fn available_sub_option_specs(
-        &self,
-        spec: &CommandSpec,
-        sub: &SubCommand,
-    ) -> Vec<&'static OptionSpec>;
 }
 
 /// A profile's vendor command surface summary (see
@@ -221,18 +212,6 @@ impl ProfileQueries for DialectProfile {
             }
         }
         out
-    }
-
-    fn available_sub_option_specs(
-        &self,
-        spec: &CommandSpec,
-        sub: &SubCommand,
-    ) -> Vec<&'static OptionSpec> {
-        let parent = sub.surface.or(spec.surface);
-        sub.options
-            .iter()
-            .filter(|opt| self.is_option_available(opt, parent))
-            .collect()
     }
 }
 

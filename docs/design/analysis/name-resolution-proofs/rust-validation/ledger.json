@@ -130063,6 +130063,294 @@
       "tests": [],
       "question_ids": [],
       "limits": "Four Compiler fixture/import errors and three Server integration errors block this exact five-package no-run command. The whole Cargo log records no executable event; no test inventory, strict executable pin or unit assertion is produced by this invocation. This is a compilation-only failure; no Native provider failure, other-command success or aggregate gate result is inferred."
+    },
+    {
+      "id": "rust.frozen288.integration-vm-own-test-build288",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/integration-vm-own-test-build288/receipt.json.gz",
+        "sha256": "e8ef17a623b7268f0d839d9b1329b1e4259d4320f63c4d0263b2f24ca73e698b",
+        "compression": "gzip",
+        "uncompressed_sha256": "7afad6bc3b65762857989a77cd8b5cfdbd610e4e726aacf56a7b56a0039d60b1"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/integration-vm-own-test-build288/tests.log",
+        "sha256": "7dea365a166e041ce102b9373c4d0bf0aac3c7d0548920e5a8752093a2af934d"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 0,
+      "seconds": 140.92093511798885,
+      "uniform_source": true,
+      "status": "compile-passed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed original receipt retains exact source archive/compile paths, every source hash and command association. All source leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/sealed-vm-image/pinned-vm288.elf.gz",
+        "sha256": "dad0b3028a07078781a50d6de9606f56772fc6fb0eeedf6489517bbbac43b827",
+        "compression": "gzip",
+        "uncompressed_sha256": "b76a514142722d5e14c9e45e5a02825c6fd5a5a7e6864ea4cdaf4209fd78bc02",
+        "uncompressed_bytes": 101693384,
+        "compressed_bytes": 19889861,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/sealed-vm-image/pinned-vm288.json",
+        "metadata_sha256": "31ebf1d1f521cf7cc8b5853b2326eb0f5c4411ce8878052148b4da6fc415a380",
+        "build_receipt_id": "rust.frozen288.integration-vm-own-test-build288",
+        "original_source_snapshot_sha256": "f8beac49fe3414632bdc03803161e4af9e7fc6d34197976690de40a4d43e9b00",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/source-snapshot.json.gz",
+          "sha256": "29cc1ca11469a8447431b5e8f3ced49b9626f7013d97b840923566520b7c4b9d",
+          "compression": "gzip",
+          "uncompressed_sha256": "f8beac49fe3414632bdc03803161e4af9e7fc6d34197976690de40a4d43e9b00"
+        }
+      },
+      "limits": "Successful exact VM no-run producer records one actual tcl_vm libtest artifact. Compilation itself executes no unit assertions. No aggregate gate pass, other-image result or provider outcome is inferred; current purpose extensions cannot borrow this image."
+    },
+    {
+      "id": "rust.frozen288.integration-vm-inventory288",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/integration-vm-inventory288/receipt.json.gz",
+        "sha256": "8ef5a12d80b42aea98d5f0f4ca5be53638c909fb4864d222372652561578f654",
+        "compression": "gzip",
+        "uncompressed_sha256": "641d6897926438a3ea39c2747ff10f6463e37742c639b444085c2146026d72e2"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/integration-vm-inventory288/tests.log",
+        "sha256": "06399c213bba67d8caa4bed25715dba729c9c20c4197a04bb350d5a966ae0c92"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm288.elf",
+        "--list"
+      ],
+      "exit": 0,
+      "seconds": 0.028621645004022866,
+      "uniform_source": true,
+      "status": "listed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed original receipt retains exact source archive/compile paths, every source hash and command association. All source leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/sealed-vm-image/pinned-vm288.elf.gz",
+        "sha256": "dad0b3028a07078781a50d6de9606f56772fc6fb0eeedf6489517bbbac43b827",
+        "compression": "gzip",
+        "uncompressed_sha256": "b76a514142722d5e14c9e45e5a02825c6fd5a5a7e6864ea4cdaf4209fd78bc02",
+        "uncompressed_bytes": 101693384,
+        "compressed_bytes": 19889861,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/sealed-vm-image/pinned-vm288.json",
+        "metadata_sha256": "31ebf1d1f521cf7cc8b5853b2326eb0f5c4411ce8878052148b4da6fc415a380",
+        "build_receipt_id": "rust.frozen288.integration-vm-own-test-build288",
+        "original_source_snapshot_sha256": "f8beac49fe3414632bdc03803161e4af9e7fc6d34197976690de40a4d43e9b00",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/source-snapshot.json.gz",
+          "sha256": "29cc1ca11469a8447431b5e8f3ced49b9626f7013d97b840923566520b7c4b9d",
+          "compression": "gzip",
+          "uncompressed_sha256": "f8beac49fe3414632bdc03803161e4af9e7fc6d34197976690de40a4d43e9b00"
+        }
+      },
+      "limits": "Actual strict VM288 --list inventory records752 tests. Listing supplies no assertion outcome. No aggregate gate pass, other-image result or provider outcome is inferred; current purpose extensions cannot borrow this image."
+    },
+    {
+      "id": "rust.frozen288.integration-vm-jim-retirement-diagnostic288",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/integration-vm-jim-retirement-diagnostic288/receipt.json.gz",
+        "sha256": "10487ddbb755c42fc59ef782a3e433aa4d43eb3d7ea73a57dceebbd9904037f3",
+        "compression": "gzip",
+        "uncompressed_sha256": "9f69d8f355e2ed5abb58c09f3d8256ac06b3e1641988dc11b367a20f3d223583"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/integration-vm-jim-retirement-diagnostic288/tests.log",
+        "sha256": "dba2bc74121f661596e2fb2920c73aab881990c21f97667c80a340ffb9d4495d"
+      },
+      "command": [
+        "env",
+        "TCL_LSP_TRACE_RETIRED_HEADER=1",
+        "/workspace/.proofs/pinned-vm288.elf",
+        "cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 0.2741975660028402,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 751
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed original receipt retains exact source archive/compile paths, every source hash and command association. All source leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers",
+          "status": "failed",
+          "purpose": "Exact paired software retirement diagnostic retains Value::drop in eval_original_uplevel before NativeJimScriptState::new retired access. No original-provider or deferred418 result.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [],
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/sealed-vm-image/pinned-vm288.elf.gz",
+        "sha256": "dad0b3028a07078781a50d6de9606f56772fc6fb0eeedf6489517bbbac43b827",
+        "compression": "gzip",
+        "uncompressed_sha256": "b76a514142722d5e14c9e45e5a02825c6fd5a5a7e6864ea4cdaf4209fd78bc02",
+        "uncompressed_bytes": 101693384,
+        "compressed_bytes": 19889861,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/sealed-vm-image/pinned-vm288.json",
+        "metadata_sha256": "31ebf1d1f521cf7cc8b5853b2326eb0f5c4411ce8878052148b4da6fc415a380",
+        "build_receipt_id": "rust.frozen288.integration-vm-own-test-build288",
+        "original_source_snapshot_sha256": "f8beac49fe3414632bdc03803161e4af9e7fc6d34197976690de40a4d43e9b00",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/source-snapshot.json.gz",
+          "sha256": "29cc1ca11469a8447431b5e8f3ced49b9626f7013d97b840923566520b7c4b9d",
+          "compression": "gzip",
+          "uncompressed_sha256": "f8beac49fe3414632bdc03803161e4af9e7fc6d34197976690de40a4d43e9b00"
+        }
+      },
+      "limits": "One opt-in software Jim guard diagnostic fails with typed Host retired-header refusal and whole paired release/access stacks. It does not execute the60/84 public comparators or current deferred418 controls. No aggregate gate pass, other-image result or provider outcome is inferred; current purpose extensions cannot borrow this image."
+    },
+    {
+      "id": "rust.frozen288.integration-vm-completion-inventory-tests288",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/integration-vm-completion-inventory-tests288/receipt.json.gz",
+        "sha256": "9b2f59d76efca79739a823bdf8bf6b44778a750526ffa76ad2739768aea78dcd",
+        "compression": "gzip",
+        "uncompressed_sha256": "3606613fcf0bc6cf4591f55b1f0a52622b656270fdf1c6900f8e5c11f14c46e6"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/integration-vm-completion-inventory-tests288/tests.log",
+        "sha256": "ef244c40f28716d41894ab143715111ddfe818aec2ffd92d399efc7f9ee3cde2"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm288.elf",
+        "command::native_completion_option_tests::checked_option_mutation_retains_original_opaque_members_and_carrier",
+        "command::native_completion_option_tests::invalid_carried_control_is_a_failure_and_absence_has_its_separate_default",
+        "command::native_completion_option_tests::option_snapshot_preserves_first_host_cause_and_earlier_guest_effects",
+        "error::checked_projection_tests::borrowed_projection_refuses_conversion_and_actual_context_reads_original_values",
+        "error::checked_projection_tests::checked_guest_projection_preserves_first_host_cause_without_materialising",
+        "interp::native_variable_inventory_policy_tests::variable_inventory_uses_the_actual_selected_name_purpose",
+        "interp::native_variable_inventory_policy_tests::unsupported_inventory_policy_refuses_before_a_pattern_getter",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 2.2298061640176456,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 6,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 745
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed original receipt retains exact source archive/compile paths, every source hash and command association. All source leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "command::native_completion_option_tests::checked_option_mutation_retains_original_opaque_members_and_carrier",
+          "status": "passed",
+          "purpose": "Source288 software completion ownership/getter/first-Host-cause control; exact original passed assertion, not original provider behaviour.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "command::native_completion_option_tests::invalid_carried_control_is_a_failure_and_absence_has_its_separate_default",
+          "status": "passed",
+          "purpose": "Source288 software completion ownership/getter/first-Host-cause control; exact original passed assertion, not original provider behaviour.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "command::native_completion_option_tests::option_snapshot_preserves_first_host_cause_and_earlier_guest_effects",
+          "status": "passed",
+          "purpose": "Source288 software completion ownership/getter/first-Host-cause control; exact original passed assertion, not original provider behaviour.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "error::checked_projection_tests::borrowed_projection_refuses_conversion_and_actual_context_reads_original_values",
+          "status": "passed",
+          "purpose": "Source288 software completion ownership/getter/first-Host-cause control; exact original passed assertion, not original provider behaviour.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "error::checked_projection_tests::checked_guest_projection_preserves_first_host_cause_without_materialising",
+          "status": "passed",
+          "purpose": "Source288 software completion ownership/getter/first-Host-cause control; exact original passed assertion, not original provider behaviour.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "interp::native_variable_inventory_policy_tests::unsupported_inventory_policy_refuses_before_a_pattern_getter",
+          "status": "failed",
+          "purpose": "Source288 old negative fixture fails its pre-getter expectation: the actual genuine C8.6 core still supplies name policy after only source profile/pin changes to Jim0.79. Original failure retained; later444 standalone negative/independent-positive are not run by this image.",
+          "proof_ids": []
+        },
+        {
+          "selector": "interp::native_variable_inventory_policy_tests::variable_inventory_uses_the_actual_selected_name_purpose",
+          "status": "passed",
+          "purpose": "Source288 selected variable-inventory software policy control; exact passed simple inventory assertion, not external provider behaviour.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [
+        "naming.embedding.original-host-publication-and-fact-transport"
+      ],
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/sealed-vm-image/pinned-vm288.elf.gz",
+        "sha256": "dad0b3028a07078781a50d6de9606f56772fc6fb0eeedf6489517bbbac43b827",
+        "compression": "gzip",
+        "uncompressed_sha256": "b76a514142722d5e14c9e45e5a02825c6fd5a5a7e6864ea4cdaf4209fd78bc02",
+        "uncompressed_bytes": 101693384,
+        "compressed_bytes": 19889861,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/sealed-vm-image/pinned-vm288.json",
+        "metadata_sha256": "31ebf1d1f521cf7cc8b5853b2326eb0f5c4411ce8878052148b4da6fc415a380",
+        "build_receipt_id": "rust.frozen288.integration-vm-own-test-build288",
+        "original_source_snapshot_sha256": "f8beac49fe3414632bdc03803161e4af9e7fc6d34197976690de40a4d43e9b00",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen288/source-snapshot.json.gz",
+          "sha256": "29cc1ca11469a8447431b5e8f3ced49b9626f7013d97b840923566520b7c4b9d",
+          "compression": "gzip",
+          "uncompressed_sha256": "f8beac49fe3414632bdc03803161e4af9e7fc6d34197976690de40a4d43e9b00"
+        }
+      },
+      "limits": "Seven exact software/API assertions close6 passed/1 failed: all five checked completion controls and the supported inventory control pass. The old negative fixture fails vm.name_policy_protocol().is_none() before pattern getter; it had a genuine C8.6 core and only changed source profile/pin. Later444 correction and added positive remain outside this image. A software pass supplies no external C/Jim/BIG-IP result or Native authority. No aggregate gate pass, other-image result or provider outcome is inferred; current purpose extensions cannot borrow this image."
     }
   ]
 }

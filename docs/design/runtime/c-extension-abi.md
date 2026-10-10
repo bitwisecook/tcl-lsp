@@ -508,9 +508,26 @@ Command installation uses `tcl_engine_create_command_counted` or
 `tcl_engine_define_unit_receipt`. Both return the original interpreter owner,
 interpreter identity, installed generation and one owned object containing the
 publication owner's exact qualified address. The address is replay data; the
-receipt grants access only in its issuing instance. `tcl_engine_restrict_receipts`
-keeps actual installed generations, including a host command renamed since its
-installation. A replacement at the old name has a different generation.
+receipt grants access only in its issuing instance.
+`tcl_engine_restrict_original_receipts` takes a counted, 8-byte-aligned vector
+of `EngineCommandIdentity` headers: three `u64` fields in C order (`owner`,
+`interpreter`, `generation`), 24 bytes per header. It validates the whole vector
+against the actual interpreter before effects and retains those installed
+generations, including renamed host commands. A replacement at the old name
+has a different generation. Wasm sessions carry all three identity fields.
+Explicit Unicode whitelist names are selected once by the actual global command
+resolver. Additional workers come from the unchanged installed stock ensemble
+and expression registration receipts; a displayed namespace prefix grants
+nothing. A reached deletion-callback host failure stops further deletions and
+remains outside guest completion.
+
+`tcl_engine_restrict_receipts` is a compatibility entry for bare generations
+already authenticated in that same interpreter; it cannot validate a foreign
+owner. The Unicode-name compatibility entry `tcl_engine_restrict` decodes both
+original lists with checked native getters before effects. Malformed lists or
+opaque names retain a host refusal; its void return requires the caller to
+inspect `tcl_engine_host_refusal_pending`. Counted restriction returns
+`TCL_ERROR` on that channel, preserving the original first cause.
 `tcl_engine_command_receipt_current` checks the original owner and currently
 selected generation before a compiled handle can cause invocation effects.
 Deletion returns the actual selected command's retirement receipt. Consumers

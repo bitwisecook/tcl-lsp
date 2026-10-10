@@ -277,6 +277,46 @@ impl OriginalSourceConstructorCall {
             && self.class.factory.matches_source(image, config)
             && self.class.factory.matches_context(context)
     }
+    /// Conditional construction syntax in the positively retained Logical
+    /// source model. The canonical factory and selected family own this shape;
+    /// it supplies no Native name, method lookup, receiver or allocated value.
+    #[must_use]
+    pub fn logical_constructor_shape(
+        &self,
+        analysis: &AnalysisResult,
+    ) -> Option<OriginalSourceConstructorShape> {
+        let input = analysis.resolved_input.as_ref()?;
+        let context = input.context_registry();
+        self.matches_source_context(
+            self.original.first()?.image(),
+            input.lexer_config(),
+            &context,
+        )
+        .then_some(())?;
+        let class = self.class.logical_source_class(analysis)?;
+        let first = self.arguments.first()?;
+        if first.original.group().expand {
+            return None;
+        }
+        let word = std::str::from_utf8(first.value.as_deref()?).ok()?;
+        if word.contains('\0') || class.class_methods.contains_key(word) {
+            return None;
+        }
+        let grammar = self.class.grammar(&context)?;
+        if let Some(method) = grammar.manufacturer(word) {
+            let visible = !class.class_unexports.contains(word)
+                && (method.visibility == MemberVisibility::Exported
+                    || class.class_exports.contains(word));
+            return visible.then_some(OriginalSourceConstructorShape::Method(method));
+        }
+        let name_at = grammar.conditional_construction_name_at(
+            word,
+            class.class_methods.keys().map(String::as_str),
+        )?;
+        (name_at == 0).then_some(OriginalSourceConstructorShape::BareWord {
+            constructor_args_from: 1,
+        })
+    }
     /// Exact source construction shape. Unexported methods, declared provider
     /// type methods and ambiguous or opaque selectors have no such projection.
     #[must_use]
@@ -688,6 +728,61 @@ impl AdviceInvocationContext<'_> {
 mod tests {
     use crate::analyser::Analyser;
     use crate::registry_invocation::source_structure::source_constructor_call_at;
+
+    #[test]
+    fn original_logical_constructor_shape_keeps_canonical_factory_without_native_authority() {
+        // naming.source.original-class-constructor-call
+        // docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        for (source, expected) in [
+            ("oo::class create C {method ping {} {}}; [C new] ping", true),
+            (
+                "oo::class create C {method ping {} {}}; interp alias {} make {} C new; [make] ping",
+                true,
+            ),
+            (
+                "oo::class create C {self method new {} {}}; [C new] ping",
+                false,
+            ),
+            (
+                "oo::class create C {}; oo::objdefine C unexport new; [C new] ping",
+                false,
+            ),
+        ] {
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "tcl");
+            let offset = u32::try_from(source.rfind('[').unwrap() + 1).unwrap();
+            let call = source_constructor_call_at(source, &analysis, offset).expect(source);
+            assert_eq!(
+                call.logical_constructor_shape(&analysis).is_some(),
+                expected,
+                "{source}"
+            );
+            assert!(call.constructor_shape(&analysis).is_none());
+            assert!(call.class_declaration().source_class(&analysis).is_none());
+            assert!(
+                call.class_declaration()
+                    .logical_source_class(&analysis)
+                    .is_some()
+            );
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(call.logical_constructor_shape(&missing).is_none());
+            let mut unavailable = analysis.clone();
+            unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+                environment: "tcl8.6".into(),
+                overlay: 999,
+            });
+            assert!(call.logical_constructor_shape(&unavailable).is_none());
+        }
+    }
 
     #[test]
     fn original_class_constructor_call_keeps_alias_prefix_move_and_canonical_declaration() {

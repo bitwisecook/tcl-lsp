@@ -3767,7 +3767,14 @@ impl Interp {
 
     /// Remove one command generation without recovering an address from its report.
     pub(crate) fn delete_command_generation(&mut self, generation: u64) -> bool {
+        if self.host_refusal_pending() {
+            return false;
+        }
+        let original = self.raw_command_by_generation(generation);
         crate::cmd_coro::on_command_deleted(self, generation);
+        if self.host_refusal_pending() {
+            return false;
+        }
         let slot = self.namespaces().native_command_slot_at_node(generation);
         let removed = if let Some((namespace, simple)) = slot {
             self.namespaces_mut().remove_in(namespace, &simple)
@@ -3782,6 +3789,8 @@ impl Interp {
             self.remove_imports_for_deleted_origins([generation], &[]);
             self.retire_pending_native_ensemble_roles();
         }
+        // The original extension delete callback runs outside every table borrow.
+        drop(original);
         removed
     }
 
@@ -5980,14 +5989,23 @@ impl Interp {
     /// `tcl::mathfunc::abs`) `keep` refuses: the whitelist an engine confines
     /// a body to. A command `keep` names keeps its own binding; nothing is
     /// renamed or replaced.
-    pub fn retain_commands(&mut self, keep: &dyn Fn(&str) -> bool) {
-        self.retain_command_tokens(&|_, report| core::str::from_utf8(report).is_ok_and(keep));
+    pub fn retain_commands(
+        &mut self,
+        keep: &dyn Fn(&str) -> bool,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        self.retain_command_tokens(&|_, report| core::str::from_utf8(report).is_ok_and(keep))
     }
 
     /// Keep exact live command generations selected by their original table owners.
     /// Reporting bytes are provided for a caller's byte whitelist; they never
     /// supply the generation used for deletion.
-    pub(crate) fn retain_command_tokens(&mut self, keep: &dyn Fn(u64, &[u8]) -> bool) {
+    pub(crate) fn retain_command_tokens(
+        &mut self,
+        keep: &dyn Fn(u64, &[u8]) -> bool,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        if let Some(cause) = self.native_execution_refusal() {
+            return Err(cause);
+        }
         let refused: Vec<_> = {
             let namespaces = self.namespaces.borrow();
             namespaces
@@ -6005,7 +6023,11 @@ impl Interp {
         };
         for generation in refused {
             self.delete_command_generation(generation);
+            if let Some(cause) = self.native_execution_refusal() {
+                return Err(cause);
+            }
         }
+        Ok(())
     }
 
     /// Whether `name` resolves to a `const` scalar.

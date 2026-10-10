@@ -5873,8 +5873,10 @@ p\uD801 ordinary";
         let config = lexer_cfg_key(&db, "f5-irules");
         let first_file = SourceFile::new(&db, source.to_owned(), "f5-irules".to_owned(), None);
         let second_file = SourceFile::new(&db, source.to_owned(), "f5-irules".to_owned(), None);
-        let first = compilation_unit(&db, first_file, config);
-        let second = compilation_unit(&db, second_file, config);
+        let first = compilation_unit(&db, first_file, config, 0)
+            .expect("zero overlay selects the retained stock F5 Registry");
+        let second = compilation_unit(&db, second_file, config, 0)
+            .expect("zero overlay selects the retained stock F5 Registry");
         let a = first.procedures.get("::when::HTTP_REQUEST").unwrap();
         let b = second.procedures.get("::when::HTTP_REQUEST").unwrap();
         assert!(
@@ -5927,7 +5929,8 @@ p\uD801 ordinary";
         let db = TclDatabase::default();
         let config_key = lexer_cfg_key(&db, "f5-irules");
         let file = SourceFile::new(&db, source.to_owned(), "f5-irules".to_owned(), None);
-        let unit = compilation_unit(&db, file, config_key);
+        let unit = compilation_unit(&db, file, config_key, 0)
+            .expect("zero overlay selects the retained stock F5 Registry");
         let qname = "::when::HTTP_REQUEST";
         let event = unit.ir_module.irules_event_bodies.get(qname).unwrap();
         let procedure = unit.ir_module.procedures.get(qname).unwrap();
@@ -6028,7 +6031,8 @@ p\uD801 ordinary";
             "f5-irules".to_owned(),
             None,
         );
-        let changed_unit = compilation_unit(&db, changed_file, config_key);
+        let changed_unit = compilation_unit(&db, changed_file, config_key, 0)
+            .expect("zero overlay selects the retained stock F5 Registry");
         let foreign = make_key(
             procedure.body.clone(),
             config,
@@ -8381,6 +8385,7 @@ p\uD801 ordinary";
         }
         assert_eq!(runs(), 0, "unchanged document retains the summary memos");
         file.set_text(&mut db).to(changed.clone());
+        let config = lexer_cfg_key(&db, "tcl");
         let after: Vec<_> = ["::quoted", "::braced"]
             .into_iter()
             .map(|caller| summary_dependency_probe(&db, file, config, caller.to_owned()))

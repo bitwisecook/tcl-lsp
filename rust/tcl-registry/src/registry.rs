@@ -7519,45 +7519,6 @@ impl CommandRegistry {
             })
     }
 
-    /// Whether source words prove the option-dependent descriptor layout of
-    /// `spec` (or its selected subcommand).  This is deliberately shared by
-    /// pattern and format queries: both families otherwise risk interpreting
-    /// `$mode` as a positional word before Tcl has decided whether it is an
-    /// option.
-    fn source_descriptor_layout_is_proven(
-        &self,
-        spec: &CommandSpec,
-        sub: Option<&SubCommand>,
-        args: InvocationArguments<'_>,
-        effective_dialect: Option<SurfaceQuery<'_>>,
-    ) -> bool {
-        layout_is_proven_in(
-            spec,
-            sub,
-            args,
-            || {
-                self.profile().map_or_else(
-                    || spec.option_specs(effective_dialect),
-                    |profile| {
-                        crate::profile_queries::ProfileQueries::available_option_specs(
-                            profile, spec,
-                        )
-                    },
-                )
-            },
-            |sub| {
-                self.profile().map_or_else(
-                    || sub_options_at(spec, sub, effective_dialect),
-                    |profile| {
-                        crate::profile_queries::ProfileQueries::available_sub_option_specs(
-                            profile, spec, sub,
-                        )
-                    },
-                )
-            },
-        )
-    }
-
     /// Resolve a subcommand only when its source word has a known literal
     /// value. A dynamic selector cannot be projected into a selected
     /// descriptor's argument layout.

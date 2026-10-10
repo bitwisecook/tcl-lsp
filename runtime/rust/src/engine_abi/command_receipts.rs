@@ -25,6 +25,29 @@ pub struct EngineCommandReceipt {
     pub qualified: *mut TclObj,
 }
 
+/// Original command identity for retention without a borrowed address object.
+/// The same issuing interpreter must still own the installed generation.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct EngineCommandIdentity {
+    /// Process-unique issuing runtime owner.
+    pub owner: u64,
+    /// Original interpreter within that owner.
+    pub interpreter: u64,
+    /// Never-reused installed command generation.
+    pub generation: u64,
+}
+
+impl From<EngineCommandReceipt> for EngineCommandIdentity {
+    fn from(receipt: EngineCommandReceipt) -> Self {
+        Self {
+            owner: receipt.owner,
+            interpreter: receipt.interpreter,
+            generation: receipt.generation,
+        }
+    }
+}
+
 fn original_bytes<'a>(
     interp: &mut Interp,
     bytes: *const u8,
@@ -230,11 +253,13 @@ pub unsafe extern "C" fn tcl_engine_command_receipt_current(
     }
 }
 
-/// Keep actual installed command generations and the explicitly allowed names.
-/// Malformed/opaque whitelist inputs refuse before altering the command table.
+/// Compatibility entry for generations already authenticated in this interpreter.
+/// This vector carries no foreign-owner proof. New counted consumers use
+/// `tcl_engine_restrict_original_receipts`. Malformed Unicode inputs refuse.
 ///
 /// # Safety
-/// Interpreter, allowed original list and counted generation vector are live.
+/// Interpreter, allowed original list and counted generation vector are live;
+/// every generation must originate from this same interpreter.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_engine_restrict_receipts(
     interp: *mut Interp,
@@ -242,7 +267,6 @@ pub unsafe extern "C" fn tcl_engine_restrict_receipts(
     generations: *const u64,
     count: c_int,
 ) -> c_int {
-    use tcl_syntax::value::ValueOps;
     // SAFETY: caller guarantees the live interpreter and original list.
     let interp = unsafe { &mut *interp };
     if interp.host_refusal_pending() {
@@ -258,39 +282,80 @@ pub unsafe extern "C" fn tcl_engine_restrict_receipts(
         interp.refuse_host_command("engine restriction has no original receipts");
         return TCL_ERROR;
     } else {
-        // SAFETY: caller retains the counted original generation vector.
+        // SAFETY: compatibility caller retains this interpreter's counted generations.
         unsafe { core::slice::from_raw_parts(generations, count) }
     };
-    let allowed = match ValueOps::list_elements(interp, &allowed).and_then(|values| {
-        values
-            .into_iter()
-            .map(|value| {
-                let bytes = ValueOps::native_string_bytes(interp, &value)?;
-                core::str::from_utf8(&bytes)
-                    .map(str::to_owned)
-                    .map_err(|error| {
-                        tcl_syntax::raw_string::UnicodeAccessError {
-                            valid_up_to: error.valid_up_to(),
-                            error_len: error.error_len(),
-                        }
-                        .into()
-                    })
-            })
-            .collect::<Result<Vec<_>, tcl_syntax::value::ValueError>>()
-    }) {
-        Ok(allowed) => allowed,
+    restrict_original_generations(interp, allowed, generations)
+}
+
+fn restrict_original_generations(
+    interp: &mut Interp,
+    allowed: *mut TclObj,
+    generations: &[u64],
+) -> c_int {
+    let names = match interp.restriction_unicode_names(allowed) {
+        Ok(names) => names,
         Err(error) => {
-            if let Some(cause) = error.native_access_refusal() {
-                interp.refuse_native_access(cause);
-            } else {
-                interp.refuse_host_command(format!("engine restriction input failed: {error}"));
-            }
+            interp.refuse_restriction_input(error);
             return TCL_ERROR;
         }
     };
-    let words = allowed.iter().map(String::as_str).collect::<Vec<_>>();
-    interp.restrict_to_tokens(&words, generations);
-    TCL_OK
+    let words = names.iter().map(String::as_str).collect::<Vec<_>>();
+    if interp.restrict_to_tokens(&words, generations).is_ok() {
+        TCL_OK
+    } else {
+        TCL_ERROR
+    }
+}
+
+/// Retain full original command identities from the actual issuing interpreter.
+/// Foreign or retired receipts and malformed Unicode inputs refuse before any
+/// command-table effects. Deletion callbacks retain the first host cause.
+///
+/// # Safety
+/// Interpreter, original list and the complete counted identity vector are live.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_engine_restrict_original_receipts(
+    interp: *mut Interp,
+    allowed: *mut TclObj,
+    identities: *const EngineCommandIdentity,
+    count: c_int,
+) -> c_int {
+    // SAFETY: caller retains the original interpreter.
+    let interp = unsafe { &mut *interp };
+    if interp.admit_restriction_purpose().is_err() {
+        return TCL_ERROR;
+    }
+    let Ok(count) = usize::try_from(count) else {
+        interp.refuse_host_command("engine restriction has a negative receipt count");
+        return TCL_ERROR;
+    };
+    let identities = if count == 0 {
+        &[]
+    } else if identities.is_null() {
+        interp.refuse_host_command("engine restriction has no original identities");
+        return TCL_ERROR;
+    } else {
+        // SAFETY: caller supplies all counted repr(C) original identity headers.
+        unsafe { core::slice::from_raw_parts(identities, count) }
+    };
+    let actual = interp.native_callable_interpreter();
+    if identities.iter().any(|identity| {
+        identity.owner != actual.owner
+            || identity.interpreter != actual.interpreter
+            || interp
+                .namespaces()
+                .native_command_slot_at_node(identity.generation)
+                .is_none()
+    }) {
+        interp.refuse_host_command("engine restriction receipt is foreign, retired or replaced");
+        return TCL_ERROR;
+    }
+    let generations = identities
+        .iter()
+        .map(|identity| identity.generation)
+        .collect::<Vec<_>>();
+    restrict_original_generations(interp, allowed, &generations)
 }
 
 /// Whether a reached original host cause prevents every guest object getter.
@@ -489,6 +554,101 @@ mod tests {
             b"ORIGINAL\0\xff"
         );
         assert!(interp.var_get(b"::replacement_ran").is_err());
+    }
+
+    fn installed_generations(interp: &Interp) -> Vec<u64> {
+        interp
+            .namespaces()
+            .native_command_generations()
+            .into_iter()
+            .filter(|generation| {
+                interp
+                    .namespaces()
+                    .native_command_slot_at_node(*generation)
+                    .is_some()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn original_restriction_identity_rejects_foreign_equal_generation_before_effects() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut issuing = core("tcl8.6");
+        let receipt = create(&mut issuing, b"host");
+        // SAFETY: real publication transferred one independently owned address.
+        let _name = unsafe { Owned::from_raw(receipt.qualified) };
+        let mut target = core("tcl8.6");
+        let local = create(&mut target, b"host");
+        // SAFETY: real target publication has its own independent address.
+        let _local_name = unsafe { Owned::from_raw(local.qualified) };
+        assert_eq!(receipt.generation, local.generation);
+        assert_ne!(receipt.owner, local.owner);
+        target.set_result_bytes(b"BEFORE\0\xff");
+        let before = installed_generations(&target);
+        let empty = Owned::fresh(new_string(b""));
+        let identity = EngineCommandIdentity::from(receipt);
+        // SAFETY: both original identity header and original list remain live.
+        assert_eq!(
+            unsafe {
+                tcl_engine_restrict_original_receipts(&mut target, empty.as_ptr(), &identity, 1)
+            },
+            TCL_ERROR
+        );
+        let first = target.native_execution_refusal().unwrap();
+        assert_eq!(installed_generations(&target), before);
+        assert_eq!(target.result_bytes(), b"BEFORE\0\xff");
+        // SAFETY: same refusal must prevent a later otherwise-valid restriction.
+        assert_eq!(
+            unsafe {
+                tcl_engine_restrict_original_receipts(
+                    &mut target,
+                    empty.as_ptr(),
+                    &EngineCommandIdentity::from(local),
+                    1,
+                )
+            },
+            TCL_ERROR
+        );
+        assert_eq!(target.native_execution_refusal(), Some(first));
+        assert_eq!(installed_generations(&target), before);
+    }
+
+    #[test]
+    fn original_restriction_identity_keeps_renamed_generation_and_refuses_retirement() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut interp = core("tcl8.6");
+        let receipt = create(&mut interp, b"host");
+        // SAFETY: actual publication supplied one independently owned address.
+        let _name = unsafe { Owned::from_raw(receipt.qualified) };
+        interp
+            .eval_completion(b"rename host moved; proc host {} {set ::replacement_ran 1}")
+            .unwrap();
+        let identity = EngineCommandIdentity::from(receipt);
+        let allowed = Owned::fresh(new_string(b"rename"));
+        // SAFETY: renamed original generation retains its issuing identity.
+        assert_eq!(
+            unsafe {
+                tcl_engine_restrict_original_receipts(&mut interp, allowed.as_ptr(), &identity, 1)
+            },
+            TCL_OK
+        );
+        assert!(interp.resolve_cmd_token(b"host").is_none());
+        assert_eq!(
+            interp.eval_completion(b"moved").unwrap().result,
+            b"ORIGINAL\0\xff"
+        );
+        interp.eval_completion(b"rename moved {}").unwrap();
+        let before = installed_generations(&interp);
+        // SAFETY: the retained original header is valid data but its token is retired.
+        assert_eq!(
+            unsafe {
+                tcl_engine_restrict_original_receipts(&mut interp, allowed.as_ptr(), &identity, 1)
+            },
+            TCL_ERROR
+        );
+        assert_eq!(installed_generations(&interp), before);
     }
 
     #[test]

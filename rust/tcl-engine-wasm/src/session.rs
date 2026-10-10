@@ -185,7 +185,8 @@ impl Exports {
             exceed: instance.get_typed_func(&mut *store, "tcl_engine_exceed")?,
             spent: instance.get_typed_func(&mut *store, "tcl_engine_commands_spent")?,
             confine: instance.get_typed_func(&mut *store, "tcl_engine_confine_stores")?,
-            restrict: instance.get_typed_func(&mut *store, "tcl_engine_restrict_receipts")?,
+            restrict: instance
+                .get_typed_func(&mut *store, "tcl_engine_restrict_original_receipts")?,
             set_release: instance.get_typed_func(&mut *store, "tcl_engine_set_release")?,
             define_unit: instance.get_typed_func(&mut *store, "tcl_engine_define_unit_receipt")?,
             provide: instance.get_typed_func(&mut *store, "tcl_engine_provide_package")?,
@@ -668,21 +669,24 @@ impl Session {
     pub(crate) fn restrict(&mut self, allowed: &[String]) -> Result<(), Failure> {
         let allowed = self
             .object(tcl_syntax::list::join_list(allowed.iter().map(String::as_str)).as_bytes())?;
-        let generations = self
+        let identities = self
             .store
             .data()
             .host_receipts
             .iter()
             .chain(self.store.data().unit_receipts.values())
-            .map(|receipt| receipt.generation)
+            .map(CommandReceipt::identity_bytes)
             .collect::<Vec<_>>();
-        let bytes = generations
-            .iter()
-            .flat_map(|number| number.to_le_bytes())
-            .collect::<Vec<_>>();
-        let (input, _) = command_receipts::buffer(&mut self.store, &self.exports, &bytes)?;
-        let count = i32::try_from(generations.len())
+        let bytes = identities.iter().flatten().copied().collect::<Vec<_>>();
+        let count = i32::try_from(identities.len())
             .map_err(|_| Failure::Refused("too many command receipts".into()))?;
+        let length = i32::try_from(bytes.len())
+            .map_err(|_| Failure::Refused("too many command identity bytes".into()))?;
+        let input = call(&mut self.store, &self.exports.alloc, (length.max(1), 8))?;
+        self.exports
+            .memory
+            .write(&mut self.store, address(input), &bytes)
+            .map_err(|error| Failure::Trap(wasmtime::Error::new(error)))?;
         let status = call(
             &mut self.store,
             &self.exports.restrict,

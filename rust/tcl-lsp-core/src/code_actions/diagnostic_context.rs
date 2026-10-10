@@ -161,6 +161,7 @@ impl ContextDiagnosticData {
             && context.lexer_config() == config
             && context.registry().semantic_key() == registry.snapshot().semantic_key()
             && context.registry().semantic_key() == current_registry.snapshot().semantic_key()
+            && analysis.resolved_input.as_ref() == Some(context.analysis_input())
             && analysis.matches_original_source_image(context.image(), config)
             && crate::definition::span_to_range(
                 source,
@@ -469,7 +470,7 @@ mod tests {
             .resolved_input
             .as_ref()
             .expect("actual retained analysis input");
-        let cu = tcl_compiler::compilation_unit::CompilationUnit::build_with_context_registry(
+        let cu = tcl_compiler::compilation_unit::CompilationUnit::build_with_analysis_input(
             source,
             tcl_compiler::compilation_unit::UnitBuildOptions {
                 registry,
@@ -480,7 +481,7 @@ mod tests {
                 declared_commands: None,
             },
             entry,
-            input.context_registry(),
+            input,
         )
         .with_interprocedural(registry, Some(profile));
         let diagnostics =
@@ -634,6 +635,44 @@ mod tests {
         );
         analysis.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
         assert!(actions(source, &analysis, &diagnostic).is_empty());
+    }
+
+    #[test]
+    fn original_context_diagnostic_currency_keeps_the_complete_availability_owner() {
+        // naming.editor.original-diagnostic-edit-currency
+        // docs/design/analysis/name-resolution-proofs/original-diagnostic-edit-currency.md
+        // A real source-only taint issuer supplies no Normal or Native effect grant.
+        let source = "set x [gets stdin]\nsubst $x\n";
+        let (analysis, diagnostic) = issued_logical(source, "T100");
+        let registry = analysis.resolved_registry().unwrap();
+        let data = diagnostic.data.as_ref().unwrap();
+        assert!(data.matches(source, &analysis, registry, &diagnostic));
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let older_context = tcl_registry::model::resolve_environment("tcl8.4")
+            .default_context_registry()
+            .with_command_store(registry.snapshot().shared_registry());
+        let older_input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            std::sync::Arc::new(older_context),
+            input.lexer_config(),
+        );
+        assert!(std::sync::Arc::ptr_eq(
+            input.borrowed_context_registry().commands(),
+            older_input.borrowed_context_registry().commands(),
+        ));
+        assert_ne!(input, &older_input);
+        let older = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(older_input)
+            .analyse(source, input.analyser_profile().name);
+        assert!(
+            older.matches_original_source_image(
+                &SourceImage::document(source),
+                input.lexer_config()
+            )
+        );
+        assert!(!data.matches(source, &older, registry, &diagnostic));
+        assert!(actions(source, &older, &diagnostic).is_empty());
     }
 
     // Implementation contract: naming.consumer.original-diagnostic-source-actions

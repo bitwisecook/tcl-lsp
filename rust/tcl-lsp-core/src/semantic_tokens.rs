@@ -98,6 +98,7 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind};
 
 mod original;
+mod receiver_source;
 
 /// Encoded semantic-tokens response.  The `data` array is
 /// the LSP packed integer encoding (5 ints per token: line
@@ -1814,17 +1815,18 @@ fn named_instances_from_analysis(analysis: &AnalysisResult) -> NamedInstanceMap 
 /// in the spec, an un-provenanced receiver) is picked up by the generic
 /// shape-based fallback.  A `$var` / `[cmd]` option value keeps its own
 /// highlight; only literal (`Esc`/`Str`) values are recoloured.
-#[allow(clippy::too_many_arguments)] // one object-dispatch classifier threading resolved context
 fn insert_object_method_overrides(
+    ctx: ScriptCtx<'_>,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-    object_classes: &ObjectClassMap,
-    object_collections: &ObjectClassMap,
     classes: Option<&ClassHierarchy>,
-    document_floor: Option<crate::document_floor::DocumentFloor<'_>>,
-    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
+    let registry = ctx.registry;
+    let object_classes = ctx.object_classes;
+    let document_floor = ctx
+        .analysis
+        .map(|analysis| crate::document_floor::DocumentFloor::new(analysis, ctx.dialect));
+    let dialect = Some(ctx.context.authoring_query());
     let (Some(head_tok), Some(head_text), Some(method)) =
         (seg.argv.first(), seg.texts.first(), seg.texts.get(1))
     else {
@@ -1843,21 +1845,17 @@ fn insert_object_method_overrides(
             .and_then(|name| object_classes.get(name))
             .map(|s| s.iter().cloned().collect())
             .unwrap_or_default(),
-        // `[Class new] method …`: a registry factory, else a *user* class named
-        // by the constructor head (resolved against the class hierarchy, which
-        // is workspace-merged, so a class defined in another file resolves),
-        // else a `[dict get $coll $k]` retrieval from an object collection.
-        TokenType::Cmd => {
-            if let Some(cls) = constructor_class_of_head(head_text, registry) {
-                vec![cls.to_string()]
-            } else if let Some(cls) = user_constructor_class_of_head(head_text, classes, registry) {
-                vec![cls]
-            } else {
-                collection_head_element_classes(head_text, registry, object_collections)
-                    .map(|s| s.iter().cloned().collect())
-                    .unwrap_or_default()
+        // The genuine whole receiver word, child source binding and selected
+        // family determine conditional candidates. Missing canonical class
+        // receipts remain typed unavailable inside the shared receiver path.
+        TokenType::Cmd => match receiver_source::candidates(ctx, seg) {
+            Ok(receiver_source::ReceiverSourceCandidates::ClassNames(classes)) => classes,
+            Ok(receiver_source::ReceiverSourceCandidates::LogicalClass(class)) => {
+                class.insert_method(ctx, seg, classes, overrides);
+                return;
             }
-        }
+            Err(_) => Vec::new(),
+        },
         TokenType::Esc => object_classes
             .get(head_text.as_str())
             .map(|s| s.iter().cloned().collect())
@@ -1978,50 +1976,6 @@ fn insert_registry_method_options(
     }
 }
 
-/// The element classes of a collection-*retrieval* command head — a
-/// single-level `[dict get $coll $key]` or `[lindex $coll $idx]` — looked up in
-/// the object-collection map, or `None` when the head is not such a retrieval
-/// or the collection is not tracked.  Resolves the receiver of a
-/// `[dict get $Pins $pin] configure -node …` dispatch.
-///
-/// Which calls retrieve an element, and from which argument, is registry data
-/// ([`tcl_registry::types::ReturnElements::ElementOf`], read through
-/// [`CommandRegistry::resolve_call`] exactly as the compiler's type inference
-/// reads it) — so `::lindex` and `::dict get` resolve like their bare
-/// spellings, and no command name is matched here.
-fn collection_head_element_classes<'a>(
-    head_text: &str,
-    registry: &CommandRegistry,
-    object_collections: &'a ObjectClassMap,
-) -> Option<&'a std::collections::HashSet<String>> {
-    use tcl_registry::types::ReturnElements;
-
-    let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution_with_config(
-        head_text,
-        tcl_lexer::LexerConfig::for_profile(registry.profile()),
-    )?;
-    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    let resolved = registry.resolve_call(&cmd, &arg_refs, None)?;
-    let ReturnElements::ElementOf { container_arg } = resolved.return_elements()? else {
-        return None;
-    };
-    // The fact's indices are relative to after the subcommand word when one
-    // matched (`dict get $d $k` counts from `$d`).
-    let elem_args = if resolved.sub.is_some() {
-        arg_refs.get(1..).unwrap_or(&[])
-    } else {
-        &arg_refs[..]
-    };
-    // Single-step retrieval only: exactly one index/key word after the
-    // container — a multi-level `dict get $d a b` yields an inner dict, not an
-    // element, so the fact does not apply.
-    let container_idx = usize::from(container_arg);
-    if elem_args.len() != container_idx + 2 {
-        return None;
-    }
-    object_collections.get(object_handle_name(elem_args.get(container_idx)?)?)
-}
-
 /// Whether a *user-defined* class provides `method` for an instance dispatch:
 /// the class hierarchy's MRO resolves it (a declared method on the class or an
 /// ancestor), it is an `TclOO` builtin every instance answers (`destroy`), or
@@ -2133,20 +2087,6 @@ fn object_handle_name(head_text: &str) -> Option<&str> {
     // `var_reference` does not unwrap an unclosed `${x`, preventing a
     // malformed receiver from resolving to the real handle `x`.
     Some(tcl_syntax::naming::var_reference(head_text))
-}
-
-/// The registry class named by a direct manufacturer command-head dispatch,
-/// or `None` when the head is not such a constructor call.
-fn constructor_class_of_head<'r>(
-    head_text: &str,
-    registry: &'r CommandRegistry,
-) -> Option<&'r str> {
-    let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution_with_config(
-        head_text,
-        tcl_lexer::LexerConfig::for_profile(registry.profile()),
-    )?;
-    registry.exported_manufacturer_method(&cmd, args.first()?)?;
-    registry.object_class(&cmd).map(|c| c.class_name)
 }
 
 /// Resolve a class name *as written* at a definer head to a qualified key in
@@ -2278,35 +2218,6 @@ fn original_self_accessor(ctx: ScriptCtx<'_>, head: Token) -> bool {
             _ => false,
         }
     }) == Some(true)
-}
-
-/// The *user-defined* class named by a direct exported manufacturer head,
-/// resolved against `hierarchy` (workspace-merged, so a class defined in
-/// another file resolves).  Returns the qualified class name, or `None` when
-/// the head is not a constructor call on a known class.  The constructor head
-/// *is* the class command, so the class name is the head word itself — matched
-/// as written and `::`-qualified.
-fn user_constructor_class_of_head(
-    head_text: &str,
-    hierarchy: Option<&ClassHierarchy>,
-    registry: &CommandRegistry,
-) -> Option<String> {
-    let hierarchy = hierarchy?;
-    let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution_with_config(
-        head_text,
-        tcl_lexer::LexerConfig::for_profile(registry.profile()),
-    )?;
-    // This layer may know the user class but not the document that established
-    // its metaclass.  Use the registry's conservative exported-manufacturer
-    // union: ambiguity abstains, while a new family automatically widens the
-    // accepted word set without a semantic-token edit.
-    if !args
-        .first()
-        .is_some_and(|method| registry.is_manufacturer_method(method))
-    {
-        return None;
-    }
-    resolve_class_in_hierarchy(hierarchy, &cmd)
 }
 
 /// Variable names a command declares / writes (`ArgRole::VarWrite`) →
@@ -3787,18 +3698,13 @@ fn insert_lexical_user_overrides(
     // naming.core.original-inlay-retained-context
     // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
     insert_object_method_overrides(
+        ctx,
         command,
-        ctx.registry,
-        ctx.object_classes,
-        ctx.object_collections,
         if ctx.original_roles.has_head(command.argv[0].span.start()) {
             None
         } else {
             ctx.classes
         },
-        ctx.analysis
-            .map(|analysis| crate::document_floor::DocumentFloor::new(analysis, ctx.dialect)),
-        Some(ctx.context.authoring_query()),
         overrides,
     );
     insert_oo_body_overrides(

@@ -99,6 +99,7 @@ impl<'a> DiagnosticEditSource<'a> {
             && issuer.image() == self.context.image()
             && issuer.lexer_config() == self.context.config()
             && issuer.registry().semantic_key() == self.registry
+            && self.analysis.resolved_input.as_ref() == Some(issuer.analysis_input())
     }
 }
 
@@ -250,6 +251,36 @@ mod tests {
         );
     }
 
+    fn logical_check_issuer(
+        source: &str,
+        registry: &CommandRegistry,
+        config: LexerConfig,
+    ) -> (AnalysisResult, CompilationUnit) {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::resolve_environment("tcl8.6")
+            .default_context_registry()
+            .with_command_store(registry.snapshot().shared_registry());
+        let input =
+            ResolvedAnalysisInput::new(profile, profile, std::sync::Arc::new(context), config);
+        let current = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, profile.name);
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            tcl_compiler::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        (current, unit)
+    }
+
     #[test]
     fn original_check_actions_require_the_issuers_source_config_and_registry() {
         // Implementation contract: naming.editor.original-diagnostic-edit-currency
@@ -259,8 +290,7 @@ incr x
 ";
         let registry = CommandRegistry::build_default();
         let config = LexerConfig::default();
-        let current = analysis(source, &registry, config);
-        let unit = CompilationUnit::build_for_with_config(source, &registry, false, config);
+        let (current, unit) = logical_check_issuer(source, &registry, config);
         let checks = run_all_checks(&unit, &registry, None);
         assert!(
             checks
@@ -288,22 +318,21 @@ incr x
 incr x
 ";
         let foreign = analysis(foreign_source, &registry, config);
-        let other =
-            DiagnosticEditSource::for_analysis(foreign_source, &report_of(&foreign)).unwrap();
+        let other = DiagnosticEditSource::for_analysis(foreign_source, &foreign).unwrap();
         assert!(
             check_diagnostic_actions(&other, all(), &checks, &disabled, &suppressed).is_empty()
         );
         let mut foreign_config = config;
         foreign_config.expand_syntax = !config.expand_syntax;
         let foreign = analysis(source, &registry, foreign_config);
-        let other = DiagnosticEditSource::for_analysis(source, &report_of(&foreign)).unwrap();
+        let other = DiagnosticEditSource::for_analysis(source, &foreign).unwrap();
         assert!(
             check_diagnostic_actions(&other, all(), &checks, &disabled, &suppressed).is_empty()
         );
         let mut foreign_registry = CommandRegistry::build_default();
         foreign_registry.load_irules();
         let foreign = analysis(source, &foreign_registry, config);
-        let other = DiagnosticEditSource::for_analysis(source, &report_of(&foreign)).unwrap();
+        let other = DiagnosticEditSource::for_analysis(source, &foreign).unwrap();
         assert!(
             check_diagnostic_actions(&other, all(), &checks, &disabled, &suppressed).is_empty()
         );
@@ -321,6 +350,65 @@ incr x
         assert_eq!(
             check_diagnostic_actions(&guard, all(), &prose, &disabled, &suppressed),
             actions
+        );
+    }
+
+    #[test]
+    fn original_check_currency_refuses_same_store_changed_availability_and_missing_input() {
+        // naming.editor.original-diagnostic-edit-currency
+        // docs/design/analysis/name-resolution-proofs/original-diagnostic-edit-currency.md
+        // This conditional source warning supplies no physical frame or Normal effect.
+        let source = "set x hello\nincr x\n";
+        let registry = CommandRegistry::build_default();
+        let config = LexerConfig::default();
+        let (current, unit) = logical_check_issuer(source, &registry, config);
+        let input = current.resolved_input.as_ref().unwrap();
+        let profile = input.unit_profile();
+        let checks = run_all_checks(&unit, &registry, None);
+        assert!(
+            checks
+                .iter()
+                .any(|row| row.code == tcl_compiler::compiler_checks::DiagCode::S100)
+        );
+        let guard = DiagnosticEditSource::for_analysis(source, &current).unwrap();
+        let disabled = HashSet::new();
+        let suppressed: HashMap<i32, HashSet<String>> = HashMap::new();
+        assert!(
+            !check_diagnostic_actions(&guard, all(), &checks, &disabled, &suppressed).is_empty()
+        );
+        let older_context = tcl_registry::model::resolve_environment("tcl8.4")
+            .default_context_registry()
+            .with_command_store(registry.snapshot().shared_registry());
+        let older_input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(older_context),
+            config,
+        );
+        assert!(std::sync::Arc::ptr_eq(
+            input.borrowed_context_registry().commands(),
+            older_input.borrowed_context_registry().commands(),
+        ));
+        assert_ne!(input, older_input);
+        let older = Analyser::new()
+            .with_resolved_input(older_input)
+            .analyse(source, profile.name);
+        let older_guard = DiagnosticEditSource::for_analysis(source, &older).unwrap();
+        assert!(
+            check_diagnostic_actions(&older_guard, all(), &checks, &disabled, &suppressed)
+                .is_empty()
+        );
+        let mut missing_unit = unit.clone();
+        missing_unit.ir_module.source_metadata_input = None;
+        let mut missing = checks.clone();
+        tcl_compiler::compiler_checks::retain_diagnostic_source_context(
+            &missing_unit,
+            &registry,
+            &mut missing,
+        );
+        assert!(missing.iter().all(|row| row.source_context.is_none()));
+        assert!(
+            check_diagnostic_actions(&guard, all(), &missing, &disabled, &suppressed).is_empty()
         );
     }
 

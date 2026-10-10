@@ -8,15 +8,16 @@ use crate::ir::{CommandTokens, Module, Procedure, WordExpr};
 use tcl_registry::CommandRegistry;
 use tcl_syntax::formal_params::FormalArgumentCountShape;
 
-/// A conditional Logical call joined to its genuine original declaration.
-/// Its argument/count model grants no Native invocation, frame or completion.
-pub(crate) struct OriginalLogicalProcedureCall<'a> {
+/// A conditional source call joined to its genuine original declaration.
+/// Logical and authored-simulation issuers retain separate applicability;
+/// this argument/count model grants no Native invocation, frame or completion.
+pub(crate) struct OriginalSourceProcedureCall<'a> {
     procedure: &'a Procedure,
     arguments: super::EffectiveCommandWords,
     count: Option<FormalArgumentCountShape>,
 }
 
-impl<'a> OriginalLogicalProcedureCall<'a> {
+impl<'a> OriginalSourceProcedureCall<'a> {
     pub(crate) const fn procedure(&self) -> &'a Procedure {
         self.procedure
     }
@@ -52,7 +53,7 @@ pub(crate) fn original_logical_procedure_calls_for_module<'a>(
     tokens: &CommandTokens,
     module: &'a Module,
     registry: &CommandRegistry,
-) -> Option<Vec<OriginalLogicalProcedureCall<'a>>> {
+) -> Option<Vec<OriginalSourceProcedureCall<'a>>> {
     let binding = tokens.source_binding.as_ref()?;
     let metadata = binding.original_invocation_metadata_for_module(tokens, module, registry)?;
     if !metadata.permits_logical_source_names() {
@@ -63,6 +64,62 @@ pub(crate) fn original_logical_procedure_calls_for_module<'a>(
     if targets.is_empty() {
         return None;
     }
+    original_procedure_calls_for_targets(tokens, module, &targets, |procedure| {
+        original_procedure_formal_count_shape(module, procedure, registry)
+    })
+}
+
+/// A source calling template under an explicitly authored naming simulation.
+/// It never selects Native dispatch, compiler entry, a frame or completion.
+pub(crate) fn original_authored_procedure_calls_for_module<'a>(
+    tokens: &CommandTokens,
+    module: &'a Module,
+    registry: &CommandRegistry,
+) -> Option<Vec<OriginalSourceProcedureCall<'a>>> {
+    use tcl_syntax::naming::NamePolicyAuthority;
+    if module.source_entry.native_entry.is_some()
+        || module.source_entry.hosted_execution_context.is_some()
+        || module
+            .source_entry
+            .options()
+            .execution_name_policy()?
+            .native_recipe()?
+            .authority()
+            != NamePolicyAuthority::AuthoredSimulation
+    {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    binding.original_invocation_metadata_for_module(tokens, module, registry)?;
+    let advice = binding.declaration_call_layout_advice(tokens)?;
+    if !advice.source_targets_are_closed()
+        || advice.targets().is_empty()
+        || advice.targets().iter().any(|target| {
+            target.registry_backed
+                || target.kind != crate::command_binding::BindingKind::Proc
+                || target.implementation_allocation.is_none()
+        })
+    {
+        return None;
+    }
+    original_procedure_calls_for_targets(tokens, module, advice.targets(), |procedure| {
+        let arguments =
+            crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots::from_module(
+                module, procedure,
+            )?;
+        Some(tcl_syntax::formal_params::formal_argument_count_shape(
+            arguments.arguments().names().iter().map(|_| (false, false)),
+            module.parameter_grammar()?,
+        ))
+    })
+}
+
+fn original_procedure_calls_for_targets<'a>(
+    tokens: &CommandTokens,
+    module: &'a Module,
+    targets: &[crate::command_binding::SourceCommandTarget],
+    count_for_procedure: impl Fn(&Procedure) -> Option<FormalArgumentCountShape>,
+) -> Option<Vec<OriginalSourceProcedureCall<'a>>> {
     targets
         .iter()
         .map(|target| {
@@ -80,9 +137,9 @@ pub(crate) fn original_logical_procedure_calls_for_module<'a>(
             {
                 return None;
             }
-            let count = original_procedure_formal_count_shape(module, procedure, registry);
+            let count = count_for_procedure(procedure);
             let arguments = super::effective_words_for_target(tokens, target)?;
-            Some(OriginalLogicalProcedureCall {
+            Some(OriginalSourceProcedureCall {
                 procedure,
                 arguments,
                 count,

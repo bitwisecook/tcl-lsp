@@ -10,6 +10,41 @@ use tcl_registry::{CommandRegistry, InvocationArguments};
 mod procedure;
 pub use procedure::{OriginalProcedureSourceDescriptor, original_procedure_source_descriptor};
 
+/// One original whole word containing exactly one complete child command.
+/// This readonly lexical projection grants no command selection or execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSingleSourceCommandSubstitution {
+    operand: tcl_lexer::NativeWord,
+    command: tcl_lexer::NativeScriptCommandWords,
+}
+impl OriginalSingleSourceCommandSubstitution {
+    /// The original containing operand, with its full image and lexer policy.
+    #[must_use]
+    pub const fn original_operand(&self) -> &tcl_lexer::NativeWord {
+        &self.operand
+    }
+    /// The single complete original child command and its unchanged words.
+    #[must_use]
+    pub const fn command(&self) -> &tcl_lexer::NativeScriptCommandWords {
+        &self.command
+    }
+}
+
+/// Delegate single-child shape to the existing original executable-word owner.
+/// Literal bracket text, concatenations, multiple commands and malformed tails
+/// refuse. Selection still requires the retained analysis at the child site.
+#[must_use]
+pub fn original_single_source_command_substitution(
+    operand: &tcl_lexer::NativeWord,
+) -> Option<OriginalSingleSourceCommandSubstitution> {
+    crate::command_binding::original_single_command_substitution_words(operand).map(|original| {
+        OriginalSingleSourceCommandSubstitution {
+            operand: original.original_operand().clone(),
+            command: original.command().clone(),
+        }
+    })
+}
+
 fn retained_document_image(
     source: &str,
     realm: &crate::realm::CommandBindingRealm,
@@ -2408,6 +2443,43 @@ pub fn selected_vendor_registry_words_at(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_single_source_child_keeps_whole_operand_and_refuses_literal_brackets() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        for (source, expected) in [
+            ("set x [list cb]", true),
+            ("set x {[list cb]}", false),
+            ("set x \"[list cb]suffix\"", false),
+            ("set x [list cb; list other]", false),
+        ] {
+            let image = tcl_lexer::SourceImage::document(source);
+            let plan = tcl_lexer::native_script_words_in(
+                image.clone(),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                tcl_lexer::LexerConfig::default(),
+            )
+            .unwrap();
+            assert!(plan.fatal_tail.is_none());
+            let operand = &plan.commands[0].words[2];
+            let child = original_single_source_command_substitution(operand);
+            assert_eq!(child.is_some(), expected, "{source}");
+            if let Some(child) = child {
+                assert_eq!(child.original_operand(), operand);
+                assert_eq!(child.command().words.len(), 2);
+                assert!(
+                    child
+                        .command()
+                        .words
+                        .iter()
+                        .all(|word| word.image() == &image)
+                );
+                assert!(child.command().span.start() > operand.span().start());
+                assert!(child.command().span.end() < operand.span().end());
+            }
+        }
+    }
 
     fn selected_subcommand_diagnostic(
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,

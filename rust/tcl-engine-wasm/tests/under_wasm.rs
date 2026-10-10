@@ -1169,3 +1169,46 @@ int OpaqueInventory_Init(Tcl_Interp *interp) {
         "the Unicode catalogue must not publish a replacement identity: {result:?}"
     );
 }
+
+#[test]
+fn restriction_keeps_renamed_stock_roots_without_namespace_prefix_donation() {
+    // Software integration: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let Some(built) = built() else { return };
+    let mut engine = WasmEngine::new(&built.runtime).unwrap();
+    engine.set_release("tcl8.6").unwrap();
+    run(&mut engine, "rename ::dict ::renamed_dict; proc ::tcl::dict::impostor {} {set ::impostor_ran 1}; return READY").unwrap();
+    engine
+        .restrict_commands(&["set", "info", "list", "return", "renamed_dict"])
+        .unwrap();
+    assert_eq!(
+        run(
+            &mut engine,
+            "list [::renamed_dict size {a 1 b 2}] [info commands ::tcl::dict::impostor] [info exists ::impostor_ran]"
+        ),
+        Ok("2 {} 0".to_owned())
+    );
+}
+
+#[test]
+fn restriction_refuses_a_retired_original_host_receipt_before_table_effects() {
+    // Software integration: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let Some(built) = built() else { return };
+    let mut engine = WasmEngine::new(&built.runtime).unwrap();
+    engine.define_command("keeper", Rc::new(Echo)).unwrap();
+    run(
+        &mut engine,
+        "rename ::keeper {}; set ::before RETAINED; return READY",
+    )
+    .unwrap();
+    assert!(matches!(
+        engine.restrict_commands(&["return"]),
+        Err(EngineError::ExecutionRefusal(_))
+    ));
+    // This is a fresh public entry: earlier host refusal does not remove `set`.
+    assert_eq!(
+        run(&mut engine, "list [set ::before] [info commands ::set]"),
+        Ok("RETAINED ::set".to_owned())
+    );
+}

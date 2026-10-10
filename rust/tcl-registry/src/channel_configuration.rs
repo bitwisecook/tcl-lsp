@@ -65,7 +65,6 @@ pub struct AuthoredSourceChannelConfiguration {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::InvocationWord::{Dynamic, Literal};
 
     #[test]

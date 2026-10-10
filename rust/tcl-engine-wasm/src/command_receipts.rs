@@ -18,6 +18,17 @@ pub(crate) struct CommandReceipt {
     pub(crate) qualified: Vec<u8>,
 }
 
+impl CommandReceipt {
+    /// Counted repr(C) identity header, independently of its replay address.
+    pub(crate) fn identity_bytes(&self) -> [u8; 24] {
+        let mut bytes = [0; 24];
+        bytes[..8].copy_from_slice(&self.owner.to_le_bytes());
+        bytes[8..16].copy_from_slice(&self.interpreter.to_le_bytes());
+        bytes[16..].copy_from_slice(&self.generation.to_le_bytes());
+        bytes
+    }
+}
+
 pub(crate) fn call<C: AsContextMut<Data = HostState>, P: WasmParams, R: WasmResults>(
     context: &mut C,
     function: &TypedFunc<P, R>,

@@ -34,6 +34,12 @@ use crate::ssa::{SsaBlock, SsaStatement, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice, TypeShape, type_join};
 use crate::var_escape::{EscapeTag, ProcEscapeSummary, analyse_var_escape_cu_with_registry};
 
+mod authored_source;
+pub use authored_source::{
+    OriginalAuthoredProgramSourceDecline, OriginalAuthoredProgramSourcePlan,
+    OriginalAuthoredSourceResidual, OriginalAuthoredSourceStatement,
+    OriginalAuthoredSourceStatementKind, OriginalAuthoredStorageTemplate,
+};
 mod declared_arguments;
 pub use declared_arguments::{
     DeclaredArgumentDecision, DeclaredArgumentEvidence, DeclaredArgumentIdentity,
@@ -2696,50 +2702,191 @@ mod tests {
     fn authored_program_storage_keeps_original_coverage_without_native_frame_or_body_grants() {
         // naming.variable.aot-original-slot-purpose
         // docs/design/analysis/name-resolution-proofs/aot-original-slot-purpose.md
+        // These positives describe original schemas and future storage templates.
+        // Executable coverage retains its independent entry/provider requirement.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         let unit = authored_program_unit(
             "proc p {x y} {}; set d 2; set e 4; puts [p $d $e]",
             std::sync::Arc::clone(&context),
         );
-        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        let module = &unit.ir_module;
+        assert!(module.source_entry.native_entry.is_none());
+        let source = OriginalAuthoredProgramSourcePlan::build(module, context.commands())
+            .expect("current explicitly authored source owner");
+        assert!(source.is_complete(), "source schemas: {source:#?}");
+        assert_eq!(source.statements().len(), 4);
+        let templates: Vec<_> = source.storage_templates().collect();
+        assert_eq!(templates.len(), 2);
+        for (name, value) in [(b"d".as_slice(), "2"), (b"e".as_slice(), "4")] {
+            let template = templates
+                .iter()
+                .find(|template| template.name().as_bytes() == name)
+                .expect("exact original scalar destination");
+            assert_eq!(template.literal(), value);
+            assert_eq!(
+                template.contents_type().single_shape(),
+                Some(&TypeShape::Int)
+            );
+        }
+        let OriginalAuthoredSourceStatementKind::ProcedureDeclaration {
+            procedure,
+            arguments,
+        } = source.statements()[0].kind()
+        else {
+            panic!("exact original declaration")
+        };
+        assert_eq!(procedure.qualified_name, "::p");
+        assert_eq!(arguments.arguments().ordinal(b"x"), Some(0));
+        assert_eq!(arguments.arguments().ordinal(b"y"), Some(1));
+        assert!(matches!(source.statements()[3].kind(),
+            OriginalAuthoredSourceStatementKind::Invocation { procedures }
+                if procedures.as_slice() == [procedure.clone()]));
+        assert!(
+            crate::native_compilation_admission::script_requires_admission(
+                &module.procedures["::p"].body
+            )
+        );
         let plan = CommonAotProofPlan::build_with_retained_metadata(
             &unit,
             context.commands(),
             enabled(),
             CommonAotEnvironment::SealedProgram,
         );
-        let ClosedProgramCoverageDecision::Selected(coverage) = plan.closed_program_coverage()
-        else {
-            panic!("authored original statement coverage absent: {plan:#?}");
-        };
-        assert_eq!(coverage.statements.len(), 4);
-        for variable in ["d", "e"] {
-            assert!(plan.materialisable_slots().any(|(identity, decision)| {
-                identity.function == "::top" && matches!(decision,
-                    MaterialisableSlotDecision::Selected(evidence)
-                        if evidence.variable == variable && evidence.shape == TypeShape::Int
-                        && matches!(evidence.authority, MaterialisableSlotAuthority::SealedProgramCell { .. })
-                        && evidence.runtime_guards.variable_trace_epoch
-                        && evidence.runtime_guards.interpreter_policy_epoch)
-            }), "authored storage for {variable}: {plan:#?}");
+        assert_eq!(
+            plan.closed_program_coverage(),
+            &ClosedProgramCoverageDecision::Declined(
+                ClosedProgramCoverageDecline::UncoveredStatement
+            )
+        );
+        assert!(
+            plan.direct_calls().any(|(_, decision)| matches!(
+                decision,
+                DirectProcDecision::Declined(DirectProcDecline::NativeCompilationAdmissionRequired)
+            )),
+            "the source template cannot admit this call: {plan:#?}"
+        );
+        assert!(
+            plan.materialisable_slots()
+                .all(|(_, decision)| !matches!(decision, MaterialisableSlotDecision::Selected(_))),
+            "source templates allocate no program or borrowed Native cells: {plan:#?}"
+        );
+    }
+
+    #[test]
+    fn authored_source_templates_withdraw_changed_module_and_point_owners() {
+        // naming.variable.aot-original-slot-purpose
+        // docs/design/analysis/name-resolution-proofs/aot-original-slot-purpose.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = authored_program_unit("set value 2", std::sync::Arc::clone(&context));
+        let module = &unit.ir_module;
+        let baseline =
+            OriginalAuthoredProgramSourcePlan::build(module, context.commands()).unwrap();
+        assert!(baseline.is_complete(), "{baseline:#?}");
+        assert_eq!(baseline.storage_templates().count(), 1);
+        let mut missing = module.clone();
+        missing.source_metadata_input = None;
+        let mut changed_source = module.clone();
+        changed_source.source = tcl_lexer::SourceImage::document("set value OTHER");
+        let mut changed_config = module.clone();
+        changed_config.lexer_config.escapes = tcl_dialect::EscapeSyntax::Tcl84;
+        let mut changed_entry = module.clone();
+        changed_entry.source_entry.unknown_entry = true;
+        let mut changed_namespace = module.clone();
+        changed_namespace.top_level_namespace = "::different".into();
+        for changed in [
+            missing,
+            changed_source,
+            changed_config,
+            changed_entry,
+            changed_namespace,
+        ] {
+            assert_eq!(
+                OriginalAuthoredProgramSourcePlan::build(&changed, context.commands()),
+                Err(OriginalAuthoredProgramSourceDecline::SourceOwnerUnavailable)
+            );
         }
-        let direct = plan
-            .direct_calls()
-            .find_map(|(_, decision)| match decision {
-                DirectProcDecision::Selected(direct) if direct.callee.qualified_name == "::p" => {
-                    Some(direct)
-                }
-                _ => None,
-            })
-            .expect("original empty procedure call retains its independent declaration");
-        assert!(matches!(
-            direct.body,
-            DirectProcBodyDecision::Declined(DirectProcBodyDecline::UnsupportedBodyShape)
-        ));
-        assert!(!direct.frame_elidable);
-        assert!(plan.materialisable_slots().all(|(_, decision)| !matches!(decision,
-            MaterialisableSlotDecision::Selected(evidence) if matches!(evidence.authority, MaterialisableSlotAuthority::NativeFrame(_)))));
+        let mut omitted = module.clone();
+        omitted.top_level.statements.clear();
+        assert_eq!(
+            OriginalAuthoredProgramSourcePlan::build(&omitted, context.commands()),
+            Err(OriginalAuthoredProgramSourceDecline::RootSourceUnavailable)
+        );
+        let foreign = tcl_registry::CommandRegistry::build_default();
+        assert_eq!(
+            OriginalAuthoredProgramSourcePlan::build(module, &foreign),
+            Err(OriginalAuthoredProgramSourceDecline::SourceOwnerUnavailable)
+        );
+        let mut missing_point = module.clone();
+        missing_point.top_level.command_binding_sites.clear();
+        for statement in &mut missing_point.top_level.statements {
+            if let Statement::AssignValue { tokens, .. } | Statement::Call { tokens, .. } =
+                statement
+            {
+                *tokens = None;
+            }
+        }
+        let source =
+            OriginalAuthoredProgramSourcePlan::build(&missing_point, context.commands()).unwrap();
+        assert_eq!(source.residuals().len(), 1);
+        assert_eq!(
+            source.residuals()[0].1,
+            OriginalAuthoredSourceResidual::StatementCarrierUnavailable
+        );
+        assert_eq!(source.storage_templates().count(), 0);
+    }
+
+    #[test]
+    fn authored_source_inventory_keeps_availability_replacement_and_native_entry_separate() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = authored_program_unit("throw ERROR payload", std::sync::Arc::clone(&current));
+        let source =
+            OriginalAuthoredProgramSourcePlan::build(&unit.ir_module, current.commands()).unwrap();
+        assert!(source.is_complete(), "{source:#?}");
+        let older =
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry();
+        let unit = authored_program_unit("throw ERROR payload", std::sync::Arc::clone(&older));
+        let source =
+            OriginalAuthoredProgramSourcePlan::build(&unit.ir_module, older.commands()).unwrap();
+        assert!(!source.is_complete());
+        assert_eq!(
+            source.residuals()[0].1,
+            OriginalAuthoredSourceResidual::StatementSchemaUnavailable
+        );
+        for original in [
+            "proc set args {}; set value 2",
+            "rename set {}; set value 2",
+            "set a(k) 2",
+            "set ::qualified 2",
+            "set value $outside",
+        ] {
+            let unit = authored_program_unit(original, std::sync::Arc::clone(&current));
+            let source =
+                OriginalAuthoredProgramSourcePlan::build(&unit.ir_module, current.commands())
+                    .unwrap();
+            assert!(!source.is_complete(), "{original}: {source:#?}");
+            assert_eq!(source.storage_templates().count(), 0, "{original}");
+        }
+        let entered = native_unit("proc p {x} {}; p VALUE", std::sync::Arc::clone(&current));
+        assert_eq!(
+            OriginalAuthoredProgramSourcePlan::build(&entered.ir_module, current.commands()),
+            Err(OriginalAuthoredProgramSourceDecline::AuthoredPurposeUnavailable)
+        );
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &entered,
+            current.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        assert!(
+            plan.direct_calls().any(|(_, decision)| matches!(decision,
+            DirectProcDecision::Selected(direct) if direct.callee.qualified_name == "::p")),
+            "genuine Native empty-body call remains independent: {plan:#?}"
+        );
     }
 
     #[test]
