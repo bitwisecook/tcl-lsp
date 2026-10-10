@@ -407,11 +407,78 @@ pub(crate) fn known_word_contents(
     span: tcl_lexer::Span,
 ) -> Option<String> {
     unit.functions().find_map(|function| {
-        function.invocation_metadata_context_for_module(registry, &unit.ir_module)?;
+        let metadata =
+            function.invocation_metadata_context_for_module(registry, &unit.ir_module)?;
+        if metadata.permits_logical_source_names() {
+            let values =
+                tcl_compiler::value_transfer::OriginalDiagnosticValues::for_module_function(
+                    &unit.ir_module,
+                    function,
+                    registry,
+                )?;
+            let (statement, word) = values.word_at(span)?;
+            return values.word_contents(statement, word);
+        }
         let config = function.source_metadata_input()?.lexer_config();
         let (statement, word) = function.word_at(span)?;
         let (value, _) =
             tcl_compiler::value_transfer::proven_word_value(function, statement, word, config)?;
         value.as_str().ok().map(str::to_owned)
     })
+}
+
+#[cfg(test)]
+mod original_diagnostic_value_tests {
+    use super::*;
+
+    #[test]
+    fn original_core_word_contents_use_logical_advice_without_executable_constants() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let source = "proc f {} {set p literal.txt; open $p}";
+        let unit = tcl_compiler::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            tcl_compiler::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let start = u32::try_from(source.rfind("$p").unwrap()).unwrap();
+        let span = tcl_lexer::Span::new(start, start + 2);
+        assert_eq!(
+            known_word_contents(&unit, context.commands(), span).as_deref(),
+            Some("literal.txt")
+        );
+        let function = unit.function("::f").unwrap();
+        let (statement, word) = function.word_at(span).unwrap();
+        assert!(
+            tcl_compiler::value_transfer::proven_word_value(function, statement, word, config)
+                .is_none()
+        );
+        let mut missing = unit.clone();
+        missing.ir_module.source_metadata_input = None;
+        assert!(known_word_contents(&missing, context.commands(), span).is_none());
+        let mut stale = unit.clone();
+        stale.ir_module.lexer_config.strict_quoting = !stale.ir_module.lexer_config.strict_quoting;
+        assert!(known_word_contents(&stale, context.commands(), span).is_none());
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        assert!(known_word_contents(&unit, foreign.commands(), span).is_none());
+    }
 }

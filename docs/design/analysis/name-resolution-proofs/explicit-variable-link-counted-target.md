@@ -14,9 +14,13 @@ Which local name, target key and partial namespace state result from the eight o
 
 C8.6/C9.0/C9.1 link local k to the full counted object namespace key k00tail or k00::Q. Encoded C080 and FF names retain their counted spelling. Namespace separators before raw zero reject. The a(k) control rejects while leaving array shell a. A later full-name dynamic write is independent of the clipped local alias. Other providers fail TclOO setup and do not reach LinkVar.
 
+A marked direct VarTable control separates counted-key declaration visibility, alias retention and undefined-value state.
+
 ## Scope
 
 Fresh class/object per original counted argv control. Eight names; link and write controls in v2, plus genuine link/partial-state controls in v1. V1 report and write-final-report recurse through a accidentally shadowing user varname method and cannot corroborate stock varname success. No private declaration, native header/cache, callback, compiler-local or Normal grant.
+
+The body constructs an implementation table directly; it observes no original provider NUL parsing, TclOO my variable invocation, C pointer/header, declaration instruction or native partial-state publication. The original counted explicit-variable operands and their independent public windows remain unchanged. No software passing outcome is attached.
 
 ## Provider answers
 
@@ -149,6 +153,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/namespace.rs](../../../../runtime/rust/src/namespace.rs), `namespace::original_variable_geometry_tests::namespace_variable_roots_keep_qualification_before_zero_and_counted_simple_keys` (linked): Pure selected variable-root geometry: unqualified counted keys retain a separator after raw zero, qualification before zero selects the existing namespace and missing parents decline. The test covers C8.4/C8.5 selected recipes without claiming TclOO availability; the native OO question is C8.6/C9.0/C9.1.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [runtime/rust/src/frame.rs](../../../../runtime/rust/src/frame.rs), `VarTable::mark_namespace_declared`: Retain declared namespace-cell visibility independently of a defined scalar value or active alias, using the complete software counted key.
+- [runtime/rust/src/frame.rs](../../../../runtime/rust/src/frame.rs), `VarTable::has_native_namespace_cell`: Report retained namespace-cell presence separately from scalar definition and value loading.
+- [runtime/rust/src/frame.rs](../../../../runtime/rust/src/frame.rs), `frame::native_inventory_tests::declared_undefined_namespace_cells_remain_visible_without_becoming_defined` (linked): A direct VarTable fixture uses counted k plus NUL plus tail, retains a scalar alias, then marks the namespace cell declared. Dropping the alias keeps the declared name visible while non_link_names is empty, is_set is false and load_scalar is None; removal withdraws visibility. These bytes are software table keys, not an original native name-input observation.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

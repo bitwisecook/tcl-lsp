@@ -91,6 +91,7 @@ pub mod native_object;
 pub mod native_object_append;
 pub mod native_parse_context;
 pub mod native_regex;
+pub mod native_boolean_truth;
 pub mod native_string;
 pub mod native_string_trim;
 pub mod native_tcl_case;

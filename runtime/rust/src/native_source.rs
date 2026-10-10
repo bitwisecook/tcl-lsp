@@ -61,6 +61,28 @@ impl NativeJimObjectContext {
         *self.numeric_host.borrow_mut() = Some(host);
     }
 
+    /// Actual retained host target fields, independent of source grammar.
+    pub(crate) fn scalar_getter_target(
+        &self,
+    ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterTarget, tcl_syntax::value::ValueError>
+    {
+        use tcl_syntax::value::ValueError;
+        if !self.is_live() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "retired Jim interpreter",
+            ));
+        }
+        let host = self
+            .numeric_host
+            .borrow()
+            .clone()
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        let environment = host
+            .numeric_environment()
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        tcl_cmd_core::native_numeric::scalar_getter_target(environment)
+    }
+
     pub(crate) fn fresh_numeric_conversion(
         &self,
         protocol: tcl_syntax::scalar_getter::NativeScalarGetterProtocol,

@@ -266,6 +266,28 @@ impl NativeJimObjectContext {
         *self.numeric_host.borrow_mut() = Some(host);
     }
 
+    /// Actual retained host target fields, independent of source grammar.
+    pub(crate) fn scalar_getter_target(
+        &self,
+    ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterTarget, tcl_syntax::value::ValueError>
+    {
+        use tcl_syntax::value::ValueError;
+        if !self.is_live() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "retired Jim interpreter",
+            ));
+        }
+        let host = self
+            .numeric_host
+            .borrow()
+            .clone()
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        let environment = host
+            .numeric_environment()
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        tcl_cmd_core::native_numeric::scalar_getter_target(environment)
+    }
+
     fn fresh_numeric_conversion(
         &self,
         protocol: tcl_syntax::scalar_getter::NativeScalarGetterProtocol,
@@ -3390,19 +3412,35 @@ impl Value {
             .native_string_protocol()
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
         let current = self.native_scalar_cache();
-        let conversion = if let Some(conversion) = current
+        let target = if protocol.requires_target(kind, current.as_ref()) {
+            Some(if let Some(environment) = environment {
+                tcl_cmd_core::native_numeric::scalar_getter_target(environment)?
+            } else if protocol.is_jim084() {
+                self.native_jim_context()?.scalar_getter_target()?
+            } else {
+                return Err(ValueError::ScalarNumericInputUnavailable);
+            })
+        } else {
+            None
+        };
+        let cached = current
             .as_ref()
-            .and_then(|cache| protocol.cached_conversion(kind, cache))
-        {
+            .map(|cache| protocol.cached_conversion(kind, cache, target))
+            .transpose()
+            .map_err(|_| ValueError::ScalarNumericInputUnavailable)?
+            .flatten();
+        let conversion = if let Some(conversion) = cached {
             conversion
         } else {
             let original = self
                 .native_string_bytes(string_protocol)
-                .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+                .map_err(ValueError::from)?;
             if protocol.is_jim084()
                 && matches!(
                     kind,
-                    NativeScalarGetterKind::Wide | NativeScalarGetterKind::Double
+                    NativeScalarGetterKind::Wide
+                        | NativeScalarGetterKind::Long
+                        | NativeScalarGetterKind::Double
                 )
             {
                 self.native_jim_context()
@@ -3419,14 +3457,15 @@ impl Value {
                 )?
             } else {
                 protocol
-                    .fresh_conversion(kind, &original)
+                    .fresh_conversion_with_target(kind, &original, target)
+                    .map_err(|_| ValueError::ScalarNumericInputUnavailable)?
                     .ok_or(ValueError::ScalarNumericInputUnavailable)?
             }
         };
         let (materialize, cache, outcome) = conversion.into_parts();
         if materialize {
             self.native_string_bytes(string_protocol)
-                .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+                .map_err(ValueError::from)?;
         }
         if let Some(cache) = cache {
             self.adopt_native_scalar_cache(cache, protocol, dialect)?;
@@ -3492,11 +3531,14 @@ impl Value {
         let original = self
             .native_string_bytes(string)
             .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+        let cached_wide = current
+            .as_ref()
+            .map(|cache| protocol.cached_conversion(NativeScalarGetterKind::Wide, cache, None))
+            .transpose()
+            .map_err(|_| ValueError::ScalarNumericInputUnavailable)?
+            .flatten();
         if protocol.expression_integer_spelling84(&original)
-            && current
-                .as_ref()
-                .and_then(|cache| protocol.cached_conversion(NativeScalarGetterKind::Wide, cache))
-                .is_none()
+            && cached_wide.is_none()
             && let Some(environment) = environment
         {
             tcl_cmd_core::native_numeric::fresh_c84_conversion(
@@ -3785,21 +3827,37 @@ impl Value {
         match self.native_scalar_probe_with_environment(dialect, kind, environment)? {
             Ok(value) => Ok(value),
             Err(failure) => {
-                let protocol = dialect
-                    .native_scalar_getter_protocol()
-                    .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-                let string_protocol = dialect
-                    .native_string_protocol()
-                    .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-                let original = self
-                    .native_string_bytes(string_protocol)
-                    .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
-                let record = protocol
-                    .failure_presentation(kind, failure, &original)
-                    .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+                let record = self.native_scalar_failure_presentation(dialect, kind, failure)?;
                 Err(ValueError::NativeScalarGetter(Box::new(record)))
             }
         }
+    }
+
+    /// Render an already reached primitive failure on this original header.
+    /// No second conversion or context-free String access is performed.
+    pub(crate) fn native_scalar_failure_presentation(
+        &self,
+        dialect: tcl_registry::InvocationDialect,
+        kind: NativeScalarGetterKind,
+        failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
+    ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterError, ValueError> {
+        self.check_native_header()?;
+        let protocol = dialect
+            .native_scalar_getter_protocol()
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        let requires_string = protocol
+            .failure_requires_original_string(kind, failure)
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        let record = if requires_string {
+            let string = dialect
+                .native_string_protocol()
+                .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+            let original = self.native_string_bytes(string).map_err(ValueError::from)?;
+            protocol.failure_presentation(kind, failure, &original)
+        } else {
+            protocol.failure_presentation_without_original_string(kind, failure)
+        };
+        record.ok_or(ValueError::ScalarNumericInputUnavailable)
     }
 
     /// Inspect a native integer conversion without reparsing retained source bytes.
@@ -7064,3 +7122,7 @@ mod jim_interpreter_retirement_tests {
         assert_eq!(original.resident_string_bytes().unwrap().as_ref(), b"");
     }
 }
+
+#[cfg(test)]
+#[path = "value_scalar_target_tests.rs"]
+mod native_scalar_target_tests;

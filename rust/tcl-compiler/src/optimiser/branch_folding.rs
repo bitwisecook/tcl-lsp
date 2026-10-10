@@ -638,6 +638,7 @@ mod tests {
             def_use: std::sync::Arc::default(),
             sccp,
             semantic_value_projection: std::sync::Arc::default(),
+            retained_semantic_value_owner: None,
             types: std::sync::Arc::default(),
             return_type: crate::types::TypeLattice::unknown(),
             taints: std::sync::Arc::default(),

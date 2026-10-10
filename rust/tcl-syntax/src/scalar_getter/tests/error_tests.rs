@@ -55,7 +55,10 @@ fn conversion(
         .and_then(|conversion| conversion.cache().cloned());
     prior
         .as_ref()
-        .and_then(|cache| recipe.cached_conversion(kind, cache))
+        .map(|cache| recipe.cached_conversion(kind, cache, None))
+        .transpose()
+        .unwrap()
+        .flatten()
         .or_else(|| recipe.fresh_conversion(kind, bytes))
         .unwrap()
 }

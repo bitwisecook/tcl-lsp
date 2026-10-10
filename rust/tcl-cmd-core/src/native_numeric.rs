@@ -9,6 +9,25 @@ use tcl_syntax::{
     value::ValueError,
 };
 
+/// Validate descriptive C target fields supplied by the selected actual host.
+/// This grants no object, interpreter, original-handler or expression authority.
+///
+/// # Errors
+/// Refuses absent or unsupported target fields outside guest conversion.
+pub fn scalar_getter_target(
+    environment: &dyn NumericEnvironment,
+) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterTarget, ValueError> {
+    let abi = environment
+        .c_integer_abi()
+        .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+    tcl_syntax::scalar_getter::NativeScalarGetterTarget::from_c_integer_abi(
+        abi.char_bits,
+        abi.int_bytes,
+        abi.long_bytes,
+    )
+    .map_err(|_| ValueError::ScalarNumericInputUnavailable)
+}
+
 /// Observe C8.4's reached nonfinite result without resetting thread state.
 /// Finite values and known NaN domain errors require no environment query;
 /// infinity requires an actual EDOM fact before selecting overflow.
@@ -125,6 +144,18 @@ pub fn fresh_jim_conversion(
     environment: &dyn NumericEnvironment,
 ) -> Result<NativeScalarGetterConversion, ValueError> {
     let unavailable = || ValueError::ScalarNumericInputUnavailable;
+    if kind == NativeScalarGetterKind::Long {
+        let target = scalar_getter_target(environment)?;
+        let wide = fresh_jim_conversion(
+            protocol,
+            NativeScalarGetterKind::Wide,
+            materialized,
+            environment,
+        )?;
+        return protocol
+            .jim_long64_from_wide(wide, target)
+            .map_err(|_| unavailable());
+    }
     protocol
         .jim_unsigned_stage(materialized)
         .ok_or_else(unavailable)?;
@@ -275,6 +306,73 @@ mod tests {
             count += 1;
         }
         assert_eq!(count, 104);
+    }
+
+    #[test]
+    fn original_jim_long_uses_actual_unsigned_stage_and_retained_target_layout() {
+        // naming.numeric.original-capi-scalar-publication-width
+        // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+        // These selected fresh public Long rows exercise the actual errno stage;
+        // they are independent of a NativeWide API result or expression truth.
+        let fixture = include_str!(
+            "../../tcl-registry/tests/data/native_capi_scalar_publication_original/linked-jim458/jim/execute-live.stdout"
+        );
+        let field = |line: &str, key: &str| -> String {
+            line.split('\t')
+                .find_map(|part| {
+                    let (name, value) = part.split_once('=')?;
+                    (name == key).then(|| value.to_owned())
+                })
+                .unwrap()
+        };
+        let host = tcl_host_c_abi::NativeNumericEnvironment;
+        let abi = fixture
+            .lines()
+            .find(|line| line.starts_with("ABI\t"))
+            .unwrap();
+        let actual = host.c_integer_abi().unwrap();
+        assert_eq!(actual.char_bits.to_string(), field(abi, "CHAR_BIT"));
+        assert_eq!(actual.int_bytes.to_string(), field(abi, "int"));
+        assert_eq!(actual.long_bytes.to_string(), field(abi, "long"));
+        let protocol =
+            NativeScalarGetterProtocol::for_point(DialectPoint::canonical(Release::JIM_0_84))
+                .unwrap();
+        for (case, input) in [
+            (7, b"9223372036854775807".as_slice()),
+            (8, b"9223372036854775808"),
+            (9, b"18446744073709551615"),
+            (10, b"18446744073709551616"),
+            (11, b"-18446744073709551615"),
+            (12, b"-9223372036854775809"),
+        ] {
+            let row = fixture
+                .lines()
+                .find(|line| {
+                    line.starts_with("ROW\t")
+                        && field(line, "case") == case.to_string()
+                        && field(line, "getter") == "1"
+                })
+                .unwrap();
+            // The original probe resets errno immediately before each getter.
+            // This explicit harness reset is not an effect of Jim_GetLong.
+            host.reset().unwrap();
+            let conversion =
+                fresh_jim_conversion(protocol, NativeScalarGetterKind::Long, input, &host).unwrap();
+            let Ok(NativeScalarGetterValue::Wide(value)) = conversion.outcome() else {
+                panic!("{row}")
+            };
+            assert_eq!(field(row, "code"), "0");
+            assert_eq!(value.to_string(), field(row, "long"), "{row}");
+            assert_eq!(
+                conversion.cache(),
+                Some(&NativeScalarCache::Number(Number::Int(value)))
+            );
+            assert_eq!(
+                host.state().unwrap().errno.to_string(),
+                field(row, "errno"),
+                "{row}"
+            );
+        }
     }
 }
 

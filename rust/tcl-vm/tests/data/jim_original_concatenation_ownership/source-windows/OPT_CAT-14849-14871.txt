@@ -1,0 +1,23 @@
+        case OPT_CAT:{
+                Jim_Obj *objPtr;
+                if (argc == 3) {
+                    /* optimise the one-arg case */
+                    objPtr = argv[2];
+                }
+                else {
+                    int i;
+
+                    objPtr = Jim_NewStringObj(interp, "", 0);
+
+                    for (i = 2; i < argc; i++) {
+                        Jim_AppendObj(interp, objPtr, argv[i]);
+                    }
+                }
+                Jim_SetResult(interp, objPtr);
+                return JIM_OK;
+            }
+
+        case OPT_COMPARE:
+        case OPT_EQUAL:
+            {
+                /* n is the number of remaining option args */

@@ -14,9 +14,13 @@ Which exact original source bytes, particularly trailing spaces/tabs/continuatio
 
 All five recorded C releases catch each of seven error specimens with code one and marker, and read ::errorInfo successfully. Its public command excerpt excludes leading indentation and the semicolon/newline separator but retains trailing spaces or literal tabs and complete quote/brace closers. EOF, semicolon, newline, quoted and braced examples retain three trailing spaces; the tab example retains tab-space-tab. The continuation script VALUE reported by SOURCE is error marker with a leading space and two trailing spaces on C, because the outer braced value has already formed that script; the error excerpt retains its two spaces. The source_error procedure likewise reports its error command with three trailing spaces. C8.5/8.6/9.0/9.1 catch info frame successfully and return source_frame_target plus three spaces in both measured caller-command fields; C8.4 catches unsupported info frame with code one and executes no frame branch. Jim 0.84-9-g5bac7c9 catches all seven errors with marker, but every explicit ::errorInfo read is caught with code one and its no-such-variable result. Jim info frame is actually available with code zero; both measured cmd fields are source_frame_target without trailing spaces. Its reported continuation script retains the literal backslash/newline and three following spaces, unlike the C-formed value. These public outcomes and their complete hex-encoded spellings are retained independently of raw source/request anticipations. Six whole processes exit zero with empty stderr; BIG-IP is not tested. No private frame/header/table identity, bytecode engine choice, Native compiler admission, list-object representation, NUL/Unicode, arbitrary script law or edit authority follows.
 
+A marked default Runtime definition binds four concrete public errorInfo expectations to the shared command-slice/logging owner.
+
 ## Scope
 
 One exact ASCII LF CLI file, including literal ASCII tabs and a literal braced backslash-newline, per fresh provider process. Seven eval specimens print their actual script VALUES as hex before caught evaluation, keeping value formation distinct from original file bytes. A procedure error and two info-frame caller commands are separate public controls. No compile/disassemble branch labels the actual engine; interpreted-versus-bytecode implementation cannot be inferred solely from these excerpts. The optional info-frame branch is governed by its actual caught availability result, not request expectations. C8.4 supplies no frame cmd observation; Jim supplies actual cmd text but no successful ::errorInfo read in this script. No general exception-option/errorStack surface or provider-wide absence is asserted.
+
+This body uses the default leak_free interpreter and checks four software result strings. Its expectations do not establish every provider release, source byte offset, object/header identity, native opcode, compiled engine choice or a general errorStack protocol. Exact original CLI command-extent observations and their availability boundaries stay independent; no executed software result is attached.
 
 ## Provider answers
 
@@ -100,6 +104,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/codegen/statements.rs](../../../../rust/tcl-compiler/src/codegen/statements.rs), `codegen::statements::tests::original_c_source_reporting_retains_parser_extent_without_promoting_vectors_or_jim` (linked): C recipe emitter uses parser-issued physical reporting extent while vector-only/Jim/unknown recipe retains represented span; opaque byte coverage is implementation-only, not an additional native observed input.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs), `Interp::log_command_info`: Pass the actual parsed command slice and source line to the shared reached error-log owner; an already logged nested command suppresses enclosing duplicate logging.
+- [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs), `Interp::log_command_bytes`: Retain reached command bytes, selected error-log policy and frame-relative line through shared errorInfo/errorStack publication.
+- [runtime/rust/src/cmd_error.rs](../../../../runtime/rust/src/cmd_error.rs), `cmd_error::tests::error_info_stack_traces` (linked): Four default Interp public errorInfo strings assert trailing space in a simple proc command, body-relative multiline line3, suppression of the enclosing nested-substitution command, and the apply lambda frame. These are software expectations, not new six-provider excerpt or source-offset observations.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

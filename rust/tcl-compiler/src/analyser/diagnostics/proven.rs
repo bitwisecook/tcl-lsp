@@ -44,8 +44,8 @@ use tcl_lexer::{Span, Token, TokenType};
 use crate::analyser::state::Analyser;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::value_transfer::{
-    StatementId, SubstitutionHost, proven_return_word_value, proven_substituted_word_value,
-    proven_word_value, return_command_tokens, substitution_calls,
+    OriginalDiagnosticValues, StatementId, SubstitutionHost, proven_return_word_value,
+    proven_substituted_word_value, proven_word_value, return_command_tokens, substitution_calls,
 };
 use crate::word_subst::LiftedCall;
 
@@ -131,6 +131,9 @@ enum WordAddress {
 /// substitutions their words and their blocks' terminators perform, and of
 /// the `return` commands their blocks end with, by its absolute span.
 struct WordIndex<'u> {
+    /// Identity of this borrowed function is only local index bookkeeping;
+    /// each value owner validates its actual Module and projection inputs.
+    logical_values: FxHashMap<*const FunctionUnit, OriginalDiagnosticValues<'u>>,
     words: FxHashMap<(u32, u32), (&'u FunctionUnit, WordAddress)>,
     /// Each host's command substitutions, as [`substitution_calls`] lifts
     /// them, with the host's absolute span.
@@ -150,6 +153,7 @@ impl<'u> WordIndex<'u> {
         surface: &tcl_registry::model::DocumentCommandSurface<'_>,
     ) -> Self {
         let mut index = Self {
+            logical_values: FxHashMap::default(),
             words: FxHashMap::default(),
             hosts: Vec::new(),
             returns: Vec::new(),
@@ -191,23 +195,42 @@ impl<'u> WordIndex<'u> {
             return index;
         }
         for fu in units {
-            if fu
-                .invocation_metadata_context_for_module(registry, &cu.ir_module)
-                .is_none()
-            {
+            let Some(metadata) = fu.invocation_metadata_context_for_module(registry, &cu.ir_module)
+            else {
                 continue;
+            };
+            if metadata.permits_logical_source_names() {
+                let Some(values) =
+                    OriginalDiagnosticValues::for_module_function(&cu.ir_module, fu, registry)
+                else {
+                    continue;
+                };
+                index.logical_values.insert(std::ptr::from_ref(fu), values);
             }
             let config = fu.source_lexer_config();
-            for &block in &fu.sccp.executable_blocks {
+            let blocks: Vec<_> = fu
+                .cfg
+                .blocks
+                .keys()
+                .copied()
+                .filter(|block| {
+                    index
+                        .logical_values
+                        .get(&std::ptr::from_ref(fu))
+                        .map_or_else(
+                            || fu.sccp.executable_blocks.contains(block),
+                            |values| values.reaches(*block),
+                        )
+                })
+                .collect();
+            for block in blocks {
                 let Some(cfg_block) = fu.cfg.blocks.get(&block) else {
                     continue;
                 };
                 for (at, statement) in cfg_block.statements.iter().enumerate() {
                     let id = StatementId { block, index: at };
-                    if let crate::ir::Statement::Call {
-                        tokens: Some(tokens),
-                        ..
-                    } = statement
+                    if matches!(statement, crate::ir::Statement::Call { .. })
+                        && let Some(tokens) = fu.cfg.source_tokens_at(block, at)
                         && tokens.synthetic.is_none()
                     {
                         for (word, &span) in tokens.argv.iter().enumerate() {
@@ -253,7 +276,14 @@ impl<'u> WordIndex<'u> {
         source: &str,
         config: tcl_lexer::LexerConfig,
     ) {
-        let Some(tokens) = return_command_tokens(fu, block, source, config) else {
+        let tokens = self
+            .logical_values
+            .get(&std::ptr::from_ref(fu))
+            .map_or_else(
+                || return_command_tokens(fu, block, source, config),
+                |values| values.return_tokens(block),
+            );
+        let Some(tokens) = tokens else {
             return;
         };
         let at = self.returns.len();
@@ -286,7 +316,13 @@ impl<'u> WordIndex<'u> {
             &tcl_registry::model::DocumentCommandSurface<'_>,
         ),
     ) {
-        let calls = substitution_calls(fu, host, config, surface);
+        let calls = self
+            .logical_values
+            .get(&std::ptr::from_ref(fu))
+            .map_or_else(
+                || substitution_calls(fu, host, config, surface),
+                |values| values.substitution_calls(host).unwrap_or_default(),
+            );
         if calls.is_empty() {
             return;
         }
@@ -317,8 +353,9 @@ impl<'u> WordIndex<'u> {
         fu: &FunctionUnit,
         address: WordAddress,
         _config: tcl_lexer::LexerConfig,
-    ) -> Option<(tcl_registry::value_transfer::ExactValue, Option<Span>)> {
+    ) -> Option<(String, Option<Span>)> {
         let config = fu.source_lexer_config();
+        let logical = self.logical_values.get(&std::ptr::from_ref(fu));
         match address {
             WordAddress::Statement(id, word) => {
                 let host = fu
@@ -327,17 +364,36 @@ impl<'u> WordIndex<'u> {
                     .get(&id.block)
                     .and_then(|block| block.statements.get(id.index))
                     .map(|statement| fu.abs_span(statement.span()));
-                proven_word_value(fu, id, word, config).map(|(value, _)| (value, host))
+                let value = logical.map_or_else(
+                    || {
+                        proven_word_value(fu, id, word, config)
+                            .and_then(|(value, _)| value.as_str().ok().map(str::to_owned))
+                    },
+                    |values| values.word_contents(id, word),
+                )?;
+                Some((value, host))
             }
             WordAddress::Substituted { host, call, word } => {
                 let (at, calls, span) = self.hosts.get(host)?;
-                proven_substituted_word_value(fu, *at, calls, (call, word), config)
-                    .map(|(value, _)| (value, *span))
+                let value = logical.map_or_else(
+                    || {
+                        proven_substituted_word_value(fu, *at, calls, (call, word), config)
+                            .and_then(|(value, _)| value.as_str().ok().map(str::to_owned))
+                    },
+                    |values| values.substituted_word_contents(*at, calls, (call, word)),
+                )?;
+                Some((value, *span))
             }
             WordAddress::Return { at, word } => {
                 let (block, tokens, span) = self.returns.get(at)?;
-                proven_return_word_value(fu, *block, tokens, word, config)
-                    .map(|(value, _)| (value, Some(*span)))
+                let value = logical.map_or_else(
+                    || {
+                        proven_return_word_value(fu, *block, tokens, word, config)
+                            .and_then(|(value, _)| value.as_str().ok().map(str::to_owned))
+                    },
+                    |values| values.return_word_contents(*block, tokens, word),
+                )?;
+                Some((value, Some(*span)))
             }
         }
     }
@@ -415,9 +471,7 @@ impl ProvenSite {
             let Some((value, host)) = index.proven(fu, address, config) else {
                 continue;
             };
-            let Ok(text) = String::from_utf8(value.bytes) else {
-                continue;
-            };
+            let text = value;
             site = Some(call);
             words.host = host;
             words.args[at] = text;

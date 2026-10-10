@@ -444,8 +444,10 @@ fn variable_hover(
     ctx: crate::definition::CallResolution<'_>,
     profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<Hover> {
-    let registry = ctx.registry;
-    let dialect = Some(crate::document_context_for_profile(profile).authoring_query());
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let context = current.context();
+    let registry = Some(current.registry());
+    let dialect = Some(context.context().authoring_query());
     // `$var` resolution sits at a position where `find_word_span_at_position`
     // would also match the unqualified name, but a `$`-led ref should
     // surface the `VarDef` not the (typically absent) proc of the same name.
@@ -489,7 +491,9 @@ fn variable_hover(
         // special-variable registry.  The `(idx)` array index is already
         // supplied by the selected source-reference root, so `$tcl_platform(os)` resolves
         // to the `tcl_platform` spec.
-        if let Some(spec) = tcl_registry::special_var(&var_name).filter(|s| s.available_in(dialect))
+        if let Some(spec) = current
+            .registry()
+            .special_var_in_dialect(&var_name, dialect)
         {
             return Some(Hover::markdown(special_var_hover_text(spec, dialect)));
         }
@@ -6481,6 +6485,151 @@ mod original_pattern_hover_tests {
                 original_pattern_format_hover(source, &analysis, context.commands(), cursor)
                     .is_some(),
                 expected
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_special_variable_context_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    fn analyse_with(
+        source: &str,
+        context: Arc<tcl_registry::model::ContextRegistry>,
+    ) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "reporting label")
+    }
+
+    #[test]
+    fn original_special_hover_uses_actual_availability_and_withdraws_changed_owners() {
+        // naming.core.original-registry-source-hover
+        // docs/design/analysis/name-resolution-proofs/original-registry-source-hover.md
+        let source = "puts $tcl_precision";
+        let driver = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+            .unwrap()
+            .default_context_registry();
+        let registry = driver.commands();
+        for (provider, expected) in [("tcl8.6", true), ("tcl9.1", false)] {
+            let selected = tcl_registry::model::ingress::resolve_known_environment(provider)
+                .unwrap()
+                .default_context_registry();
+            let context =
+                Arc::new(selected.with_command_store(registry.snapshot().shared_registry()));
+            let analysis = analyse_with(source, context.clone());
+            assert!(analysis.allows_lexical_declaration_advice());
+            let answer = hover(source, 0, 8, &analysis, None);
+            assert_eq!(answer.is_some(), expected, "{provider}: {answer:?}");
+            if let Some(answer) = answer {
+                assert!(
+                    answer.value.contains("significant digits"),
+                    "{}",
+                    answer.value
+                );
+                assert!(
+                    answer.value.contains("special variable"),
+                    "{}",
+                    answer.value
+                );
+            }
+            assert!(hover("puts $tcl_precisioN", 0, 8, &analysis, None).is_none());
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(hover(source, 0, 8, &missing, None).is_none());
+            let mut grammar = analysis.clone();
+            grammar.body_lexer_config.as_mut().unwrap().strict_quoting = true;
+            assert!(hover(source, 0, 8, &grammar, None).is_none());
+            let foreign = tcl_registry::model::ingress::resolve_known_environment("tcl8.4")
+                .unwrap()
+                .default_context_registry();
+            let other_provider = if provider == "tcl8.6" {
+                "tcl9.1"
+            } else {
+                "tcl8.6"
+            };
+            let other = tcl_registry::model::ingress::resolve_known_environment(other_provider)
+                .unwrap()
+                .default_context_registry();
+            let changed_availability =
+                Arc::new(other.with_command_store(registry.snapshot().shared_registry()));
+            for changed_context in [foreign, changed_availability] {
+                let mut changed = analysis.clone();
+                let input = analysis.resolved_input.as_ref().unwrap();
+                changed.resolved_input = Some(ResolvedAnalysisInput::new(
+                    input.analyser_profile(),
+                    input.unit_profile(),
+                    changed_context,
+                    input.lexer_config(),
+                ));
+                assert!(hover(source, 0, 8, &changed, None).is_none());
+            }
+            let mut unavailable = analysis.clone();
+            unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+                environment: provider.to_owned(),
+                overlay: 0x385,
+            });
+            assert!(hover(source, 0, 8, &unavailable, None).is_none());
+        }
+    }
+
+    #[test]
+    fn original_special_hover_keeps_authored_registry_shadow_rows_and_array_key_availability() {
+        // naming.core.original-registry-source-hover
+        // docs/design/analysis/name-resolution-proofs/original-registry-source-hover.md
+        let driver = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+            .unwrap()
+            .default_context_registry();
+        let mut registry = CommandRegistry::build_default();
+        let shipped = *registry.special_var("auto_path").unwrap();
+        let authored = Box::leak(Box::new(tcl_registry::SpecialVarSpec {
+            summary: "Authored source search-path documentation",
+            ..shipped
+        }));
+        // This is the same shared insertion owner used by pack special_var rows.
+        // It declares readonly documentation, not an installed interpreter cell.
+        registry.insert_special_var(authored);
+        let registry = Arc::new(registry);
+        let context = Arc::new(driver.with_command_store(registry.clone()));
+        let source = "puts $auto_path";
+        let analysis = analyse_with(source, context);
+        let answer = hover(source, 0, 8, &analysis, None).expect("authored variable card");
+        assert!(answer.value.contains(authored.summary), "{}", answer.value);
+        assert!(!answer.value.contains(shipped.summary), "{}", answer.value);
+        let mut withdrawn = analysis.clone();
+        let input = analysis.resolved_input.as_ref().unwrap();
+        withdrawn.resolved_input = Some(ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            driver.clone(),
+            input.lexer_config(),
+        ));
+        assert!(hover(source, 0, 8, &withdrawn, Some(&registry)).is_none());
+
+        let source = "puts $tcl_platform(os)";
+        for (provider, has_pointer_size) in [("tcl8.4", false), ("tcl9.1", true)] {
+            let selected = tcl_registry::model::ingress::resolve_known_environment(provider)
+                .unwrap()
+                .default_context_registry();
+            let context = Arc::new(selected.with_command_store(registry.clone()));
+            let analysis = analyse_with(source, context);
+            let answer = hover(source, 0, 8, &analysis, None).expect("platform source card");
+            assert!(answer.value.contains("special array"), "{}", answer.value);
+            assert_eq!(
+                answer.value.contains("`pointerSize`"),
+                has_pointer_size,
+                "{provider}: {}",
+                answer.value
             );
         }
     }

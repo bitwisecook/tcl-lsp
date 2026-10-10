@@ -3,8 +3,8 @@
 //! receive safe facts; no interpreter-local copy stands in for host errno.
 
 use tcl_platform::{
-    DoubleNumericConversion, NumericEnvironment, NumericEnvironmentUnavailable, NumericErrorState,
-    UnsignedNumericConversion,
+    DoubleNumericConversion, NativeCIntegerAbi, NumericEnvironment, NumericEnvironmentUnavailable,
+    NumericErrorState, UnsignedNumericConversion,
 };
 
 mod integer_formatter;
@@ -185,6 +185,21 @@ mod native {
 }
 
 impl NumericEnvironment for NativeNumericEnvironment {
+    fn c_integer_abi(&self) -> Result<NativeCIntegerAbi, NumericEnvironmentUnavailable> {
+        if !Self::supported() {
+            return Err(NumericEnvironmentUnavailable::Target);
+        }
+        // Reviewed libc target bindings describe this host's integer layout.
+        // They grant no foreign Tcl build, object or selected-handler authority.
+        Ok(NativeCIntegerAbi {
+            char_bits: u8::try_from(u8::BITS).map_err(|_| NumericEnvironmentUnavailable::Target)?,
+            int_bytes: u8::try_from(core::mem::size_of::<libc::c_int>())
+                .map_err(|_| NumericEnvironmentUnavailable::Target)?,
+            long_bytes: u8::try_from(core::mem::size_of::<libc::c_long>())
+                .map_err(|_| NumericEnvironmentUnavailable::Target)?,
+        })
+    }
+
     fn state(&self) -> Result<NumericErrorState, NumericEnvironmentUnavailable> {
         #[cfg(any(
             target_os = "linux",

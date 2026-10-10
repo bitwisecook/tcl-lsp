@@ -14,9 +14,13 @@ Do the exact adjacent source-produced surrogate units remain distinct, and does 
 
 All five C releases retain FIRST/SECOND as distinct callable names, import only the exported adjacent-unit name, and leading -clear replaces before with after. Jim retains distinct callable names but ignores export filtering and leading -clear: both names import and before remains available.
 
+A marked Compiler source definition binds exact surrogate export-pattern storage for the five selected C source recipes to the shared namespace transfer owner.
+
 ## Scope
 
 The exact ASCII source-file controls are captured on Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and Jim 0.84-9-g5bac7c9. Backslash substitutions produce the tested adjacent surrogate units. Attempt 2 reports provider string length/index and scan %c results as decimal ASCII units; it does not assert raw bytes or a universal scalar representation. These observations grant no counted API, raw NUL, physical cache, compiler preparation, arbitrary glob equivalence or source execution authority. BIG-IP was not tested.
+
+The fixture analyses original Document source under selected C lexer/name policy and Direct mode; it launches no native interpreter and supplies no external output, private character/header, token or loader result. Encoded opaque export-pattern state is conditional source advice. The unchanged original public export-filter observations retain their own release/input scope, and no software passing outcome is attached.
 
 ## Provider answers
 
@@ -95,6 +99,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 No implementation binding is claimed by this observation record.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/command_binding/original_namespace_binding.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_binding.rs), `apply_exports`: Project selected original namespace export operands through their retained name-purpose recipe into exact opaque export alternatives; quiet source-model completion and Native observation remain separate.
+- [rust/tcl-compiler/src/command_binding/original_namespace_binding.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_binding.rs), `command_binding::original_namespace_binding::tests::original_namespace_export_storage_keeps_exact_opaque_units` (linked): Five selected C source-model fixtures retain the original export pattern p plus encoded surrogateD800 as exact opaque NameBytes, distinct from D801, in the checkpoint namespace export alternatives. This inspects conditional source state only, with no new original process or object String conversion.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

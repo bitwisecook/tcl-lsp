@@ -84,19 +84,6 @@ use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::definition::LspRange;
 
-/// The `${…}` close rule the document's dialect uses.
-///
-/// A refactor rewrites *text*, so reading a variable name by one release's
-/// rule while the document is another's changes what the edit means: on a
-/// Tcl 9 document `${a{b}c}` is one variable named `a{b}c`, but the 8.x
-/// first-`}` rule reads `a{b` and leaves `c}` looking like ordinary word
-/// text.
-pub(crate) fn braced_var_style(
-    analysis: &tcl_compiler::analyser::AnalysisResult,
-) -> BracedVarStyle {
-    crate::profile_for_analysis(analysis).grammar.braced_var
-}
-
 /// Every `$name` / `${name}` reference in `text`, as
 /// `(name, start, end)` byte offsets covering the whole reference
 /// (`$` through the closing `}`).

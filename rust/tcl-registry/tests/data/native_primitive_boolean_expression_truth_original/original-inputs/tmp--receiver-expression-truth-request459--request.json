@@ -1,0 +1,252 @@
+{
+  "question_id": "naming.numeric.original-primitive-boolean-vs-expression-truth",
+  "question": "For an actual held original constructor object installed without text serialization as variable x, how do the native public primitive Boolean integer getter, public expression-Boolean API, ordinary unary-not/conditional expression, if and one-iteration while differ in completion, output, result, cache and string residency across the five C Tcl releases and Jim at their measured numeric ABI?",
+  "status": "prepared-not-compiled-or-executed",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "bigip": "not-tested",
+  "probe_file": "/tmp/receiver-expression-truth-request459/probe.c",
+  "probe_sha256": "6d7bdff4a0ea4bfce9c47c3f711d37798eb941855c78e373cd6877f5848f2552",
+  "compile": {
+    "language": "C99",
+    "C_defines": [],
+    "Jim_defines": [
+      "JIM_PROBE"
+    ],
+    "headers_and_libraries": "Actual Root-pinned provider SDK and configured full-init static library, unchanged source for all six providers; standard dependencies retained explicitly.",
+    "no_abi_width_macro_simulation": true
+  },
+  "execution": {
+    "argv": "probe.elf",
+    "processes": 6,
+    "rows_per_provider": 216,
+    "before_rows_per_provider": 216,
+    "fresh_each_row": "Fully initialized interpreter plus fresh original object retained by host and actual public variable binding. Each constructor/worker independent.",
+    "timeout_seconds": 90
+  },
+  "source_files": [
+    {
+      "path": "/tmp/receiver-expression-truth-request459/expression-source.tcl",
+      "sha256": "266a697aba660c60c2f35b01b3438ba3f9fee2f3c2108858ff22d84c7dec7517",
+      "bytes": 3
+    },
+    {
+      "path": "/tmp/receiver-expression-truth-request459/expr-not.tcl",
+      "sha256": "8b51ac1aa2cb3651d723780b7fbc4e9fb417f95965d423d163d73a16febd6fe3",
+      "bytes": 12
+    },
+    {
+      "path": "/tmp/receiver-expression-truth-request459/expr-conditional.tcl",
+      "sha256": "73870a9985ea4613d4ec20ddccaf3419b96f4f25f90479295b127f3e430ae19d",
+      "bytes": 18
+    },
+    {
+      "path": "/tmp/receiver-expression-truth-request459/if.tcl",
+      "sha256": "ae874b930a6a01aede1cb532cd0cd04b76a313946372b30cfc172127bd2c28cb",
+      "bytes": 31
+    },
+    {
+      "path": "/tmp/receiver-expression-truth-request459/while.tcl",
+      "sha256": "c5c3b0b07dc61b5589c25cf65f6c31f86fe26cecdbbbb948d197ce0212fe64bf",
+      "bytes": 68
+    },
+    {
+      "path": "/tmp/receiver-expression-truth-request459/c-version.tcl",
+      "sha256": "94435c94329c585b6c1aeab67588b472dfce542e43c68cfc63a214ccdc6e72ea",
+      "bytes": 48
+    },
+    {
+      "path": "/tmp/receiver-expression-truth-request459/jim-version.tcl",
+      "sha256": "67c43f03e646543de96a1a97809fc0ab06a21cf2db5be74389b56938db38ec21",
+      "bytes": 45
+    }
+  ],
+  "source_execution": "Fixed original script constants in probe exactly match retained source files. Actual constructor object is never interpolated/serialized into script text. ExprBoolean API consumes original expression source $x; ordinary script sources are Tcl_EvalEx(flags0) / Jim_EvalObj counted source; no catch wrapper.",
+  "case_map": {
+    "0": {
+      "constructor": "String",
+      "original_hex": "3137"
+    },
+    "1": {
+      "constructor": "String",
+      "original_hex": "30"
+    },
+    "2": {
+      "constructor": "String",
+      "original_hex": "2d30"
+    },
+    "3": {
+      "constructor": "String",
+      "original_hex": "2d302e30"
+    },
+    "4": {
+      "constructor": "String",
+      "original_hex": "34323934393637323936"
+    },
+    "5": {
+      "constructor": "String",
+      "original_hex": "4e614e"
+    },
+    "6": {
+      "constructor": "String",
+      "original_hex": "626164"
+    },
+    "7": {
+      "constructor": "String",
+      "original_hex": "6f6e"
+    },
+    "8": {
+      "constructor": "String",
+      "original_hex": "74727565"
+    },
+    "9": {
+      "constructor": "String",
+      "original_hex": "66616c7365"
+    },
+    "10": {
+      "constructor": "String",
+      "original_hex": "310058"
+    },
+    "11": {
+      "constructor": "String",
+      "original_hex": "300058"
+    },
+    "12": {
+      "constructor": "C NewIntObj / Jim NewIntObj",
+      "argument": "17"
+    },
+    "13": {
+      "constructor": "C NewIntObj / Jim NewIntObj",
+      "argument": "0"
+    },
+    "14": {
+      "constructor": "C NewIntObj / Jim NewIntObj",
+      "argument": "-17"
+    },
+    "15": {
+      "constructor": "C NewIntObj / Jim NewIntObj",
+      "argument": "INT_MAX"
+    },
+    "16": {
+      "constructor": "C NewIntObj / Jim NewIntObj",
+      "argument": "INT_MIN"
+    },
+    "17": {
+      "constructor": "C NewWideIntObj / Jim NewIntObj",
+      "argument": "2147483648"
+    },
+    "18": {
+      "constructor": "C NewWideIntObj / Jim NewIntObj",
+      "argument": "4294967295"
+    },
+    "19": {
+      "constructor": "C NewWideIntObj / Jim NewIntObj",
+      "argument": "4294967296"
+    },
+    "20": {
+      "constructor": "C NewWideIntObj / Jim NewIntObj",
+      "argument": "4294967297"
+    },
+    "21": {
+      "constructor": "C NewWideIntObj / Jim NewIntObj",
+      "argument": "-4294967296"
+    },
+    "22": {
+      "constructor": "C NewWideIntObj / Jim NewIntObj",
+      "argument": "-4294967295"
+    },
+    "23": {
+      "constructor": "C NewWideIntObj / Jim NewIntObj",
+      "argument": "9223372036854775807"
+    },
+    "24": {
+      "constructor": "C NewWideIntObj / Jim NewIntObj",
+      "argument": "-9223372036854775808"
+    },
+    "25": {
+      "constructor": "Double",
+      "argument": "17.0"
+    },
+    "26": {
+      "constructor": "Double",
+      "argument": "0.0"
+    },
+    "27": {
+      "constructor": "Double",
+      "argument": "-0.0"
+    },
+    "28": {
+      "constructor": "Double",
+      "argument": "NAN"
+    },
+    "29": {
+      "constructor": "Double",
+      "argument": "4294967296.0"
+    },
+    "30": {
+      "constructor": "Double",
+      "argument": "INFINITY"
+    },
+    "31": {
+      "constructor": "Double",
+      "argument": "-INFINITY"
+    },
+    "32": {
+      "constructor": "String",
+      "original_hex": "312e30"
+    },
+    "33": {
+      "constructor": "String",
+      "original_hex": "3038"
+    },
+    "34": {
+      "constructor": "String",
+      "original_hex": "39323233333732303336383534373735383038"
+    },
+    "35": {
+      "constructor": "String",
+      "original_hex": ""
+    }
+  },
+  "worker_map": {
+    "0": "Actual public Tcl_GetBooleanFromObj / Jim_GetBoolean on original held variable object; returned int is raw, not normalized by driver.",
+    "1": "Actual public Tcl_ExprBooleanObj / Jim_GetBoolFromExpr on original expression source $x; output begins sentinel777.",
+    "2": "Original source expr {!!$x}",
+    "3": "Original source expr {$x ? 1 : 0}",
+    "4": "Original source if {$x} {list 1} else {list 0}",
+    "5": "Original source one-iteration while {$x}, body increments iterations and unconditionally breaks."
+  },
+  "before_observers": "After actual public variable installation, before selected getter/evaluation, record original primary, resident string flag and actual variable object equality. No original string is requested or cache primed. Host owns original through all callbacks/evaluation.",
+  "after_observers": "After selected API returns, record code/sentinel/cache/residency/equality before public result String/error-code/input observers. Post-call errno is recorded only as ambient API-return observation, not a pure numeric-stage or freshness witness.",
+  "error_observer": "Primitive/API result bytes precede error-code observer. C8.5+ uses public ReturnOptions/dict errorcode; C8.4/Jim public global errorCode. Absent/private C8.4 state is not inferred. Script channels may perform their genuine evaluation error publication; distinct from direct primitive/API channels.",
+  "required_receipts": [
+    "Exact compile argv/stdout/stderr/exit/compiler --version",
+    "Actual library/config/header/source/executable SHA256 before and after each launch",
+    "Complete stdout/stderr/process status/argv/time",
+    "Actual runtime VERSION/BUILD/ABI rows",
+    "Independent exact CLI version source process/CLI executable SHA256/stdout/stderr/status",
+    "Source and request receipt hashes"
+  ],
+  "cli_sources": {
+    "C": "/tmp/receiver-expression-truth-request459/c-version.tcl",
+    "Jim": "/tmp/receiver-expression-truth-request459/jim-version.tcl"
+  },
+  "abi_scope": {
+    "actual": "Record sizeof int/long/wide/double/pointer, CHAR_BIT, signed integer limits, C Tcl_UniChar, actual Jim UTF8/configured revision.",
+    "wasm32_llp64": "not-tested unless genuinely separate native runnable provider SDKs/libraries are available; LP64 is not a substitute."
+  },
+  "purpose_limits": [
+    "Primitive integer Boolean return is separate from semantic truth and from expression result bytes.",
+    "Original object equality/refcount observations belong only to this public driver, not arbitrary runtime identity/frame admission.",
+    "No current implementation/Rust-test success claimed.",
+    "No numeric ABI inferred from nominal source profile or grammar.",
+    "No Native compiler/receiver/frame bootstrap capability from these rows.",
+    "Provider-specific failures or divergent channels remain full observations; no expectation projection from another route."
+  ]
+}

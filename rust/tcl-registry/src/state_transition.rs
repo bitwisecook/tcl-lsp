@@ -3155,11 +3155,13 @@ mod tests {
     /// analyser*): no shipped alias or command-binding resolver states a name
     /// the source does not spell. A computed word reaches a fact only as a
     /// typed unknown subject at its own index — the shipped `upvar` states
-    /// its alias with an unknown local, a derived resolver states none — and
-    /// the call widens the domain that word's identity lives in, so a
-    /// consumer binds nothing it cannot name.
+    /// its alias with unknown frame/name operands, a derived resolver states
+    /// none. Unknown identities remain in positioned alias operands or widen
+    /// their declared domain; a consumer never binds a name it cannot read.
     #[test]
     fn alias_and_binding_resolvers_abstain_on_a_dynamic_word() {
+        // Implementation contract: naming.invocation.effective-transition-operands
+        // docs/design/analysis/name-resolution-proofs/effective-transition-operands.md
         use crate::InvocationWord::{Dynamic, Literal};
         use StateTransitionDomain::{CommandBindings, VariableCells};
         let context = crate::model::ingress::static_context_for("tcl9.0");
@@ -3168,24 +3170,6 @@ mod tests {
         let cases: &[(&str, &[InvocationWord<'_>], usize, StateTransitionDomain)] = &[
             ("global", &[Dynamic, Literal("g")], 0, VariableCells),
             ("variable", &[Dynamic, Literal("1")], 0, VariableCells),
-            (
-                "upvar",
-                &[Literal("1"), Dynamic, Literal("l")],
-                1,
-                VariableCells,
-            ),
-            (
-                "upvar",
-                &[Literal("1"), Literal("o"), Dynamic],
-                2,
-                VariableCells,
-            ),
-            (
-                "upvar",
-                &[Dynamic, Literal("o"), Literal("l")],
-                0,
-                VariableCells,
-            ),
             (
                 "namespace",
                 &[Literal("upvar"), Dynamic, Literal("o"), Literal("l")],
@@ -3236,6 +3220,69 @@ mod tests {
                 for subject in alias_and_binding_subjects(&fact.transition) {
                     assert_alias_subject_correspondence(subject, command, words, computed);
                 }
+            }
+        }
+
+        // Shipped upvar retains the unknown identity in its exact alias
+        // operands. Establishing a link does not erase unrelated cells or
+        // traces, unlike the widening used by derived alias resolvers.
+        for (words, computed) in [
+            ([Literal("1"), Dynamic, Literal("l")], 1),
+            ([Literal("1"), Literal("o"), Dynamic], 2),
+            ([Dynamic, Literal("o"), Literal("l")], 0),
+        ] {
+            let invocation = registry
+                .resolve_structured_invocation(
+                    InvocationWords::structured(Literal("upvar"), &words).with_dialect(dialect),
+                    Some(context.context().authoring_query()),
+                )
+                .resolved()
+                .expect("selected upvar metadata");
+            let transitions = invocation.state_transitions();
+            assert!(!transitions.widens(VariableCells));
+            assert!(!transitions.widens(StateTransitionDomain::VariableTraces));
+            let [fact] = transitions.facts() else {
+                panic!("one positioned alias: {transitions:#?}");
+            };
+            let StateTransition::VariableCellAlias(alias) = &fact.transition else {
+                panic!("unknown identity stays in the alias: {fact:#?}");
+            };
+            assert_eq!(
+                alias.destination,
+                VariableAliasDestination::CurrentNamespaceOrLocal
+            );
+            assert_eq!(
+                alias.words,
+                AliasWords {
+                    local: 2,
+                    target: 1
+                }
+            );
+            assert!(!alias.writes_value);
+            assert_eq!(
+                fact.commit,
+                StateTransitionCommit::MayCommitBeforeAbruptCompletion
+            );
+            assert!(matches!(
+                alias.target,
+                VariableAliasTarget::CallerSelectedFrame {
+                    frame: CallerFrameSelection::Explicit(_),
+                    ..
+                }
+            ));
+            let subjects = alias_and_binding_subjects(&fact.transition);
+            assert!(
+                subjects.iter().any(|subject| matches!(
+                    subject,
+                    TransitionSubject::Unknown {
+                        argument_index,
+                        word_kind: InvocationWordKind::Dynamic,
+                    } if *argument_index == computed
+                )),
+                "{words:?}: computed operand remains unknown"
+            );
+            for subject in subjects {
+                assert_alias_subject_correspondence(subject, "upvar", &words, computed);
             }
         }
     }

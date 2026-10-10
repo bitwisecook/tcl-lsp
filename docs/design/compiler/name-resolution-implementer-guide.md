@@ -1974,7 +1974,7 @@ Evaluation has two purposes. `FoldEvaluation` can supply a numeric analysis valu
 
 Source substitutions must call `substitute_expr_constants_for_execution` on the original AST with actual operand proofs. An empty proof set deliberately preserves a retained variable when evaluation would coerce its object. Substituting a literal first and then folding manufactures a fresh object and loses the original obligations. Keep mathematical helpers separate from execution transformations, and test both a foldable literal and a retained/shared object whose representation or returned bytes are observable afterward.
 
-Diagnostic value queries use `FunctionUnit::semantic_values()` and its immutable `SemanticValueFacts` view. This view resolves chained producer contents through the same SSA solver as execution SCCP, while retaining each expression's `FoldEvaluation`, native preparation, reached function dependencies and coercion/result obligations. `contents((symbol, version))` answers a particular represented store, rather than a display-name search. `expression(ExpressionEvaluationPoint::Statement { block, index })` or `Branch { block }` exposes the corresponding producer obligations. A guarded unit can decline this view. The projection is lazy and its cache detaches when source or physical coordinates are relocated. Do not copy its known values into `SccpResult::values`: that map independently requires execution-erasure proof.
+Diagnostic value queries use `FunctionUnit::semantic_values()` and its immutable `SemanticValueFacts` view. This view resolves chained producer contents through the same SSA solver as execution SCCP, while retaining each expression's `FoldEvaluation`, native preparation, reached function dependencies and coercion/result obligations. `contents((symbol, version))` answers a particular represented store, rather than a display-name search. `expression(ExpressionEvaluationPoint::Statement { block, index })` or `Branch { block }` exposes the corresponding producer obligations. A guarded unit can decline this view. The projection is lazy. `FunctionUnit` retains the exact projection issued by its construction; substituting another function's populated projection remains unavailable even when both inputs compare equal. Call `invalidate_semantic_values()` before every semantic CFG/SSA change. Source-proof restoration, physical relocation and lexical rebasing use this central lifecycle to detach the cache and retain the new original producer together. Cache invalidation does not establish source/input correspondence or restore missing original words. Do not copy known advisory values into `SccpResult::values`: that map independently requires execution-erasure proof.
 
 Construct the value policy with `FoldPolicy::for_retained_entry(registry, actual_invocation, lexer_config)`. The registry catalogue can differ from the execution engine; numeric/result and character-unit policies come from the retained invocation, while the exact lexical overlay remains independent. `InvocationDialect::characters` also preserves an embedding contract that differs from its underlying C release.
 
@@ -7528,9 +7528,17 @@ Existing template, reparse, frame/interpreter-crossing and path diagnostics use
 that selected descriptor and its effective operand layout. A nested command
 substitution requires its own original child selection; a parent Body role or
 reporting name cannot select the child. Value refinement uses the complete
-current CU, its WordIndex and `proven_word_value`, with exact original Written
-ordinal and span correspondence. A source template plan or a proven value
-supplies no new command lookup, child frame or evaluation permission.
+current CU and its WordIndex, with exact original Written ordinal and span
+correspondence. Positively retained Logical inputs use
+`OriginalDiagnosticValues::for_module_function(&module, function, registry)`;
+`word_at(span)` and `word_contents(statement, word)` project checked advisory
+text at the original read version. Construction validates the Module and
+FunctionUnit producer, complete input/configuration/availability and the actual
+semantic projection; each query additionally validates its original source
+point and CFG/SSA correspondence. Missing or changed owners decline. The
+executable `proven_word_value` family retains its separate execution-fact
+contract. Source contents carry no representation or folded-type proof and
+supply no new command lookup, child frame or evaluation permission.
 
 W303 pattern advice shares `authored_source_pattern_arguments` and
 `authored_source_case_pattern_layout`. A case-list pattern retains genuine
@@ -9693,3 +9701,34 @@ from missing, stale, replaced and foreign inputs. Its lexical and inliner
 assertions are software contracts, not native execution or object/frame
 observations. Extensions must preserve those independent gates and bind new
 operand kinds through the shared source and variable owners.
+
+## Keep Boolean conversion at its reached purpose
+
+`InvocationDialect::native_boolean_truth_protocol` selects an operand recipe
+from the actual engine and `NativeBooleanTruthPurpose`. Primitive Boolean,
+logical-not, conditional jump, logical short circuit and C8.4 LAND/LOR retain
+separate purposes. A primitive Boolean's returned C integer is not an expression
+truth recipe. The selected scalar owner performs each reached conversion; the
+CmdCore `original_boolean_truth` kernel orders those conversions and their
+required interpreter publications.
+
+The physical adapter retains the original object and interpreter, checks its
+live compatible header before a cache fast path, and preserves the first Host
+cause before and after each getter or publication. Rendering a failed primitive
+uses only its declared original-String obligation. Jim evaluated terms publish before their reached ExprBool conversion. Intermediate
+failed Jim getters publish immediately, so later success preserves their reached result
+and error-code effects. The final failed stage returns its full `CmdError` for
+one publication, including `Unchanged` versus `Set` metadata and its actual
+result producer. A pure mathematical adapter needs an explicit mathematical
+purpose; a missing actual engine or publication owner cannot borrow it.
+
+`NativeBooleanExpressionResultProduction` separately describes the producer
+before conversion. An inline expression's result conversion differs from the
+public expression API's result and C8.6+ copy. C8.6+ peephole compilation removes
+TRY_NUM before a conditional jump, while the API retains its evaluated expression
+program; internal operator conversions remain independent. Selecting that descriptor or
+passing its ABI tag does not certify that production has happened: the physical
+producer must perform it before exposing a privately owned normalised operand.
+The original [primitive and expression truth captures](../analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md)
+record each whole measured route separately. Software ordering controls over
+supplied getter outcomes test the API contract and grant no Native equivalence.

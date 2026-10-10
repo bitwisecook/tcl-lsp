@@ -1,0 +1,35 @@
+static void StringAppendString(Jim_Obj *objPtr, const char *str, int len)
+{
+    int needlen;
+
+    if (len == -1)
+        len = strlen(str);
+    needlen = objPtr->length + len;
+    if (objPtr->internalRep.strValue.maxLength < needlen ||
+        objPtr->internalRep.strValue.maxLength == 0) {
+        needlen *= 2;
+        /* Inefficient to alloc for less than 8 bytes */
+        if (needlen < 7) {
+            needlen = 7;
+        }
+        if (objPtr->bytes == JimEmptyStringRep) {
+            objPtr->bytes = Jim_Alloc(needlen + 1);
+        }
+        else {
+            objPtr->bytes = Jim_Realloc(objPtr->bytes, needlen + 1);
+        }
+        objPtr->internalRep.strValue.maxLength = needlen;
+    }
+    memcpy(objPtr->bytes + objPtr->length, str, len);
+    objPtr->bytes[objPtr->length + len] = '\0';
+
+    if (objPtr->internalRep.strValue.charLength >= 0) {
+        /* Update the utf-8 char length */
+        objPtr->internalRep.strValue.charLength += utf8_strlen(objPtr->bytes + objPtr->length, len);
+    }
+    objPtr->length += len;
+}
+
+/* Higher level API to append strings to objects.
+ * Object must not be unshared for each of these.
+ */

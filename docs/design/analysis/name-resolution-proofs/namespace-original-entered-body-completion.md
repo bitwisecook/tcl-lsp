@@ -14,9 +14,13 @@ Does an exact namespace body handoff retain independent enclosing completion onl
 
 The private handoff retains the selected intrinsic handler, exact original single body, namespace Ensure geometry and actual entered frame. It declines unexplained mutable-name accesses and callback residuals. Completion requires the common child outcomes to be complete with no abrupt alternative, the same body/handler/site/config, a known entered namespace and the actual parent restored. No world is reseeded and no body descriptor or callback footprint grants Normal.
 
+A marked source-model definition keeps the original child namespace identity/layout separate from the restored parent before the next command.
+
 ## Scope
 
 C Tcl source-model naming under Tcl 8.4, 8.5, 8.6, 9.0 and 9.1 selected policies, genuine original operands and independently retained ASCII namespace geometry. Opaque command/pattern units remain counted data under the shared selected native purposes. Jim export is a selected no-op; its source-name import helper and unimplemented forget do not receive C token or completion authority. Supplied native entries, generated opaque namespace allocation, arbitrary preload helpers, replacement cleanup, unknown callbacks and physical compiler/cache/namespace authority are excluded.
+
+The selected Direct Document analysis launches no native body, proc installer or physical namespace frame. A source NamespaceActivation layout and authored key do not issue Normal completion, current holder, native handler/body admission or child execution. Original measured namespace body completion remains independent; no software outcome is attached.
 
 ## Provider answers
 
@@ -473,6 +477,11 @@ static int JimNamespaceCmd(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 - [rust/tcl-compiler/src/command_binding/original_namespace_body.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_body.rs), `command_binding::original_namespace_body::tests::original_namespace_body_refuses_unrepresented_and_abrupt_children` (linked): Unknown, abrupt and dynamically unrepresented children provide no enclosing completion; an independently complete shadowing procedure creates no namespace.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/command_binding/original_namespace_body.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_body.rs), `OriginalNamespaceBody`: Retain exact selected delegation/body/source and conditional namespace activation/parent restoration; completion requires independent quiet child/handler correspondence.
+- [rust/tcl-compiler/src/command_binding/original_namespace_body.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_body.rs), `command_binding::original_namespace_body::tests::original_namespace_activation_retains_selected_source_identity_before_child_words` (linked): Five selected C source-model fixtures retain an authored ::A namespace identity and NamespaceActivation layout at the original child proc occurrence, then distinguish the enclosing parent checkpoint namespace. The assertion is conditional source frame/layout correspondence rather than physical entered-native execution.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

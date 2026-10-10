@@ -842,7 +842,14 @@ impl Obj {
         };
         let conversion = cache
             .as_ref()
-            .and_then(|cache| protocol.cached_conversion(kind, cache))
+            .map(|cache| protocol.cached_conversion(kind, cache, None))
+            .transpose()
+            .map_err(|_| {
+                TclError::host(EngineError::Unsupported(
+                    "native scalar target integer layout",
+                ))
+            })?
+            .flatten()
             .unwrap_or_else(|| {
                 protocol
                     .fresh_conversion(kind, &self.bytes())
@@ -867,9 +874,22 @@ impl Obj {
             return Err(TclError::host(error));
         }
         outcome.map_err(|failure| {
-            let record = protocol
-                .failure_presentation(kind, failure, &self.bytes())
-                .expect("C9 primitive failure has an authored presentation");
+            let record = match protocol.failure_requires_original_string(kind, failure) {
+                Some(true) => {
+                    let original = self.bytes();
+                    if let Some(error) = self.refusal.borrow().clone() {
+                        return TclError::host(error);
+                    }
+                    protocol.failure_presentation(kind, failure, &original)
+                }
+                Some(false) => protocol.failure_presentation_without_original_string(kind, failure),
+                None => None,
+            };
+            let Some(record) = record else {
+                return TclError::host(EngineError::Unsupported(
+                    "native scalar failure presentation",
+                ));
+            };
             let code = match record.error_code_update() {
                 tcl_syntax::scalar_getter::NativeScalarGetterErrorCode::Unchanged => None,
                 tcl_syntax::scalar_getter::NativeScalarGetterErrorCode::Set(bytes) => {
@@ -915,7 +935,7 @@ impl Obj {
     /// Primitive Boolean extraction, independently of expression truthiness.
     pub fn get_boolean(&self) -> Result<bool, TclError> {
         match self.scalar_getter(NativeScalarGetterKind::Boolean)? {
-            NativeScalarGetterValue::Boolean(value) => Ok(value),
+            NativeScalarGetterValue::Boolean(value) => Ok(value.is_true()),
             _ => unreachable!("selected Boolean getter"),
         }
     }

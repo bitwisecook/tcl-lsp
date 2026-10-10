@@ -418,7 +418,7 @@ fn plan_extraction(
     // The document's own `${…}` close rule — a brace-bearing name read by
     // the wrong release's rule produces a proc built for a variable that
     // does not exist.
-    let style = super::braced_var_style(analysis);
+    let style = config.braced_var;
     let walk = super::FrameWalk::new(source, analysis)
         .ok_or_else(|| "the original document context is unavailable".to_owned())?;
     reject_enclosing_definition_body(source, scope, &walk)?;
@@ -1981,5 +1981,75 @@ puts done";
         assert!(action.apply(source).contains("proc extracted_proc {x}"));
         analysis.resolved_input = None;
         assert!(extract_proc(source, selection, &analysis, &registry).is_none());
+    }
+
+    #[test]
+    fn original_extraction_uses_retained_brace_grammar_and_withdraws_changed_owners() {
+        // naming.refactor.original-frame-traversal
+        // docs/design/analysis/name-resolution-proofs/refactor-original-frame-traversal.md
+        let source = "if {1} {puts ${a{b}c}}\nputs done\n";
+        let needle = "if {1} {puts ${a{b}c}}";
+        let selection = (0, u32::try_from(needle.len()).unwrap());
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let driver = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+            .unwrap()
+            .default_context_registry();
+        let registry = driver.commands();
+        for (style, parameters) in [
+            (BracedVarStyle::FirstClose, r"a\{b"),
+            (BracedVarStyle::Tcl9Nesting, "a{b}c"),
+        ] {
+            let config = LexerConfig {
+                braced_var: style,
+                ..LexerConfig::for_profile(Some(profile))
+            };
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                driver.clone(),
+                config,
+            );
+            let analysis = tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "reporting label");
+            assert!(analysis.allows_lexical_declaration_advice());
+            assert_eq!(analysis.body_lexer_config, Some(config));
+            let action = extract_proc(source, selection, &analysis, registry).unwrap();
+            assert!(action.disabled.is_none(), "{:?}", action.disabled);
+            let rewritten = action.apply(source);
+            assert!(
+                rewritten.contains(&format!("proc extracted_proc {{{parameters}}} {{")),
+                "{style:?}: {rewritten}"
+            );
+            assert!(
+                rewritten.contains(needle),
+                "original selected body is retained"
+            );
+
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(extract_proc(source, selection, &missing, registry).is_none());
+            let mut stale = analysis.clone();
+            stale.body_lexer_config.as_mut().unwrap().braced_var = match style {
+                BracedVarStyle::FirstClose => BracedVarStyle::Tcl9Nesting,
+                BracedVarStyle::Tcl9Nesting => BracedVarStyle::FirstClose,
+            };
+            assert!(extract_proc(source, selection, &stale, registry).is_none());
+            assert!(extract_proc(&format!("#{source}"), selection, &analysis, registry).is_none());
+
+            let foreign = tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+                .unwrap()
+                .default_context_registry();
+            let older_same_store = std::sync::Arc::new(
+                foreign.with_command_store(registry.snapshot().shared_registry()),
+            );
+            for context in [foreign, older_same_store] {
+                let mut changed = analysis.clone();
+                changed.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    profile, profile, context, config,
+                ));
+                assert!(extract_proc(source, selection, &changed, registry).is_none());
+            }
+        }
     }
 }

@@ -984,24 +984,60 @@ mod tests {
 
     #[test]
     fn regexp_layout_effects_are_reported_as_shifts() {
-        let spec = shipped("regexp");
-        let inline = effects(spec, &["-inline", "a(b)", "ab"]);
-        assert!(inline.suppresses(ArgRole::VarWrite));
-        assert_eq!(inline.reserved_trailing_words(), None);
-        let point = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
-        let about = option_effects_with(
-            spec.options,
-            spec.option_effect_families,
-            InvocationArguments::literals(&["-about", "a(b)"]).with_dialect(point),
-            spec.reserved_trailing_words,
-            point.authoring_query(),
-            spec.prefix_matching,
-        );
-        assert!(!about.suppresses(ArgRole::VarWrite));
-        assert_eq!(about.reserved_trailing_words(), Some(1));
-        // After `--`, `-inline` is the pattern.
-        let ended = effects(spec, &["--", "-inline", "s", "v"]);
-        assert!(ended.shifts.is_empty());
-        assert_eq!(ended.option_end, 1);
+        // Implementation contract: naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        for (provider, supports_about) in [
+            ("tcl8.4", true),
+            ("tcl8.5", true),
+            ("tcl8.6", true),
+            ("tcl9.0", true),
+            ("tcl9.1", true),
+            ("jim", false),
+        ] {
+            let generation = crate::model::ingress::resolve_known_environment(provider)
+                .expect("selected provider is known")
+                .default_context_registry();
+            let context = generation.context();
+            let registry = generation.commands();
+            let spec = context
+                .resolve_spec(registry, "regexp")
+                .expect("provider has regexp metadata");
+            let dialect = crate::InvocationDialect::of_profile(
+                registry.profile().expect("provider owns its profile"),
+            );
+            let effects = |arguments: &[&str]| {
+                option_effects_with(
+                    spec.options,
+                    spec.option_effect_families,
+                    InvocationArguments::literals(arguments).with_dialect(dialect),
+                    spec.reserved_trailing_words,
+                    Some(context.authoring_query()),
+                    spec.prefix_matching,
+                )
+            };
+            let inline = effects(&["-inline", "a(b)", "ab"]);
+            assert!(inline.complete, "{provider}: {inline:?}");
+            assert!(inline.suppresses(ArgRole::VarWrite));
+            assert_eq!(inline.reserved_trailing_words(), None);
+
+            let about = effects(&["-about", "a(b)"]);
+            assert_eq!(about.complete, supports_about, "{provider}: {about:?}");
+            assert!(!about.suppresses(ArgRole::VarWrite));
+            assert_eq!(
+                about.reserved_trailing_words(),
+                supports_about.then_some(1),
+                "{provider}: {about:?}"
+            );
+            if supports_about {
+                assert_eq!(about.option_end, 1);
+            }
+
+            // After the selected terminator, -inline is the pattern.
+            let ended = effects(&["--", "-inline", "s", "v"]);
+            assert!(ended.complete, "{provider}: {ended:?}");
+            assert!(ended.ended_by_marker);
+            assert!(ended.shifts.is_empty());
+            assert_eq!(ended.option_end, 1);
+        }
     }
 }

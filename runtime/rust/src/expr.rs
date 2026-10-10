@@ -1763,17 +1763,24 @@ fn fixed_integer_with_environment(
                             .expect("original scalar String access refusal"),
                     )
                 })?;
+            let cached_wide = current
+                .as_ref()
+                .map(|cache| {
+                    protocol.cached_conversion(
+                        tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
+                        cache,
+                        None,
+                    )
+                })
+                .transpose()
+                .map_err(|_| {
+                    ExprError::host_refusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
+                )
+                })?
+                .flatten();
             if let Some(environment) = environment.filter(|_| {
-                protocol.expression_integer_spelling84(&original)
-                    && current
-                        .as_ref()
-                        .and_then(|cache| {
-                            protocol.cached_conversion(
-                                tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
-                                cache,
-                            )
-                        })
-                        .is_none()
+                protocol.expression_integer_spelling84(&original) && cached_wide.is_none()
             }) {
                 tcl_cmd_core::native_numeric::fresh_c84_conversion(
                     protocol,

@@ -1,0 +1,24 @@
+{
+    if (objPtr->typePtr != &stringObjType) {
+        /* Get a fresh string representation. */
+        if (objPtr->bytes == NULL) {
+            /* Invalid string repr. Generate it. */
+            JimPanic((objPtr->typePtr->updateStringProc == NULL, "UpdateStringProc called against '%s' type.", objPtr->typePtr->name));
+            objPtr->typePtr->updateStringProc(objPtr);
+        }
+        /* Free any other internal representation. */
+        Jim_FreeIntRep(interp, objPtr);
+        /* Set it as string, i.e. just set the maxLength field. */
+        objPtr->typePtr = &stringObjType;
+        objPtr->internalRep.strValue.maxLength = objPtr->length;
+        /* Don't know the utf-8 length yet */
+        objPtr->internalRep.strValue.charLength = -1;
+    }
+    return JIM_OK;
+}
+
+/**
+ * Returns the length of the object string in chars, not bytes.
+ *
+ * These may be different for a utf-8 string.
+ */

@@ -1329,7 +1329,9 @@ fn native_boolean_word(
             dialect.dialect,
             tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
         )? {
-            tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(boolean) => Ok(boolean),
+            tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(boolean) => {
+                Ok(boolean.is_true())
+            }
             _ => Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable),
         };
     }

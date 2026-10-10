@@ -14,9 +14,13 @@ What exact public name lengths and missing-command/not-an-alias diagnostic bytes
 
 Jim completes both original sources with guest code0. Each source reports original string lengths17,13,7,7 for middle-NUL, leading-NUL, UTF-8 and invalid-byte names, respectively; each caught alias query reports code1. Missing-command diagnostics report invalid command name, while genuine original procedure declarations produce command is not an alias diagnostics. In both diagnostic forms, the middle-NUL rendered name stops at r2286_extent, the leading-NUL rendered name is empty, the UTF-8 name retains bytes72323238365fc3a9 and the invalid-byte name retains bytes72323238365fff. The full original result hex retains every label, length, catch code and message, including invalid UTF-8. These public outputs distinguish original counted values from diagnostic rendering without identifying a private command key, header, cache, allocation length or lifetime. All five C providers execute the explicit NOT_APPLICABLE capability branch; their info surface is not substituted with a C alias API. All twelve host processes exit0 with empty stderr. The separately retained Jim_SetResultFormatted source copy/excerpt describes a formatting implementation; it remains read-only source evidence distinct from the measured public bytes and does not expand this finite observation.
 
+A marked Runtime definition links twelve exact original public alias-diagnostic windows under the explicit selected-core and Jim binary-adapter fixture.
+
 ## Scope
 
 Two unchanged ASCII LF originals with four name cases each. binary format H* produces NUL, UTF-8 and FF bytes at evaluation; there is no literal NUL/non-ASCII source. Each original executes independently in a fresh fully initialised provider through the unchanged counted-source CAPI driver. Complete original source/request/compiler/ELF/process/stdout/stderr/code/result/version and required pins are retained. No private object/header/key/lookup identity, physical cache, arbitrary error producer, Rust assertion or BIG-IP result is observed.
+
+The body does not replay external processes, inspect private slots/headers, infer a full Jim distribution or validate a source-character channel from binary-produced bytes. The exact original sources and C NOT_APPLICABLE/Jim result boundaries remain intact. No assertion outcome is attached; fixture selection cannot donate general worker, library or lookup authority.
 
 ## Provider answers
 
@@ -216,6 +220,11 @@ void Jim_SetResultFormatted(Jim_Interp *interp, const char *format, ...)
 No implementation binding is claimed by this observation record.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [runtime/rust/src/cmd_info/native_jim_inventory_tests.rs](../../../../runtime/rust/src/cmd_info/native_jim_inventory_tests.rs), `original_result`: Decode the retained original ORIGINAL code/result-hex fields for exact public comparisons; decoding supplies no header/cache/lookup identity or provider roster.
+- [runtime/rust/src/cmd_info/native_jim_inventory_tests.rs](../../../../runtime/rust/src/cmd_info/native_jim_inventory_tests.rs), `cmd_info::native_jim_inventory_tests::original_alias_diagnostic_extents_match_all_12_native_public_windows` (linked): Two unchanged ASCII fixture programs across six selected software cores compare all12 original public completion/result windows and require no pending Host cause. Jim explicitly installs only the byte-producing binary adapter; original C NOT_APPLICABLE branches remain unchanged. NUL, UTF8 e-acute and FF are produced at evaluation, not literal source characters.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

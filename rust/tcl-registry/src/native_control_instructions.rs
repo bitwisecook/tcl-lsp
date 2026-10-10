@@ -242,7 +242,7 @@ fn boolean(word: &NativeProjectedCompilerWord, dialect: InvocationDialect) -> Op
         .native_scalar_getter_protocol()?
         .fresh_conversion(NativeScalarGetterKind::Boolean, word.literal.as_deref()?)?;
     match conversion.outcome().ok()? {
-        NativeScalarGetterValue::Boolean(value) => Some(value),
+        NativeScalarGetterValue::Boolean(value) => Some(value.is_true()),
         _ => None,
     }
 }

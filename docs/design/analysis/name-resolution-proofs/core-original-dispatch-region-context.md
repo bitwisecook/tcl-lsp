@@ -26,6 +26,8 @@ Source-backed inline and data-group consumers share CurrentSourceContext and act
 
 Five additional marked Core definitions retain current captured-method metadata and typed external/internal object masks. Original selected receiver-local dispatch differs from variable or literal object names; ConditionalSource advice stays separate from canonical visibility, and Unavailable masks withhold workspace fallbacks despite populated facts.
 
+The marked external-self source control requires an independent actual method entry and export status after internal dispatch; genuine my and ordinary [self] calls retain different purposes.
+
 ## Scope
 
 Current Core source-region implementation contract. Two fixed controls check retained custom schema/PotentialEvaluation versus ReferenceOnly, and original moved namespace source versus replacement/delete/missing/stale ownership. All seven providers are not tested; original provider dispatch/lifetime observations remain separate.
@@ -41,6 +43,8 @@ Seven additional current Core source controls have no executed assertion result 
 Two added source/software definitions attach no assertion outcome. Current source currency, original dispatch roles and conditional output metadata remain separate from physical receiver/frame identity, Native entry and safe insertion/movement/rewrite authority.
 
 These source API definitions do not establish Native receiver allocation, method entry, current frame, physical identity, visibility behavior on an original provider or edit permission. Full source/configuration/availability/store currency remains required independently of reported names; no assertion outcome is attached.
+
+This source software definition attaches no execution outcome or provider promotion. C8.6/C9.0/C9.1 fixture selections do not constitute fresh external runs. Existing original my/internal and external-self/unexported observations stay independent, including the separate C9 true-private declaration scope. Current self identity, a clear local mask or source configuration supplies no method execution, Native visibility, physical frame, editor fallback correctness or edit permission.
 
 ## Provider answers
 
@@ -155,6 +159,12 @@ These source bindings establish no executed assertion result; exact software out
 - [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `definition::tests::original_internal_visibility_uses_the_selected_receiver_local_head` (linked): Internal method visibility consumes the genuinely selected receiver-local head despite a same-spelling global decoy, rather than textual head recognition.
 - [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `definition::tests::original_source_visibility_keeps_full_lexer_input_and_conditional_mask_purpose` (linked): Full retained BOM/lexer/source input supplies a typed ConditionalSource mask without inventing Native object configuration; changing a display dialect cannot widen it and another source namespace withholds it.
 - [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `definition::tests::original_external_visibility_withholds_populated_unavailable_stale_and_foreign_input` (linked): Populated reporting/configuration facts do not bypass missing, typed unavailable, stale grammar/source, older same-store availability or foreign complete input; Unavailable masks withhold every workspace fallback.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `object_dispatch_mask`: Validate complete CurrentSourceContext before visiting actual executable source commands and returning a typed local mask; unavailable or retained Native/conditional masks withhold workspace fallback.
+- [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `object_dispatch_mask_at_command`: Retain authentic original receiver and independently exported method entry; distinguish selected internal dispatch from external self identity and conditional object configuration.
+- [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `definition::tests::original_external_self_visibility_requires_its_own_entry_after_internal_dispatch` (linked): Actual C8.6/C9.0/C9.1 source-analysis fixtures distinguish my internal dispatch from ordinary [self] external calls: Hidden internal dispatch clears this local mask, an actual unexported external method entry masks fallback, an actual exported entry clears it, and deferred self identity without an external entry is unavailable. Self identity supplies no external visibility licence.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 

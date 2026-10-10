@@ -1153,7 +1153,9 @@ impl ValueOps for Interp {
             tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
             self.host().numeric_environment(),
         )? {
-            tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(value) => Ok(value),
+            tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(value) => {
+                Ok(value.is_true())
+            }
             _ => Err(ValueError::ScalarNumericInputUnavailable),
         }
     }

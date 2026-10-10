@@ -68,6 +68,7 @@ pub mod native_jim_lsearch;
 pub mod native_jim_switch;
 pub mod native_list_index;
 pub mod native_list_storage;
+pub mod native_boolean_truth;
 pub mod native_numeric;
 pub mod native_return_merge;
 pub mod path;

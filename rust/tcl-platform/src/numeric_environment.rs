@@ -47,10 +47,28 @@ pub enum NumericEnvironmentUnavailable {
     Conversion,
 }
 
+/// Descriptive integer layout of the actual selected host C target.
+/// These facts authenticate no interpreter, object header, handler or source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeCIntegerAbi {
+    /// Bits per actual C `char`, independently of source Unicode grammar.
+    pub char_bits: u8,
+    /// Actual C `sizeof(int)` in C characters.
+    pub int_bytes: u8,
+    /// Actual C `sizeof(long)` in C characters.
+    pub long_bytes: u8,
+}
+
 /// Host-owned numeric thread state shared by interpreters and host callbacks.
 /// There is no interpreter-local errno mirror. Authored hosts can provide a
 /// separate implementation; absence does not establish a zero/range-free state.
 pub trait NumericEnvironment {
+    /// Report this independently supplied host's actual C integer layout.
+    /// Default absence supplies neither a width nor a primitive getter recipe.
+    fn c_integer_abi(&self) -> Result<NativeCIntegerAbi, NumericEnvironmentUnavailable> {
+        Err(NumericEnvironmentUnavailable::Target)
+    }
+
     /// Observe the actual current thread state without resetting it.
     fn state(&self) -> Result<NumericErrorState, NumericEnvironmentUnavailable>;
 

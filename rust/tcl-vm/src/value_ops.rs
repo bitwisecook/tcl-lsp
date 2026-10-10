@@ -942,11 +942,14 @@ impl ValueOps for Vm {
                 .map(|value| value.value())
                 .map_err(|_| ValueError::NotBooleanBytes(v.string_bytes().to_vec()));
         }
-        match v.native_scalar_getter(
+        match v.native_scalar_getter_with_environment(
             context.dialect,
             tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
+            self.host().numeric_environment(),
         )? {
-            tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(value) => Ok(value),
+            tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(value) => {
+                Ok(value.is_true())
+            }
             _ => Err(ValueError::ScalarNumericInputUnavailable),
         }
     }

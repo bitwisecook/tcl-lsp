@@ -143,7 +143,9 @@ fn value_bits(value: NativeScalarGetterValue) -> u64 {
     match value {
         NativeScalarGetterValue::Wide(value) => value.cast_unsigned(),
         NativeScalarGetterValue::Double(value) => value.to_bits(),
-        NativeScalarGetterValue::Boolean(value) => u64::from(value),
+        NativeScalarGetterValue::Boolean(value) => {
+            u64::from(value.returned_integer().cast_unsigned())
+        }
     }
 }
 fn cache_kind(cache: Option<&NativeScalarCache>) -> &'static str {
@@ -193,8 +195,9 @@ fn fresh_native_getter_grammar_value_and_cache_match_all_six_engines() {
                 let input = line.split_once('\t').unwrap().0.as_bytes();
                 // The pinned sequential Jim Wide probe retained ERANGE after
                 // the preceding unsigned-overflow cases before its MIN case.
-                let conversion =
-                    protocol(index).fresh_conversion_with_range_error(kind, input, true);
+                let conversion = protocol(index)
+                    .fresh_conversion_with_range_error(kind, input, true)
+                    .unwrap();
                 verify(&conversion, field(line, "code"), field(line, "bits"), line);
                 assert_eq!(
                     cache_kind(conversion.cache()),
@@ -241,7 +244,10 @@ fn storage_and_boolean_cache_are_independent_getter_axes() {
             );
             let wide = boolean
                 .cache()
-                .and_then(|cache| recipe.cached_conversion(NativeScalarGetterKind::Wide, cache))
+                .map(|cache| recipe.cached_conversion(NativeScalarGetterKind::Wide, cache, None))
+                .transpose()
+                .unwrap()
+                .flatten()
                 .unwrap_or_else(|| {
                     recipe
                         .fresh_conversion(NativeScalarGetterKind::Wide, &input)
@@ -297,7 +303,8 @@ fn existing_native_cache_conversion_preserves_value_and_preparation_obligations(
                 NativeScalarCache::Number(Number::Int(1))
             };
             let conversion = recipe
-                .cached_conversion(kind, &prior)
+                .cached_conversion(kind, &prior, None)
+                .unwrap()
                 .unwrap_or_else(|| recipe.fresh_conversion(kind, strings[at]).unwrap());
             verify(&conversion, field(line, "code"), field(line, "bits"), line);
             assert_eq!(
@@ -366,6 +373,7 @@ fn unknown_native_range_state_and_foreign_storage_abstain() {
             b"9223372036854775808",
             false
         )
+        .unwrap()
         .outcome()
         .is_ok()
     );
@@ -375,6 +383,7 @@ fn unknown_native_range_state_and_foreign_storage_abstain() {
             b"9223372036854775808",
             true
         )
+        .unwrap()
         .outcome(),
         Err(NativeScalarGetterFailure::IntegerOverflow)
     );
@@ -403,7 +412,8 @@ fn retained_native_range_state_affects_fresh_boundaries_and_not_cached_integers(
         let cached = field(line, "kind") == "1";
         let prior = NativeScalarCache::Number(Number::Int(values[at]));
         let conversion = if cached {
-            jim.cached_conversion(NativeScalarGetterKind::Wide, &prior)
+            jim.cached_conversion(NativeScalarGetterKind::Wide, &prior, None)
+                .unwrap()
                 .unwrap()
         } else {
             assert_eq!(
@@ -415,6 +425,7 @@ fn retained_native_range_state_affects_fresh_boundaries_and_not_cached_integers(
                 inputs[at],
                 field(line, "state") == "1",
             )
+            .unwrap()
         };
         verify(&conversion, field(line, "code"), field(line, "bits"), line);
         assert_eq!(
@@ -465,7 +476,10 @@ fn assert_primitive_int_row(
     });
     let conversion = prior
         .as_ref()
-        .and_then(|cache| protocol.cached_conversion(NativeScalarGetterKind::Int, cache))
+        .map(|cache| protocol.cached_conversion(NativeScalarGetterKind::Int, cache, None))
+        .transpose()
+        .unwrap()
+        .flatten()
         .or_else(|| protocol.fresh_conversion(NativeScalarGetterKind::Int, original))
         .unwrap();
     let effective_cache = conversion.cache().or(prior.as_ref());
@@ -665,7 +679,10 @@ fn legacy_long_and_wide_retain_distinct_native_primary_caches() {
         };
         let conversion = cache
             .as_ref()
-            .and_then(|cache| protocol.cached_conversion(kind, cache))
+            .map(|cache| protocol.cached_conversion(kind, cache, None))
+            .transpose()
+            .unwrap()
+            .flatten()
             .unwrap_or_else(|| protocol.fresh_conversion(kind, bytes).unwrap());
         let final_cache = conversion.cache().or(cache.as_ref());
         let final_type = match final_cache {

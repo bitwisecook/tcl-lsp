@@ -14,9 +14,13 @@ What catch codes and ordered results do the exact local, missing-source, same-so
 
 C Tcl rejects local, missing-source and same-source imports and qualified exports; a non-force conflict retains DESTINATION and subsequent -force selects SOURCE. Jim accepts local and missing-source imports and qualified export, rejects same-source import, and its first import already replaces DESTINATION with SOURCE.
 
+A marked Compiler control withholds complete source worlds for four independently unresolved namespace prelude/destination/pattern cases across selected C recipes.
+
 ## Scope
 
 The exact ASCII source-file controls are captured on Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and Jim 0.84-9-g5bac7c9. Backslash substitutions produce the tested adjacent surrogate units. Attempt 2 reports provider string length/index and scan %c results as decimal ASCII units; it does not assert raw bytes or a universal scalar representation. These observations grant no counted API, raw NUL, physical cache, compiler preparation, arbitrary glob equivalence or source execution authority. BIG-IP was not tested.
+
+Model refusal does not equal an executed native error, public completion, option validation order, force-replacement licence or closed absence. The unchanged original pattern/options/error rows retain their own measured versions and purposes. Current source correspondence and quiet observer obligations stay independent; no assertion result is supplied.
 
 ## Provider answers
 
@@ -95,6 +99,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 No implementation binding is claimed by this observation record.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/command_binding/original_namespace_binding.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_binding.rs), `OriginalNamespaceBinding::completed`: Require exact current source/config/vector/handler/namespace/input correspondence and expected closed source table/export state before model completion; unknown prelude or destinations remain terminal.
+- [rust/tcl-compiler/src/command_binding/original_namespace_binding.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_binding.rs), `command_binding::original_namespace_binding::tests::original_namespace_import_completion_requires_closed_prelude_and_destinations` (linked): Across five selected C source recipes, an unresolved auto_import prelude, force replacement of an existing destination, self-namespace import or qualified export pattern prevents a completed source command world. These four conservative model refusals do not manufacture an original Guest error or prove all provider option semantics.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

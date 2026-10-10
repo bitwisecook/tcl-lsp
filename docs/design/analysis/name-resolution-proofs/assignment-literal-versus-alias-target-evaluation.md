@@ -16,11 +16,15 @@ C8.5/C8.6/C9.0/C9.1 literal commands perform the first store before evaluating t
 
 Original list-assignment recipe selection preserves opaque literal target bytes across document and native source channels while keeping bytecode, direct and unknown compilation modes independent.
 
+A marked readonly compiler-preparation control preserves the original list/dynamic-target ordinals, release-specific recipe selection and Direct/missing-protocol boundaries.
+
 ## Scope
 
 Two immutable exact ASCII source-file programs, fresh native shells, procedure activation per case, literal and actual alias routes, absent/old first states and existence/value of first/old/one. v1 Jim aborts at unsupported Tcl-style interp alias syntax before any lassign case; v2 independently selects its actual alias command and completes all cases. That v1 process failure is retained as a setup limitation, not a lassign answer. BIGIP untested. Source inspection and output observations are distinct.
 
 Selection cannot establish alias-target evaluation, result/cell identity, a reached assignment, physical frame or rewrite equivalence. The original literal-versus-alias target experiment remains independent.
+
+The helper receives a manually supplied recipe/context and actual source words; it does not compile an original interpreter, execute either target, compare literal/alias side effects or grant actual native instruction/frame/worker admission. Recipe presence and original operand ordinal are source preparation obligations only. The unchanged original list-assignment/alias-target observations remain independent; no passing software outcome is attached.
 
 ## Provider answers
 
@@ -527,6 +531,11 @@ A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs), `NativeCompilationSpec::select_native_words`: Select the recipe from authentic captured source words plus explicit dialect/mode/context; missing premises retain Generic or Unknown rather than a donated compiler entry.
 - [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs), `native_compilation::tests::original_assignment_selection_keeps_opaque_target_bytes_and_modes_separate` (linked): Original assignment selection retains literal document/native opaque target bytes and exact compiler mode: supported bytecode selection, direct generic execution and missing/unknown context remain separate without assuming alias target evaluation equivalence. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-compiler/src/registry_invocation/native_compilation_source.rs](../../../../rust/tcl-compiler/src/registry_invocation/native_compilation_source.rs), `original_native_compilation`: Capture the complete original word vector and selected source String/compiler dialect before readonly recipe selection/preparation; missing source/protocol is Unknown and actual compilation/frame admission stays separate.
+- [rust/tcl-compiler/src/registry_invocation/native_compilation_source.rs](../../../../rust/tcl-compiler/src/registry_invocation/native_compilation_source.rs), `registry_invocation::native_compilation_source::tests::original_list_preparations_keep_selected_target_evaluation_order` (linked): Five selected C source/protocol recipes preserve lassign original list operand1 and original dynamic target operand3, inline only from C8.5, and lrange inline only from C8.6. Direct mode selects generic/no preparation; missing original source protocol selects Unknown. This is preparation geometry, not target evaluation execution.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 

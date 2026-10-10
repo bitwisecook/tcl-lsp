@@ -168,6 +168,7 @@ pub mod native_namespace_code;
 pub mod native_namespace_name;
 pub mod native_namespace_upvar;
 pub mod native_numeric_conversion;
+pub mod native_boolean_truth;
 pub mod native_numeric_error;
 pub mod native_object_append;
 pub mod native_object_vector;

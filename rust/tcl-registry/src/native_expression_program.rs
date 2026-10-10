@@ -169,7 +169,7 @@ pub fn expression_boolean_probe_matches(
     else {
         return false;
     };
-    if !matches!(native.outcome(), Ok(NativeScalarGetterValue::Boolean(value)) if value == probe.value)
+    if !matches!(native.outcome(), Ok(NativeScalarGetterValue::Boolean(value)) if value.is_true() == probe.value)
     {
         return false;
     }

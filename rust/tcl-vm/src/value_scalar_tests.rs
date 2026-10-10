@@ -34,7 +34,10 @@ fn neutral_probe_retains_absent_string_and_exact_nan_payload() {
         value.native_scalar_getter(dialect, Kind::Int),
         Err(ValueError::NativeScalarGetter(_))
     ));
-    assert!(alias.resident_string_bytes().is_some());
+    // naming.numeric.original-capi-scalar-publication-width
+    // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+    // C86 original case24/getter0 has no String access for constant overflow.
+    assert!(alias.resident_string_bytes().is_none());
 }
 
 #[test]
@@ -248,7 +251,9 @@ fn physical_fresh_getters_match_measured_c_values_and_original_caches() {
                     let bits = match returned {
                         Returned::Wide(integer) => integer.cast_unsigned(),
                         Returned::Double(double) => double.to_bits(),
-                        Returned::Boolean(boolean) => u64::from(boolean),
+                        Returned::Boolean(boolean) => {
+                            u64::from(boolean.returned_integer().cast_unsigned())
+                        }
                     };
                     assert_eq!(
                         bits,
@@ -323,7 +328,11 @@ fn primitive_boolean_storage_and_followup_wide_match_all_native_fixtures() {
                 "engine {index}: {line}: {boolean:?}"
             );
             if let Ok(boolean) = boolean {
-                assert_eq!(u8::from(boolean).to_string(), field(line, "bool"), "{line}");
+                assert_eq!(
+                    boolean.returned_integer().to_string(),
+                    field(line, "bool"),
+                    "{line}"
+                );
             }
             let expected_cache = match field(line, "booltype") {
                 "int" | "wideInt" => "integer",
@@ -488,7 +497,9 @@ fn physical_big_nan_and_word_caches_retain_full_payloads() {
         let word = Value::from_string_bytes(b"true".as_slice());
         assert_eq!(
             word.native_scalar_getter(dialect, Kind::Boolean),
-            Ok(Returned::Boolean(true))
+            Ok(Returned::Boolean(
+                tcl_syntax::scalar_getter::NativeBooleanGetterValue::normalized(true)
+            ))
         );
         assert_eq!(word.native_word_boolean_version(), Some(version));
         assert_eq!(

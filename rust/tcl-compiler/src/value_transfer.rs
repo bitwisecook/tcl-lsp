@@ -73,6 +73,10 @@ use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey, Version};
 use crate::tcl_expr_eval::{ExprAnswer, ExprServices, FoldPolicy, evaluate_expression};
 use tcl_syntax::word_rules::WordValueRules;
 
+mod original_diagnostic_values;
+
+pub use original_diagnostic_values::OriginalDiagnosticValues;
+
 /// The analysis context's hashable identity, as a per-function memo key
 /// carries it: the facts that can change an answer and that the key's
 /// other fields (body, dialect, grammar, traces, seeds) do not already
@@ -5056,6 +5060,34 @@ pub struct StatementId {
     pub index: usize,
 }
 
+/// The same positioned word evaluation reads either executable facts or the
+/// separately authenticated diagnostic contents. Only executable facts carry
+/// a representation projection.
+#[derive(Clone, Copy)]
+struct ProvenReadFacts<'a> {
+    values: &'a HashMap<ValueKey, LatticeValue>,
+    folded_types: Option<&'a HashMap<ValueKey, FoldedType>>,
+    reached: &'a HashSet<crate::cfg::BlockId>,
+}
+
+impl<'a> ProvenReadFacts<'a> {
+    fn execution(fu: &'a crate::compilation_unit::FunctionUnit) -> Self {
+        Self {
+            values: &fu.sccp.values,
+            folded_types: Some(&fu.sccp.folded_types),
+            reached: &fu.sccp.executable_blocks,
+        }
+    }
+
+    fn diagnostic(facts: crate::sccp::DiagnosticValueFacts<'a>) -> Self {
+        Self {
+            values: facts.values(),
+            folded_types: None,
+            reached: facts.executable_blocks(),
+        }
+    }
+}
+
 /// The exact value a word of a statement has at that statement, with its
 /// folded type — the lattice's answer, never a token relabelled as a
 /// literal. `word` counts the call's words from the command's own (`0`,
@@ -5079,7 +5111,25 @@ pub fn proven_word_value(
     word: usize,
     config: LexerConfig,
 ) -> Option<(ExactValue, Option<FoldedType>)> {
-    if !fu.sccp.executable_blocks.contains(&statement.block) {
+    proven_word_value_with_facts(
+        fu,
+        statement,
+        word,
+        config,
+        ProvenReadFacts::execution(fu),
+        None,
+    )
+}
+
+fn proven_word_value_with_facts(
+    fu: &crate::compilation_unit::FunctionUnit,
+    statement: StatementId,
+    word: usize,
+    config: LexerConfig,
+    facts: ProvenReadFacts<'_>,
+    original: Option<(&CommandTokens, &[crate::word_subst::LiftedCall])>,
+) -> Option<(ExactValue, Option<FoldedType>)> {
+    if !facts.reached.contains(&statement.block) {
         return None;
     }
     let call = fu
@@ -5097,22 +5147,25 @@ pub fn proven_word_value(
     let Statement::Call { args, tokens, .. } = call else {
         return None;
     };
-    let arguments = call_arguments(args, tokens.as_ref(), &config);
+    let tokens = original.map_or(tokens.as_ref(), |(tokens, _)| Some(tokens));
+    let arguments = call_arguments(args, tokens, &config);
     let argument = arguments.get(word.checked_sub(1)?)?;
     let written = if at.defs.is_empty() {
         HashSet::new()
     } else {
         let start = tokens
-            .as_ref()
             .and_then(|tokens| tokens.argv.get(word))
             .map(|span| span.start());
-        written_before(
-            at,
-            start,
-            &crate::word_subst::lifted_calls(tokens.as_ref(), config),
-        )
+        let lexical;
+        let calls = if let Some((_, calls)) = original {
+            calls
+        } else {
+            lexical = crate::word_subst::lifted_calls(tokens, config);
+            &lexical
+        };
+        written_before(at, start, calls)
     };
-    proven_argument(argument, &at.uses, &written, fu, config)
+    proven_argument(argument, &at.uses, &written, fu, (config, facts))
 }
 
 /// Where a command substitution runs: in a statement's words, or in a
@@ -5224,7 +5277,25 @@ pub fn proven_return_word_value(
     word: usize,
     config: LexerConfig,
 ) -> Option<(ExactValue, Option<FoldedType>)> {
-    if !fu.sccp.executable_blocks.contains(&block)
+    proven_return_word_value_with_facts(
+        fu,
+        block,
+        tokens,
+        word,
+        config,
+        ProvenReadFacts::execution(fu),
+    )
+}
+
+fn proven_return_word_value_with_facts(
+    fu: &crate::compilation_unit::FunctionUnit,
+    block: crate::cfg::BlockId,
+    tokens: &CommandTokens,
+    word: usize,
+    config: LexerConfig,
+    facts: ProvenReadFacts<'_>,
+) -> Option<(ExactValue, Option<FoldedType>)> {
+    if !facts.reached.contains(&block)
         || !crate::word_subst::lifted_calls(Some(tokens), config).is_empty()
     {
         return None;
@@ -5236,7 +5307,7 @@ pub fn proven_return_word_value(
         versions,
         &HashSet::new(),
         fu,
-        config,
+        (config, facts),
     )
 }
 
@@ -5255,18 +5326,36 @@ pub fn proven_substituted_word_value(
     (call, word): (usize, usize),
     config: LexerConfig,
 ) -> Option<(ExactValue, Option<FoldedType>)> {
+    proven_substituted_word_value_with_facts(
+        fu,
+        host,
+        calls,
+        (call, word),
+        config,
+        ProvenReadFacts::execution(fu),
+    )
+}
+
+fn proven_substituted_word_value_with_facts(
+    fu: &crate::compilation_unit::FunctionUnit,
+    host: SubstitutionHost,
+    calls: &[crate::word_subst::LiftedCall],
+    (call, word): (usize, usize),
+    config: LexerConfig,
+    facts: ProvenReadFacts<'_>,
+) -> Option<(ExactValue, Option<FoldedType>)> {
     let tokens = calls.get(call)?.words.as_ref()?;
     let start = tokens.argv.get(word)?.start();
     let (versions, written) = match host {
         SubstitutionHost::Statement(id) => {
-            if !fu.sccp.executable_blocks.contains(&id.block) {
+            if !facts.reached.contains(&id.block) {
                 return None;
             }
             let at = fu.ssa.blocks.get(&id.block)?.statements.get(id.index)?;
             (&at.uses, written_before(at, Some(start), calls))
         }
         SubstitutionHost::Terminator(block) => {
-            if !fu.sccp.executable_blocks.contains(&block) {
+            if !facts.reached.contains(&block) {
                 return None;
             }
             (&fu.ssa.blocks.get(&block)?.exit_versions, HashSet::new())
@@ -5278,7 +5367,7 @@ pub fn proven_substituted_word_value(
         versions,
         &written,
         fu,
-        config,
+        (config, facts),
     )
 }
 
@@ -5305,14 +5394,14 @@ fn proven_argument(
     versions: &HashMap<Symbol, Version>,
     written: &HashSet<Symbol>,
     fu: &crate::compilation_unit::FunctionUnit,
-    config: LexerConfig,
+    (config, facts): (LexerConfig, ProvenReadFacts<'_>),
 ) -> Option<(ExactValue, Option<FoldedType>)> {
     match argument.source {
         OperandSource::BracedLiteral | OperandSource::Literal | OperandSource::QuotedLiteral => {
             Some((ExactValue::from_literal(&argument.text), None))
         }
         OperandSource::Substituted => {
-            proven_substitution(&argument.text, versions, written, fu, config)
+            proven_substitution(&argument.text, versions, written, fu, (config, facts))
         }
         OperandSource::Unknown => None,
     }
@@ -5325,7 +5414,7 @@ fn proven_substitution(
     uses: &HashMap<Symbol, Version>,
     written: &HashSet<Symbol>,
     fu: &crate::compilation_unit::FunctionUnit,
-    config: LexerConfig,
+    (config, facts): (LexerConfig, ProvenReadFacts<'_>),
 ) -> Option<(ExactValue, Option<FoldedType>)> {
     use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
     let read = |name: &str| -> Option<(ExactValue, ValueKey)> {
@@ -5334,14 +5423,19 @@ fn proven_substitution(
             return None;
         }
         let key = (symbol, *uses.get(&symbol)?);
-        match fu.sccp.values.get(&key)? {
+        match facts.values.get(&key)? {
             LatticeValue::Const(value) => Some((const_to_exact(value), key)),
             _ => None,
         }
     };
     if let Some(name) = simple_var_ref_name(text, config.braced_var) {
         let (value, key) = read(name)?;
-        return Some((value, fu.sccp.folded_types.get(&key).cloned()));
+        return Some((
+            value,
+            facts
+                .folded_types
+                .and_then(|types| types.get(&key).cloned()),
+        ));
     }
     let parts = match decompose(text.as_bytes(), SubstFlags::default(), config) {
         WordBody::Literal(bytes) => return Some((exact_of_bytes(bytes.to_vec()), None)),

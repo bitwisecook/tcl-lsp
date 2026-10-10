@@ -406,6 +406,9 @@ pub struct FunctionUnit {
     pub sccp: SccpResult,
     /// Lazy immutable analysis-purpose values; caches never affect structural Eq.
     pub semantic_value_projection: Arc<crate::sccp::SemanticValueProjection>,
+    /// Exact projection issued by this function's construction or central
+    /// graph invalidation. A substituted public cache is not that producer.
+    pub(crate) retained_semantic_value_owner: Option<Arc<crate::sccp::SemanticValueProjection>>,
     /// Type lattice values per SSA definition.
     ///
     /// Computed by the type-propagation pass. Absent entries are
@@ -801,6 +804,7 @@ impl FunctionUnit {
     /// Guarded/carrierless fixture units may have no separate semantic projection.
     #[must_use]
     pub fn semantic_values(&self) -> Option<&crate::sccp::SemanticValueFacts> {
+        self.has_original_semantic_value_owner().then_some(())?;
         self.semantic_value_projection.get(&self.cfg, &self.ssa)
     }
 
@@ -812,9 +816,25 @@ impl FunctionUnit {
         )
     }
 
-    /// Detach lazy analysis values after any CFG/SSA proof transformation.
+    /// Correspondence to the actual immutable construction cache. Complete
+    /// source metadata and positioned read ownership remain separate guards.
+    pub(crate) fn has_original_semantic_value_owner(&self) -> bool {
+        self.retained_semantic_value_owner
+            .as_ref()
+            .is_some_and(|owner| Arc::ptr_eq(owner, &self.semantic_value_projection))
+    }
+
+    /// Detach lazy values before every CFG/SSA proof transformation. Restoration,
+    /// relocation and lexical rebasing all use this same lifecycle. A swapped
+    /// producer remains unavailable rather than becoming a new original owner.
     pub fn invalidate_semantic_values(&mut self) {
+        if !self.has_original_semantic_value_owner() {
+            self.retained_semantic_value_owner = None;
+            self.semantic_value_projection = Arc::default();
+            return;
+        }
         self.semantic_value_projection = Arc::new(self.semantic_value_projection.uncached());
+        self.retained_semantic_value_owner = Some(Arc::clone(&self.semantic_value_projection));
     }
 
     /// Analysis constants whose implicit math calls require runtime validation.
@@ -1506,6 +1526,7 @@ impl FunctionUnit {
             ssa,
             def_use: Arc::new(def_use),
             sccp,
+            retained_semantic_value_owner: Some(Arc::clone(&semantic_value_projection)),
             semantic_value_projection,
             types: Arc::new(types),
             return_type,
@@ -1538,6 +1559,7 @@ impl FunctionUnit {
             def_use: Arc::default(),
             sccp: SccpResult::default(),
             semantic_value_projection: Arc::default(),
+            retained_semantic_value_owner: None,
             types: Arc::default(),
             return_type: TypeLattice::unknown(),
             taints: Arc::default(),

@@ -1,0 +1,36 @@
+{
+  "original_source": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+  "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+  "windows": [
+    {
+      "name": "SetStringFromAny",
+      "path": "/tmp/grammar-jim-string-cat430/source-audit/SetStringFromAny-2467-2490.txt",
+      "first_line": 2467,
+      "last_line": 2490,
+      "sha256": "6f8d5ff9cb1f9a93363096779fc91b9ec85d87ce8b7d55e679994dc9a203e5b5"
+    },
+    {
+      "name": "StringAppendString",
+      "path": "/tmp/grammar-jim-string-cat430/source-audit/StringAppendString-2561-2595.txt",
+      "first_line": 2561,
+      "last_line": 2595,
+      "sha256": "239e74aca4a954ec667f14ea5e218b2cf64fd2b60d5b9dd8ba1652f9a8490faf"
+    },
+    {
+      "name": "Jim_AppendObj",
+      "path": "/tmp/grammar-jim-string-cat430/source-audit/Jim_AppendObj-2596-2610.txt",
+      "first_line": 2596,
+      "last_line": 2610,
+      "sha256": "2f4138f46aab99c3925068ce459014f5bdee29d303ea05014937fadcf6d1885b"
+    },
+    {
+      "name": "OPT_CAT",
+      "path": "/tmp/grammar-jim-string-cat430/source-audit/OPT_CAT-14849-14871.txt",
+      "first_line": 14849,
+      "last_line": 14871,
+      "sha256": "795ee733eee38d695d4035e4f018dfb14693e2c470043dad4b67dad8e0ea4a51"
+    }
+  ],
+  "scope": "Independent source interpretation only; no new native execution or field observation."
+}

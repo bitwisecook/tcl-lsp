@@ -124,9 +124,6 @@ impl NativeScalarGetterProtocol {
         failure: Failure,
         original: &[u8],
     ) -> Option<NativeScalarGetterError> {
-        if kind == Kind::Long && self.tcl_version() != Some(TclVersion::V8_4) {
-            return None;
-        }
         let presentation = self.failure_message(kind, failure, original)?;
         Some(NativeScalarGetterError {
             protocol: self,
@@ -136,6 +133,35 @@ impl NativeScalarGetterProtocol {
             error_code: presentation.error_code,
             eval_nul_terminated: presentation.eval_nul_terminated,
         })
+    }
+
+    /// Whether this selected primitive failure requires original string access.
+    /// `None` refuses an unmodeled kind/origin; false describes a constant
+    /// diagnostic and supplies no object getter or expression authority.
+    #[must_use]
+    pub fn failure_requires_original_string(self, kind: Kind, failure: Failure) -> Option<bool> {
+        // Selection shares the existing presentation owner. No bytes from an
+        // object are claimed by this availability-only query.
+        self.failure_message(kind, failure, &[])?;
+        Some(matches!(
+            failure,
+            Failure::Invalid | Failure::InvalidOctal | Failure::CachedNonInteger
+        ))
+    }
+
+    /// Render a modeled constant diagnostic without requesting original bytes.
+    /// An operand-dependent failure refuses this door rather than substituting
+    /// an invented empty original string.
+    #[must_use]
+    pub fn failure_presentation_without_original_string(
+        self,
+        kind: Kind,
+        failure: Failure,
+    ) -> Option<NativeScalarGetterError> {
+        if self.failure_requires_original_string(kind, failure)? {
+            return None;
+        }
+        self.failure_presentation(kind, failure, &[])
     }
 
     fn failure_message(

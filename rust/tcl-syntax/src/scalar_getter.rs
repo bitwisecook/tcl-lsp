@@ -60,7 +60,7 @@ pub enum NativeLegacyIncrementRecipe {
 pub enum NativeScalarGetterKind {
     /// C Tcl primitive signed 32-bit extraction, distinct from Wide and Jim Long.
     Int,
-    /// Pinned C Tcl 8.4 native-long extraction, preserving its long cache.
+    /// Native-long extraction under an independently selected target layout.
     Long,
     /// Native wide-integer extraction, including its release-specific width.
     Wide,
@@ -99,8 +99,71 @@ pub enum NativeScalarGetterValue {
     Wide(i64),
     /// Returned native floating-point value.
     Double(f64),
-    /// Boolean interpretation; the original numeric cache may remain unchanged.
-    Boolean(bool),
+    /// Exact public Boolean getter integer, independently of expression truth.
+    Boolean(NativeBooleanGetterValue),
+}
+
+/// Exact integer written by the selected public primitive Boolean getter.
+/// Jim can return an integer other than zero or one; expression truth is an
+/// independent operation and cannot be inferred from this carrier's recipe.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeBooleanGetterValue(i32);
+
+impl NativeBooleanGetterValue {
+    /// Exact integer produced by the public getter, without truth normalization.
+    #[must_use]
+    pub const fn returned_integer(self) -> i32 {
+        self.0
+    }
+
+    /// Logical truth of this returned primitive integer only, not `ExprBool`.
+    #[must_use]
+    pub const fn is_true(self) -> bool {
+        self.0 != 0
+    }
+
+    /// The explicitly normalized zero/one primitive recipe used by C and
+    /// successful fresh Boolean-word conversions. No engine admission is implied.
+    #[must_use]
+    pub const fn normalized(value: bool) -> Self {
+        Self(if value { 1 } else { 0 })
+    }
+}
+
+/// Missing or unsupported actual target layout, outside guest conversion errors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeScalarGetterTargetUnavailable;
+
+/// Checked public primitive layout supported by the retained 456 ABI windows.
+/// The initial recipe covers CHAR_BIT8, C int4 and C long8 only. It authenticates
+/// no original object, actual interpreter, handler or expression purpose.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeScalarGetterTarget(());
+
+impl NativeScalarGetterTarget {
+    /// Validate explicit target fields; source grammar and profile labels supply
+    /// none of them. Unmeasured integer layouts remain unavailable.
+    ///
+    /// # Errors
+    /// Refuses every layout outside the independently supported 8/4/8 recipe.
+    pub fn from_c_integer_abi(
+        char_bits: u8,
+        int_bytes: u8,
+        long_bytes: u8,
+    ) -> Result<Self, NativeScalarGetterTargetUnavailable> {
+        if (char_bits, int_bytes, long_bytes) == (8, 4, 8) {
+            Ok(Self(()))
+        } else {
+            Err(NativeScalarGetterTargetUnavailable)
+        }
+    }
+
+    fn jim_boolean(self, value: i64) -> NativeBooleanGetterValue {
+        // Pinned Jim_GetBoolean's cast retains the captured C int's low bits.
+        // This bounded recipe makes no claim for an unsupported C target.
+        let bytes = value.to_le_bytes();
+        NativeBooleanGetterValue(i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
+    }
 }
 
 /// Native Jim expression tree construction's numeric term result.
@@ -562,8 +625,47 @@ impl NativeScalarGetterProtocol {
 
     /// Current numeric-cache fast path. `None` requires actual string access;
     /// callers must not manufacture that string from a rounded getter return.
-    #[must_use]
+    ///
+    /// # Errors
+    /// A target-dependent primitive refuses missing integer-layout facts before
+    /// any fresh conversion; this is not a guest spelling failure.
     pub fn cached_conversion(
+        self,
+        kind: NativeScalarGetterKind,
+        cache: &NativeScalarCache,
+        target: Option<NativeScalarGetterTarget>,
+    ) -> Result<Option<NativeScalarGetterConversion>, NativeScalarGetterTargetUnavailable> {
+        if self.is_jim084()
+            && kind == NativeScalarGetterKind::Boolean
+            && let NativeScalarCache::Number(Number::Int(value)) = cache
+        {
+            let target = target.ok_or(NativeScalarGetterTargetUnavailable)?;
+            return Ok(Some(convert(
+                None,
+                Ok(NativeScalarGetterValue::Boolean(target.jim_boolean(*value))),
+            )));
+        }
+        if kind == NativeScalarGetterKind::Long && self.tcl_version() != Some(TclVersion::V8_4) {
+            target.ok_or(NativeScalarGetterTargetUnavailable)?;
+            return Ok(self.cached_long64(cache));
+        }
+        Ok(self.cached_conversion_known(kind, cache))
+    }
+
+    /// Whether this reached cache/getter requires independent target fields.
+    #[must_use]
+    pub fn requires_target(
+        self,
+        kind: NativeScalarGetterKind,
+        cache: Option<&NativeScalarCache>,
+    ) -> bool {
+        (kind == NativeScalarGetterKind::Long && self.tcl_version() != Some(TclVersion::V8_4))
+            || (self.is_jim084()
+                && kind == NativeScalarGetterKind::Boolean
+                && matches!(cache, Some(NativeScalarCache::Number(Number::Int(_)))))
+    }
+
+    fn cached_conversion_known(
         self,
         kind: NativeScalarGetterKind,
         cache: &NativeScalarCache,
@@ -621,18 +723,20 @@ impl NativeScalarGetterProtocol {
                 ))
             }
             (_, Double, CachedNumber(number)) => Some(convert(None, self.double_value(number))),
-            (_, Boolean, WordBoolean(value)) => {
-                Some(convert(None, Ok(NativeScalarGetterValue::Boolean(*value))))
-            }
-            (Engine::Jim084, Boolean, CachedNumber(Number::Int(value))) => Some(convert(
+            (_, Boolean, WordBoolean(value)) => Some(convert(
                 None,
-                Ok(NativeScalarGetterValue::Boolean(*value != 0)),
+                Ok(NativeScalarGetterValue::Boolean(
+                    NativeBooleanGetterValue::normalized(*value),
+                )),
             )),
+            (Engine::Jim084, Boolean, CachedNumber(Number::Int(_))) => None,
             (Engine::Tcl(TclVersion::V8_4), Boolean, CachedNumber(number)) => {
                 let value = number_truth(number);
                 let mut conversion = convert(
                     Some(WordBoolean(value)),
-                    Ok(NativeScalarGetterValue::Boolean(value)),
+                    Ok(NativeScalarGetterValue::Boolean(
+                        NativeBooleanGetterValue::normalized(value),
+                    )),
                 );
                 conversion.requires_string_materialization = true;
                 Some(conversion)
@@ -641,6 +745,65 @@ impl NativeScalarGetterProtocol {
                 Some(convert(None, self.boolean_value(number)))
             }
             _ => None,
+        }
+    }
+
+    fn cached_long64(self, cache: &NativeScalarCache) -> Option<NativeScalarGetterConversion> {
+        if self.is_jim084() {
+            return match cache {
+                NativeScalarCache::Number(Number::Int(value)) => {
+                    Some(convert(None, Ok(NativeScalarGetterValue::Wide(*value))))
+                }
+                NativeScalarCache::JimCoercedInteger(value) => Some(convert(
+                    Some(NativeScalarCache::Number(Number::Int(*value))),
+                    Ok(NativeScalarGetterValue::Wide(*value)),
+                )),
+                _ => None,
+            };
+        }
+        let NativeScalarCache::Number(number) = cache else {
+            return None;
+        };
+        Some(convert(
+            None,
+            match number {
+                Number::Double(_) | Number::Nan { .. } => {
+                    Err(NativeScalarGetterFailure::CachedNonInteger)
+                }
+                _ => self.long64_value(number),
+            },
+        ))
+    }
+
+    fn long64_value(
+        self,
+        number: &Number,
+    ) -> Result<NativeScalarGetterValue, NativeScalarGetterFailure> {
+        match number {
+            Number::Int(value) => Ok(NativeScalarGetterValue::Wide(*value)),
+            Number::Big {
+                negative,
+                radix,
+                digits,
+            } => {
+                let magnitude = unsigned_magnitude(*radix, digits)
+                    .ok_or(NativeScalarGetterFailure::IntegerOverflow)?;
+                if *negative
+                    && self
+                        .tcl_version()
+                        .is_some_and(|version| version >= TclVersion::V9_0)
+                    && magnitude > 1_u64 << 63
+                {
+                    return Err(NativeScalarGetterFailure::IntegerOverflow);
+                }
+                let value = magnitude.cast_signed();
+                Ok(NativeScalarGetterValue::Wide(if *negative {
+                    value.wrapping_neg()
+                } else {
+                    value
+                }))
+            }
+            _ => Err(NativeScalarGetterFailure::Invalid),
         }
     }
 
@@ -672,7 +835,9 @@ impl NativeScalarGetterProtocol {
                 NativeScalarGetterKind::Boolean => {
                     let mut conversion = convert(
                         Some(NativeScalarCache::WordBoolean(*value != 0)),
-                        Ok(NativeScalarGetterValue::Boolean(*value != 0)),
+                        Ok(NativeScalarGetterValue::Boolean(
+                            NativeBooleanGetterValue::normalized(*value != 0),
+                        )),
                     );
                     conversion.requires_string_materialization = true;
                     Some(conversion)
@@ -702,10 +867,10 @@ impl NativeScalarGetterProtocol {
                             Err(NativeScalarGetterFailure::IntWidthOverflow),
                         ))
                     }
-                    _ => self.cached_conversion(NativeScalarGetterKind::Wide, cache),
+                    _ => self.cached_conversion_known(NativeScalarGetterKind::Wide, cache),
                 }
             } else {
-                self.cached_conversion(NativeScalarGetterKind::Wide, cache)
+                self.cached_conversion_known(NativeScalarGetterKind::Wide, cache)
             };
             return CachedConversionFrontier::Resolved(
                 conversion.map(|conversion| self.narrow_int(conversion)),
@@ -735,14 +900,80 @@ impl NativeScalarGetterProtocol {
         {
             return None;
         }
-        Some(self.fresh_conversion_with_range_error(kind, materialized, false))
+        Some(self.fresh_conversion_known_with_range_error(kind, materialized, false))
+    }
+
+    /// Parse an actual primitive under explicit target availability. Modern C
+    /// Long has its own unsigned-edge policy; this never delegates that policy
+    /// to the independently different public Wide getter.
+    ///
+    /// # Errors
+    /// Missing target facts refuse before native string reparsing can replace a
+    /// reached target-dependent cache or getter result.
+    pub fn fresh_conversion_with_target(
+        self,
+        kind: NativeScalarGetterKind,
+        materialized: &[u8],
+        target: Option<NativeScalarGetterTarget>,
+    ) -> Result<Option<NativeScalarGetterConversion>, NativeScalarGetterTargetUnavailable> {
+        if kind != NativeScalarGetterKind::Long || self.tcl_version() == Some(TclVersion::V8_4) {
+            return Ok(self.fresh_conversion(kind, materialized));
+        }
+        target.ok_or(NativeScalarGetterTargetUnavailable)?;
+        if self.is_jim084() {
+            // Fresh Jim Long reaches GetWide's actual host/errno stage instead.
+            return Ok(self.fresh_conversion(NativeScalarGetterKind::Wide, materialized));
+        }
+        let Engine::Tcl(version) = self.engine else {
+            return Ok(None);
+        };
+        let input = self.parser_input(materialized);
+        let Some(number) = parse_number(input, version, true) else {
+            return Ok(Some(self.invalid_conversion(kind, input)));
+        };
+        let outcome = self.long64_value(&number);
+        Ok(Some(convert(
+            Some(NativeScalarCache::Number(number)),
+            outcome,
+        )))
+    }
+
+    /// Transfer an actually reached Jim GetWide conversion through its separate
+    /// public Long64 cast. Target layout establishes no GetWide call or object.
+    ///
+    /// # Errors
+    /// Refuses a foreign engine or unsupported Long target.
+    pub fn jim_long64_from_wide(
+        self,
+        conversion: NativeScalarGetterConversion,
+        _target: NativeScalarGetterTarget,
+    ) -> Result<NativeScalarGetterConversion, NativeScalarGetterTargetUnavailable> {
+        if !self.is_jim084() {
+            return Err(NativeScalarGetterTargetUnavailable);
+        }
+        Ok(conversion)
     }
 
     /// Parse with an independently retained native `errno == ERANGE` fact.
     /// This is a native environment input, never inferred from object bytes or
     /// the last guest error. The caller still owns all native errno updates.
+    /// Target-dependent Long recipes remain unavailable through this door.
     #[must_use]
     pub fn fresh_conversion_with_range_error(
+        self,
+        kind: NativeScalarGetterKind,
+        materialized: &[u8],
+        prior_range_error: bool,
+    ) -> Option<NativeScalarGetterConversion> {
+        if (kind == NativeScalarGetterKind::Long && self.tcl_version() != Some(TclVersion::V8_4))
+            || (self.is_jim084() && kind == NativeScalarGetterKind::Int)
+        {
+            return None;
+        }
+        Some(self.fresh_conversion_known_with_range_error(kind, materialized, prior_range_error))
+    }
+
+    fn fresh_conversion_known_with_range_error(
         self,
         kind: NativeScalarGetterKind,
         materialized: &[u8],
@@ -939,7 +1170,9 @@ impl NativeScalarGetterProtocol {
             };
             return convert(
                 Some(NativeScalarCache::Number(Number::Int(i64::from(value)))),
-                Ok(NativeScalarGetterValue::Boolean(value)),
+                Ok(NativeScalarGetterValue::Boolean(
+                    NativeBooleanGetterValue::normalized(value),
+                )),
             );
         }
         if self.engine == Engine::Tcl(TclVersion::V8_4) {
@@ -953,7 +1186,12 @@ impl NativeScalarGetterProtocol {
             } else {
                 NativeScalarCache::WordBoolean(value)
             };
-            return convert(Some(cache), Ok(NativeScalarGetterValue::Boolean(value)));
+            return convert(
+                Some(cache),
+                Ok(NativeScalarGetterValue::Boolean(
+                    NativeBooleanGetterValue::normalized(value),
+                )),
+            );
         }
         let Engine::Tcl(version) = self.engine else {
             unreachable!()
@@ -977,7 +1215,9 @@ impl NativeScalarGetterProtocol {
         };
         convert(
             Some(NativeScalarCache::WordBoolean(value)),
-            Ok(NativeScalarGetterValue::Boolean(value)),
+            Ok(NativeScalarGetterValue::Boolean(
+                NativeBooleanGetterValue::normalized(value),
+            )),
         )
     }
 
@@ -1030,7 +1270,9 @@ impl NativeScalarGetterProtocol {
         number: &Number,
     ) -> Result<NativeScalarGetterValue, NativeScalarGetterFailure> {
         self.double_value(number)?;
-        Ok(NativeScalarGetterValue::Boolean(number_truth(number)))
+        Ok(NativeScalarGetterValue::Boolean(
+            NativeBooleanGetterValue::normalized(number_truth(number)),
+        ))
     }
 }
 
@@ -1137,3 +1379,7 @@ fn boolean84_word(input: &[u8]) -> Option<bool> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[path = "scalar_getter/target_tests.rs"]
+mod target_tests;

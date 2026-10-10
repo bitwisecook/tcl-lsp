@@ -355,6 +355,34 @@ impl SemanticValueProjection {
         Some(self.inputs.as_ref()?.registry.registry())
     }
 
+    /// Readonly currency of the actual construction inputs, independently of
+    /// whether the lazy contents have already been computed. This grants no
+    /// executable replacement, handler, frame or result representation.
+    #[must_use]
+    pub(crate) fn matches_source_input(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        source: &crate::analyser::ResolvedAnalysisInput,
+    ) -> bool {
+        let Some(input) = self.inputs.as_ref() else {
+            return false;
+        };
+        let key = registry.snapshot().semantic_key();
+        input.source_metadata_input.as_ref() == Some(source)
+            && input.registry.semantic_key() == key
+            && crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                registry, source,
+            )
+            .is_some()
+            && match (&input.fold_registry, &input.fold_source_metadata_input) {
+                (None, None) => true,
+                (Some(folds), Some(fold_source)) => {
+                    folds.semantic_key() == key && fold_source == source
+                }
+                _ => false,
+            }
+    }
+
     /// Retain the exact construction inputs without running another solver.
     #[must_use]
     pub fn new(inputs: ValueFactInputs<'_>) -> Self {
@@ -3678,6 +3706,15 @@ mod tests {
                         &unit.top_level.ssa,
                         inputs
                     )),
+                );
+                assert_eq!(
+                    projection.matches_source_input(registry, input),
+                    fold_input == Some(input)
+                );
+                assert!(!projection.matches_source_input(registry, &foreign));
+                assert_eq!(
+                    projection.uncached().matches_source_input(registry, input),
+                    fold_input == Some(input)
                 );
                 for other in &previous {
                     assert_ne!(&projection, other);

@@ -100,9 +100,23 @@ pub(crate) fn native_scalar_probe_with_environment(
         return Err(ValueError::ScalarNumericInputUnavailable);
     }
     let cache = obj::native_scalar_cache(value)?;
+    let target = if protocol.requires_target(kind, cache.as_ref()) {
+        Some(if let Some(environment) = environment {
+            tcl_cmd_core::native_numeric::scalar_getter_target(environment)?
+        } else if protocol.is_jim084() {
+            crate::native_source::context(value)?.scalar_getter_target()?
+        } else {
+            return Err(ValueError::ScalarNumericInputUnavailable);
+        })
+    } else {
+        None
+    };
     let cached = cache
         .as_ref()
-        .and_then(|cache| protocol.cached_conversion(kind, cache));
+        .map(|cache| protocol.cached_conversion(kind, cache, target))
+        .transpose()
+        .map_err(|_| ValueError::ScalarNumericInputUnavailable)?
+        .flatten();
     let conversion = if let Some(conversion) = cached {
         conversion
     } else {
@@ -111,6 +125,7 @@ pub(crate) fn native_scalar_probe_with_environment(
             && matches!(
                 kind,
                 tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide
+                    | tcl_syntax::scalar_getter::NativeScalarGetterKind::Long
                     | tcl_syntax::scalar_getter::NativeScalarGetterKind::Double
             )
         {
@@ -128,7 +143,8 @@ pub(crate) fn native_scalar_probe_with_environment(
             )?
         } else {
             protocol
-                .fresh_conversion(kind, &original)
+                .fresh_conversion_with_target(kind, &original, target)
+                .map_err(|_| ValueError::ScalarNumericInputUnavailable)?
                 .ok_or(ValueError::ScalarNumericInputUnavailable)?
         }
     };
@@ -210,16 +226,36 @@ pub(crate) fn native_scalar_getter_with_environment(
     match native_scalar_probe_with_environment(value, dialect, kind, environment)? {
         Ok(result) => Ok(result),
         Err(failure) => {
-            let protocol = dialect
-                .native_scalar_getter_protocol()
-                .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-            let original = crate::bytearray::scalar_getter_string(value, protocol)?;
-            let record = protocol
-                .failure_presentation(kind, failure, &original)
-                .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+            let record = native_scalar_failure_presentation(value, dialect, kind, failure)?;
             Err(ValueError::NativeScalarGetter(Box::new(record)))
         }
     }
+}
+
+/// Render the already reached primitive failure without replaying its probe.
+/// Constant diagnostics retain absent String storage; dependent diagnostics
+/// use the selected checked original getter. Publication is caller-owned.
+pub(crate) fn native_scalar_failure_presentation(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    failure: tcl_syntax::scalar_getter::NativeScalarGetterFailure,
+) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterError, tcl_syntax::value::ValueError> {
+    use tcl_syntax::value::ValueError;
+    obj::check_native_liveness(value)?;
+    let protocol = dialect
+        .native_scalar_getter_protocol()
+        .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+    let requires_string = protocol
+        .failure_requires_original_string(kind, failure)
+        .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+    let record = if requires_string {
+        let original = crate::bytearray::scalar_getter_string(value, protocol)?;
+        protocol.failure_presentation(kind, failure, &original)
+    } else {
+        protocol.failure_presentation_without_original_string(kind, failure)
+    };
+    record.ok_or(ValueError::ScalarNumericInputUnavailable)
 }
 
 pub(crate) fn native_wide_int(
@@ -250,7 +286,7 @@ pub(crate) fn native_boolean(
 ) -> Result<bool, tcl_syntax::value::ValueError> {
     use tcl_syntax::scalar_getter::{NativeScalarGetterKind, NativeScalarGetterValue};
     match native_scalar_getter(value, dialect, NativeScalarGetterKind::Boolean)? {
-        NativeScalarGetterValue::Boolean(boolean) => Ok(boolean),
+        NativeScalarGetterValue::Boolean(boolean) => Ok(boolean.is_true()),
         _ => Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable),
     }
 }
@@ -360,7 +396,7 @@ pub(crate) fn scalar_number(
         return Ok(None);
     };
     if policy == NativeScalarNumericInputPolicy::NulTerminatedJim084 {
-        use tcl_syntax::expr::mathfunc::{NumValue, jim_numeric_operand};
+        use tcl_syntax::expr::mathfunc::{jim_numeric_operand, NumValue};
         let Some(number) = jim_numeric_operand::<tcl_syntax::expr::mathfunc::NoBig>(&parsed) else {
             return Ok(None);
         };
@@ -872,28 +908,24 @@ mod tests {
             obj::internal_rep(value.as_ptr())
         );
         assert_eq!(obj::bytes_of(duplicate.as_ptr()), b"::opaque\0\xff");
-        assert!(
-            obj::install_native_command_name_cache(
-                value.as_ptr(),
-                cache.clone(),
-                tcl_registry::InvocationDialect::for_version(TclVersion::V8_6)
-            )
-            .is_err()
-        );
+        assert!(obj::install_native_command_name_cache(
+            value.as_ptr(),
+            cache.clone(),
+            tcl_registry::InvocationDialect::for_version(TclVersion::V8_6)
+        )
+        .is_err());
         assert_eq!(obj::native_command_name_cache(alias.as_ptr()), Some(cache));
         assert_eq!(unsafe { (*alias.as_ptr()).bytes }, original_bytes);
         obj::retire_native_command_name_cache(value.as_ptr()).unwrap();
         assert!(obj::native_command_name_cache(alias.as_ptr()).is_none());
         assert_eq!(unsafe { (*alias.as_ptr()).bytes }, original_bytes);
         let plain = obj::Owned::fresh(obj::new_wide_int_obj(7));
-        assert!(
-            obj::install_native_command_name_cache(
-                plain.as_ptr(),
-                command_cache(version, b"7"),
-                dialect
-            )
-            .is_err()
-        );
+        assert!(obj::install_native_command_name_cache(
+            plain.as_ptr(),
+            command_cache(version, b"7"),
+            dialect
+        )
+        .is_err());
         assert!(!obj::has_string_rep(plain.as_ptr()));
     }
     const WIDE: [&str; 5] = [
@@ -964,7 +996,9 @@ mod tests {
                         let bits = match returned {
                             Value::Wide(integer) => integer.cast_unsigned(),
                             Value::Double(double) => double.to_bits(),
-                            Value::Boolean(boolean) => u64::from(boolean),
+                            Value::Boolean(boolean) => {
+                                u64::from(boolean.returned_integer().cast_unsigned())
+                            }
                         };
                         assert_eq!(
                             bits,
@@ -1401,18 +1435,41 @@ mod tests {
         let bits = 0xfff8_0000_0000_0042;
         let value = obj::Owned::fresh(obj::new_double_obj(f64::from_bits(bits)));
         assert!(!obj::has_string_rep(value.as_ptr()));
-        assert!(
-            native_scalar_probe(value.as_ptr(), dialect, Kind::Int)
-                .unwrap()
-                .is_err()
-        );
+        assert!(native_scalar_probe(value.as_ptr(), dialect, Kind::Int)
+            .unwrap()
+            .is_err());
         assert!(!obj::has_string_rep(value.as_ptr()));
         assert_eq!(obj::double_of(value.as_ptr()).to_bits(), bits);
         assert!(matches!(
             native_scalar_getter(value.as_ptr(), dialect, Kind::Int),
             Err(ValueError::NativeScalarGetter(_))
         ));
-        assert!(obj::has_string_rep(value.as_ptr()));
+        // naming.numeric.original-capi-scalar-publication-width
+        // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+        // C86 original case24/getter0 renders a constant overflow diagnostic.
+        assert!(!obj::has_string_rep(value.as_ptr()));
+    }
+
+    #[test]
+    fn primitive_nan_constant_failure_preserves_original_absent_string() {
+        // naming.numeric.original-capi-scalar-publication-width
+        // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+        // C85+ original case24/getter4 needs no original-string diagnostic.
+        for version in VERSIONS.into_iter().skip(1) {
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let value = obj::Owned::fresh(obj::new_double_obj(f64::NAN));
+            let Err(ValueError::NativeScalarGetter(record)) =
+                native_scalar_getter(value.as_ptr(), dialect, Kind::Boolean)
+            else {
+                panic!("primitive Boolean failure")
+            };
+            assert_eq!(
+                record.message_bytes(),
+                b"floating point value is Not a Number"
+            );
+            assert!(!obj::has_string_rep(value.as_ptr()));
+            assert!(obj::double_of(value.as_ptr()).is_nan());
+        }
     }
 
     #[test]
@@ -1424,13 +1481,11 @@ mod tests {
             completion_code_cache(value.as_ptr()),
             Some(CompletionCodeCache::Jim(7))
         );
-        assert!(
-            completion_code_string_bytes(
-                value.as_ptr(),
-                tcl_syntax::native_string::NativeStringProtocol::Jim084
-            )
-            .is_err()
-        );
+        assert!(completion_code_string_bytes(
+            value.as_ptr(),
+            tcl_syntax::native_string::NativeStringProtocol::Jim084
+        )
+        .is_err());
         assert!(!obj::has_string_rep(value.as_ptr()));
         let duplicate = obj::Owned::fresh(obj::duplicate(value.as_ptr()));
         assert_eq!(
@@ -1505,14 +1560,12 @@ mod tests {
             } else {
                 TclVersion::V9_0
             };
-            assert!(
-                obj::native_character_count(
-                    copied.as_ptr(),
-                    NativeStringProtocol::C(other),
-                    representation
-                )
-                .is_err()
-            );
+            assert!(obj::native_character_count(
+                copied.as_ptr(),
+                NativeStringProtocol::C(other),
+                representation
+            )
+            .is_err());
         }
     }
 }
