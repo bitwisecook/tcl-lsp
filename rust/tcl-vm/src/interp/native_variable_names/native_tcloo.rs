@@ -73,8 +73,17 @@ impl Vm {
                         Value::string("VARIABLE"),
                         Value::new_native_string_bytes(tcl_core_types::c_string_extent(&bytes)),
                     ]);
-                    failure.options =
-                        crate::command::with_return_option(&failure.options, "-errorcode", code);
+                    failure.options = match crate::command::with_return_option(
+                        self,
+                        &failure.options,
+                        "-errorcode",
+                        code,
+                    ) {
+                        Ok(options) => options,
+                        Err(error) => {
+                            return crate::command::completion_from_tcl_error(self, error);
+                        }
+                    };
                 }
                 failure
             })?;

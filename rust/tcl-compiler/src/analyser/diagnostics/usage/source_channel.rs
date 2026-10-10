@@ -87,7 +87,7 @@ mod tests {
     }
     fn analyse(source: &str, input: &ResolvedAnalysisInput) -> Analyser {
         let mut analyser = Analyser::new().with_resolved_input(input.clone());
-        analyser.analyse(source, "tcl");
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
         analyser
     }
     fn findings(result: &AnalysisResult) -> Vec<&Diagnostic> {

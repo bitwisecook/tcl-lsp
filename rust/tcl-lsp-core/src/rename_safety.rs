@@ -92,7 +92,7 @@
 //!
 //! The workspace namespace-variable tier renames `$::ns::v` across every
 //! document.  A document that computes a variable name
-//! ([`tcl_compiler::dynamic_names::names_a_dynamic_variable`]) in a
+//! ([`tcl_compiler::dynamic_names::source_name_word_is_dynamic`]) in a
 //! registry-declared variable-name argument position
 //! ([`tcl_registry::ArgRole::VarWrite`] / [`tcl_registry::ArgRole::VarRead`])
 //! may be naming the very cell being renamed, with no word to rewrite — so
@@ -101,7 +101,8 @@
 //! The refusal is decided **per site**, not per document: a
 //! word's written text bounds the names it can produce, because a
 //! substitution can evaluate to anything but the literal characters around it
-//! cannot change.  `set ::other::$n 1` therefore stops refusing a rename of
+//! cannot change. In a current supplied Logical authored-C domain,
+//! `set ::other::$n 1` therefore stops refusing a rename of
 //! `::ns::v` — nothing that word can spell is under `::ns` — while `variable
 //! $n` inside `::ns` still refuses.  See
 //! [`namespace_variable_rename_hazard`] for the bound and what stays outside
@@ -824,7 +825,7 @@ fn slice(source: &str, span: Span) -> Option<&str> {
 /// Which argument of which command names a variable is the registry's
 /// answer ([`tcl_registry::ArgRole::VarWrite`] /
 /// [`tcl_registry::ArgRole::VarRead`]); whether a word is computed is
-/// [`tcl_compiler::dynamic_names::names_a_dynamic_variable`]'s.  No command
+/// [`tcl_compiler::dynamic_names::source_name_word_is_dynamic`]'s. No command
 /// name is matched here.
 ///
 /// # Per-site provenance
@@ -834,8 +835,9 @@ fn slice(source: &str, span: Span) -> Option<&str> {
 /// a spelling of this cell.  A word's written text already bounds that set,
 /// because a substitution can evaluate to anything but the literal characters
 /// around it cannot change, so
-/// [`tcl_compiler::dynamic_names::dynamic_variable_word_can_spell`] treats the
-/// word as a pattern and the cell's spellings as the candidates.  `set
+/// [`tcl_compiler::dynamic_names::source_name_pattern_can_spell`] treats the
+/// word as a pattern and the cell's spellings as the candidates, only for
+/// current supplied Logical authored-C input and selected name roles. `set
 /// ::other::$n 1` beside a rename of `::ns::v` does not refuse; `variable
 /// $n` inside `::ns` does, which the oracle bears out
 /// (`namespace eval ns { variable v 1; proc bump {n} {variable $n; set $n 2} }`
@@ -877,6 +879,15 @@ pub fn namespace_variable_rename_hazard(
             None,
         ));
     };
+    let metadata = analysis.resolved_input.as_ref().and_then(|input| {
+        tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+            context.commands(),
+            input,
+            config,
+            analysis.resolved_profile(),
+        )
+    });
+    let purpose = tcl_compiler::dynamic_names::SourceNamePatternPurpose::VariableRoot;
     let mut hazard: Option<(Span, bool)> = None;
     let mut visit = |cmd: &SegmentedCommand| {
         if hazard.is_some() {
@@ -900,14 +911,7 @@ pub fn namespace_variable_rename_hazard(
             // mistaken for source interpolation or borrowed capture geometry.
             let static_word = cmd.single_token_word.get(ordinal + 1) == Some(&true)
                 && matches!(tok.kind, TokenType::Esc | TokenType::Str);
-            if static_word
-                || !tcl_compiler::dynamic_names::names_a_dynamic_variable(word)
-                || !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(
-                    word,
-                    cell,
-                    config.braced_var,
-                )
-            {
+            if static_word {
                 continue;
             }
             let unknown = match &roles {
@@ -925,7 +929,17 @@ pub fn namespace_variable_rename_hazard(
                 Some(_) => continue,
                 None => true,
             };
-            if !unknown && site_resolution_rules_out(analysis, tok.span, cell, dialect) {
+            if !unknown
+                && (tcl_compiler::dynamic_names::source_name_word_is_dynamic(
+                    word, purpose, metadata,
+                ) == Some(false)
+                    || tcl_compiler::dynamic_names::source_name_pattern_can_spell(
+                        word, cell, purpose, metadata,
+                    ) == Some(false))
+            {
+                continue;
+            }
+            if !unknown && site_resolution_rules_out(source, analysis, tok.span, cell, dialect) {
                 continue;
             }
             hazard = Some((tok.span, unknown));
@@ -975,6 +989,7 @@ pub fn namespace_variable_rename_hazard(
 /// substitution).  A gate that only skips on `true` therefore never accepts
 /// more than the text-only bound did.
 fn site_resolution_rules_out(
+    source: &str,
     analysis: &AnalysisResult,
     span: Span,
     cell: &str,
@@ -987,24 +1002,27 @@ fn site_resolution_rules_out(
     if !analysis.allows_lexical_declaration_advice() {
         return false;
     }
-    let Some(config) = analysis.body_lexer_config else {
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
         return false;
     };
-    if analysis
-        .resolved_input
-        .as_ref()
-        .is_none_or(|input| input.lexer_config() != config)
-    {
-        return false;
-    }
+    let metadata = analysis.resolved_input.as_ref().and_then(|input| {
+        tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+            current.registry(),
+            input,
+            current.config(),
+            Some(current.profile()),
+        )
+    });
     analysis.dynamic_variable_names.iter().any(|site| {
         site.span == span
             && site.resolved.as_deref().is_some_and(|resolved| {
-                !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(
+                tcl_compiler::dynamic_names::source_name_pattern_can_spell(
                     resolved,
                     cell,
-                    config.braced_var,
-                )
+                    tcl_compiler::dynamic_names::SourceNamePatternPurpose::VariableRoot,
+                    metadata,
+                ) == Some(false)
             })
     })
 }
@@ -1276,40 +1294,39 @@ mod tests {
         assert_eq!(hazard(src, &["::a::Factory"], "make", false), None);
     }
 
+    /// Software authoring advice only; actual Native edit identity stays
+    /// independent and has separate refusal controls below.
     fn var_hazard(source: &str, cell: &str) -> Option<String> {
-        let analysis = analyse(source);
-        namespace_variable_rename_hazard(
-            source,
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-            &analysis,
-            cell,
-            &LineIndex::new(source),
-        )
-        .map(|r| r.reason)
+        var_hazard_as(source, cell, "tcl8.6")
     }
 
-    /// [`var_hazard`] under an explicitly named dialect.
+    /// Supply the actual availability and independently selected close-rule
+    /// config with a genuinely Logical source input. The label supplies no
+    /// Native naming policy or interpreter observation.
     fn var_hazard_as(source: &str, cell: &str, dialect: &str) -> Option<String> {
-        let analysis = analyse_as(
-            source,
-            tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+        let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            environment.default_context_registry(),
+            tcl_lexer::LexerConfig::for_profile(Some(environment.unit_profile())),
         );
-        namespace_variable_rename_hazard(
-            source,
-            tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
-            &analysis,
-            cell,
-            &LineIndex::new(source),
-        )
-        .map(|r| r.reason)
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        namespace_variable_rename_hazard(source, profile, &analysis, cell, &LineIndex::new(source))
+            .map(|r| r.reason)
     }
 
     /// The rename gate reads a computed name's `${…}` extent under the
     /// **document's** close rule, not the 9.x default.
     ///
     /// The literal characters around a substitution are the whole bound this
-    /// gate rests on, so the two release rules move the decision in opposite
-    /// directions, and the caller holds the resolved profile either way:
+    /// gate rests on, so the two close rules move the decision in opposite
+    /// directions. These software controls retain Logical source input and
+    /// the independently selected exact config and availability either way:
     ///
     /// - **9.x** — `${a{b}c}` is one wildcard (the nesting rule consumes the
     ///   inner pair), which can spell any cell, so the rename is refused.
@@ -1524,6 +1541,7 @@ mod tests {
             for site in &analysis.dynamic_variable_names {
                 assert!(
                     !site_resolution_rules_out(
+                        source,
                         &analysis,
                         site.span,
                         "target",
@@ -1538,6 +1556,7 @@ mod tests {
         let site = logical.dynamic_variable_names.first().unwrap();
         assert_eq!(site.resolved.as_deref(), Some("other"));
         assert!(site_resolution_rules_out(
+            source,
             &logical,
             site.span,
             "target",
@@ -1973,6 +1992,85 @@ mod original_hazard_context_tests {
             var_reason(source, &analysis(source, "tcl8.6", store, config))
                 .unwrap()
                 .contains("roles are unavailable")
+        );
+    }
+
+    #[test]
+    fn supplied_variable_hazard_patterns_keep_qualified_and_open_roots_possible() {
+        // naming.core.original-dynamic-name-value-purpose
+        // docs/design/analysis/name-resolution-proofs/core-original-dynamic-name-value-purpose.md
+        let store = store();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        for (source, cell, expected) in [
+            ("source_var ::other::$n 1", "::ns::v", false),
+            ("source_var ${prefix}::v 1", "::ns::v", true),
+            ("source_var a($key 1", "::ns::a(TAIL", true),
+            ("source_var a($key) 1", "::ns::a(TAIL", false),
+            (
+                "interp alias {} write {} source_var ::other::fixed; write $value",
+                "::ns::v",
+                false,
+            ),
+        ] {
+            let current = analysis(source, "tcl8.6", store.clone(), config);
+            assert_eq!(
+                namespace_variable_rename_hazard(
+                    source,
+                    profile,
+                    &current,
+                    cell,
+                    &LineIndex::new(source),
+                )
+                .is_some(),
+                expected,
+                "{source}"
+            );
+        }
+        let source = "source_var ::other::$n 1";
+        let older = analysis(source, "tcl8.4", store, config);
+        assert!(
+            var_reason(source, &older)
+                .unwrap()
+                .contains("roles are unavailable")
+        );
+    }
+
+    #[test]
+    fn supplied_variable_hazard_patterns_do_not_exclude_native_or_missing_targets() {
+        // naming.core.original-dynamic-name-value-purpose
+        // docs/design/analysis/name-resolution-proofs/core-original-dynamic-name-value-purpose.md
+        use tcl_compiler::analyser::Analyser;
+        let source = "set ::other::$n 1";
+        for dialect in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+        ] {
+            let current = Analyser::new().analyse(source, dialect);
+            assert!(
+                namespace_variable_rename_hazard(
+                    source,
+                    current.resolved_profile().unwrap(),
+                    &current,
+                    "::ns::v",
+                    &LineIndex::new(source),
+                )
+                .is_some(),
+                "{dialect}"
+            );
+        }
+        let mut current = Analyser::new().analyse(source, "tcl");
+        assert!(var_reason(source, &current).is_none());
+        current.resolved_input = None;
+        assert!(
+            var_reason(source, &current)
+                .unwrap()
+                .contains("metadata are unavailable")
         );
     }
 

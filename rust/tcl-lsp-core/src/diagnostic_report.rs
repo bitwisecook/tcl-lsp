@@ -495,14 +495,21 @@ mod tests {
             .iter()
             .find(|row| row.code == DiagCode::O100)
             .expect("current Logical branch advice reaches the real rewrite loop");
+        let config = analysis.body_lexer_config.unwrap();
+        assert!(config.strict_quoting);
         assert!(
-            rewrite
-                .source_context
-                .as_ref()
-                .unwrap()
-                .lexer_config()
-                .strict_quoting
+            analysis.matches_original_source_image(&tcl_lexer::SourceImage::from(source), config)
         );
+        assert_eq!(
+            analysis
+                .resolved_registry()
+                .unwrap()
+                .snapshot()
+                .semantic_key(),
+            registry.snapshot().semantic_key()
+        );
+        assert!(source.get(rewrite.span.as_range()).is_some());
+        assert!(rewrite.replacement.contains("retained"));
         assert!(result.text.contains("retained"));
         assert!(!result.text.contains("omitted"));
         assert!(result.iterations >= 2);

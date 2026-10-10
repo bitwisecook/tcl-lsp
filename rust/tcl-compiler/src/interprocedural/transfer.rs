@@ -50,7 +50,7 @@ use tcl_registry::world_effect::EffectFootprint;
 use tcl_syntax::formal_params::{FormalArgumentBinding, FormalParameter};
 
 mod source_context;
-pub(crate) use source_context::OriginalSummaryScript;
+pub(crate) use source_context::{OriginalSummaryExpression, OriginalSummaryScript};
 use source_context::{ProcedureCall, SourceSummaryContext};
 
 use crate::cfg::{Function as CfgFunction, Terminator};
@@ -475,6 +475,27 @@ impl<'a> ModuleProcedures<'a> {
         self.source.as_ref()?.statement_tokens(qname, statement)
     }
 
+    pub(crate) fn original_expression(
+        &self,
+        parent: &CommandTokens,
+        expression: &crate::expr_ast::ExprNode,
+        base: Option<u32>,
+    ) -> Option<OriginalSummaryExpression> {
+        self.source.as_ref()?.expression(parent, expression, base)
+    }
+
+    pub(crate) fn original_expression_substitution(
+        &self,
+        expression: &OriginalSummaryExpression,
+        script: &str,
+        start: u32,
+        end: u32,
+    ) -> Option<OriginalSummaryScript> {
+        self.source
+            .as_ref()?
+            .expression_substitution(expression, script, start, end)
+    }
+
     pub(crate) fn original_substitution(
         &self,
         parent: &CommandTokens,
@@ -643,19 +664,10 @@ impl<'a> ModuleProcedures<'a> {
         steps
     }
 
-    /// The document's lexer configuration.
-    pub(crate) const fn lexer_config(&self) -> tcl_lexer::LexerConfig {
-        self.config
-    }
-
-    /// The registry the module resolved against.
-    pub(crate) const fn registry(&self) -> &'a CommandRegistry {
-        self.registry
-    }
-
     /// Whether a call to `callee` reaches no place outside its frame: it has
     /// a summary, names no place and writes no outer one.
-    pub(crate) fn keeps_to_its_frame(&self, callee: &str) -> bool {
+    #[cfg(test)]
+    fn keeps_to_its_frame(&self, callee: &str) -> bool {
         self.summaries
             .borrow()
             .get(callee)
@@ -1117,7 +1129,6 @@ impl<'a> ModuleProcedures<'a> {
                 let parent = source.statement_tokens(qname, statement)?;
                 let site = (id == cfg.entry).then_some((id, index));
                 self.outer_call_arguments(
-                    qname,
                     OuterCall {
                         tokens: &parent,
                         site,
@@ -1128,7 +1139,6 @@ impl<'a> ModuleProcedures<'a> {
                 )?;
                 for child in source.children(&parent)? {
                     self.outer_call_arguments(
-                        qname,
                         OuterCall {
                             tokens: &child,
                             site: None,
@@ -1143,10 +1153,9 @@ impl<'a> ModuleProcedures<'a> {
         Some(found)
     }
 
-    /// [`Self::outer_arguments`] for one call `qname` makes.
+    /// [`Self::outer_arguments`] for one genuine original call.
     fn outer_call_arguments(
         &self,
-        qname: &str,
         call: OuterCall<'_>,
         (linked, namespace): (&HashMap<String, LinkedLocal>, &str),
         inputs: &ModuleInputs<'_>,

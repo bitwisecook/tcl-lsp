@@ -14,9 +14,13 @@ Do source rewrite helpers separate actual current handler/geometry advice from i
 
 The common rewrite selector consumes actual Analysis, validates the whole source and full configuration, and uses the retained Registry/source traversal to select the corresponding conditional handler. Missing or shadowed targets refuse. Native structure advice does not grant transformation equivalence: expression bracing, branch conversion and dictionary conversion return a no-edit obligation reason until their independent evaluation/control-flow or temporary-cell/observer/store/insertion permissions are supplied. Explicitly selected Logical source advice retains its separate bounded transformation branch; hosted/native missing policy cannot reopen that branch from display text. Source correspondence supplies no Normal, runtime handler or inserted-cell capability. The separate exact-literal-expression bracing issuer can permit one static pure expression operand only after unchanged original argv, selected handler, compiler name effects, observer closure, checked native expression and independent braced-source decode correspondence all agree; structural handler advice alone still cannot issue that permission.
 
+Logical source-rewrite selection preserves current selected effective argv and original operand origins. Captured prefix values remain readonly data and cannot borrow the position of a written clause word.
+
 ## Scope
 
 Current if-to-switch, switch-to-dictionary and expression-bracing source adapters and their editor/MCP consumers. Fixed controls distinguish real selected Native structure from shadowed targets, stale source and occupied/observed temporary-cell scenarios. No Native transformed-program or passing Rust result is attached. The supported single-operand literal-bracing subset is documented in naming.refactor.original-literal-expression-bracing; broader expression substitution, functions, branch conversion and dictionary insertion retain separate missing permissions.
+
+The source/software assertion definition establishes no execution or Native store/control-flow/evaluation equivalence. A current source selection does not replace independent insertion, movement, frame, observer or edit permission.
 
 ## Provider answers
 
@@ -78,6 +82,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/refactor/source_rewrite.rs](../../../../rust/tcl-lsp-core/src/refactor/source_rewrite.rs), `refactor::source_rewrite::tests::original_dictionary_conversion_does_not_insert_into_an_existing_or_observed_cell` (linked): Dictionary conversion cannot use structural advice to insert an arbitrary temporary into an occupied or observed cell.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lsp-core/src/refactor/source_rewrite.rs](../../../../rust/tcl-lsp-core/src/refactor/source_rewrite.rs), `select`: Consume authentic selected effective argv/origins and current source context while keeping captured values outside written clause/edit positions.
+- [rust/tcl-lsp-core/src/refactor/source_rewrite.rs](../../../../rust/tcl-lsp-core/src/refactor/source_rewrite.rs), `refactor::source_rewrite::tests::logical_source_rewrite_keeps_captured_values_outside_written_clause_positions` (linked): Actual document-backed refactors share CurrentSourceContext and original source-command geometry; source rewrites and Logical setters consume authentic selected schema/effective argv/origins. Captured operands remain data without current editable words. Data-group actual route retains complete supplied Logical source currency, selected If/Switch clause layout and original Set/Return arm horizons, actual proposed output availability/current descriptor identity; explicit standalone authoring APIs remain separate. Native movement/store/Normal/frame/control-flow/evaluation/edit refusal gates remain independent. No native-provider or software execution promotion. Current source definition only; execution and Native edit-equivalence outcomes remain independent.
+
+These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 
 ## Replay
 

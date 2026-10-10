@@ -74,6 +74,7 @@ fn command_end(
 /// Apply the selected original expression quote protocol to a bracket's
 /// complete guest completion. Host refusals have already left this channel.
 pub(crate) fn settle_expression_quote(
+    vm: &mut Vm,
     mut completion: tcl_runtime_api::Completion<Value>,
     policy: tcl_registry::invocation_words::ExpressionQuoteControl,
 ) -> tcl_runtime_api::Completion<Value> {
@@ -84,8 +85,15 @@ pub(crate) fn settle_expression_quote(
     match completion.code {
         Code::Return => {
             completion.code = Code::Ok;
-            completion.options =
-                crate::command::with_return_option(&completion.options, "-code", Value::int(0));
+            completion.options = match crate::command::with_return_option(
+                vm,
+                &completion.options,
+                "-code",
+                Value::int(0),
+            ) {
+                Ok(options) => options,
+                Err(error) => return crate::command::completion_from_tcl_error(vm, error),
+            };
             completion
         }
         Code::Break => crate::command::err_with_code("invoked \"break\" outside of a loop", "NONE"),
@@ -129,7 +137,7 @@ pub(crate) fn subst_expression_string(
             }
         };
         if let SubstitutionControl::Expression(policy) = control {
-            completion = settle_expression_quote(completion, policy);
+            completion = settle_expression_quote(vm, completion, policy);
         }
         if completion.code != Code::Ok {
             return Err(TclError::from_completion(completion));

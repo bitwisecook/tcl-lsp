@@ -4215,6 +4215,7 @@ fn sccp_process_terminator(
             true_target,
             false_target,
             span,
+            condition_base,
             ..
         } => {
             let Some(ssa_block) = ssa.blocks.get(&bn) else {
@@ -4227,6 +4228,7 @@ fn sccp_process_terminator(
                 values,
                 ssa,
                 BranchFold { grammar, driver },
+                cfg.source_tokens_at(bn, usize::MAX).zip(*condition_base),
             );
             driver.explaining(None);
             let targets: Vec<BlockId> = match decision {
@@ -4306,6 +4308,7 @@ fn collect_constant_branches(
             true_target,
             false_target,
             span: term_span,
+            condition_base,
             ..
         }) = &block.terminator
         else {
@@ -4320,7 +4323,14 @@ fn collect_constant_branches(
             fold.driver.existence_enter(exit.clone());
         }
         let narrowed = narrowing.narrow(values, *bn);
-        let decision = evaluate_branch_under(ssa_block, condition, values, ssa, fold);
+        let decision = evaluate_branch_under(
+            ssa_block,
+            condition,
+            values,
+            ssa,
+            fold,
+            cfg.source_tokens_at(*bn, usize::MAX).zip(*condition_base),
+        );
         restore_values(values, narrowed);
         fold.driver.existence_leave();
         fold.driver.explaining(None);
@@ -4613,11 +4623,14 @@ fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
         Statement::AssignExpr {
             expr,
             command_binding,
+            expr_base,
             ..
         } => {
+            let original = driver.original_expression_parent(&stmt_ssa.statement);
             return driver.evaluate_assign_expr(
                 expr,
                 command_binding.as_ref(),
+                original.as_ref().zip(*expr_base),
                 &stmt_ssa.uses,
                 values,
                 ssa,
@@ -4626,9 +4639,18 @@ fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
         Statement::ExprEval {
             expr,
             command_binding,
+            expr_base,
             ..
         } => {
-            return driver.evaluate_expr_eval(expr, command_binding, &stmt_ssa.uses, values, ssa);
+            let original = driver.original_expression_parent(&stmt_ssa.statement);
+            return driver.evaluate_expr_eval(
+                expr,
+                command_binding,
+                original.as_ref().zip(*expr_base),
+                &stmt_ssa.uses,
+                values,
+                ssa,
+            );
         }
         Statement::Call { .. } => {
             return driver.evaluate_call(stmt_ssa, values, ssa, &stmt_ssa.uses);
@@ -4721,21 +4743,27 @@ pub(crate) fn evaluate_branch_under<S: std::hash::BuildHasher>(
     values: &HashMap<ValueKey, LatticeValue, S>,
     ssa: &SsaFunction,
     fold: BranchFold<'_>,
+    original: Option<(&crate::ir::CommandTokens, u32)>,
 ) -> Option<bool> {
     let mut uses: HashMap<Symbol, crate::ssa::Version> = ssa_block
         .exit_versions
         .iter()
         .map(|(&sym, &ver)| (sym, ver))
         .collect();
-    let config = tcl_lexer::LexerConfig::from_grammar(fold.grammar);
+    let config = fold.driver.source_lexer_config();
     for name in condition.vars_element_qualified_with_config(config) {
         if let Some(sym) = ssa.var_symbol(&name) {
             uses.entry(sym).or_insert(0);
         }
     }
     let resolved = with_whole_variable_operands(condition, fold.grammar.braced_var);
-    fold.driver
-        .evaluate_condition(resolved.as_ref().unwrap_or(condition), &uses, values, ssa)
+    fold.driver.evaluate_condition(
+        resolved.as_ref().unwrap_or(condition),
+        original,
+        &uses,
+        values,
+        ssa,
+    )
 }
 
 /// `condition` with every `Raw` *operand* the variable-name owner proves is

@@ -186,7 +186,13 @@ impl Vm {
                 } else {
                     self.settle_native_c_return_level(level);
                 }
-                completion.options = crate::command::with_return_level(&completion.options, level);
+                completion.options =
+                    match crate::command::with_return_level(self, &completion.options, level) {
+                        Ok(options) => options,
+                        Err(error) => {
+                            return crate::command::completion_from_tcl_error(self, error);
+                        }
+                    };
             }
             Route::Tcl(code) => {
                 completion.code = tcl_core_types::Code::from_int(

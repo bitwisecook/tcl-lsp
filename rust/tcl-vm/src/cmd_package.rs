@@ -1119,11 +1119,18 @@ fn bad_return_code(
     // Only an explicit pending error return carries its trace into the newly
     // generated BADRESULT episode. Break/continue/custom traces are discarded.
     let pending_error = completion.code == Code::Return
-        && crate::command::opt_get(&completion.options, "-code")
-            .is_some_and(|value| value.as_int().is_ok_and(|code| code == 1));
-    let carried = pending_error
-        .then(|| crate::command::opt_get(&completion.options, "-errorinfo"))
-        .flatten();
+        && match crate::command::option_code_checked(vm, &completion.options, Code::Ok) {
+            Ok(code) => code == Code::Error,
+            Err(error) => return crate::command::completion_from_tcl_error(vm, error),
+        };
+    let carried = if pending_error {
+        match crate::command::opt_get_checked(vm, &completion.options, b"-errorinfo") {
+            Ok(value) => value,
+            Err(error) => return crate::command::completion_from_tcl_error(vm, error),
+        }
+    } else {
+        None
+    };
     vm.take_error_info();
     if let Some(info) = carried {
         let bytes = match package_operand_bytes(vm, &info) {
@@ -1134,10 +1141,16 @@ fn bad_return_code(
             vm.seed_error_info_original(&info, &bytes);
         }
     }
-    if pending_error
-        && let Some(stack) = crate::command::opt_get(&completion.options, "-errorstack")
-    {
-        vm.seed_error_stack(&stack);
+    if pending_error {
+        match crate::command::opt_get_checked(vm, &completion.options, b"-errorstack") {
+            Ok(Some(stack)) => {
+                if let Err(error) = vm.seed_error_stack(&stack) {
+                    return crate::command::completion_from_tcl_error(vm, error);
+                }
+            }
+            Ok(None) => {}
+            Err(error) => return crate::command::completion_from_tcl_error(vm, error),
+        }
     }
     let message = match loader {
         Some((name, version)) => tcl_dialect::PackageProtocol::Tcl
@@ -1167,9 +1180,9 @@ fn bad_return_code(
     else {
         return vm.refuse_host_command("package return-option protocol is unavailable".into());
     };
-    let pairs = match completion.options.native_object_dict_pairs(strings) {
+    let pairs = match crate::command::completion_option_rows_checked(vm, &completion.options) {
         Ok(pairs) => pairs,
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+        Err(error) => return crate::command::completion_from_tcl_error(vm, error),
     };
     let mut items = Vec::new();
     for (key, value) in pairs {
@@ -1192,11 +1205,20 @@ fn bad_return_code(
         ("-level", Value::int(0)),
         (
             "-errorcode",
-            crate::command::opt_get(&failure.options, "-errorcode")
-                .expect("selected package error metadata"),
+            match crate::command::opt_get_checked(vm, &failure.options, b"-errorcode") {
+                Ok(Some(code)) => code,
+                Ok(None) => {
+                    return vm
+                        .refuse_host_command("selected package error metadata is absent".into());
+                }
+                Err(error) => return crate::command::completion_from_tcl_error(vm, error),
+            },
         ),
     ] {
-        options = crate::command::with_return_option(&options, key, value);
+        options = match crate::command::with_return_option(vm, &options, key, value) {
+            Ok(options) => options,
+            Err(error) => return crate::command::completion_from_tcl_error(vm, error),
+        };
     }
     failure.options = options;
     failure

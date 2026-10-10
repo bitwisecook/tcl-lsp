@@ -12184,7 +12184,7 @@ mod tests {
             ),
         ] {
             let mut analyser = Analyser::new();
-            analyser.analyse(source, "tcl9.0");
+            analyser.analyse_and_retain_result_for_test(source, "tcl9.0");
             // The public walk clears transient registry state after returning.
             analyser.registry = Some(analyser.profile_registry());
             let segments = crate::segmenter::segment_commands_with_offset_and_config(
@@ -12248,7 +12248,7 @@ mod tests {
         ] {
             for source in sources {
                 let mut analyser = Analyser::new();
-                analyser.analyse(source, dialect);
+                analyser.analyse_and_retain_result_for_test(source, dialect);
                 analyser.registry = Some(analyser.profile_registry());
                 assert!(
                     analyser
@@ -12280,7 +12280,7 @@ mod tests {
         // A replaced Registry head is also an occupied implementation, not
         // authority supplied by the builtin spelling in a fold table.
         let mut shadowed = Analyser::new();
-        shadowed.analyse(
+        shadowed.analyse_and_retain_result_for_test(
             "proc string args {return USER}; string length abc",
             "tcl8.6",
         );
@@ -12298,7 +12298,7 @@ mod tests {
                 .is_none()
         );
         let mut logical = Analyser::new();
-        logical.analyse(sources[3], "tcl");
+        logical.analyse_and_retain_result_for_test(sources[3], "tcl");
         logical.registry = Some(logical.profile_registry());
         assert_eq!(
             logical

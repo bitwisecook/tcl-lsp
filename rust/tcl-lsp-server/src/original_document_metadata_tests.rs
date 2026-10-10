@@ -6,6 +6,9 @@
 
 use super::*;
 use tcl_compiler::analyser::ResolvedAnalysisInput;
+use tower_lsp_server::ls_types::{
+    PartialResultParams, TextDocumentIdentifier, WorkDoneProgressParams,
+};
 
 fn source_analysis(
     source: &str,
@@ -577,10 +580,7 @@ async fn closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack() {
     backend.reindex_index_from_disk(&uri).await;
     let reads = index_reads(&backend, "::retained", &uri).await;
     assert_eq!(reads.len(), 1);
-    assert_eq!(
-        &source[reads[0].start()..reads[0].end_exclusive()],
-        "::retained"
-    );
+    assert_eq!(&source[reads[0].as_range()], "::retained");
 
     install_workspace_read_pack(&backend, 2, false).await;
     backend.invalidate_diag_inputs();
@@ -652,7 +652,7 @@ async fn source_rehoming_keeps_workspace_roles_in_the_actual_seed_namespace() {
     );
     let before = index_reads(&backend, "::app::retained", &sourced).await;
     assert!(!before.is_empty());
-    let read_offset = "set retained 1\nunindexed_metadata::read ".len();
+    let read_offset = u32::try_from("set retained 1\nunindexed_metadata::read ".len()).unwrap();
     assert!(before.iter().any(|span| span.start() == read_offset));
 
     install_workspace_read_pack(&backend, 2, false).await;
@@ -808,13 +808,22 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
         .find(|row| row.code == DiagCode::O100)
         .expect("the actual pack-backed input produces a source branch rewrite");
     assert_eq!(
-        branch
-            .source_context
-            .as_ref()
+        analysis
+            .resolved_registry()
             .unwrap()
-            .registry()
+            .snapshot()
             .semantic_key(),
         registry.snapshot().semantic_key()
+    );
+    assert!(analysis.matches_original_source_image(
+        &tcl_lexer::SourceImage::from(source),
+        analysis.body_lexer_config.unwrap()
+    ));
+    assert!(source.get(branch.span.as_range()).is_some());
+    assert!(
+        branch
+            .replacement
+            .contains("unindexed_metadata::read ::retained")
     );
     let response = backend
         .optimise_document_command(&[serde_json::json!(uri.as_str())])
@@ -923,7 +932,7 @@ async fn project_tokens_use_published_folder_inputs_and_refuse_a_missing_generat
         .await;
     let folder_config = backend.resolved_db_config(&library_uri).await;
     let global_config = backend.resolved_db_config(&caller_uri).await;
-    assert_ne!(folder_config, global_config);
+    assert!(folder_config != global_config);
     let library = *backend.db_files.lock().await.get(&library_uri).unwrap();
     let caller = *backend.db_files.lock().await.get(&caller_uri).unwrap();
     let project = backend.db_project.lock().await.unwrap();
@@ -997,10 +1006,7 @@ async fn project_token_config_publication_drops_partial_locks_and_preserves_snap
         .db
         .snapshot("project_token_before_publication354")
         .await;
-    assert_eq!(
-        project.token_configurations(&*snapshot).as_ref().unwrap(),
-        &vec![(first, global)]
-    );
+    assert!(project.token_configurations(&*snapshot).as_ref().unwrap() == &vec![(first, global)]);
     assert!(matches!(
         backend.try_live_source_locks(),
         Err(LivePublicationWait::SalsaSnapshots)
@@ -1017,10 +1023,7 @@ async fn project_token_config_publication_drops_partial_locks_and_preserves_snap
         .db
         .snapshot("project_token_while_config_locked354")
         .await;
-    assert_eq!(
-        project.token_configurations(&*snapshot).as_ref().unwrap(),
-        &vec![(first, global)]
-    );
+    assert!(project.token_configurations(&*snapshot).as_ref().unwrap() == &vec![(first, global)]);
     drop(snapshot);
     drop(folder_guard);
     let second_uri = Uri::from_str("file:///project-publication354/second.tcl").unwrap();
@@ -1065,7 +1068,7 @@ async fn callback_project_worker_uses_each_librarys_published_configuration() {
         .await;
     let library_config = backend.resolved_db_config(&library_uri).await;
     let caller_config = backend.resolved_db_config(&caller_uri).await;
-    assert_ne!(library_config, caller_config);
+    assert!(library_config != caller_config);
     let analysis = backend
         .analysis_for(&caller_uri, Arc::from(source), "tcl8.6".to_owned())
         .await;
@@ -1157,7 +1160,7 @@ async fn configured_factory_rounds_refuse_stale_publication_and_withdraw_unavail
         .await;
     let library_config = backend.resolved_db_config(&library_uri).await;
     let caller_config = backend.resolved_db_config(&caller_uri).await;
-    assert_ne!(library_config, caller_config);
+    assert!(library_config != caller_config);
     let handles = index_evidence_handles(&backend);
     let sync = sync_workspace_class_factories(&handles, None).await;
     assert!(!sync.moved.is_empty());
@@ -1233,7 +1236,7 @@ async fn project_evidence_publication_withdraws_incomplete_checked_contributors(
         .await;
     let library_config = backend.resolved_db_config(&library_uri).await;
     let caller_config = backend.resolved_db_config(&caller_uri).await;
-    assert_ne!(library_config, caller_config);
+    assert!(library_config != caller_config);
     let handles = index_evidence_handles(&backend);
     let first = sync_cross_file_evidence(&handles).await;
     assert!(!first.changed.is_empty());

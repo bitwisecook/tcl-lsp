@@ -2966,7 +2966,7 @@ backend legality is never gated by diagnostic enablement.
 
 ## The completion test
 
-Migrated command names are not the proof. The proof is the experiment:
+The following experiment checks shared interface coverage:
 
 1. Author one private command with a supported existing transfer,
    validation, and body pattern. Rename it, and add a subcommand form with

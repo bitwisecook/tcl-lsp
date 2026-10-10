@@ -71,7 +71,7 @@ fn boolean_word_prefixes_are_literals_in_every_release() {
             tcl_vm::Code::Error,
         );
         assert_eq!(
-            ambiguous.error_code_bytes().as_deref(),
+            ambiguous.error_code_bytes().unwrap().as_deref(),
             Some(b"TCL PARSE EXPR BAREWORD".as_slice()),
             "{version:?}"
         );
@@ -95,7 +95,7 @@ fn tip461_and_tip521_follow_the_registry_selected_runtime_release() {
         tcl_vm::Code::Error,
     );
     assert_eq!(
-        operator.error_code_bytes().as_deref(),
+        operator.error_code_bytes().unwrap().as_deref(),
         Some(b"TCL PARSE EXPR BAREWORD".as_slice())
     );
     assert_eq!(
@@ -119,7 +119,7 @@ fn tip461_and_tip521_follow_the_registry_selected_runtime_release() {
         tcl_vm::Code::Error,
     );
     assert_eq!(
-        function.error_code_bytes().as_deref(),
+        function.error_code_bytes().unwrap().as_deref(),
         Some(b"TCL LOOKUP COMMAND tcl::mathfunc::isfinite".as_slice())
     );
     assert_eq!(

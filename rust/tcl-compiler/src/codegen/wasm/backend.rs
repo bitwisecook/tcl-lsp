@@ -249,7 +249,7 @@ struct ArgvImports {
 #[derive(Default)]
 struct FunctionFacts {
     operations: HashMap<(u32, u32), SemanticOperationId>,
-    direct_assignments: HashSet<(u32, u32)>,
+    direct_assignments: HashMap<(u32, u32), String>,
     direct_calls: HashMap<(u32, u32, String), String>,
     /// Selected prebuilt-argv plans, keyed by leaf-statement span.
     leaf_invocations: HashMap<(u32, u32), WasmLeafInvokePlan>,
@@ -624,24 +624,24 @@ impl WasmEmitter {
             return false;
         };
         match statement {
-            Statement::AssignConst {
-                span, name, value, ..
-            } => {
-                if !self.facts.direct_assignments.contains(&span_key(*span)) {
+            Statement::AssignConst { span, name, .. }
+            | Statement::AssignValue { span, name, .. } => {
+                let Some(value) = self.facts.direct_assignments.get(&span_key(*span)).cloned()
+                else {
                     return false;
-                }
+                };
                 if self.mode == FunctionMode::DirectProc {
                     let Some(slot) = self.local_slots.get(name).copied() else {
                         return false;
                     };
                     self.push_i32(i64::from(slot));
-                    if !self.box_value(value) {
+                    if !self.box_value(&value) {
                         return false;
                     }
                     self.call(aot.local_set);
                 } else if self.mode == FunctionMode::Top {
                     self.push_text_pair(name);
-                    if !self.box_value(value) {
+                    if !self.box_value(&value) {
                         return false;
                     }
                     self.call(aot.var_set);
@@ -1574,12 +1574,17 @@ fn function_facts(
             if crate::ssa::is_effect_marker(statement) || !statement.is_executable_invocation() {
                 continue;
             }
-            if let Statement::AssignConst {
+            if let (Statement::AssignConst {
                 span,
                 name,
                 name_braced,
                 ..
-            } = statement
+            } | Statement::AssignValue {
+                span,
+                name,
+                name_braced,
+                ..
+            }) = statement
                 && (*name_braced || !crate::naming::is_dynamic_word(name))
                 // `tcl_codegen_var_set` stores under the exact name, so an
                 // array-element target — as opposed to a scalar whose name
@@ -1598,8 +1603,9 @@ fn function_facts(
                     (block, stmt_idx),
                     statement,
                 )
+                && let Some(value) = original_assignment_literal(unit, module, registry, statement)
             {
-                facts.direct_assignments.insert(span_key(*span));
+                facts.direct_assignments.insert(span_key(*span), value);
             }
             let (Statement::Call {
                 command, tokens, ..
@@ -1654,6 +1660,29 @@ fn function_facts(
         }
     }
     facts
+}
+
+/// The unchanged value operand uses its original point grammar, including
+/// upstream AssignValue escape preservation. This supplies no store authority.
+fn original_assignment_literal(
+    unit: &FunctionUnit,
+    module: &Module,
+    registry: &CommandRegistry,
+    statement: &Statement,
+) -> Option<String> {
+    let value = match statement {
+        Statement::AssignConst { value, .. } | Statement::AssignValue { value, .. } => value,
+        _ => return None,
+    };
+    let tokens = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+        &unit.cfg.command_binding_sites,
+        statement,
+    )?;
+    if tokens.argv_texts.get(2) != Some(value) {
+        return None;
+    }
+    crate::type_infer::original_literal_argument_contents(registry, module, tokens, 1)
+        .map(|literal| literal.value().to_owned())
 }
 
 /// A consumed assignment head keeps its original source selection and words.
@@ -2867,7 +2896,10 @@ mod tests {
         let mut rows = vec![format!("metadata available: {}", metadata.is_some())];
         for (&block, body) in &function.cfg.blocks {
             for (index, statement) in body.statements.iter().enumerate() {
-                if !matches!(statement, Statement::AssignConst { .. }) {
+                if !matches!(
+                    statement,
+                    Statement::AssignConst { .. } | Statement::AssignValue { .. }
+                ) {
                     continue;
                 }
                 let tokens = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
@@ -2875,7 +2907,7 @@ mod tests {
                     statement,
                 );
                 rows.push(format!(
-                    "{block:?}/{index} original carrier: {}",
+                    "{block:?}/{index} {statement:?} original carrier: {}",
                     tokens.is_some()
                 ));
                 if let Some(tokens) = tokens {
@@ -2884,6 +2916,13 @@ mod tests {
                             .proved_execution_target()
                             .map(|target| (&target.command, target.kind, target.registry_backed))
                     });
+                    let handler = tokens.source_binding.as_ref().and_then(|binding| {
+                        binding
+                            .proved_handler_target()
+                            .map(|target| (&target.command, target.kind, target.registry_backed))
+                    });
+                    let literal =
+                        original_assignment_literal(function, &unit.ir_module, registry, statement);
                     let resolution =
                         resolve_command_tokens_with_metadata_context(registry, metadata, tokens)
                             .map(|resolved| match resolved {
@@ -2893,7 +2932,7 @@ mod tests {
                                 other => format!("{other:?}"),
                             });
                     rows.push(format!(
-                        "words={:?}, aligned={}, target={target:?}, resolution={resolution:?}, flow={:?}, effective={:?}",
+                        "words={:?}, aligned={}, target={target:?}, handler={handler:?}, literal={literal:?}, resolution={resolution:?}, flow={:?}, effective={:?}",
                         tokens.argv_texts,
                         tokens.words_align_with_argv_text(),
                         bindings.binding_at(block, index, tokens.argv_texts.first().map_or("", String::as_str)),
@@ -2903,6 +2942,71 @@ mod tests {
             }
         }
         rows.join("\n")
+    }
+
+    #[test]
+    fn original_assignment_literals_keep_decoding_separate_from_execution_authority() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig {
+            escapes: tcl_dialect::EscapeSyntax::Tcl84,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            r"set result \U00000041",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let statement = unit.top_level.cfg.blocks.values().flat_map(|block| &block.statements)
+            .find(|statement| matches!(statement, Statement::AssignValue { name, .. } if name == "result"))
+            .expect("upstream bare literal retains AssignValue");
+        assert_eq!(
+            original_assignment_literal(
+                &unit.top_level,
+                &unit.ir_module,
+                context.commands(),
+                statement
+            )
+            .as_deref(),
+            Some("U00000041")
+        );
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        assert!(
+            assignment_facts(&unit.top_level, &unit, context.commands())
+                .direct_assignments
+                .is_empty()
+        );
+        let mut changed = statement.clone();
+        let Statement::AssignValue { value, .. } = &mut changed else {
+            unreachable!()
+        };
+        *value = "OTHER".to_owned();
+        assert!(
+            original_assignment_literal(
+                &unit.top_level,
+                &unit.ir_module,
+                context.commands(),
+                &changed
+            )
+            .is_none()
+        );
     }
 
     #[test]

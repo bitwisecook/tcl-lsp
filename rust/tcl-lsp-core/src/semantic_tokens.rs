@@ -3471,7 +3471,6 @@ fn collect_script(
         return;
     }
     let full_source = ctx.full_source;
-    let registry = ctx.registry;
     let definition_members = (!ctx.lexical)
         .then(|| {
             let parent = ctx.original_definition_parent?;

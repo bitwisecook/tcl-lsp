@@ -7077,7 +7077,7 @@ fn original_expression_context_advice_selected_word(
         let selected = if let Some(written) = written {
             let mut selected = facts.arg_roles.iter().filter_map(|(argument, role)| {
                 if *role != tcl_registry::arg_role::ArgRole::Expr { return None; }
-                let effective_index = usize::from(*argument).checked_add(1)?;
+                let effective_index = facts.argument_offset.checked_add(usize::from(*argument))?.checked_add(1)?;
                 matches!(effective.origins.get(effective_index), Some(InvocationWordOrigin::Written(index))
                     if *index == written).then_some(effective_index)
             });

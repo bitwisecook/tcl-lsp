@@ -2327,7 +2327,9 @@ impl Vm {
         f.foreach_stack.truncate(foreach_len);
         f.expand_markers.truncate(expand_len);
         f.pc = target_idx;
-        let options = self.digest_catch_options(&c);
+        let options = self
+            .digest_catch_options(&c)
+            .map_err(|error| crate::command::completion_from_tcl_error(self, error))?;
         let caught = CaughtState {
             result: c.result,
             code: c.code,
@@ -2810,18 +2812,38 @@ impl Vm {
             // `-code` takes effect. `Code::from_int` (never a 0..=4-only map):
             // `return -code N` for a non-standard N must surface `Code::Other(N)`,
             // not collapse to `Ok` (coroutine-2.4).
-            let level = crate::command::opt_get(&c.options, "-level")
-                .and_then(|v| v.as_int().ok())
-                .unwrap_or(1);
+            let level = match crate::command::option_integer_checked(self, &c.options, b"-level", 1)
+            {
+                Ok(level) => level,
+                Err(error) => {
+                    *c = crate::command::completion_from_tcl_error(self, error);
+                    return;
+                }
+            };
             if level > 1 {
-                c.options = crate::command::with_return_level(&c.options, level - 1);
+                c.options = match crate::command::with_return_level(self, &c.options, level - 1) {
+                    Ok(options) => options,
+                    Err(error) => {
+                        *c = crate::command::completion_from_tcl_error(self, error);
+                        return;
+                    }
+                };
                 self.settle_native_c_return_level(level - 1);
             } else {
-                let code = crate::command::opt_get(&c.options, "-code")
-                    .and_then(|v| v.as_int().ok())
-                    .and_then(|n| i32::try_from(n).ok())
-                    .map_or(Code::Ok, Code::from_int);
-                c.options = crate::command::with_return_level(&c.options, 0);
+                let code = match crate::command::option_code_checked(self, &c.options, Code::Ok) {
+                    Ok(code) => code,
+                    Err(error) => {
+                        *c = crate::command::completion_from_tcl_error(self, error);
+                        return;
+                    }
+                };
+                c.options = match crate::command::with_return_level(self, &c.options, 0) {
+                    Ok(options) => options,
+                    Err(error) => {
+                        *c = crate::command::completion_from_tcl_error(self, error);
+                        return;
+                    }
+                };
                 c.code = code;
                 self.settle_native_c_return_level(0);
                 if code == Code::Error {
@@ -2880,7 +2902,7 @@ impl Vm {
             };
         }
         if let crate::subst::SubstitutionControl::Expression(policy) = state.control {
-            c = crate::subst::settle_expression_quote(c, policy);
+            c = crate::subst::settle_expression_quote(self, c, policy);
             if c.code == Code::Ok {
                 parent.last_options = c.options.clone();
             }
@@ -6830,16 +6852,20 @@ impl Vm {
             }
             Op::PUSH_RETURN_OPTS => {
                 let result = try_core!(self.frame_result_transport(f));
-                let opts = Self::innermost_caught(f).map_or_else(
-                    || {
-                        crate::command::completion_options(&Completion::new(
-                            Code::Ok,
-                            result,
-                            f.last_options.clone(),
-                        ))
+                let opts = match Self::innermost_caught(f) {
+                    Some(caught) => caught.options.clone(),
+                    None => match crate::command::completion_options(
+                        self,
+                        &Completion::new(Code::Ok, result, f.last_options.clone()),
+                    ) {
+                        Ok(options) => options,
+                        Err(error) => {
+                            return Tick::Return(crate::command::completion_from_tcl_error(
+                                self, error,
+                            ));
+                        }
                     },
-                    |c| c.options.clone(),
-                );
+                };
                 f.stack.push(opts);
             }
             // Pop a (non-ok) return code and branch into the 5-slot `jump1`
@@ -8158,7 +8184,7 @@ impl Vm {
         completion: Completion<Value>,
     ) -> Completion<Value> {
         self.publish_native_interp_completion(completion)
-            .unwrap_or_else(|error| self.refuse_host_command(error.to_string()))
+            .unwrap_or_else(|error| crate::command::completion_from_tcl_error(self, error))
     }
 
     fn invoke_missing_command_value(

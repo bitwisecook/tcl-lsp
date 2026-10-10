@@ -1024,7 +1024,7 @@ fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             _ => return completion,
         }
     }
-    settle_control_options(ok(Value::empty()), ControlOptionPolicy::FRESH_SETTLED)
+    settle_control_options(vm, ok(Value::empty()), ControlOptionPolicy::FRESH_SETTLED)
 }
 
 /// Map preserves original key objects, including a key assigned by the body.
@@ -1078,6 +1078,7 @@ fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             Code::Continue => last_options = completion.options,
             Code::Break => {
                 return settle_control_options(
+                    vm,
                     ok(Value::empty()),
                     ControlOptionPolicy::FRESH_SETTLED,
                 );
@@ -1086,6 +1087,7 @@ fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         }
     }
     settle_control_options(
+        vm,
         Completion::new(Code::Ok, output.into_value(), last_options),
         ControlOptionPolicy::FRESH_FORWARDED,
     )

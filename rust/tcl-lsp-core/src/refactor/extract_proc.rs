@@ -271,7 +271,6 @@ fn original_extraction_plan(
     let unavailable =
         || "the original extraction frame or operand inventory is unavailable".to_owned();
     let walk = super::FrameWalk::new(source, analysis).ok_or_else(unavailable)?;
-    let registry = analysis.resolved_registry().ok_or_else(unavailable)?;
     let image = tcl_lexer::SourceImage::document(source);
     let config = analysis.body_lexer_config.ok_or_else(unavailable)?;
     let mut captures: Vec<OriginalCapture> = Vec::new();

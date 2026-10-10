@@ -35,6 +35,12 @@ pub enum TclHostFailure {
     PrimitiveErrorStateRequired(Box<tcl_syntax::scalar_getter::NativeScalarGetterError>),
 }
 
+fn resident_projection_failure(error: tcl_syntax::value::ValueError) -> TclHostFailure {
+    TclHostFailure::ValueAccess(error.native_access_refusal().unwrap_or(
+        NativeValueAccessRefusal::CommandProtocolUnavailable("borrowed guest value projection"),
+    ))
+}
+
 impl std::fmt::Display for TclHostFailure {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -126,13 +132,26 @@ impl TclError {
         }
     }
 
-    /// Exact guest result bytes at an explicitly byte-valued boundary.
+    /// Borrow already resident guest bytes without conversion or materialisation.
     ///
     /// # Errors
-    /// Host failures cannot be rendered as a guest message.
+    /// Host failures retain their channel; nonresident values require
+    /// `message_bytes_in` with the actual interpreter getter owner.
     pub fn message_bytes(&self) -> Result<std::rc::Rc<[u8]>, TclHostFailure> {
         match self {
-            Self::Guest(completion) => Ok(completion.result.string_bytes()),
+            Self::Guest(completion) => {
+                completion
+                    .result
+                    .check_native_header()
+                    .map_err(resident_projection_failure)?;
+                completion.result.resident_string_bytes().ok_or_else(|| {
+                    resident_projection_failure(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "borrowed guest message",
+                        ),
+                    )
+                })
+            }
             Self::Host(error) => Err(error.clone()),
         }
     }
@@ -147,43 +166,122 @@ impl TclError {
             .map_err(|error| TclHostFailure::ValueAccess(error.into()))
     }
 
-    /// The authored error code of an ordinary guest error.
-    #[must_use]
-    pub fn error_code_bytes(&self) -> Option<std::rc::Rc<[u8]>> {
-        let completion = self.guest_completion()?;
-        (completion.code == Code::Error)
-            .then(|| crate::command::opt_get(&completion.options, "-errorcode"))
-            .flatten()
-            .map(|value| value.string_bytes())
-    }
-
-    /// Replace one selected error code without discarding other guest options.
-    pub(crate) fn set_error_code(&mut self, code: impl AsRef<[u8]>) {
-        let Self::Guest(completion) = self else {
-            return;
-        };
-        if completion.code != Code::Error {
-            return;
+    /// Read actual guest message bytes at the current interpreter getter owner.
+    pub fn message_bytes_in(&self, vm: &mut crate::Vm) -> Result<std::rc::Rc<[u8]>, TclError> {
+        if let Some(cause) = vm.execution_refusal.clone() {
+            return Err(TclError::from_execution_failure(cause));
         }
-        let Ok(items) = completion.options.as_list() else {
-            return;
-        };
-        let mut replacement = Vec::with_capacity(items.len() + 2);
-        let mut replaced = false;
-        for pair in items.as_chunks::<2>().0 {
-            replacement.push(pair[0].clone());
-            if pair[0].string_bytes().as_ref() == b"-errorcode" {
-                replacement.push(Value::from_string_bytes(code.as_ref()));
-                replaced = true;
-            } else {
-                replacement.push(pair[1].clone());
+        match self {
+            Self::Host(cause) => Err(cause.clone().into()),
+            Self::Guest(completion) => {
+                tcl_syntax::value::ValueOps::native_string_bytes(vm, &completion.result)
+                    .map_err(|error| crate::command::completion_option_failure(vm, error))
             }
         }
+    }
+
+    /// Resident authored error-code bytes; unavailable backing is a failure,
+    /// independent of genuinely absent metadata. No native getter is inferred.
+    pub fn error_code_bytes(&self) -> Result<Option<std::rc::Rc<[u8]>>, TclHostFailure> {
+        match self {
+            Self::Host(cause) => Err(cause.clone()),
+            Self::Guest(completion) if completion.code == Code::Error => {
+                let original =
+                    crate::command::opt_get_resident_checked(&completion.options, b"-errorcode")
+                        .map_err(resident_projection_failure)?;
+                original
+                    .map(|value| {
+                        value
+                            .check_native_header()
+                            .map_err(resident_projection_failure)?;
+                        value.resident_string_bytes().ok_or_else(|| {
+                            resident_projection_failure(
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "borrowed error-code bytes",
+                                ),
+                            )
+                        })
+                    })
+                    .transpose()
+            }
+            Self::Guest(_) => Ok(None),
+        }
+    }
+
+    /// Read exact error-code bytes through the actual retained option/getter owner.
+    pub fn error_code_bytes_in(
+        &self,
+        vm: &mut crate::Vm,
+    ) -> Result<Option<std::rc::Rc<[u8]>>, TclError> {
+        if let Some(cause) = vm.execution_refusal.clone() {
+            return Err(TclError::from_execution_failure(cause));
+        }
+        match self {
+            Self::Host(cause) => Err(cause.clone().into()),
+            Self::Guest(completion) if completion.code == Code::Error => {
+                crate::command::opt_get_checked(vm, &completion.options, b"-errorcode")?
+                    .map(|value| {
+                        tcl_syntax::value::ValueOps::native_string_bytes(vm, &value)
+                            .map_err(|error| crate::command::completion_option_failure(vm, error))
+                    })
+                    .transpose()
+            }
+            Self::Guest(_) => Ok(None),
+        }
+    }
+
+    /// Replace authored resident-list error metadata. Original native option
+    /// conversion/mutation requires the interpreter-aware checked owner.
+    pub(crate) fn set_error_code(&mut self, code: impl AsRef<[u8]>) -> Result<(), TclHostFailure> {
+        let completion = match self {
+            Self::Guest(completion) => completion,
+            Self::Host(cause) => return Err(cause.clone()),
+        };
+        if completion.code != Code::Error {
+            return Ok(());
+        }
+        if completion
+            .options
+            .with_cached_dictionary_representation(|_, _| ())
+            .is_some()
+        {
+            return Err(resident_projection_failure(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "borrowed Dictionary error-code mutation",
+                ),
+            ));
+        }
+        let pairs = crate::command::completion_option_rows_resident(&completion.options)
+            .map_err(resident_projection_failure)?;
+        let mut replacement = Vec::with_capacity(pairs.len() * 2 + 2);
+        let mut replaced = false;
+        for (key, value) in pairs {
+            key.check_native_header()
+                .map_err(resident_projection_failure)?;
+            let bytes = key.resident_string_bytes().ok_or_else(|| {
+                resident_projection_failure(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "borrowed option key",
+                    ),
+                )
+            })?;
+            let matched = bytes.as_ref() == b"-errorcode";
+            replacement.push(key);
+            replacement.push(if matched {
+                replaced = true;
+                Value::from_string_bytes(code.as_ref())
+            } else {
+                value
+            });
+        }
         if !replaced {
-            replacement.push(Value::string("-errorcode"));
-            replacement.push(Value::from_string_bytes(code.as_ref()));
+            replacement.extend([
+                Value::string("-errorcode"),
+                Value::from_string_bytes(code.as_ref()),
+            ]);
         }
         completion.options = Value::list(replacement);
+        Ok(())
     }
 
     /// Move the original completion into a guest dispatch boundary.
@@ -352,7 +450,7 @@ mod tests {
                 .is_same_object(&original_code)
         );
         vm.log_command_info("raw_failure", completion.result.string_bytes(), 1);
-        let snapshot = vm.completion_options_snapshot(&completion);
+        let snapshot = vm.completion_options_snapshot(&completion).unwrap();
         assert!(
             opt_get(&snapshot, "-errorinfo")
                 .expect("logged trace")
@@ -422,7 +520,7 @@ mod tests {
         vm.apply_primitive_error_code(tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(
             b"FINALLY OTHER".to_vec(),
         ));
-        vm.restore_completion_error_state(&completion);
+        vm.restore_completion_error_state(&completion).unwrap();
         assert!(
             vm.native_return_error_code()
                 .unwrap()
@@ -451,7 +549,7 @@ mod tests {
             .unwrap();
             let completion = crate::command::err_with_code(b"original message", b"RAW \xfe\0code");
             let original = opt_get(&completion.options, "-errorcode").unwrap();
-            vm.restore_completion_error_state(&completion);
+            vm.restore_completion_error_state(&completion).unwrap();
             assert!(
                 vm.native_return_error_code()
                     .unwrap()
@@ -549,7 +647,7 @@ mod tests {
                         .unwrap(),
                     2
                 );
-                let snapshot = vm.completion_options_snapshot(&completion);
+                let snapshot = vm.completion_options_snapshot(&completion).unwrap();
                 assert_eq!(opt_get(&snapshot, "-code").unwrap().as_int().unwrap(), 0);
                 assert_eq!(opt_get(&snapshot, "-level").unwrap().as_int().unwrap(), 2);
             } else {
@@ -630,5 +728,77 @@ mod tests {
                 assert!(vm.get_var(name).is_none(), "{source}: {name}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod checked_projection_tests {
+    use super::*;
+    fn native() -> crate::Vm {
+        crate::native_fixture::interpreter(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
+        )
+    }
+    #[test]
+    fn borrowed_projection_refuses_conversion_and_actual_context_reads_original_values() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Software getter/transport control, not a new original-provider receipt.
+        let mut vm = native();
+        let result = Value::int(7);
+        let code = Value::int(17);
+        let error = TclError::from_completion(Completion::new_error_metadata(
+            Code::Error,
+            result.clone(),
+            Value::list(vec![Value::string("-errorcode"), code.clone()]),
+        ));
+        assert!(matches!(
+            error.message_bytes(),
+            Err(TclHostFailure::ValueAccess(
+                NativeValueAccessRefusal::CommandProtocolUnavailable("borrowed guest message")
+            ))
+        ));
+        assert!(matches!(
+            error.error_code_bytes(),
+            Err(TclHostFailure::ValueAccess(
+                NativeValueAccessRefusal::CommandProtocolUnavailable("borrowed error-code bytes")
+            ))
+        ));
+        assert!(result.resident_string_bytes().is_none());
+        assert!(code.resident_string_bytes().is_none());
+        assert_eq!(error.message_bytes_in(&mut vm).unwrap().as_ref(), b"7");
+        assert_eq!(
+            error
+                .error_code_bytes_in(&mut vm)
+                .unwrap()
+                .unwrap()
+                .as_ref(),
+            b"17"
+        );
+        assert!(
+            error
+                .guest_completion()
+                .unwrap()
+                .result
+                .is_same_object(&result)
+        );
+    }
+    #[test]
+    fn checked_guest_projection_preserves_first_host_cause_without_materialising() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = native();
+        let cause = NativeValueAccessRefusal::ExpressionEngineUnavailable;
+        vm.refuse_tcl_host_failure(TclHostFailure::ValueAccess(cause));
+        let original = Value::int(42);
+        let error = TclError::from_completion(Completion::new(
+            Code::Error,
+            original.clone(),
+            Value::empty(),
+        ));
+        assert!(
+            matches!(error.message_bytes_in(&mut vm), Err(TclError::Host(TclHostFailure::Execution(NativeExecutionError::ValueAccessRefusal(retained)))) if retained == cause)
+        );
+        assert!(original.resident_string_bytes().is_none());
     }
 }

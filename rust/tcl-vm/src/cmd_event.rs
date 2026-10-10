@@ -497,9 +497,13 @@ fn run_event(vm: &mut Vm, script: &Value) {
         return;
     };
     if vm.refused_completion().is_none() && p.reports_callback_code(completion.code.as_int()) {
-        let options = vm
-            .completion_options_snapshot(&completion)
-            .into_native_reference();
+        let options = match vm.completion_options_snapshot(&completion) {
+            Ok(options) => options.into_native_reference(),
+            Err(error) => {
+                let _ = crate::command::completion_from_tcl_error(vm, error);
+                return;
+            }
+        };
         report_bg_error(vm, completion.result.into_native_reference(), options, p);
     }
 }

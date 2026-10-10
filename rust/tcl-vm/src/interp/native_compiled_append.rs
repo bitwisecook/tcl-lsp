@@ -143,12 +143,14 @@ impl Vm {
                     (present, options)
                 }
                 Err(error) => {
-                    let options = vm.completion_options_snapshot(&error);
+                    let options = vm
+                        .completion_options_snapshot(&error)
+                        .map_err(|error| crate::command::completion_from_tcl_error(vm, error))?;
                     vm.publish_swallowed_trace_error();
                     (false, options)
                 }
             };
-            vm.retain_variable_read_error_code(&options);
+            vm.retain_variable_read_error_code(&options)?;
             let empty =
                 tcl_registry::native_instruction_plan::native_list_append_empty_publication(
                     protocol,
@@ -179,7 +181,7 @@ impl Vm {
                             ));
                         }
                     };
-                    return Ok(Vm::variable_update_result(value, &options));
+                    return vm.variable_update_result(value, &options);
                 }
                 let next = original.native_list_append_list_elements(members, protocol);
                 next.map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
@@ -192,7 +194,7 @@ impl Vm {
                 }
             };
             let value = vm.store_captured_update(name, key, captured, next)?;
-            Ok(Vm::variable_update_result(value, &options))
+            vm.variable_update_result(value, &options)
         })
     }
 }

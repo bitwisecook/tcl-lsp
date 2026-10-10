@@ -1867,7 +1867,15 @@ fn select_direct_evidence(
         .args
         .iter()
         .enumerate()
-        .map(|(index, _)| actual_fact(input.function, input.site, index, input.registry))
+        .map(|(index, _)| {
+            actual_fact(
+                input.function,
+                input.site,
+                index,
+                input.registry,
+                &input.unit.ir_module,
+            )
+        })
         .collect();
     let actual_types = actual_facts.iter().map(|fact| fact.0.clone()).collect();
     let actual_values = actual_facts.into_iter().map(|fact| fact.1).collect();
@@ -2084,6 +2092,7 @@ fn actual_fact(
     site: &CallCandidate<'_>,
     argument: usize,
     registry: &tcl_registry::CommandRegistry,
+    module: &crate::ir::Module,
 ) -> (TypeLattice, DirectActualValue) {
     let read = site
         .tokens
@@ -2131,10 +2140,15 @@ fn actual_fact(
             }),
         );
     }
-    // Neither flattened bytes nor a statement-wide use map can identify the
-    // object read before later arguments run. Missing original read evidence
-    // leaves the contents fact and materialisation prerequisite unproved.
-    (TypeLattice::unknown(), DirectActualValue::Unproven)
+    // A literal has source-owned contents without a caller SSA identity.
+    // This readonly type does not authorise materialising a Native object.
+    let literal = site.tokens.as_deref().and_then(|tokens| {
+        crate::type_infer::original_literal_argument_contents(registry, module, tokens, argument)
+    });
+    (
+        literal.map_or_else(TypeLattice::unknown, |literal| literal.contents_type()),
+        DirectActualValue::Unproven,
+    )
 }
 
 fn direct_call_tokens<'a>(
@@ -3333,6 +3347,53 @@ mod tests {
                 call
             }] if call.nested_argument == Some(0)
         ));
+    }
+
+    #[test]
+    fn original_literal_actual_types_do_not_create_native_or_ssa_value_identity() {
+        // naming.variable.aot-original-slot-purpose
+        // docs/design/analysis/name-resolution-proofs/aot-original-slot-purpose.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = native_unit("proc p {x} {}; p 2", std::sync::Arc::clone(&context));
+        let plan = CommonAotProofPlan::build_with_retained_metadata(
+            &unit,
+            context.commands(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        let selected = plan
+            .direct_calls()
+            .find_map(|(_, decision)| match decision {
+                DirectProcDecision::Selected(evidence)
+                    if evidence.callee.qualified_name == "::p" =>
+                {
+                    Some(evidence)
+                }
+                _ => None,
+            })
+            .expect("independent actual calling convention selects the original empty procedure");
+        assert_eq!(selected.actual_types[0].tcl_type(), Some(TclType::Int));
+        assert_eq!(selected.actual_values, [DirectActualValue::Unproven]);
+        assert!(
+            !plan.materialisable_slots().any(|(_, decision)| {
+                matches!(decision, MaterialisableSlotDecision::Selected(_))
+            })
+        );
+        let function = &unit.top_level;
+        let site = call_sites("::top", function, function.source_lexer_config())
+            .into_iter()
+            .find(|site| site.command == "p")
+            .unwrap();
+        let mut missing = unit.ir_module.clone();
+        missing.source_metadata_input = None;
+        let (contents, identity) = actual_fact(function, &site, 0, context.commands(), &missing);
+        assert!(matches!(contents.kind(), TypeKind::Unknown));
+        assert_eq!(identity, DirectActualValue::Unproven);
+        let foreign = tcl_registry::CommandRegistry::build_default();
+        let (contents, identity) = actual_fact(function, &site, 0, &foreign, &unit.ir_module);
+        assert!(matches!(contents.kind(), TypeKind::Unknown));
+        assert_eq!(identity, DirectActualValue::Unproven);
     }
 
     #[test]

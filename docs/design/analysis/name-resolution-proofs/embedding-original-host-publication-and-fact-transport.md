@@ -32,7 +32,7 @@ Nine linked Runtime/Syntax/Wasm software controls retain bounded interface contr
 
 Six additional VM/Runtime/Wasm/iRule software controls are linked without execution or Native observation claims. Carrier bytes, constructor provenance, Unicode presentation and Guest/Host transport supply no native-produced cache birth, private object/header identity, real appliance process, callback permission, body/frame entry or Normal completion.
 
-Four additional software embedding definitions grant no original-provider behaviour, repeated C header/cache birth, native table/frame/currentness or callback permission. The migrated consumer uses opt_get_checked; compatibility opt_get callers and every native completion snapshot path are not covered by this binding. The borrowed completion-options planner still requires compatible backing. No assertion result is claimed.
+Four additional software embedding definitions grant no original-provider behaviour, repeated C header/cache birth, native table/frame/currentness or callback permission. The caught-publication consumer uses opt_get_checked; compatibility opt_get callers and every native completion snapshot path are not covered by this binding. The borrowed completion-options planner still requires compatible backing. No assertion result is claimed.
 
 ## Provider answers
 

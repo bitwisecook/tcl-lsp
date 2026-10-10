@@ -139,20 +139,35 @@ pub(crate) fn process(
                     let name = key
                         .native_string_bytes(application.strings())
                         .map_err(|error| {
-                            CmdError::from(ValueError::NativeStringAccess(
-                                tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
-                            ))
+                            crate::command::completion_option_failure(
+                                vm,
+                                ValueError::NativeStringAccess(
+                                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(
+                                        error,
+                                    ),
+                                ),
+                            )
                         })?;
                     match name.as_ref() {
                         b"-errorinfo" => {
-                            let bytes = ops.bytes(value)?;
+                            let bytes = ops.bytes(value).map_err(|error| {
+                                crate::command::completion_option_failure(vm, error)
+                            })?;
                             if !bytes.is_empty() {
                                 vm.seed_error_info_original(value, &bytes);
                             }
                         }
-                        b"-errorstack" if vm.supports_error_stack() => vm.seed_error_stack(value),
+                        b"-errorstack" if vm.supports_error_stack() => {
+                            if let Err(error) = vm.seed_error_stack(value) {
+                                return Err(error);
+                            }
+                        }
                         b"-errorline" => {
-                            if let Some(line) = ops.integer_probe(value, false)? {
+                            if let Some(line) =
+                                ops.integer_probe(value, false).map_err(|error| {
+                                    crate::command::completion_option_failure(vm, error)
+                                })?
+                            {
                                 vm.set_error_line(u32::from_le_bytes(
                                     line.to_le_bytes()[..4]
                                         .try_into()
@@ -171,11 +186,11 @@ pub(crate) fn process(
                     })
                     .map(|(_, value)| value);
                 let _ = vm.retain_return_error_code(original, true);
-                Ok::<(), CmdError>(())
+                Ok::<(), crate::TclError>(())
             })
             .expect("reached original Dictionary");
         if let Err(error) = error {
-            return crate::command::completion_from_cmd_error(vm, error);
+            return crate::command::completion_from_tcl_error(vm, error);
         }
         if level == 0 {
             vm.mark_native_error_copy();

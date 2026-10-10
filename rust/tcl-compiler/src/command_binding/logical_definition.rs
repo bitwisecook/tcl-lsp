@@ -93,7 +93,7 @@ impl LogicalProcedureDefinition {
             target
                 .prepended
                 .iter()
-                .map(|word| word.as_registry_word().literal().map(str::to_owned))
+                .map(captured_static_value)
                 .collect::<Option<Vec<_>>>()?,
         );
         effective_values.extend(values.into_iter().skip(1));
@@ -263,10 +263,21 @@ pub(super) fn original_static_invocation_words(
 
 pub(super) fn static_value(word: &NativeWord) -> Option<String> {
     let bytes = tcl_syntax::word_rules::original_static_word_source_bytes(word)?;
+    static_bytes_text(&bytes)
+}
+
+/// A retained captured operand keeps its byte value, not its presentation arm.
+pub(super) fn captured_static_value(
+    word: &crate::registry_invocation::EffectiveInvocationWord,
+) -> Option<String> {
+    static_bytes_text(word.literal_bytes()?)
+}
+
+fn static_bytes_text(bytes: &[u8]) -> Option<String> {
     if bytes.contains(&0) {
         return None;
     }
-    String::from_utf8(bytes).ok()
+    std::str::from_utf8(bytes).ok().map(str::to_owned)
 }
 
 pub(super) fn static_formals(
@@ -442,6 +453,38 @@ mod tests {
             project(tcl_lexer::SourceImage::native("café".as_bytes().to_vec())),
             None
         );
+    }
+
+    #[test]
+    fn logical_captured_values_keep_exact_unicode_bytes_and_refuse_unknown_units() {
+        // naming.source.logical-procedure-definition-model
+        // docs/design/analysis/name-resolution-proofs/logical-procedure-definition-model.md
+        use crate::registry_invocation::EffectiveInvocationWord;
+        let bytes = EffectiveInvocationWord::ByteLiteral(Arc::from("café $literal".as_bytes()));
+        assert_eq!(
+            captured_static_value(&bytes),
+            Some("café $literal".to_owned())
+        );
+        assert_eq!(bytes.literal_bytes(), Some("café $literal".as_bytes()));
+        assert_eq!(
+            captured_static_value(&EffectiveInvocationWord::Literal("café $literal".into())),
+            captured_static_value(&bytes)
+        );
+        assert_eq!(
+            captured_static_value(&EffectiveInvocationWord::ByteLiteral(Arc::from(&b""[..]))),
+            Some(String::new())
+        );
+        for value in [
+            EffectiveInvocationWord::ByteLiteral(Arc::from(&b"caf\xff"[..])),
+            EffectiveInvocationWord::ByteLiteral(Arc::from(&b"cafe\0tail"[..])),
+            EffectiveInvocationWord::Literal("cafe\0tail".into()),
+            EffectiveInvocationWord::Dynamic,
+            EffectiveInvocationWord::Opaque,
+            EffectiveInvocationWord::Expanded,
+            EffectiveInvocationWord::KnownExpansion(vec!["café".into()]),
+        ] {
+            assert_eq!(captured_static_value(&value), None, "{value:?}");
+        }
     }
 
     #[test]

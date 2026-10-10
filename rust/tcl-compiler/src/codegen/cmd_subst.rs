@@ -814,8 +814,12 @@ impl CodegenCtx<'_> {
     ) {
         self.emit_comment(Op::EXPAND_START, vec![], comment);
         for (index, (word, braced, expanded)) in words.into_iter().enumerate() {
-            if index != 0 || !self.try_emit_original_command_head(word) {
-                self.emit_cmd_word(word, braced);
+            if index == 0 {
+                if !self.try_emit_original_command_head(word) {
+                    self.emit_cmd_word(word, braced);
+                }
+            } else {
+                self.emit_native_argument_word(index - 1, word, braced);
             }
             if expanded {
                 self.emit(
@@ -1636,8 +1640,8 @@ impl CodegenCtx<'_> {
             }
             Some((InlineCodegenHookId::List, _)) if !args.is_empty() && !text.contains("{*}") => {
                 self.used_inline_cmd_subst = true;
-                for (a, b) in args {
-                    self.emit_cmd_subst_arg(a, *b);
+                for (index, (a, b)) in args.iter().enumerate() {
+                    self.emit_native_argument_word(index, a, *b);
                 }
                 self.emit(Op::LIST, vec![Operand::Imm(bytecode_imm(args.len()))]);
             }
@@ -1789,17 +1793,13 @@ impl CodegenCtx<'_> {
         }
     }
 
-    fn emit_native_argument_word(&mut self, index: usize, text: &str, braced: bool) {
+    pub(super) fn emit_native_argument_word(&mut self, index: usize, text: &str, braced: bool) {
         let word = self.original_hook_argument(index).and_then(|original| {
-            let word = self
-                .invocation_tokens
+            self.invocation_tokens
                 .as_deref()?
                 .words()
-                .get(original + 1)?;
-            Some(match word {
-                crate::ir::WordExpr::Expand { word, .. } => (**word).clone(),
-                word => word.clone(),
-            })
+                .get(original + 1)
+                .cloned()
         });
         if let Some(word) = word {
             self.emit_word_from_source(text, braced, Some(&word));
@@ -2736,7 +2736,7 @@ impl CodegenCtx<'_> {
             && imm_index_ok(e)
         {
             self.used_inline_cmd_subst = true;
-            self.emit_cmd_subst_arg(&args[0].0, args[0].1);
+            self.emit_native_argument_word(0, &args[0].0, args[0].1);
             self.emit(Op::LIST_RANGE_IMM, vec![Operand::Imm(s), Operand::Imm(e)]);
         } else {
             self.used_inline_cmd_subst = false;
@@ -2746,9 +2746,9 @@ impl CodegenCtx<'_> {
 
     fn emit_inline_lreplace(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
-        self.emit_cmd_subst_arg(&args[0].0, args[0].1);
-        for a in &args[1..] {
-            self.emit_cmd_subst_arg(&a.0, a.1);
+        self.emit_native_argument_word(0, &args[0].0, args[0].1);
+        for (index, a) in args[1..].iter().enumerate() {
+            self.emit_native_argument_word(index + 1, &a.0, a.1);
         }
         self.emit(
             Op::LREPLACE4,
@@ -2758,9 +2758,9 @@ impl CodegenCtx<'_> {
 
     fn emit_inline_linsert(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
-        self.emit_cmd_subst_arg(&args[0].0, args[0].1);
-        for a in &args[1..] {
-            self.emit_cmd_subst_arg(&a.0, a.1);
+        self.emit_native_argument_word(0, &args[0].0, args[0].1);
+        for (index, a) in args[1..].iter().enumerate() {
+            self.emit_native_argument_word(index + 1, &a.0, a.1);
         }
         self.emit(
             Op::LREPLACE4,
@@ -2769,20 +2769,21 @@ impl CodegenCtx<'_> {
     }
 
     fn emit_inline_regexp(&mut self, args: &[(String, bool)]) {
-        let mut rargs: Vec<&(String, bool)> = args.iter().collect();
+        let mut rargs: Vec<(usize, &(String, bool))> = args.iter().enumerate().collect();
         let mut nocase = false;
-        if !rargs.is_empty() && rargs[0].0 == "-nocase" {
+        if !rargs.is_empty() && rargs[0].1.0 == "-nocase" {
             nocase = true;
             rargs.remove(0);
         }
-        if !rargs.is_empty() && rargs[0].0 == "--" {
+        if !rargs.is_empty() && rargs[0].1.0 == "--" {
             rargs.remove(0);
         }
         if rargs.len() == 2 && nocase {
-            if let Some(glob) = regexp_to_glob(&rargs[0].0) {
+            if let Some(glob) = regexp_to_glob(&rargs[0].1.0) {
                 self.used_inline_cmd_subst = true;
                 self.push_lit(&glob);
-                self.emit_cmd_subst_arg(&rargs[1].0, rargs[1].1);
+                let (index, subject) = rargs[1];
+                self.emit_native_argument_word(index, &subject.0, subject.1);
                 self.emit(Op::STR_MATCH, vec![Operand::Imm(1)]);
             } else {
                 self.used_inline_cmd_subst = false;
@@ -2795,8 +2796,8 @@ impl CodegenCtx<'_> {
             // default `TCL_REG_ADVANCED` (3). `-nocase` is handled by the glob
             // path above, so the NOCASE bit is never set here.
             self.used_inline_cmd_subst = true;
-            for arg in &rargs {
-                self.emit_cmd_subst_arg(&arg.0, arg.1);
+            for (index, arg) in &rargs {
+                self.emit_native_argument_word(*index, &arg.0, arg.1);
             }
             self.emit(Op::REGEXP, vec![Operand::Imm(3)]);
         } else {
@@ -2862,8 +2863,8 @@ impl CodegenCtx<'_> {
             );
             let fqn = format!("{namespace}::{sub}");
             self.push_lit(&fqn);
-            for (a, b) in rest {
-                self.emit_cmd_subst_arg(a, *b);
+            for (index, (a, b)) in rest.iter().enumerate() {
+                self.emit_native_argument_word(index + 1, a, *b);
             }
             let arg_count = bytecode_imm(1 + rest.len());
             let invoke_op = if arg_count < 256 {
@@ -2883,10 +2884,10 @@ impl CodegenCtx<'_> {
     fn emit_inline_dict_get(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
         let dict_args = &args[1..]; // skip "get"
-        self.emit_cmd_subst_arg(&dict_args[0].0, dict_args[0].1); // dict value
+        self.emit_native_argument_word(1, &dict_args[0].0, dict_args[0].1); // dict value
         let keys = &dict_args[1..];
-        for (k, b) in keys {
-            self.emit_cmd_subst_arg(k, *b);
+        for (index, (k, b)) in keys.iter().enumerate() {
+            self.emit_native_argument_word(index + 2, k, *b);
         }
         self.emit(Op::DICT_GET, vec![Operand::Imm(bytecode_imm(keys.len()))]);
     }
@@ -2898,6 +2899,348 @@ impl CodegenCtx<'_> {
 mod tests {
     use super::*;
     use tcl_registry::CommandRegistry;
+
+    fn original_argument_tokens(
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> CommandTokens {
+        let mut commands =
+            crate::segmenter::segment_commands_image_with_offset_and_config(image, 0, config)
+                .unwrap();
+        assert_eq!(commands.len(), 1);
+        CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::from_image(image),
+            config,
+            &commands.remove(0),
+        )
+    }
+
+    fn original_argument_context<'a>(
+        registry: &'a CommandRegistry,
+        image: tcl_lexer::SourceImage,
+        version: tcl_dialect::TclVersion,
+        config: tcl_lexer::LexerConfig,
+    ) -> CodegenCtx<'a> {
+        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let mut context = CodegenCtx::new(true, &[], registry);
+        context.invocation_dialect = Some(dialect);
+        context.source_string_protocol = dialect.native_source_string_protocol();
+        context.ingress_lexer_config = Some(config);
+        context.set_source_image(image);
+        context
+    }
+
+    #[test]
+    fn original_inline_argument_emitters_keep_lexical_nul_and_escape_values() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Lexical emission and opcode wiring only; no native process or handler claim.
+        let registry = CommandRegistry::build_default();
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+            for (source, operation, expected) in [
+                (r#"list "A\u0000B""#, Op::LIST, b"A\xc0\x80B".as_slice()),
+                (
+                    r#"lrange "A\u0000B" 0 end"#,
+                    Op::LIST_RANGE_IMM,
+                    b"A\xc0\x80B".as_slice(),
+                ),
+                (
+                    r#"lreplace {one two} 0 0 "A\u0000B""#,
+                    Op::LREPLACE4,
+                    b"A\xc0\x80B".as_slice(),
+                ),
+                (
+                    r#"linsert {one} 0 "A\u0000B""#,
+                    Op::LREPLACE4,
+                    b"A\xc0\x80B".as_slice(),
+                ),
+                (
+                    r#"dict get "A\u0000B" key"#,
+                    Op::DICT_GET,
+                    b"A\xc0\x80B".as_slice(),
+                ),
+                (
+                    "lrange \"A\0B\" 0 end",
+                    Op::LIST_RANGE_IMM,
+                    b"A\0B".as_slice(),
+                ),
+                (
+                    r#"lrange {A\u0000B} 0 end"#,
+                    Op::LIST_RANGE_IMM,
+                    br"A\u0000B".as_slice(),
+                ),
+                (
+                    r#"lrange "A\$literal\[\]\\Ω" 0 end"#,
+                    Op::LIST_RANGE_IMM,
+                    "A$literal[]\\Ω".as_bytes(),
+                ),
+            ] {
+                let image = tcl_lexer::SourceImage::native(source.as_bytes());
+                let tokens = original_argument_tokens(&image, config);
+                let parts = parse_cmd_parts(source);
+                let mut context = original_argument_context(&registry, image, version, config);
+                context.with_invocation_tokens(Some(&tokens), |context| {
+                    let args = &parts[1..];
+                    match parts[0].0.as_str() {
+                        "list" => {
+                            context.emit_inline_hook_operands(source, "list", args, Some(&tokens))
+                        }
+                        "lrange" => context.emit_inline_lrange(args),
+                        "lreplace" => context.emit_inline_lreplace(args),
+                        "linsert" => context.emit_inline_linsert(args),
+                        "dict" => context.emit_inline_dict_get(args),
+                        _ => unreachable!(),
+                    }
+                });
+                assert!(
+                    context
+                        .instructions
+                        .iter()
+                        .any(|instruction| instruction.op == operation),
+                    "{version:?}/{source}"
+                );
+                assert!(
+                    context
+                        .literals
+                        .entries()
+                        .iter()
+                        .any(|literal| literal.bytes() == expected),
+                    "{version:?}/{source}: {:?}",
+                    context.literals.entries()
+                );
+                assert!(context.invocation_tokens.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn original_regexp_argument_indices_survive_consumed_options() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let registry = CommandRegistry::build_default();
+        let version = tcl_dialect::TclVersion::V8_6;
+        let config = tcl_lexer::LexerConfig::from_grammar(
+            tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+        );
+        for source in [
+            r#"regexp "P\u0000AT" "S\u0000UB""#,
+            r#"regexp -- "P\u0000AT" "S\u0000UB""#,
+            r#"regexp -- "S\u0000UB" "S\u0000UB""#,
+            r#"regexp -nocase {abc} "S\u0000UB""#,
+            r#"regexp -nocase -- {abc} "S\u0000UB""#,
+        ] {
+            let image = tcl_lexer::SourceImage::native(source.as_bytes());
+            let tokens = original_argument_tokens(&image, config);
+            let parts = parse_cmd_parts(source);
+            let mut context = original_argument_context(&registry, image, version, config);
+            context.with_invocation_tokens(Some(&tokens), |context| {
+                context.emit_inline_regexp(&parts[1..])
+            });
+            assert!(
+                context
+                    .literals
+                    .entries()
+                    .iter()
+                    .any(|literal| literal.bytes() == b"S\xc0\x80UB"),
+                "{source}"
+            );
+            if source.contains("-nocase") {
+                assert!(
+                    context
+                        .instructions
+                        .iter()
+                        .any(|instruction| instruction.op == Op::STR_MATCH)
+                );
+                assert!(
+                    context
+                        .literals
+                        .entries()
+                        .iter()
+                        .any(|literal| literal == "*abc*")
+                );
+            } else {
+                assert!(
+                    context
+                        .instructions
+                        .iter()
+                        .any(|instruction| instruction.op == Op::REGEXP)
+                );
+                let pattern = if source.contains("P\\u0000AT") {
+                    b"P\xc0\x80AT".as_slice()
+                } else {
+                    b"S\xc0\x80UB".as_slice()
+                };
+                assert!(
+                    context
+                        .literals
+                        .entries()
+                        .iter()
+                        .any(|literal| literal.bytes() == pattern),
+                    "{source}"
+                );
+                assert_eq!(
+                    context
+                        .instructions
+                        .iter()
+                        .filter(|instruction| matches!(instruction.op, Op::PUSH1 | Op::PUSH4))
+                        .count(),
+                    2
+                );
+            }
+            assert!(
+                context
+                    .literals
+                    .entries()
+                    .iter()
+                    .all(|literal| literal != "--" && literal != "-nocase")
+            );
+        }
+    }
+
+    #[test]
+    fn original_argument_ordinals_keep_worker_prefixes_and_derived_heads_separate() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let registry = CommandRegistry::build_default();
+        let version = tcl_dialect::TclVersion::V8_6;
+        let config = tcl_lexer::LexerConfig::from_grammar(
+            tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+        );
+        let source = r#"worker "A\u0000B" key"#;
+        let image = tcl_lexer::SourceImage::native(source.as_bytes());
+        let tokens = original_argument_tokens(&image, config);
+        let mut context = original_argument_context(&registry, image.clone(), version, config);
+        let logical = vec![
+            ("get".to_owned(), true),
+            (r"A\u0000B".to_owned(), false),
+            ("key".to_owned(), false),
+        ];
+        context.with_invocation_tokens(Some(&tokens), |context| {
+            context.native_hook_layout = Some(("worker".to_owned(), 1));
+            context.emit_inline_dict_get(&logical);
+            context.emit_native_argument_word(0, "get", true);
+        });
+        assert!(
+            context
+                .literals
+                .entries()
+                .iter()
+                .any(|literal| literal.bytes() == b"A\xc0\x80B")
+        );
+        assert!(
+            context
+                .literals
+                .entries()
+                .iter()
+                .any(|literal| literal == "get")
+        );
+        assert!(context.native_hook_layout.is_none());
+
+        let array_registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let array_source = r#"array names "A\u0000B" pattern"#;
+        let array_image = tcl_lexer::SourceImage::native(array_source.as_bytes());
+        let array_tokens = original_argument_tokens(&array_image, config);
+        let array_parts = parse_cmd_parts(array_source);
+        let mut array = original_argument_context(array_registry, array_image, version, config);
+        array.with_invocation_tokens(Some(&array_tokens), |context| {
+            context.emit_inline_array("array", &array_parts[1..]);
+        });
+        assert!(
+            array
+                .literals
+                .entries()
+                .iter()
+                .any(|literal| literal.bytes() == b"A\xc0\x80B")
+        );
+        assert!(
+            array
+                .instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::INVOKE_STK1)
+        );
+        assert!(
+            array
+                .literals
+                .entries()
+                .iter()
+                .any(|literal| literal == "::tcl::array::names")
+        );
+    }
+
+    #[test]
+    fn original_argument_emission_refuses_missing_stale_and_unavailable_lexical_receipts() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let registry = CommandRegistry::build_default();
+        let version = tcl_dialect::TclVersion::V8_6;
+        let config = tcl_lexer::LexerConfig::from_grammar(
+            tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+        );
+        let source = r#"worker "A\u0000B" key"#;
+        let image = tcl_lexer::SourceImage::native(source.as_bytes());
+        let tokens = original_argument_tokens(&image, config);
+        let logical = vec![
+            ("get".to_owned(), true),
+            (r"A\u0000B".to_owned(), false),
+            ("key".to_owned(), false),
+        ];
+        // The same text and source image do not issue an original argument receipt.
+        let mut missing = original_argument_context(&registry, image.clone(), version, config);
+        missing.with_invocation_tokens(None, |context| context.emit_inline_dict_get(&logical));
+        assert!(
+            missing
+                .literals
+                .entries()
+                .iter()
+                .all(|literal| literal.bytes() != b"A\xc0\x80B")
+        );
+        assert!(missing.original_lexical_words.borrow().is_none());
+
+        let mut stale = original_argument_context(&registry, image.clone(), version, config);
+        stale.set_source("worker WRONG key");
+        stale.with_invocation_tokens(Some(&tokens), |context| {
+            context.native_hook_layout = Some(("worker".to_owned(), 1));
+            context.emit_inline_dict_get(&logical);
+        });
+        assert!(
+            stale
+                .literals
+                .entries()
+                .iter()
+                .all(|literal| literal.bytes() != b"A\xc0\x80B")
+        );
+        assert!(stale.original_lexical_words.borrow().is_none());
+
+        let mut unavailable = original_argument_context(&registry, image.clone(), version, config);
+        unavailable.source_string_protocol = None;
+        unavailable.with_invocation_tokens(Some(&tokens), |context| {
+            context.native_hook_layout = Some(("worker".to_owned(), 1));
+            context.emit_inline_dict_get(&logical);
+        });
+        assert!(
+            unavailable
+                .literals
+                .entries()
+                .iter()
+                .all(|literal| literal.bytes() != b"A\xc0\x80B")
+        );
+        assert!(unavailable.original_lexical_words.borrow().is_none());
+
+        let mut altered = original_argument_context(&registry, image, version, config);
+        altered.with_invocation_tokens(Some(&tokens), |context| {
+            context.emit_native_argument_word(0, r"A\u0000CHANGED", false);
+        });
+        assert!(
+            altered
+                .literals
+                .entries()
+                .iter()
+                .all(|literal| literal.bytes() != b"A\xc0\x80B"
+                    && literal.bytes() != b"A\xc0\x80CHANGED")
+        );
+    }
 
     #[test]
     fn coroutine_emitters_preserve_native_namespace_and_expansion_segments() {

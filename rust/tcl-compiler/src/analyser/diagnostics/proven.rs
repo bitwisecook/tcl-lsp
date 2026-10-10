@@ -617,7 +617,9 @@ mod source_value_projection_tests {
         // Source/API correspondence only: no native argv or completion follows.
         let source = "interp alias {} classify {} string is; classify $kind value";
         let mut analyser = Analyser::new();
-        let result = analyser.analyse(source, "tcl");
+        let result = analyser
+            .analyse_and_retain_result_for_test(source, "tcl")
+            .clone();
         assert!(result.analysis_context_unavailable.is_none());
         let command = crate::segmenter::segment_commands_with_offset_and_config(
             source,
@@ -672,7 +674,7 @@ mod source_value_projection_tests {
         // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
         let source = "proc string args {return CUSTOM}; string is $kind value";
         let mut analyser = Analyser::new();
-        analyser.analyse(source, "tcl");
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
         let command = crate::segmenter::segment_commands_with_offset_and_config(
             source,
             0,

@@ -14,9 +14,13 @@ Does standalone Tk source advice retain the explicitly supplied profile, grammar
 
 Tk source analysis retains the supplied profile and full lexer configuration with the exact provided Registry generation in one resolved input. Activation and nested command traversal consume the actual retained analysis and shared original source schema. Widget operand selection requires genuine written anchors; captured and expanded inputs cannot borrow later written widget spans. Known command shadowing blocks nominal body traversal. Model certainty remains relative to this source advice and proves no live widget, package load, handler, frame or edit equivalence.
 
+Actual Tk preview consumes analyse_tk_ui_with_analysis under the complete current AnalysisResult. The shared collector retains selected source constructor roles, actual availability and lexer configuration. Missing full input, typed unavailable status, source/store mismatch or changed grammar returns no widget facts together with SourceContextUnavailable uncertainty. The explicitly standalone source/profile API retains its separate ingress.
+
 ## Scope
 
 Rust UI source modelling only. The fixed controls vary a supplied C8.6 profile against a newer C9.1 store, distinguish captured and prefixless aliases, and preserve known body-command shadowing.
+
+Two added consumer assertion definitions and the existing operand-boundary control are source/UI contracts only. No actual Native widget, constructor dispatch, body entry, realised UI or executed assertion outcome follows from this binding.
 
 ## Provider answers
 
@@ -80,6 +84,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/tk_preview.rs](../../../../rust/tcl-lsp-core/src/tk_preview.rs), `tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries` (linked): Supplied C8.6 profile retains the newer command generation while unavailable ttk construction is omitted; captured widget names own no later span, prefixless aliases retain written names, and a known if replacement hides its apparent body.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lsp-core/src/tk_preview.rs](../../../../rust/tcl-lsp-core/src/tk_preview.rs), `analyse_tk_ui_with_analysis`: Use actual current AnalysisResult complete input/store/configuration and selected constructor roles; withheld source yields SourceContextUnavailable rather than an empty-clean preview.
+- [rust/tcl-lsp-core/src/tk_preview.rs](../../../../rust/tcl-lsp-core/src/tk_preview.rs), `tk_preview::tests::supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source` (linked): Actual Server Tk preview consumes complete current AnalysisResult via analyse_tk_ui_with_analysis; the original standalone source/profile API shares the collector. Typed unavailable status, missing complete input, changed grammar/store/availability or source correspondence yields no widget facts plus SourceContextUnavailable uncertainty. Collector reads actual availability and source grammar; source widget advice supplies no Native identity, body entry or execution. Source/software definition only; no executed assertion or Native process result is attached by this binding.
+- [rust/tcl-lsp-server/src/original_document_metadata_tests.rs](../../../../rust/tcl-lsp-server/src/original_document_metadata_tests.rs), `original_document_metadata_tests::tk_preview_keeps_configured_constructor_and_reports_unavailable_overlay` (linked): Actual Server Tk preview consumes complete current AnalysisResult via analyse_tk_ui_with_analysis; the original standalone source/profile API shares the collector. Typed unavailable status, missing complete input, changed grammar/store/availability or source correspondence yields no widget facts plus SourceContextUnavailable uncertainty. Collector reads actual availability and source grammar; source widget advice supplies no Native identity, body entry or execution. Source/software definition only; no executed assertion or Native process result is attached by this binding.
+
+These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 
 ## Replay
 

@@ -5629,11 +5629,6 @@ mod tests {
         for name in [
             "subject_args",
             "two_arg_optionless_surface",
-            "exact_option",
-            "glob_option",
-            "regex_option",
-            "nocase_option",
-            "end_options_option",
             "fallthrough_body",
             "value_options_require_regex",
             "special_match_options",
@@ -5649,13 +5644,26 @@ mod tests {
             "exhaustive_keyword_patterns",
             "optional_subject_separator",
             "warn_unbraced_bodies",
+            "default_mode",
+            "pattern_words",
         ] {
             assert!(
                 grammar.member(name).is_some(),
                 "missing case_list row {name}"
             );
         }
-        assert_eq!(grammar.members.len(), 22);
+        // Match-mode, case-folding and terminator switches are command
+        // option effects, independent of the case-list data grammar.
+        for option_field in [
+            "exact_option",
+            "glob_option",
+            "regex_option",
+            "nocase_option",
+            "end_options_option",
+        ] {
+            assert!(grammar.member(option_field).is_none());
+        }
+        assert_eq!(grammar.members.len(), 19);
     }
 
     #[test]
@@ -6737,8 +6745,7 @@ mod original_forward_tests {
                     .is_none()
             );
         }
-        let jim =
-            crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::find("jim").unwrap());
+        let jim = crate::InvocationDialect::of_profile(crate::native_test_provider::profile("jim"));
         assert!(
             TCLOO_GRAMMAR
                 .native_deferred_forward_setter(TCLOO_GRAMMAR.member("forward").unwrap(), jim, 2)
@@ -6776,7 +6783,7 @@ mod original_forward_tests {
             ),
         ];
         for (name, rows) in captures {
-            let profile = tcl_dialect::DialectProfile::find(name).unwrap();
+            let profile = crate::native_test_provider::profile(name);
             let dialect = crate::InvocationDialect::of_profile(profile);
             let available = !captured_forward_row(rows, "AVAILABILITY").1.is_empty();
             let member = TCLOO_GRAMMAR.member("forward").unwrap();

@@ -188,6 +188,11 @@ impl DynamicNameBarrier {
 /// same `$` but substitutes nothing, and this function cannot tell the two
 /// spellings apart on text alone.  [`scan_command`] applies that check.
 ///
+/// This explicit standalone C local-name classifier does not establish
+/// supplied command semantics or the absence of a namespace-cell hazard.
+/// Actual source edit consumers use [`source_name_word_is_dynamic`] with a
+/// complete retained input and an independently checked current source owner.
+///
 /// Three shapes are deliberately **not** dynamic:
 ///
 /// - `a($k)` — a run-time-chosen *element* of the statically named array
@@ -204,11 +209,15 @@ pub fn names_a_dynamic_variable(word: &str) -> bool {
     if word.is_empty() {
         return false;
     }
-    let base = word.split_once('(').map_or(word, |(base, _)| base);
+    let base = literal_variable_root(word);
     let tail = base.rsplit("::").next().unwrap_or(base);
     tail.contains('$') || tail.contains('[')
 }
 
+/// Explicit standalone authored-C lexical bound. It grants no actual target,
+/// Native/Jim/hosted name-policy or edit authority. Supplied consumers use
+/// [`source_name_pattern_can_spell`], where unavailable purpose stays unknown.
+///
 /// Whether the variable-name word `word` — one
 /// [`names_a_dynamic_variable`] has already classified dynamic — **can spell**
 /// the fully-qualified cell `qualified_cell`.
@@ -256,10 +265,9 @@ pub fn names_a_dynamic_variable(word: &str) -> bool {
 ///   spell is judged out of reach and the rename proceeds *unsafely*.
 ///
 /// There is deliberately no overload defaulting to
-/// [`tcl_dialect::BracedVarStyle::default`]: every production caller
-/// (`tcl_lsp_core::rename_safety`, `tcl_lsp_core::namespace_rename`) holds a
-/// resolved `DialectProfile`, and silently taking the default is the defect
-/// this parameter exists to prevent.
+/// [`tcl_dialect::BracedVarStyle::default`]. Explicit standalone callers
+/// provide their authoring grammar; supplied edit consumers use the actual
+/// retained config through [`source_name_pattern_can_spell`].
 #[must_use]
 pub fn dynamic_variable_word_can_spell(
     word: &str,
@@ -269,9 +277,77 @@ pub fn dynamic_variable_word_can_spell(
     // An element suffix names an element of the base array, so the *variable*
     // this word names is the base — the same split `names_a_dynamic_variable`
     // makes.
-    let base = word.split_once('(').map_or(word, |(base, _)| base);
+    let base = literal_variable_root(word);
     let pattern = name_word_pattern(base, braced_var);
     cell_spellings(qualified_cell).any(|spelling| pattern_matches(&pattern, spelling))
+}
+
+/// Source-name pattern purpose. A namespace name has no variable-element
+/// suffix; parentheses remain ordinary namespace bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceNamePatternPurpose {
+    /// A variable cell root; only a complete array-element suffix is removed.
+    VariableRoot,
+    /// A namespace name; parentheses remain literal name characters.
+    NamespaceName,
+}
+
+fn literal_variable_root(word: &str) -> &str {
+    tcl_syntax::naming::split_element_ref(word).map_or(word, |(root, _)| root)
+}
+
+fn source_pattern_word(word: &str, purpose: SourceNamePatternPurpose) -> &str {
+    match purpose {
+        SourceNamePatternPurpose::VariableRoot => literal_variable_root(word),
+        SourceNamePatternPurpose::NamespaceName => word,
+    }
+}
+
+fn authored_c_pattern_config(
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<LexerConfig> {
+    use tcl_syntax::naming::{NamePolicyAuthority, NativeNameProtocol};
+    let metadata = metadata?;
+    let input = metadata.source_analysis_input()?;
+    if !metadata.permits_logical_source_names() {
+        return None;
+    }
+    let policy =
+        tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy()?;
+    (policy.authority() == NamePolicyAuthority::AuthoredSimulation
+        && matches!(policy.recipe(), NativeNameProtocol::C(_)))
+    .then_some(input.lexer_config())
+}
+
+/// Whether an original source operand computes the named root, only in its
+/// supplied Logical authored-C domain. A fixed local tail cannot rule out a
+/// namespace-cell hazard. Unavailable or other naming purposes return
+/// `None`; they never mean a Native/Jim/hosted name is statically known.
+#[must_use]
+pub fn source_name_word_is_dynamic(
+    word: &str,
+    purpose: SourceNamePatternPurpose,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<bool> {
+    authored_c_pattern_config(metadata)?;
+    Some(source_pattern_word(word, purpose).contains(['$', '[']))
+}
+
+/// Conditional lexical pattern advice for a constructed Logical C source
+/// coordinate, including a separately retained dominating source value. This
+/// is neither Native target identity nor an edit licence. The caller retains
+/// current whole source/schema/origin currency independently. `None` is an
+/// unresolved hazard, including availability-only and standalone contexts.
+#[must_use]
+pub fn source_name_pattern_can_spell(
+    word: &str,
+    source_coordinate: &str,
+    purpose: SourceNamePatternPurpose,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<bool> {
+    let config = authored_c_pattern_config(metadata)?;
+    let pattern = name_word_pattern(source_pattern_word(word, purpose), config.braced_var);
+    Some(cell_spellings(source_coordinate).any(|spelling| pattern_matches(&pattern, spelling)))
 }
 
 /// One piece of a variable-name word: a run of literal characters, or a
@@ -364,8 +440,9 @@ fn name_word_pattern(word: &str, braced_var: tcl_dialect::BracedVarStyle) -> Vec
 /// on purpose: a spelling that could not actually resolve to this cell from
 /// some site only ever adds a refusal, never removes one.
 fn cell_spellings(qualified_cell: &str) -> impl Iterator<Item = &str> {
-    let rooted = qualified_cell.starts_with("::");
-    let bare = qualified_cell.trim_start_matches("::");
+    let unrooted = tcl_syntax::naming::unroot_rooted_key(qualified_cell);
+    let rooted = unrooted.is_some();
+    let bare = unrooted.unwrap_or(qualified_cell);
     std::iter::once(qualified_cell)
         .chain(std::iter::once(bare).filter(move |_| rooted))
         .chain(bare.match_indices("::").map(|(at, _)| &bare[at + 2..]))
@@ -1579,6 +1656,187 @@ mod tests {
         );
         let fu = cu.procedures.values().next().unwrap_or(&cu.top_level);
         dynamic_name_barrier(&fu.cfg, registry, lexer_config_for(registry))
+    }
+
+    #[test]
+    fn literal_name_patterns_keep_closed_element_and_open_root_distinct() {
+        // naming.core.original-dynamic-name-value-purpose
+        // docs/design/analysis/name-resolution-proofs/core-original-dynamic-name-value-purpose.md
+        // Explicit authored-C lexical compatibility, not a physical name lookup.
+        assert!(!names_a_dynamic_variable("a($key)"));
+        assert!(names_a_dynamic_variable("a($key"));
+        assert!(names_a_dynamic_variable("a($key)tail"));
+        assert!(names_a_dynamic_variable("${prefix}::v($key"));
+        assert!(dynamic_variable_word_can_spell("a($key", "::ns::a(TAIL"));
+        assert!(!dynamic_variable_word_can_spell("a($key)", "::ns::a(TAIL"));
+    }
+
+    #[test]
+    fn supplied_name_patterns_keep_variable_root_and_namespace_name_purposes() {
+        // naming.core.original-dynamic-name-value-purpose
+        // docs/design/analysis/name-resolution-proofs/core-original-dynamic-name-value-purpose.md
+        // Conditional Logical source coordinates, independent of target/edit identity.
+        use crate::analyser::Analyser;
+        use crate::registry_invocation::InvocationMetadataContext;
+        use SourceNamePatternPurpose::{NamespaceName, VariableRoot};
+        let analysis = Analyser::new().analyse("set value 1", "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let metadata = InvocationMetadataContext::for_source_input(
+            input.borrowed_context_registry().commands(),
+            input,
+            input.lexer_config(),
+            Some(input.unit_profile()),
+        );
+        assert_eq!(
+            source_name_word_is_dynamic("a($key)", VariableRoot, metadata),
+            Some(false)
+        );
+        assert_eq!(
+            source_name_word_is_dynamic("a($key", VariableRoot, metadata),
+            Some(true)
+        );
+        assert_eq!(
+            source_name_word_is_dynamic("a($key)", NamespaceName, metadata),
+            Some(true)
+        );
+        for (word, coordinate, expected) in [
+            ("::other::$n", "::ns::v", false),
+            ("${prefix}::v", "::ns::v", true),
+            ("a($key", "::ns::a(TAIL", true),
+            ("a($key)", "::ns::a(TAIL", false),
+            ("v", "::ns::v", true),
+        ] {
+            assert_eq!(
+                source_name_pattern_can_spell(word, coordinate, VariableRoot, metadata),
+                Some(expected),
+                "{word}"
+            );
+        }
+        assert_eq!(
+            source_name_pattern_can_spell(
+                "::ns::a($key)",
+                "::ns::a(TAIL)",
+                NamespaceName,
+                metadata
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            source_name_pattern_can_spell("::ns::a($key)", "::ns::a(TAIL)", VariableRoot, metadata),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn supplied_name_patterns_do_not_borrow_native_hosted_or_display_identity() {
+        // naming.core.original-dynamic-name-value-purpose
+        // docs/design/analysis/name-resolution-proofs/core-original-dynamic-name-value-purpose.md
+        use crate::analyser::Analyser;
+        use crate::registry_invocation::{InvocationMetadataContext, SemanticContext};
+        let purpose = SourceNamePatternPurpose::VariableRoot;
+        for dialect in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+        ] {
+            let analysis = Analyser::new().analyse("set value 1", dialect);
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let metadata = InvocationMetadataContext::for_source_input(
+                input.borrowed_context_registry().commands(),
+                input,
+                input.lexer_config(),
+                Some(input.unit_profile()),
+            );
+            assert!(
+                metadata.is_some(),
+                "actual metadata remains independently available: {dialect}"
+            );
+            assert_eq!(
+                source_name_word_is_dynamic("a($key)", purpose, metadata),
+                None,
+                "{dialect}"
+            );
+            assert_eq!(
+                source_name_pattern_can_spell("::other::$n", "::ns::v", purpose, metadata),
+                None,
+                "{dialect}"
+            );
+        }
+        let analysis = Analyser::new().analyse("set value 1", "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let supplied_availability = input.borrowed_context_registry().into();
+        let standalone = SemanticContext::for_profile(input.unit_profile()).into();
+        for metadata in [None, Some(supplied_availability), Some(standalone)] {
+            assert_eq!(
+                source_name_word_is_dynamic("a($key)", purpose, metadata),
+                None
+            );
+            assert_eq!(
+                source_name_pattern_can_spell("::other::$n", "::ns::v", purpose, metadata),
+                None
+            );
+            assert_eq!(
+                source_name_pattern_can_spell("v", "::captured::display", purpose, metadata),
+                None
+            );
+        }
+        let foreign = tcl_registry::CommandRegistry::build_default();
+        assert!(
+            InvocationMetadataContext::for_source_input(
+                &foreign,
+                input,
+                input.lexer_config(),
+                Some(input.unit_profile()),
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn supplied_logical_name_patterns_require_an_actual_authored_c_policy() {
+        // naming.core.original-dynamic-name-value-purpose
+        // docs/design/analysis/name-resolution-proofs/core-original-dynamic-name-value-purpose.md
+        use crate::analyser::ResolvedAnalysisInput;
+        use crate::registry_invocation::InvocationMetadataContext;
+        let profile = tcl_dialect::DialectProfile::projected_from_point(
+            "explicit-pattern-logical-grammar",
+            &[],
+            "Logical grammar only",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+        )
+        .intern();
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            LexerConfig::for_profile(Some(profile)),
+        );
+        assert!(input.has_logical_source_name_context());
+        assert!(
+            tcl_registry::InvocationDialect::of_profile(profile)
+                .authored_name_policy()
+                .is_none()
+        );
+        let metadata = InvocationMetadataContext::for_source_input(
+            input.borrowed_context_registry().commands(),
+            &input,
+            input.lexer_config(),
+            Some(profile),
+        );
+        assert!(metadata.is_some());
+        assert_eq!(
+            source_name_pattern_can_spell(
+                "::other::$n",
+                "::ns::v",
+                SourceNamePatternPurpose::VariableRoot,
+                metadata
+            ),
+            None
+        );
     }
 
     #[test]

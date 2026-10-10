@@ -101,6 +101,46 @@ mod tests {
     use crate::interp::Vm;
 
     #[test]
+    fn original_jim_namespace_info_guard_retains_its_original_headers() {
+        // naming.mathop.original-jim-source-and-helper-context
+        // docs/design/analysis/name-resolution-proofs/mathop-original-jim-source-and-helper-context.md
+        // This compares the unchanged original guarded Jim source and public
+        // completion. Optional header-access diagnostics supply no provider evidence.
+        let source = include_str!(
+            "../../tcl-registry/tests/data/native_mathop_jim_original_source/inputs/identity/0/source.tcl"
+        );
+        let observed = include_str!(
+            "../../tcl-registry/tests/data/native_mathop_jim_original_source/providers/jim/cases/identity/0/execute.stdout"
+        );
+        let fields: Vec<_> = observed
+            .lines()
+            .find(|line| line.starts_with("CASE_RESULT "))
+            .unwrap()
+            .split_whitespace()
+            .collect();
+        let expected: Vec<_> = fields[2]
+            .as_bytes()
+            .chunks_exact(2)
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect();
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(
+            profile,
+            &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceInfo],
+        );
+        let completion = vm
+            .eval_source(source)
+            .expect("original Jim guard completion");
+        assert_eq!(completion.code.as_int(), fields[1].parse::<i64>().unwrap());
+        assert_eq!(
+            vm.native_name_operand_bytes(&completion.result)
+                .unwrap()
+                .as_ref(),
+            expected,
+        );
+    }
+
+    #[test]
     fn selected_mathop_identity_matches_all_60_native_name_and_argv_controls() {
         // naming.mathop.original-jim-source-and-helper-context
         // docs/design/analysis/name-resolution-proofs/mathop-original-jim-source-and-helper-context.md

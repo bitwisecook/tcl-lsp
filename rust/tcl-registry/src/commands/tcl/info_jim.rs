@@ -929,7 +929,20 @@ mod tests {
                 format!("wrong # args: should be \"{}\"", subcommand.synopsis).as_bytes()
             );
             assert!(!subcommand.arity.accepts(10));
-            assert_eq!(subcommand.native_compilation, Some(NO_HOOK));
+            // Software descriptor facts are separate from the public arity row.
+            let expected_operation = if subcommand.name == "exists" {
+                Some(crate::SemanticOperationId::Intrinsic(
+                    crate::IntrinsicId::InfoExists,
+                ))
+            } else {
+                None
+            };
+            assert_eq!(subcommand.semantic_operation, expected_operation);
+            let expected = crate::native_compilation::NativeCompilationSpec {
+                operation: expected_operation.unwrap_or(crate::SemanticOperationId::Invoke),
+                ..NO_HOOK
+            };
+            assert_eq!(subcommand.native_compilation, Some(expected));
             assert!(subcommand.inline_codegen_hook.is_none());
             assert!(subcommand.successful_handler.is_none());
         }

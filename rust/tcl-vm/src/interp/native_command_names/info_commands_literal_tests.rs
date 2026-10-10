@@ -51,8 +51,18 @@ fn compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_hea
         let fields: Vec<_> = row.split('\t').collect();
         let case = ORIGINAL_INFO_COMMANDS_CASES[fields[1].parse::<usize>().unwrap()];
         let context = format!("{}: {}", fields[0], case.0);
-        let profile = tcl_dialect::DialectProfile::find(fields[0]).unwrap();
+        // Oracle provider labels use the shared ingress aliases, including
+        // `jim`; they are not the interned profile catalogue names.
+        let profile = tcl_registry::model::ingress::resolve_environment(fields[0]).unit_profile();
         let mut vm = crate::native_fixture::interpreter(profile);
+        if fields[0] == "jim" {
+            assert!(
+                vm.native_invocation_dialect()
+                    .native_name_protocol()
+                    .is_some_and(|protocol| protocol.is_jim084()),
+                "{context}: actual selected Jim recipe"
+            );
+        }
         let prelude = vm.try_eval_source_bytes(case.1).unwrap();
         assert_eq!(
             prelude.code,

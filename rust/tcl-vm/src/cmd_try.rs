@@ -40,7 +40,7 @@ use std::rc::Rc;
 use tcl_runtime_api::{Code, Completion, FatalTail};
 use tcl_syntax::value::ValueOps;
 
-use crate::command::{completion_options, opt_get, options_dict};
+use crate::command::{completion_options, opt_get_checked, options_dict};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -671,7 +671,12 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
     let errorcode = if plan.jim {
         plan.body_error_code.clone().unwrap_or_else(Value::empty)
     } else if body_comp.code == Code::Error {
-        crate::command::resolved_error_code(&body_comp)
+        match crate::command::resolved_error_code(vm, &body_comp) {
+            Ok(value) => value,
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_tcl_error(vm, error));
+            }
+        }
     } else {
         Value::empty()
     };
@@ -691,7 +696,12 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
             }
         }
     } else {
-        vm.completion_options_snapshot(&body_comp)
+        match vm.completion_options_snapshot(&body_comp) {
+            Ok(value) => value,
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_tcl_error(vm, error));
+            }
+        }
     };
     let mut matched = None;
     for (index, handler) in plan.handlers.iter().enumerate() {
@@ -743,12 +753,28 @@ fn enter_matched_handler(
             // `errorCode` (so the handler reads the body's error) and reset the
             // trace so the handler's own errors start fresh.
             if body_comp.code == Code::Error && !plan.jim {
-                let einfo = vm.take_error_info().unwrap_or_else(|| {
-                    opt_get(&body_opts, "-errorinfo").map_or_else(
-                        || body_comp.result.string_bytes().to_vec(),
-                        |v| v.string_bytes().to_vec(),
-                    )
-                });
+                let einfo = if let Some(bytes) = vm.error_info_value() {
+                    bytes.to_vec()
+                } else {
+                    let original = match opt_get_checked(vm, &body_opts, b"-errorinfo") {
+                        Ok(value) => value.unwrap_or_else(|| body_comp.result.clone()),
+                        Err(error) => {
+                            return TryOutcome::Deliver(crate::command::completion_from_tcl_error(
+                                vm, error,
+                            ));
+                        }
+                    };
+                    match ValueOps::native_string_bytes(vm, &original) {
+                        Ok(bytes) => bytes.to_vec(),
+                        Err(error) => {
+                            return TryOutcome::Deliver(crate::command::completion_from_cmd_error(
+                                vm,
+                                error.into(),
+                            ));
+                        }
+                    }
+                };
+                let _ = vm.take_error_info();
                 vm.publish_error(&einfo, errorcode);
             }
             match vm.prepare_script_commands_value(&plan.handlers[handler_index].script) {
@@ -787,7 +813,14 @@ fn enter_matched_handler(
                 e = Completion::new(body_comp.code, e.result, options);
             }
             if e.code == Code::Error && !plan.jim {
-                let options = vm.completion_options_snapshot(&e);
+                let options = match vm.completion_options_snapshot(&e) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        return TryOutcome::Deliver(crate::command::completion_from_tcl_error(
+                            vm, error,
+                        ));
+                    }
+                };
                 e.options = match add_during(vm, &options, &body_opts) {
                     Ok(options) => options,
                     Err(completion) => return TryOutcome::Deliver(completion),
@@ -812,7 +845,12 @@ fn advance_after_handler(
     }
     let mut outcome = handler_comp;
     if outcome.code == Code::Error && !plan.jim {
-        let options = vm.completion_options_snapshot(&outcome);
+        let options = match vm.completion_options_snapshot(&outcome) {
+            Ok(value) => value,
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_tcl_error(vm, error));
+            }
+        };
         outcome.options = match add_during(vm, &options, body_opts) {
             Ok(options) => options,
             Err(completion) => return TryOutcome::Deliver(completion),
@@ -843,7 +881,12 @@ fn finish_body_or_handler(
             }
         };
     } else if outcome.code == Code::Error {
-        outcome.options = vm.completion_options_snapshot(&outcome);
+        outcome.options = match vm.completion_options_snapshot(&outcome) {
+            Ok(value) => value,
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_tcl_error(vm, error));
+            }
+        };
     }
     let Some(fin) = plan.finally.clone() else {
         return TryOutcome::Deliver(outcome);
@@ -917,13 +960,25 @@ fn advance_after_finally(
         return TryOutcome::Deliver(Completion::new(raw, result, options));
     }
     if fc.code == Code::Ok {
-        vm.restore_completion_error_state(&outcome);
+        if let Err(error) = vm.restore_completion_error_state(&outcome) {
+            return TryOutcome::Deliver(crate::command::completion_from_tcl_error(vm, error));
+        }
         return TryOutcome::Deliver(outcome);
     }
     let mut fc = fc;
     if fc.code == Code::Error {
-        let prior_opts = completion_options(&outcome);
-        let options = vm.completion_options_snapshot(&fc);
+        let prior_opts = match completion_options(vm, &outcome) {
+            Ok(value) => value,
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_tcl_error(vm, error));
+            }
+        };
+        let options = match vm.completion_options_snapshot(&fc) {
+            Ok(value) => value,
+            Err(error) => {
+                return TryOutcome::Deliver(crate::command::completion_from_tcl_error(vm, error));
+            }
+        };
         fc.options = match add_during(vm, &options, &prior_opts) {
             Ok(options) => options,
             Err(completion) => return TryOutcome::Deliver(completion),

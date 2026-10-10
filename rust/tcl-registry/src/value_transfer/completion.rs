@@ -1752,7 +1752,7 @@ mod return_decoder_tests {
         words: &[InvocationWord<'_>],
         facet: ReturnInvocationFacet,
     ) -> ReturnDecoding {
-        let profile = DialectProfile::find(provider.profile).expect("measured provider grammar");
+        let profile = crate::native_test_provider::profile(provider.profile);
         let dialect = crate::InvocationDialect::of_profile(profile);
         let numbers = if provider.profile == "jim" {
             Numbers::Target(NumberSyntax::Jim)
@@ -1936,7 +1936,7 @@ mod return_decoder_tests {
         // docs/design/analysis/name-resolution-proofs/completion-return-option-pair-grammar.md
         // Software contract: constructed source carriers test uncertainty and
         // provenance. They are not independently observed Native entry/header facts.
-        let profile = DialectProfile::find("tcl8.6").expect("C86 grammar");
+        let profile = crate::native_test_provider::profile("tcl8.6");
         let dialect = crate::InvocationDialect::of_profile(profile);
         let read = |words: &[InvocationWord<'_>]| {
             decode_return_words_in(
@@ -2003,7 +2003,7 @@ mod return_decoder_tests {
         // docs/design/analysis/name-resolution-proofs/completion-return-option-pair-grammar.md
         // Software overlay/route contract. A retained mixed numeral grammar is
         // not a newly measured C90 engine or a Native object/handler receipt.
-        let profile = DialectProfile::find("tcl9.0").expect("selected C90 profile");
+        let profile = crate::native_test_provider::profile("tcl9.0");
         let mut context = super::super::context::AnalysisContext::detached(Some(profile));
         context.grammar.numbers = NumberSyntax::Tcl85;
         let inputs = super::super::literal::LiteralInputs::new(

@@ -2262,3 +2262,54 @@ restored.chmod(0o755)
 ```
 
 Lossless storage restores the exact executable; decompression supplies no new build or assertion.
+
+## Compiler, Core, DB and Server no-run build282
+
+The exact four-package `cargo test --lib --no-run --message-format=json --offline` command closes with exit101 after 68.490786s and `uniform_source: true`. One ordinary Compiler library E0308 mismatched-type diagnostic at value_transfer.rs:6665 blocks this no-run command before test executable creation. No test assertion or sealed executable pin is supplied. This command executes no test assertions and establishes no aggregate pass or Native provider failure.
+
+The [original receipt](frozen282/integration-compiler-core-db-server-test-build282/receipt.json.gz) is retained as lossless gzip with compressed and uncompressed SHA256. The [complete log](frozen282/integration-compiler-core-db-server-test-build282/tests.log) preserves every original diagnostic and Cargo event. Every immutable source archive leaf is independently checked against the original receipt map. Original command, paths, source association and timing remain unchanged.
+
+## Compiler, Core, DB and Server no-run build283
+
+The exact four-package `cargo test --lib --no-run --message-format=json --offline` command closes with exit101 after 181.207771s and `uniform_source: true`. Two Compiler libtest E0716 lifetime diagnostics and 49 Server compilation diagnostics block this no-run command. The Server diagnostics include missing imports and diagnostic/test API mismatches, plus cancellation-closure trait safety. No test executable event, assertion or sealed executable pin is supplied. This command executes no test assertions and establishes no aggregate pass or Native provider failure.
+
+The [original receipt](frozen283/integration-compiler-core-db-server-test-build283/receipt.json.gz) is retained as lossless gzip with compressed and uncompressed SHA256. The [complete log](frozen283/integration-compiler-core-db-server-test-build283/tests.log) preserves every original diagnostic and Cargo event. Every immutable source archive leaf is independently checked against the original receipt map. Original command, paths, source association and timing remain unchanged.
+
+## Sealed Source284 compilation, inventories and assertions
+
+Two independent successful no-run commands produce the actual VM284 and Compiler/Registry284 images. Their exact pin metadata, measured ELF identities and shared source companion are retained losslessly. The fresh inventories list 744 VM, 9111 Compiler and 1717 Registry tests. The three-selector VM run closes 0 passed/3 failed: both mathop comparisons fail Jim case 0 with typed Host retired-header refusal after the explicit helper; Info reaches Jim after its C rows and fails the fixture provider-profile lookup. These are software outcomes, independent of original Native observations, guarded Jim UNAVAILABLE source results and later fixture changes. The full Registry suite retains 1679 passed/38 failed; the exact original 114 Compiler selection closes 53 passed/61 failed. The separate authentic structural trace closes 0 passed/1 failed. No aggregate gate passes.
+
+| Closed operation | Status | Recorded result | Exact receipt | Complete log |
+| --- | --- | --- | --- | --- |
+| `integration-vm-own-test-build284` | `compile-passed`, exit 0, 164.029556s | no assertions | [Original receipt](frozen284/integration-vm-own-test-build284/receipt.json.gz) | [Whole log](frozen284/integration-vm-own-test-build284/tests.log) |
+| `integration-compiler-registry-own-test-build284` | `compile-passed`, exit 0, 280.474679s | no assertions | [Original receipt](frozen284/integration-compiler-registry-own-test-build284/receipt.json.gz) | [Whole log](frozen284/integration-compiler-registry-own-test-build284/tests.log) |
+| `integration-vm-inventory284` | `listed`, exit 0, 0.006704s | no assertions | [Original receipt](frozen284/integration-vm-inventory284/receipt.json.gz) | [Whole log](frozen284/integration-vm-inventory284/tests.log) |
+| `integration-compiler-inventory284` | `listed`, exit 0, 0.019214s | no assertions | [Original receipt](frozen284/integration-compiler-inventory284/receipt.json.gz) | [Whole log](frozen284/integration-compiler-inventory284/tests.log) |
+| `integration-registry-inventory284` | `listed`, exit 0, 0.008491s | no assertions | [Original receipt](frozen284/integration-registry-inventory284/receipt.json.gz) | [Whole log](frozen284/integration-registry-inventory284/tests.log) |
+| `integration-vm-native-frontier-tests284` | `failed`, exit 101, 91.776460s | 0 passed/3 failed | [Original receipt](frozen284/integration-vm-native-frontier-tests284/receipt.json.gz) | [Whole log](frozen284/integration-vm-native-frontier-tests284/tests.log) |
+| `integration-compiler-original-focus-tests284` | `failed`, exit 101, 226.270322s | 53 passed/61 failed | [Original receipt](frozen284/integration-compiler-original-focus-tests284/receipt.json.gz) | [Whole log](frozen284/integration-compiler-original-focus-tests284/tests.log) |
+| `integration-registry-complete-lib-tests284` | `failed`, exit 101, 116.243573s | 1679 passed/38 failed | [Original receipt](frozen284/integration-registry-complete-lib-tests284/receipt.json.gz) | [Whole log](frozen284/integration-registry-complete-lib-tests284/tests.log) |
+| `integration-compiler-structural-declaration-trace284` | `failed`, exit 101, 1.695621s | 0 passed/1 failed | [Original receipt](frozen284/integration-compiler-structural-declaration-trace284/receipt.json.gz) | [Whole log](frozen284/integration-compiler-structural-declaration-trace284/tests.log) |
+
+The [unchanged 114-selector receipt](frozen284/compiler-focus-selection284.json) retains its independent original selection digest, actual Compiler pin and current inventory check. Every original source association is byte-checked. Question links on assertion rows require the current complete source file to match that measured image; changed current definitions are recorded separately without borrowing the old result. Original Native provider evidence and expected windows remain unchanged.
+
+Restore a sealed image from the repository root after verifying both stored and measured identities:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+name = "vm"  # also "compiler" or "registry"
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen284") / ("sealed-" + name + "-image")
+record = json.loads((base / "lossless-image-storage.json").read_text())
+packed = (base / ("pinned-" + name + "284.elf.gz")).read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/pinned-" + name + "284.elf")
+restored.write_bytes(original)
+restored.chmod(0o755)
+```
+
+Lossless restoration preserves executable identity and supplies no new build or assertion.

@@ -62,7 +62,7 @@ fn c84_normalization_matches_six_original_float_error_windows() {
                     "{line}"
                 );
                 assert_eq!(
-                    error.error_code_bytes().unwrap().as_ref(),
+                    error.error_code_bytes().unwrap().unwrap().as_ref(),
                     decode(row[7]),
                     "{line}"
                 );

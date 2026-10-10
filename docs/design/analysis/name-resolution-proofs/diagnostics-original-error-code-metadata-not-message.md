@@ -16,11 +16,15 @@ All six original providers replace the explicit seed with NONE for an arbitrary 
 
 A linked software embedding control keeps original caller-owned error-code/error-info metadata independently of arbitrary message text. This is a transport contract distinct from the six original Native CLI processes and their measured release boundary.
 
+The selected software wrong-arguments protocol compares its error-code bytes with the six original published genuine catch-set rows. Those rows independently establish NONE for C8.4/C8.5/Jim and TCL WRONGARGS for C8.6/C9.0/C9.1; arbitrary message text remains separate.
+
 ## Scope
 
 The immutable original ASCII LF source performs three caught public script operations in one fresh process per provider, setting a distinct seed before each. Count-preserving binary-scan hex retains exact result and public errorCode bytes; both availability and returned value are measured. Seeds are overwritten in every captured case. The fixed source does not contain raw NUL, non-ASCII, binary-produced keys, private headers or direct object-vector entry. Fresh info patchlevel queries are retained independently of prior version receipts reused under exact original CLI/source/header/configuration/static archive pins. No new compile is run; selected original CLI executable identities, launch argv, explicit TCL_LIBRARY overlay and prelaunch 162 required pins are retained. Inherited environment, compiler version and unrelated system library identities are unrecorded. Nineteen exact original Tcl_ErrorObjCmd/Tcl_SetObjCmd/Tcl_WrongNumArgs and Jim error/set/wrongargs/registration windows explain producers separately from observed output. The unchanged preparation request includes a conditional unsupported/untouched Jim errorCode caution; the actual captured Jim query instead succeeds and reports NONE. Only Jim third-argument explicit-code acceptance is purpose-unavailable; it is never used to label the supported public query N/A. These three cases do not certify other commands, release points, arbitrary catch options or message parsing. Software API controls and typed Guest/Host settlement require independent receipts; all prior native records remain unchanged. BIG-IP is not tested.
 
 The embedding control has no executed outcome attached. Original Native430 provider answers, public query availability, explicit-code acceptance/refusal, exact source/streams and evidence pins remain unchanged. Software transport does not confer a generic diagnostic class, Native object/header/frame or successful handler.
+
+The linked assertion definition has no executed result attached by this binding. Its NativeOrigin and String-producer assertions are software selection contracts, not original public header observations. Original Native430 provider answers, explicit-code acceptance/refusal, evidence/source windows and replay remain unchanged.
 
 ## Provider answers
 
@@ -2455,6 +2459,11 @@ A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-vm/tests/embed_api_e2e.rs](../../../../rust/tcl-vm/tests/embed_api_e2e.rs), `an_error_a_host_took_as_its_own_leaves_error_code_and_error_info`: Keep caller-owned caught completion metadata and arbitrary message text separate in the software embedding consumer; actual Native430 release-specific public producers remain independent.
 - [rust/tcl-vm/tests/embed_api_e2e.rs](../../../../rust/tcl-vm/tests/embed_api_e2e.rs), `an_error_a_host_took_as_its_own_leaves_error_code_and_error_info` (linked): Software caller-owned completion metadata and arbitrary message text, independently from Native430 original script cases.
+
+These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
+
+- [rust/tcl-registry/src/native_wrong_arguments.rs](../../../../rust/tcl-registry/src/native_wrong_arguments.rs), `InvocationDialect::native_wrong_arguments_protocol`: Select exact measured error-code policy by independent actual release: NONE for C8.4/C8.5/Jim and TCL WRONGARGS for C8.6/C9; software origin/String assertions do not attest public original headers.
+- [rust/tcl-registry/src/native_wrong_arguments.rs](../../../../rust/tcl-registry/src/native_wrong_arguments.rs), `native_wrong_arguments::tests::measured_native_codes_have_independent_origin` (linked): Selected software error-code protocol compared with exact six-provider public original catch {set} metadata. Existing origin/String producer assertions remain software controls; original public scripts do not observe physical headers. This links the software assertion definition only. Independent actual execution receipts retain their own failures and scope; no whole-provider or specialised compilation pass is inferred.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 

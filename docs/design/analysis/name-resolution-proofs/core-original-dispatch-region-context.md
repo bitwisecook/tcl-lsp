@@ -22,6 +22,8 @@ Source next/self dispatch consumers share authentic original selected roles, hel
 
 The shared Core CurrentSourceContext receipt validates the original complete source image, full lexer configuration and retained input/store/realm before source-backed editor entries. Reporting labels and positive Logical advice purpose cannot replace that receipt. Conditional type/hierarchy/next-definition consumers retain current class/source frame, selected helper roles, captured targets and actual availability; stale owners or replaced helpers withdraw extra advice.
 
+Source-backed inline and data-group consumers share CurrentSourceContext and actual selected command geometry. Complete image/input/configuration and genuine original clauses remain required, including when selected operands originate in a captured prefix.
+
 ## Scope
 
 Current Core source-region implementation contract. Two fixed controls check retained custom schema/PotentialEvaluation versus ReferenceOnly, and original moved namespace source versus replacement/delete/missing/stale ownership. All seven providers are not tested; original provider dispatch/lifetime observations remain separate.
@@ -33,6 +35,8 @@ Three additional Core source controls have no executed assertion receipt. Their 
 Three additional Core source controls have no executed assertion or provider receipt. Original roles and lookup horizons do not establish Native receiver/frame/dispatch execution, caller body entry, compiler admission or rename/edit equivalence.
 
 Seven additional current Core source controls have no executed assertion result here. Source correspondence and lexical frames do not establish Native command/class identity, current runtime frame/receiver, actual method dispatch/body entry, observer closure or edit authority.
+
+Two added source/software definitions attach no assertion outcome. Current source currency, original dispatch roles and conditional output metadata remain separate from physical receiver/frame identity, Native entry and safe insertion/movement/rewrite authority.
 
 ## Provider answers
 
@@ -130,6 +134,12 @@ These bindings are current software contracts without an executed assertion or e
 - [rust/tcl-lsp-core/src/call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/call_hierarchy.rs), `call_hierarchy::original_source_context_tests::original_method_hierarchy_uses_selected_helpers_and_same_source_frame` (linked): Method hierarchy traverses authentic selected source helpers in the same original lexical frame under the full current input.
 - [rust/tcl-lsp-core/src/call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/call_hierarchy.rs), `call_hierarchy::original_source_context_tests::original_method_hierarchy_keeps_replaced_helpers_unresolved_and_withdraws_stale_source` (linked): Replaced helpers remain unresolved and stale complete source owners withdraw extra hierarchy advice.
 - [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `definition::original_next_source_context_tests::original_next_definition_uses_captured_target_and_selected_availability` (linked): Next definition delegates the selected original source scanner, preserving captured targets and actual availability.
+
+These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
+
+- [rust/tcl-lsp-core/src/original_context.rs](../../../../rust/tcl-lsp-core/src/original_context.rs), `CurrentSourceContext::capture`: Guard actual source-backed refactor entry by complete current image, full lexer configuration, retained input/store and realm; selected source advice does not create a writable operand.
+- [rust/tcl-lsp-core/src/refactor/inline_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_variable.rs), `refactor::inline_variable::tests::logical_inline_edits_require_current_source_and_complete_metadata_owner` (linked): Actual document-backed refactors share CurrentSourceContext and original source-command geometry; source rewrites and Logical setters consume authentic selected schema/effective argv/origins. Captured operands remain data without current editable words. Data-group actual route retains complete supplied Logical source currency, selected If/Switch clause layout and original Set/Return arm horizons, actual proposed output availability/current descriptor identity; explicit standalone authoring APIs remain separate. Native movement/store/Normal/frame/control-flow/evaluation/edit refusal gates remain independent. No native-provider or software execution promotion. Current source definition only; execution and Native edit-equivalence outcomes remain independent.
+- [rust/tcl-lsp-core/src/refactor/datagroup.rs](../../../../rust/tcl-lsp-core/src/refactor/datagroup.rs), `refactor::datagroup::tests::supplied_datagroup_advice_keeps_written_clauses_and_current_document_owner` (linked): Actual document-backed refactors share CurrentSourceContext and original source-command geometry; source rewrites and Logical setters consume authentic selected schema/effective argv/origins. Captured operands remain data without current editable words. Data-group actual route retains complete supplied Logical source currency, selected If/Switch clause layout and original Set/Return arm horizons, actual proposed output availability/current descriptor identity; explicit standalone authoring APIs remain separate. Native movement/store/Normal/frame/control-flow/evaluation/edit refusal gates remain independent. No native-provider or software execution promotion. Current source definition only; execution and Native edit-equivalence outcomes remain independent.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 

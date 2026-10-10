@@ -148,6 +148,58 @@ fn literal_type(text: &str, numbers: NumberSyntax) -> TypeLattice {
     TypeLattice::of(TclType::String)
 }
 
+/// Decoded contents of one unchanged original literal argument.
+/// This carries no object class, header, representation, SSA value or admission.
+pub(crate) struct OriginalLiteralArgumentContents {
+    value: String,
+    numbers: NumberSyntax,
+}
+
+impl OriginalLiteralArgumentContents {
+    pub(crate) fn value(&self) -> &str {
+        &self.value
+    }
+
+    /// Existing contents-type convention under the actual source's numerals.
+    /// A numeric shape is not a physical Native integer representation.
+    pub(crate) fn contents_type(&self) -> TypeLattice {
+        literal_type(&self.value, self.numbers)
+    }
+}
+
+/// Decode only a literal written argument under its retained Module and point
+/// input. Missing ownership, substitutions, opaque bytes and NUL decline.
+pub(crate) fn original_literal_argument_contents(
+    registry: &CommandRegistry,
+    module: &crate::ir::Module,
+    tokens: &crate::ir::CommandTokens,
+    argument: usize,
+) -> Option<OriginalLiteralArgumentContents> {
+    if tokens.synthetic.is_some() || !tokens.words_align_with_argv_text() {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    let metadata = binding.original_invocation_metadata_for_module(tokens, module, registry)?;
+    let input = metadata.source_analysis_input()?;
+    let config = input.lexer_config();
+    let word = tokens.words().get(argument.checked_add(1)?)?;
+    let decoded = crate::registry_invocation::effective_invocation_word(
+        word,
+        config.escapes,
+        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+    );
+    let crate::registry_invocation::EffectiveInvocationWord::Literal(value) = decoded else {
+        return None;
+    };
+    if value.contains('\0') {
+        return None;
+    }
+    Some(OriginalLiteralArgumentContents {
+        value,
+        numbers: input.unit_profile().grammar.numbers,
+    })
+}
+
 /// Classify a literal's type in **expr context**, reading numerals under
 /// `numbers`.
 ///
@@ -2682,6 +2734,117 @@ mod tests {
     use crate::ssa::{Phi, SsaBlock, SsaFunction, SsaStatement};
     use std::collections::HashSet;
     use tcl_lexer::Span;
+
+    #[test]
+    fn original_literal_contents_keep_point_grammar_and_withdraw_stale_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig {
+            escapes: tcl_dialect::EscapeSyntax::Tcl84,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let module = crate::lowering::Lowerer::with_config(context.commands(), config)
+            .with_resolved_analysis_input(input)
+            .lower(r"set value \U00000041");
+        let tokens = module
+            .top_level
+            .statements
+            .iter()
+            .find_map(|statement| {
+                module
+                    .top_level
+                    .retained_source_tokens_for_statement(statement)
+            })
+            .expect("actual original setter source");
+        let literal = original_literal_argument_contents(context.commands(), &module, tokens, 1)
+            .expect("original lexical value has complete source ownership");
+        assert_eq!(literal.value(), "U00000041");
+        assert_eq!(literal.contents_type().tcl_type(), Some(TclType::String));
+        let mut changed = module.clone();
+        changed.source_metadata_input = None;
+        assert!(
+            original_literal_argument_contents(context.commands(), &changed, tokens, 1).is_none()
+        );
+        let mut changed = module.clone();
+        changed.lexer_config.escapes = tcl_dialect::EscapeSyntax::Tcl86;
+        assert!(
+            original_literal_argument_contents(context.commands(), &changed, tokens, 1).is_none()
+        );
+        let mut changed = module.clone();
+        changed.source = tcl_lexer::SourceImage::document("set value OTHER");
+        assert!(
+            original_literal_argument_contents(context.commands(), &changed, tokens, 1).is_none()
+        );
+        let foreign = tcl_registry::CommandRegistry::build_default();
+        assert!(original_literal_argument_contents(&foreign, &module, tokens, 1).is_none());
+        let mut changed = tokens.clone();
+        changed.argv_texts[2] = "OTHER".to_owned();
+        assert!(
+            original_literal_argument_contents(context.commands(), &module, &changed, 1).is_none()
+        );
+    }
+
+    #[test]
+    fn original_literal_contents_do_not_borrow_numeric_grammar_or_substituted_values() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        // Independently authored source numerals remain Tcl85 while command
+        // availability is C9. This selects no Native parser or execution.
+        let mut authored = *tcl_dialect::DialectProfile::plain_tcl();
+        authored.grammar.numbers = NumberSyntax::Tcl85;
+        let profile: &'static tcl_dialect::DialectProfile = Box::leak(Box::new(authored));
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        for (source, expected) in [
+            ("set value 1_000", Some(TclType::String)),
+            ("set value 2", Some(TclType::Int)),
+            ("set value $external", None),
+            ("set value [list x]", None),
+            (r"set value \x00", None),
+        ] {
+            let module = crate::lowering::Lowerer::with_config(context.commands(), config)
+                .with_resolved_analysis_input(input.clone())
+                .lower(source);
+            let tokens = module
+                .top_level
+                .statements
+                .iter()
+                .find_map(|statement| {
+                    module
+                        .top_level
+                        .retained_source_tokens_for_statement(statement)
+                })
+                .expect("whole original source vector");
+            let contents =
+                original_literal_argument_contents(context.commands(), &module, tokens, 1);
+            assert_eq!(
+                contents
+                    .as_ref()
+                    .and_then(|value| value.contents_type().tcl_type()),
+                expected,
+                "{source}"
+            );
+            if let Some(contents) = contents {
+                assert_eq!(contents.value(), tokens.argv_texts[2]);
+            }
+        }
+    }
 
     #[test]
     fn original_type_metadata_retains_actual_availability_and_independent_source_grammar() {

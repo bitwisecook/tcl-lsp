@@ -539,6 +539,9 @@ pub mod native_jim_enum;
 
 pub mod native_property_lookup;
 
+#[cfg(test)]
+mod native_test_provider;
+
 pub use deprecation::SourceDeprecationAdvice;
 pub use source_index_bounds::{SourceIndexBounds, SourceIndexBoundsInvocation};
 pub use source_path::SourcePathOperation;

@@ -927,8 +927,11 @@ mod path_publication_tests {
             Some(Publication::JimOriginalVariable)
         );
         assert!(jim.native_dictionary_variable_lookup().is_none());
-        let authored_only =
-            crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::find("jim").unwrap());
+        let mut authored_only =
+            crate::InvocationDialect::of_profile(crate::native_test_provider::profile("jim"));
+        // Software premise: removing the actual core point withdraws the
+        // native worker recipe while preserving the independently chosen family.
+        authored_only.core_point = None;
         assert!(authored_only.native_dictionary_path_publication().is_none());
     }
 }

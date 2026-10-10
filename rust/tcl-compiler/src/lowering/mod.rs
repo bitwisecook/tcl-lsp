@@ -9834,9 +9834,24 @@ mod tests {
             .with_resolved_analysis_input(input.clone());
         let module = current.lower(source);
         assert!(module.procedures.contains_key("::subject"));
-        assert!(module.top_level.statements.iter().any(|statement| {
-            matches!(statement, Statement::AssignConst { name, .. } if name == "result")
-        }));
+        // Upstream keeps non-numeric bare literals as AssignValue so escape
+        // spelling survives. This assertion covers IR/source ownership only.
+        let statement = module.top_level.statements.iter().find(|statement| {
+            matches!(statement, Statement::AssignValue { name, value, value_needs_backsubst: false, .. }
+                if name == "result" && value == "VALUE")
+        }).expect("unchanged literal assignment retains the upstream representation");
+        let tokens = module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .unwrap();
+        let literal = crate::type_infer::original_literal_argument_contents(
+            context.commands(),
+            &module,
+            tokens,
+            1,
+        )
+        .expect("assignment retains its genuine original source");
+        assert_eq!(literal.value(), "VALUE");
         assert_eq!(
             module.source_entry.logical_source_input.as_ref(),
             Some(&input)

@@ -14,9 +14,13 @@ Does original inline-variable selection retain exact store/read ownership and re
 
 The refactor requires the current complete original image/configuration, a selected literal store with retained contents, one later same-block operand use of the exact SSA definition, and the original source read extent. The shared SSA read projection independently requires value production in every retained context, a quiet bounded scalar cell with a current generation, and matching typed cell/version. Observers, aliases, reassignment, unknown residuals, stale source and effectful producing expressions decline. Source rendering and store deletion remain separately checked by the refactor.
 
+Logical inline-set advice reads the current selected operation and exact captured/written operand geometry. Captured data has no invented editable written word, and source projections remain distinct from the independently required original read/movement permissions.
+
 ## Scope
 
 Rust source rewrite contract over original source, selected Registry operation and independently retained SSA/cell/read facts. The fixed tests use pure braced Unicode source with reporting variables cleared and refuse reassignment, unset/recreation, aliases, observers and evaluated values. Native shell comparisons are separate finite observations and do not execute this Rust transformation. The actual inline source consumer carries complete AnalysisResult input through CompilationUnit and the independent Module/FunctionUnit metadata join into original definition/transfer selection. Missing supplied input is terminal. The existing exact read/version, observer, source extent and value-motion prerequisites remain separate from availability and source grammar.
+
+The added source/software assertion has no execution result attached. Selected source structure grants no Native store/read/frame, completed substitution, erasure or edit-equivalence permission.
 
 ## Provider answers
 
@@ -81,6 +85,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/refactor/inline_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_variable.rs), `refactor::inline_variable::tests::original_inline_variable_rejects_reassigned_cells_observers_and_value_effect_movement` (linked): Refuse reassigned/unset cells, observed reads, upvar alias mutation and moving an evaluated value.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lsp-core/src/refactor/inline_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_variable.rs), `inline_variable`: Join current original source context, selected setter/effective operands and exact written read geometry before independent movement/read/edit permission queries.
+- [rust/tcl-lsp-core/src/refactor/inline_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_variable.rs), `refactor::inline_variable::tests::logical_inline_set_uses_selected_operation_and_preserves_capture_geometry` (linked): Actual document-backed refactors share CurrentSourceContext and original source-command geometry; source rewrites and Logical setters consume authentic selected schema/effective argv/origins. Captured operands remain data without current editable words. Data-group actual route retains complete supplied Logical source currency, selected If/Switch clause layout and original Set/Return arm horizons, actual proposed output availability/current descriptor identity; explicit standalone authoring APIs remain separate. Native movement/store/Normal/frame/control-flow/evaluation/edit refusal gates remain independent. No native-provider or software execution promotion. Current source definition only; execution and Native edit-equivalence outcomes remain independent.
+
+These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 
 ## Replay
 

@@ -1689,7 +1689,7 @@ impl CodegenCtx<'_> {
                     && is_inline_local_scalar_name(&cmd_args[0].0) =>
             {
                 self.require_command_binding(&binding);
-                self.emit_cmd_subst_arg(&cmd_args[1].0, cmd_args[1].1);
+                self.emit_native_argument_word(1, &cmd_args[1].0, cmd_args[1].1);
                 self.store_var(&cmd_args[0].0);
             }
             _ => {
@@ -1958,6 +1958,75 @@ mod tests {
     use super::*;
     use crate::cfg::Block;
     use tcl_registry::CommandRegistry;
+
+    #[test]
+    fn original_try_handler_argument_emission_keeps_the_child_source_scope() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let registry = CommandRegistry::build_default();
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+        let source =
+            "try {set parent READY} on error {message options} {\nset result \"A\\u0000B\"\n}";
+        let body = r#"set result "A\u0000B""#;
+        let image = tcl_lexer::SourceImage::native(source.as_bytes());
+        let map = tcl_lexer::SourceMap::from_image(&image);
+        let parent_segments =
+            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+                .unwrap();
+        let parent = crate::ir::CommandTokens::from_segmented(&map, config, &parent_segments[0]);
+        let offset = u32::try_from(source.find(body).unwrap()).unwrap();
+        let child_segments =
+            crate::segmenter::segment_commands_with_offset_and_config(body, offset, config);
+        assert_eq!(child_segments.len(), 1);
+        let child = crate::ir::CommandTokens::from_segmented(&map, config, &child_segments[0]);
+        let mut context = CodegenCtx::new(true, &[], &registry);
+        context.invocation_dialect = Some(dialect);
+        context.source_string_protocol = dialect.native_source_string_protocol();
+        context.ingress_lexer_config = Some(config);
+        context.set_source_image(image.clone());
+        context.with_invocation_tokens(Some(&parent), |context| {
+            context.with_invocation_tokens(Some(&child), |context| {
+                context.emit_try_handler_command(body)
+            });
+            assert_eq!(
+                context.invocation_tokens.as_deref().unwrap().words(),
+                parent.words()
+            );
+        });
+        assert!(
+            context
+                .literals
+                .entries()
+                .iter()
+                .any(|literal| literal.bytes() == b"A\xc0\x80B")
+        );
+        assert!(
+            context
+                .instructions
+                .iter()
+                .any(|instruction| matches!(instruction.op, Op::STORE_SCALAR1 | Op::STORE_SCALAR4))
+        );
+        assert!(context.invocation_tokens.is_none());
+
+        // An enclosing source/body receipt cannot substitute for the child command.
+        let mut missing = CodegenCtx::new(true, &[], &registry);
+        missing.invocation_dialect = Some(dialect);
+        missing.source_string_protocol = dialect.native_source_string_protocol();
+        missing.ingress_lexer_config = Some(config);
+        missing.set_source_image(image);
+        missing.with_invocation_tokens(Some(&parent), |context| {
+            context.with_invocation_tokens(None, |context| context.emit_try_handler_command(body));
+        });
+        assert!(
+            missing
+                .literals
+                .entries()
+                .iter()
+                .all(|literal| literal.bytes() != b"A\xc0\x80B")
+        );
+        assert!(missing.invocation_tokens.is_none());
+    }
 
     #[test]
     fn inline_body_instructions_keep_the_inner_command_source_and_restore_the_parent() {

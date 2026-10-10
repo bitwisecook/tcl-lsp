@@ -14,9 +14,13 @@ Can a refactor select the innermost command from authentic current source body g
 
 The original command finder delegates body, lambda, substitution and command geometry to the shared source structure and Registry source-schema owners under the actual retained analysis and full current source configuration. It selects the innermost unambiguous command and rejects a changed owning source. Reporting maps do not supply missing body roles or lexical extents. Decoded quoted body values do not become original inner source commands. The selected command is readonly source geometry; callers must independently establish frame, current cells, Normal execution, store preservation, motion and edit eligibility.
 
+Logical inline-call selection retains actual current original procedure/body regions under the supplied source owner instead of treating detached body text or a reporting name as a declaration receipt.
+
 ## Scope
 
 Rust readonly refactor selection contract. Six selected C/Jim source profiles exercise an actual procedure body with erased reports; separate lambda and command-substitution controls retain their own extents. This selection supplies no physical frame, executed script, native object, runtime success or appliance context.
+
+The linked assertion definition supplies no executed outcome, Native frame/body entry, completed call or safe inlining licence. Independent formal binding, read/effect, observer and edit requirements remain in force.
 
 ## Provider answers
 
@@ -79,6 +83,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/refactor/source_command.rs](../../../../rust/tcl-lsp-core/src/refactor/source_command.rs), `refactor::source_command::tests::original_command_cursor_keeps_lambda_and_substitution_extents_separate` (linked): Keeps lambda-body and command-substitution positions distinct and does not treat a decoded quoted body value as original inner command geometry.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lsp-core/src/refactor/inline_proc.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_proc.rs), `original_inline_body`: Select genuine current original procedure/body regions through supplied Logical source context; body source alone cannot certify Native frame or rewrite permission.
+- [rust/tcl-lsp-core/src/refactor/inline_proc.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_proc.rs), `refactor::inline_proc::selected_source_body_tests::logical_inline_call_selection_uses_current_original_body_regions` (linked): Actual document-backed refactors share CurrentSourceContext and original source-command geometry; source rewrites and Logical setters consume authentic selected schema/effective argv/origins. Captured operands remain data without current editable words. Data-group actual route retains complete supplied Logical source currency, selected If/Switch clause layout and original Set/Return arm horizons, actual proposed output availability/current descriptor identity; explicit standalone authoring APIs remain separate. Native movement/store/Normal/frame/control-flow/evaluation/edit refusal gates remain independent. No native-provider or software execution promotion. Current source definition only; execution and Native edit-equivalence outcomes remain independent.
+
+These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 
 ## Replay
 

@@ -3171,6 +3171,30 @@ Dictionary wording and codes come from typed parser failures. These carriers do
 not admit unrepresented byte command names or scripts. Native completion tests
 must preserve those byte and admission limits.
 
+Completion consumers use the checked owner in `tcl-vm::command` with the actual
+entered `Vm`. `completion_option_rows_checked` retains original key/value
+objects and reads the existing Dictionary or checked List carrier;
+`opt_get_checked` compares exact bytes and returns `Result<Option<Value>, TclError>`.
+`None` means a genuinely absent member. A failed getter or conversion remains a
+failure and cannot select an absent-field default. `option_integer_checked` and
+`option_code_checked` use the shared primitive and completion-code owners.
+`with_return_option` and `with_return_level` retain unrelated objects and the
+Dictionary versus List purpose; `completion_options_snapshot` uses the shared
+standard-options planner and propagates every reached getter failure.
+
+`TclError::message_bytes` and `error_code_bytes` inspect only already resident
+objects. The latter distinguishes absent metadata from unavailable backing.
+Consumers that can supply the actual interpreter use `message_bytes_in` and
+`error_code_bytes_in`; borrowed display or catalogue context cannot substitute
+for a native getter owner. `Vm::publish_caught_error` is fallible and publishes
+checked byte metadata only after access succeeds. Preserve its `Result` through
+every embedding adapter. All these operations retain the first host failure and
+prior guest effects; host refusal supplies no catch-visible completion. New
+consumers reuse these APIs rather than parse rendered errors or implement their
+own option walker. The linked embedding controls test this software contract;
+original error-code producer behaviour has its separate
+[metadata proof](../analysis/name-resolution-proofs/diagnostics-original-error-code-metadata-not-message.md).
+
 Expression quotes use `expression_quote_control`, separately from `subst` command
 settlement. C preserves abrupt bracket completions and all their options. The
 measured Jim084 quote protocol consumes Return into a value while retaining its

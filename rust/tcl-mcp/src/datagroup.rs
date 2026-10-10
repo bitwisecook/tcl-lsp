@@ -23,7 +23,7 @@
 //! type, CIDR detection, body-shape analysis, confidence) for an LLM to
 //! refine. Static extraction is advertised only when the actual current
 //! analysis independently selects lexical editing advice and the deterministic
-//! extractor ([`extract_to_datagroup`]) accepts the construct.
+//! extractor ([`extract_to_datagroup_with_analysis`]) accepts the construct.
 //!
 //! Syntax traversal retains the actual source and selected grammar. Switch
 //! subjects and case layouts use Core's shared original source receipt; body
@@ -38,8 +38,8 @@ use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_lsp_core::SourceSyntaxStructure;
 use tcl_lsp_core::refactor::{
-    OriginalExactSwitchSource, extract_to_datagroup, original_exact_switch_source_at_analysis,
-    scalar_variable_source_syntax,
+    OriginalExactSwitchSource, extract_to_datagroup_with_analysis,
+    original_exact_switch_source_at_analysis, scalar_variable_source_syntax,
 };
 use tcl_registry::{ArgRole, CommandRegistry};
 
@@ -118,8 +118,8 @@ fn suggest_for_analysis(source: &str, analysis: &AnalysisResult) -> Vec<Value> {
             cand = analyse_if_chain(&command.texts, line, registry, config);
         }
         if let Some(c) = cand.as_mut() {
-            c.has_static_extraction = analysis.allows_lexical_declaration_advice()
-                && extract_to_datagroup(source, cursor, "", registry, &line_index, config)
+            c.has_static_extraction =
+                extract_to_datagroup_with_analysis(source, cursor, "", analysis, &line_index)
                     .is_some();
         }
         if let Some(c) = cand {
@@ -680,6 +680,15 @@ mod tests {
         let candidates = suggest_for_analysis(source, &lexical);
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0]["has_static_extraction"], true);
+        // The shared supplied-source extractor checks the output handler at
+        // this source horizon. A report candidate alone cannot restore it.
+        let replaced_source = format!("proc class args {{}}; {source}");
+        let replaced = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(lexical.resolved_input.as_ref().unwrap().clone())
+            .analyse(&replaced_source, profile.name);
+        let replaced_candidates = suggest_for_analysis(&replaced_source, &replaced);
+        assert_eq!(replaced_candidates.len(), 1);
+        assert_eq!(replaced_candidates[0]["has_static_extraction"], false);
         let config = lexical.body_lexer_config.as_mut().unwrap();
         config.strict_quoting = !config.strict_quoting;
         assert!(suggest_for_analysis(source, &lexical).is_empty());

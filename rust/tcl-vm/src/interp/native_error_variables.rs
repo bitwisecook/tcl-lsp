@@ -99,11 +99,17 @@ impl Vm {
     pub(crate) fn publish_native_interp_completion(
         &mut self,
         mut completion: tcl_core_types::Completion<Value>,
-    ) -> Result<tcl_core_types::Completion<Value>, tcl_syntax::value::ValueError> {
+    ) -> Result<tcl_core_types::Completion<Value>, crate::TclError> {
+        if let Some(cause) = self.execution_refusal.clone() {
+            return Err(crate::TclError::from_execution_failure(cause));
+        }
         completion.result = self
             .adopt_native_interp_result(completion.result)?
             .into_value();
-        self.receive_guest_error_metadata(&completion);
+        self.receive_guest_error_metadata(&completion)?;
+        if let Some(cause) = self.execution_refusal.clone() {
+            return Err(crate::TclError::from_execution_failure(cause));
+        }
         Ok(completion)
     }
 
@@ -129,7 +135,7 @@ impl Vm {
     pub(super) fn receive_guest_error_metadata(
         &mut self,
         completion: &tcl_core_types::Completion<Value>,
-    ) {
+    ) -> Result<(), crate::TclError> {
         if completion.code != tcl_core_types::Code::Error
             || completion.option_origin != tcl_core_types::CompletionOptionOrigin::ErrorMetadata
             || self.native_errors.primitive_error_code.is_some()
@@ -138,11 +144,19 @@ impl Vm {
                 .native_error_log_protocol()
                 .is_none()
         {
-            return;
+            return Ok(());
         }
-        if let Some(original) = crate::command::opt_get(&completion.options, "-errorcode") {
+        let original =
+            match crate::command::opt_get_checked(self, &completion.options, b"-errorcode") {
+                Ok(original) => original,
+                Err(error) => {
+                    return Err(error);
+                }
+            };
+        if let Some(original) = original {
             self.restore_guest_error_code(original);
         }
+        Ok(())
     }
 
     /// Publish a reached C9.1 compiler error through its actual `ResetResult`

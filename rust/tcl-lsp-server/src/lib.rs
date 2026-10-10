@@ -44,6 +44,10 @@ mod original_document_metadata_tests;
 mod original_workspace_diagnostics_tests;
 pub mod path_glob;
 mod provider_source;
+mod recovery_source;
+#[cfg(test)]
+use recovery_source::widen_recovery_extra_commands;
+use recovery_source::{RecoveryNameCache, RecoveryWidenCtx, compute_recovery_analysis};
 pub mod rt;
 pub mod service;
 /// The stdout decoupling pump the native binary serves through. Native only:
@@ -501,11 +505,12 @@ struct ScannedDocument {
 impl ScannedDocument {
     fn into_index_row(self) -> (Uri, String, String, AnalysisResult) {
         let analysis = match self.seed.analysis.analysis_context_unavailable.as_ref() {
-            Some(miss) => AnalysisResult {
-                dialect: self.dialect.clone(),
-                analysis_context_unavailable: Some(miss.clone()),
-                ..AnalysisResult::default()
-            },
+            Some(miss) => {
+                let mut result = AnalysisResult::default();
+                result.dialect = self.dialect.clone();
+                result.analysis_context_unavailable = Some(miss.clone());
+                result
+            }
             None => self.seed.analysis.as_ref().clone(),
         };
         (self.uri, self.text, self.dialect, analysis)
@@ -4214,31 +4219,15 @@ async fn compute_base_analysis(
     // `recovery_known_commands`'s own `script_is_complete` gate: a
     // well-formed document pays nothing extra.
     if !tcl_lexer::script_is_complete(text) {
-        let widened = widen_recovery_extra_commands(recovery, extra_commands, text, dialect).await;
-        let (a_text, a_dialect, a_disabled) =
-            (text.to_owned(), dialect.to_owned(), disabled.clone());
-        let (a_packs, a_resource) = {
-            let db = db.lock().await;
-            (
-                config.spec_pack_key(&*db),
-                ResourceAnalyserInputs::from_db_config(config, &*db),
-            )
-        };
-        return match crate::rt::spawn_blocking(move || {
-            with_pack_hooks(|| {
-                Backend::recovery_analyser(a_disabled, non_ascii_mode, widened, a_packs, a_resource)
-                    .analyse(&a_text, a_dialect.name)
-                    .clone()
-            })
-        })
-        .await
-        {
-            Ok(analysis) => ControlFlow::Continue(Arc::new(analysis)),
-            Err(e) => {
-                report_analysis_worker_panic(client, uri, "recovery-path", &e).await;
-                ControlFlow::Break(true)
-            }
-        };
+        return compute_recovery_analysis(
+            client,
+            ctx,
+            disabled,
+            extra_commands,
+            non_ascii_mode,
+            recovery,
+        )
+        .await;
     }
 
     if let Some(file) = file {
@@ -4309,206 +4298,6 @@ async fn compute_base_analysis(
         .unwrap_or_default();
         ControlFlow::Continue(analysis)
     }
-}
-
-/// The workspace handles [`widen_recovery_extra_commands`] reads, plus the memo
-/// it fills — grouped so [`compute_base_analysis`] threads one borrow rather
-/// than four.
-struct RecoveryWidenCtx<'a> {
-    cache: &'a Arc<Mutex<RecoveryNameCache>>,
-    registry: &'a CommandRegistry,
-    workspace_index: &'a Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
-    package_resolver: &'a Arc<RwLock<PackageResolver>>,
-    /// Where a resolved package's implementation files are read from — see
-    /// [`crate::vfs`].
-    store: &'a Arc<dyn vfs::SourceStore>,
-}
-
-/// The inputs [`RecoveryNameCache`] keys its entries on — everything the
-/// widened set is a function of, and nothing else.
-///
-/// `index_generation` / `resolver_revision` are the two whole-workspace change
-/// signals ([`core_workspace_index::WorkspaceIndex::generation`] /
-/// [`PackageResolver::revision`]); the rest is per-document or per-config and
-/// cheap to compare.
-#[derive(Clone, PartialEq, Eq)]
-struct RecoveryNameKey {
-    index_generation: u64,
-    resolver_revision: u64,
-    base: Vec<String>,
-    requires: Vec<String>,
-    dialect: String,
-}
-
-/// Two-tier memo for [`widen_recovery_extra_commands`].
-///
-/// The **shared** tier — `tclLsp.extraCommands` widened with every
-/// workspace-indexed proc / class and every auto-loadable command name — is the
-/// expensive one (three `String` allocations per indexed name) and depends only
-/// on `(index_generation, resolver_revision, base)`. The **widened** tier adds
-/// the document's own `package require` closure on top, which additionally
-/// depends on `(requires, dialect)` and reads implementation files from disk.
-///
-/// Keeping the shared tier separate means a document whose `package require`
-/// lines change (or a different document taking the recovery branch) still
-/// reuses the workspace/auto-command union; only the small package layer is
-/// rebuilt. Both tiers are handed out as `Arc`, so the analyser receives the
-/// set as a refcount bump — see `Analyser::with_shared_extra_commands`.
-///
-/// One entry each: mid-typing there is one document with an open delimiter, so
-/// a larger cache would buy nothing but memory.
-#[derive(Default)]
-struct RecoveryNameCache {
-    /// The workspace + auto-command union, without any document's package
-    /// closure.
-    shared: Option<SharedRecoveryNames>,
-    /// The full widened set for the last document that needed one.
-    widened: Option<(RecoveryNameKey, Arc<HashSet<String>>)>,
-}
-
-/// [`RecoveryNameCache`]'s document-independent tier and the inputs it was
-/// built from.
-struct SharedRecoveryNames {
-    index_generation: u64,
-    resolver_revision: u64,
-    base: Vec<String>,
-    names: Arc<HashSet<String>>,
-}
-
-/// Widen `base` (the resolved `tclLsp.extraCommands`) with the workspace's
-/// own proc/class names and the commands available to `text` through package
-/// resolution — the LSP-layer name-resolution hierarchy the unclosed-
-/// delimiter recovery heuristics need beyond what a single-file `Analyser`
-/// can see on its own. `tcl_compiler::analyser::utils::recovery_known_commands`
-/// unions the registry with the document's own signature scan; this unions
-/// one layer further out: every workspace-indexed proc/class (regardless of
-/// which file defines it — `WorkspaceIndex::procs`/`classes`), every
-/// auto-loadable command the scanned library paths provide (`tclIndex`-style,
-/// no `package require` needed — mirrors the W123 refinement), and, when
-/// `text` itself `package require`s something, the commands that package's
-/// resolved implementation files define.
-///
-/// `text`'s own `package require`s are read via a fresh signature scan
-/// (mirroring `recovery_known_commands`'s own in-file scan) rather than
-/// `WorkspaceIndex::package_requires_for` — the index only learns a
-/// document's requires from an *already-published* analysis, which this
-/// document, being analysed for the first time right now, cannot yet have.
-///
-/// Memoised through `cache` — see [`RecoveryNameCache`]. The recovery branch is
-/// the *normal* state while a delimiter is open, so this runs on every debounced
-/// run of a document being typed into; without the memo each of those would
-/// rebuild the whole set from scratch.
-///
-/// Only called from [`compute_base_analysis`]'s `!script_is_complete`
-/// recovery branch — never on the well-formed-document hot path.
-async fn widen_recovery_extra_commands(
-    ctx: &RecoveryWidenCtx<'_>,
-    base: &HashSet<String>,
-    text: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-) -> Arc<HashSet<String>> {
-    // `base` is the user's configured list — small, and its identity is part of
-    // the key, so normalise it once into a comparable form.
-    let mut base_key: Vec<String> = base.iter().cloned().collect();
-    base_key.sort_unstable();
-    let requires: Vec<String> =
-        tcl_compiler::signature_scan::extract_signatures(text, ctx.registry)
-            .package_requires
-            .into_iter()
-            .map(|pr| pr.name)
-            .collect();
-    let index_generation = ctx.workspace_index.read().await.generation();
-    let resolver_revision = ctx.package_resolver.read().await.revision();
-    let key = RecoveryNameKey {
-        index_generation,
-        resolver_revision,
-        base: base_key,
-        requires,
-        dialect: dialect.name.to_owned(),
-    };
-    {
-        let cached = ctx.cache.lock().await;
-        if let Some((cached_key, names)) = cached.widened.as_ref()
-            && *cached_key == key
-        {
-            return Arc::clone(names);
-        }
-    }
-
-    let shared = shared_recovery_names(ctx, &key).await;
-    let widened = if key.requires.is_empty() {
-        shared
-    } else {
-        let mut names = (*shared).clone();
-        // Same release-aware package view the W123 refinement uses, so the
-        // known-name set and the diagnostic filter cannot disagree about which
-        // guarded packages this document can actually load.
-        let target = tcl_dialect::TclVersion::from_dialect(Some(dialect.name));
-        let commands = ctx.package_resolver.read().await.package_defined_commands(
-            &key.requires,
-            target,
-            &|path| {
-                // Shared decoder: a package implementation file with a stray
-                // high byte should still contribute its command names.
-                ctx.store
-                    .read_source(path)
-                    .map(|(text, _)| defined_command_tails(&text, dialect))
-                    .unwrap_or_default()
-            },
-        );
-        names.extend(commands);
-        Arc::new(names)
-    };
-    ctx.cache.lock().await.widened = Some((key, Arc::clone(&widened)));
-    widened
-}
-
-/// The document-independent tier of [`widen_recovery_extra_commands`]:
-/// `base` ∪ every workspace-indexed proc/class name ∪ every auto-loadable
-/// command name, cached on `(index generation, resolver revision, base)`.
-///
-/// Workspace names go through `tcl_compiler::analyser::utils::insert_qualified_and_tail`
-/// — the same three-form (as-is / `::`-stripped / tail) insertion
-/// `recovery_known_commands` uses for a document's own procs/classes/
-/// aliases/renames — rather than a second, hand-rolled copy: a workspace
-/// proc referenced by its absolute `::ns::name` form needs recognising just
-/// as much as one referenced relatively. The auto-loadable names mirror the
-/// W123 refinement (`tclIndex`-style, no `package require` needed).
-async fn shared_recovery_names(
-    ctx: &RecoveryWidenCtx<'_>,
-    key: &RecoveryNameKey,
-) -> Arc<HashSet<String>> {
-    {
-        let cached = ctx.cache.lock().await;
-        if let Some(shared) = cached.shared.as_ref()
-            && shared.index_generation == key.index_generation
-            && shared.resolver_revision == key.resolver_revision
-            && shared.base == key.base
-        {
-            return Arc::clone(&shared.names);
-        }
-    }
-    let mut names: HashSet<String> = key.base.iter().cloned().collect();
-    {
-        let index = ctx.workspace_index.read().await;
-        for p in index.live_procs() {
-            tcl_compiler::analyser::utils::insert_qualified_and_tail(&mut names, &p.qualified_name);
-        }
-        for c in index.live_classes() {
-            tcl_compiler::analyser::utils::insert_qualified_and_tail(&mut names, &c.qualified_name);
-        }
-    }
-    for name in ctx.package_resolver.read().await.auto_command_names() {
-        names.insert(name.trim_start_matches("::").to_owned());
-    }
-    let names = Arc::new(names);
-    ctx.cache.lock().await.shared = Some(SharedRecoveryNames {
-        index_generation: key.index_generation,
-        resolver_revision: key.resolver_revision,
-        base: key.base.clone(),
-        names: Arc::clone(&names),
-    });
-    names
 }
 
 /// The opt-in project callback-arity diagnostics for the deep tier, when a
@@ -5021,7 +4810,9 @@ async fn reindex_unopened_factory_consumers(
         .snapshot("reindex_unopened_factory_consumers")
         .await;
     let rows = crate::rt::spawn_blocking(move || {
-        salsa::Cancelled::catch(|| {
+        // Each analyser and partial row vector belongs to this worker and is
+        // discarded on cancellation; no index publication occurs in the catch.
+        salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
             work.into_iter()
                 .map(|(uri, file, config, analyser)| {
                     let text = file.text(&*snapshot).clone();
@@ -5032,11 +4823,12 @@ async fn reindex_unopened_factory_consumers(
                             .with_resolved_input(input.as_ref().clone())
                             .with_workspace_class_factories(oracle.clone())
                             .analyse(&text, &dialect),
-                        Err(miss) => AnalysisResult {
-                            dialect: dialect.clone(),
-                            analysis_context_unavailable: Some(miss.clone()),
-                            ..AnalysisResult::default()
-                        },
+                        Err(miss) => {
+                            let mut result = AnalysisResult::default();
+                            result.dialect = dialect.clone();
+                            result.analysis_context_unavailable = Some(miss.clone());
+                            result
+                        }
                     };
                     FactoryIndexSeed {
                         uri,
@@ -5048,7 +4840,7 @@ async fn reindex_unopened_factory_consumers(
                     }
                 })
                 .collect::<Vec<_>>()
-        })
+        }))
         .unwrap_or_default()
     })
     .await
@@ -5945,7 +5737,6 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
             entry_points: &inputs.entry_points,
             folder_root: inputs.folder_root.as_deref(),
             cross_file_resolution: toggles.xc.cross_file_resolution,
-            store: &inputs.store,
         },
     )
     .await
@@ -5978,9 +5769,6 @@ struct AnalyserPathInputs<'a> {
     /// `LiftInputs::xc_diagnostics` (the unrelated f5-irules-specific
     /// XC100-301 translatability lints).
     cross_file_resolution: bool,
-    /// Where the recovery-widening package read gets its bytes — see
-    /// [`crate::vfs`].
-    store: &'a Arc<dyn vfs::SourceStore>,
 }
 
 /// The **progressive** Tcl analyser path: the deep pass — base
@@ -6034,7 +5822,8 @@ async fn run_diagnostics_analyser_path(
         registry: &inputs.registry,
         workspace_index: inputs.workspace_index,
         package_resolver: inputs.package_resolver,
-        store: inputs.store,
+        provider_capture: &inputs.provider_capture,
+        prefer: inputs.package_prefer,
     };
     let base = compute_base_analysis(
         delivery.client,
@@ -7947,15 +7736,10 @@ pub struct Backend {
     /// `package require myTkPackage` (transitively) pulls in Tk.
     /// Rebuilt by `scan_workspace_folders`.
     package_resolver: Arc<RwLock<PackageResolver>>,
-    /// Memo for [`widen_recovery_extra_commands`] — the unclosed-delimiter
-    /// recovery path's widened known-command set.
-    ///
-    /// That set is a pure function of the workspace index, the package
-    /// database, the configured `tclLsp.extraCommands`, and the document's own
-    /// `package require`s; none of those change per keystroke, but the recovery
-    /// branch is the *normal* mid-typing state, so rebuilding it on every
-    /// debounced run would cost three `String` allocations per workspace-indexed
-    /// proc and class — tens of thousands on a large workspace — per edit.
+    /// The malformed-document recognition memo shares workspace/index labels
+    /// across edits. Its package layer additionally retains the complete caller
+    /// input, typed requirements/preferences and each captured provider's source,
+    /// configuration or unavailable status. Recognition grants no binding.
     recovery_names: Arc<Mutex<RecoveryNameCache>>,
     /// Held for the duration of every `scan_workspace_folders` call (the
     /// blocking tree walk + analysis that rebuilds `package_resolver`).
@@ -22731,7 +22515,9 @@ impl Backend {
         let disabled = disabled.clone();
         let db = self.db.snapshot("project_callback_diagnostics_if").await;
         crate::rt::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| {
+            // The snapshot and retained analysis are read-only. Cancellation
+            // discards this projection before any diagnostics are published.
+            salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
                 tcl_lsp_db::project_callback_diagnostics_for_analysis_with_inputs(
                     &*db,
                     project,
@@ -22739,7 +22525,7 @@ impl Backend {
                     &analysis,
                     |code| disabled.contains(code),
                 )
-            })
+            }))
             .ok()
         })
         .await
@@ -31851,27 +31637,6 @@ fn w123_command_name(diagnostic: &tcl_compiler::analyser::Diagnostic) -> Option<
         .map(|subject| subject.reporting_name())
 }
 
-/// The bare (unqualified) names of every command a source file defines — procs
-/// and classes — discovered through the analyser's registry-driven
-/// symbol-definer walk. The set of *defining* commands (`proc`, `oo::class`,
-/// `interp alias`, an ensemble, …) comes from each command spec's
-/// [`SymbolDef`](tcl_registry::symbol_def::SymbolDef) in the command registry,
-/// never a hand-rolled `proc`-name scan — so a library that defines commands
-/// with any registry-known definer is understood the same way. `structure_only`
-/// skips diagnostic emission (the dominant cost) while building the identical
-/// declaration structure.
-fn defined_command_tails(text: &str, dialect: &'static tcl_dialect::DialectProfile) -> Vec<String> {
-    let mut analyser = Analyser::new().structure_only();
-    let result = analyser.analyse(text, dialect.name);
-    result
-        .all_procs
-        .values()
-        .map(|p| p.name.clone())
-        .chain(result.all_classes.values().map(|c| c.name.clone()))
-        .filter(|n| !n.is_empty())
-        .collect()
-}
-
 /// Original declaration slots for package availability, independent of the
 /// reporting maps used for completion labels.
 #[cfg(test)]
@@ -33712,8 +33477,8 @@ fn lift_folding_range(r: tcl_lsp_core::folding::FoldingRange) -> FoldingRange {
 mod tests {
     use super::*;
     use tower_lsp_server::ls_types::{
-        PartialResultParams, Range, ReferenceContext, TextDocumentIdentifier,
-        WorkDoneProgressParams,
+        Diagnostic, NumberOrString, PartialResultParams, Range, ReferenceContext,
+        TextDocumentIdentifier, WorkDoneProgressParams,
     };
 
     fn w123_command_name(diagnostic: &Diagnostic) -> Option<&str> {
@@ -36795,13 +36560,11 @@ info exists ::N::v\uD800";
         // naming.diagnostic.typed-subject-reporting
         // docs/design/analysis/name-resolution-proofs/diagnostic-typed-subject-reporting.md
         // The publication adapter carries an explicit refused input, independently of message text.
-        let analysis = AnalysisResult {
-            analysis_context_unavailable: Some(tcl_registry::model::OverlayMiss {
-                environment: "tcl9.0".to_owned(),
-                overlay: u64::MAX,
-            }),
-            ..AnalysisResult::default()
-        };
+        let mut analysis = AnalysisResult::default();
+        analysis.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+            environment: "tcl9.0".to_owned(),
+            overlay: u64::MAX,
+        });
         let mut report = core_policy::apply(Vec::new(), &open_policy());
         report.retain_analysis_context(&analysis);
         let rows = lift_report("", &report);
@@ -42270,12 +42033,22 @@ info exists ::N::v\uD800";
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
         .commands();
+        let dialects = provider_source::ProviderDialectInputs::capture(&backend).await;
+        let providers = provider_source::ProviderCaptureInputs {
+            db: &backend.db,
+            files: &backend.db_files,
+            global: &backend.db_config,
+            folders: &backend.folder_db_configs,
+            store: &backend.store,
+            dialects: &dialects,
+        };
         let ctx = RecoveryWidenCtx {
             cache: &backend.recovery_names,
             registry,
             workspace_index: &backend.workspace_index,
             package_resolver: &backend.package_resolver,
-            store: &backend.store,
+            provider_capture: &providers,
+            prefer: tcl_lsp_core::package_resolver::PackagePrefer::Stable,
         };
         let base: HashSet<String> = ["mycmd".to_owned()].into_iter().collect();
 
@@ -42295,11 +42068,15 @@ info exists ::N::v\uD800";
             &ctx,
             &base,
             "proc foo {",
-            tcl_lsp_core::profile_for_dialect("tcl8.6"),
+            &Analyser::new()
+                .structure_only()
+                .analyse("proc foo {", "tcl8.6"),
         )
         .await;
         assert!(
-            first.contains("ws::helper") && first.contains("helper") && first.contains("mycmd"),
+            first.names.contains("ws::helper")
+                && first.names.contains("helper")
+                && first.names.contains("mycmd"),
             "the widened set must carry the workspace proc (qualified + tail) and the base",
         );
 
@@ -42310,11 +42087,13 @@ info exists ::N::v\uD800";
             &ctx,
             &base,
             "proc foo {x",
-            tcl_lsp_core::profile_for_dialect("tcl8.6"),
+            &Analyser::new()
+                .structure_only()
+                .analyse("proc foo {x", "tcl8.6"),
         )
         .await;
         assert!(
-            Arc::ptr_eq(&first, &second),
+            Arc::ptr_eq(&first.names, &second.names),
             "an edit that does not change the index must reuse the cached set",
         );
 
@@ -42333,15 +42112,17 @@ info exists ::N::v\uD800";
             &ctx,
             &base,
             "proc foo {x",
-            tcl_lsp_core::profile_for_dialect("tcl8.6"),
+            &Analyser::new()
+                .structure_only()
+                .analyse("proc foo {x", "tcl8.6"),
         )
         .await;
         assert!(
-            !Arc::ptr_eq(&second, &third),
+            !Arc::ptr_eq(&second.names, &third.names),
             "an index change must rebuild the widened set",
         );
         assert!(
-            third.contains("ws::second"),
+            third.names.contains("ws::second"),
             "the rebuilt set must carry the newly-indexed proc",
         );
     }
@@ -58648,7 +58429,7 @@ proc p {} {
         let registry = backend.registry_for_dialect("tcl8.6").await;
         let (disabled, _) = backend.resolved_analysis_settings(&uri).await;
         let published_diags = backend
-            .published_analyser_diagnostics(&uri, &analysis, dialect, &registry, &disabled)
+            .published_analyser_diagnostics(&uri, src, &analysis, dialect, &registry, &disabled)
             .await;
         let checks =
             tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "tcl8.6", None, None);

@@ -35,7 +35,6 @@ use tcl_compiler::expr_ast::{ExprNode, render_expr};
 use tcl_compiler::interprocedural::{namespace_parts_from_proc, resolve_internal_call};
 use tcl_compiler::ir::{
     CommandTokens, HandlerMatch, Module, Procedure, Script, Statement, SwitchArm, TryHandler,
-    when_event_name,
 };
 use tcl_compiler::realm::{CommandBindingRealm, RealmBinding};
 use tcl_compiler::registry_invocation::effective_command_arguments;

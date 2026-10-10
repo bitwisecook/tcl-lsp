@@ -1510,7 +1510,9 @@ impl CodegenCtx<'_> {
                 let expanded = expand_word.get(index).copied().unwrap_or(false);
                 (word, braced, expanded)
             });
-        self.emit_expanded_words(words, &format!("{cmd} (expanded)"));
+        self.with_invocation_tokens(tokens, |ctx| {
+            ctx.emit_expanded_words(words, &format!("{cmd} (expanded)"));
+        });
         self.emit(Op::POP, vec![]);
     }
 
@@ -4950,6 +4952,72 @@ mod tests {
                 .into_iter()
                 .collect()
         );
+    }
+
+    #[test]
+    fn original_expanded_calls_keep_complete_words_and_lexical_nul_values() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let registry = CommandRegistry::build_default();
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+        let source = r#"opaque {*}"A\u0000B" "TAIL\u0000END""#;
+        let image = tcl_lexer::SourceImage::native(source.as_bytes());
+        let segments =
+            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+                .unwrap();
+        assert_eq!(segments.len(), 1);
+        let tokens = CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::from_image(&image),
+            config,
+            &segments[0],
+        );
+        assert!(matches!(tokens.words()[1], WordExpr::Expand { .. }));
+        let args = tokens.argv_texts[1..].to_vec();
+        let expand = tokens.expand_word.as_ref().unwrap();
+        let mut context = CodegenCtx::new(false, &[], &registry);
+        context.invocation_dialect = Some(dialect);
+        context.source_string_protocol = dialect.native_source_string_protocol();
+        context.ingress_lexer_config = Some(config);
+        context.set_source_image(image.clone());
+        context.emit_expanded_call(&tokens.argv_texts[0], &args, expand, Some(&tokens));
+        for expected in [b"A\xc0\x80B".as_slice(), b"TAIL\xc0\x80END".as_slice()] {
+            assert!(
+                context
+                    .literals
+                    .entries()
+                    .iter()
+                    .any(|literal| literal.bytes() == expected),
+                "{:?}",
+                context.literals.entries()
+            );
+        }
+        assert_eq!(
+            context
+                .instructions
+                .iter()
+                .filter(|instruction| instruction.op == Op::EXPAND_STKTOP)
+                .count(),
+            1
+        );
+        assert!(
+            context
+                .instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::INVOKE_EXPANDED)
+        );
+        assert!(context.invocation_tokens.is_none());
+
+        let mut missing = CodegenCtx::new(false, &[], &registry);
+        missing.invocation_dialect = Some(dialect);
+        missing.source_string_protocol = dialect.native_source_string_protocol();
+        missing.ingress_lexer_config = Some(config);
+        missing.set_source_image(image);
+        missing.emit_expanded_call(&tokens.argv_texts[0], &args, expand, None);
+        assert!(missing.literals.entries().iter().all(
+            |literal| literal.bytes() != b"A\xc0\x80B" && literal.bytes() != b"TAIL\xc0\x80END"
+        ));
+        assert!(missing.invocation_tokens.is_none());
     }
 
     #[test]

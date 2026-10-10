@@ -2618,29 +2618,6 @@ impl Analyser {
         );
     }
 
-    /// Extract the variable name for a `Var` token using the
-    /// lexer-provided token-text semantics
-    /// ([`tcl_lexer::SourceMap::token_text`]).  Preserves the
-    /// `Var`-specific normalisation rules (notably the trailing
-    /// `}` strip for the `${}` degenerate case where the lexer
-    /// extends the span by one byte to cover the closing brace),
-    /// so this stays in sync with the rest of the analyser's
-    /// token-text usage and avoids edge-case mismatches that a
-    /// raw `self.source[..]` slice would introduce.  Returns
-    /// `None` when the extracted text is empty.
-    pub(super) fn var_name_from_token(&self, tok: tcl_lexer::Token) -> Option<String> {
-        let sm = Analyser::source_map(
-            &self.source,
-            &self.cached_line_index,
-            self.cached_line_index_source_len,
-        );
-        let text = sm.token_text(tok);
-        if text.is_empty() {
-            return None;
-        }
-        Some(text.to_string())
-    }
-
     /// **W004.** Explain excluded exact option rows from the same retained
     /// source descriptor, vocabulary and value-width owner as lifecycle advice.
     /// Values and reserved operands never become new option candidates.

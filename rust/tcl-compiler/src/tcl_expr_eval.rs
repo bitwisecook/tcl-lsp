@@ -2470,7 +2470,9 @@ impl<'a> ExprServices<'a> {
         state: &'a mut EvaluationState,
         budget: &'a mut Budget,
     ) -> Self {
-        let profile = inputs.context().profile;
+        let lexer = inputs
+            .source_lexer_config()
+            .unwrap_or_else(|| tcl_lexer::LexerConfig::from_grammar(inputs.context().grammar));
         Self {
             inputs,
             state,
@@ -2479,8 +2481,99 @@ impl<'a> ExprServices<'a> {
             widens: Some(true),
             stopped: None,
             ended: None,
-            lexer: tcl_lexer::LexerConfig::for_profile(profile),
+            lexer,
         }
+    }
+
+    fn nested_result(&mut self, answer: EvalAnswer) -> Result<FoldValue, ExprStop> {
+        let outcome = match answer {
+            EvalAnswer::Evaluated(outcome) => outcome,
+            answer => return Err(ExprStop::of_answer(&answer)),
+        };
+        if outcome.completion != CompletionOutcome::Normal {
+            self.ended = Some(outcome.completion);
+            return Err(ExprStop::Ended);
+        }
+        match &outcome.result {
+            ExactValueOrUnavailable::Exact(value) => Self::operand_of(value),
+            ExactValueOrUnavailable::Unavailable(_) => {
+                Err(ExprStop::Declined(DeclineReason::NotExact))
+            }
+        }
+    }
+
+    fn string_parts(
+        &mut self,
+        inner: &str,
+        substitutes: bool,
+        inner_start: Option<u32>,
+    ) -> Result<FoldValue, ExprStop> {
+        use tcl_lexer::word_parts::{SubstFlags, WordPart as Part, decompose_spanned_checked};
+        if !substitutes {
+            return tcl_syntax::expr::fixed_string_body(inner, false)
+                .map(|body| FoldValue::Str(body.to_owned()))
+                .ok_or(ExprStop::Declined(DeclineReason::NotExact));
+        }
+        let parts = decompose_spanned_checked(inner.as_bytes(), SubstFlags::default(), self.lexer)
+            .map_err(|_| ExprStop::Declined(DeclineReason::Unsupported))?;
+        let mut bytes = Vec::with_capacity(inner.len());
+        let format = self
+            .fold
+            .invocation_dialect
+            .and_then(tcl_registry::InvocationDialect::double_string_policy)
+            .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
+        for component in parts {
+            match component.part {
+                Part::Text(text) => bytes.extend_from_slice(&text),
+                Part::Variable(reference) => {
+                    let name = crate::value_transfer::variable_name(&reference)
+                        .map_err(ExprStop::Declined)?;
+                    let value = tcl_syntax::expr::ExprOps::var(self, &name)?;
+                    bytes.extend_from_slice(
+                        value
+                            .to_string_val(format)
+                            .ok_or(ExprStop::Declined(DeclineReason::WrongRepresentation))?
+                            .as_bytes(),
+                    );
+                }
+                Part::Command(script) => {
+                    let value = if let Some(base) = inner_start {
+                        let start = u32::try_from(component.start)
+                            .ok()
+                            .and_then(|offset| base.checked_add(offset))
+                            .ok_or(ExprStop::Declined(DeclineReason::NotExact))?;
+                        let end = u32::try_from(component.end)
+                            .ok()
+                            .and_then(|offset| base.checked_add(offset))
+                            .ok_or(ExprStop::Declined(DeclineReason::NotExact))?;
+                        tcl_syntax::expr::ExprOps::command_bytes_at(
+                            self,
+                            script,
+                            start,
+                            end.checked_sub(1)
+                                .ok_or(ExprStop::Declined(DeclineReason::NotExact))?,
+                        )?
+                    } else {
+                        let script = std::str::from_utf8(script)
+                            .map_err(|_| ExprStop::Declined(DeclineReason::NotText))?;
+                        tcl_syntax::expr::ExprOps::command(self, script)?
+                    };
+                    bytes.extend_from_slice(
+                        value
+                            .to_string_val(format)
+                            .ok_or(ExprStop::Declined(DeclineReason::WrongRepresentation))?
+                            .as_bytes(),
+                    );
+                }
+                Part::Expression(_) => return Err(ExprStop::Declined(DeclineReason::Unsupported)),
+                Part::ParseError(_) => {
+                    return Err(ExprStop::Declined(DeclineReason::WrongRepresentation));
+                }
+            }
+        }
+        String::from_utf8(bytes)
+            .map(FoldValue::Str)
+            .map_err(|_| ExprStop::Declined(DeclineReason::NotText))
     }
 
     /// Take the value semantics `policy` states.
@@ -2651,63 +2744,30 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
         Ok(FoldValue::Str(text.to_owned()))
     }
 
-    /// A `"…"` operand is substituted as a quoted word is: its variables
-    /// read through `variable`, its scripts through `nested`, its escapes
-    /// decoded under the document's grammar. A `{…}` operand is its body,
-    /// unless a backslash-newline in it leaves the value to the dialect.
+    /// An unpositioned string retains the explicit compatibility callback.
     fn string(&mut self, inner: &str, substitutes: bool) -> Result<FoldValue, ExprStop> {
-        use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
-        if !substitutes {
-            return tcl_syntax::expr::fixed_string_body(inner, false)
-                .map(|body| FoldValue::Str(body.to_owned()))
-                .ok_or(ExprStop::Declined(DeclineReason::NotExact));
+        self.string_parts(inner, substitutes, None)
+    }
+
+    fn string_bytes_at(
+        &mut self,
+        inner: &[u8],
+        substitutes: bool,
+        start: u32,
+        end: u32,
+    ) -> Result<FoldValue, ExprStop> {
+        let inner =
+            std::str::from_utf8(inner).map_err(|_| ExprStop::Declined(DeclineReason::NotText))?;
+        let inner_start = start
+            .checked_add(1)
+            .ok_or(ExprStop::Declined(DeclineReason::NotExact))?;
+        if inner_start.checked_add(
+            u32::try_from(inner.len()).map_err(|_| ExprStop::Declined(DeclineReason::NotExact))?,
+        ) != Some(end)
+        {
+            return Err(ExprStop::Declined(DeclineReason::NotExact));
         }
-        let parts = match decompose(inner.as_bytes(), SubstFlags::default(), self.lexer) {
-            WordBody::Literal(_) => return Ok(FoldValue::Str(inner.to_owned())),
-            WordBody::Parts(parts) => parts,
-        };
-        let mut bytes = Vec::with_capacity(inner.len());
-        let format = self
-            .fold
-            .invocation_dialect
-            .and_then(tcl_registry::InvocationDialect::double_string_policy)
-            .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
-        for part in parts {
-            match part {
-                Part::Text(text) => bytes.extend_from_slice(&text),
-                Part::Variable(reference) => {
-                    let name = crate::value_transfer::variable_name(&reference)
-                        .map_err(ExprStop::Declined)?;
-                    let value = tcl_syntax::expr::ExprOps::var(self, &name)?;
-                    bytes.extend_from_slice(
-                        value
-                            .to_string_val(format)
-                            .ok_or(ExprStop::Declined(DeclineReason::WrongRepresentation))?
-                            .as_bytes(),
-                    );
-                }
-                Part::Command(script) => {
-                    let script = std::str::from_utf8(script)
-                        .map_err(|_| ExprStop::Declined(DeclineReason::NotText))?;
-                    let value = tcl_syntax::expr::ExprOps::command(self, script)?;
-                    bytes.extend_from_slice(
-                        value
-                            .to_string_val(format)
-                            .ok_or(ExprStop::Declined(DeclineReason::WrongRepresentation))?
-                            .as_bytes(),
-                    );
-                }
-                Part::Expression(_) => {
-                    return Err(ExprStop::Declined(DeclineReason::Unsupported));
-                }
-                Part::ParseError(_) => {
-                    return Err(ExprStop::Declined(DeclineReason::WrongRepresentation));
-                }
-            }
-        }
-        String::from_utf8(bytes)
-            .map(FoldValue::Str)
-            .map_err(|_| ExprStop::Declined(DeclineReason::NotText))
+        self.string_parts(inner, substitutes, Some(inner_start))
     }
 
     /// A read consults the state's own writes before the inputs at the
@@ -2729,20 +2789,23 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
 
     fn command(&mut self, script: &str) -> Result<FoldValue, ExprStop> {
         self.checkpoint()?;
-        let outcome = match self.inputs.nested(script, self.state) {
-            EvalAnswer::Evaluated(outcome) => outcome,
-            answer => return Err(ExprStop::of_answer(&answer)),
-        };
-        if outcome.completion != CompletionOutcome::Normal {
-            self.ended = Some(outcome.completion);
-            return Err(ExprStop::Ended);
-        }
-        match &outcome.result {
-            ExactValueOrUnavailable::Exact(value) => Self::operand_of(value),
-            ExactValueOrUnavailable::Unavailable(_) => {
-                Err(ExprStop::Declined(DeclineReason::NotExact))
-            }
-        }
+        let answer = self.inputs.nested(script, self.state);
+        self.nested_result(answer)
+    }
+
+    fn command_bytes_at(
+        &mut self,
+        script: &[u8],
+        start: u32,
+        end: u32,
+    ) -> Result<FoldValue, ExprStop> {
+        self.checkpoint()?;
+        let script =
+            std::str::from_utf8(script).map_err(|_| ExprStop::Declined(DeclineReason::NotText))?;
+        let answer = self
+            .inputs
+            .nested_expression_at(script, start, end, self.state);
+        self.nested_result(answer)
     }
 
     fn call(&mut self, function: &str, args: Vec<FoldValue>) -> Result<FoldValue, ExprStop> {

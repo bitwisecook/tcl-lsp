@@ -103,7 +103,6 @@ use tcl_registry::clause_grammar::{
     ClauseGrammarSpec, ClauseRow, ClauseRowShape, ClauseSelection, ClauseSlot, ClauseTiming,
     DefaultClause,
 };
-use tcl_registry::clause_shape::ClauseShapeError;
 use tcl_registry::command_table::CommandTableEffect;
 use tcl_registry::definer::{
     BuiltinMethodReceiver, BuiltinObjectMethod, CallableRole, DeclaredMemberVisibility,

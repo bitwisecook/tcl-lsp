@@ -530,7 +530,7 @@ fn array_for_after_trace(
             Err(error) => return completion_from_cmd_error(vm, error.into()),
         }
     }
-    settle_control_options(ok(Value::empty()), ControlOptionPolicy::FRESH_SETTLED)
+    settle_control_options(vm, ok(Value::empty()), ControlOptionPolicy::FRESH_SETTLED)
 }
 
 fn same_array_target(
@@ -568,7 +568,8 @@ mod tests {
             r#"can't unset "a": variable is a constant"#
         );
         assert_eq!(
-            crate::command::resolved_error_code(&completion)
+            crate::command::resolved_error_code(&mut vm, &completion)
+                .unwrap()
                 .to_str()
                 .as_ref(),
             "TCL UNSET CONST"

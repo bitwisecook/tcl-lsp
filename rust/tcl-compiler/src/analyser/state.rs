@@ -2130,6 +2130,17 @@ impl Analyser {
         self.analyse(source, dialect)
     }
 
+    /// Test fixtures with private post-analysis queries retain the genuine result.
+    #[cfg(test)]
+    pub(crate) fn analyse_and_retain_result_for_test(
+        &mut self,
+        source: &str,
+        dialect: &str,
+    ) -> &AnalysisResult {
+        self.result = self.analyse(source, dialect);
+        &self.result
+    }
+
     /// `source` is consumed by reference so the analyser can hold
     /// per-walk references back into it; `dialect` is one of
     /// `"tcl"`, `"f5-irules"`, `"irules"`, `"iapps"`, etc. (kept in
@@ -3595,6 +3606,35 @@ mod tests {
         a.profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         assert_eq!(a.split_braced_head("ns}::setdef"), ("ns", "::setdef"));
         assert_eq!(a.split_braced_head("a{b}c}::setdef"), ("a{b", "c}::setdef"));
+    }
+
+    #[test]
+    fn retained_analysis_fixture_keeps_the_returned_source_owner_for_private_queries() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let source = "eval $script";
+        let mut analyser = Analyser::new();
+        let returned = analyser.analyse(source, "tcl");
+        assert!(returned.resolved_input.is_some());
+        assert!(analyser.result.resolved_input.is_none());
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let input = analyser.result.resolved_input.as_ref().unwrap();
+        assert!(analyser.result.matches_original_source_image(
+            &tcl_lexer::SourceImage::document(source),
+            input.lexer_config()
+        ));
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        )
+        .pop()
+        .unwrap();
+        assert!(
+            analyser
+                .original_diagnostic_call_at(command.argv[0], command.arg_tokens())
+                .is_some()
+        );
     }
 
     #[test]

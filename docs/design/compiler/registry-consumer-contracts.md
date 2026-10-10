@@ -1619,7 +1619,7 @@ tclsh 9.1 raises.
 
 ```mermaid
 flowchart LR
-    R["registration<br/>string registered from its spec;<br/>28 intrinsic identities attested<br/>at its token generation"]
+    R["registration<br/>string registered from its spec;<br/>34 intrinsic identities attested<br/>at its token generation"]
     P["profile pin<br/>identities kept; the interpreter-policy<br/>epoch moves"]
     M["proc, rename, alias of another command<br/>no guard moves"]
     N["rename, replace or hide string<br/>the name reaches no attestation:<br/>generic dispatch"]

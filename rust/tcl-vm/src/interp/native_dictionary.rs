@@ -151,7 +151,7 @@ impl Vm {
             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         let dictionary = operation(self, prepared)?;
         let stored = self.store_var_result_bytes(name, dictionary)?;
-        Ok(Self::variable_update_result(stored, &Value::empty()))
+        self.variable_update_result(stored, &Value::empty())
     }
 
     pub(crate) fn start_compiled_dictionary_update(
@@ -419,7 +419,9 @@ impl Vm {
                 (prepared, Value::empty())
             }
             Err(error) => {
-                let options = self.completion_options_snapshot(&error);
+                let options = self
+                    .completion_options_snapshot(&error)
+                    .map_err(|error| crate::command::completion_from_tcl_error(self, error))?;
                 self.publish_swallowed_trace_error();
                 let prepared = objects
                     .prepare(None)
@@ -430,7 +432,7 @@ impl Vm {
         if let Some(refusal) = self.refused_completion() {
             return Err(refusal);
         }
-        self.retain_variable_read_error_code(&read_options);
+        self.retain_variable_read_error_code(&read_options)?;
         let dictionary = operation(self, prepared)?;
         let stored = match captured {
             Some(captured) => self.store_captured_update(name, None, captured, dictionary)?,
@@ -439,7 +441,7 @@ impl Vm {
         if let Some(refusal) = self.refused_completion() {
             return Err(refusal);
         }
-        Ok(Self::variable_update_result(stored, &read_options))
+        self.variable_update_result(stored, &read_options)
     }
 
     fn prepare_dictionary_variable_container<O: NativeDictionaryObjects<Value = Value>>(

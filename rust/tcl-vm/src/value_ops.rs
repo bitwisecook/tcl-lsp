@@ -762,8 +762,12 @@ impl ValueOps for Vm {
     }
 
     fn native_string_bytes(&mut self, value: &Value) -> Result<Rc<[u8]>, ValueError> {
-        self.native_name_operand_bytes(value)
-            .map_err(|_| ValueError::CommandProtocolUnavailable("native string materialisation"))
+        value.check_native_header()?;
+        self.native_name_operand_bytes(value).map_err(|error| {
+            ValueError::NativeStringAccess(
+                tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+            )
+        })
     }
 
     fn as_int(&mut self, v: &Value) -> Result<i64, ValueError> {

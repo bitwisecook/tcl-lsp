@@ -124,7 +124,9 @@ fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             (None, completion.options)
         }
     };
-    vm.retain_variable_read_error_code(&read_options);
+    if let Err(failure) = vm.retain_variable_read_error_code(&read_options) {
+        return failure;
+    }
     let value = match current {
         Some(value) => match tcl_registry::native_compilation::NativeAppendKind::List
             .validates_empty_result(vm.native_invocation_dialect())
@@ -145,7 +147,10 @@ fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             Err(completion) => return completion,
         },
     };
-    let updated = Vm::variable_update_result(value, &read_options);
+    let updated = match vm.variable_update_result(value, &read_options) {
+        Ok(updated) => updated,
+        Err(failure) => return failure,
+    };
     Completion::new(tcl_runtime_api::Code::Ok, updated.value, updated.options)
 }
 

@@ -355,9 +355,8 @@ mod tests {
                 include_str!("../tests/data/native_property_counted_original/9.1.0/stdout.tsv"),
             ),
         ] {
-            let dialect = crate::InvocationDialect::of_profile(
-                tcl_dialect::DialectProfile::find(engine).unwrap(),
-            );
+            let dialect =
+                crate::InvocationDialect::of_profile(crate::native_test_provider::profile(engine));
             let recipe = dialect.native_property_name_protocol().unwrap();
             assert_eq!(
                 dialect.native_property_lookup_protocol().is_some(),
@@ -419,9 +418,8 @@ mod tests {
             );
         }
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "jimtcl", "f5-irules"] {
-            let dialect = crate::InvocationDialect::of_profile(
-                tcl_dialect::DialectProfile::find(engine).unwrap(),
-            );
+            let dialect =
+                crate::InvocationDialect::of_profile(crate::native_test_provider::profile(engine));
             assert!(
                 dialect.native_property_name_protocol().is_none(),
                 "{engine}"
@@ -485,11 +483,10 @@ mod tests {
     fn property_temporary_lookup_and_mutation_axes_are_independent() {
         // Native proof: naming.property.original-foundation-epoch-and-cache
         // docs/design/analysis/name-resolution-proofs/property-original-foundation-epoch-and-cache.md
-        let recipe = crate::InvocationDialect::of_profile(
-            tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
-        )
-        .native_property_lookup_protocol()
-        .unwrap();
+        let recipe =
+            crate::InvocationDialect::of_profile(crate::native_test_provider::profile("tcl9.1"))
+                .native_property_lookup_protocol()
+                .unwrap();
         assert_eq!(
             recipe.object_variable_operand(b"x\0tail", b"::oo::Obj1"),
             Some(b"::oo::Obj1::x\0tail".to_vec())

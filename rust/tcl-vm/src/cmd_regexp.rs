@@ -117,7 +117,7 @@ pub(crate) fn invoke_jim_match_command(
         Err(error) => {
             let completion = crate::command::completion_from_cmd_error(vm, error.into());
             vm.publish_native_interp_completion(completion)
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+                .map_err(|error| crate::command::completion_from_tcl_error(vm, error))?;
             Ok(0)
         }
     }

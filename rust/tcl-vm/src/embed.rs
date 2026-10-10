@@ -576,8 +576,8 @@ impl Vm {
     /// script raised is what the next command reads. A completion that is not an
     /// error publishes nothing, and nothing is published while stores are
     /// confined to the activation.
-    /// Options are read through this interpreter's existing completion planner;
-    /// borrowed native options must have compatible backing for that planner.
+    /// Options retain their original objects and use this interpreter's checked
+    /// completion planner, byte getters and first retained host-failure owner.
     ///
     /// # Errors
     /// Returns the first retained host failure before reading or publishing guest
@@ -588,7 +588,9 @@ impl Vm {
             if completion.code != Code::Error {
                 return Ok(());
             }
-            let options = self.completion_options_snapshot(completion);
+            let options = self
+                .completion_options_snapshot(completion)
+                .map_err(|error| crate::command::completion_from_tcl_error(self, error))?;
             let original = opt_get_checked(self, &options, b"-errorinfo")
                 .map_err(|error| crate::command::completion_from_tcl_error(self, error.into()))?
                 .unwrap_or_else(|| completion.result.clone());

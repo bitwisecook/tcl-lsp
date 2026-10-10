@@ -109,7 +109,7 @@ impl LogicalOriginalInvocation {
         let mut arguments = target
             .prepended
             .iter()
-            .map(|word| word.as_registry_word().literal().map(str::to_owned))
+            .map(super::logical_definition::captured_static_value)
             .collect::<Option<Vec<_>>>()?;
         arguments.extend(values.into_iter().skip(1));
         Some(Self {

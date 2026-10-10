@@ -312,7 +312,9 @@ mod tests {
     }
     fn analyse(source: &str, input: &ResolvedAnalysisInput) -> (Analyser, AnalysisResult) {
         let mut analyser = Analyser::new().with_resolved_input(input.clone());
-        let result = analyser.analyse(source, "tcl");
+        let result = analyser
+            .analyse_and_retain_result_for_test(source, "tcl")
+            .clone();
         assert!(result.analysis_context_unavailable.is_none());
         assert_eq!(result.resolved_input.as_ref(), Some(input));
         (analyser, result)

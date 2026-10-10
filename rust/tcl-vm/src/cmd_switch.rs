@@ -155,7 +155,11 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
     };
     let Selection::Matched { index, writes } = sel else {
-        return settle_control_options(ok(Value::empty()), ControlOptionPolicy::FRESH_FORWARDED);
+        return settle_control_options(
+            vm,
+            ok(Value::empty()),
+            ControlOptionPolicy::FRESH_FORWARDED,
+        );
     };
     // TIP #75 `-matchvar`/`-indexvar` writes happen before the body runs.
     for (name, val) in writes {
@@ -181,5 +185,5 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(c) => c,
         Err(e) => crate::command::completion_from_tcl_error(vm, e),
     };
-    settle_control_options(completion, ControlOptionPolicy::FRESH_FORWARDED)
+    settle_control_options(vm, completion, ControlOptionPolicy::FRESH_FORWARDED)
 }

@@ -1022,6 +1022,13 @@ impl Value {
         if self.native_object_is_live() {
             Ok(())
         } else {
+            #[cfg(test)]
+            if std::env::var_os("TCL_LSP_TRACE_RETIRED_HEADER").is_some() {
+                eprintln!(
+                    "retired-native-header-access: {}",
+                    std::backtrace::Backtrace::force_capture()
+                );
+            }
             Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "retired native object header",
             ))

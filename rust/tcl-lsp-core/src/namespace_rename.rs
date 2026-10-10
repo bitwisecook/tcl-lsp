@@ -458,22 +458,19 @@ fn namespace_rename_hazard(
             None,
         )
     };
-    let Some((input, config)) = analysis
-        .resolved_input
-        .as_ref()
-        .zip(analysis.body_lexer_config)
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
     else {
         return Some(unavailable());
     };
-    if input.lexer_config() != config
-        || !analysis
-            .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
-        || analysis
-            .retained_command_realm()
-            .is_none_or(|realm| !realm.matches_resolved_analysis_input(input))
-    {
-        return Some(unavailable());
-    }
+    let config = current.config();
+    let metadata = analysis.resolved_input.as_ref().and_then(|input| {
+        tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+            current.registry(),
+            input,
+            config,
+            Some(current.profile()),
+        )
+    });
     let mut hazard: Option<(Span, HazardKind)> = None;
     let mut visit = |cmd: &tcl_compiler::segmenter::SegmentedCommand| {
         if hazard.is_some() {
@@ -491,13 +488,7 @@ fn namespace_rename_hazard(
             .filter(|words| words.roles().is_some())
             .map(|words| words.written_argument_roles());
         for (idx, word) in cmd.texts.iter().skip(1).enumerate() {
-            if !word.contains(['$', '['])
-                || !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(
-                    word,
-                    cell,
-                    config.braced_var,
-                )
-            {
+            if !word.contains(['$', '[']) {
                 continue;
             }
             let kind = match &roles {
@@ -507,6 +498,16 @@ fn namespace_rename_hazard(
                 Some(_) => continue,
                 None => HazardKind::UnknownRole,
             };
+            if matches!(kind, HazardKind::Computed)
+                && tcl_compiler::dynamic_names::source_name_pattern_can_spell(
+                    word,
+                    cell,
+                    tcl_compiler::dynamic_names::SourceNamePatternPurpose::NamespaceName,
+                    metadata,
+                ) == Some(false)
+            {
+                continue;
+            }
             if let Some(tok) = cmd.argv.get(idx + 1) {
                 hazard = Some((tok.span, kind));
                 return;
@@ -663,6 +664,91 @@ mod tests {
                 .unwrap()
                 .reason
                 .contains("metadata are unavailable")
+        );
+    }
+
+    #[test]
+    fn supplied_namespace_hazard_patterns_keep_parentheses_and_unknown_roles() {
+        // naming.core.original-dynamic-name-value-purpose
+        // docs/design/analysis/name-resolution-proofs/core-original-dynamic-name-value-purpose.md
+        use std::sync::Arc;
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "source_namespace_reference",
+            arity: tcl_registry::Arity::exact(1),
+            arg_roles: &[(0, tcl_registry::ArgRole::NamespaceName)],
+            surface: registry.get("dict").unwrap().surface,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let store = Arc::new(registry);
+        for (source, cell, expected) in [
+            ("source_namespace_reference ::other::$n", "::kept", false),
+            (
+                "source_namespace_reference ::kept($n)",
+                "::kept(TAIL)",
+                true,
+            ),
+        ] {
+            let context = Arc::new(
+                tcl_registry::model::ingress::static_context_for("tcl8.6")
+                    .with_command_store(store.clone()),
+            );
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile, profile, context, config,
+            );
+            let current = Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, profile.name);
+            assert_eq!(
+                namespace_rename_hazard(
+                    source,
+                    profile,
+                    &current,
+                    cell,
+                    &[],
+                    &LineIndex::new(source),
+                )
+                .is_some(),
+                expected,
+                "{source}"
+            );
+        }
+        let source = "source_namespace_reference ::other::$n";
+        let context = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4").with_command_store(store),
+        );
+        let input =
+            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+        let older = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        assert!(
+            namespace_rename_hazard(
+                source,
+                profile,
+                &older,
+                "::kept",
+                &[],
+                &LineIndex::new(source)
+            )
+            .unwrap()
+            .reason
+            .contains("argument roles are unavailable")
+        );
+        let source = "namespace eval ::other::$n {}";
+        let native = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            namespace_rename_hazard(
+                source,
+                native.resolved_profile().unwrap(),
+                &native,
+                "::kept",
+                &[],
+                &LineIndex::new(source)
+            )
+            .is_some()
         );
     }
 

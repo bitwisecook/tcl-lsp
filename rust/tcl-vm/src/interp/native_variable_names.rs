@@ -644,16 +644,31 @@ impl Vm {
             super::UpvarLinkError::TargetNamespace | super::UpvarLinkError::LocalNamespace
         ) || protocol.alias_rejection_sets_error_code()
         {
-            let code = crate::command::opt_get(&failure.options, "-errorcode")
-                .expect("alias failure owns its native error tuple");
-            tcl_cmd_core::CmdErrorCodeUpdate::Set(code.string_bytes().to_vec())
+            let code = match crate::command::opt_get_checked(self, &failure.options, b"-errorcode")
+            {
+                Ok(Some(code)) => code,
+                Ok(None) => {
+                    return self.refuse_host_command("alias failure error tuple is absent".into());
+                }
+                Err(error) => return crate::command::completion_from_tcl_error(self, error),
+            };
+            let bytes = match tcl_syntax::value::ValueOps::native_string_bytes(self, &code) {
+                Ok(bytes) => bytes,
+                Err(error) => return crate::command::completion_from_cmd_error(self, error.into()),
+            };
+            tcl_cmd_core::CmdErrorCodeUpdate::Set(bytes.to_vec())
         } else {
             tcl_cmd_core::CmdErrorCodeUpdate::Default
+        };
+        let message = match tcl_syntax::value::ValueOps::native_string_bytes(self, &failure.result)
+        {
+            Ok(bytes) => bytes.to_vec(),
+            Err(error) => return crate::command::completion_from_cmd_error(self, error.into()),
         };
         crate::command::completion_from_cmd_error(
             self,
             tcl_cmd_core::CmdError::from_byte_details(tcl_cmd_core::CmdErrorDetails {
-                message: failure.result.string_bytes().to_vec(),
+                message,
                 string_result: protocol.diagnostic_string_protocol(),
                 error_code: code,
                 error_info: None,

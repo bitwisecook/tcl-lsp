@@ -1,0 +1,20 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen284/sealed-registry-image/pinned-registry284.elf.gz",
+  "stored_sha256": "c6700d4d0d03d6ff547fe5103ba6af04ea0245633a7929cdd5b6cb7c3b7af550",
+  "stored_bytes": 10475698,
+  "original_sha256": "ea447d4e34086f68835ffbe4038a86c56a85a94af32103639a7f8b24a8686eff",
+  "original_bytes": 59358176,
+  "original_recorded_executable": "/workspace/.proofs/pinned-registry284.elf",
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen284/sealed-registry-image/pinned-registry284.json",
+  "pin_metadata_sha256": "ab5c5532c1004452c3ccf62fe6743ca044637984191a1b531d2ac76cbaefb6dd",
+  "build_receipt_id": "rust.frozen284.integration-compiler-registry-own-test-build284",
+  "build_receipt_sha256": "1e7f703a5ef2207d4567b6f1180d4a416a7a6db46816283e13ded9f2834a0ea1",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen284/source-snapshot.json.gz",
+    "sha256": "cfa9d19fa2a96f64a80791fec58fa53a56128fc24cca3b702366a7e9a7b8d655",
+    "compression": "gzip",
+    "uncompressed_sha256": "918a8e9d298c9bbc7d994380c8f6b63dff03854b402657017c5acd8678a2399b"
+  },
+  "verification": "Exact original metadata and successful producer association retained. Gzip is decompressed and fully byte-compared with original measured ELF digest and independently measured byte length; storage confers no new run or build."
+}

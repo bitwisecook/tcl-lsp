@@ -8122,12 +8122,17 @@ impl Vm {
                 Err(error) => crate::command::completion_from_tcl_error(vm, error),
             };
             if completion.code == Code::Error {
-                completion.options = vm.completion_options_snapshot(&completion);
+                completion.options = match vm.completion_options_snapshot(&completion) {
+                    Ok(options) => options,
+                    Err(error) => return crate::command::completion_from_tcl_error(vm, error),
+                };
             }
             completion
         });
         if completion.code == Code::Error {
-            self.restore_completion_error_state(&completion);
+            if let Err(error) = self.restore_completion_error_state(&completion) {
+                return crate::command::completion_from_tcl_error(self, error);
+            }
         }
         completion
     }
@@ -8184,7 +8189,7 @@ impl Vm {
                 )
             })
         };
-        settle_control_options(completion, ControlOptionPolicy::FRESH_FORWARDED)
+        settle_control_options(self, completion, ControlOptionPolicy::FRESH_FORWARDED)
     }
 
     /// `interp delete path …` — destroy interpreter `id`: unhook it from its
@@ -15264,11 +15269,11 @@ impl Vm {
                 words.push(Value::from_string_bytes(name));
             }
             let code = Value::list(words);
-            failure.options = crate::command::with_return_option(
-                &crate::command::completion_options(&failure),
-                "-errorcode",
-                code,
-            );
+            let options = crate::command::completion_options(self, &failure)
+                .map_err(|error| crate::command::completion_from_tcl_error(self, error))?;
+            failure.options =
+                crate::command::with_return_option(self, &options, "-errorcode", code)
+                    .map_err(|error| crate::command::completion_from_tcl_error(self, error))?;
         }
         Err(failure)
     }
@@ -19012,14 +19017,14 @@ impl Vm {
             let read_only = current.is_some() && additions.is_empty();
             let value = self.lappend_list_value(current, additions)?;
             if read_only {
-                return Ok(Self::variable_update_result(value, &Value::empty()));
+                return self.variable_update_result(value, &Value::empty());
             }
             let value = if let Some(key) = key {
                 self.store_elem_result_bytes(name, key, value)?
             } else {
                 self.store_var_result_bytes(name, value)?
             };
-            return Ok(Self::variable_update_result(value, &Value::empty()));
+            return self.variable_update_result(value, &Value::empty());
         }
         let captured = match selected {
             Some(resolved) => self.capture_selected_update(name, key, &resolved)?,
@@ -19165,37 +19170,42 @@ impl Vm {
             .map_err(|error| crate::command::completion_from_cmd_error(self, error))
     }
 
-    pub(crate) fn retain_variable_read_error_code(&mut self, options: &Value) {
-        if let Some(code) = crate::command::opt_get(options, "-errorcode") {
+    pub(crate) fn retain_variable_read_error_code(
+        &mut self,
+        options: &Value,
+    ) -> Result<(), Completion<Value>> {
+        if let Some(code) = crate::command::opt_get_checked(self, options, b"-errorcode")
+            .map_err(|error| crate::command::completion_from_tcl_error(self, error))?
+        {
+            let bytes = tcl_syntax::value::ValueOps::native_string_bytes(self, &code)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
             self.apply_primitive_error_code(tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(
-                code.string_bytes().to_vec(),
+                bytes.to_vec(),
             ));
         }
+        Ok(())
     }
 
     pub(crate) fn variable_update_result(
+        &mut self,
         value: Value,
         read_options: &Value,
-    ) -> tcl_runtime_api::VariableUpdateResult<Value> {
-        let rows = read_options
-            .as_list()
-            .map(|items| {
-                items
-                    .as_slice()
-                    .as_chunks::<2>()
-                    .0
-                    .iter()
-                    .map(|pair| (pair[0].string_bytes().to_vec(), pair[1].clone()))
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+    ) -> Result<tcl_runtime_api::VariableUpdateResult<Value>, Completion<Value>> {
+        let mut rows = Vec::new();
+        for (key, value) in crate::command::completion_option_rows_checked(self, read_options)
+            .map_err(|error| crate::command::completion_from_tcl_error(self, error))?
+        {
+            let bytes = tcl_syntax::value::ValueOps::native_string_bytes(self, &key)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
+            rows.push((bytes.to_vec(), value));
+        }
         let rows = tcl_runtime_api::completion_options::retained_failed_read_options(rows);
         let options = Value::list(
             rows.into_iter()
                 .flat_map(|(key, value)| [Value::from_string_bytes(key), value])
                 .collect(),
         );
-        tcl_runtime_api::VariableUpdateResult { value, options }
+        Ok(tcl_runtime_api::VariableUpdateResult { value, options })
     }
 
     fn captured_read_missing(
@@ -19262,7 +19272,9 @@ impl Vm {
                 (current, options)
             }
             Err(error) => {
-                let options = self.completion_options_snapshot(&error);
+                let options = self
+                    .completion_options_snapshot(&error)
+                    .map_err(|error| crate::command::completion_from_tcl_error(self, error))?;
                 self.publish_swallowed_trace_error();
                 (None, options)
             }
@@ -19270,14 +19282,14 @@ impl Vm {
         if let Some(refusal) = self.refused_completion() {
             return Err(refusal);
         }
-        self.retain_variable_read_error_code(&read_options);
+        self.retain_variable_read_error_code(&read_options)?;
         let read_only = current.is_some() && additions.is_empty();
         let value = self.lappend_list_value(current, additions)?;
         if read_only {
-            return Ok(Self::variable_update_result(value, &read_options));
+            return self.variable_update_result(value, &read_options);
         }
         let stored = self.store_captured_update(name, key, captured, value)?;
-        Ok(Self::variable_update_result(stored, &read_options))
+        self.variable_update_result(stored, &read_options)
     }
 
     fn check_captured_update_with_errors(
@@ -19516,7 +19528,7 @@ impl Vm {
             } else {
                 self.store_var_result_bytes(name, next)?
             };
-            return Ok(Self::variable_update_result(stored, &Value::empty()));
+            return self.variable_update_result(stored, &Value::empty());
         }
         let input = key.map_or(Input::Combined(name), |element| Input::Separate {
             root: name,
@@ -19686,7 +19698,9 @@ impl Vm {
             }
             Err(error) if policy == NativeRmwReadPolicy::RequireContents => return Err(error),
             Err(error) => {
-                let options = self.completion_options_snapshot(&error);
+                let options = self
+                    .completion_options_snapshot(&error)
+                    .map_err(|error| crate::command::completion_from_tcl_error(self, error))?;
                 self.publish_swallowed_trace_error();
                 (false, options)
             }
@@ -19706,7 +19720,7 @@ impl Vm {
         let cell = &captured.cell;
         let (has_current, read_options, modern) =
             self.read_captured_increment(name, key, captured, policy)?;
-        self.retain_variable_read_error_code(&read_options);
+        self.retain_variable_read_error_code(&read_options)?;
         let next = if modern {
             let objects =
                 crate::value_ops::VmIncrementObjects::selected(self.native_invocation_dialect())
@@ -19762,7 +19776,7 @@ impl Vm {
             );
         };
         let stored = self.store_captured_update(name, key, captured, next)?;
-        Ok(Self::variable_update_result(stored, &read_options))
+        self.variable_update_result(stored, &read_options)
     }
 
     /// Publish the `errorInfo` a read trace left behind when the
@@ -20920,22 +20934,40 @@ impl Vm {
         let _ = self.native_errors.error_stack.adopt(parts);
     }
 
-    /// Adopt an explicit stack stored in a completion options dictionary.
-    pub(crate) fn seed_error_stack(&mut self, stack: &Value) {
-        let Some(protocol) = self
+    /// Adopt an explicit validated stack through the actual current getter owner.
+    /// Unsupported release fields have no stack owner; getter failures retain
+    /// their original channel rather than leaving the previous stack in place.
+    pub(crate) fn seed_error_stack(&mut self, stack: &Value) -> Result<(), crate::TclError> {
+        if let Some(cause) = self.execution_refusal.clone() {
+            return Err(crate::TclError::from_execution_failure(cause));
+        }
+        let recipe = self
             .actual_native_invocation_dialect()
-            .native_string_protocol()
-        else {
-            return;
-        };
-        let Ok(parts) = validate_error_stack(
-            stack
-                .native_object_list_elements(protocol)
-                .map(|items| items.as_ref().clone()),
-        ) else {
-            return;
-        };
+            .native_error_objects_protocol()
+            .ok_or_else(|| {
+                crate::command::completion_option_failure(
+                    self,
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "native error-stack owner",
+                    ),
+                )
+            })?;
+        if !recipe.has_error_stack() {
+            return Ok(());
+        }
+        let parts = tcl_syntax::value::ValueOps::list_elements(self, stack)
+            .map_err(|error| crate::command::completion_option_failure(self, error))?;
+        let parts =
+            validate_error_stack(Ok::<_, std::convert::Infallible>(parts)).map_err(|_| {
+                crate::command::completion_option_failure(
+                    self,
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "validated native completion error-stack pairs",
+                    ),
+                )
+            })?;
         self.seed_error_stack_parts(&parts);
+        Ok(())
     }
 
     /// Add the innermost command context for a new Tcl 8.6+ error episode.
@@ -25696,7 +25728,7 @@ mod family_b_tests {
                 b"NONE",
                 "{engine}"
             );
-            let options = vm.completion_options_snapshot(&result);
+            let options = vm.completion_options_snapshot(&result).unwrap();
             assert_eq!(
                 crate::command::opt_get(&options, "-errorcode")
                     .unwrap()

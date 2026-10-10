@@ -249,7 +249,7 @@ mod tests {
         frame: NativeCompilationFrame,
     ) -> Result<NativeCoroutineInstruction, NativeCoroutineCompilationUnavailable> {
         let profile =
-            tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string())).unwrap();
+            crate::native_test_provider::profile(&format!("tcl{}", version.version_string()));
         let image = SourceImage::native(source);
         let script = tcl_lexer::native_script_words_in(
             image,
@@ -460,9 +460,8 @@ mod injection_tests {
     fn original_injection_chronology_replaces_errors_and_retains_suspend_kind() {
         // Native proof: naming.coroutine.original-injection-order-and-completion
         // docs/design/analysis/name-resolution-proofs/coroutine-original-injection-order-and-completion.md
-        let dialect = crate::InvocationDialect::of_profile(
-            tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
-        );
+        let dialect =
+            crate::InvocationDialect::of_profile(crate::native_test_provider::profile("tcl9.1"));
         let selected = NativeCoroutineInjectionProtocol::select(dialect).unwrap();
         let mut callbacks = vec![("A", 0), ("B", 1)];
         let outcome = selected.run_pending(
@@ -486,7 +485,7 @@ mod injection_tests {
         // naming.coroutine.original-injection-public-completions
         // docs/design/analysis/name-resolution-proofs/coroutine-original-injection-public-completions.md
         let c90 = NativeCoroutineInjectionProtocol::select(crate::InvocationDialect::of_profile(
-            tcl_dialect::DialectProfile::find("tcl9.0").unwrap(),
+            crate::native_test_provider::profile("tcl9.0"),
         ))
         .unwrap();
         let mut earlier_pending = vec!["A", "B"];
@@ -503,7 +502,7 @@ mod injection_tests {
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl"] {
             assert!(
                 NativeCoroutineInjectionProtocol::select(crate::InvocationDialect::of_profile(
-                    tcl_dialect::DialectProfile::find(profile).unwrap(),
+                    crate::native_test_provider::profile(profile),
                 ))
                 .is_none()
             );
@@ -534,13 +533,12 @@ mod coroutine_name_tests {
             let dialect = crate::InvocationDialect::of_point(
                 tcl_dialect::model::DialectPoint::for_tcl_version(version),
             );
-            let profile =
-                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
-            for (source, operand_from, empty) in [
-                (b"info coroutine".as_slice(), 2, true),
-                (b"::tcl::info::coroutine".as_slice(), 1, true),
-                (b"info coroutine extra".as_slice(), 2, false),
-                (b"info coroutine {*}$extra".as_slice(), 2, false),
+            let profile = crate::native_test_provider::profile(version.dialect_profile_name());
+            for (source, operand_from, empty, expansion) in [
+                (b"info coroutine".as_slice(), 2, true, false),
+                (b"::tcl::info::coroutine".as_slice(), 1, true, false),
+                (b"info coroutine extra".as_slice(), 2, false, false),
+                (b"info coroutine {*}$extra".as_slice(), 2, false, true),
             ] {
                 let parsed = native_script_words_in(
                     SourceImage::native(source),
@@ -548,6 +546,19 @@ mod coroutine_name_tests {
                     LexerConfig::from_grammar(profile.grammar),
                 )
                 .unwrap();
+                if version == TclVersion::V8_4 && expansion {
+                    // Software parser control: this unchanged source has no
+                    // complete command under the selected C84 word grammar.
+                    // A fatal tail cannot supply original compiler words.
+                    assert!(parsed.commands.is_empty());
+                    assert_eq!(
+                        parsed.fatal_tail.unwrap().cut.message,
+                        tcl_lexer::word_parts::EXTRA_AFTER_CLOSE_BRACE,
+                    );
+                    continue;
+                }
+                assert!(parsed.fatal_tail.is_none());
+                assert_eq!(parsed.commands.len(), 1);
                 let words = NativeCompilerWords::capture(
                     &parsed.commands[0].words,
                     dialect.native_source_string_protocol().unwrap(),

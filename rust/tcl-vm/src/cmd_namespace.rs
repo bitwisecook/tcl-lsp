@@ -81,7 +81,7 @@ fn eval_in_ns(
         Ok(completion) => completion,
         Err(error) => crate::command::completion_from_tcl_error(vm, error),
     };
-    settle_control_options(completion, ControlOptionPolicy::FRESH_FORWARDED)
+    settle_control_options(vm, completion, ControlOptionPolicy::FRESH_FORWARDED)
 }
 
 pub(crate) fn register(vm: &mut Vm) {

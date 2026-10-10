@@ -2415,150 +2415,244 @@ pub(crate) fn completion_from_tcl_error(vm: &mut Vm, error: TclError) -> Complet
     }
 }
 
-/// The options dict a completion exposes to `catch`/`try` (`Tcl_GetReturnOptions`):
-/// the carried dict when it has one, otherwise a faithful one built from the
-/// code — every completion reads back at least `-code N -level 0`, so an OK body
-/// yields `-code 0 -level 0` (not the empty value the bare completion carries).
-pub(crate) fn completion_options(comp: &Completion<Value>) -> Value {
-    let empty = comp.options.as_list().map_or(true, |l| l.is_empty());
-    if empty {
-        options_dict(comp.code, 0, &[])
-    } else {
-        comp.options.clone()
+/// Retain a checked failure at its actual interpreter owner before transport.
+pub(crate) fn completion_option_failure(
+    vm: &mut Vm,
+    error: impl Into<tcl_cmd_core::CmdError>,
+) -> TclError {
+    let completion = completion_from_cmd_error(vm, error.into());
+    match vm.execution_refusal.clone() {
+        Some(cause) => TclError::from_execution_failure(cause),
+        None => TclError::from_completion(completion),
     }
 }
 
-/// Settle an adapter-owned control completion under the shared option policy.
-///
-/// A native completion's empty `options` value normally means “this command did
-/// not replace the surrounding carried options”. Fresh control activations need
-/// to distinguish that from an explicitly empty option set, so a successful
-/// fresh/settled completion materialises the standard `-code 0 -level 0` dict.
-/// The dispatcher can then replace the prior state without command-name logic.
+/// Exact retained option objects through the original cached Dictionary or
+/// checked List owner. Reading an option does not reconstruct its value.
+pub(crate) fn completion_option_rows_checked(
+    vm: &mut Vm,
+    options: &Value,
+) -> Result<Vec<(Value, Value)>, TclError> {
+    if let Some(cause) = vm.execution_refusal.clone() {
+        return Err(TclError::from_execution_failure(cause));
+    }
+    options
+        .check_native_header()
+        .map_err(|error| completion_option_failure(vm, error))?;
+    if let Some(pairs) = options.with_cached_dictionary_representation(|pairs, _| pairs.to_vec()) {
+        return Ok(pairs);
+    }
+    let items = tcl_syntax::value::ValueOps::list_elements(vm, options)
+        .map_err(|error| completion_option_failure(vm, error))?;
+    if items.len() % 2 != 0 {
+        return Err(completion_option_failure(
+            vm,
+            tcl_syntax::value::ValueError::MissingDictionaryValue,
+        ));
+    }
+    Ok(items
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| (pair[0].clone(), pair[1].clone()))
+        .collect())
+}
+
+/// Checked exact-byte lookup. An absent member is independent of a getter or
+/// conversion failure; no diagnostic message contributes option identity.
+pub(crate) fn opt_get_checked(
+    vm: &mut Vm,
+    options: &Value,
+    key: &[u8],
+) -> Result<Option<Value>, TclError> {
+    for (name, value) in completion_option_rows_checked(vm, options)? {
+        let bytes = tcl_syntax::value::ValueOps::native_string_bytes(vm, &name)
+            .map_err(|error| completion_option_failure(vm, error))?;
+        if bytes.as_ref() == key {
+            return Ok(Some(value));
+        }
+    }
+    Ok(None)
+}
+
+/// Read a carried integer at the actual current primitive getter owner.
+pub(crate) fn option_integer_checked(
+    vm: &mut Vm,
+    options: &Value,
+    key: &[u8],
+    absent: i64,
+) -> Result<i64, TclError> {
+    match opt_get_checked(vm, options, key)? {
+        Some(original) => tcl_syntax::value::ValueOps::as_int(vm, &original)
+            .map_err(|error| completion_option_failure(vm, error)),
+        None => Ok(absent),
+    }
+}
+
+/// Use the shared original completion-code grammar and cache producer.
+pub(crate) fn option_code_checked(
+    vm: &mut Vm,
+    options: &Value,
+    absent: Code,
+) -> Result<Code, TclError> {
+    let Some(original) = opt_get_checked(vm, options, b"-code")? else {
+        return Ok(absent);
+    };
+    let (mut ops, protocol) = crate::return_options::NativeReturnOps::selected(vm)
+        .map_err(|error| completion_option_failure(vm, error))?;
+    tcl_cmd_core::return_options::parse_completion_code(&mut ops, protocol, &original)
+        .map(Code::from_int)
+        .map_err(|error| completion_option_failure(vm, error))
+}
+
+/// Carried options or the ordinary standard options when genuinely empty.
+pub(crate) fn completion_options(vm: &mut Vm, comp: &Completion<Value>) -> Result<Value, TclError> {
+    if completion_option_rows_checked(vm, &comp.options)?.is_empty() {
+        Ok(options_dict(comp.code, 0, &[]))
+    } else {
+        Ok(comp.options.clone())
+    }
+}
+
+/// Settle a control owner without hiding failure in the carried option value.
 pub(crate) fn settle_control_options(
+    vm: &mut Vm,
     mut completion: Completion<Value>,
     policy: tcl_runtime_api::completion_options::ControlOptionPolicy,
 ) -> Completion<Value> {
+    if let Some(refused) = vm.refused_completion() {
+        return refused;
+    }
     if completion.code != Code::Ok {
         return completion;
     }
-    let empty = completion
-        .options
-        .as_list()
-        .is_ok_and(|options| options.is_empty());
+    let empty = match completion_option_rows_checked(vm, &completion.options) {
+        Ok(rows) => rows.is_empty(),
+        Err(error) => return completion_from_tcl_error(vm, error),
+    };
     if policy.settles_success() || (policy.begins_fresh() && empty) {
         completion.options = options_dict(Code::Ok, 0, &[]);
     }
     completion
 }
 
-/// Explicit completion metadata wins; untagged arbitrary guest errors use NONE.
-pub(crate) fn resolved_error_code(comp: &Completion<Value>) -> Value {
-    opt_get(&comp.options, "-errorcode").unwrap_or_else(|| Value::string("NONE"))
+/// Explicit metadata wins; a genuinely absent code uses NONE.
+pub(crate) fn resolved_error_code(
+    vm: &mut Vm,
+    comp: &Completion<Value>,
+) -> Result<Value, TclError> {
+    Ok(opt_get_checked(vm, &comp.options, b"-errorcode")?.unwrap_or_else(|| Value::string("NONE")))
 }
 
-/// Rebuild a return-options dict with its `-level` replaced — the proc-boundary
-/// countdown for `return -level N`. Every other key (`-code`
-/// and any user options) is preserved; a missing `-level` is appended.
-pub(crate) fn with_return_level(options: &Value, new_level: i64) -> Value {
-    let mut items = Vec::new();
-    let mut have_level = false;
-    if let Ok(list) = options.as_list() {
-        let mut i = 0;
-        while i + 1 < list.len() {
-            if list[i].string_bytes().as_ref() == b"-level" {
-                items.push(Value::string("-level"));
-                items.push(Value::int(new_level));
-                have_level = true;
-            } else {
-                items.push(list[i].clone());
-                items.push(list[i + 1].clone());
-            }
-            i += 2;
-        }
+/// Replace an option while retaining unrelated key/value objects and the
+/// original Dictionary versus List storage purpose.
+pub(crate) fn with_return_option(
+    vm: &mut Vm,
+    options: &Value,
+    key: &str,
+    value: Value,
+) -> Result<Value, TclError> {
+    let pairs = completion_option_rows_checked(vm, options)?;
+    if options
+        .with_cached_dictionary_representation(|_, _| ())
+        .is_some()
+    {
+        let (ops, _) = crate::return_options::NativeReturnOps::selected(vm)
+            .map_err(|error| completion_option_failure(vm, error))?;
+        let original = options.duplicate_native_object_in(ops.string);
+        let mut prepared = original
+            .prepare_native_dictionary(ops.string)
+            .map_err(|error| completion_option_failure(vm, error))?;
+        drop(original);
+        prepared
+            .set_member(Value::new_native_string_bytes(key.as_bytes()), value)
+            .map_err(|error| completion_option_failure(vm, error))?;
+        return Ok(prepared.into_value());
     }
-    if !have_level {
-        items.push(Value::string("-level"));
-        items.push(Value::int(new_level));
-    }
-    Value::list(items)
-}
-
-/// Rebuild a return-options dict with one key replaced, preserving every
-/// unrelated option. A missing key is appended.
-pub(crate) fn with_return_option(options: &Value, key: &str, value: Value) -> Value {
-    let mut items = Vec::new();
+    let mut items = Vec::with_capacity(pairs.len() * 2 + 2);
     let mut replaced = false;
-    if let Ok(list) = options.as_list() {
-        let mut i = 0;
-        while i + 1 < list.len() {
-            items.push(list[i].clone());
-            if list[i].string_bytes().as_ref() == key.as_bytes() {
-                items.push(value.clone());
-                replaced = true;
-            } else {
-                items.push(list[i + 1].clone());
-            }
-            i += 2;
-        }
+    for (name, original) in pairs {
+        let bytes = tcl_syntax::value::ValueOps::native_string_bytes(vm, &name)
+            .map_err(|error| completion_option_failure(vm, error))?;
+        let matched = bytes.as_ref() == key.as_bytes();
+        items.push(name);
+        items.push(if matched {
+            replaced = true;
+            value.clone()
+        } else {
+            original
+        });
     }
     if !replaced {
-        items.push(Value::string(key));
-        items.push(value);
+        items.extend([Value::string(key), value]);
     }
-    Value::list(items)
+    Ok(Value::list(items))
 }
 
-/// Look up a key in an options-dict value, returning the following element.
-pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
-    if let Some(value) = options.with_cached_dictionary_representation(|pairs, _| {
-        pairs
-            .iter()
-            .find(|(name, _)| {
-                name.resident_string_bytes()
-                    .is_some_and(|bytes| bytes.as_ref() == key.as_bytes())
-            })
-            .map(|(_, value)| value.clone())
-    }) {
-        return value;
-    }
-    let items = options.as_list().ok()?;
-    let mut i = 0;
-    while i + 1 < items.len() {
-        if items[i].string_bytes().as_ref() == key.as_bytes() {
-            return Some(items[i + 1].clone());
-        }
-        i += 2;
-    }
-    None
-}
-
-/// Select a completion option through actual cached Dictionary or List storage.
-/// Keys use the interpreter's checked byte getter. No Unicode projection or
-/// message classification contributes an option identity.
-///
-/// # Errors
-/// Retains actual conversion/getter refusal; an absent member is `Ok(None)`.
-pub(crate) fn opt_get_checked(
+/// Procedure-boundary level replacement uses the same checked option owner.
+pub(crate) fn with_return_level(
     vm: &mut Vm,
+    options: &Value,
+    new_level: i64,
+) -> Result<Value, TclError> {
+    with_return_option(vm, options, "-level", Value::int(new_level))
+}
+
+/// Borrow only already resident option storage. Conversion requires the
+/// separately supplied interpreter-aware owner; it cannot turn into absence.
+pub(crate) fn completion_option_rows_resident(
+    options: &Value,
+) -> Result<Vec<(Value, Value)>, tcl_syntax::value::ValueError> {
+    options.check_native_header()?;
+    if let Some(pairs) = options.with_cached_dictionary_representation(|pairs, _| pairs.to_vec()) {
+        return Ok(pairs);
+    }
+    if let Some((items, _)) = options.cached_list_representation() {
+        let items = items.lifetime_view();
+        if items.len() % 2 != 0 {
+            return Err(tcl_syntax::value::ValueError::MissingDictionaryValue);
+        }
+        return Ok(items
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| (pair[0].clone(), pair[1].clone()))
+            .collect());
+    }
+    if options
+        .resident_string_bytes()
+        .is_some_and(|bytes| bytes.is_empty())
+    {
+        return Ok(Vec::new());
+    }
+    Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+        "borrowed completion options",
+    ))
+}
+
+/// Borrowed exact-key lookup grants no native conversion or getter capability.
+pub(crate) fn opt_get_resident_checked(
     options: &Value,
     key: &[u8],
 ) -> Result<Option<Value>, tcl_syntax::value::ValueError> {
-    if let Some(pairs) = options.with_cached_dictionary_representation(|pairs, _| pairs.to_vec()) {
-        for (name, value) in pairs {
-            if tcl_syntax::value::ValueOps::native_string_bytes(vm, &name)?.as_ref() == key {
-                return Ok(Some(value));
-            }
-        }
-        return Ok(None);
-    }
-    let items = tcl_syntax::value::ValueOps::list_elements(vm, options)?;
-    for pair in items.as_chunks::<2>().0 {
-        if tcl_syntax::value::ValueOps::native_string_bytes(vm, &pair[0])?.as_ref() == key {
-            return Ok(Some(pair[1].clone()));
+    for (name, value) in completion_option_rows_resident(options)? {
+        name.check_native_header()?;
+        let bytes = name.resident_string_bytes().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("borrowed option key"),
+        )?;
+        if bytes.as_ref() == key {
+            return Ok(Some(value));
         }
     }
     Ok(None)
+}
+
+/// Test inspection of known compatible resident fixtures.
+#[cfg(test)]
+pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
+    opt_get_resident_checked(options, key.as_bytes())
+        .ok()
+        .flatten()
 }
 
 /// `return ?-code c? ?-level l? ?-errorcode ec? ?-errorinfo ei? ?value?`.
@@ -2687,6 +2781,7 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Value::native_double(total / count as f64, vm.native_invocation_dialect())
     };
     settle_control_options(
+        vm,
         ok(Value::list(vec![
             num,
             Value::string("microseconds"),
@@ -2969,34 +3064,37 @@ impl Vm {
     /// Snapshot a completion through the shared standard-options planner.
     /// `catch`, compiled catch ranges, and `try` all use this adapter, so live
     /// error metadata and carried return options cannot drift between them.
-    pub(crate) fn completion_options_snapshot(&self, comp: &Completion<Value>) -> Value {
+    pub(crate) fn completion_options_snapshot(
+        &mut self,
+        comp: &Completion<Value>,
+    ) -> Result<Value, TclError> {
+        if let Some(cause) = self.execution_refusal.clone() {
+            return Err(TclError::from_execution_failure(cause));
+        }
         let merged = match comp.option_origin {
             tcl_core_types::CompletionOptionOrigin::MergedReturnOptions { code, level } => {
-                Some((&comp.options, code, level))
+                Some((comp.options.clone(), code, level))
             }
-            _ => self.native_merged_return_options().map(|original| {
-                let (code, level) = self.native_return_controls(comp.code);
-                (original, code, level)
-            }),
+            _ => self
+                .native_merged_return_options()
+                .cloned()
+                .map(|original| {
+                    let (code, level) = self.native_return_controls(comp.code);
+                    (original, code, level)
+                }),
         };
         if let Some((options, code, level)) = merged {
-            return self.merged_completion_options_snapshot(comp, options, code, level);
+            return self.merged_completion_options_snapshot(comp, &options, code, level);
         }
         if self.uses_jim_error_stack() {
-            return self.jim_return_options(comp.code);
+            return Ok(self.jim_return_options(comp.code));
         }
-        let mut carried = comp.options.as_list().map_or_else(
-            |_| Vec::new(),
-            |items| {
-                items
-                    .as_slice()
-                    .as_chunks::<2>()
-                    .0
-                    .iter()
-                    .map(|pair| (pair[0].string_bytes().to_vec(), pair[1].clone()))
-                    .collect()
-            },
-        );
+        let mut carried = Vec::new();
+        for (key, value) in completion_option_rows_checked(self, &comp.options)? {
+            let bytes = tcl_syntax::value::ValueOps::native_string_bytes(self, &key)
+                .map_err(|error| completion_option_failure(self, error))?;
+            carried.push((bytes.to_vec(), value));
+        }
         let jim_quote = self.native_invocation_dialect().expression_quote_control()
             == Some(tcl_registry::invocation_words::ExpressionQuoteControl::Jim084);
         if jim_quote && comp.code == Code::Ok {
@@ -3008,42 +3106,49 @@ impl Vm {
             });
         }
         let (code, level) = if comp.code == Code::Return {
-            let code = opt_get(&comp.options, "-code")
-                .and_then(|value| value.as_int().ok())
-                .and_then(|value| i32::try_from(value).ok())
-                .map_or(Code::Ok, Code::from_int);
-            let level = opt_get(&comp.options, "-level")
-                .and_then(|value| value.as_int().ok())
-                .unwrap_or(1);
-            (code, level)
+            (
+                option_code_checked(self, &comp.options, Code::Ok)?,
+                option_integer_checked(self, &comp.options, b"-level", 1)?,
+            )
         } else {
-            let level = if jim_quote && comp.code == Code::Ok {
-                opt_get(&comp.options, "-level")
-                    .and_then(|value| value.as_int().ok())
-                    .unwrap_or(0)
-            } else {
-                0
-            };
-            (comp.code, level)
+            (
+                comp.code,
+                if jim_quote && comp.code == Code::Ok {
+                    option_integer_checked(self, &comp.options, b"-level", 0)?
+                } else {
+                    0
+                },
+            )
         };
         let active_error = code == Code::Error && comp.code == Code::Error && level == 0;
-        let error = (code == Code::Error).then(|| ErrorOptions {
-            error_code: Some(resolved_error_code(comp)),
-            error_info: active_error.then(|| {
-                if self.uses_jim_error_stack() {
-                    return self.jim_stacktrace();
-                }
-                self.error_info_value().map_or_else(
-                    || opt_get(&comp.options, "-errorinfo").unwrap_or_else(|| comp.result.clone()),
-                    Value::from_string_bytes,
-                )
-            }),
-            error_stack: (active_error && self.supports_error_stack())
-                .then(|| self.error_stack_for_completion(opt_get(&comp.options, "-errorstack"))),
-            error_line: (active_error && !self.uses_jim_error_stack())
-                .then(|| i64::from(self.error_line())),
-            during: None,
-        });
+        let error = if code == Code::Error {
+            let error_code = Some(resolved_error_code(self, comp)?);
+            let error_info = if active_error {
+                Some(match self.error_info_value() {
+                    Some(bytes) => Value::from_string_bytes(bytes),
+                    None => opt_get_checked(self, &comp.options, b"-errorinfo")?
+                        .unwrap_or_else(|| comp.result.clone()),
+                })
+            } else {
+                None
+            };
+            let error_stack = if active_error && self.supports_error_stack() {
+                let original = opt_get_checked(self, &comp.options, b"-errorstack")?;
+                Some(self.error_stack_for_completion(original))
+            } else {
+                None
+            };
+            Some(ErrorOptions {
+                error_code,
+                error_info,
+                error_stack,
+                error_line: (active_error && !self.uses_jim_error_stack())
+                    .then(|| i64::from(self.error_line())),
+                during: None,
+            })
+        } else {
+            None
+        };
         let rows = shared_options::plan_with_origin(
             self.runtime_version(),
             code,
@@ -3052,7 +3157,7 @@ impl Vm {
             &carried,
             error.as_ref(),
         );
-        Value::list(
+        Ok(Value::list(
             rows.into_iter()
                 .flat_map(|(key, value)| {
                     let value = match value {
@@ -3062,46 +3167,63 @@ impl Vm {
                     [Value::from_string_bytes(key), value]
                 })
                 .collect(),
-        )
+        ))
     }
 
     fn merged_completion_options_snapshot(
-        &self,
+        &mut self,
         comp: &Completion<Value>,
         options: &Value,
         code: i32,
         level: i64,
-    ) -> Value {
+    ) -> Result<Value, TclError> {
+        options
+            .check_native_header()
+            .map_err(|error| completion_option_failure(self, error))?;
         let strings = self
             .native_invocation_dialect()
             .native_string_protocol()
-            .expect("merged C return origin");
-        // Tcl_GetReturnOptions always duplicates the retained private header.
+            .ok_or_else(|| {
+                completion_option_failure(
+                    self,
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "merged return options",
+                    ),
+                )
+            })?;
         let original = options.duplicate_native_object_in(strings);
         let mut copied = original
             .prepare_native_dictionary(strings)
-            .expect("original merged Dictionary");
+            .map_err(|error| completion_option_failure(self, error))?;
         drop(original);
         let active_error = comp.code == Code::Error && level == 0;
-        let error = (code == 1).then(|| ErrorOptions {
-            error_code: Some(
-                self.native_return_error_code()
-                    .cloned()
-                    .unwrap_or_else(|| resolved_error_code(comp)),
-            ),
-            error_stack: (active_error && self.supports_error_stack())
-                .then(|| self.error_stack_for_completion(opt_get(&comp.options, "-errorstack"))),
-            error_info: active_error.then(|| {
+        let error = if code == 1 {
+            let error_code = match self.native_return_error_code().cloned() {
+                Some(value) => value,
+                None => resolved_error_code(self, comp)?,
+            };
+            let error_stack = if active_error && self.supports_error_stack() {
+                let original = opt_get_checked(self, &comp.options, b"-errorstack")?;
+                Some(self.error_stack_for_completion(original))
+            } else {
+                None
+            };
+            let error_info = active_error.then(|| {
                 self.native_return_error_info().cloned().unwrap_or_else(|| {
                     self.error_info_value()
                         .map_or_else(|| comp.result.clone(), Value::new_native_string_bytes)
                 })
-            }),
-            error_line: active_error.then(|| i64::from(self.error_line())),
-            during: None,
-        });
-        // Apply the shared native overlay to the duplicate. Existing keys
-        // keep their positions; new errorStack precedes errorCode/info/line.
+            });
+            Some(ErrorOptions {
+                error_code: Some(error_code),
+                error_stack,
+                error_info,
+                error_line: active_error.then(|| i64::from(self.error_line())),
+                during: None,
+            })
+        } else {
+            None
+        };
         let overlay = shared_options::plan_with_origin(
             self.runtime_version(),
             Code::from_int(code),
@@ -3117,34 +3239,46 @@ impl Vm {
             };
             copied
                 .set_member(Value::new_native_string_bytes(key), value)
-                .expect("native return-options overlay");
+                .map_err(|error| completion_option_failure(self, error))?;
         }
-        copied.into_value()
+        Ok(copied.into_value())
     }
 
-    /// Restore a frozen error completion after a successful `finally` body so
-    /// subsequent procedure unwinding extends the original stack.
-    pub(crate) fn restore_completion_error_state(&mut self, comp: &Completion<Value>) {
+    /// Restore only after checked original metadata access succeeds.
+    pub(crate) fn restore_completion_error_state(
+        &mut self,
+        comp: &Completion<Value>,
+    ) -> Result<(), TclError> {
         if comp.code != Code::Error {
-            return;
+            return Ok(());
         }
-        if let Some(original) = opt_get(&comp.options, "-errorcode") {
-            // This is an explicit frozen-completion restoration, not a fresh
-            // primitive conversion or an inferred code from diagnostic bytes.
-            self.restore_guest_error_code(original);
+        let code = opt_get_checked(self, &comp.options, b"-errorcode")?;
+        let original = opt_get_checked(self, &comp.options, b"-errorinfo")?
+            .unwrap_or_else(|| comp.result.clone());
+        let info = tcl_syntax::value::ValueOps::native_string_bytes(self, &original)
+            .map_err(|error| completion_option_failure(self, error))?;
+        let stack = opt_get_checked(self, &comp.options, b"-errorstack")?;
+        let line = match opt_get_checked(self, &comp.options, b"-errorline")? {
+            Some(value) => Some(
+                tcl_syntax::value::ValueOps::as_int(self, &value)
+                    .map_err(|error| completion_option_failure(self, error))?,
+            ),
+            None => None,
+        };
+        if let Some(code) = code {
+            self.restore_guest_error_code(code);
+            if let Some(cause) = self.execution_refusal.clone() {
+                return Err(TclError::from_execution_failure(cause));
+            }
         }
-        let original = opt_get(&comp.options, "-errorinfo").unwrap_or_else(|| comp.result.clone());
-        let info = original.string_bytes();
         self.seed_error_info_original(&original, &info);
-        if let Some(stack) = opt_get(&comp.options, "-errorstack") {
-            self.seed_error_stack(&stack);
+        if let Some(stack) = stack {
+            self.seed_error_stack(&stack)?;
         }
-        if let Some(line) = opt_get(&comp.options, "-errorline")
-            .and_then(|value| value.as_int().ok())
-            .and_then(|value| u32::try_from(value).ok())
-        {
+        if let Some(line) = line.and_then(|value| u32::try_from(value).ok()) {
             self.set_error_line(line);
         }
+        Ok(())
     }
 
     /// The `catch` epilogue, shared by the explicit-stack catch frame
@@ -3181,13 +3315,10 @@ impl Vm {
                 return comp;
             }
         }
-        let opts = self.completion_options_snapshot(&comp);
-        let error_meta = (comp.code == Code::Error).then(|| {
-            let einfo = opt_get(&opts, "-errorinfo")
-                .map_or_else(|| comp.result.string_bytes(), |value| value.string_bytes());
-            let ecode = opt_get(&opts, "-errorcode").unwrap_or_else(|| resolved_error_code(&comp));
-            (einfo, ecode)
-        });
+        let (opts, error_meta) = match self.checked_catch_options(&comp) {
+            Ok(captured) => captured,
+            Err(error) => return completion_from_tcl_error(self, error),
+        };
         let _ = self.take_error_info();
         if let Some(r) = resvar
             && let Err(e) = self.store_original_named_variable(r, comp.result.clone())
@@ -3218,19 +3349,37 @@ impl Vm {
     /// the `$errorInfo`/`$errorCode` globals) minus the variable binding,
     /// which the bytecode epilogue does itself from
     /// `PUSH_RESULT`/`PUSH_RETURN_CODE`/`PUSH_RETURN_OPTS`.
-    pub(crate) fn digest_catch_options(&mut self, comp: &Completion<Value>) -> Value {
-        if comp.code == Code::Error {
-            let opts = self.completion_options_snapshot(comp);
-            let einfo = opt_get(&opts, "-errorinfo")
-                .map_or_else(|| comp.result.string_bytes(), |value| value.string_bytes());
-            let ecode = opt_get(&opts, "-errorcode").unwrap_or_else(|| resolved_error_code(comp));
-            let _ = self.take_error_info();
-            self.publish_error(&einfo, &ecode);
-            opts
+    fn checked_catch_options(
+        &mut self,
+        comp: &Completion<Value>,
+    ) -> Result<(Value, Option<(std::rc::Rc<[u8]>, Value)>), TclError> {
+        let options = self.completion_options_snapshot(comp)?;
+        let metadata = if comp.code == Code::Error {
+            let info = opt_get_checked(self, &options, b"-errorinfo")?
+                .unwrap_or_else(|| comp.result.clone());
+            let bytes = tcl_syntax::value::ValueOps::native_string_bytes(self, &info)
+                .map_err(|error| completion_option_failure(self, error))?;
+            let code = match opt_get_checked(self, &options, b"-errorcode")? {
+                Some(code) => code,
+                None => resolved_error_code(self, comp)?,
+            };
+            Some((bytes, code))
         } else {
-            let _ = self.take_error_info();
-            completion_options(comp)
+            None
+        };
+        Ok((options, metadata))
+    }
+
+    pub(crate) fn digest_catch_options(
+        &mut self,
+        comp: &Completion<Value>,
+    ) -> Result<Value, TclError> {
+        let (options, metadata) = self.checked_catch_options(comp)?;
+        let _ = self.take_error_info();
+        if let Some((info, code)) = metadata {
+            self.publish_error(&info, &code);
         }
+        Ok(options)
     }
 }
 
@@ -3890,7 +4039,10 @@ mod tests {
             super::Value::string("-level"),
             super::Value::int(2),
         ]);
-        let replaced = super::with_return_level(&options, 1);
+        let mut vm = crate::native_fixture::interpreter(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
+        );
+        let replaced = super::with_return_level(&mut vm, &options, 1).unwrap();
         let pairs = replaced.as_list().unwrap();
         assert!(pairs[0].is_same_object(&key));
         assert!(pairs[1].is_same_object(&value));
@@ -5089,3 +5241,6 @@ mod native_apply_original_tests;
 #[cfg(test)]
 #[path = "command/native_static_original_tests.rs"]
 mod native_static_original_tests;
+
+#[cfg(test)]
+mod native_completion_option_tests;

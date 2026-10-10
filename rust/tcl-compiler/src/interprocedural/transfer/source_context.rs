@@ -71,6 +71,14 @@ impl OriginalSummaryScript {
     }
 }
 
+/// A complete selected original expression and its existing parent point.
+/// It grants only child source correspondence, never Native completion.
+#[derive(Clone)]
+pub(crate) struct OriginalSummaryExpression {
+    parent: CommandTokens,
+    base: u32,
+}
+
 pub(super) struct SourceSummaryContext<'a> {
     module: &'a Module,
     registry: &'a CommandRegistry,
@@ -176,6 +184,67 @@ impl<'a> SourceSummaryContext<'a> {
             }
         }
         selected
+    }
+
+    pub(super) fn expression(
+        &self,
+        parent: &CommandTokens,
+        expression: &crate::expr_ast::ExprNode,
+        base: Option<u32>,
+    ) -> Option<OriginalSummaryExpression> {
+        self.metadata(parent)?;
+        let mut pending = vec![parent.clone()];
+        let mut selected: Option<OriginalSummaryExpression> = None;
+        while let Some(tokens) = pending.pop() {
+            self.metadata(&tokens)?;
+            for written in 1..tokens.words().len() {
+                let Some(advice) =
+                    crate::registry_invocation::original_expression_operand_advice_for_word(
+                        self.registry,
+                        &tokens,
+                        written,
+                    )
+                else {
+                    continue;
+                };
+                if advice.expression != *expression
+                    || base.is_some_and(|base| base != advice.expression_base)
+                {
+                    continue;
+                }
+                let next = OriginalSummaryExpression {
+                    parent: tokens.clone(),
+                    base: advice.expression_base,
+                };
+                if selected.as_ref().is_some_and(|previous| {
+                    previous.base != next.base || previous.parent != next.parent
+                }) {
+                    return None;
+                }
+                selected = Some(next);
+            }
+            // Only a supplied original producer base permits descent through
+            // that parent's retained child inventory. Text/tree equality alone
+            // never locates a producer for an assembled expression.
+            if base.is_some() {
+                pending.extend(self.children(&tokens)?);
+            }
+        }
+        selected
+    }
+
+    pub(super) fn expression_substitution(
+        &self,
+        expression: &OriginalSummaryExpression,
+        script: &str,
+        start: u32,
+        end: u32,
+    ) -> Option<OriginalSummaryScript> {
+        let site = crate::ir::SourceSite::source(tcl_lexer::Span::new(
+            expression.base.checked_add(start)?,
+            expression.base.checked_add(end)?.checked_add(1)?,
+        ));
+        self.substitution(&expression.parent, &site, script)
     }
 
     pub(super) fn substitution(
@@ -320,8 +389,19 @@ impl<'a> SourceSummaryContext<'a> {
         qname: &str,
         statement: &Statement,
     ) -> Option<CommandTokens> {
-        let procedure = self.procedure(qname)?;
-        let mut pending = vec![&procedure.body];
+        let mut pending = Vec::new();
+        if let Some(procedure) = self.procedure(qname) {
+            pending.push(&procedure.body);
+        }
+        // This is the compilation unit's explicit top-level entry identity.
+        // A procedure also called ::top still needs its own genuine header;
+        // original statement extents and carriers distinguish the two roots.
+        if qname == "::top" {
+            pending.push(&self.module.top_level);
+        }
+        if pending.is_empty() {
+            return None;
+        }
         let mut found = None;
         while let Some(script) = pending.pop() {
             for original in &script.statements {
@@ -374,6 +454,235 @@ impl<'a> SourceSummaryContext<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_expression_fused_top_level_retains_its_existing_parent_record() {
+        // naming.expression.original-positioned-analysis-services
+        // docs/design/analysis/name-resolution-proofs/expression-original-positioned-analysis-services.md
+        // Retained top-level IR ownership, independently of any execution frame.
+        let (context, unit) = crate::interprocedural::logical_completion_unit(
+            "proc leaf {} {return 7}\nset answer [expr {[leaf] + 1}]",
+            "tcl8.6",
+        );
+        let module = &unit.ir_module;
+        let source =
+            SourceSummaryContext::for_module(module, context.commands(), module.lexer_config)
+                .unwrap();
+        let (statement, expression, base) = module
+            .top_level
+            .statements
+            .iter()
+            .find_map(|statement| match statement {
+                Statement::AssignExpr {
+                    expr,
+                    expr_base: Some(base),
+                    ..
+                } => Some((statement, expr, *base)),
+                _ => None,
+            })
+            .expect("genuine source-fused expression");
+        let parent = source
+            .statement_tokens("::top", statement)
+            .expect("retained outer set words");
+        let receipt = source
+            .expression(&parent, expression, Some(base))
+            .expect("genuine retained nested expr producer");
+        assert!(
+            source.expression(&parent, expression, None).is_none(),
+            "tree equality cannot recover an unspecified child producer"
+        );
+        let child = source
+            .expression_substitution(&receipt, "leaf", 0, 5)
+            .unwrap();
+        assert_eq!(child.base(), base + 1);
+        assert!(child.command_at(child.base()).is_some());
+    }
+
+    #[test]
+    fn original_expression_receipts_join_actual_literal_operand_and_child_extent() {
+        // naming.expression.original-positioned-analysis-services
+        // docs/design/analysis/name-resolution-proofs/expression-original-positioned-analysis-services.md
+        // Software source ancestry and byte extents, not Native Normal completion.
+        let (context, unit) = crate::interprocedural::logical_completion_unit(
+            "proc leaf {} {return 7}\ninterp alias {} e {} expr\nproc p {} {e {[leaf] + 1}; expr {\"é:[leaf]\" eq \"é:7\"}}",
+            "tcl8.6",
+        );
+        let module = &unit.ir_module;
+        let source =
+            SourceSummaryContext::for_module(module, context.commands(), module.lexer_config)
+                .unwrap();
+        let expressions: Vec<_> = source
+            .body_commands("::p")
+            .unwrap()
+            .into_iter()
+            .filter(|tokens| {
+                source
+                    .operation(tokens)
+                    .is_some_and(|operation| operation.facts.canonical_command == "expr")
+            })
+            .collect();
+        assert_eq!(expressions.len(), 2);
+        for (index, parent) in expressions.iter().enumerate() {
+            let advice = crate::registry_invocation::original_expression_operand_advice_for_word(
+                context.commands(),
+                parent,
+                1,
+            )
+            .expect("selected genuine literal expression operand");
+            let receipt = source
+                .expression(parent, &advice.expression, Some(advice.expression_base))
+                .expect("actual parent and complete original expression");
+            let relative = advice.expression_text.find("[leaf]").unwrap();
+            let start = u32::try_from(relative).unwrap();
+            let end = start + 5;
+            let child = source
+                .expression_substitution(&receipt, "leaf", start, end)
+                .expect("same original child and inclusive parser extent");
+            assert_eq!(child.base(), advice.expression_base + start + 1);
+            assert!(child.command_at(child.base()).is_some());
+            assert!(
+                source
+                    .expression_substitution(&receipt, "leaf", start, end + 1)
+                    .is_none()
+            );
+            assert!(
+                source
+                    .expression_substitution(&receipt, " leaf", start, end)
+                    .is_none()
+            );
+            assert!(
+                source
+                    .expression(parent, &advice.expression, Some(advice.expression_base + 1))
+                    .is_none()
+            );
+            assert!(
+                source
+                    .expression(
+                        parent,
+                        &crate::expr_parser::parse_expr("0", None),
+                        Some(advice.expression_base)
+                    )
+                    .is_none()
+            );
+            assert!(
+                source
+                    .expression(parent, &advice.expression, None)
+                    .is_some(),
+                "literal assembled operand {index}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_expression_receipts_refuse_cooked_and_foreign_producers() {
+        // naming.expression.original-positioned-analysis-services
+        // docs/design/analysis/name-resolution-proofs/expression-original-positioned-analysis-services.md
+        // Whole source receipt refusal; no command-table or execution inference.
+        let (context, unit) = crate::interprocedural::logical_completion_unit(
+            "proc leaf {} {return 7}\nproc p {} {expr {[leaf]} + 1}",
+            "tcl8.6",
+        );
+        let module = &unit.ir_module;
+        let source =
+            SourceSummaryContext::for_module(module, context.commands(), module.lexer_config)
+                .unwrap();
+        let parent = source
+            .body_commands("::p")
+            .unwrap()
+            .into_iter()
+            .find(|tokens| {
+                source
+                    .operation(tokens)
+                    .is_some_and(|operation| operation.facts.canonical_command == "expr")
+            })
+            .unwrap();
+        let assembled = crate::expr_parser::parse_expr("[leaf] + 1", None);
+        assert!(source.expression(&parent, &assembled, None).is_none());
+        let (foreign_context, foreign) = crate::interprocedural::logical_completion_unit(
+            "proc leaf {} {return 8}\nproc p {} {expr {[leaf] + 1}}",
+            "tcl8.6",
+        );
+        let foreign_source = SourceSummaryContext::for_module(
+            &foreign.ir_module,
+            foreign_context.commands(),
+            foreign.ir_module.lexer_config,
+        )
+        .unwrap();
+        let foreign_parent = foreign_source
+            .body_commands("::p")
+            .unwrap()
+            .into_iter()
+            .find(|tokens| {
+                foreign_source
+                    .operation(tokens)
+                    .is_some_and(|operation| operation.facts.canonical_command == "expr")
+            })
+            .unwrap();
+        let foreign_advice =
+            crate::registry_invocation::original_expression_operand_advice_for_word(
+                foreign_context.commands(),
+                &foreign_parent,
+                1,
+            )
+            .unwrap();
+        assert!(
+            source
+                .expression(
+                    &foreign_parent,
+                    &foreign_advice.expression,
+                    Some(foreign_advice.expression_base)
+                )
+                .is_none(),
+            "independent whole source image cannot borrow this Module owner"
+        );
+    }
+
+    #[test]
+    fn original_expression_receipts_refuse_captured_and_shadowed_producers() {
+        // naming.expression.original-positioned-analysis-services
+        // docs/design/analysis/name-resolution-proofs/expression-original-positioned-analysis-services.md
+        // No source producer can be invented from captured argv or a reported head.
+        let assembled = crate::expr_parser::parse_expr("[leaf] + 1", None);
+        let (captured_context, captured_unit) = crate::interprocedural::logical_completion_unit(
+            "proc leaf {} {return 7}\ninterp alias {} e {} expr {[leaf] + 1}\nproc p {} {e}",
+            "tcl8.6",
+        );
+        let captured = SourceSummaryContext::for_module(
+            &captured_unit.ir_module,
+            captured_context.commands(),
+            captured_unit.ir_module.lexer_config,
+        )
+        .unwrap();
+        let captured_parent = captured
+            .body_commands("::p")
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+        assert!(
+            captured
+                .expression(&captured_parent, &assembled, None)
+                .is_none(),
+            "captured argv without a retained original expression producer cannot donate a written operand"
+        );
+        let (shadow_context, shadow_unit) = crate::interprocedural::logical_completion_unit(
+            "proc expr {args} {return 0}\nproc p {} {expr {[leaf] + 1}}",
+            "tcl8.6",
+        );
+        let shadow = SourceSummaryContext::for_module(
+            &shadow_unit.ir_module,
+            shadow_context.commands(),
+            shadow_unit.ir_module.lexer_config,
+        )
+        .unwrap();
+        let parent = shadow
+            .body_commands("::p")
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+        assert!(shadow.expression(&parent, &assembled, None).is_none());
+    }
 
     #[test]
     fn original_transfer_call_keeps_selected_procedure_and_captured_operands_together() {

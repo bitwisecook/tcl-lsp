@@ -1180,10 +1180,15 @@ fn selected_operand_error_code(dialect: NumericContext<'_>, mut error: TclError)
     if error.is_guest_error()
         && let Some(policy) = policy
     {
-        let existing = error.error_code_bytes();
-        error.set_error_code(
-            policy.select_invalid_type_code(existing.as_deref().unwrap_or(b"NONE")),
-        );
+        let existing = match error.error_code_bytes() {
+            Ok(code) => code,
+            Err(cause) => return cause.into(),
+        };
+        if let Err(cause) = error
+            .set_error_code(policy.select_invalid_type_code(existing.as_deref().unwrap_or(b"NONE")))
+        {
+            return cause.into();
+        }
     }
     error
 }
@@ -1199,13 +1204,16 @@ pub(crate) fn boolean_operand_error<'a>(
     {
         error
     } else {
-        let error = boolean_context_err(
-            error
-                .message_bytes()
-                .expect("guest operand failure")
-                .to_vec(),
-        );
-        if error.error_code_bytes().as_deref() == Some(errors::NAN_CODE.as_bytes()) {
+        let message = match error.message_bytes() {
+            Ok(bytes) => bytes,
+            Err(cause) => return cause.into(),
+        };
+        let error = boolean_context_err(message.to_vec());
+        let code = match error.error_code_bytes() {
+            Ok(code) => code,
+            Err(cause) => return cause.into(),
+        };
+        if code.as_deref() == Some(errors::NAN_CODE.as_bytes()) {
             error
         } else {
             selected_operand_error_code(dialect, error)
@@ -1276,7 +1284,12 @@ pub(crate) fn native_boolean<'a>(
             )
         });
     }
-    if let Ok(number) = native_num(dialect, value) {
+    let number = match native_num(dialect, value) {
+        Ok(number) => Some(number),
+        Err(error) if error.is_host() => return Err(error),
+        Err(_) => None,
+    };
+    if let Some(number) = number {
         return match number {
             Num::Int(number) => Ok(number != 0),
             Num::Dbl(number) if number.is_nan() => Err(TclError::with_error_code(
@@ -1338,18 +1351,22 @@ fn native_operand(
         } else {
             tcl_registry::native_numeric_error::NativeExpressionOperandStage::FloatingPoint
         };
+        let message = match error.message_bytes() {
+            Ok(message) => message,
+            Err(cause) => return cause.into(),
+        };
         let error = if let Some(error) = expression_operand_error(dialect, stage, value) {
             error
-        } else if error
-            .message_bytes()
-            .is_ok_and(|message| message.as_ref() == b"integer value too large to represent")
-        {
+        } else if message.as_ref() == b"integer value too large to represent" {
             return TclError::with_error_code(
                 format!(
                     "can't use integer value too large to represent as operand of \"{}\"",
                     op.as_str()
                 ),
-                error.error_code_bytes().unwrap_or_default(),
+                match error.error_code_bytes() {
+                    Ok(code) => code.unwrap_or_default(),
+                    Err(cause) => return cause.into(),
+                },
             );
         } else {
             context_operand_error(dialect, value, side, op.as_str())
@@ -1459,13 +1476,13 @@ fn native_literal(dialect: NumericContext<'_>, text: &str) -> Result<Value, TclE
     match native_num(dialect, &Value::string(text)) {
         Ok(Num::Int(value)) => Ok(Value::int(value)),
         Ok(Num::Dbl(value)) if !value.is_nan() => Ok(Value::double(value)),
-        Err(error)
-            if error.message_bytes().is_ok_and(|message| {
-                message.as_ref() == b"integer value too large to represent"
-            }) =>
-        {
-            Err(error)
-        }
+        Err(error) => match error.message_bytes() {
+            Ok(message) if message.as_ref() == b"integer value too large to represent" => {
+                Err(error)
+            }
+            Ok(_) => Ok(Value::string(text)),
+            Err(cause) => Err(cause.into()),
+        },
         _ => Ok(Value::string(text)),
     }
 }
@@ -2332,7 +2349,7 @@ mod tests {
             b"can't use non-numeric string as operand of \"+\""
         );
         assert_eq!(
-            error.error_code_bytes().as_deref(),
+            error.error_code_bytes().unwrap().as_deref(),
             Some(b"NONE".as_slice())
         );
         assert!(invalid.integer_representation().is_none());
@@ -2345,7 +2362,7 @@ mod tests {
             b"expected boolean value but got \"bad\xff\0tail\""
         );
         assert_eq!(
-            boolean.error_code_bytes().as_deref(),
+            boolean.error_code_bytes().unwrap().as_deref(),
             Some(b"NONE".as_slice())
         );
         let float = unary_in(context, UnaryOp::BitNot, &Value::double(1.5))
@@ -2355,7 +2372,7 @@ mod tests {
             b"can't use floating-point value as operand of \"~\""
         );
         assert_eq!(
-            float.error_code_bytes().as_deref(),
+            float.error_code_bytes().unwrap().as_deref(),
             Some(b"NONE".as_slice())
         );
         let older_native =
@@ -2378,7 +2395,7 @@ mod tests {
                     .starts_with(b"can't use floating-point value as operand of")
             );
             assert_eq!(
-                error.error_code_bytes().as_deref(),
+                error.error_code_bytes().unwrap().as_deref(),
                 Some(b"ARITH DOMAIN {floating-point value}".as_slice())
             );
         }
@@ -2390,7 +2407,7 @@ mod tests {
             b"cannot use non-numeric string \"bad\" as left operand of \"+\""
         );
         assert_eq!(
-            error.error_code_bytes().as_deref(),
+            error.error_code_bytes().unwrap().as_deref(),
             Some(b"ARITH DOMAIN {non-numeric string}".as_slice())
         );
     }
@@ -2408,20 +2425,20 @@ mod tests {
             );
             if version == tcl_dialect::TclVersion::V8_4 {
                 assert_eq!(
-                    arithmetic.error_code_bytes().as_deref(),
+                    arithmetic.error_code_bytes().unwrap().as_deref(),
                     Some(b"NONE".as_slice())
                 );
                 assert_eq!(
-                    boolean.error_code_bytes().as_deref(),
+                    boolean.error_code_bytes().unwrap().as_deref(),
                     Some(b"NONE".as_slice())
                 );
             } else {
                 assert_eq!(
-                    arithmetic.error_code_bytes().as_deref(),
+                    arithmetic.error_code_bytes().unwrap().as_deref(),
                     Some(b"ARITH DOMAIN {non-numeric string}".as_slice())
                 );
                 assert_eq!(
-                    boolean.error_code_bytes().as_deref(),
+                    boolean.error_code_bytes().unwrap().as_deref(),
                     Some(b"TCL VALUE NUMBER".as_slice())
                 );
             }

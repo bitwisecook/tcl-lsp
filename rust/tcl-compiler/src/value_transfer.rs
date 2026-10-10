@@ -740,29 +740,6 @@ enum CallRerun {
     Waiting,
 }
 
-/// Each argument word of a call statement as the driver reads it — its
-/// literal value, `None` for one that substitutes — or `None` where a word
-/// expands, so no word's position is known.
-pub(crate) fn call_literal_words(
-    args: &[String],
-    tokens: Option<&CommandTokens>,
-    config: &LexerConfig,
-) -> Option<Vec<Option<String>>> {
-    let cooked = call_arguments(args, tokens, config);
-    if cooked
-        .iter()
-        .any(|word| word.kind == InvocationWordKind::Expanded)
-    {
-        return None;
-    }
-    Some(
-        literal_words(&cooked)
-            .into_iter()
-            .map(|word| word.map(str::to_owned))
-            .collect(),
-    )
-}
-
 /// The step each place a call statement's `Name` arguments name takes from
 /// its callee's transfer summary, the callee resolved from `function` under
 /// the shared lattice's trust: what the read-before-set check reads of the
@@ -1752,6 +1729,8 @@ impl<'a> LatticeDriver<'a> {
             written_arguments: (0..cooked.len())
                 .map(|index| call.arguments.written_argument(index))
                 .collect(),
+            expression_base: None,
+            expression_source: RefCell::new(None),
             nested_source: RefCell::new(None),
             driver: self,
             prior_writes: prior.to_vec(),
@@ -2358,6 +2337,8 @@ impl<'a> LatticeDriver<'a> {
             let inputs = LatticeInputs {
                 original: None,
                 written_arguments: Vec::new(),
+                expression_base: None,
+                expression_source: RefCell::new(None),
                 nested_source: RefCell::new(None),
                 driver: self,
                 prior_writes: Vec::new(),
@@ -2470,6 +2451,8 @@ impl<'a> LatticeDriver<'a> {
         let inputs = LatticeInputs {
             original: None,
             written_arguments: Vec::new(),
+            expression_base: None,
+            expression_source: RefCell::new(None),
             nested_source: RefCell::new(None),
             driver: self,
             prior_writes: Vec::new(),
@@ -2765,6 +2748,8 @@ impl<'a> LatticeDriver<'a> {
         let inputs = LatticeInputs {
             original: None,
             written_arguments: Vec::new(),
+            expression_base: None,
+            expression_source: RefCell::new(None),
             nested_source: RefCell::new(None),
             driver: self,
             prior_writes: Vec::new(),
@@ -3251,17 +3236,30 @@ impl<'a> LatticeDriver<'a> {
         host: &SsaStatement,
         lattice: Lattice<'_, S1, S2>,
     ) -> Option<EmbeddedAnswer> {
+        let original = self.original_expression_parent(&host.statement);
         let ordered = match &host.statement {
             Statement::AssignExpr {
                 expr,
                 command_binding,
+                expr_base,
                 ..
-            } => self.ordered_expression(expr, command_binding.as_ref(), lattice)?,
+            } => self.ordered_expression(
+                expr,
+                command_binding.as_ref(),
+                original.as_ref().zip(*expr_base),
+                lattice,
+            )?,
             Statement::ExprEval {
                 expr,
                 command_binding,
+                expr_base,
                 ..
-            } => self.ordered_expression(expr, Some(command_binding), lattice)?,
+            } => self.ordered_expression(
+                expr,
+                Some(command_binding),
+                original.as_ref().zip(*expr_base),
+                lattice,
+            )?,
             Statement::AssignValue { value, .. } => {
                 self.ordered_script(value, &host.statement, lattice)?
             }
@@ -3353,6 +3351,7 @@ impl<'a> LatticeDriver<'a> {
         &self,
         expr: &ExprNode,
         command_binding: Option<&tcl_runtime_api::CommandBindingIdentity>,
+        original: Option<(&CommandTokens, u32)>,
         (uses, values, ssa): Lattice<'_, S1, S2>,
     ) -> Option<Ordered> {
         let head = command_binding.map_or("expr", |binding| binding.name.as_str());
@@ -3369,7 +3368,7 @@ impl<'a> LatticeDriver<'a> {
                 command_binding.map_or("expr", |binding| binding.identity.as_str()),
             )),
         };
-        let answer = self.evaluate_expression_at(&expression, uses, values, ssa);
+        let answer = self.evaluate_expression_at(&expression, original, uses, values, ssa);
         self.explain(head, Some(expression.route()), answer_label(&answer));
         if let LiftedAnswer::Evaluated(outcomes) = &answer {
             self.explain_paths(outcome_paths(outcomes, None));
@@ -3490,6 +3489,18 @@ impl<'a> LatticeDriver<'a> {
         Some(self.defs_from_placed(&placed, None, defs, input))
     }
 
+    pub(crate) const fn source_lexer_config(&self) -> LexerConfig {
+        self.lexer_config
+    }
+
+    pub(crate) fn original_expression_parent(
+        &self,
+        statement: &Statement,
+    ) -> Option<CommandTokens> {
+        self.module?
+            .original_statement_tokens(self.function, statement)
+    }
+
     /// The inputs of an expression that has no operand words of its own:
     /// it reads every variable by name, at the versions `lattice` selects.
     fn expression_inputs<'i, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
@@ -3499,6 +3510,8 @@ impl<'a> LatticeDriver<'a> {
         LatticeInputs {
             original: None,
             written_arguments: Vec::new(),
+            expression_base: None,
+            expression_source: RefCell::new(None),
             nested_source: RefCell::new(None),
             driver: self,
             prior_writes: Vec::new(),
@@ -3687,8 +3700,19 @@ impl<'a> LatticeDriver<'a> {
             Statement::ExprEval {
                 expr,
                 command_binding,
+                expr_base,
                 ..
-            } => Some(self.evaluate_expr_eval(expr, command_binding, &stmt_ssa.uses, values, ssa)),
+            } => {
+                let original = self.original_expression_parent(&stmt_ssa.statement);
+                Some(self.evaluate_expr_eval(
+                    expr,
+                    command_binding,
+                    original.as_ref().zip(*expr_base),
+                    &stmt_ssa.uses,
+                    values,
+                    ssa,
+                ))
+            }
             _ => None,
         };
         self.explaining(None);
@@ -3701,6 +3725,7 @@ impl<'a> LatticeDriver<'a> {
         &self,
         expr: &ExprNode,
         command_binding: &tcl_runtime_api::CommandBindingIdentity,
+        original: Option<(&CommandTokens, u32)>,
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
@@ -3710,7 +3735,7 @@ impl<'a> LatticeDriver<'a> {
             return normal();
         }
         let Some(ordered) =
-            self.ordered_expression(expr, Some(command_binding), (uses, values, ssa))
+            self.ordered_expression(expr, Some(command_binding), original, (uses, values, ssa))
         else {
             return normal();
         };
@@ -3781,6 +3806,8 @@ impl<'a> LatticeDriver<'a> {
         let inputs = LatticeInputs {
             original: None,
             written_arguments: Vec::new(),
+            expression_base: None,
+            expression_source: RefCell::new(None),
             nested_source: RefCell::new(None),
             driver: self,
             prior_writes: Vec::new(),
@@ -3942,6 +3969,8 @@ impl<'a> LatticeDriver<'a> {
         let mut inputs = LatticeInputs {
             original: original.cloned(),
             written_arguments,
+            expression_base: None,
+            expression_source: RefCell::new(None),
             nested_source: RefCell::new(None),
             driver: self,
             prior_writes: Vec::new(),
@@ -4243,6 +4272,8 @@ impl<'a> LatticeDriver<'a> {
         let mut inputs = LatticeInputs {
             original: original.cloned(),
             written_arguments,
+            expression_base: None,
+            expression_source: RefCell::new(None),
             nested_source: RefCell::new(None),
             driver: self,
             prior_writes: prior,
@@ -4632,6 +4663,8 @@ impl<'a> LatticeDriver<'a> {
         let inputs = LatticeInputs {
             original: original.cloned(),
             written_arguments,
+            expression_base: None,
+            expression_source: RefCell::new(None),
             nested_source: RefCell::new(None),
             driver: self,
             prior_writes: from
@@ -4890,6 +4923,7 @@ impl<'a> LatticeDriver<'a> {
         &self,
         expr: &ExprNode,
         command_binding: Option<&tcl_runtime_api::CommandBindingIdentity>,
+        original: Option<(&CommandTokens, u32)>,
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
@@ -4909,7 +4943,7 @@ impl<'a> LatticeDriver<'a> {
                 command_binding.map_or("expr", |binding| binding.identity.as_str()),
             )),
         };
-        let answer = self.evaluate_expression_at(&expression, uses, values, ssa);
+        let answer = self.evaluate_expression_at(&expression, original, uses, values, ssa);
         self.explain(head, Some(expression.route()), answer_label(&answer));
         if let LiftedAnswer::Evaluated(outcomes) = &answer {
             self.explain_paths(outcome_paths(outcomes, None));
@@ -4935,6 +4969,7 @@ impl<'a> LatticeDriver<'a> {
     pub(crate) fn evaluate_condition<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         condition: &ExprNode,
+        original: Option<(&CommandTokens, u32)>,
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
@@ -4946,7 +4981,7 @@ impl<'a> LatticeDriver<'a> {
             nested: NestedPolicy::EffectFreeOnly,
             head: None,
         };
-        let answer = self.evaluate_expression_at(&expression, uses, values, ssa);
+        let answer = self.evaluate_expression_at(&expression, original, uses, values, ssa);
         self.explain("condition", Some(expression.route()), answer_label(&answer));
         let LiftedAnswer::Evaluated(outcomes) = answer else {
             return None;
@@ -4995,11 +5030,16 @@ impl<'a> LatticeDriver<'a> {
     fn evaluate_expression_at<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         expression: &ExpressionEvaluation<'_>,
+        original: Option<(&CommandTokens, u32)>,
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
     ) -> LiftedAnswer {
-        let inputs = self.expression_inputs((uses, values, ssa));
+        let mut inputs = self.expression_inputs((uses, values, ssa));
+        if let Some((parent, base)) = original {
+            inputs.original = Some(parent.clone());
+            inputs.expression_base = Some(base);
+        }
         evaluate_lifted(expression, &inputs, &mut self.budget(), MAX_CONSTSET_SIZE)
     }
 }
@@ -5390,8 +5430,26 @@ impl AnalysisInputs for DetachedExpressionInputs<'_, '_> {
         }
     }
 
+    fn nested_expression_at(
+        &self,
+        script: &str,
+        _start: u32,
+        _end: u32,
+        state: &mut EvaluationState,
+    ) -> EvalAnswer {
+        if self.driver.module.is_some() {
+            EvalAnswer::Declined(DeclineReason::NotExact)
+        } else {
+            self.nested(script, state)
+        }
+    }
+
     fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
         self.driver.math_function(name)
+    }
+
+    fn source_lexer_config(&self) -> Option<LexerConfig> {
+        Some(self.driver.lexer_config)
     }
 
     fn context(&self) -> &AnalysisContext {
@@ -5659,6 +5717,29 @@ enum Expression<'e> {
     Parsed(&'e ExprNode),
 }
 
+fn expression_lexer_config(input: &dyn AnalysisInputs) -> LexerConfig {
+    input
+        .source_lexer_config()
+        .unwrap_or_else(|| LexerConfig::from_grammar(input.context().grammar))
+}
+
+fn expression_parse_context(
+    input: &dyn AnalysisInputs,
+) -> tcl_syntax::expr::parser::ExprParseContext {
+    use tcl_syntax::expr::parser::{ExprParseContext, NativeExprSyntax};
+    let mut parser = input.context().profile.map_or(
+        ExprParseContext {
+            lexer_grammar: input.context().grammar,
+            expr_grammar_base: None,
+            f5_word_grammar: None,
+            native_syntax: NativeExprSyntax::Unknown,
+        },
+        ExprParseContext::for_profile,
+    );
+    parser.lexer_grammar = expression_lexer_config(input).grammar_over(input.context().grammar);
+    parser
+}
+
 /// The expression route as the lift runs it: the shared engine over the
 /// analysis services ([`evaluate_expression`]), so a finite input the
 /// expression reads is pinned per member like any route's operand.
@@ -5703,7 +5784,7 @@ impl CommandSemantics for ExpressionEvaluation<'_> {
         match &self.expression {
             Expression::Assembled(route) => route.variable_reads(input),
             Expression::Parsed(node) => {
-                let config = LexerConfig::for_profile(input.context().profile);
+                let config = expression_lexer_config(input);
                 let mut reads: Vec<String> = node
                     .vars_element_qualified_with_config(config)
                     .into_iter()
@@ -5726,11 +5807,15 @@ impl CommandSemantics for ExpressionEvaluation<'_> {
                     Ok(text) => text,
                     Err(reason) => return EvalAnswer::Declined(reason),
                 };
-                assembled = crate::expr_parser::parse_expr_for_profile(text, self.policy.dialect);
+                assembled = crate::expr_parser::parse_expr_with_syntax_context(
+                    text,
+                    &expression_parse_context(input),
+                );
                 &assembled
             }
             Expression::Parsed(node) => *node,
         };
+        input.prepare_expression_source(node);
         // The operand words substituted before the engine parses them, and
         // the writes their commands made, come first.
         let mut state = input
@@ -6287,6 +6372,8 @@ fn identity_of(key: ValueKey) -> ValueIdentity {
 struct LatticeInputs<'a, S1, S2> {
     original: Option<CommandTokens>,
     written_arguments: Vec<Option<usize>>,
+    expression_base: Option<u32>,
+    expression_source: RefCell<Option<crate::interprocedural::OriginalSummaryExpression>>,
     nested_source: RefCell<Option<crate::interprocedural::OriginalSummaryScript>>,
     driver: &'a LatticeDriver<'a>,
     view: ResolvedInvocationView<'a>,
@@ -6676,6 +6763,37 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
         self.driver.nested_answer(script, state, self)
     }
 
+    fn prepare_expression_source(&self, expression: &ExprNode) {
+        *self.expression_source.borrow_mut() = self.driver.module.and_then(|module| {
+            module.original_expression(self.original.as_ref()?, expression, self.expression_base)
+        });
+    }
+
+    fn nested_expression_at(
+        &self,
+        script: &str,
+        start: u32,
+        end: u32,
+        state: &mut EvaluationState,
+    ) -> EvalAnswer {
+        if let Some(module) = self.driver.module {
+            let original = self
+                .expression_source
+                .borrow()
+                .as_ref()
+                .and_then(|expression| {
+                    module.original_expression_substitution(expression, script, start, end)
+                });
+            let Some(original) = original else {
+                return EvalAnswer::Declined(DeclineReason::NotExact);
+            };
+            *self.nested_source.borrow_mut() = Some(original);
+        }
+        let answer = self.driver.nested_answer(script, state, self);
+        *self.nested_source.borrow_mut() = None;
+        answer
+    }
+
     fn word_state(&self) -> Option<EvaluationState> {
         match &self.words {
             Words::Independent => None,
@@ -6691,6 +6809,10 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
 
     fn parameter_default(&self, procedure: &str, parameter: &str) -> ParameterDefault {
         self.driver.parameter_default(procedure, parameter)
+    }
+
+    fn source_lexer_config(&self) -> Option<LexerConfig> {
+        Some(self.driver.lexer_config)
     }
 
     fn context(&self) -> &AnalysisContext {
@@ -6778,21 +6900,8 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
         self.substituted_in(text, &mut state, Some(argument))
     }
 
-    /// A substituted word's value: its parts' values concatenated — the
-    /// literal runs decoded under the document's grammar, each variable
-    /// read at this statement's use version, each script through the
-    /// nested service under the effect-free policy. A lone variable read
-    /// keeps the variable's own fact, identity included, so the lift can
-    /// pin it. A part that is never exact makes the word never exact; else
-    /// a pending part makes it pending.
-    fn substituted(&self, text: &str) -> FactView {
-        let mut state = EvaluationState::new(NestedPolicy::EffectFreeOnly);
-        self.substituted_in(text, &mut state, None)
-    }
-
-    /// [`Self::substituted`] under `state`: a variable reads what the state's
-    /// writes leave it, and a script's writes join the state in order, so a
-    /// later part sees them.
+    /// Evaluate a genuine original argument under `state`: variable reads
+    /// observe preceding writes and checked child scripts update that same state.
     fn substituted_in(
         &self,
         text: &str,
@@ -7237,12 +7346,30 @@ impl AnalysisInputs for StateInputs<'_> {
         self.run_nested(script)
     }
 
+    fn nested_expression_at(
+        &self,
+        script: &str,
+        _start: u32,
+        _end: u32,
+        state: &mut EvaluationState,
+    ) -> EvalAnswer {
+        if self.driver.module.is_some() {
+            EvalAnswer::Declined(DeclineReason::NotExact)
+        } else {
+            self.nested(script, state)
+        }
+    }
+
     fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
         self.driver.math_function(name)
     }
 
     fn parameter_default(&self, procedure: &str, parameter: &str) -> ParameterDefault {
         self.driver.parameter_default(procedure, parameter)
+    }
+
+    fn source_lexer_config(&self) -> Option<LexerConfig> {
+        Some(self.driver.lexer_config)
     }
 
     fn context(&self) -> &AnalysisContext {
@@ -8536,7 +8663,7 @@ pub(crate) fn evaluate_over_x(text: &str, nested: NestedPolicy) -> LiftedAnswer 
         ((x, 1), LatticeValue::Const(ConstValue::Int(1))),
         ((g, 1), LatticeValue::Const(ConstValue::Int(5))),
     ]);
-    driver.evaluate_expression_at(&expression, &uses, &values, &ssa)
+    driver.evaluate_expression_at(&expression, None, &uses, &values, &ssa)
 }
 
 #[cfg(test)]
@@ -9474,7 +9601,7 @@ mod tests {
         let uses: HashMap<Symbol, Version> = HashMap::new();
         let values: HashMap<ValueKey, LatticeValue> = HashMap::new();
         let LiftedAnswer::Evaluated(outcomes) =
-            driver.evaluate_expression_at(&expression, &uses, &values, &ssa)
+            driver.evaluate_expression_at(&expression, None, &uses, &values, &ssa)
         else {
             panic!("the expression evaluates");
         };
@@ -9778,6 +9905,136 @@ mod tests {
         assert!(!answers[1].preserved && answers[1].stated);
     }
 
+    struct PositionedExpressionInputs<'a> {
+        inner: &'a dyn AnalysisInputs,
+        config: LexerConfig,
+        calls: RefCell<Vec<(String, u32, u32)>>,
+        prepared: RefCell<Option<ExprNode>>,
+    }
+
+    impl AnalysisInputs for PositionedExpressionInputs<'_> {
+        fn invocation(&self) -> &ResolvedInvocationView<'_> {
+            self.inner.invocation()
+        }
+        fn operand(&self, id: OperandId, domain: FactDomain) -> FactView {
+            self.inner.operand(id, domain)
+        }
+        fn place(&self, id: OperandId) -> Result<PlaceRef, DeclineReason> {
+            self.inner.place(id)
+        }
+        fn variable(&self, name: &str, domain: FactDomain) -> FactView {
+            if name == "a{b" && domain == FactDomain::ExactValue {
+                FactView::Exact(ExactValue::from_literal("7"), None)
+            } else {
+                self.inner.variable(name, domain)
+            }
+        }
+        fn prior_store(&self, place: &PlaceRef, domain: FactDomain) -> FactView {
+            self.inner.prior_store(place, domain)
+        }
+        fn word_structure(&self, id: OperandId) -> Result<WordStructure, DeclineReason> {
+            self.inner.word_structure(id)
+        }
+        fn body(&self, id: OperandId) -> Result<BodyRegion, DeclineReason> {
+            self.inner.body(id)
+        }
+        fn nested(&self, _script: &str, _state: &mut EvaluationState) -> EvalAnswer {
+            panic!("positioned expression must retain its actual parser extent")
+        }
+        fn nested_expression_at(
+            &self,
+            script: &str,
+            start: u32,
+            end: u32,
+            _state: &mut EvaluationState,
+        ) -> EvalAnswer {
+            self.calls.borrow_mut().push((script.into(), start, end));
+            EvalAnswer::Evaluated(Box::new(InvocationOutcome {
+                completion: CompletionOutcome::Normal,
+                result: ExactValueOrUnavailable::Exact(ExactValue::from_literal("7")),
+                nested_writes: Vec::new(),
+                ordered_stores: Vec::new(),
+                types: TypeFacts::default(),
+                evidence: DependencyEvidence::default(),
+            }))
+        }
+        fn source_lexer_config(&self) -> Option<LexerConfig> {
+            Some(self.config)
+        }
+        fn prepare_expression_source(&self, expression: &ExprNode) {
+            *self.prepared.borrow_mut() = Some(expression.clone());
+        }
+        fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
+            self.inner.math_function(name)
+        }
+        fn context(&self) -> &AnalysisContext {
+            self.inner.context()
+        }
+    }
+
+    #[test]
+    fn expression_services_forward_full_config_and_inclusive_unicode_child_positions() {
+        // naming.expression.original-positioned-analysis-services
+        // docs/design/analysis/name-resolution-proofs/expression-original-positioned-analysis-services.md
+        // Test inputs supply a software result; this proves callback/config transport only.
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let inner =
+            tcl_registry::value_transfer::LiteralInputs::new("expr", None, &[], Some(profile));
+        let config = LexerConfig {
+            expand_syntax: false,
+            braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+            ..LexerConfig::for_profile(Some(profile))
+        };
+        let inputs = PositionedExpressionInputs {
+            inner: &inner,
+            config,
+            calls: RefCell::new(Vec::new()),
+            prepared: RefCell::new(None),
+        };
+        let identity = ValueIdentity(1);
+        let member = ExactValue::from_literal("unused");
+        let pinned = tcl_registry::value_transfer::PinnedInputs::new(&inputs, identity, &member);
+        assert_eq!(pinned.source_lexer_config(), Some(config));
+        for (text, result, expected) in [
+            ("[leaf] + 1", "8", Some((0, 5))),
+            (r#""é:[leaf]" eq "é:7""#, "1", Some((4, 9))),
+            (r#""${a{b}" eq "7""#, "1", None),
+        ] {
+            inputs.calls.borrow_mut().clear();
+            let node = crate::expr_parser::parse_expr_with_syntax_context(
+                text,
+                &expression_parse_context(&pinned),
+            );
+            let mut budget = Budget::evaluation();
+            let evaluation = ExpressionEvaluation {
+                expression: Expression::Parsed(&node),
+                policy: FoldPolicy::for_profile(None, Some(profile)),
+                nested: NestedPolicy::EffectFreeOnly,
+                head: None,
+            };
+            let answer = evaluation.evaluate(&pinned, &mut budget);
+            let EvalAnswer::Evaluated(outcome) = answer else {
+                panic!("actual grammar services: {text}: {answer:?}")
+            };
+            let ExactValueOrUnavailable::Exact(value) = outcome.result else {
+                panic!("software result")
+            };
+            assert_eq!(value.bytes, result.as_bytes());
+            assert_eq!(inputs.prepared.borrow().as_ref(), Some(&node));
+            let calls = inputs.calls.borrow();
+            assert_eq!(
+                calls.as_slice(),
+                expected
+                    .map(|(start, end)| vec![("leaf".into(), start, end)])
+                    .unwrap_or_default()
+            );
+        }
+        assert_eq!(
+            profile.grammar.braced_var,
+            tcl_dialect::BracedVarStyle::Tcl9Nesting
+        );
+    }
+
     /// Inputs whose nested script `boom` raises an error after the writes
     /// made so far, and which answer every other request through `inner`.
     struct RaisesOnBoom<'a>(&'a dyn AnalysisInputs);
@@ -9875,6 +10132,8 @@ mod tests {
         let inputs = LatticeInputs {
             original: None,
             written_arguments: Vec::new(),
+            expression_base: None,
+            expression_source: RefCell::new(None),
             nested_source: RefCell::new(None),
             driver: &driver,
             prior_writes: Vec::new(),

@@ -2673,9 +2673,8 @@ mod tests {
             string_is_member_type_for_dialect(&["integer", "-failindex", "out", "VALUE"], c90),
             None
         );
-        let jim = crate::InvocationDialect::of_profile(
-            tcl_dialect::DialectProfile::find("jimtcl").unwrap(),
-        );
+        let jim =
+            crate::InvocationDialect::of_profile(crate::native_test_provider::profile("jimtcl"));
         assert_eq!(
             string_is_member_type_for_dialect(&["integer", "-strict", "VALUE"], jim),
             None
