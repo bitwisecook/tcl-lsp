@@ -4681,6 +4681,81 @@ impl RegistryInvocationShape {
         }
     }
 
+    /// Query conditional source descriptors at this same retained original point.
+    /// The selected schema supplies syntax and warning metadata only, never a
+    /// live handler, effects, completed reads or Native compilation authority.
+    pub(crate) fn with_source_schema<T>(
+        &self,
+        registry: &CommandRegistry,
+        context: InvocationMetadataContext<'_>,
+        tokens: &CommandTokens,
+        apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
+    ) -> Option<T> {
+        let binding = tokens.source_binding.as_ref()?;
+        let point = binding
+            .original_invocation_metadata_at_point(tokens, registry)
+            .ok()??;
+        context.source_analysis_input()?;
+        point.source_analysis_input()?;
+        if !context.matches_registry(registry)
+            || point.context() != context.context()
+            || point.source_analysis_input() != context.source_analysis_input()
+        {
+            return None;
+        }
+        let assistance = original_registry_invocation_assistance_with_metadata_context(
+            registry,
+            Some(point),
+            tokens,
+        )?;
+        assistance.unanimous_command_words()?;
+        if !assistance.candidates.contains(self) {
+            return None;
+        }
+        let original = binding.original_compilation_lookup_advice(tokens)?;
+        let config = binding.original_lexer_config_for_tokens(tokens)?;
+        let dialect = tcl_registry::InvocationDialect {
+            lexer_grammar: config.grammar_over(original.dialect().lexer_grammar),
+            word_values: WordValueRules::from_config(&config),
+            ..original.dialect()
+        };
+        let values: Vec<_> = self
+            .effective
+            .words
+            .iter()
+            .zip(&self.effective.origins)
+            .map(|(word, origin)| match origin {
+                InvocationWordOrigin::BindingPrefix(index) => {
+                    self.effective.binding_prefix.get(*index).cloned()
+                }
+                _ => Some(effective_invocation_word(
+                    word,
+                    config.escapes,
+                    dialect.word_values,
+                )),
+            })
+            .collect::<Option<_>>()?;
+        let words: Vec<_> = self
+            .effective
+            .words
+            .iter()
+            .zip(&values)
+            .map(|(word, value)| {
+                invocation_word_with_source(word, value, dialect.lexer_grammar.escapes)
+            })
+            .collect();
+        let selected =
+            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                registry,
+                Some(point.context()),
+                InvocationWords::structured(*words.first()?, &words[1..]).with_dialect(dialect),
+                original.realm(),
+            );
+        let selected = selected.resolved()?;
+        (selected.facts().canonical_command == self.command).then_some(())?;
+        apply(&selected)
+    }
+
     /// Original written operands mentioned by this possible candidate.
     /// These roles grant assistance only, not reads, stores or body execution.
     #[must_use]

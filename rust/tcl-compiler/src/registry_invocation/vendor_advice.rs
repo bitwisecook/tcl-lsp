@@ -114,6 +114,39 @@ impl VendorRegistryInvocationShape {
         self.source_transitions.as_ref()
     }
 
+    /// Requery the original hosted source schema under its complete owner.
+    /// This grants conditional warning/syntax metadata, not a loaded handler,
+    /// accepted argv, physical variable access or Native execution.
+    pub(crate) fn with_source_schema<T>(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        context: super::InvocationMetadataContext<'_>,
+        apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
+    ) -> Option<T> {
+        let input = context.source_analysis_input()?;
+        if !input.has_hosted_source_name_context()
+            || input.lexer_config().normalized() != self.head.lexer_config().normalized()
+            || input
+                .vendor_source_policy()
+                .is_some_and(|policy| policy != self.head.policy())
+        {
+            return None;
+        }
+        if !context.matches_registry(registry)
+            || context.context() != &self.context
+            || registry.snapshot().semantic_key() != self.registry
+        {
+            return None;
+        }
+        with_vendor_source_schema(
+            registry,
+            context.context(),
+            &self.head,
+            &self.original,
+            apply,
+        )
+    }
+
     /// Nominal traits for source assistance, never actual handler effects.
     #[must_use]
     pub const fn possible_traits(&self) -> tcl_registry::Traits {
@@ -133,10 +166,45 @@ pub fn vendor_registry_invocation_shape(
     head: &VendorSourceNameInput,
     original: &[NativeWord],
 ) -> Option<VendorRegistryInvocationShape> {
+    let registry = context.commands();
+    with_vendor_source_schema(registry, context.context(), head, original, |selected| {
+        let (roles, roles_complete) = selected.authored_source_argument_roles();
+        let facts = selected.facts();
+        Some(VendorRegistryInvocationShape {
+            head: head.clone(),
+            context: context.context().clone(),
+            registry: registry.snapshot().semantic_key(),
+            original: Arc::from(original),
+            command: facts.canonical_command.clone(),
+            roles,
+            argument_offset: facts.argument_offset,
+            roles_complete,
+            possible_traits: facts.traits,
+            source_transitions: selected
+                .semantics
+                .state_transitions
+                .is_declared()
+                .then(|| selected.state_transitions()),
+            navigation: selected.authored_source_navigation_operand(),
+            rule_procedure_operand: selected.authored_source_rule_procedure_operand(),
+            possible_receivers: (0..original.len().saturating_sub(1))
+                .map(|argument| selected.authored_source_variable_receiver_operand_form(argument))
+                .collect(),
+        })
+    })
+}
+
+fn with_vendor_source_schema<T>(
+    registry: &tcl_registry::CommandRegistry,
+    context: &ResolvedContext,
+    head: &VendorSourceNameInput,
+    original: &[NativeWord],
+    apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
+) -> Option<T> {
     // Implementation contract: naming.vendor.original-registry-metadata
     // docs/design/analysis/name-resolution-proofs/vendor-original-registry-metadata.md
     if tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::for_environment(
-        &context.context().environment.id,
+        &context.environment.id,
     ) != Some(head.policy().context())
         || original.first()? != head.original_word()
         || original.iter().any(|word| {
@@ -166,37 +234,13 @@ pub fn vendor_registry_invocation_shape(
         .and_then(|value| std::str::from_utf8(value).ok())
         .map_or(InvocationWord::Dynamic, InvocationWord::Literal)
     }));
-    let registry = context.commands();
     let selected = tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
         registry,
-        Some(context.context()),
+        Some(context),
         tcl_registry::InvocationWords::structured(words[0], &words[1..]),
         tcl_dialect::model::InvocationRealm::RuleLoader,
     );
-    let selected = selected.resolved()?;
-    let (roles, roles_complete) = selected.authored_source_argument_roles();
-    let facts = selected.facts();
-    Some(VendorRegistryInvocationShape {
-        head: head.clone(),
-        context: context.context().clone(),
-        registry: registry.snapshot().semantic_key(),
-        original: Arc::from(original),
-        command: facts.canonical_command.clone(),
-        roles,
-        argument_offset: facts.argument_offset,
-        roles_complete,
-        possible_traits: facts.traits,
-        source_transitions: selected
-            .semantics
-            .state_transitions
-            .is_declared()
-            .then(|| selected.state_transitions()),
-        navigation: selected.authored_source_navigation_operand(),
-        rule_procedure_operand: selected.authored_source_rule_procedure_operand(),
-        possible_receivers: (0..original.len().saturating_sub(1))
-            .map(|argument| selected.authored_source_variable_receiver_operand_form(argument))
-            .collect(),
-    })
+    apply(&selected.resolved()?)
 }
 
 #[cfg(test)]

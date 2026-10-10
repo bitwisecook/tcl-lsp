@@ -1,0 +1,11 @@
+        case INFO_COMPLETE: {
+                char missing;
+
+                Jim_SetResultBool(interp, Jim_ScriptIsComplete(interp, argv[2], &missing));
+                if (missing != ' ' && argc == 4) {
+                    Jim_SetVariable(interp, argv[3], Jim_NewStringObj(interp, &missing, 1));
+                }
+                return JIM_OK;
+            }
+
+        case INFO_HOSTNAME:

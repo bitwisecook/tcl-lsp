@@ -174,10 +174,29 @@ impl TclError {
         match self {
             Self::Host(cause) => Err(cause.clone().into()),
             Self::Guest(completion) => {
-                tcl_syntax::value::ValueOps::native_string_bytes(vm, &completion.result)
-                    .map_err(|error| crate::command::completion_option_failure(vm, error))
+                let bytes =
+                    tcl_syntax::value::ValueOps::native_string_bytes(vm, &completion.result)
+                        .map_err(|error| crate::command::completion_option_failure(vm, error))?;
+                completion
+                    .result
+                    .check_native_header()
+                    .map_err(|error| crate::command::completion_option_failure(vm, error))?;
+                if let Some(cause) = vm.execution_refusal.clone() {
+                    return Err(TclError::from_execution_failure(cause));
+                }
+                Ok(bytes)
             }
         }
+    }
+
+    /// Read a retained completion at the actual getter, then require host Unicode.
+    ///
+    /// # Errors
+    /// Preserves the first Host cause and original bytes when Unicode is unavailable.
+    pub fn message_unicode_in(&self, vm: &mut crate::Vm) -> Result<std::rc::Rc<str>, TclError> {
+        RawString::from_bytes(self.message_bytes_in(vm)?.as_ref())
+            .unicode()
+            .map_err(|error| crate::command::completion_option_failure(vm, error))
     }
 
     /// Resident authored error-code bytes; unavailable backing is a failure,
@@ -800,5 +819,58 @@ mod checked_projection_tests {
             matches!(error.message_bytes_in(&mut vm), Err(TclError::Host(TclHostFailure::Execution(NativeExecutionError::ValueAccessRefusal(retained)))) if retained == cause)
         );
         assert!(original.resident_string_bytes().is_none());
+        assert!(
+            matches!(error.message_unicode_in(&mut vm), Err(TclError::Host(TclHostFailure::Execution(NativeExecutionError::ValueAccessRefusal(retained)))) if retained == cause)
+        );
+        assert!(original.resident_string_bytes().is_none());
+    }
+
+    #[test]
+    fn original_completion_unicode_keeps_counted_nul_and_refuses_non_utf8() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual getter and host display controls, independent of Native source admission.
+        for code in [Code::Ok, Code::Error] {
+            let mut vm = native();
+            let original = Value::from_string_bytes(b"DISPLAY\0TAIL");
+            let completion =
+                TclError::from_completion(Completion::new(code, original.clone(), Value::empty()));
+            assert_eq!(
+                completion.message_unicode_in(&mut vm).unwrap().as_ref(),
+                "DISPLAY\0TAIL"
+            );
+            assert!(
+                completion
+                    .guest_completion()
+                    .unwrap()
+                    .result
+                    .is_same_object(&original)
+            );
+
+            let original = Value::from_string_bytes(b"DISPLAY\xffTAIL");
+            let completion =
+                TclError::from_completion(Completion::new(code, original.clone(), Value::empty()));
+            let expected = NativeValueAccessRefusal::from(UnicodeAccessError {
+                valid_up_to: 7,
+                error_len: Some(1),
+            });
+            assert!(
+                matches!(completion.message_unicode_in(&mut vm), Err(TclError::Host(TclHostFailure::Execution(NativeExecutionError::ValueAccessRefusal(cause)))) if cause == expected)
+            );
+            assert_eq!(
+                original.resident_string_bytes().unwrap().as_ref(),
+                b"DISPLAY\xffTAIL"
+            );
+            assert!(
+                completion
+                    .guest_completion()
+                    .unwrap()
+                    .result
+                    .is_same_object(&original)
+            );
+            assert!(
+                matches!(completion.message_unicode_in(&mut vm), Err(TclError::Host(TclHostFailure::Execution(NativeExecutionError::ValueAccessRefusal(cause)))) if cause == expected)
+            );
+        }
     }
 }

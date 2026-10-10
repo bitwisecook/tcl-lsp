@@ -268,7 +268,7 @@ fn run_script(vm: &mut Vm, src: &str) -> i32 {
     match result {
         Ok(comp) if comp.code.is_ok() => 0,
         Ok(comp) => {
-            vm.report_stderr_text(&comp.result.to_str());
+            report_eval_error(vm, &tcl_vm::TclError::from_completion(comp));
             1
         }
         Err(e) => {
@@ -279,9 +279,13 @@ fn run_script(vm: &mut Vm, src: &str) -> i32 {
 }
 
 fn report_eval_error(vm: &mut Vm, error: &tcl_vm::TclError) {
-    match error.message_unicode() {
+    match error.message_unicode_in(vm) {
         Ok(message) => vm.report_stderr_text(&message),
-        Err(host) => vm.report_stderr_text(&host.to_string()),
+        Err(failure) => match failure.message_unicode() {
+            // A getter's guest failure is already an independently retained completion.
+            Ok(message) => vm.report_stderr_text(&message),
+            Err(host) => vm.report_stderr_text(&host.to_string()),
+        },
     }
 }
 
@@ -379,13 +383,17 @@ fn repl_loop<R: std::io::BufRead, W: Write>(vm: &mut Vm, reader: &mut R, out: &m
         }
         match result {
             Ok(comp) if comp.code.is_ok() => {
-                let result = comp.result.to_str();
-                if !result.is_empty() {
-                    let _ = vm.write_stdout_text(&result, true);
+                let result = tcl_vm::TclError::from_completion(comp);
+                match result.message_unicode_in(vm) {
+                    Ok(text) if !text.is_empty() => {
+                        let _ = vm.write_stdout_text(&text, true);
+                    }
+                    Ok(_) => {}
+                    Err(error) => report_eval_error(vm, &error),
                 }
             }
             Ok(comp) => {
-                vm.report_stderr_text(&comp.result.to_str());
+                report_eval_error(vm, &tcl_vm::TclError::from_completion(comp));
             }
             Err(e) => {
                 report_eval_error(vm, &e);
@@ -455,6 +463,30 @@ mod tests {
         let out = drive("set x 5\nexpr {$x + 1}\n");
         assert!(out.contains("% 5"), "set result not echoed: {out:?}");
         assert!(out.contains('6'), "var did not persist: {out:?}");
+    }
+
+    #[test]
+    fn repl_uses_original_result_getter_and_preserves_counted_nul_output() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Distribution CLI owner and original result/header; no Native-provider comparison.
+        let bytes = Rc::new(RefCell::new(Vec::new()));
+        let capture = Capture(Rc::clone(&bytes));
+        let mut vm = build_vm(Box::new(capture.clone()), &Options::default());
+        let number = Value::int(17);
+        assert!(number.resident_string_bytes().is_none());
+        vm.set_var("number", number.clone()).unwrap();
+        let original = Value::from_string_bytes(b"DISPLAY\0TAIL");
+        vm.set_var("original", original.clone()).unwrap();
+        let mut reader = std::io::Cursor::new(b"set number\nset original\n");
+        let mut out = capture;
+        assert_eq!(repl_loop(&mut vm, &mut reader, &mut out), 0);
+        let output = bytes.borrow();
+        assert!(output.windows(2).any(|window| window == b"17"));
+        assert!(output.windows(12).any(|window| window == b"DISPLAY\0TAIL"));
+        assert_eq!(number.resident_string_bytes().unwrap().as_ref(), b"17");
+        assert!(vm.get_var("number").unwrap().is_same_object(&number));
+        assert!(vm.get_var("original").unwrap().is_same_object(&original));
     }
 
     #[test]

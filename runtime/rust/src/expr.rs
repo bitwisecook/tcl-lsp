@@ -31,6 +31,9 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
+mod native_numeric;
+use native_numeric::NumericOperation;
+
 use core::cmp::Ordering;
 
 use std::rc::Rc;
@@ -1205,58 +1208,90 @@ impl ExprOps for TowerOps<'_> {
         }
     }
 
-    fn compare_numeric(&mut self, left: &Owned, right: &Owned) -> Option<NumericCompare> {
-        let dialect = self.ctx.invocation_dialect();
-        if dialect
-            .arithmetic()
-            .is_some_and(|policy| policy != tcl_dialect::NativeArithmetic::TclBignum)
-        {
-            // Tcl 8.4 compares an oversized string lexically, but coerces an
-            // in-range unsigned-wide value before comparing it with a float.
-            let numeric_host = self.ctx.numeric_host();
-            let environment = numeric_host
-                .as_ref()
-                .and_then(|host| host.numeric_environment());
-            let left_integer =
-                fixed_integer_with_environment(left.ptr(), dialect, environment).ok()?;
-            let right_integer =
-                fixed_integer_with_environment(right.ptr(), dialect, environment).ok()?;
-            let left_integer = left_integer.map(|value| Owned::fresh(obj::new_wide_int_obj(value)));
-            let right_integer =
-                right_integer.map(|value| Owned::fresh(obj::new_wide_int_obj(value)));
-            prepare_scalar_operand(left.ptr(), dialect).ok()?;
-            prepare_scalar_operand(right.ptr(), dialect).ok()?;
-            return bignum::compare(
-                left_integer.as_ref().unwrap_or(left).ptr(),
-                right_integer.as_ref().unwrap_or(right).ptr(),
-            );
-        }
-        bignum::compare(left.ptr(), right.ptr())
+    fn compare_numeric(&mut self, _left: &Owned, _right: &Owned) -> Option<NumericCompare> {
+        // Executable object classification requires the fallible owner below.
+        None
+    }
+
+    fn compare_numeric_checked(
+        &mut self,
+        left: &Owned,
+        right: &Owned,
+    ) -> Result<Option<NumericCompare>, ExprError> {
+        let operation = NumericOperation::enter(self.ctx)?;
+        let result = operation.with_environment(|environment| {
+            let dialect = operation.dialect();
+            let fixed = dialect
+                .arithmetic()
+                .is_some_and(|policy| policy != tcl_dialect::NativeArithmetic::TclBignum);
+            let classify = |value: &Owned| -> Result<Option<Owned>, ExprError> {
+                if fixed {
+                    match fixed_integer_with_currency(
+                        value.ptr(),
+                        dialect,
+                        environment,
+                        operation.currency(),
+                    ) {
+                        Ok(Some(integer)) => {
+                            return Ok(Some(Owned::fresh(obj::new_wide_int_obj(integer))))
+                        }
+                        Ok(None) => {}
+                        Err(error)
+                            if error.native_execution_refusal.is_some()
+                                || error.native_access_refusal.is_some() =>
+                        {
+                            return Err(error)
+                        }
+                        Err(_) => return Ok(None),
+                    }
+                }
+                operation
+                    .number(value.ptr())?
+                    .map(native_numeric::kernel_operand)
+                    .transpose()
+            };
+            let Some(left) = classify(left)? else {
+                return Ok(None);
+            };
+            let Some(right) = classify(right)? else {
+                return Ok(None);
+            };
+            Ok(bignum::compare(left.ptr(), right.ptr()))
+        });
+        operation.after(result)
     }
     fn compare_string(&mut self, left: &Owned, right: &Owned) -> Result<Ordering, ExprError> {
-        let model = self.ctx.invocation_dialect().characters.ok_or_else(|| {
-            ExprError::host_refusal(
-                tcl_syntax::raw_string::NativeValueAccessRefusal::CharacterModelUnavailable,
-            )
-        })?;
-        let counts = if model == tcl_dialect::StringCharacterModel::Jim084Utf8 {
-            (
-                obj::jim_character_count(left.ptr()),
-                obj::jim_character_count(right.ptr()),
-            )
-        } else {
-            (0, 0)
-        };
-        let left = tcl_syntax::raw_string::RawString::from_bytes(obj::bytes_of(left.ptr()));
-        let right = tcl_syntax::raw_string::RawString::from_bytes(obj::bytes_of(right.ptr()));
-        left.compare_character_units(model, &right, counts)
-            .map_err(ExprError::host_refusal)
+        let operation = NumericOperation::enter(self.ctx)?;
+        let result = (|| {
+            let model = operation.dialect().characters.ok_or_else(|| {
+                ExprError::host_refusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CharacterModelUnavailable,
+                )
+            })?;
+            let left_bytes = operation.string(left.ptr())?;
+            let right_bytes = operation.string(right.ptr())?;
+            let counts = if model == tcl_dialect::StringCharacterModel::Jim084Utf8 {
+                (
+                    obj::jim_character_count(left.ptr()),
+                    obj::jim_character_count(right.ptr()),
+                )
+            } else {
+                (0, 0)
+            };
+            let left = tcl_syntax::raw_string::RawString::from_bytes(left_bytes);
+            let right = tcl_syntax::raw_string::RawString::from_bytes(right_bytes);
+            left.compare_character_units(model, &right, counts)
+                .map_err(ExprError::host_refusal)
+        })();
+        operation.after(result)
     }
     fn equal_string(&mut self, left: &Owned, right: &Owned) -> Result<bool, ExprError> {
         if self.ctx.invocation_dialect().characters
             == Some(tcl_dialect::StringCharacterModel::Jim084Utf8)
         {
-            return Ok(obj::bytes_of(left.ptr()) == obj::bytes_of(right.ptr()));
+            let operation = NumericOperation::enter(self.ctx)?;
+            let result = (|| Ok(operation.string(left.ptr())? == operation.string(right.ptr())?))();
+            return operation.after(result);
         }
         Ok(self.compare_string(left, right)?.is_eq())
     }
@@ -1645,8 +1680,26 @@ fn fixed_integer_with_environment(
     dialect: tcl_registry::InvocationDialect,
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
 ) -> Result<Option<i64>, ExprError> {
+    fixed_integer_with_currency(value, dialect, environment, None)
+}
+fn fixed_integer_with_currency(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    environment: Option<&dyn tcl_platform::NumericEnvironment>,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+) -> Result<Option<i64>, ExprError> {
+    let check_current = || {
+        currency.map_or(Ok(()), |currency| {
+            currency
+                .ensure_current_or_refuse()
+                .map_err(ExprError::from_execution_refusal)
+        })
+    };
+    check_current()?;
     let Some(policy) = dialect.arithmetic() else {
-        return Err(ExprError::msg(b"unknown native arithmetic policy"));
+        return Err(ExprError::host_refusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
+        ));
     };
     if policy == tcl_dialect::NativeArithmetic::Tcl84Wide {
         let protocol = dialect.native_scalar_getter_protocol().ok_or_else(|| {
@@ -1654,11 +1707,11 @@ fn fixed_integer_with_environment(
                 tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
             )
         })?;
-        let current = obj::native_scalar_cache(value).map_err(|error| {
+        let cache = obj::native_scalar_cache(value).map_err(|error| {
             ExprError::host_refusal(error.native_access_refusal().expect("scalar cache refusal"))
         })?;
         let integer = matches!(
-            &current,
+            &cache,
             Some(
                 tcl_syntax::scalar_getter::NativeScalarCache::Tcl84Long(_)
                     | tcl_syntax::scalar_getter::NativeScalarCache::Number(
@@ -1667,21 +1720,21 @@ fn fixed_integer_with_environment(
             )
         );
         let absent_double = matches!(
-            &current,
+            &cache,
             Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(
                 tcl_syntax::number::Number::Double(_) | tcl_syntax::number::Number::Nan { .. }
             ))
         ) && !obj::has_string_rep(value);
+        if !integer && !absent_double && currency.is_some() && environment.is_none() {
+            return Err(ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
+            ));
+        }
         if !integer && !absent_double {
-            let original =
-                crate::bytearray::scalar_getter_string(value, protocol).map_err(|error| {
-                    ExprError::host_refusal(
-                        error
-                            .native_access_refusal()
-                            .expect("original scalar String access refusal"),
-                    )
-                })?;
-            let cached_wide = current
+            let original = crate::bytearray::scalar_getter_string(value, protocol);
+            check_current()?;
+            let original = original.map_err(|error| ExprError::from_cmd_error(error.into()))?;
+            let cached_wide = cache
                 .as_ref()
                 .map(|cache| {
                     protocol.cached_conversion(
@@ -1700,33 +1753,30 @@ fn fixed_integer_with_environment(
             if let Some(environment) = environment.filter(|_| {
                 protocol.expression_integer_spelling84(&original) && cached_wide.is_none()
             }) {
-                tcl_cmd_core::native_numeric::fresh_c84_conversion(
+                let converted = tcl_cmd_core::native_numeric::fresh_c84_conversion(
                     protocol,
                     tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
                     &original,
                     environment,
-                )
-                .map_err(|error| {
-                    ExprError::host_refusal(
-                        error.native_access_refusal().expect("numeric host refusal"),
-                    )
-                })?;
+                );
+                check_current()?;
+                converted.map_err(|error| ExprError::from_cmd_error(error.into()))?;
             }
             if !protocol.expression_integer_spelling84(&original) && environment.is_some() {
-                let _ = crate::typed_value::native_scalar_probe_with_environment(
-                    value,
-                    dialect,
-                    tcl_syntax::scalar_getter::NativeScalarGetterKind::Double,
-                    environment,
-                )
-                .map_err(|error| {
-                    ExprError::host_refusal(
-                        error.native_access_refusal().expect("numeric host refusal"),
-                    )
-                })?;
+                let converted =
+                    crate::typed_value::native_scalar_probe_with_environment_and_currency(
+                        value,
+                        dialect,
+                        tcl_syntax::scalar_getter::NativeScalarGetterKind::Double,
+                        environment,
+                        currency,
+                    );
+                check_current()?;
+                let _ = converted.map_err(|error| ExprError::from_cmd_error(error.into()))?;
             }
+
             if let Some(conversion) =
-                protocol.expression_integer_conversion84(current.as_ref(), &original)
+                protocol.expression_integer_conversion84(cache.as_ref(), &original)
             {
                 let (_, cache, outcome) = conversion.into_parts();
                 if let Some(cache) = cache {
@@ -1735,6 +1785,7 @@ fn fixed_integer_with_environment(
                             error.native_access_refusal().expect("scalar cache refusal"),
                         )
                     })?;
+                    check_current()?;
                 }
                 if outcome.is_err() {
                     // This preflight selected the integer conversion, not the
@@ -1744,8 +1795,9 @@ fn fixed_integer_with_environment(
             }
         }
     }
-    let parsed =
-        crate::typed_value::scalar_number(value, dialect, true).map_err(ExprError::host_refusal)?;
+    let parsed = crate::typed_value::scalar_number_with_currency(value, dialect, true, currency);
+    check_current()?;
+    let parsed = parsed.map_err(ExprError::from_execution_refusal)?;
     parsed
         .filter(|number| {
             matches!(

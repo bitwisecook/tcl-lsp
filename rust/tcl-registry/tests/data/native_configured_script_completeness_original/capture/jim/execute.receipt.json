@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/tmp/grammar-info-complete-request452/probe.tcl"
+  ],
+  "cwd": "/tmp/native-info-complete-original452-capture/jim",
+  "started_utc": "2026-10-10T23:30:06.195109+00:00",
+  "elapsed_seconds": 0.003510587994242087,
+  "returncode": 0,
+  "timed_out": false,
+  "stdout": {
+    "path": "/tmp/native-info-complete-original452-capture/jim/execute.stdout",
+    "resolved_path": "/tmp/native-info-complete-original452-capture/jim/execute.stdout",
+    "bytes": 1087,
+    "sha256": "94b1067b61b60faabf341c59e74fc3d2159d0162ce08432189d4ea88f97422f1"
+  },
+  "stderr": {
+    "path": "/tmp/native-info-complete-original452-capture/jim/execute.stderr",
+    "resolved_path": "/tmp/native-info-complete-original452-capture/jim/execute.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

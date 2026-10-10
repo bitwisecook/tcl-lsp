@@ -7,7 +7,7 @@
 use super::{
     CommandRegistry, CommandTokens, EffectiveCommandWords, EffectiveInvocationWord, InvocationWord,
     InvocationWords, RegistryInvocationResolution, effective_invocation_word,
-    effective_words_for_target, frozen_argument_words, resolve_registry_words_in_realm,
+    effective_words_for_target, frozen_argument_words,
     resolve_registry_words_in_realm_with_metadata_context,
 };
 use tcl_registry::hooks::LoweringHookId;
@@ -228,7 +228,7 @@ pub(crate) fn declaration_invocation_flow(
                 })
             })
         {
-            retain_declared_caller_alias_operands(&mut selected, registry, advice)?;
+            retain_declared_caller_alias_operands(&mut selected, registry, metadata, advice)?;
         }
         if agreed
             .as_ref()
@@ -379,6 +379,7 @@ pub(crate) fn declared_argument_words(
 fn retain_declared_caller_alias_operands(
     selected: &mut DeclarationInvocationFlow,
     registry: &CommandRegistry,
+    metadata: Option<super::InvocationMetadataContext<'_>>,
     advice: &crate::command_binding::OriginalCompilationLookupAdvice,
 ) -> Option<()> {
     use tcl_registry::state_transition::{
@@ -387,6 +388,8 @@ fn retain_declared_caller_alias_operands(
     let dialect = advice.dialect();
     // Formal provenance belongs to the unchanged source operand. A frozen
     // actual name must not replace that indexed input in a caller template.
+    // Reuse the caller's checked point metadata; only its explicit Standalone
+    // owner can supply None, and a failed supplied-owner check never reaches us.
     let original = selected
         .effective
         .words
@@ -400,8 +403,14 @@ fn retain_declared_caller_alias_operands(
         .map(EffectiveInvocationWord::as_registry_word)
         .collect::<Vec<_>>();
     let RegistryInvocationResolution::Resolved(facts) =
-        resolve_registry_words_in_realm(registry, None, &words, Some(dialect), advice.realm())
-            .ok()?
+        resolve_registry_words_in_realm_with_metadata_context(
+            registry,
+            metadata,
+            &words,
+            Some(dialect),
+            advice.realm(),
+        )
+        .ok()?
     else {
         return None;
     };

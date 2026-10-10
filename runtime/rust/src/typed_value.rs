@@ -440,6 +440,33 @@ pub(crate) fn scalar_number(
     dialect: tcl_registry::InvocationDialect,
     integer_only: bool,
 ) -> Result<Option<tcl_syntax::number::Number>, tcl_syntax::raw_string::NativeValueAccessRefusal> {
+    scalar_number_impl(value, dialect, integer_only, || Ok(()))
+}
+
+/// Original arithmetic preparation checks its entered owner after reached
+/// String access and before parsing or publishing a numeric primary.
+/// Neutral mathematical callers explicitly supply no entered interpreter.
+pub(crate) fn scalar_number_with_currency(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    integer_only: bool,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+) -> Result<Option<tcl_syntax::number::Number>, tcl_runtime_api::NativeExecutionError> {
+    scalar_number_impl(value, dialect, integer_only, || {
+        currency.map_or(Ok(()), |currency| currency.ensure_current_or_refuse())
+    })
+}
+
+// One preparation algorithm serves the neutral utility and the entered owner.
+// The entered check retains its full first Host cause; it is not an access-only
+// projection and cannot panic when a reached updater refuses execution.
+fn scalar_number_impl<E: From<tcl_syntax::raw_string::NativeValueAccessRefusal>>(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    integer_only: bool,
+    current: impl Fn() -> Result<(), E>,
+) -> Result<Option<tcl_syntax::number::Number>, E> {
+    current()?;
     obj::check_native_liveness(value).map_err(|error| {
         error
             .native_access_refusal()
@@ -469,7 +496,8 @@ pub(crate) fn scalar_number(
             != Some(tcl_dialect::TclVersion::V8_4)
         {
             return Err(
-                tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
+                tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable
+                    .into(),
             );
         }
         return Ok(Some(Number::Int(obj::wide_of(value))));
@@ -477,7 +505,9 @@ pub(crate) fn scalar_number(
     if obj::obj_type_ptr(value) == &obj::TCL_DOUBLE_TYPE {
         return Ok((!integer_only).then(|| Number::Double(obj::double_of(value))));
     }
-    let original = scalar_input_bytes(value, dialect)?;
+    let original = scalar_input_bytes(value, dialect);
+    current()?;
+    let original = original?;
     let Some(text) = core::str::from_utf8(policy.input_bytes(&original)).ok() else {
         return Ok(None);
     };
@@ -487,7 +517,7 @@ pub(crate) fn scalar_number(
         return Ok(None);
     };
     if policy == NativeScalarNumericInputPolicy::NulTerminatedJim084 {
-        use tcl_syntax::expr::mathfunc::{NumValue, jim_numeric_operand};
+        use tcl_syntax::expr::mathfunc::{jim_numeric_operand, NumValue};
         let Some(number) = jim_numeric_operand::<tcl_syntax::expr::mathfunc::NoBig>(&parsed) else {
             return Ok(None);
         };
@@ -502,7 +532,9 @@ pub(crate) fn scalar_number(
             ),
             NumValue::Big(uninhabited) => match uninhabited {},
         };
+        current()?;
         obj::adopt_native_numeric_representation(value, representation);
+        current()?;
         return Ok(Some(number));
     }
     Ok(Some(parsed))

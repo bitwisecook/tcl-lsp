@@ -9849,3 +9849,27 @@ removes its original receipt without clearing the Host cause.
 VM consumers use `boolean_for_vm` for reached operand instructions, `expression_boolean_for_vm` for a genuine outer expression-result producer, and `normalize_numeric_instruction_for_vm` for an actually reached C numeric-conversion instruction. The last operation always performs its conversion, independently of a Boolean condition's optimiser removal, and performs no public expression API copy. An instruction is selected from `NativeExpressionResultProducer`; absence of a Boolean `production()` describes that explicit numeric-instruction producer, not missing authority.
 
 `ExprEval::finish_expression_result` is fallible and performs the public expression API result producer. `ExprEval::finish` retains raw fixed-math call completion for its enclosing expression. Keep those purposes distinct. Checked VM publication retains the real interpreter result owner; a diagnostic's rendered bytes cannot substitute for the retained `CmdError`, actual error-code update or first Host cause. Authored numeric simulation follows its explicitly selected logical provider and grants no original C or Jim cache behaviour.
+
+### Numeric comparison and operational failures
+
+Executable `ExprOps` adapters implement `compare_numeric_checked`. A successful
+`None` permits lexical comparison; an operational failure returns the original
+typed error and stops before the lexical getter. The shared expression walker
+and portable math operators use this same seam. The default implementation is
+for explicit mathematical adapters without Host callbacks or executable object
+storage. Native adapters must retain their actual object lifetime and selected
+execution context.
+
+Runtime comparison enters `NativeOperationScope` before the first original
+getter. It checks the inherited original currency after callbacks and before
+parsing, cache changes, a second operand or output. Accepted numeric magnitudes
+become typed temporary inputs to the existing arithmetic kernel, which prevents
+an ambient grammar from reparsing an operand rejected by the selected owner.
+Neutral utilities explicitly supply no interpreter currency; they grant no
+native getter, command, source or object authority.
+
+Use a real original updater or retired header to verify failure transport and
+ensure a later operand or lexical getter is not reached. Keep genuine nonnumeric
+acceptance separate from operational failures. Software adapter tests establish
+that contract; external Tcl and Jim observations require their own closed
+provider evidence.

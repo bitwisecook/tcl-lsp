@@ -1,0 +1,133 @@
+static int JimParseStr(struct JimParserCtx *pc)
+{
+    if (pc->tt == JIM_TT_SEP || pc->tt == JIM_TT_EOL ||
+        pc->tt == JIM_TT_NONE || pc->tt == JIM_TT_STR) {
+        /* Starting a new word */
+        if (*pc->p == '{') {
+            return JimParseBrace(pc);
+        }
+        if (*pc->p == '"') {
+            pc->inquote = 1;
+            pc->p++;
+            pc->len--;
+            /* In case the end quote is missing */
+            pc->missing.line = pc->tline;
+        }
+    }
+    pc->tstart = pc->p;
+    pc->tline = pc->linenr;
+    while (1) {
+        if (pc->len == 0) {
+            if (pc->inquote) {
+                pc->missing.ch = '"';
+            }
+            pc->tend = pc->p - 1;
+            pc->tt = JIM_TT_ESC;
+            return JIM_OK;
+        }
+        switch (*pc->p) {
+            case '\\':
+                if (!pc->inquote && *(pc->p + 1) == '\n') {
+                    pc->tend = pc->p - 1;
+                    pc->tt = JIM_TT_ESC;
+                    return JIM_OK;
+                }
+                if (pc->len >= 2) {
+                    if (*(pc->p + 1) == '\n') {
+                        pc->linenr++;
+                    }
+                    pc->p++;
+                    pc->len--;
+                }
+                else if (pc->len == 1) {
+                    /* End of script with trailing backslash */
+                    pc->missing.ch = '\\';
+                }
+                break;
+            case '(':
+                /* If the following token is not '$' just keep going */
+                if (pc->len > 1 && pc->p[1] != '$') {
+                    break;
+                }
+                /* fall through */
+            case ')':
+                /* Only need a separate ')' token if the previous was a var */
+                if (*pc->p == '(' || pc->tt == JIM_TT_VAR) {
+                    if (pc->p == pc->tstart) {
+                        /* At the start of the token, so just return this char */
+                        pc->p++;
+                        pc->len--;
+                    }
+                    pc->tend = pc->p - 1;
+                    pc->tt = JIM_TT_ESC;
+                    return JIM_OK;
+                }
+                break;
+
+            case '$':
+            case '[':
+                pc->tend = pc->p - 1;
+                pc->tt = JIM_TT_ESC;
+                return JIM_OK;
+            case ' ':
+            case '\t':
+            case '\n':
+            case '\r':
+            case '\f':
+            case ';':
+                if (!pc->inquote) {
+                    pc->tend = pc->p - 1;
+                    pc->tt = JIM_TT_ESC;
+                    return JIM_OK;
+                }
+                else if (*pc->p == '\n') {
+                    pc->linenr++;
+                }
+                break;
+            case '"':
+                if (pc->inquote) {
+                    pc->tend = pc->p - 1;
+                    pc->tt = JIM_TT_ESC;
+                    pc->p++;
+                    pc->len--;
+                    pc->inquote = 0;
+                    return JIM_OK;
+                }
+                break;
+        }
+        pc->p++;
+        pc->len--;
+    }
+    return JIM_OK;              /* unreached */
+}
+
+/* Skip a Tcl comment to end-of-line. */
+static int JimParseComment(struct JimParserCtx *pc)
+{
+    while (*pc->p) {
+        if (*pc->p == '\\') {
+            pc->p++;
+            pc->len--;
+            if (pc->len == 0) {
+                pc->missing.ch = '\\';
+                return JIM_OK;
+            }
+            if (*pc->p == '\n') {
+                pc->linenr++;
+            }
+        }
+        else if (*pc->p == '\n') {
+            pc->p++;
+            pc->len--;
+            pc->linenr++;
+            break;
+        }
+        pc->p++;
+        pc->len--;
+    }
+    return JIM_OK;
+}
+
+/* xdigitval and odigitval are helper functions for JimEscape() */
+static int xdigitval(int c)
+{

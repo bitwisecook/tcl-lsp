@@ -36,11 +36,12 @@ use tcl_compiler::analyser::{
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::dataflow_graph::{FunctionInputs, extract_dataflow_graph};
 use tcl_compiler::ir::Module as IrModule;
-use tcl_compiler::path_concat::find_path_concat_warnings;
 use tcl_compiler::side_effects::EffectRegion;
 use tcl_compiler::taint::{
-    find_destructive_file_warnings, find_setter_constraint_warnings,
-    find_taint_warnings_for_module_function, is_irules_dialect,
+    find_destructive_file_warnings_for_module_function,
+    find_path_concat_warnings_for_module_function,
+    find_setter_constraint_warnings_for_module_function, find_taint_warnings_for_module_function,
+    is_irules_dialect,
 };
 use tcl_compiler::uri_split::find_uri_split_suggestions;
 use tcl_lexer::{LineIndex, Span};
@@ -849,27 +850,17 @@ fn collect_taint_warnings(
         );
     }
 
-    // 2 + 3. Setter-constraint + uri-split are iRules-only. The helpers
-    // gate internally too; skipping the walk under a non-iRules dialect
-    // matches `compiler_checks` and avoids needless work.
+    // Conditional setter rows follow the retained Module/FU metadata.
+    for w in find_setter_constraint_warnings_for_module_function(fu, module, registry, taints) {
+        push(
+            w.code.as_str(),
+            w.span,
+            &w.message,
+            &w.variable,
+            &w.sink_command,
+        );
+    }
     if is_irules_dialect(Some(profile)) {
-        for w in find_setter_constraint_warnings(
-            registry,
-            &fu.cfg,
-            &fu.ssa,
-            taints,
-            Some(&fu.sccp.values),
-            &fu.sccp.executable_blocks,
-            Some(profile),
-        ) {
-            push(
-                w.code.as_str(),
-                w.span,
-                &w.message,
-                &w.variable,
-                &w.sink_command,
-            );
-        }
         for w in find_uri_split_suggestions(
             &fu.cfg,
             &fu.ssa,
@@ -889,26 +880,12 @@ fn collect_taint_warnings(
     }
 
     // 4. Path-concat (`W201`). Reports `sink_command="set"`.
-    for w in find_path_concat_warnings(
-        &fu.cfg,
-        &fu.ssa,
-        &fu.rendered_props,
-        taints,
-        &fu.sccp.executable_blocks,
-        tcl_lexer::LexerConfig::for_profile(Some(profile)),
-    ) {
+    for w in find_path_concat_warnings_for_module_function(fu, module, registry, taints) {
         push(w.code.as_str(), w.span, &w.message, &w.variable, "set");
     }
 
     // 5. Destructive-file (`W313`).
-    for w in find_destructive_file_warnings(
-        &fu.cfg,
-        &fu.ssa,
-        taints,
-        &fu.sccp.executable_blocks,
-        registry,
-        Some(profile),
-    ) {
+    for w in find_destructive_file_warnings_for_module_function(fu, module, registry, taints) {
         push(
             w.code.as_str(),
             w.span,
@@ -1377,6 +1354,65 @@ fn memory_alias_graph_for_input(
 mod tests {
     use super::*;
     use std::fmt::Write as _;
+
+    #[test]
+    fn original_dataflow_warnings_keep_selected_source_availability_and_path_ordinals() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let mut catalogue = CommandRegistry::build_default();
+        let mut descriptor = catalogue.get("file").unwrap().clone();
+        descriptor.name = "purge";
+        descriptor.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        catalogue.insert(descriptor);
+        let registry = std::sync::Arc::new(catalogue);
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        config.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        let input = |environment| {
+            ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::new(
+                    tcl_registry::model::ingress::resolve_environment(environment)
+                        .default_context_registry()
+                        .with_command_store(std::sync::Arc::clone(&registry)),
+                ),
+                config,
+            )
+        };
+        let current = input("tcl9.1");
+        let older = input("tcl8.4");
+        let source = "interp alias {} remove {} purge delete --; remove ${a{b}c}";
+        let graph = dataflow_graph_with_source_input(source, &registry, Some(&current)).unwrap();
+        let warnings = graph["taint_warnings"].as_array().unwrap();
+        let warning = warnings
+            .iter()
+            .find(|warning| warning["code"] == "W313")
+            .expect("actual graph reports the retained conditional destructive path");
+        assert_eq!(warning["variable"], "a{b");
+        let start = warning["source_span"][0].as_u64().unwrap() as usize;
+        let end = warning["source_span"][1].as_u64().unwrap() as usize;
+        assert_eq!(&source[start..end], "${a{b}c}");
+        let unavailable =
+            dataflow_graph_with_source_input(source, &registry, Some(&older)).unwrap();
+        assert!(
+            unavailable["taint_warnings"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|warning| warning["code"] != "W313")
+        );
+        assert!(matches!(
+            dataflow_graph_with_source_input(source, &registry, None),
+            Err(GraphSourceInputDecline::MissingSourceInput)
+        ));
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("jim").default_context_registry();
+        assert!(matches!(
+            dataflow_graph_with_source_input(source, foreign.commands(), Some(&current)),
+            Err(GraphSourceInputDecline::ForeignCommandStore)
+        ));
+    }
 
     #[test]
     fn graph_calls_keep_consumed_names_as_references() {

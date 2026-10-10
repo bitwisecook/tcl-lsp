@@ -787,6 +787,7 @@ pub fn unary(op: UnaryOp, v: &Value) -> Result<Value, TclError> {
 
 /// Convert one operand with the selected native grammar and integer tower.
 fn native_num(dialect: NumericContext<'_>, value: &Value) -> Result<Num, TclError> {
+    value.check_native_header()?;
     if let Some(simulation) = dialect.simulation {
         let number = simulation
             .parse_number(
@@ -810,9 +811,19 @@ fn native_num(dialect: NumericContext<'_>, value: &Value) -> Result<Num, TclErro
         TclError::from(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)
     })?;
     if input == number::NativeScalarNumericInputPolicy::NulTerminatedJim084
-        && let Ok(integer) = value.native_int(input, dialect.numbers)
+        && matches!(
+            value.native_scalar_cache(),
+            Some(
+                tcl_syntax::scalar_getter::NativeScalarCache::JimCoercedInteger(_)
+                    | tcl_syntax::scalar_getter::NativeScalarCache::Number(Number::Int(_))
+            )
+        )
     {
-        return Ok(Num::Int(integer));
+        match value.native_int(input, dialect.numbers) {
+            Ok(integer) => return Ok(Num::Int(integer)),
+            Err(error) if error.native_access_refusal().is_some() => return Err(error.into()),
+            Err(_) => {}
+        }
     }
     if let Some(value) = value.integer_representation() {
         return Ok(Num::Int(value));
@@ -859,7 +870,14 @@ fn native_num(dialect: NumericContext<'_>, value: &Value) -> Result<Num, TclErro
             .to_i128()
             .map_or_else(|| Num::Huge(integer), Num::Big));
     }
-    let original = value.string_bytes();
+    let protocol = dialect.dialect.native_string_protocol().ok_or_else(|| {
+        TclError::from(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)
+    })?;
+    let original = value.native_string_bytes(protocol).map_err(|error| {
+        tcl_syntax::value::ValueError::NativeStringAccess(
+            tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+        )
+    })?;
     let text = match std::str::from_utf8(input.input_bytes(&original)) {
         Ok(text) => text,
         Err(_) if input == number::NativeScalarNumericInputPolicy::NulTerminatedJim084 => {
@@ -1386,30 +1404,42 @@ fn native_literal(dialect: NumericContext<'_>, text: &str) -> Result<Value, TclE
     }
 }
 
-fn compare_values_numeric_in(
+fn compare_values_numeric_checked_in(
     dialect: NumericContext<'_>,
     a: &Value,
     b: &Value,
-) -> Option<NumericCompare> {
-    if dialect.arithmetic()? == tcl_dialect::NativeArithmetic::TclBignum {
-        return compare_values_numeric(
-            &native_num_value(native_num(dialect, a).ok()?),
-            &native_num_value(native_num(dialect, b).ok()?),
-        );
+) -> Result<Option<NumericCompare>, TclError> {
+    dialect.arithmetic().ok_or_else(|| {
+        TclError::from(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)
+    })?;
+    let numeric = |value| match native_num(dialect, value) {
+        Ok(value) => Ok(Some(value)),
+        Err(error) if error.is_host() => Err(error),
+        Err(_) => Ok(None),
+    };
+    let Some(left) = numeric(a)? else {
+        return Ok(None);
+    };
+    let Some(right) = numeric(b)? else {
+        return Ok(None);
+    };
+    if dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::TclBignum) {
+        return Ok(compare_values_numeric(
+            &native_num_value(left),
+            &native_num_value(right),
+        ));
     }
-    Some(
-        match (native_num(dialect, a).ok()?, native_num(dialect, b).ok()?) {
-            (Num::Int(a), Num::Int(b)) => NumericCompare::Ordered(a.cmp(&b)),
-            (Num::Int(a), Num::Dbl(b)) => {
-                NumericCompare::from_partial(number::compare_int_double(i128::from(a), b))
-            }
-            (Num::Dbl(a), Num::Int(b)) => NumericCompare::from_partial(
-                number::compare_int_double(i128::from(b), a).map(Ordering::reverse),
-            ),
-            (Num::Dbl(a), Num::Dbl(b)) => NumericCompare::from_partial(a.partial_cmp(&b)),
-            _ => return None,
-        },
-    )
+    Ok(Some(match (left, right) {
+        (Num::Int(a), Num::Int(b)) => NumericCompare::Ordered(a.cmp(&b)),
+        (Num::Int(a), Num::Dbl(b)) => {
+            NumericCompare::from_partial(number::compare_int_double(i128::from(a), b))
+        }
+        (Num::Dbl(a), Num::Int(b)) => NumericCompare::from_partial(
+            number::compare_int_double(i128::from(b), a).map(Ordering::reverse),
+        ),
+        (Num::Dbl(a), Num::Dbl(b)) => NumericCompare::from_partial(a.partial_cmp(&b)),
+        _ => return Ok(None),
+    }))
 }
 
 /// Native comparisons preserve wide conversion before comparing numeric values.
@@ -1423,7 +1453,7 @@ pub(crate) fn compare_in<'a>(
     let numeric = if string_comparison(op) {
         None
     } else {
-        compare_values_numeric_in(dialect, a, b)
+        compare_values_numeric_checked_in(dialect, a, b)?
     };
     compare_with_numeric(op, a, b, numeric, dialect.characters)
 }
@@ -1859,8 +1889,20 @@ impl ExprOps for ExprEval<'_> {
         })
     }
 
-    fn compare_numeric(&mut self, l: &Value, r: &Value) -> Option<NumericCompare> {
-        compare_values_numeric_in(self.vm.numeric_context(), l, r)
+    fn compare_numeric(&mut self, _left: &Value, _right: &Value) -> Option<NumericCompare> {
+        // The executable adapter requires the fallible owner below.
+        None
+    }
+
+    fn compare_numeric_checked(
+        &mut self,
+        left: &Value,
+        right: &Value,
+    ) -> Result<Option<NumericCompare>, TclError> {
+        if let Some(first) = self.vm.execution_refusal.clone() {
+            return Err(TclError::from_execution_failure(first));
+        }
+        compare_values_numeric_checked_in(self.vm.numeric_context(), left, right)
     }
 
     fn compare_string(&mut self, l: &Value, r: &Value) -> Result<Ordering, TclError> {
@@ -1943,6 +1985,36 @@ impl ExprOps for ExprEval<'_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn original_numeric_comparison_keeps_retired_header_refusal_before_lexical_fallback() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Real header retirement and executable adapter; no external provider outcome.
+        let mut vm = crate::native_fixture::core(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
+        );
+        let original = Value::int(17);
+        let retired = original.native_lifetime_lease();
+        drop(original);
+        assert!(!retired.value().native_object_is_live());
+        let right = Value::string("17");
+        let before = right.native_object_snapshot();
+        let expected = tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+            "retired native object header",
+        );
+        let error =
+            compare_in(vm.numeric_context(), BinOp::Eq, retired.value(), &right).unwrap_err();
+        assert_eq!(error.native_access_refusal(), Some(expected));
+        assert_eq!(right.native_object_snapshot(), before);
+        let mut ops = ExprEval::new(&mut vm);
+        let error = ops
+            .compare_numeric_checked(retired.value(), &right)
+            .unwrap_err();
+        assert_eq!(error.native_access_refusal(), Some(expected));
+        assert_eq!(right.native_object_snapshot(), before);
+        assert_eq!(retired.value().native_object_reference_count(), 0);
+    }
+
     #[test]
     fn measured_bare_matches_tree_evaluation_requires_independent_authored_policy() {
         use tcl_registry::invocation_words::LogicalExpressionParseProvider;

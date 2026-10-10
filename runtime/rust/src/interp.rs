@@ -36,6 +36,8 @@
 //! and releasing argv can never free a still-referenced result. Immediate free
 //! + retain-into-result is the whole discipline.
 
+#[cfg(test)]
+mod c_api_error_tests;
 mod captured_rmw;
 mod jim_local;
 mod jim_teardown;
@@ -8673,33 +8675,46 @@ impl Interp {
     /// An error a C API call reports: `message` as the result and, when given,
     /// `code` as its `-errorcode` (`NONE` otherwise), starting a new error.
     pub(crate) fn c_api_error(&mut self, message: &[u8], code: Option<&[u8]>) {
-        if self.host_refusal_pending() {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+            return;
+        };
+        self.set_result_bytes(message);
+        if scope.currency().ensure_current_or_refuse().is_err() {
             return;
         }
-        self.set_result_bytes(message);
-        *self.exc.borrow_mut() = ExceptionState {
+        let retired = self.exc.replace(ExceptionState {
             info: None,
             code: code.map(<[u8]>::to_vec).unwrap_or_default(),
             code_explicit: code.is_some(),
             already_logged: false,
             ..ExceptionState::default()
-        };
+        });
+        // A retained native error object can retire extension backing. Release
+        // it outside the exception borrow and keep the already reached result.
+        drop(retired);
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
         self.c_api_errors.set(self.c_api_errors.get() + 1);
     }
 
     /// `Tcl_SetObjErrorCode`: `code` is the `-errorcode` of the error the running
     /// C command is about to return, whatever its result.
     pub(crate) fn set_c_error_code(&mut self, code: &[u8]) {
-        if self.host_refusal_pending() {
+        let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
             return;
-        }
-        *self.exc.borrow_mut() = ExceptionState {
+        };
+        let retired = self.exc.replace(ExceptionState {
             info: None,
             code: code.to_vec(),
             code_explicit: true,
             already_logged: false,
             ..ExceptionState::default()
-        };
+        });
+        drop(retired);
+        if scope.currency().ensure_current_or_refuse().is_err() {
+            return;
+        }
         self.c_api_errors.set(self.c_api_errors.get() + 1);
     }
 

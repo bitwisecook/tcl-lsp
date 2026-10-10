@@ -1,0 +1,17 @@
+TclObjCommandComplete(
+    Tcl_Obj *objPtr)		/* Points to object holding script to
+				 * check. */
+{
+    Tcl_Size length;
+    const char *script = TclGetStringFromObj(objPtr, &length);
+
+    return CommandComplete(script, length);
+}
+
+/*
+ * Local Variables:
+ * mode: c
+ * c-basic-offset: 4
+ * fill-column: 78
+ * End:
+ */

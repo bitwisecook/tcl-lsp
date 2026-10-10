@@ -38,7 +38,7 @@ use crate::irules_checks::{
     CodeFix, IrulesCheckWarning, find_collect_flow_warnings, find_generic_static_name_warnings,
     find_hoistable_set_warnings, find_http_flow_warnings, find_unguarded_drop_warnings,
 };
-use crate::path_concat::{PathConcatWarning, find_path_concat_warnings};
+use crate::path_concat::PathConcatWarning;
 use crate::sccp::{BranchFactKind, ConstantBranch};
 use crate::shimmer::{
     SharingWarning, ShimmerWarning, ThunkingWarning, find_byte_array_warnings_with_context,
@@ -46,8 +46,10 @@ use crate::shimmer::{
     find_thunking_warnings_with_context,
 };
 use crate::taint::{
-    TaintWarning, find_destructive_file_warnings, find_setter_constraint_warnings,
-    find_taint_warnings_for_module_function, is_irules_dialect,
+    TaintWarning, find_destructive_file_warnings_for_module_function,
+    find_path_concat_warnings_for_module_function,
+    find_setter_constraint_warnings_for_module_function, find_taint_warnings_for_module_function,
+    is_irules_dialect,
 };
 use crate::uri_split::find_uri_split_suggestions;
 use tcl_registry::CommandRegistry;
@@ -567,21 +569,16 @@ pub fn push_taint_and_module_checks(
         ) {
             out.push(shift(fu, Diagnostic::from_taint(&w)));
         }
-        // IRULE3101 is iRules-only. `find_setter_constraint_warnings`
-        // gates internally too; this outer check is defence-in-depth
-        // and lets us skip the entire walk under non-iRules dialects.
+        // Conditional setter metadata follows the actual source owner.
+        for w in find_setter_constraint_warnings_for_module_function(
+            fu,
+            &cu.ir_module,
+            registry,
+            &taints,
+        ) {
+            out.push(shift(fu, Diagnostic::from_taint(&w)));
+        }
         if is_irules_dialect(dialect) {
-            for w in find_setter_constraint_warnings(
-                registry,
-                &fu.cfg,
-                &fu.ssa,
-                &taints,
-                Some(&fu.sccp.values),
-                &fu.sccp.executable_blocks,
-                dialect,
-            ) {
-                out.push(shift(fu, Diagnostic::from_taint(&w)));
-            }
             // IRULE3103 — `*::uri` getter + manual decomposition.
             for w in find_uri_split_suggestions(
                 &fu.cfg,
@@ -594,25 +591,14 @@ pub fn push_taint_and_module_checks(
                 out.push(shift(fu, Diagnostic::from_taint(&w)));
             }
         }
-        for w in find_path_concat_warnings(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.rendered_props,
-            &taints,
-            &fu.sccp.executable_blocks,
-            tcl_lexer::LexerConfig::for_profile(dialect),
-        ) {
+        for w in find_path_concat_warnings_for_module_function(fu, &cu.ir_module, registry, &taints)
+        {
             out.push(shift(fu, Diagnostic::from_path_concat(&w)));
         }
         // W313: destructive `file` ops on a variable/tainted path.
-        for w in find_destructive_file_warnings(
-            &fu.cfg,
-            &fu.ssa,
-            &taints,
-            &fu.sccp.executable_blocks,
-            registry,
-            dialect,
-        ) {
+        for w in
+            find_destructive_file_warnings_for_module_function(fu, &cu.ir_module, registry, &taints)
+        {
             out.push(shift(fu, Diagnostic::from_taint(&w)));
         }
     }

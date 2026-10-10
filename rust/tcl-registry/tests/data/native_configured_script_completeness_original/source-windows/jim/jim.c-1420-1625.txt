@@ -1,0 +1,206 @@
+** - Backslash escapes meaning of braces but doesn't remove the backslash
+**
+** "quoted expression"
+** - Unescaped double quote terminates the expression
+** - Backslash escapes next char
+** - [commands brackets] are counted/nested
+** - command rules apply within [brackets], not quoting rules (i.e. brackets have their own rules)
+**
+** [command expression]
+** - Count open and closing brackets
+** - Backslash escapes next char
+** - [commands brackets] are counted/nested
+** - "quoted expressions" are parsed according to quoting rules
+** - {braced expressions} are parsed according to brace rules
+**
+** For everything, backslash escapes the next char, newline increments current line
+*/
+
+/**
+ * Parses a braced expression starting at pc->p.
+ *
+ * Positions the parser at the end of the braced expression,
+ * sets pc->tend and possibly pc->missing.
+ */
+static void JimParseSubBrace(struct JimParserCtx *pc)
+{
+    int level = 1;
+
+    /* Skip the brace */
+    pc->p++;
+    pc->len--;
+    while (pc->len) {
+        switch (*pc->p) {
+            case '\\':
+                if (pc->len > 1) {
+                    if (*++pc->p == '\n') {
+                        pc->linenr++;
+                    }
+                    pc->len--;
+                }
+                break;
+
+            case '{':
+                level++;
+                break;
+
+            case '}':
+                if (--level == 0) {
+                    pc->tend = pc->p - 1;
+                    pc->p++;
+                    pc->len--;
+                    return;
+                }
+                break;
+
+            case '\n':
+                pc->linenr++;
+                break;
+        }
+        pc->p++;
+        pc->len--;
+    }
+    pc->missing.ch = '{';
+    pc->missing.line = pc->tline;
+    pc->tend = pc->p - 1;
+}
+
+/**
+ * Parses a quoted expression starting at pc->p.
+ *
+ * Positions the parser at the end of the quoted expression,
+ * sets pc->tend and possibly pc->missing.
+ *
+ * Returns the type of the token of the string,
+ * either JIM_TT_ESC (if it contains values which need to be [subst]ed)
+ * or JIM_TT_STR.
+ */
+static int JimParseSubQuote(struct JimParserCtx *pc)
+{
+    int tt = JIM_TT_STR;
+    int line = pc->tline;
+
+    /* Skip the quote */
+    pc->p++;
+    pc->len--;
+    while (pc->len) {
+        switch (*pc->p) {
+            case '\\':
+                if (pc->len > 1) {
+                    if (*++pc->p == '\n') {
+                        pc->linenr++;
+                    }
+                    pc->len--;
+                    tt = JIM_TT_ESC;
+                }
+                break;
+
+            case '"':
+                pc->tend = pc->p - 1;
+                pc->p++;
+                pc->len--;
+                return tt;
+
+            case '[':
+                JimParseSubCmd(pc);
+                tt = JIM_TT_ESC;
+                continue;
+
+            case '\n':
+                pc->linenr++;
+                break;
+
+            case '$':
+                tt = JIM_TT_ESC;
+                break;
+        }
+        pc->p++;
+        pc->len--;
+    }
+    pc->missing.ch = '"';
+    pc->missing.line = line;
+    pc->tend = pc->p - 1;
+    return tt;
+}
+
+/**
+ * Parses a [command] expression starting at pc->p.
+ *
+ * Positions the parser at the end of the command expression,
+ * sets pc->tend and possibly pc->missing.
+ */
+static void JimParseSubCmd(struct JimParserCtx *pc)
+{
+    int level = 1;
+    int startofword = 1;
+    int line = pc->tline;
+
+    /* Skip the bracket */
+    pc->p++;
+    pc->len--;
+    while (pc->len) {
+        switch (*pc->p) {
+            case '\\':
+                if (pc->len > 1) {
+                    if (*++pc->p == '\n') {
+                        pc->linenr++;
+                    }
+                    pc->len--;
+                }
+                break;
+
+            case '[':
+                level++;
+                break;
+
+            case ']':
+                if (--level == 0) {
+                    pc->tend = pc->p - 1;
+                    pc->p++;
+                    pc->len--;
+                    return;
+                }
+                break;
+
+            case '"':
+                if (startofword) {
+                    JimParseSubQuote(pc);
+                    if (pc->missing.ch == '"') {
+                        return;
+                    }
+                    continue;
+                }
+                break;
+
+            case '{':
+                JimParseSubBrace(pc);
+                startofword = 0;
+                continue;
+
+            case '\n':
+                pc->linenr++;
+                break;
+        }
+        startofword = isspace(UCHAR(*pc->p));
+        pc->p++;
+        pc->len--;
+    }
+    pc->missing.ch = '[';
+    pc->missing.line = line;
+    pc->tend = pc->p - 1;
+}
+
+/* Parse a braced word token. */
+static int JimParseBrace(struct JimParserCtx *pc)
+{
+    pc->tstart = pc->p + 1;
+    pc->tline = pc->linenr;
+    pc->tt = JIM_TT_STR;
+    JimParseSubBrace(pc);
+    return JIM_OK;
+}
+
+/* Parse a command-substitution token. */
+static int JimParseCmd(struct JimParserCtx *pc)
+{
+    pc->tstart = pc->p + 1;

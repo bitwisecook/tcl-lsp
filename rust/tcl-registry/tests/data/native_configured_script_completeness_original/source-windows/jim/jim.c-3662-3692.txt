@@ -1,0 +1,31 @@
+    }
+#endif
+
+}
+
+/* Parses the given string object to determine if it represents a complete script.
+ *
+ * This is useful for interactive shells implementation, for [info complete].
+ *
+ * If 'stateCharPtr' != NULL, the function stores ' ' on complete script,
+ * '{' on scripts incomplete missing one or more '}' to be balanced.
+ * '[' on scripts incomplete missing one or more ']' to be balanced.
+ * '"' on scripts incomplete missing a '"' char.
+ * '\\' on scripts with a trailing backslash.
+ *
+ * If the script is complete, 1 is returned, otherwise 0.
+ *
+ * If the script has extra characters after a close brace, this still returns 1,
+ * but sets *stateCharPtr to '}'
+ * Evaluating the script will give the error "extra characters after close-brace".
+ */
+int Jim_ScriptIsComplete(Jim_Interp *interp, Jim_Obj *scriptObj, char *stateCharPtr)
+{
+    ScriptObj *script = JimGetScript(interp, scriptObj);
+    if (stateCharPtr) {
+        *stateCharPtr = script->missing;
+    }
+    return script->missing == ' ' || script->missing == '}';
+}
+
+/**

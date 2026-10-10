@@ -2992,3 +2992,23 @@ The two [lock-maintenance provenance](frozen311/lock-provenance/runtime-lock-mai
 - `runtime-lock-maintained311`: [original command/receipt](frozen311/lock-provenance/runtime-lock-maintained311/receipt.json), [before](frozen311/lock-provenance/runtime-lock-maintained311/before.lock), [after](frozen311/lock-provenance/runtime-lock-maintained311/after.lock), [whole metadata](frozen311/lock-provenance/runtime-lock-maintained311/metadata.json.gz), [stderr](frozen311/lock-provenance/runtime-lock-maintained311/stderr.log). The independently maintained Runtime lock is already the exact after bytes in Source311; the later Runtime compilation still fails.
 
 - `workspace-lock-maintained312`: [original command/receipt](frozen311/lock-provenance/workspace-lock-maintained312/receipt.json), [before](frozen311/lock-provenance/workspace-lock-maintained312/before.lock), [after](frozen311/lock-provenance/workspace-lock-maintained312/after.lock), [whole metadata](frozen311/lock-provenance/workspace-lock-maintained312/metadata.json.gz), [stderr](frozen311/lock-provenance/workspace-lock-maintained312/stderr.log). The Compiler311 failure uses the exact before bytes. Workspace maintenance312 supplies separate after bytes and no Source311 build/image success.
+
+## Source312 independent Compiler compilation failure
+
+The exact Compiler library-test no-run command closes exit `101` after
+61.73606007898343 seconds, with uniform source `true` on the unchanged
+33290-leaf Source312 image, HEAD `46d679d679e9254bdcc941117bcaab73138e3f19`.
+The original log retains one production E0425 for the missing
+`resolve_registry_words_in_realm` function at `declaration_flow.rs:403`.
+
+No test-executable creation event, successful producer, strict image,
+inventory or assertion is admitted from this command. Dependency artifact
+events remain unsealed. A later import correction supplies no retrospective
+compile or Native-provider success.
+
+The [complete original receipt](frozen312/integration-compiler-own-test-build312/receipt.json.gz)
+is losslessly retained; decompression returns SHA-256 `278c79789cc00b412812aa69a526e5187fc04f9776e72223a55026eb6d7773f8`.
+Every original source association is independently byte-verified. The
+[whole original log](frozen312/integration-compiler-own-test-build312/tests.log) has SHA-256
+`08b7b1c3fdef98c963e2976aa46d058f4a8a3925f7d30adef85e0d7e9fd6b8b3`. This command remains distinct from all Source311 Python,
+catalogue, Runtime and Compiler operations.

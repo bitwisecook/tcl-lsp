@@ -1509,6 +1509,19 @@ pub enum AuthoredSourceOptionBoundary {
     Indeterminate,
 }
 
+/// Possible destructive path operands in an authored source schema.
+/// These coordinates describe warning candidates, not accepted handler argv.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthoredSourceDestructivePathArguments {
+    /// Effective post-head ordinals, including captured alias operands.
+    pub arguments: std::ops::Range<usize>,
+    /// Selected selector path for diagnostic presentation only.
+    pub subcommands: Vec<&'static str>,
+    /// A dynamic boundary can be data or an option of unknown width. Only
+    /// that first candidate is retained; later operands are not classified.
+    pub selection_unknown: bool,
+}
+
 /// Source option topology from one selected descriptor and actual argv.
 /// This supplies neither handler acceptance nor data value or edit authority.
 #[derive(Debug, Clone)]
@@ -3926,6 +3939,51 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         Some(scan)
     }
 
+    /// Possible path data for the selected destructive source descriptor.
+    /// Dynamic data retains MAY uncertainty; unknown/ambiguous option widths
+    /// refuse. This supplies no filesystem effect, accepted argv or Native fact.
+    #[must_use]
+    pub fn authored_source_destructive_path_arguments(
+        &self,
+    ) -> Option<AuthoredSourceDestructivePathArguments> {
+        let subcommand = self.authored_source_descriptors().subcommand?;
+        if !subcommand.destructive {
+            return None;
+        }
+        let count = self.words.arguments().exact_argv_len()?;
+        let scan = self.authored_source_diagnostic_options()?;
+        if scan
+            .options
+            .iter()
+            .any(|option| !option.available || option.values.is_none())
+        {
+            return None;
+        }
+        let options = self.semantics.options;
+        let (arguments, selection_unknown) = if options.base.is_empty() && options.form.is_empty() {
+            (self.semantics.argument_offset..count, false)
+        } else {
+            match scan.boundary {
+                AuthoredSourceOptionBoundary::Positional(index) => (index..count, false),
+                AuthoredSourceOptionBoundary::Terminator(index) => {
+                    (index.checked_add(1)?..count, false)
+                }
+                AuthoredSourceOptionBoundary::Dynamic(index) => {
+                    (index..index.checked_add(1)?, true)
+                }
+                AuthoredSourceOptionBoundary::End => (count..count, false),
+                AuthoredSourceOptionBoundary::Unknown(_)
+                | AuthoredSourceOptionBoundary::Ambiguous { .. }
+                | AuthoredSourceOptionBoundary::Indeterminate => return None,
+            }
+        };
+        Some(AuthoredSourceDestructivePathArguments {
+            arguments,
+            subcommands: scan.subcommands,
+            selection_unknown,
+        })
+    }
+
     /// Original option-value positions under the selected channel relationship
     /// descriptor. A closed admitted option vector retains the final written or
     /// captured value occurrence, independently of evaluation or channel state.
@@ -5015,6 +5073,80 @@ mod tests {
         StateTransitionKnowledge, TransitionSubject, VariableAliasTarget,
     };
     use tcl_dialect::model::{Family, SpecSurface, SurfaceQuery};
+
+    #[test]
+    fn original_destructive_source_paths_keep_dynamic_and_captured_option_boundaries() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        use crate::InvocationWord::{Dynamic, Literal};
+        let owner = crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        for (arguments, expected, unknown) in [
+            (
+                vec![Literal("delete"), Dynamic, Literal("later")],
+                1..2,
+                true,
+            ),
+            (
+                vec![
+                    Literal("delete"),
+                    Literal("-force"),
+                    Literal("--"),
+                    Dynamic,
+                    Literal("later"),
+                ],
+                3..5,
+                false,
+            ),
+            (vec![Literal("mkdir"), Dynamic, Dynamic], 1..3, false),
+        ] {
+            let selected =
+                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    owner.commands(),
+                    Some(owner.context()),
+                    crate::InvocationWords::structured(Literal("file"), &arguments),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                )
+                .resolved()
+                .unwrap();
+            let paths = selected
+                .authored_source_destructive_path_arguments()
+                .unwrap();
+            assert_eq!(paths.arguments, expected);
+            assert_eq!(paths.selection_unknown, unknown);
+            assert_eq!(paths.subcommands.len(), 1);
+            assert!(matches!(arguments[0], Literal(name) if paths.subcommands[0] == name));
+        }
+    }
+
+    #[test]
+    fn original_destructive_source_paths_refuse_unknown_widths_and_unselected_descriptors() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        use crate::InvocationWord::{Dynamic, Expanded, Literal, Opaque};
+        let owner = crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        for arguments in [
+            vec![Literal("delete"), Literal("-unknown"), Dynamic],
+            vec![Literal("delete"), Expanded, Dynamic],
+            vec![Literal("delete"), Opaque, Dynamic],
+            vec![Dynamic, Literal("--"), Dynamic],
+            vec![Literal("exists"), Dynamic],
+        ] {
+            let resolution =
+                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    owner.commands(),
+                    Some(owner.context()),
+                    crate::InvocationWords::structured(Literal("file"), &arguments),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                );
+            assert!(
+                resolution
+                    .resolved()
+                    .and_then(|selected| selected.authored_source_destructive_path_arguments())
+                    .is_none(),
+                "{arguments:?}"
+            );
+        }
+    }
 
     #[test]
     fn original_selected_completion_keeps_descriptor_and_argument_grammar_independent() {

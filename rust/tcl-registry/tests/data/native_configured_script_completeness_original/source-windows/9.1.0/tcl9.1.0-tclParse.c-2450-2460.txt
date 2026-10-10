@@ -1,0 +1,11 @@
+Tcl_CommandComplete(
+    const char *script)		/* Script to check. */
+{
+    return CommandComplete(script, strlen(script));
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclObjCommandComplete --
+ *

@@ -888,6 +888,183 @@ mod tests {
     }
 
     #[test]
+    fn original_caller_alias_operands_keep_captured_geometry_and_selected_metadata() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional formal mentions only: no reached upvar or caller cell.
+        use crate::command_binding::{SourceAnalysisOptions, SourceCommandBindings};
+        use crate::registry_invocation::{InvocationWordOrigin, OwnedInvocationMetadataContext};
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let link = registry.get("upvar").unwrap().clone();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "metadata_link",
+            surface: registry.get("dict").unwrap().surface,
+            ..link
+        });
+        let store = registry.snapshot().shared_registry();
+        let current = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl9.0")
+                .with_command_store(Arc::clone(&store)),
+        );
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4").with_command_store(store),
+        );
+        assert_eq!(
+            current.commands().snapshot().semantic_key(),
+            older.commands().snapshot().semantic_key()
+        );
+        let mut foreign_registry = tcl_registry::CommandRegistry::build_default();
+        foreign_registry.insert(tcl_registry::CommandSpec {
+            name: "foreign_caller_alias_axis",
+            ..foreign_registry.get("set").unwrap().clone()
+        });
+        let foreign = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl9.0")
+                .with_command_store(foreign_registry.snapshot().shared_registry()),
+        );
+        assert_ne!(
+            current.commands().snapshot().semantic_key(),
+            foreign.commands().snapshot().semantic_key()
+        );
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        for (source, call, written, captured) in [
+            (
+                "proc p {name} {metadata_link 1 $name local}; p target",
+                "metadata_link 1 $name local",
+                2,
+                false,
+            ),
+            (
+                "interp alias {} link {} metadata_link 1; proc p {name} {link $name local}; p target",
+                "link $name local",
+                1,
+                true,
+            ),
+        ] {
+            let offset = u32::try_from(source.find(call).unwrap()).unwrap();
+            let original = |context: &Arc<tcl_registry::model::ContextRegistry>| {
+                let input =
+                    ResolvedAnalysisInput::new(profile, profile, Arc::clone(context), config);
+                let options = SourceAnalysisOptions::for_logical_source(&input).unwrap();
+                let inventory =
+                    SourceCommandBindings::analyse_with_options(source, config, &registry, options);
+                let origin = inventory.root_origin.as_ref().unwrap();
+                let entry = inventory.conditional_body_entry_at(origin, offset).unwrap();
+                let tokens = inventory
+                    .declaration_original_tokens_at(&entry, offset)
+                    .unwrap();
+                (tokens, input)
+            };
+            let (tokens, input) = original(&current);
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let metadata = binding
+                .original_invocation_metadata_at_point(&tokens, &registry)
+                .unwrap()
+                .unwrap();
+            assert_eq!(metadata.source_analysis_input(), Some(&input));
+            let advice = binding.declaration_operand_layout_advice(&tokens).unwrap();
+            let selected = crate::registry_invocation::declaration_invocation_flow(
+                &registry, &tokens, &advice,
+            )
+            .expect("genuine original caller-alias source recipe");
+            assert_eq!(
+                selected.caller_alias_operands,
+                vec![tokens.words()[written].clone()]
+            );
+            assert_eq!(
+                selected.effective.origins[2],
+                InvocationWordOrigin::Written(written)
+            );
+            assert_eq!(
+                matches!(
+                    selected.effective.origins[1],
+                    InvocationWordOrigin::BindingPrefix(_)
+                ),
+                captured,
+            );
+            assert_eq!(binding.logical_source_name_advice_input(), Some(&input));
+            assert!(advice.dialect().native_name_protocol().is_none());
+            assert!(
+                SourceAnalysisOptions::for_logical_source(&input)
+                    .unwrap()
+                    .native_entry
+                    .is_none()
+            );
+
+            let (older_tokens, _) = original(&older);
+            assert!(
+                older_tokens
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .declaration_operand_layout_advice(&older_tokens)
+                    .and_then(
+                        |advice| crate::registry_invocation::declaration_invocation_flow(
+                            &registry,
+                            &older_tokens,
+                            &advice,
+                        )
+                    )
+                    .is_none()
+            );
+            let changed_grammar = ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::clone(&current),
+                tcl_lexer::LexerConfig {
+                    strict_quoting: !config.strict_quoting,
+                    ..config
+                },
+            );
+            let foreign_input =
+                ResolvedAnalysisInput::new(profile, profile, Arc::clone(&foreign), config);
+            for owner in [
+                OwnedInvocationMetadataContext::Unavailable,
+                OwnedInvocationMetadataContext::Supplied(Arc::clone(&current)),
+                OwnedInvocationMetadataContext::for_source_input(Some(&changed_grammar)),
+                OwnedInvocationMetadataContext::for_source_input(Some(&foreign_input)),
+            ] {
+                let mut changed = tokens.clone();
+                let point = Arc::make_mut(
+                    changed
+                        .source_binding
+                        .as_mut()
+                        .unwrap()
+                        .lookup_state
+                        .as_mut()
+                        .unwrap(),
+                );
+                Arc::make_mut(&mut point.state.baseline).metadata_context = owner;
+                assert!(
+                    changed
+                        .source_binding
+                        .as_ref()
+                        .unwrap()
+                        .original_invocation_metadata_at_point(&changed, &registry)
+                        .is_err()
+                );
+                assert!(
+                    crate::registry_invocation::declaration_invocation_flow(
+                        &registry, &changed, &advice,
+                    )
+                    .is_none()
+                );
+            }
+            let mut changed_vector = tokens.clone();
+            changed_vector.word_exprs.pop();
+            assert!(
+                crate::registry_invocation::declaration_invocation_flow(
+                    &registry,
+                    &changed_vector,
+                    &advice,
+                )
+                .is_none()
+            );
+        }
+    }
+
+    #[test]
     fn warmed_original_lexical_projection_cannot_donate_changed_module_metadata() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md

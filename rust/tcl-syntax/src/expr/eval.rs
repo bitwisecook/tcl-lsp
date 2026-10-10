@@ -235,6 +235,18 @@ pub trait ExprOps {
         left: &Self::Value,
         right: &Self::Value,
     ) -> Option<NumericCompare>;
+    /// Fallible numeric classification before lexical comparison.
+    /// `Ok(None)` means a genuine nonnumeric operand. Operational failures
+    /// remain errors and never authorise the walker to try a String getter.
+    /// The default is for explicit mathematical adapters whose classification
+    /// cannot invoke a Host or access retained executable object storage.
+    fn compare_numeric_checked(
+        &mut self,
+        left: &Self::Value,
+        right: &Self::Value,
+    ) -> Result<Option<NumericCompare>, Self::Error> {
+        Ok(self.compare_numeric(left, right))
+    }
     /// String comparison (for `eq`/`ne`/`lt`… and the `==` string fallback).
     fn compare_string(
         &mut self,
@@ -671,7 +683,7 @@ fn num_or_str<O: ExprOps>(
     l: &O::Value,
     r: &O::Value,
 ) -> Result<NumericCompare, O::Error> {
-    match ops.compare_numeric(l, r) {
+    match ops.compare_numeric_checked(l, r)? {
         Some(outcome) => Ok(outcome),
         None => ops.compare_string(l, r).map(NumericCompare::Ordered),
     }
@@ -718,6 +730,8 @@ mod tests {
     struct Ops {
         commands: Vec<String>,
         calls: Vec<String>,
+        comparison_refusal: Option<String>,
+        lexical_comparisons: usize,
         /// When set, every quoted operand is recorded here and read back
         /// marked, so a test can tell which hook the walker called.
         quoted: Option<Vec<String>>,
@@ -804,7 +818,18 @@ mod tests {
                 _ => None,
             }
         }
+        fn compare_numeric_checked(
+            &mut self,
+            left: &V,
+            right: &V,
+        ) -> Result<Option<NumericCompare>, String> {
+            if let Some(refusal) = &self.comparison_refusal {
+                return Err(refusal.clone());
+            }
+            Ok(self.compare_numeric(left, right))
+        }
         fn compare_string(&mut self, left: &V, right: &V) -> Result<Ordering, String> {
+            self.lexical_comparisons += 1;
             Ok(left.as_string().cmp(&right.as_string()))
         }
         fn in_list(&mut self, needle: &V, list: &V) -> Result<bool, String> {
@@ -844,6 +869,26 @@ mod tests {
         }
         // NB: `binary_other` intentionally left as the trait default so the
         // default (`Err(unsupported)`) body is exercised.
+    }
+
+    #[test]
+    fn checked_comparison_refusal_stops_before_lexical_fallback() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Pure walker routing control; this is not an external numeric observation.
+        let node = parse_expr("{left} == {right}", None);
+        let mut refused = Ops {
+            comparison_refusal: Some("original operational cause".into()),
+            ..Ops::default()
+        };
+        assert_eq!(
+            eval(&node, &mut refused),
+            Err("original operational cause".into())
+        );
+        assert_eq!(refused.lexical_comparisons, 0);
+        let mut ordinary = Ops::default();
+        assert_eq!(eval(&node, &mut ordinary).unwrap(), V::Num(0));
+        assert_eq!(ordinary.lexical_comparisons, 1);
     }
 
     #[test]

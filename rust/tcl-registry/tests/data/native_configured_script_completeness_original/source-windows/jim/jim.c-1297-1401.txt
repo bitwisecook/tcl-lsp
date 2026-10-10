@@ -1,0 +1,105 @@
+/* Initialize a parser context.
+ * 'prg' is a pointer to the program text, linenr is the line
+ * number of the first line contained in the program. */
+static void JimParserInit(struct JimParserCtx *pc, const char *prg, int len, int linenr)
+{
+    pc->p = prg;
+    pc->len = len;
+    pc->tstart = NULL;
+    pc->tend = NULL;
+    pc->tline = 0;
+    pc->tt = JIM_TT_NONE;
+    pc->eof = 0;
+    pc->inquote = 0;
+    pc->linenr = linenr;
+    pc->comment = 1;
+    pc->missing.ch = ' ';
+    pc->missing.line = linenr;
+}
+
+/* Parse the next token from a Tcl script. */
+static int JimParseScript(struct JimParserCtx *pc)
+{
+    while (1) {                 /* the while is used to reiterate with continue if needed */
+        if (!pc->len) {
+            pc->tstart = pc->p;
+            pc->tend = pc->p - 1;
+            pc->tline = pc->linenr;
+            pc->tt = JIM_TT_EOL;
+            if (pc->inquote) {
+                pc->missing.ch = '"';
+            }
+            pc->eof = 1;
+            return JIM_OK;
+        }
+        switch (*(pc->p)) {
+            case '\\':
+                if (*(pc->p + 1) == '\n' && !pc->inquote) {
+                    return JimParseSep(pc);
+                }
+                pc->comment = 0;
+                return JimParseStr(pc);
+            case ' ':
+            case '\t':
+            case '\r':
+            case '\f':
+                if (!pc->inquote)
+                    return JimParseSep(pc);
+                pc->comment = 0;
+                return JimParseStr(pc);
+            case '\n':
+            case ';':
+                pc->comment = 1;
+                if (!pc->inquote)
+                    return JimParseEol(pc);
+                return JimParseStr(pc);
+            case '[':
+                pc->comment = 0;
+                return JimParseCmd(pc);
+            case '$':
+                pc->comment = 0;
+                if (JimParseVar(pc) == JIM_ERR) {
+                    /* An orphan $. Create as a separate token */
+                    pc->tstart = pc->tend = pc->p++;
+                    pc->len--;
+                    pc->tt = JIM_TT_ESC;
+                }
+                return JIM_OK;
+            case '#':
+                if (pc->comment) {
+                    JimParseComment(pc);
+                    continue;
+                }
+                return JimParseStr(pc);
+            default:
+                pc->comment = 0;
+                return JimParseStr(pc);
+        }
+        return JIM_OK;
+    }
+}
+
+/* Parse a run of script separators, including backslash-newline continuations. */
+static int JimParseSep(struct JimParserCtx *pc)
+{
+    pc->tstart = pc->p;
+    pc->tline = pc->linenr;
+    while (isspace(UCHAR(*pc->p)) || (*pc->p == '\\' && *(pc->p + 1) == '\n')) {
+        if (*pc->p == '\n') {
+            break;
+        }
+        if (*pc->p == '\\') {
+            pc->p++;
+            pc->len--;
+            pc->linenr++;
+        }
+        pc->p++;
+        pc->len--;
+    }
+    pc->tend = pc->p - 1;
+    pc->tt = JIM_TT_SEP;
+    return JIM_OK;
+}
+
+/* Parse end-of-command separators. */
+static int JimParseEol(struct JimParserCtx *pc)

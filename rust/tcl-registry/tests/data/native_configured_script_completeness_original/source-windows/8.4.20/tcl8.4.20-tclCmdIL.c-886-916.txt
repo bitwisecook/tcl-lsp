@@ -1,0 +1,31 @@
+InfoCompleteCmd(dummy, interp, objc, objv)
+    ClientData dummy;		/* Not used. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* Argument objects. */
+{
+    if (objc != 3) {
+        Tcl_WrongNumArgs(interp, 2, objv, "command");
+        return TCL_ERROR;
+    }
+
+    if (TclObjCommandComplete(objv[2])) {
+	Tcl_SetIntObj(Tcl_GetObjResult(interp), 1);
+    } else {
+	Tcl_SetIntObj(Tcl_GetObjResult(interp), 0);
+    }
+
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * InfoDefaultCmd --
+ *
+ *      Called to implement the "info default" command that returns the
+ *      default value for a procedure argument. Handles the following
+ *      syntax:
+ *
+ *          info default procName arg varName
+ *

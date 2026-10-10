@@ -293,7 +293,7 @@ fn compare<O: ExprOps>(
     b: &O::Value,
     string_only: bool,
 ) -> Result<NumericCompare, O::Error> {
-    if !string_only && let Some(numeric) = ops.compare_numeric(a, b) {
+    if !string_only && let Some(numeric) = ops.compare_numeric_checked(a, b)? {
         return Ok(numeric);
     }
     ops.compare_string(a, b).map(NumericCompare::Ordered)

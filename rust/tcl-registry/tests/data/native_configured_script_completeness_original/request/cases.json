@@ -1,0 +1,745 @@
+[
+  {
+    "index": 0,
+    "label": "empty",
+    "utf8_hex": "",
+    "codepoints": [],
+    "text": ""
+  },
+  {
+    "index": 1,
+    "label": "ordinary",
+    "utf8_hex": "73657420782031",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      49
+    ],
+    "text": "set x 1"
+  },
+  {
+    "index": 2,
+    "label": "open_brace",
+    "utf8_hex": "7365742078207b",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      123
+    ],
+    "text": "set x {"
+  },
+  {
+    "index": 3,
+    "label": "brace_literal_bracket",
+    "utf8_hex": "7365742078207b5b7d",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      123,
+      91,
+      125
+    ],
+    "text": "set x {[}"
+  },
+  {
+    "index": 4,
+    "label": "brace_literal_quote",
+    "utf8_hex": "7365742078207b227d",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      123,
+      34,
+      125
+    ],
+    "text": "set x {\"}"
+  },
+  {
+    "index": 5,
+    "label": "open_quote",
+    "utf8_hex": "73657420782022",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      34
+    ],
+    "text": "set x \""
+  },
+  {
+    "index": 6,
+    "label": "quoted_open_substitution",
+    "utf8_hex": "736574207820225b7365742079",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      34,
+      91,
+      115,
+      101,
+      116,
+      32,
+      121
+    ],
+    "text": "set x \"[set y"
+  },
+  {
+    "index": 7,
+    "label": "closed_quote_tail",
+    "utf8_hex": "73657420782022612262207b",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      34,
+      97,
+      34,
+      98,
+      32,
+      123
+    ],
+    "text": "set x \"a\"b {"
+  },
+  {
+    "index": 8,
+    "label": "closed_brace_tail",
+    "utf8_hex": "7365742078207b617d62207b",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      123,
+      97,
+      125,
+      98,
+      32,
+      123
+    ],
+    "text": "set x {a}b {"
+  },
+  {
+    "index": 9,
+    "label": "open_command",
+    "utf8_hex": "7365742078205b7365742079",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      91,
+      115,
+      101,
+      116,
+      32,
+      121
+    ],
+    "text": "set x [set y"
+  },
+  {
+    "index": 10,
+    "label": "closed_command",
+    "utf8_hex": "7365742078205b73657420795d",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      91,
+      115,
+      101,
+      116,
+      32,
+      121,
+      93
+    ],
+    "text": "set x [set y]"
+  },
+  {
+    "index": 11,
+    "label": "var_open",
+    "utf8_hex": "736574207820247b61",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      36,
+      123,
+      97
+    ],
+    "text": "set x ${a"
+  },
+  {
+    "index": 12,
+    "label": "var_inner_open_first_close",
+    "utf8_hex": "736574207820247b617b7d",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      36,
+      123,
+      97,
+      123,
+      125
+    ],
+    "text": "set x ${a{}"
+  },
+  {
+    "index": 13,
+    "label": "var_inner_balanced",
+    "utf8_hex": "736574207820247b617b627d637d",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      36,
+      123,
+      97,
+      123,
+      98,
+      125,
+      99,
+      125
+    ],
+    "text": "set x ${a{b}c}"
+  },
+  {
+    "index": 14,
+    "label": "var_escaped_close",
+    "utf8_hex": "736574207820247b615c7d",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      36,
+      123,
+      97,
+      92,
+      125
+    ],
+    "text": "set x ${a\\}"
+  },
+  {
+    "index": 15,
+    "label": "var_unicode_first_close",
+    "utf8_hex": "736574207820247bc3a97b7d",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      36,
+      123,
+      233,
+      123,
+      125
+    ],
+    "text": "set x ${é{}"
+  },
+  {
+    "index": 16,
+    "label": "quoted_var_first_close",
+    "utf8_hex": "73657420782022247b617b7d22",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      34,
+      36,
+      123,
+      97,
+      123,
+      125,
+      34
+    ],
+    "text": "set x \"${a{}\""
+  },
+  {
+    "index": 17,
+    "label": "array_open",
+    "utf8_hex": "736574207820246128",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      36,
+      97,
+      40
+    ],
+    "text": "set x $a("
+  },
+  {
+    "index": 18,
+    "label": "array_closed",
+    "utf8_hex": "736574207820246128666f6f29",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      36,
+      97,
+      40,
+      102,
+      111,
+      111,
+      41
+    ],
+    "text": "set x $a(foo)"
+  },
+  {
+    "index": 19,
+    "label": "array_open_command",
+    "utf8_hex": "736574207820246128666f6f5b7365742079",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      36,
+      97,
+      40,
+      102,
+      111,
+      111,
+      91,
+      115,
+      101,
+      116,
+      32,
+      121
+    ],
+    "text": "set x $a(foo[set y"
+  },
+  {
+    "index": 20,
+    "label": "array_quote_literal",
+    "utf8_hex": "73657420782024612822666f6f29",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      36,
+      97,
+      40,
+      34,
+      102,
+      111,
+      111,
+      41
+    ],
+    "text": "set x $a(\"foo)"
+  },
+  {
+    "index": 21,
+    "label": "array_tail_open_command",
+    "utf8_hex": "736574207820246128666f6f297461696c5b7365742079",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      36,
+      97,
+      40,
+      102,
+      111,
+      111,
+      41,
+      116,
+      97,
+      105,
+      108,
+      91,
+      115,
+      101,
+      116,
+      32,
+      121
+    ],
+    "text": "set x $a(foo)tail[set y"
+  },
+  {
+    "index": 22,
+    "label": "expansion_open_brace",
+    "utf8_hex": "7365742078207b2a7d7b",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      123,
+      42,
+      125,
+      123
+    ],
+    "text": "set x {*}{"
+  },
+  {
+    "index": 23,
+    "label": "expansion_open_quote",
+    "utf8_hex": "7365742078207b2a7d22",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      123,
+      42,
+      125,
+      34
+    ],
+    "text": "set x {*}\""
+  },
+  {
+    "index": 24,
+    "label": "expansion_closed",
+    "utf8_hex": "7365742078207b2a7d7b6120627d",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      123,
+      42,
+      125,
+      123,
+      97,
+      32,
+      98,
+      125
+    ],
+    "text": "set x {*}{a b}"
+  },
+  {
+    "index": 25,
+    "label": "trailing_backslash",
+    "utf8_hex": "7365742078205c",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      92
+    ],
+    "text": "set x \\"
+  },
+  {
+    "index": 26,
+    "label": "pending_continuation",
+    "utf8_hex": "7365742078205c0a",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      92,
+      10
+    ],
+    "text": "set x \\\n"
+  },
+  {
+    "index": 27,
+    "label": "comment_pending_continuation",
+    "utf8_hex": "2320635c0a",
+    "codepoints": [
+      35,
+      32,
+      99,
+      92,
+      10
+    ],
+    "text": "# c\\\n"
+  },
+  {
+    "index": 28,
+    "label": "comment_literal_delimiters",
+    "utf8_hex": "23207b205b2022",
+    "codepoints": [
+      35,
+      32,
+      123,
+      32,
+      91,
+      32,
+      34
+    ],
+    "text": "# { [ \""
+  },
+  {
+    "index": 29,
+    "label": "comment_crlf_continuation",
+    "utf8_hex": "2320635c0d0a",
+    "codepoints": [
+      35,
+      32,
+      99,
+      92,
+      13,
+      10
+    ],
+    "text": "# c\\\r\n"
+  },
+  {
+    "index": 30,
+    "label": "lone_cr",
+    "utf8_hex": "7365742078207b610d627d",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      123,
+      97,
+      13,
+      98,
+      125
+    ],
+    "text": "set x {a\rb}"
+  },
+  {
+    "index": 31,
+    "label": "crlf_brace",
+    "utf8_hex": "7365742078207b610d0a627d",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      123,
+      97,
+      13,
+      10,
+      98,
+      125
+    ],
+    "text": "set x {a\r\nb}"
+  },
+  {
+    "index": 32,
+    "label": "nul_before_open",
+    "utf8_hex": "73657420782031007b",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      49,
+      0,
+      123
+    ],
+    "text": "set x 1\u0000{"
+  },
+  {
+    "index": 33,
+    "label": "nul_inside_brace",
+    "utf8_hex": "7365742078207b6100",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      123,
+      97,
+      0
+    ],
+    "text": "set x {a\u0000"
+  },
+  {
+    "index": 34,
+    "label": "nul_after_open_command",
+    "utf8_hex": "7365742078205b00",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      91,
+      0
+    ],
+    "text": "set x [\u0000"
+  },
+  {
+    "index": 35,
+    "label": "nul_literal",
+    "utf8_hex": "736574207820610062",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      97,
+      0,
+      98
+    ],
+    "text": "set x a\u0000b"
+  },
+  {
+    "index": 36,
+    "label": "literal_variable_dollar",
+    "utf8_hex": "73657420782024",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      36
+    ],
+    "text": "set x $"
+  },
+  {
+    "index": 37,
+    "label": "stray_close_brace",
+    "utf8_hex": "7365742078207d",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      125
+    ],
+    "text": "set x }"
+  },
+  {
+    "index": 38,
+    "label": "unicode_non_ascii",
+    "utf8_hex": "736574207820c3a9",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      233
+    ],
+    "text": "set x é"
+  },
+  {
+    "index": 39,
+    "label": "jim_sugar_open",
+    "utf8_hex": "7365742078202428312b32",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      36,
+      40,
+      49,
+      43,
+      50
+    ],
+    "text": "set x $(1+2"
+  },
+  {
+    "index": 40,
+    "label": "jim_sugar_closed",
+    "utf8_hex": "7365742078202428312b3229",
+    "codepoints": [
+      115,
+      101,
+      116,
+      32,
+      120,
+      32,
+      36,
+      40,
+      49,
+      43,
+      50,
+      41
+    ],
+    "text": "set x $(1+2)"
+  }
+]

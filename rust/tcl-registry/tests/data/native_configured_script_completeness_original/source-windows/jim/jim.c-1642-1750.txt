@@ -1,0 +1,109 @@
+static int JimParseVar(struct JimParserCtx *pc)
+{
+    /* skip the $ */
+    pc->p++;
+    pc->len--;
+
+#ifdef EXPRSUGAR_BRACKET
+    if (*pc->p == '[') {
+        /* Parse $[...] expr shorthand syntax */
+        JimParseCmd(pc);
+        pc->tt = JIM_TT_EXPRSUGAR;
+        return JIM_OK;
+    }
+#endif
+
+    pc->tstart = pc->p;
+    pc->tt = JIM_TT_VAR;
+    pc->tline = pc->linenr;
+
+    if (*pc->p == '{') {
+        pc->tstart = ++pc->p;
+        pc->len--;
+
+        while (pc->len && *pc->p != '}') {
+            if (*pc->p == '\n') {
+                pc->linenr++;
+            }
+            pc->p++;
+            pc->len--;
+        }
+        pc->tend = pc->p - 1;
+        if (pc->len) {
+            pc->p++;
+            pc->len--;
+        }
+    }
+    else {
+        while (1) {
+            /* Skip double colon, but not single colon! */
+            if (pc->p[0] == ':' && pc->p[1] == ':') {
+                while (*pc->p == ':') {
+                    pc->p++;
+                    pc->len--;
+                }
+                continue;
+            }
+            /* Note that any char >= 0x80 must be part of a utf-8 char.
+             * We consider all unicode points outside of ASCII as letters
+             */
+            if (isalnum(UCHAR(*pc->p)) || *pc->p == '_' || UCHAR(*pc->p) >= 0x80) {
+                pc->p++;
+                pc->len--;
+                continue;
+            }
+            break;
+        }
+        /* Parse [dict get] syntax sugar. */
+        if (*pc->p == '(') {
+            int count = 1;
+            const char *paren = NULL;
+
+            pc->tt = JIM_TT_DICTSUGAR;
+
+            while (count && pc->len) {
+                pc->p++;
+                pc->len--;
+                if (*pc->p == '\\' && pc->len >= 1) {
+                    pc->p++;
+                    pc->len--;
+                }
+                else if (*pc->p == '(') {
+                    count++;
+                }
+                else if (*pc->p == ')') {
+                    paren = pc->p;
+                    count--;
+                }
+            }
+            if (count == 0) {
+                pc->p++;
+                pc->len--;
+            }
+            else if (paren) {
+                /* Did not find a matching paren. Back up */
+                paren++;
+                pc->len += (pc->p - paren);
+                pc->p = paren;
+            }
+#ifndef EXPRSUGAR_BRACKET
+            if (*pc->tstart == '(') {
+                pc->tt = JIM_TT_EXPRSUGAR;
+            }
+#endif
+        }
+        pc->tend = pc->p - 1;
+    }
+    /* Check if we parsed just the '$' character.
+     * That's not a variable so an error is returned
+     * to tell the state machine to consider this '$' just
+     * a string. */
+    if (pc->tstart == pc->p) {
+        pc->p--;
+        pc->len++;
+        return JIM_ERR;
+    }
+    return JIM_OK;
+}
+
+/* Parse a plain string token until substitution or word boundaries are reached. */

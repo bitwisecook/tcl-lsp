@@ -1,0 +1,1064 @@
+{
+  "name": "OriginalInfoComplete452",
+  "question_id": "naming.source.original-configured-script-completeness",
+  "question": "For independently constructed original String inputs, what does the actual info-complete worker report under C8.4\u20139.1 and Jim, including braced variable/array/expansion/comment/line-ending/counted-NUL boundaries?",
+  "purpose": "Public info complete original String value query. Does not evaluate those input scripts, grant compiler/source entry, attest internal object identity/cache, or donate source grammar from version labels. CLI Document UTF8 completeness and physical value worker are separate purposes until matched original observations.",
+  "status": "private sealed request; no provider launched by agent",
+  "providers": [
+    {
+      "label": "8.4.20",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "expected_version": "8.4.20",
+      "environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+      }
+    },
+    {
+      "label": "8.5.19",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "expected_version": "8.5.19",
+      "environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+      }
+    },
+    {
+      "label": "8.6.18",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "expected_version": "8.6.18",
+      "environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+      }
+    },
+    {
+      "label": "9.0.4",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "expected_version": "9.0.4",
+      "environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+      }
+    },
+    {
+      "label": "9.1.0",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "expected_version": "9.1.0",
+      "environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+      }
+    },
+    {
+      "label": "jim",
+      "executable": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "expected_version": "0.84-9-g5bac7c9",
+      "environment": {}
+    }
+  ],
+  "bigip": "not-tested",
+  "capture_path": "/tmp/native-info-complete-original452-capture",
+  "probe_script": "/tmp/grammar-info-complete-request452/probe.tcl",
+  "version_script": "/tmp/grammar-info-complete-request452/version.tcl",
+  "cases_file": "/tmp/grammar-info-complete-request452/cases.json",
+  "rows_per_provider": 41,
+  "case_labels": [
+    "empty",
+    "ordinary",
+    "open_brace",
+    "brace_literal_bracket",
+    "brace_literal_quote",
+    "open_quote",
+    "quoted_open_substitution",
+    "closed_quote_tail",
+    "closed_brace_tail",
+    "open_command",
+    "closed_command",
+    "var_open",
+    "var_inner_open_first_close",
+    "var_inner_balanced",
+    "var_escaped_close",
+    "var_unicode_first_close",
+    "quoted_var_first_close",
+    "array_open",
+    "array_closed",
+    "array_open_command",
+    "array_quote_literal",
+    "array_tail_open_command",
+    "expansion_open_brace",
+    "expansion_open_quote",
+    "expansion_closed",
+    "trailing_backslash",
+    "pending_continuation",
+    "comment_pending_continuation",
+    "comment_literal_delimiters",
+    "comment_crlf_continuation",
+    "lone_cr",
+    "crlf_brace",
+    "nul_before_open",
+    "nul_inside_brace",
+    "nul_after_open_command",
+    "nul_literal",
+    "literal_variable_dollar",
+    "stray_close_brace",
+    "unicode_non_ascii",
+    "jim_sugar_open",
+    "jim_sugar_closed"
+  ],
+  "input_constructor": "Fresh Tcl String per row assembled by append of format%c from fixed original scalar codepoints; complete original codepoints and UTF8 representation recorded in cases.json; embedded NUL remains a value input, not a source-file terminator.",
+  "runner": "Root only: python3 /tmp/grammar-info-complete-request452/launch.py",
+  "launcher_sha256": "21f2bee80a0725bbd22d7cdb853ddaef5b9624fb0a1a1927174db466b7ed7474",
+  "input_pins": [
+    {
+      "path": "/tmp/grammar-info-complete-request452/probe.tcl",
+      "resolved_path": "/tmp/grammar-info-complete-request452/probe.tcl",
+      "bytes": 2806,
+      "sha256": "43020e0c55df0c59bd8cbcf3a9b4cf8ba6606f52dda0cdf5e0c860545191489e"
+    },
+    {
+      "path": "/tmp/grammar-info-complete-request452/cases.json",
+      "resolved_path": "/tmp/grammar-info-complete-request452/cases.json",
+      "bytes": 10626,
+      "sha256": "fdfa5641863b91b6df7892e2dd508eb0a9b44d7cb8ab3f836e2a23c905009953"
+    },
+    {
+      "path": "/tmp/grammar-info-complete-request452/version.tcl",
+      "resolved_path": "/tmp/grammar-info-complete-request452/version.tcl",
+      "bytes": 23,
+      "sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "bytes": 907648,
+      "sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclParse.c",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclParse.c",
+      "bytes": 55984,
+      "sha256": "9165a6e94c18e7af7677bcb7071f89051bbdd46a3295017ddb7ee841d66920ca"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c",
+      "bytes": 121971,
+      "sha256": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclConfig.sh",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclConfig.sh",
+      "bytes": 8019,
+      "sha256": "e67ced9d9a920741fd6ed13a7462acf7f7ccd75283e7ce1daa0ef8f3e7f712ca"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/auto.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/auto.tcl",
+      "bytes": 20841,
+      "sha256": "a04176d99af9264972f25f115bf3a354a47d6791b0fb65dc956698147454fd13"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/dde/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/dde/pkgIndex.tcl",
+      "bytes": 315,
+      "sha256": "21668d84700b94eb650c902000b9490106267b444c632148dfcf5b60e3621fcd"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/history.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/history.tcl",
+      "bytes": 8958,
+      "sha256": "6c7262b1ed5b376d84776d347e1d3ade7d565fabf1ac956a61649b95318a5d5b"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http/http.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http/http.tcl",
+      "bytes": 29080,
+      "sha256": "d9ce3119271af29ac600a3cbec9866be750a306c01c3d28897f655e3e9b35c46"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http/pkgIndex.tcl",
+      "bytes": 743,
+      "sha256": "0e8c796d23795489ca9f710ee963f685a67ce6a0052ebcde4eefe40295221779"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http1.0/http.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http1.0/http.tcl",
+      "bytes": 9693,
+      "sha256": "88220b059956d3f331b29c514f0d4ad77fbd840efb27f0c2621510800a9b9094"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http1.0/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http1.0/pkgIndex.tcl",
+      "bytes": 735,
+      "sha256": "420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+      "bytes": 22434,
+      "sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/ldAout.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/ldAout.tcl",
+      "bytes": 6736,
+      "sha256": "695157c85d3a27c435abd2998ba06fb24cad7b1e7ecb280fc1c60986749634f0"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/msgcat/msgcat.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/msgcat/msgcat.tcl",
+      "bytes": 12992,
+      "sha256": "21ed0584bad0589bad98c5684cea7c113ef0d0339599ee20fa45d835683eb64e"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/msgcat/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/msgcat/pkgIndex.tcl",
+      "bytes": 134,
+      "sha256": "df9750e9a99622ca48727f45f32db3313d1d6487c3f92de60d730209708622c7"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/opt/optparse.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/opt/optparse.tcl",
+      "bytes": 32950,
+      "sha256": "a7665fe9abcc7340f34e6470b94001c67d6c68824f214ed736dd27e8d62a8d32"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/opt/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/opt/pkgIndex.tcl",
+      "bytes": 609,
+      "sha256": "c4a5c0dc93486d7ac086313410983f34717e431128212a4e2c4dec82ae834f77"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/package.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/package.tcl",
+      "bytes": 25560,
+      "sha256": "3373e053b6b698e9aaf66542b97be199b59beb9a7eb73878238c0915a844343f"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/parray.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/parray.tcl",
+      "bytes": 812,
+      "sha256": "cff00c9471fa6941bca5a934ea331cc63ecf750c93c320f3cb378cd27c77b89a"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/pkgIndex.tcl",
+      "bytes": 165,
+      "sha256": "fbb2ece354ab60a262509773cc9c28b77940e26af005963ea1402547d43fae8a"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/platform.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/platform.tcl",
+      "bytes": 9863,
+      "sha256": "d2c0e68e0b9d53faf7d9a34ecc49560b14eaae108eb25681335f51e231755c6e"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/shell.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/shell.tcl",
+      "bytes": 5977,
+      "sha256": "6611d96f69fff00d09b625786298b001c7b794147057a1f57163d910cf2b5d0a"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/reg/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/reg/pkgIndex.tcl",
+      "bytes": 363,
+      "sha256": "24561d73e6fced367e6a09b824afd107ef20de2d476425b15019dfa6130662df"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/safe.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/safe.tcl",
+      "bytes": 27591,
+      "sha256": "c975b8db8a368d4eee415eaa2d9cfca0cf98445c314772f82a64ebde07bce906"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/pkgIndex.tcl",
+      "bytes": 611,
+      "sha256": "30d8ec3404ae35102274f991e84f7cdda6bb84181d60328ae50c2c6143ccd4de"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl",
+      "bytes": 98952,
+      "sha256": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/word.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/word.tcl",
+      "bytes": 4266,
+      "sha256": "c4b31e1a407db7566ab0f0b1e36eecc5e5d72dd9eac1916c5d69304e0df4c26e"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "bytes": 1294480,
+      "sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclParse.c",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclParse.c",
+      "bytes": 76130,
+      "sha256": "4855b382f7acc6e02e53383f667169a6a9d348a30b44c586c8622e97f34a3a8c"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c",
+      "bytes": 113090,
+      "sha256": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclConfig.sh",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclConfig.sh",
+      "bytes": 8086,
+      "sha256": "305b56696cc9b02162fef44ffcaa8f2a99b096aede7e53986d2a53acf7d8cac7"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/auto.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/auto.tcl",
+      "bytes": 20613,
+      "sha256": "f33b4e6ca8ac8a86ace39ad57628d7588ef04ec3d8d86c700f54ccba77b242fc"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/clock.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/clock.tcl",
+      "bytes": 130093,
+      "sha256": "71966a6cecd4d718b8b6286573bf50539c1d4bffad26a1126d056a5da48a66e4"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/dde/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/dde/pkgIndex.tcl",
+      "bytes": 315,
+      "sha256": "21668d84700b94eb650c902000b9490106267b444c632148dfcf5b60e3621fcd"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/history.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/history.tcl",
+      "bytes": 8965,
+      "sha256": "f136e0db9e71468e4d9d93200cd2d04e6915d5546681bfeca6cb9a620ba648ba"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http/http.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http/http.tcl",
+      "bytes": 40562,
+      "sha256": "425f41cbee04fe48b5803a77f1649257e4dcb475491c01f6d58704c3af4399c1"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http/pkgIndex.tcl",
+      "bytes": 318,
+      "sha256": "f33a19dafa35af4765cd1a6dd8557047a73a21b2b8a7288d52cec6bdf7cea6cc"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http1.0/http.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http1.0/http.tcl",
+      "bytes": 9693,
+      "sha256": "88220b059956d3f331b29c514f0d4ad77fbd840efb27f0c2621510800a9b9094"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http1.0/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/http1.0/pkgIndex.tcl",
+      "bytes": 735,
+      "sha256": "420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+      "bytes": 24873,
+      "sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/msgcat/msgcat.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/msgcat/msgcat.tcl",
+      "bytes": 16406,
+      "sha256": "2efa43679969abd5748f6e7d64408617396300b469e1ec9d0b6c1a7764c886e5"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/msgcat/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/msgcat/pkgIndex.tcl",
+      "bytes": 134,
+      "sha256": "8989f8e8d7f96da5fd51f5271cd32aadc4fa5c23d7c4010838378d921c3d8d1e"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/opt/optparse.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/opt/optparse.tcl",
+      "bytes": 32944,
+      "sha256": "217074e45fc877ceddb0eb10fca94fcf43dc235dd8dc4bd1c9b6ec3121ae726c"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/opt/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/opt/pkgIndex.tcl",
+      "bytes": 607,
+      "sha256": "a088e549d18ade683273e31c004daa7e614642fe801afb3861eb85445250186b"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/package.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/package.tcl",
+      "bytes": 23329,
+      "sha256": "be3df25f0cf653c20b69784aee0fd719634d5421746b5b1141bc0592a59841c9"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/parray.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/parray.tcl",
+      "bytes": 816,
+      "sha256": "ebe5a2b4cbbcd7fd3f7a6f76d68d7856301db01b350c040942a7b806a46e0014"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/pkgIndex.tcl",
+      "bytes": 165,
+      "sha256": "1d808c59aaf46b7a24ea360246a5fa3824a510d703750eb234b702f8106c708c"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/platform.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/platform.tcl",
+      "bytes": 10012,
+      "sha256": "d4b3d9601454ea4828dff3be426c33fb845d005e98d2cc139dbb0d69cad3168b"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/shell.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/platform/shell.tcl",
+      "bytes": 5977,
+      "sha256": "2f812a0550716b88930174a8ca245698427cd286680c0968558ae269ab52440d"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/reg/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/reg/pkgIndex.tcl",
+      "bytes": 363,
+      "sha256": "24561d73e6fced367e6a09b824afd107ef20de2d476425b15019dfa6130662df"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/safe.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/safe.tcl",
+      "bytes": 33155,
+      "sha256": "953bc6cbf03a7ff492de59828c6d31a12d80b45873d85c03cb62a6099fed976c"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/pkgIndex.tcl",
+      "bytes": 610,
+      "sha256": "29c57ad6fe369a9fed7d378471aec5a7bdd5bd153c57222f83485245a3f23e44"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl",
+      "bytes": 99905,
+      "sha256": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tm.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tm.tcl",
+      "bytes": 11739,
+      "sha256": "5d86054b2ce7ecb7ad39a6a2ee7afc98816a837e9819ce7b7c31c19ba0b123cf"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/word.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/word.tcl",
+      "bytes": 4674,
+      "sha256": "64585c5327b0710d31bff61c14564ff289acaad8743174f95544d8c04306d8c7"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "bytes": 1915376,
+      "sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclParse.c",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclParse.c",
+      "bytes": 75538,
+      "sha256": "bbab97189d8d3e1ccca11a1bb02cc2c8c6099c7ba33d3f35de4e614a7ba8bfb6"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c",
+      "bytes": 123651,
+      "sha256": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclConfig.sh",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclConfig.sh",
+      "bytes": 8193,
+      "sha256": "beddc87cb1aa1dd414e2be975085bfa07d46e4a9822710e8974da16e8868dfd9"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/auto.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/auto.tcl",
+      "bytes": 20929,
+      "sha256": "67be04b5aa4c0845f8c5143171acf31ad6b3f23eb1a0be98133133e8abc9822b"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/clock.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/clock.tcl",
+      "bytes": 129006,
+      "sha256": "3fd236d0d8cd613dee7e4ece236396bd424bc81673e9bd403bee4695d0ff5c75"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/dde/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/dde/pkgIndex.tcl",
+      "bytes": 410,
+      "sha256": "c2e7fd1110cf83cf9b8c5dcc823e02955576615dd67d8f912c151ced735c0d8f"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/history.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/history.tcl",
+      "bytes": 7901,
+      "sha256": "e2eb8bdf39732ca48173e61d9ada4f0d095ddaa3ed1fcce21c0a520c75493d8f"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http/http.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http/http.tcl",
+      "bytes": 114673,
+      "sha256": "803ca646b09304bc21b79f3c5618ac1359a0bc34a2762d40dea933c23e4f7ae6"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http/pkgIndex.tcl",
+      "bytes": 278,
+      "sha256": "0345d47af9786eb20eab98519140306b924f32cd7c685d34bc40d3b6f1f6f27e"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http1.0/http.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http1.0/http.tcl",
+      "bytes": 9675,
+      "sha256": "f115d9d2be5886175fe610484eaac8e17d9feb1c71d419af66c6e31b0c215523"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http1.0/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/http1.0/pkgIndex.tcl",
+      "bytes": 735,
+      "sha256": "420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+      "bytes": 25023,
+      "sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/msgcat/msgcat.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/msgcat/msgcat.tcl",
+      "bytes": 33910,
+      "sha256": "5732951b02b45c3702c2f9ee7c43deabfcfe0aaae893f89bcc59e32bd9444ce3"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/msgcat/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/msgcat/pkgIndex.tcl",
+      "bytes": 151,
+      "sha256": "3d391b5c9219666880499e6e5c87edb05e64c5d25fe2c0e66874fb0271f2e3d1"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/opt/optparse.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/opt/optparse.tcl",
+      "bytes": 32709,
+      "sha256": "04f4b2f34d959cff47c6502a137d15ac9dc4f54d4a6e78478f64c8c7e14849a8"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/opt/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/opt/pkgIndex.tcl",
+      "bytes": 624,
+      "sha256": "c6ef00c55362782a3b8c185e84413225dde64cec690fb324158d7028c53c3745"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/package.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/package.tcl",
+      "bytes": 23564,
+      "sha256": "0227624ef7ab99d60f0aa76e74419c34267a322db36cf945e66ed705525eedc0"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/parray.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/parray.tcl",
+      "bytes": 816,
+      "sha256": "ebe5a2b4cbbcd7fd3f7a6f76d68d7856301db01b350c040942a7b806a46e0014"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/pkgIndex.tcl",
+      "bytes": 258,
+      "sha256": "e744fb8cd80fa0d40eb7fd96b0190e4d441376eeb4dca23efc16ae1b5152c0ad"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/platform.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/platform.tcl",
+      "bytes": 11053,
+      "sha256": "ec8cca09e045ecc3d61d7aa2a336f4c6366a5bc0e8207feca37eab38fc0cd292"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/shell.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/platform/shell.tcl",
+      "bytes": 6001,
+      "sha256": "3e9a139b7d2d768a8b94327feb402c4fc7afeda156e46ab2d22e8c40266142a5"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/reg/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/reg/pkgIndex.tcl",
+      "bytes": 284,
+      "sha256": "5a3a93234a418f3a8e1814dd8e6d95344045a6d3a4e62af6a8fad2c48d2aa1ce"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/safe.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/safe.tcl",
+      "bytes": 41035,
+      "sha256": "bd70548ea2090135918f2e61a39bfdd6163ec8cef82f400ce220a1edc4bedd6c"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/pkgIndex.tcl",
+      "bytes": 628,
+      "sha256": "26cbf5ae8928a273e8404ddb5d92c0d086eb1cb64369db9365930388feecd199"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl",
+      "bytes": 105217,
+      "sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tm.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tm.tcl",
+      "bytes": 11789,
+      "sha256": "0b102f22297356a9873a81224962fde4cbd4b59889c54b1d0632695701eb10fe"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/word.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/word.tcl",
+      "bytes": 4897,
+      "sha256": "f18e8ae29aa8ed2be2cbb5568b4243f654f7fb0aa2066e16977863ee1415b9bc"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "bytes": 3471033,
+      "sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclParse.c",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclParse.c",
+      "bytes": 72693,
+      "sha256": "5937f0c6d669c1e1848a739f40e5d22b21a443a2da83e8b292c3e023bb8e59e0"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c",
+      "bytes": 146959,
+      "sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclConfig.sh",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclConfig.sh",
+      "bytes": 8276,
+      "sha256": "7e808c1d9a006c98ca7b819a43a206ef9e0527ec2ea8dfbb9a1d348659a2ebfe"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/auto.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/auto.tcl",
+      "bytes": 22931,
+      "sha256": "629dc86958aa1c5f8697a638f296c706458e7a3418d2d81a2e81ce945f3828c6"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/clock.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/clock.tcl",
+      "bytes": 60997,
+      "sha256": "6b286804649120c7c249d8c2941cee8e1da59211132d985ad97b8ab196073546"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/cookiejar.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/cookiejar.tcl",
+      "bytes": 21330,
+      "sha256": "9d0811415b98c15bbb5c8f86ec3b92e812dac61e3f4d564f7e0dd0b066ba632a"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/idna.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/idna.tcl",
+      "bytes": 7453,
+      "sha256": "fa329853cd186ea405f4bec122913f1e4286c54488d0ffd445f7f120c71583fe"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/cookiejar/pkgIndex.tcl",
+      "bytes": 214,
+      "sha256": "7d6f5e0236fad3b60cf5b7b10fa5629effcebead382083a7d9543c9526095d1f"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/dde/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/dde/pkgIndex.tcl",
+      "bytes": 508,
+      "sha256": "f140827f677c522b3dce28b61609142da79c565e43ce176141c36766bc95265e"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/foreachline.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/foreachline.tcl",
+      "bytes": 608,
+      "sha256": "5073f9015583f00b25354a7877f55c68d93674ae11384ee042e3b094a8a900e8"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/history.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/history.tcl",
+      "bytes": 7899,
+      "sha256": "ca38bb6652bbc562a3a82d2919f4e900cc5deedfb3582fa4503c573754ccf007"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/http/http.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/http/http.tcl",
+      "bytes": 180243,
+      "sha256": "56372f15e8f73234b7fb2b68f597d5a56a42d995416cdf65fe0c2da1c114e5a9"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/http/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/http/pkgIndex.tcl",
+      "bytes": 280,
+      "sha256": "83bb9de4d5ce47be75668bd196b945407bfd0ec8a3fbf425f137fee723d25742"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/icu.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/icu.tcl",
+      "bytes": 3861,
+      "sha256": "bc125ef0732af6e67367e324c0b3de87e03f04f48c72c42fbb8f77b7b5849a8d"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+      "bytes": 23574,
+      "sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/install.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/install.tcl",
+      "bytes": 7312,
+      "sha256": "5508d98832c4f3cf52b297511206c5dd020111f1dfbe358eee023ee1bff3e012"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/msgcat/msgcat.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/msgcat/msgcat.tcl",
+      "bytes": 37407,
+      "sha256": "80301481addb70362ffd4eb1c301471a41e59987d39dbbc2a6096ddfb415071e"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/msgcat/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/msgcat/pkgIndex.tcl",
+      "bytes": 151,
+      "sha256": "6b7f3bf260c40ecf823f6fb7246ef3b833597e97bfd0e6963aa117ae196cd602"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/opt/optparse.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/opt/optparse.tcl",
+      "bytes": 30413,
+      "sha256": "3d14ecf300f9fdd21875e22ce348988f852c177c4bf25fb6a7f37ba4be9fca73"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/opt/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/opt/pkgIndex.tcl",
+      "bytes": 625,
+      "sha256": "9eaa82aeb3d308b655b69660380829c54a6bbc011280667ac8cf0e5882132846"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/package.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/package.tcl",
+      "bytes": 24081,
+      "sha256": "473bf551d3156a144d6483ce730c72add640168a3ab426b3ee0b122f6d06a96e"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/parray.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/parray.tcl",
+      "bytes": 814,
+      "sha256": "b8677236d4e687e686426718e78d3984146d2f318e5b34cbd43824206e85a40a"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/pkgIndex.tcl",
+      "bytes": 258,
+      "sha256": "e744fb8cd80fa0d40eb7fd96b0190e4d441376eeb4dca23efc16ae1b5152c0ad"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/platform.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/platform.tcl",
+      "bytes": 11052,
+      "sha256": "4af798475ffe6a0af32f0202a7cbc7b07b59de5ddcd7f89fcbdd1b07ffe5f6e1"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/shell.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/platform/shell.tcl",
+      "bytes": 5975,
+      "sha256": "54337e9db387e5f3c0a714ae225d3d915da83751d5be4a9e177e9b726d3f92d6"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/readfile.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/readfile.tcl",
+      "bytes": 599,
+      "sha256": "eff41b30c70251d068e24d1500ad504404d692f8d48ab74cf8f99bb4dba64414"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/registry/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/registry/pkgIndex.tcl",
+      "bytes": 473,
+      "sha256": "f485327543f043f62c1ad12416d3c959b98aa2b77320503cb2db0e16e773fb78"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/safe.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/safe.tcl",
+      "bytes": 46995,
+      "sha256": "0d3e8ddb147d713206139b7c4c915f11d0a53aebeee3a5ca3e7aebf26854e238"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/pkgIndex.tcl",
+      "bytes": 628,
+      "sha256": "26cbf5ae8928a273e8404ddb5d92c0d086eb1cb64369db9365930388feecd199"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl",
+      "bytes": 105217,
+      "sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tm.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tm.tcl",
+      "bytes": 11904,
+      "sha256": "7c1de0bc512b362c26d489bd332f3d883041d98c2ed1cc99b4d64cd97e646786"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/word.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/word.tcl",
+      "bytes": 4764,
+      "sha256": "3a481eacbcca1c611843cdc387ac51be0b8ac98a994cbe8fa43091fee35b207e"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/writefile.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/writefile.tcl",
+      "bytes": 911,
+      "sha256": "b454723873db2e587ac1323bcebff2e8929f5dc98a6fe001ed34fcaf0c2aa320"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "bytes": 3717328,
+      "sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclParse.c",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclParse.c",
+      "bytes": 72712,
+      "sha256": "914176e1d5a1fb79630a45f5f45df438da9943281751855057caa17e921b969f"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c",
+      "bytes": 143674,
+      "sha256": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclConfig.sh",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclConfig.sh",
+      "bytes": 8304,
+      "sha256": "3151ba756040c3f86a08eb4a249c26f71d6f2d600b3f7425385c9434c1d41eb2"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/auto.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/auto.tcl",
+      "bytes": 22909,
+      "sha256": "1953e3830f90106aa322cfc66644cc36ae39f8350bf214f07fa4d75afd80da02"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/autoexecok.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/autoexecok.tcl",
+      "bytes": 8588,
+      "sha256": "92c9f7d88e023844fd51d400c41144ad8d71f99099c896044d5693b190e3e3fa"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/clock.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/clock.tcl",
+      "bytes": 60895,
+      "sha256": "f1dc4c6b3bdac23e08b34af6a0fb4b04103d875d2698064d7490151617275d59"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/cookiejar.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/cookiejar.tcl",
+      "bytes": 21330,
+      "sha256": "9d0811415b98c15bbb5c8f86ec3b92e812dac61e3f4d564f7e0dd0b066ba632a"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/idna.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/idna.tcl",
+      "bytes": 7426,
+      "sha256": "c0a3df8e2d0f4681be9e4078e56d294406073131d2be0cd3d0b63b20fa0c4feb"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/cookiejar/pkgIndex.tcl",
+      "bytes": 214,
+      "sha256": "9a13ce96018100685b26aa450f5a8cbce925ac70d5c1bdb2b323259c9956a5f7"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/dde/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/dde/pkgIndex.tcl",
+      "bytes": 279,
+      "sha256": "c3a195332dd743956eb38ebc22f1873eeea06501c2cd3ba91cee3838eb62da5f"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/foreachline.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/foreachline.tcl",
+      "bytes": 608,
+      "sha256": "5073f9015583f00b25354a7877f55c68d93674ae11384ee042e3b094a8a900e8"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/history.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/history.tcl",
+      "bytes": 7899,
+      "sha256": "ca38bb6652bbc562a3a82d2919f4e900cc5deedfb3582fa4503c573754ccf007"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/http/http.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/http/http.tcl",
+      "bytes": 180243,
+      "sha256": "56372f15e8f73234b7fb2b68f597d5a56a42d995416cdf65fe0c2da1c114e5a9"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/http/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/http/pkgIndex.tcl",
+      "bytes": 280,
+      "sha256": "83bb9de4d5ce47be75668bd196b945407bfd0ec8a3fbf425f137fee723d25742"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/icu.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/icu.tcl",
+      "bytes": 4033,
+      "sha256": "4ef7e224231e5430270ae03eebf54d3d0e8ca6b976cb8d8b2e7e6bf9147eaefe"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+      "bytes": 18886,
+      "sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/install.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/install.tcl",
+      "bytes": 7312,
+      "sha256": "5508d98832c4f3cf52b297511206c5dd020111f1dfbe358eee023ee1bff3e012"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/msgcat/msgcat.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/msgcat/msgcat.tcl",
+      "bytes": 37407,
+      "sha256": "446a2dad2b197c17cd6ff4b638b1fbc5f93a5337548330c6bc6ac6886058b7eb"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/msgcat/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/msgcat/pkgIndex.tcl",
+      "bytes": 151,
+      "sha256": "17c82510641fa0048bc1e8b3cc47e2f18cac46e594f0171bdc3100c6c09a5221"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/opt/optparse.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/opt/optparse.tcl",
+      "bytes": 30425,
+      "sha256": "49a8824f7d1d44e1ae5f1a0b9f3e8c363d89014e2e31bcdf1ae7045d698ff512"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/opt/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/opt/pkgIndex.tcl",
+      "bytes": 625,
+      "sha256": "9eaa82aeb3d308b655b69660380829c54a6bbc011280667ac8cf0e5882132846"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/package.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/package.tcl",
+      "bytes": 23293,
+      "sha256": "a1b01ef4a09299dc30efcf3cfd647a3b99efc945bf8f1980a43d9fc43f075b26"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/parray.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/parray.tcl",
+      "bytes": 814,
+      "sha256": "b8677236d4e687e686426718e78d3984146d2f318e5b34cbd43824206e85a40a"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/pkgIndex.tcl",
+      "bytes": 258,
+      "sha256": "8dd8f2d040863b062283f9e569502e014cac14a0989175e553ad5bc181fd9361"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/platform.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/platform.tcl",
+      "bytes": 8690,
+      "sha256": "c1a9ceabcd60f33cd80a1187916ded8df6e319ded07347bbc7c7255f08c87442"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/shell.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/platform/shell.tcl",
+      "bytes": 5975,
+      "sha256": "54337e9db387e5f3c0a714ae225d3d915da83751d5be4a9e177e9b726d3f92d6"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/readfile.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/readfile.tcl",
+      "bytes": 599,
+      "sha256": "eff41b30c70251d068e24d1500ad504404d692f8d48ab74cf8f99bb4dba64414"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/registry/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/registry/pkgIndex.tcl",
+      "bytes": 280,
+      "sha256": "c61f803073c3183a49d5524221c05f295dee6cbef57272ceacc8ee5cc0d54c2c"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/safe.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/safe.tcl",
+      "bytes": 46500,
+      "sha256": "02af9afd6f876e6432bd67084b2e8983213ba33cba036bb4d78cca9072b3de96"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/pkgIndex.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/pkgIndex.tcl",
+      "bytes": 627,
+      "sha256": "7372fd028e8165994e6c1e0ee2e3f3f7551ff75def535a414443e9e6c0138c65"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl",
+      "bytes": 105632,
+      "sha256": "0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tm.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tm.tcl",
+      "bytes": 11904,
+      "sha256": "7c1de0bc512b362c26d489bd332f3d883041d98c2ed1cc99b4d64cd97e646786"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/word.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/word.tcl",
+      "bytes": 4764,
+      "sha256": "3a481eacbcca1c611843cdc387ac51be0b8ac98a994cbe8fa43091fee35b207e"
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/writefile.tcl",
+      "resolved_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/writefile.tcl",
+      "bytes": 923,
+      "sha256": "b5e9def32c99ee9b2199b46d3e37e7d075091d7e3c42921c754ee9e18cfff233"
+    },
+    {
+      "path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "resolved_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "bytes": 438632,
+      "sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806"
+    },
+    {
+      "path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "resolved_path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "bytes": 546686,
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+    },
+    {
+      "path": "/workspace/.proofs/native-providers/jimtcl/jim.h",
+      "resolved_path": "/workspace/.proofs/native-providers/jimtcl/jim.h",
+      "bytes": 56502,
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d"
+    },
+    {
+      "path": "/workspace/.proofs/native-providers/jimtcl/jim-config.h",
+      "resolved_path": "/workspace/.proofs/native-providers/jimtcl/jim-config.h",
+      "bytes": 200,
+      "sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221"
+    }
+  ],
+  "expected_scope": "All original status/result rows are retained without semantic expected values; setup/exit/row-label checks distinguish capture closure from native-language equivalence or Rust assertion success."
+}

@@ -816,7 +816,13 @@ fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) -> boo
 }
 
 mod source_context;
+mod source_warnings;
 pub(crate) use source_context::{TaintPropagationInputs, TaintSourceContext};
+pub use source_warnings::{
+    find_destructive_file_warnings_for_module_function,
+    find_path_concat_warnings_for_module_function,
+    find_setter_constraint_warnings_for_module_function,
+};
 
 // Taint propagation
 
@@ -2447,6 +2453,9 @@ fn classify_network_interp_sinks(
     out
 }
 
+/// Explicit standalone warning utility. Actual Module/FU callers use
+/// [`find_destructive_file_warnings_for_module_function`].
+///
 /// **W313.** Flag destructive `file` operations (`file delete` /
 /// `rename` / `mkdir` — the registry's `destructive` subcommands) whose
 /// path argument is a variable, since the path may carry user-controlled
@@ -3164,15 +3173,32 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
             module_traces,
             &identities,
         ));
-        out.extend(find_setter_constraint_warnings(
-            registry,
-            &fu.cfg,
-            &fu.ssa,
-            &taints,
-            Some(&fu.sccp.values),
-            exec,
-            dialect,
-        ));
+        // Only an explicitly standalone Module and CFG may use the legacy
+        // source-warning utilities. Missing or withdrawn supplied input keeps
+        // its retained tag and cannot reopen catalogue compatibility. These
+        // warnings do not supply Native handler, read or filesystem authority.
+        let standalone_warnings = cu.ir_module.source_entry.metadata_context.is_standalone()
+            && fu.cfg.metadata_context.is_standalone()
+            && cu.ir_module.source_metadata_input.is_none()
+            && fu.source_metadata_input().is_none();
+        if standalone_warnings {
+            out.extend(find_setter_constraint_warnings(
+                registry,
+                &fu.cfg,
+                &fu.ssa,
+                &taints,
+                Some(&fu.sccp.values),
+                exec,
+                dialect,
+            ));
+        } else {
+            out.extend(find_setter_constraint_warnings_for_module_function(
+                fu,
+                &cu.ir_module,
+                registry,
+                &taints,
+            ));
+        }
         out.extend(crate::uri_split::find_uri_split_suggestions(
             &fu.cfg,
             &fu.ssa,
@@ -3181,9 +3207,18 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
             registry,
             dialect,
         ));
-        out.extend(find_destructive_file_warnings(
-            &fu.cfg, &fu.ssa, &taints, exec, registry, dialect,
-        ));
+        if standalone_warnings {
+            out.extend(find_destructive_file_warnings(
+                &fu.cfg, &fu.ssa, &taints, exec, registry, dialect,
+            ));
+        } else {
+            out.extend(find_destructive_file_warnings_for_module_function(
+                fu,
+                &cu.ir_module,
+                registry,
+                &taints,
+            ));
+        }
     }
     out
 }
@@ -7370,6 +7405,8 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
 ///    clean); otherwise look up the SSA-resolved taint colour and suppress
 ///    when `PATH_PREFIXED | PATH_NORMALISED | PATH_BOUNDED` is set.
 /// 3. **Dynamic expression** (interpolation, command sub) — always warn.
+/// Explicit standalone utility; retained Module/FU callers use
+/// [`find_setter_constraint_warnings_for_module_function`].
 #[must_use]
 pub fn find_setter_constraint_warnings<
     S: std::hash::BuildHasher,

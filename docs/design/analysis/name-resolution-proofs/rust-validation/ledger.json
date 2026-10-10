@@ -206023,6 +206023,47 @@
       "question_ids": [],
       "limits": "The independent Compiler --locked no-run command exits101 before compilation because the frozen workspace lock requires resolution. It emits no Cargo artifact event and admits no successful Compiler producer, strict image, inventory or assertion. Later minimal lock maintenance is separately retained provenance and cannot donate a retrospective successful build.",
       "sealed_images": {}
+    },
+    {
+      "id": "rust.frozen312.integration-compiler-own-test-build312",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen312/integration-compiler-own-test-build312/receipt.json.gz",
+        "sha256": "81ffdf2eb22ec82deb12a2ff923880536dd233f7ecf0fceb50059a4872bb021c",
+        "compression": "gzip",
+        "uncompressed_sha256": "278c79789cc00b412812aa69a526e5187fc04f9776e72223a55026eb6d7773f8"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen312/integration-compiler-own-test-build312/tests.log",
+        "sha256": "08b7b1c3fdef98c963e2976aa46d058f4a8a3925f7d30adef85e0d7e9fd6b8b3"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline",
+        "--locked"
+      ],
+      "exit": 101,
+      "seconds": 61.73606007898343,
+      "uniform_source": true,
+      "status": "compile-failed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete unchanged33290-leaf original Source312 source/head/command/archive associations; every original source leaf independently byte-verified."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The exact independent Compiler library-test no-run build closes exit101 with one production E0425: resolve_registry_words_in_realm is missing from declaration_flow.rs:403. The command emits no test-executable creation event, and supplies no successful Compiler producer, strict image, executable inventory or assertion. Any dependency artifact event remains unsealed. A later source import correction, successful owner build or independently run suite cannot supply retrospective admission or a Native answer.",
+      "sealed_images": {}
     }
   ]
 }
