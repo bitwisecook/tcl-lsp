@@ -59,25 +59,11 @@ use crate::compilation_unit::CompilationUnit;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
 use crate::tcl_expr_eval::{Env, format_tcl_value_with_policy};
-use crate::tcl_expr_eval::{FoldPolicy, leading_zero_is_octal};
 use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 
 use super::helpers::expr_simplify::{NumericCtx, try_unwrap_expr_in_expr};
 use super::{Optimisation, PassContext};
-
-/// `expr`'s value on the shared expression route under `ctx`'s target and
-/// whole-module trust, rendered as its source text — what the lattice
-/// proves for it, so O101 never rewrites what the lattice declines.
-fn fold_on_the_route(ctx: &PassContext<'_>, expr: &ExprNode) -> Option<String> {
-    let value = crate::value_transfer::evaluate_expression_detached(
-        expr,
-        &std::collections::HashMap::new(),
-        ctx.rewrite_folds(),
-        FoldPolicy::for_profile(ctx.dialect.and_then(leading_zero_is_octal), ctx.dialect),
-    )?;
-    String::from_utf8(value.bytes).ok()
-}
 
 /// Run the expression-simplification pass across every function
 /// in `cu`.

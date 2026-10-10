@@ -20,7 +20,7 @@
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::{LexerConfig, LineIndex};
-use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_registry::ArgRole;
 
 use super::datagroup::{ScalarVariableSourceSyntax, scalar_variable_source_syntax};
 
@@ -180,8 +180,7 @@ pub fn if_to_switch(
     // grammar cannot parse) declines the conversion.
     let args: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
     let context = analysis.resolved_input.as_ref()?.context_registry();
-    let original =
-        crate::original_invocation::source_registry_words(source, analysis, cmd.span.start())?;
+    let original = crate::original_invocation::source_registry_words(source, analysis, &cmd)?;
     let plan = original.with_source_schema(&context, |schema| schema.clause_plan())??;
     if plan.defect.is_some() {
         return None;

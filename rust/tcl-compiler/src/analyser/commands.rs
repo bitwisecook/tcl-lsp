@@ -144,8 +144,6 @@ struct BarewordDispatch<'a> {
 struct WordFacts<'a> {
     /// Whether each word is a single token.
     single: &'a [bool],
-    /// Whether each word is a `{*}` expansion.
-    expanded: &'a [bool],
 }
 
 /// Hook and traits from one retained authoring-context resolution.
@@ -705,10 +703,7 @@ impl Analyser {
             cmd_name,
             args,
             arg_tokens,
-            WordFacts {
-                single: arg_single,
-                expanded: arg_expand_in.get(1..).unwrap_or(&[]),
-            },
+            WordFacts { single: arg_single },
             cmd_tok,
             scope_path,
         );
@@ -1715,27 +1710,6 @@ impl Analyser {
                     .sub
                     .map_or_else(tcl_registry::Traits::empty, |sub| sub.traits),
         })
-    }
-
-    /// The clause plan of a call to `cmd_name` with `args`, resolved as the
-    /// hook dispatch resolves heads: through the document's context when the
-    /// walk carries one, and walked at its authoring point. `None` when the
-    /// head resolves no descriptor or the descriptor no grammar.
-    pub(super) fn clause_plan_in_context(
-        &self,
-        registry: &tcl_registry::CommandRegistry,
-        cmd_name: &str,
-        args: &[&str],
-    ) -> Option<tcl_registry::ClausePlan> {
-        let context = self
-            .context
-            .as_deref()
-            .map(tcl_registry::model::ContextRegistry::context);
-        tcl_registry::model::resolve_call_in_context(registry, context, cmd_name, args)?
-            .clause_plan(
-                args,
-                context.map(tcl_registry::model::ResolvedContext::authoring_query),
-            )
     }
 
     /// The single typed `match` over the resolved [`AnalyserHookId`].

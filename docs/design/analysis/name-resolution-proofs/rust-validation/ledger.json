@@ -109783,6 +109783,196 @@
       ],
       "limits": "These four exact closed frozen264 operations retain a failed aggregate test build and a separate successful CmdCore-only test build, inventory and complete 190P run. The sealed pin belongs only to the independent CmdCore-only build. The aggregate emitted a different unpinned CmdCore test artifact before Compiler errors; it has no assigned assertion outcome. Other crates, current changes, later images, external Native execution and full validation gates remain independent. The zero-byte legacy inventory log has no original receipt or result.",
       "framework": "rust-libtest"
+    },
+    {
+      "id": "rust.frozen265.integration-native-consumer-test-build265",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen265/integration-native-consumer-test-build265/receipt.json.gz",
+        "sha256": "9ef6c544c46c29226918ce70f2e871342bd564cc9cc356984ad6f709430576fa",
+        "compression": "gzip",
+        "uncompressed_sha256": "55b867618149956e7b8bc63c25b3fa660a7cb1bb9f52b1a568554b7ca59396d6"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen265/integration-native-consumer-test-build265/tests.log",
+        "sha256": "b9697cb0a3bc14ca1100934c80b9fd199bba7973cc1b807b59682914957270a4"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-vm",
+        "-p",
+        "tcl-engine-tclvm",
+        "-p",
+        "tcl-cmd-core",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 73.9267290889984,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the complete immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The locked, offline five-crate no-run unit build closes at two ordinary Compiler library errors: the old inlining command-substitution helper call and a moved Registry semantic-key comparison. The log also retains one CmdCore libtest executable artifact, marked fresh:false, which this operation never runs or seals as a validation pin. No test inventory, assertion result, aggregate pass, VM/Engine execution or Native outcome follows."
+    },
+    {
+      "id": "rust.frozen266.integration-naming-consumer-test-build266",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen266/integration-naming-consumer-test-build266/receipt.json.gz",
+        "sha256": "c05015be4113e7435f39b3ae59ab0c20ce88f5abb2a05499c8a22d5bd5082d34",
+        "compression": "gzip",
+        "uncompressed_sha256": "3970e0fcbe9d685e9d77c8b4f2bde33945ce5a5fdfbd5391197cb3417f9d7930"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen266/integration-naming-consumer-test-build266/tests.log",
+        "sha256": "fcd6242423885a8a842d0c2313eb622d8e78dc4007038e2bb2bd7096b65620dd"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-vm",
+        "-p",
+        "tcl-engine-tclvm",
+        "-p",
+        "tcl-cmd-core",
+        "-p",
+        "tcl-lsp-core",
+        "-p",
+        "tcl-diagram",
+        "-p",
+        "tcl-cli",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 107.13410097299493,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The exact locked, offline 8-crate no-run unit build closes at twenty ordinary Core library errors. Ordinary Compiler and VM library artifact records are retained separately from test construction. The log emits one CmdCore libtest executable artifact, marked fresh:false, which this operation never runs or seals as a validation pin. There is no test inventory, unit assertion, aggregate pass, tested Compiler/VM/Engine artifact or Native provider result."
+    },
+    {
+      "id": "rust.frozen266.integration-native-consumer-test-build266",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen266/integration-native-consumer-test-build266/receipt.json.gz",
+        "sha256": "2715870f266d5e2c53f4e34585eb35321259387d69f76b4060914e29f5299335",
+        "compression": "gzip",
+        "uncompressed_sha256": "761c2a8e8f11900b4ff46df6921a1c9a5b7f6330b98887e640d3993e2e6260ec"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen266/integration-native-consumer-test-build266/tests.log",
+        "sha256": "e41d394bbdf27f8b05830cffc3c72e410533a389400d2a458de268513360ada0"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-vm",
+        "-p",
+        "tcl-engine-tclvm",
+        "-p",
+        "tcl-cmd-core",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 64.32759475300554,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The exact locked, offline 5-crate no-run unit build closes at twenty ordinary Core library errors. Ordinary Compiler and VM library artifact records are retained separately from test construction. The log emits one CmdCore libtest executable artifact, marked fresh:true, which this operation never runs or seals as a validation pin. There is no test inventory, unit assertion, aggregate pass, tested Compiler/VM/Engine artifact or Native provider result."
+    },
+    {
+      "id": "rust.frozen267.integration-native-consumer-test-build267",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen267/integration-native-consumer-test-build267/receipt.json.gz",
+        "sha256": "95719fd9e5d87ba1b785737dfa7775911cf67db4a3acdcac037257c7826b86df",
+        "compression": "gzip",
+        "uncompressed_sha256": "b0bb96c265d23c7a5a6c3660049b32d636c21de37f816592fe170f9550ce25c9"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen267/integration-native-consumer-test-build267/tests.log",
+        "sha256": "0b82532cb7e95ca79b39bfbf8068aac2328781246902b9e25c7103268b507bd5"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-vm",
+        "-p",
+        "tcl-engine-tclvm",
+        "-p",
+        "tcl-cmd-core",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 139.9816435739922,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The exact locked, offline 5-crate no-run unit build closes at one Core ordinary library E0451 error in an AnalysisResult test fixture constructor. Ordinary Compiler and VM library artifact records are retained separately from test construction. The log emits one CmdCore libtest executable artifact, marked fresh:false, which this operation never runs or seals as a validation pin. There is no test inventory, unit assertion, aggregate pass, tested Compiler/VM/Engine artifact or Native provider result."
     }
   ]
 }

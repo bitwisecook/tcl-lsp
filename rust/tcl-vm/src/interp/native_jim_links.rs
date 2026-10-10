@@ -390,7 +390,6 @@ mod tests {
 
 #[cfg(test)]
 mod alias_publication_tests {
-    use super::*;
     #[test]
     fn original_upvar_error_publication_matches_all_six_native_sources() {
         // naming.variable.original-upvar-error-publication

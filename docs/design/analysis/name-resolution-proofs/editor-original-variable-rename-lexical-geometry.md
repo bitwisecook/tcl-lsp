@@ -14,9 +14,13 @@ Does the emitted original variable edit preserve braced/unbraced dollar delimite
 
 The edit contract rechecks each original root name extent against the full source image, selected string protocol and original root/index input. The regression applies the actual edits to set a(k), $a(k) and ${a(k)} forms and requires their delimiters and index k to remain exact. Successful runtime reads or stores are outside this source edit contract.
 
+CLI minimisation selects original variable symbols and shared guarded rename plans from the actual complete source analysis. Array components, scalar parentheses, literal dollars and Unicode names retain their original checked geometry.
+
 ## Scope
 
 Current Rust source edit correspondence, original byte/policy symbol, selected receiver purpose, independently issued written root/list-container geometry, complete source/grammar currency and typed coverage. Native Tcl/Jim/BIG-IP language observations motivate separate questions and do not execute this invariant. Named tests are linked coverage obligations; no execution result is asserted. Edit authority is distinct from readonly selection, source occurrence counts and any physical runtime frame/cell/value capability.
+
+The CLI lexical control is software source-edit coverage without executed assertions or external Native observations; original lexical geometry supplies no current cell/value or runtime naming identity.
 
 ## Provider answers
 
@@ -81,6 +85,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/variable_symbol/rename.rs](../../../../rust/tcl-lsp-core/src/variable_symbol/rename.rs), `variable_symbol::rename::tests::original_variable_rename_preserves_lexical_braces_and_separate_array_index` (linked): The edit contract rechecks each original root name extent against the full source image, selected string protocol and original root/index input. The regression applies the actual edits to set a(k), $a(k) and ${a(k)} forms and requires their delimiters and index k to remain exact. Successful runtime reads or stores are outside this source edit contract.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-cli/src/commands/minimize.rs](../../../../rust/tcl-cli/src/commands/minimize.rs), `collect_rename_edits`: Consume AnalysisResult original_variable_symbols and shared Core original_variable_rename_edits under complete current input/image/configuration; convert checked whole component plans to original offsets and reject partial overlapping-container edits.
+- [rust/tcl-cli/src/commands/minimize.rs](../../../../rust/tcl-cli/src/commands/minimize.rs), `commands::minimize::tests::minimise_variable_names_share_original_array_literal_and_unicode_geometry` (linked): CLI minimisation delegates genuine original array/scalar, literal dollar and Unicode symbol spelling to Core guarded rename geometry, preserving written index and component extents without native interpreter observation.
+
+These source/API bindings carry no executed assertion or Native provider result.
 
 ## Replay
 

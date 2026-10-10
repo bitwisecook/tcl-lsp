@@ -342,7 +342,7 @@ pub fn analyse_tk_ui(
         .expect("explicit Tk source input");
     let context = input.context_registry();
     let registry = context.commands();
-    let tk_active = context.context().authoring_query().packages.contains(&"Tk")
+    let tk_active = context.context().authoring_query().package("Tk").is_some()
         || source_requires_tk(source, &retained);
     if !tk_active {
         return TkUiModel {

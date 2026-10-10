@@ -447,161 +447,6 @@ struct SolvedValueFacts {
     loops: HashMap<ExpressionEvaluationPoint, crate::static_loops::StaticLoopAnalysis>,
 }
 
-/// Sparse Conditional Constant Propagation driver.
-///
-/// Iterates to a fixed point over the lattice values of every SSA
-/// value, using CFG reachability (via `executable_edges`) so that
-/// unreachable branches don't widen their targets. `param_constants`
-/// lets interprocedural analysis seed the caller-provided argument
-/// lattice entries.
-///
-/// Behaviour:
-///
-/// - Phi handling uses the incoming versions for each *executable*
-///   predecessor, joining them onto the phi's SSA value.
-/// - Statement handling uses [`evaluate_def`] below, which folds
-///   [`Statement::AssignConst`] and [`Statement::AssignExpr`] via
-///   the expression evaluator. Other statement kinds and
-///   [`Statement::Barrier`] widen their defs to `Overdefined`.
-/// - Branch decisions are resolved via [`evaluate_branch`] below,
-///   which consults the lattice environment and then the expression
-///   evaluator.
-///
-/// `policy` carries the two dialect facts every fold on this pass needs —
-/// see [`FoldPolicy`].  Its `octal` half controls how a bare leading-zero
-/// string literal (`"08"`, `"010"`) is interpreted when folding `==` /
-/// `!=`: `Some(true)` for the tcl8.x octal rule (`"08"` is an invalid octal
-/// → string, `"010"` → 8), `Some(false)` for the tcl9.0 decimal rule
-/// (`"08"` → 8, `"010"` → 10), and `None` to decline folding such ambiguous
-/// operands (the safe default for callers without dialect context).  Its
-/// `is_irules` half enables the iRules word operators (`contains`,
-/// `starts_with`, …), so `if {$x contains "cd"}` with a known-constant `$x`
-/// folds through SCCP under `f5-irules` exactly as the `eq` control does.
-///
-/// `trace` bundles the registry-driven whole-module trace facts this
-/// function consults in addition to its own intra-procedural
-/// [`crate::var_observability`] lattice — see [`TraceInputs`]. A caller
-/// with no `Module` in hand (a standalone unit test) passes an empty
-/// `BTreeSet` and `false`, behaviourally identical to "nothing is traced".
-#[must_use]
-// `implicit_hasher`: `param_constants` is an `Option<&HashMap>` that almost
-// every caller passes as `None` (only the interprocedural seed passes `Some`).
-// Generalising over `BuildHasher` makes `S` un-inferable at every `None` call
-// site — including out-of-subsystem callers (shimmer, dataflow tests) that
-// cannot be annotated from here — so the concrete default hasher is required.
-#[allow(clippy::implicit_hasher)]
-pub fn sccp(
-    cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
-    policy: FoldPolicy,
-    trace: TraceInputs<'_>,
-) -> SccpResult {
-    sccp_with_extra_escaping(cfg, ssa, param_constants, policy, &HashSet::new(), trace)
-}
-
-/// Inputs for folding a pure-builtin command substitution **during lattice
-/// evaluation**: the registry `const_fold` callbacks are pure
-/// functions of constant argument words, so an `AssignValue` RHS like
-/// `[namespace qualifiers $base]` whose `$base` is a lattice constant folds
-/// to a lattice constant itself — the folded value re-enters the lattice and
-/// multi-statement chains (`set base [self class]; set ns [namespace
-/// qualifiers $base]`) close under SCCP's ordinary fixpoint.
-///
-/// Termination is SCCP's own: the fold is a deterministic function of the
-/// use versions' lattice values, which only ever move down the lattice
-/// (`Unknown → Const → Overdefined`), and nested-substitution recursion is
-/// bounded by the engine's structural depth cap
-/// (`crate::const_subst`).
-///
-/// Carries the whole-module command-mutation trust fact
-/// ([`crate::command_binding::ModuleCommandMutations`]) — a renamed /
-/// aliased / shadowed head must never fold with builtin semantics — and is
-/// therefore what *every* builtin command-substitution fold in this module
-/// is gated on, the per-command arms of [`try_fold_cmd_subst`] included.
-/// A caller that passes `None` holds no whole-module view and gets no
-/// builtin fold at all; `registry_engine` then selects whether a caller
-/// that does hold one also gets the registry `const_fold` engine.
-
-/// How much of the whole-module mutation summary gates a builtin fold.
-///
-/// The two answers differ only on
-/// [`crate::command_binding::ModuleCommandMutations`]'s unbounded `dynamic`
-/// top; on every *named* subject — a shadowing `proc`, a `rename`, an alias,
-/// an opaque import — they agree, which is what keeps one call from carrying
-/// two answers within one statement (#2164).
-
-/// Registry-driven whole-module trace facts [`sccp`] /
-/// [`sccp_with_extra_escaping`] consult when widening their escaping-set,
-/// bundled into one `Copy` struct to keep those functions' argument count
-/// under the clippy `too_many_arguments` ceiling.
-
-/// Like [`sccp`] but additionally forces every name in `extra_escaping` to
-/// `Overdefined`, the same treatment [`crate::ssa::SsaSourceView::externally_mutable_by`] already gives
-/// a name this *function's own* `global`/`variable`/`upvar`/`trace`
-/// declares.
-///
-/// Needed for the *top-level* script specifically: top-level names already
-/// live in the global frame (there is no separate local frame for them to
-/// shadow), so a name the top-level body never mentions via `global` can
-/// still be reassigned mid-run by any *other* procedure's own `global NAME;
-/// set NAME …` — a plain call, with nothing textually resembling an alias
-/// from the top level's point of view, and therefore invisible to the
-/// per-function [`crate::var_observability`] scan `sccp` runs internally.
-/// [`crate::var_observability::scan_module_global_names`] computes the
-/// whole-module fact this closes the gap with; every other caller passes an
-/// empty set (via plain [`sccp`]) and gets identical behaviour to before.
-#[must_use]
-#[allow(clippy::implicit_hasher)]
-pub fn sccp_with_extra_escaping(
-    cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
-    policy: FoldPolicy,
-    extra_escaping: &HashSet<String>,
-    trace: TraceInputs<'_>,
-) -> SccpResult {
-    sccp_with_builtin_folds(
-        cfg,
-        ssa,
-        param_constants,
-        policy,
-        extra_escaping,
-        trace,
-        None,
-    )
-}
-
-/// Like [`sccp_with_extra_escaping`] but with the whole-module command-trust
-/// fact in hand, so builtin command substitutions fold at all — the
-/// per-command arms of [`try_fold_cmd_subst`] always, and the registry
-/// `const_fold` engine when [`BuiltinFoldInputs::registry_engine`] is set.
-/// Passing `None` is byte-identical to [`sccp_with_extra_escaping`], which
-/// folds no command substitution for want of that fact.
-#[must_use]
-#[allow(clippy::implicit_hasher)]
-pub fn sccp_with_builtin_folds(
-    cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
-    policy: FoldPolicy,
-    extra_escaping: &HashSet<String>,
-    trace: TraceInputs<'_>,
-    folds: Option<BuiltinFoldInputs<'_>>,
-) -> SccpResult {
-    execution_value_facts(
-        cfg,
-        ssa,
-        ValueFactInputs {
-            param_constants,
-            policy,
-            extra_escaping,
-            trace,
-            folds,
-        },
-    )
-}
-
 fn seed_value_facts(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -941,7 +786,7 @@ fn branch_deferrable(
 }
 
 /// Join phi values from edge-executable predecessors for one block. Returns
-/// `true` if any lattice value changed. Extracted from [`sccp`].
+/// `true` if any lattice value changed. Used by [`execution_value_facts`].
 fn sccp_process_phis(
     values: &mut HashMap<ValueKey, LatticeValue>,
     ssa_block: &crate::ssa::SsaBlock,
@@ -988,7 +833,7 @@ struct StatementInputs<'a> {
 }
 
 /// Evaluate each statement's defs for one block, widening across barriers.
-/// Returns `true` if any lattice value changed. Extracted from [`sccp`].
+/// Returns `true` if any lattice value changed. Used by [`execution_value_facts`].
 /// Store proof inputs shared by every SCCP entry point.
 struct StoreInputs<'a> {
     math_dependencies: Option<&'a MathDependencies>,
@@ -1221,7 +1066,7 @@ struct TerminatorInputs<'a> {
 
 /// Process a block's terminator: mark the matching outgoing edges
 /// as executable.  Returns `true` when any new edge / block was
-/// added.  Extracted from [`sccp`].
+/// added.  Used by [`execution_value_facts`].
 fn sccp_process_terminator(
     bn: BlockId,
     inputs: &TerminatorInputs<'_>,
@@ -1327,8 +1172,8 @@ fn sccp_process_terminator(
 }
 
 /// Post-fixpoint sweep that records every reachable branch whose
-/// condition evaluated to a constant lattice value.  Extracted
-/// from [`sccp`].
+/// condition evaluated to a constant lattice value.  Used by
+/// [`execution_value_facts`].
 fn collect_constant_branches(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -4212,7 +4057,7 @@ mod tests {
         )
     }
 
-    /// Convenience wrapper over [`sccp`] for tests with no `Module` in
+    /// Convenience wrapper over [`crate::sccp::sccp`] for tests with no `Module` in
     /// hand — no traced variables, no dynamic variable trace.
     fn sccp_no_traces(
         cfg: &CfgFunction,

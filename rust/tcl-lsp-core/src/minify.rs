@@ -2814,7 +2814,7 @@ fn minify_lambda_literal(sm: &SourceMap, tok: Token, env: MinifyEnv<'_>, depth: 
 }
 
 /// Readonly source roles and case shape from the actual retained generation.
-fn lexical_source_schema<'r, 'w, T>(
+fn lexical_source_schema<'r: 'w, 'w, T>(
     env: MinifyEnv<'r>,
     name: &'w str,
     arguments: &'w [tcl_registry::InvocationWord<'w>],

@@ -45,6 +45,24 @@ impl Interp {
         });
     }
 
+    /// Restrict the command surface while preserving actual host and unit tokens,
+    /// including bindings moved by rename. Opaque reporting bytes do not match
+    /// a Unicode whitelist by replacement decoding.
+    pub(crate) fn restrict_to_tokens(&mut self, allowed: &[&str], kept: &[u64]) {
+        let math = allowed.contains(&"expr");
+        self.retain_command_tokens(&|generation, report| {
+            kept.contains(&generation)
+                || core::str::from_utf8(report).is_ok_and(|name| {
+                    allowed.contains(&name)
+                        || (math
+                            && name
+                                .strip_prefix("tcl::mathfunc::")
+                                .is_some_and(|function| !matches!(function, "rand" | "srand")))
+                        || is_subcommand_of_allowed(name, allowed)
+                })
+        });
+    }
+
     /// Pin the interpreter to the profile `profile` names ([`release_profile`])
     /// and answer its canonical name; `None`, and nothing pinned, for a name
     /// that is no release the runtime runs.

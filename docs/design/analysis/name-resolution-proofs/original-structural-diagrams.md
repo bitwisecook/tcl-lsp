@@ -14,9 +14,13 @@ Which independently current original declaration, implementation body, call allo
 
 The diagram producer validates the whole original source/channel, full lexer configuration and actual complete ContextRegistry against current Analysis and lowering. Original procedure cards preserve every retained declaration with a separate inventory ID. The shared Compiler graph owner matches calls through genuine original invocation input/lookup and retained allocation, and joins a compiled body only when its implementation allocation, evaluated source and namespace independently agree. Core graph consumers delegate to the same owner. Hosted cards retain their own original declaration and static braced body correspondence without a C/Jim publication key. Events require the actual Registry-selected SourceIrulesEventBody and its current body/image/configuration/Registry; a when-like reporting name supplies no event. Registry action candidates use authentic retained tokens and shared guarded source assistance. Completion hints require the independently resolved handler and effective argument vector. The renderer consumes those hints and never derives termination from the command label. Missing body joins remain readable declaration cards with unavailable flow; missing original lookup, stale context or ambiguous allocations do not reopen a String resolver. Independently selected lexical compatibility keeps its own source-advice branch. The output supplies readonly structural information, without native dispatch, entered body, TMM/worker context, Normal or editing authority.
 
+Structural diagram source selection retains current full AnalysisResult input/configuration and actual availability through DiagramContext::metadata_context. Selected original tokens determine Registry command and completion advice independently of display labels; older same-store availability or changed/missing source premises withdraw it.
+
 ## Scope
 
 Current shared tcl-diagram data and simple graph producers, consumed by CLI, MCP and report adapters, together with Core canonical declaration/reference graphs. Fixed assertions use genuine Native source, opaque sibling declarations and redefinitions, cleared reporting maps/labels, missing body allocations and lookup, changed complete source/configuration, an ordinary when-like procedure versus an actual authored hosted event, and action-label/completion counterfactuals. No passing Rust or native-provider receipt is attached.
+
+The additional diagram control is source metadata software only. Its counterfactual labels and release availability fixtures do not execute Native commands, certify completion/reachability, or supply frame, renderer deletion or rewrite permission.
 
 ## Provider answers
 
@@ -89,6 +93,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-diagram/src/graph.rs](../../../../rust/tcl-diagram/src/graph.rs), `graph::original_completion_tests::original_diagram_renderer_does_not_infer_completion_from_action_labels` (linked): A displayed drop spelling keeps structural fallthrough without a completion hint; a terminal hint on an unrelated label terminates the projected path.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-diagram/src/data.rs](../../../../rust/tcl-diagram/src/data.rs), `DiagramContext::metadata_context`: Join current whole source/configuration with the genuine AnalysisResult resolved input, matching availability and actual unit profile before selected Registry metadata projection. Missing input cannot reopen catalogue compatibility.
+- [rust/tcl-diagram/src/data.rs](../../../../rust/tcl-diagram/src/data.rs), `registry_command`: Select original retained token/binding advice under actual source metadata rather than display labels, preserving unavailable and stale owner refusal.
+- [rust/tcl-diagram/src/data.rs](../../../../rust/tcl-diagram/src/data.rs), `command_completion`: Use the original contextual completion metadata owner under complete actual source availability; structural report labels and conditional source advice are not observations of executed completion.
+- [rust/tcl-diagram/src/data.rs](../../../../rust/tcl-diagram/src/data.rs), `data::original_source_tests::original_diagram_metadata_keeps_actual_availability_and_source_currency` (linked): An original source throw operand is selected under genuine current availability despite a counterfactual display label; older same-store availability, changed source, missing complete input or changed grammar withdraw it. Restoration retains source advice without issuing a Native invocation or completion.
+
+These source/API bindings carry no executed assertion or Native provider result.
 
 ## Replay
 

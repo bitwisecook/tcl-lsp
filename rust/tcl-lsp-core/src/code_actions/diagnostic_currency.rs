@@ -21,10 +21,6 @@ pub struct DiagnosticEditSource<'a> {
 }
 
 impl<'a> DiagnosticEditSource<'a> {
-    pub(super) fn analysis(&self) -> &AnalysisResult {
-        self.analysis
-    }
-
     /// Capture exact current Document bytes, complete config and Registry.
     /// Existing analysis is required; no profile label reconstructs its owner.
     #[must_use]

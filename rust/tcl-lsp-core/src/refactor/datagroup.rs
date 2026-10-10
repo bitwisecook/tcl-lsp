@@ -659,7 +659,7 @@ pub fn extract_to_datagroup_from_switch(
     // Separate default from regular arms.
     let mut default_body: Option<String> = None;
     let mut regular_pairs: Vec<(String, String)> = Vec::new();
-    for (pattern, body) in &pairs {
+    for (pattern, body) in pairs {
         if Some(pattern.as_str()) == default_word {
             default_body = Some(body.clone());
         } else if fallthrough_word.is_some_and(|marker| body.trim() == marker) {

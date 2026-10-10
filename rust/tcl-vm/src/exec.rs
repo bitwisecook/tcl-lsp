@@ -9177,7 +9177,7 @@ impl Vm {
 
 #[cfg(test)]
 mod tests {
-    use super::{brace_safe, char_find, imm_index, quote_for_script};
+    use super::{char_find, imm_index};
     use crate::interp::Vm;
     use crate::value::Value;
     use tcl_bytecode::INDEX_END;

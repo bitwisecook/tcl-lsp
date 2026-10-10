@@ -589,36 +589,6 @@ fn exec_switch(
 
 // For-loop summarisation
 
-/// Summarise a simple static `for`-loop from its structured IR
-/// form. Returns the post-loop variable environment on success,
-/// `None` if the loop escapes the supported subset or exceeds
-/// `max_iterations`.
-#[must_use]
-pub fn summarise_static_for(
-    init: &Script,
-    condition: &ExprNode,
-    next_script: &Script,
-    body: &Script,
-    initial_constants: &StaticEnv,
-    max_iterations: u64,
-    policy: FoldPolicy,
-) -> Option<StaticEnv> {
-    summarise_static_for_selected(
-        init,
-        StaticForCondition {
-            purpose: SimulationPurpose::Execution,
-            expression: condition,
-            bindings: None,
-        },
-        next_script,
-        body,
-        initial_constants,
-        max_iterations,
-        policy,
-    )
-    .map(|summary| summary.values)
-}
-
 #[derive(Clone, Copy)]
 struct StaticForCondition<'a> {
     purpose: SimulationPurpose,
@@ -678,25 +648,6 @@ fn summarise_static_for_selected(
         required_math_invocations: dependencies.into_inner(),
         required_expression_preparations: preparations.into_inner(),
     })
-}
-
-/// Convenience entry point that extracts the init/condition/next/
-/// body from a [`Statement::For`] and forwards to
-/// [`summarise_static_for`].
-#[must_use]
-pub fn summarise_for_statement(
-    stmt: &Statement,
-    initial_constants: &StaticEnv,
-    max_iterations: u64,
-    policy: FoldPolicy,
-) -> Option<StaticEnv> {
-    summarise_for_statement_with_math_bindings(
-        stmt,
-        initial_constants,
-        max_iterations,
-        policy,
-        None,
-    )
 }
 
 /// Summarise under an exact original condition query; body expressions carry

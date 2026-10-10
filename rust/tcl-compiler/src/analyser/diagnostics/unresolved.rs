@@ -41,32 +41,6 @@ struct KnownNameTiers {
     candidates: Vec<String>,
 }
 
-/// Group `(qualified_name, establishing_offset)` pairs by their
-/// `::`-tail — shared by the proc and class def maps in
-/// [`Analyser::build_w123_known_names`] and its siblings
-/// (`var_command.rs`'s `build_w307_known_names` / interpolated-W123
-/// resolution): a tail may match several qualified names
-/// (the same simple name in different namespaces), each kept with its
-/// own offset for a later per-call live check
-/// ([`Analyser::fact_live_for_call`]). `pub(super)` (not private) so
-/// those sibling passes reuse it rather than reimplementing the same
-/// grouping loop.
-pub(super) fn group_defs_by_tail<'a>(
-    entries: impl Iterator<Item = (&'a String, u32)>,
-) -> HashMap<String, Vec<(String, u32)>> {
-    let mut map: HashMap<String, Vec<(String, u32)>> = HashMap::new();
-    for (qn, off) in entries {
-        if let Some((_, tail)) = qn.rsplit_once("::")
-            && !tail.is_empty()
-        {
-            map.entry(tail.to_string())
-                .or_default()
-                .push((qn.clone(), off));
-        }
-    }
-    map
-}
-
 /// The sentence a `W123` ends with where its call widens: a call to a command
 /// the module cannot name may reach the frame that calls it (`upvar 1`,
 /// `uplevel 1`), so the flow graph widens the variables that frame holds at

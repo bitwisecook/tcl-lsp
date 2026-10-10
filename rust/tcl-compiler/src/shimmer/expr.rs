@@ -70,7 +70,7 @@ pub(crate) fn find_expr_shimmers_with_context(
     facts: &super::ShimmerFacts,
 ) -> Vec<ShimmerWarning> {
     let super::commit::CommitCtx {
-        registry,
+        registry: _,
         context,
         ssa,
         source: _,

@@ -36,6 +36,7 @@ pub(super) struct CompilationState {
     execution: CompilationExecution,
     admission_error: Option<NativeCompilationAdmissionError>,
     native_access_refusal: Option<tcl_syntax::raw_string::NativeValueAccessRefusal>,
+    host_command_refusal: Option<String>,
 }
 
 #[derive(Default)]
@@ -127,7 +128,9 @@ impl Interp {
     /// Any retained host-only execution failure; guest capture cannot consume it.
     pub fn host_refusal_pending(&self) -> bool {
         let state = self.native_compilation.borrow();
-        state.admission_error.is_some() || state.native_access_refusal.is_some()
+        state.admission_error.is_some()
+            || state.native_access_refusal.is_some()
+            || state.host_command_refusal.is_some()
     }
 
     /// Transport a reached child host failure without manufacturing guest options.
@@ -142,7 +145,28 @@ impl Interp {
         if target.native_access_refusal.is_none() {
             target.native_access_refusal = origin.native_access_refusal;
         }
+        if target.host_command_refusal.is_none() {
+            target
+                .host_command_refusal
+                .clone_from(&origin.host_command_refusal);
+        }
         super::Code::Error
+    }
+
+    /// A reached host callback refusal, retained outside Tcl completion state.
+    pub fn host_command_refusal(&self) -> Option<String> {
+        self.native_compilation
+            .borrow()
+            .host_command_refusal
+            .clone()
+    }
+
+    pub(crate) fn refuse_host_command(&mut self, reason: impl Into<String>) -> Code {
+        self.native_compilation
+            .borrow_mut()
+            .host_command_refusal
+            .get_or_insert_with(|| reason.into());
+        Code::Error
     }
 
     pub(crate) fn refuse_unicode_access(
@@ -163,10 +187,11 @@ impl Interp {
         crate::interp::Code::Error
     }
 
-    pub(super) fn reset_native_compilation_admission(&self) {
+    pub(crate) fn reset_native_compilation_admission(&self) {
         let mut state = self.native_compilation.borrow_mut();
         state.admission_error = None;
         state.native_access_refusal = None;
+        state.host_command_refusal = None;
     }
 
     pub(super) fn seal_native_compiler_tokens(&self) {

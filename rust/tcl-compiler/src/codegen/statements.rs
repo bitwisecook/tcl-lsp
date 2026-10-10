@@ -4450,6 +4450,41 @@ mod tests {
     }
 
     #[test]
+    fn nested_value_tokens_keep_the_retained_lexer_policy_without_lookup_permission() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Lexical source control; this supplies no Native selection or body admission.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let source = "set result [list ${a{b}c}]";
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::Tcl9Nesting,
+            ..tcl_lexer::LexerConfig::from_grammar(profile.grammar)
+        };
+        let segment =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        let parent =
+            CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, &segment);
+        let word = &parent.words()[2];
+        let mut ctx = CodegenCtx::new(true, &[], registry);
+        ctx.dialect = Some(profile);
+        ctx.ingress_lexer_config = Some(config);
+        let nested = ctx.nested_command_tokens(Some(word)).unwrap();
+        assert_eq!(
+            nested.words()[1].sole_variable_substitution().unwrap().0,
+            "${a{b}c}"
+        );
+        assert_eq!(nested.words()[0].source().span.start(), 12);
+        assert!(nested.source_binding.is_none());
+        ctx.ingress_lexer_config = None;
+        let standalone = ctx.nested_command_tokens(Some(word)).unwrap();
+        assert!(standalone.words()[1].sole_variable_substitution().is_none());
+        assert!(standalone.source_binding.is_none());
+    }
+
+    #[test]
     fn emit_assign_const_proc() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);

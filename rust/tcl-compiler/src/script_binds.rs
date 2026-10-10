@@ -46,6 +46,7 @@ pub(crate) enum Ownership {
     Bindings,
     /// Binding operands evaluated as decoded names. A literal leading `$`
     /// remains part of the name; dynamic name values supply no ownership.
+    #[cfg(test)]
     DecodedBindings,
     /// A binding, or a bare-name read (`set y`, `info exists y`).  The
     /// barrier twin wants this: its body runs in a context this frame cannot
@@ -172,7 +173,9 @@ fn binds(
             tcl_registry::Traits::CREATES_SCOPE_ALIAS | tcl_registry::Traits::ALIASES_GLOBAL,
         );
         let name_roles: &[ArgRole] = match ownership {
-            Ownership::Bindings | Ownership::DecodedBindings => &[ArgRole::VarWrite],
+            Ownership::Bindings => &[ArgRole::VarWrite],
+            #[cfg(test)]
+            Ownership::DecodedBindings => &[ArgRole::VarWrite],
             Ownership::BindingsOrNameReads => &[ArgRole::VarWrite, ArgRole::VarRead],
             Ownership::ScopeAliases if scope_alias => &[ArgRole::VarWrite],
             Ownership::ScopeAliases => &[],

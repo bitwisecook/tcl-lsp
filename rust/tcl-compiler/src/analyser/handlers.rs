@@ -1646,6 +1646,7 @@ impl Analyser {
         }
     }
 
+    #[cfg(test)]
     fn declaration_local_alias(
         &self,
         name: &str,
@@ -1752,6 +1753,7 @@ impl Analyser {
         Some(current)
     }
 
+    #[cfg(test)]
     fn declaration_alias_target(&self, namespace: &str, name: &str) -> Option<String> {
         let dialect = self.declaration_name_dialect();
         if dialect.native_name_protocol().is_none()

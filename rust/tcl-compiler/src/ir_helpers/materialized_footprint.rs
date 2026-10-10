@@ -375,8 +375,9 @@ fn selected_name_ownership(
         SourceRolePurpose::Original
     };
     let purpose = match purpose {
-        crate::script_binds::Ownership::Bindings
-        | crate::script_binds::Ownership::DecodedBindings => SourceNameOwnershipPurpose::Bindings,
+        crate::script_binds::Ownership::Bindings => SourceNameOwnershipPurpose::Bindings,
+        #[cfg(test)]
+        crate::script_binds::Ownership::DecodedBindings => SourceNameOwnershipPurpose::Bindings,
         crate::script_binds::Ownership::BindingsOrNameReads => {
             SourceNameOwnershipPurpose::BindingsOrNameReads
         }

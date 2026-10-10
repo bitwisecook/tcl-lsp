@@ -3,7 +3,6 @@
 
 use super::{Command, NativeCommandLookupUnavailable, ROOT_NS, Vm};
 use std::rc::Rc;
-use tcl_core_types::NameBytes;
 use tcl_runtime_api::{Code, Completion};
 
 struct HostValue(i64);

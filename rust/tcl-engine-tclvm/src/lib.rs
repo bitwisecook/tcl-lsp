@@ -1318,46 +1318,22 @@ fn to_vm_value(
 /// changes what the body's own later use of that value costs. The host parses
 /// what its protocol expects; the boundary reports what the body produced.
 fn import_version(version: tcl_engine_api::NativeCVersion) -> tcl_dialect::TclVersion {
-    use tcl_dialect::TclVersion as T;
-    use tcl_engine_api::NativeCVersion as C;
-    match version {
-        C::V8_4 => T::V8_4,
-        C::V8_5 => T::V8_5,
-        C::V8_6 => T::V8_6,
-        C::V9_0 => T::V9_0,
-        C::V9_1 => T::V9_1,
-    }
+    tcl_syntax::scalar_getter::carrier::import_version(version)
 }
 fn export_version(version: tcl_dialect::TclVersion) -> tcl_engine_api::NativeCVersion {
-    use tcl_dialect::TclVersion as T;
-    use tcl_engine_api::NativeCVersion as C;
-    match version {
-        T::V8_4 => C::V8_4,
-        T::V8_5 => C::V8_5,
-        T::V8_6 => C::V8_6,
-        T::V9_0 => C::V9_0,
-        T::V9_1 => C::V9_1,
-    }
+    tcl_syntax::scalar_getter::carrier::export_version(version)
 }
 fn import_storage(
     storage: tcl_engine_api::NativeStringStorageIdentity,
 ) -> tcl_syntax::native_string::NativeStringStorageIdentity {
-    use tcl_engine_api::NativeStringStorageIdentity as A;
-    use tcl_syntax::native_string::NativeStringStorageIdentity as S;
-    match storage {
-        A::CanonicalEmpty => S::CanonicalEmpty,
-        A::Allocated => S::Allocated,
-        A::Unknown => S::Unknown,
-    }
+    tcl_syntax::scalar_getter::carrier::import_storage(storage)
 }
 fn export_storage(value: &tcl_vm::Value) -> tcl_engine_api::NativeStringStorageIdentity {
-    use tcl_engine_api::NativeStringStorageIdentity as A;
-    use tcl_syntax::native_string::NativeStringStorageIdentity as S;
-    match value.resident_string_storage_identity() {
-        Some(S::CanonicalEmpty) => A::CanonicalEmpty,
-        Some(S::Allocated) => A::Allocated,
-        Some(S::Unknown) | None => A::Unknown,
-    }
+    tcl_syntax::scalar_getter::carrier::export_storage(
+        value
+            .resident_string_storage_identity()
+            .unwrap_or(tcl_syntax::native_string::NativeStringStorageIdentity::Unknown),
+    )
 }
 fn import_scalar_cache(
     cache: &tcl_engine_api::NativeScalarCache,
@@ -1365,76 +1341,14 @@ fn import_scalar_cache(
     tcl_syntax::scalar_getter::NativeScalarCache,
     Option<tcl_dialect::TclVersion>,
 ) {
-    use tcl_engine_api::{NativeIntegerRadix as R, NativeScalarCache as A};
-    use tcl_syntax::{
-        number::{Number, Radix},
-        scalar_getter::NativeScalarCache as S,
-    };
-    let number = match cache {
-        A::Integer(value) => Number::Int(*value),
-        A::Double(value) => Number::Double(*value),
-        A::Nan { negative, payload } => Number::Nan {
-            negative: *negative,
-            payload: *payload,
-        },
-        A::BigInteger {
-            negative,
-            radix,
-            digits,
-        } => Number::Big {
-            negative: *negative,
-            radix: match radix {
-                R::Binary => Radix::Bin,
-                R::Octal => Radix::Oct,
-                R::Decimal => Radix::Dec,
-                R::Hexadecimal => Radix::Hex,
-            },
-            digits: digits.to_string(),
-        },
-        A::WordBoolean { value, origin } => {
-            return (S::WordBoolean(*value), Some(import_version(*origin)));
-        }
-        A::JimCoercedInteger(value) => return (S::JimCoercedInteger(*value), None),
-        A::Tcl84Long(value) => return (S::Tcl84Long(*value), None),
-    };
-    (S::Number(number), None)
+    tcl_syntax::scalar_getter::carrier::import_scalar(cache)
 }
 fn export_scalar_cache(
     cache: tcl_syntax::scalar_getter::NativeScalarCache,
     origin: Option<tcl_dialect::TclVersion>,
-) -> tcl_engine_api::NativeScalarCache {
-    use tcl_engine_api::{NativeIntegerRadix as R, NativeScalarCache as A};
-    use tcl_syntax::{
-        number::{Number, Radix},
-        scalar_getter::NativeScalarCache as S,
-    };
-    match cache {
-        S::Number(Number::Int(value)) => A::Integer(value),
-        S::Number(Number::Double(value)) => A::Double(value),
-        S::Number(Number::Nan { negative, payload }) => A::Nan { negative, payload },
-        S::Number(Number::Big {
-            negative,
-            radix,
-            digits,
-        }) => A::BigInteger {
-            negative,
-            radix: match radix {
-                Radix::Bin => R::Binary,
-                Radix::Oct => R::Octal,
-                Radix::Dec => R::Decimal,
-                Radix::Hex => R::Hexadecimal,
-            },
-            digits: Rc::from(digits),
-        },
-        S::WordBoolean(value) => A::WordBoolean {
-            value,
-            origin: export_version(
-                origin.expect("native WordBoolean retains its descriptor release"),
-            ),
-        },
-        S::JimCoercedInteger(value) => A::JimCoercedInteger(value),
-        S::Tcl84Long(value) => A::Tcl84Long(value),
-    }
+) -> Result<tcl_engine_api::NativeScalarCache, EngineError> {
+    tcl_syntax::scalar_getter::carrier::export_scalar(cache, origin)
+        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))
 }
 
 fn from_vm_object_value(value: &tcl_vm::Value) -> Result<Value, EngineError> {
@@ -1444,7 +1358,7 @@ fn from_vm_object_value(value: &tcl_vm::Value) -> Result<Value, EngineError> {
         Value::NativeScalar(export_scalar_cache(
             cache,
             value.native_word_boolean_version(),
-        ))
+        )?)
     } else if value.has_list_representation() {
         if !matches!(
             value.native_object_snapshot().cache,
@@ -1507,7 +1421,7 @@ fn from_vm_value(
         let payload = Value::NativeScalar(export_scalar_cache(
             cache,
             value.native_word_boolean_version(),
-        ));
+        )?);
         // Retain the bridge's string-valued host view while carrying the full
         // primary cache. Numeric string generation does not narrow that cache.
         let string = native_string_bytes(value, dialect)?;

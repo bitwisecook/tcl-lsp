@@ -64,7 +64,6 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::ir::MethodKind;
 use tcl_lexer::LineIndex;
-use tcl_registry::definer::DeclaredMemberVisibility;
 
 use crate::definition::LspRange;
 use crate::hover::find_word_span_at_position;
@@ -2422,29 +2421,10 @@ fn scan_my_method_region(
         {
             let h_start = head.span.start() as usize;
             let h_end = head.span.end() as usize;
-            // Registry query, not a `== "my"` literal: the self-dispatch
-            // keyword is spec data, so a dialect that gains or loses it
-            // propagates through `tcl-registry` rather than through this
-            // walker. `[self]`/`[self object]` reaches the same target through
-            // a different registry query — a bracketed command substitution,
-            // not a dispatch keyword.
-            // Checked against `cmd.texts[0]`, not a `source[h_start..h_end]`
-            // slice: a `Cmd`-kind token's span excludes its closing `]`
-            // (`tcl_lexer`'s own convention — `texts` is where the
-            // reconstruction re-adds it), so the raw slice would hand
-            // `is_self_receiver_call` a `]`-less, unparseable `"[self"`.
-            let head_is_self_dispatch = h_start < source.len()
-                && h_end <= source.len()
-                && (crate::definition::method_dispatch_keyword_in(
-                    ctx.dialect,
-                    &source[h_start..h_end],
-                ) == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
-                    || cmd.texts.first().is_some_and(|t| {
-                        crate::definition::is_self_receiver_call(
-                            t,
-                            tcl_lexer::LexerConfig::for_profile(Some(ctx.dialect)),
-                        )
-                    }));
+            // Readonly source roles retain this actual point's availability
+            // and grammar; the written keyword cannot reselect a catalogue row.
+            let head_is_self_dispatch =
+                h_start < source.len() && h_end <= source.len() && original_self_dispatch(ctx, cmd);
             if head_is_self_dispatch {
                 let n_start = name_tok.span.start() as usize;
                 let n_end = name_tok.span.end() as usize;
@@ -2472,6 +2452,72 @@ fn scan_my_method_region(
             scan_my_method_region(ctx, inner_start, inner_end, depth + 1, sink);
         }
     }
+}
+
+/// Authored self-dispatch at an unchanged original command. A bracketed
+/// receiving-object result keeps its own original child lookup; lexical
+/// parsing supplies no current object, entered method frame or edit authority.
+fn original_self_dispatch(
+    ctx: MyMethodScan<'_>,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+) -> bool {
+    use tcl_compiler::registry_invocation::source_structure;
+    let Some(input) = ctx.analysis.resolved_input.as_ref() else {
+        return false;
+    };
+    let context = input.context_registry();
+    if let Some(words) = source_structure::source_registry_words(ctx.source, ctx.analysis, command)
+        && words.origins().get(1)
+            == Some(&tcl_compiler::registry_invocation::InvocationWordOrigin::Written(1))
+        && words.with_source_schema(&context, |schema| {
+            schema
+                .semantics
+                .traits
+                .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
+        }) == Some(true)
+    {
+        return true;
+    }
+    let Some(&head) = command.argv.first() else {
+        return false;
+    };
+    if command.single_token_word.first() != Some(&true) || head.kind != tcl_lexer::TokenType::Cmd {
+        return false;
+    }
+    let regions =
+        crate::executable_regions::command_substitution_regions(ctx.source, ctx.config, head);
+    let [(start, end)] = regions.as_slice() else {
+        return false;
+    };
+    let Ok(offset) = u32::try_from(*start) else {
+        return false;
+    };
+    let commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        &ctx.source[*start..*end],
+        offset,
+        ctx.config,
+    );
+    let [child] = commands.as_slice() else {
+        return false;
+    };
+    let Some(words) = source_structure::source_registry_words(ctx.source, ctx.analysis, child)
+    else {
+        return false;
+    };
+    words.with_source_schema(&context, |schema| {
+        let spec = schema.command();
+        if spec.self_receiver_words.is_empty() {
+            return false;
+        }
+        match words.arguments() {
+            [] => spec.arity.min == 0,
+            [argument] => argument
+                .as_registry_word()
+                .literal()
+                .is_some_and(|word| spec.self_receiver_words.contains(&word)),
+            _ => false,
+        }
+    }) == Some(true)
 }
 
 /// Matching method words captured into this command's executable callback.
@@ -7180,6 +7226,65 @@ mod tests {
             lines.contains(&1),
             "the `greetD` word inside `[list greetD World]` must be reachable too: {refs:?}"
         );
+    }
+
+    #[test]
+    fn method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        // Conditional source reference geometry, not a live receiver or method entry.
+        use std::sync::Arc;
+        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "source_dispatch",
+            arity: tcl_registry::Arity::at_least(1),
+            traits: tcl_registry::Traits::TCLOO_SELF_DISPATCH,
+            surface: registry.get("dict").unwrap().surface,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let store = Arc::new(registry);
+        let source = "source_dispatch selected";
+        for (release, expected) in [("tcl8.6", 1), ("tcl8.4", 0)] {
+            let context = Arc::new(
+                tcl_registry::model::ingress::static_context_for(release)
+                    .with_command_store(Arc::clone(&store)),
+            );
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile, profile, context, config,
+            );
+            let mut analysis = Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, profile.name);
+            let body = tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap());
+            assert_eq!(
+                scan_my_method_sites(source, &analysis, &[body], "selected", None).len(),
+                expected
+            );
+            analysis.body_lexer_config.as_mut().unwrap().expand_syntax = !config.expand_syntax;
+            assert!(scan_my_method_sites(source, &analysis, &[body], "selected", None).is_empty());
+            analysis.body_lexer_config = Some(config);
+            let foreign = tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                .default_context_registry();
+            analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile, profile, foreign, config,
+            ));
+            assert!(scan_my_method_sites(source, &analysis, &[body], "selected", None).is_empty());
+            analysis.resolved_input = None;
+            assert!(scan_my_method_sites(source, &analysis, &[body], "selected", None).is_empty());
+        }
+        let source = "proc source_dispatch args {}; source_dispatch selected";
+        let context = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.6").with_command_store(store),
+        );
+        let input =
+            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        let body = tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap());
+        assert!(scan_my_method_sites(source, &analysis, &[body], "selected", None).is_empty());
     }
 
     #[test]

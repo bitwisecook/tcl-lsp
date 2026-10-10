@@ -83,6 +83,7 @@ use crate::workspace_symbols::{
 use tcl_compiler::analyser::{AnalysisResult, MemberRetractionRecord, MemberSide};
 use tcl_compiler::ir::MethodKind;
 use tcl_lexer::Span;
+use tcl_registry::definer::DeclaredMemberVisibility;
 use tcl_syntax::naming::{key_holder_and_tail, root_unrooted_key, unroot_rooted_key};
 
 /// One proc definition recorded in the workspace index.
@@ -284,7 +285,7 @@ impl WorkspaceClass {
     pub fn instance_method(&self, name: &str) -> Option<&WorkspaceMethod> {
         self.methods
             .iter()
-            .find(|m| m.name == name && m.kind != CLASS_METHOD)
+            .find(|m| m.name == name && m.kind != MethodKind::ClassMethod.as_str())
     }
 
     /// The typed record for the *class-receiver* member `name` — a
@@ -294,7 +295,7 @@ impl WorkspaceClass {
     pub fn class_method(&self, name: &str) -> Option<&WorkspaceMethod> {
         self.methods
             .iter()
-            .find(|m| m.name == name && m.kind == CLASS_METHOD)
+            .find(|m| m.name == name && m.kind == MethodKind::ClassMethod.as_str())
     }
 }
 
@@ -303,7 +304,7 @@ impl WorkspaceClass {
 /// named once so the member fold and the tombstone lookup agree on it.
 #[must_use]
 fn method_side(m: &WorkspaceMethod) -> MemberSide {
-    if m.kind == CLASS_METHOD {
+    if m.kind == MethodKind::ClassMethod.as_str() {
         MemberSide::ClassObject
     } else {
         MemberSide::Instance
@@ -2068,8 +2069,8 @@ impl DocumentRecords {
                     .map(|m| WorkspaceMethod {
                         name: m.name.clone(),
                         kind: m.kind.clone(),
-                        exported: m.visibility == PUBLIC,
-                        private: m.visibility == PRIVATE,
+                        exported: m.visibility == DeclaredMemberVisibility::Public.as_str(),
+                        private: m.visibility == DeclaredMemberVisibility::Private.as_str(),
                         is_self_method: m.is_self_method,
                         name_span: m.name_span,
                     })
@@ -2078,9 +2079,9 @@ impl DocumentRecords {
                             .into_iter()
                             .map(|m| WorkspaceMethod {
                                 name: m.name.clone(),
-                                kind: CLASS_METHOD.to_string(),
-                                exported: m.visibility == PUBLIC,
-                                private: m.visibility == PRIVATE,
+                                kind: MethodKind::ClassMethod.as_str().to_string(),
+                                exported: m.visibility == DeclaredMemberVisibility::Public.as_str(),
+                                private: m.visibility == DeclaredMemberVisibility::Private.as_str(),
                                 is_self_method: m.is_self_method,
                                 name_span: m.name_span,
                             }),
@@ -4559,7 +4560,9 @@ impl WorkspaceIndex {
                     let names = self
                         .effective_members(x)
                         .into_iter()
-                        .filter(|m| m.method.kind != CLASS_METHOD && !m.method.private)
+                        .filter(|m| {
+                            m.method.kind != MethodKind::ClassMethod.as_str() && !m.method.private
+                        })
                         .map(|m| m.name.to_owned())
                         .collect();
                     member_names.insert(x.clone(), names);
@@ -7938,7 +7941,10 @@ p\uD801";
                         index
                             .effective_members(x)
                             .into_iter()
-                            .filter(|m| m.method.kind != CLASS_METHOD && !m.method.private)
+                            .filter(|m| {
+                                m.method.kind != MethodKind::ClassMethod.as_str()
+                                    && !m.method.private
+                            })
                             .map(|m| m.name.to_owned()),
                     );
                 }

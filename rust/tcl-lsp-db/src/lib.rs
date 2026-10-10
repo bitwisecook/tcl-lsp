@@ -4576,6 +4576,81 @@ pub fn compiler_check_diagnostics_uncached(
     )
 }
 
+/// Build a source-advice unit from the document's complete retained analysis.
+/// Missing, changed-source, foreign-store or changed-grammar ownership refuses
+/// the build. This does not supply a native execution entry or erasure licence.
+#[must_use]
+pub fn compilation_unit_uncached_from_analysis(
+    text: &str,
+    registry: &CommandRegistry,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    external_call_sites: Option<&CallSiteEvidence>,
+) -> Option<CompilationUnit> {
+    if analysis.analysis_context_unavailable.is_some() {
+        return None;
+    }
+    let (_image, config) = tcl_compiler::source_graph::current_analysis(text, analysis)?;
+    let input = analysis.resolved_input.as_ref()?;
+    tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+        registry,
+        input,
+        config,
+        Some(input.unit_profile()),
+    )?;
+    let declared = tcl_compiler::analyser::utils::document_declared_surface(
+        text,
+        None,
+        input.unit_profile().name,
+    );
+    let entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_supplied_source(
+        registry,
+        input,
+        config,
+        Some(input.unit_profile()),
+    );
+    Some(CompilationUnit::build_with_analysis_input(
+        text,
+        UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config,
+            dialect: Some(input.unit_profile()),
+            external_call_sites,
+            declared_commands: Some(&declared),
+        },
+        Some(&entry),
+        input,
+    ))
+}
+
+/// Uncached compiler findings for an already analysed document. The actual
+/// input owns availability, unit profile and lexer configuration. A refused
+/// supplied build returns no compiler projections; it never enters the scalar
+/// standalone API. Diagnostic subjects and source contexts stay intact.
+#[must_use]
+pub fn compiler_check_diagnostics_uncached_from_analysis(
+    text: &str,
+    registry: &CommandRegistry,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    generic_patterns: Option<&[String]>,
+    external_call_sites: Option<&CallSiteEvidence>,
+) -> CompilerDiagnostics {
+    let Some(cu) =
+        compilation_unit_uncached_from_analysis(text, registry, analysis, external_call_sites)
+    else {
+        return CompilerDiagnostics {
+            checks: Vec::new(),
+            optimisations: Vec::new(),
+        };
+    };
+    let profile = analysis
+        .resolved_input
+        .as_ref()
+        .map(|input| input.unit_profile());
+    let cu = cu.with_interprocedural(registry, profile);
+    compiler_diagnostics_from_unit(&cu, registry, profile, generic_patterns)
+}
+
 /// Document outline — wraps `document_symbols_from_analysis`, reusing the
 /// tracked [`file_analysis_incremental`] so the outline shares the per-item
 /// memoised analysis with the push-diagnostics path in the same edit.
@@ -4886,6 +4961,9 @@ pub fn folding_ranges(
 
 #[cfg(test)]
 mod value_transfer_parity;
+
+#[cfg(test)]
+mod original_uncached_metadata_tests;
 
 #[cfg(test)]
 mod tests {

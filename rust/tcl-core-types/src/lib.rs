@@ -37,6 +37,11 @@
 
 extern crate alloc;
 
+mod native_value;
+pub use native_value::{
+    NativeCVersion, NativeIntegerRadix, NativeScalarCache, NativeStringStorageIdentity,
+};
+
 mod native_hash_order;
 pub use native_hash_order::{
     NativeEntryLedger, NativeHashAbi, NativeHashBytePromotion, NativeHashOrder, NativeHashRecipe,

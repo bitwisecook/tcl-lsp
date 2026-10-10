@@ -2020,3 +2020,19 @@ All four operations have `uniform_source: true` and retain the same full immutab
 | [Full CmdCore264 test run](frozen264/integration-cmdcore-full-tests264/receipt.json.gz) · [log](frozen264/integration-cmdcore-full-tests264/tests.log) | Exit0; 190 passed; zero failed, ignored or filtered |
 
 The separately retained [zero-byte legacy inventory log](frozen264/unclassified-original-log/integration-cmdcore-inventory264.log) has no original JSON receipt. It contains no inventory, command association, status or assertion evidence and is not a fifth validation operation.
+
+## Five-crate no-run unit build265
+
+The exact locked, offline Registry/Compiler/VM/Engine/CmdCore no-run unit build closes with exit101 after 73.926729s and `uniform_source: true`. Two ordinary Compiler library errors block construction: the inlining command-substitution helper call and the Registry semantic-key comparison. The full original log retains one CmdCore libtest executable artifact, marked `fresh: false`; this operation never runs or seals that artifact as a validation pin. There is no test inventory, assertion result, aggregate pass, VM/Engine execution or Native provider result.
+
+Its [exact original receipt](frozen265/integration-native-consumer-test-build265/receipt.json.gz) is retained as lossless gzip with compressed and uncompressed SHA256. The [complete log](frozen265/integration-native-consumer-test-build265/tests.log) preserves all diagnostics and the unrun artifact record. Every archived source leaf is independently checked against the original receipt inventory. Commands, paths, source association, timing and failure remain exact.
+
+## No-run consumer builds266 and267
+
+The three independent locked, offline no-run unit builds close with exit101 and `uniform_source: true`. The broader eight-crate naming build266 takes 107.134101s; the separate five-crate native-consumer build266 takes 64.327595s. Both preserve twenty ordinary Core library errors. The five-crate build267 takes 139.981644s and preserves one ordinary Core E0451 error in an AnalysisResult test fixture constructor. Each log retains ordinary Compiler/VM library artifacts and one distinct CmdCore libtest artifact; none of these operations runs or seals that test artifact as a validation pin. There is no test inventory, unit assertion, aggregate pass, tested Compiler/VM/Engine artifact or Native provider outcome.
+
+- `integration-naming-consumer-test-build266`: [exact receipt](frozen266/integration-naming-consumer-test-build266/receipt.json.gz), [complete log](frozen266/integration-naming-consumer-test-build266/tests.log). Exit101; 107.134101s; 20 ordinary Core errors; one unrun CmdCore libtest artifact marked `fresh: false`.
+- `integration-native-consumer-test-build266`: [exact receipt](frozen266/integration-native-consumer-test-build266/receipt.json.gz), [complete log](frozen266/integration-native-consumer-test-build266/tests.log). Exit101; 64.327595s; 20 ordinary Core errors; one unrun CmdCore libtest artifact marked `fresh: true`.
+- `integration-native-consumer-test-build267`: [exact receipt](frozen267/integration-native-consumer-test-build267/receipt.json.gz), [complete log](frozen267/integration-native-consumer-test-build267/tests.log). Exit101; 139.981644s; 1 ordinary Core errors; one unrun CmdCore libtest artifact marked `fresh: false`.
+
+Each receipt is a lossless gzip payload with compressed and uncompressed SHA256. Every immutable archived source leaf is independently byte-checked; both266 commands retain the exact same source inventory. Original commands, source association, paths, timing, diagnostics and unrun artifact records remain unchanged.

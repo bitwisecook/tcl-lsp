@@ -1034,19 +1034,6 @@ file; this call falls through to the 'unknown' handler."
         find_var(&slice, stmt_span.start(), target, self.lexer_config(), 0)
     }
 
-    /// Whether the runtime reads `var` when the script does not — a special
-    /// variable such as `auto_path`, whose write the host observes — under
-    /// the analyser's registry, pack-declared rows included.
-    fn externally_read(&self, var: &str) -> bool {
-        self.registry
-            .as_deref()
-            .unwrap_or_else(|| tcl_registry::default_registry())
-            .is_externally_read(
-                crate::naming::normalise_var_name(var),
-                Some(self.analysis_context().context().authoring_query()),
-            )
-    }
-
     /// W211 — unused-variable hint.
     ///
     /// Fires when an
@@ -2922,21 +2909,6 @@ file; this call falls through to the 'unknown' handler."
         }
     }
 
-    /// I230, I231 and the loop-termination verdicts from the unit's stored
-    /// branch facts: the decided branches
-    /// ([`Self::emit_constant_branch_diagnostics`]), the arms of an opaque
-    /// `switch` no member of the subject runs
-    /// ([`Self::emit_selected_arm_diagnostics`]), and each loop's header
-    /// ([`Self::resolve_loop_terminations`]).
-    pub(super) fn emit_branch_fact_diagnostics(
-        &mut self,
-        fu: &crate::compilation_unit::FunctionUnit,
-    ) {
-        self.emit_constant_branch_diagnostics(fu);
-        self.emit_selected_arm_diagnostics(fu);
-        self.resolve_loop_terminations(fu);
-    }
-
     /// W126 — channel-argument validation.
     ///
     /// Walks every
@@ -4471,30 +4443,6 @@ fn use_site_safe_initialises(
     super::helpers::original_definition_places(fu, block, index, registry)
         .iter()
         .any(|place| crate::var_resolve::canonical_place_key(place).as_ref() == Some(cell))
-}
-
-/// Whether `var`'s use at `stmt` is the read of a cell update embedded in the
-/// words of a host `Call` (`puts [incr n]`, `lappend l [append s y]`): the CFG
-/// builder merges the embedded update's read and write into the host call, so
-/// the store feeding it stays live (#2050). A non-`Call` host carries them on
-/// the definition point of its word effects instead (`<word-effects>`), which
-/// [`statement_is_synthetic_effect`] already exempts; this is the host-`Call`
-/// half of the same exemption. Lowering flags every call whose own named
-/// reads overlap its definitions `reads_own_defs`, so the overlap on an
-/// unflagged call is the embedded scan's. The scan recovers every `[…]` in
-/// the words, braced ones included (a `proc` body, a `catch` script), so the
-/// read may not run here: like a quoted mention it keeps liveness
-/// conservative and is never a read *before set*.
-fn embedded_cell_update_read(stmt: Option<&crate::ir::Statement>, var: &str) -> bool {
-    matches!(
-        stmt,
-        Some(crate::ir::Statement::Call {
-            reads,
-            defs,
-            reads_own_defs: false,
-            ..
-        }) if reads.iter().any(|r| r == var) && defs.iter().any(|d| d == var)
-    )
 }
 
 /// The namespace of a fully-qualified name: everything up to the last `::`,

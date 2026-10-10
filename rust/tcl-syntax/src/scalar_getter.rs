@@ -14,6 +14,7 @@ use tcl_dialect::{
 
 use crate::number::{self, Number, ParseFlags, Radix};
 
+pub mod carrier;
 mod errors;
 mod float;
 #[path = "scalar_getter/number.rs"]

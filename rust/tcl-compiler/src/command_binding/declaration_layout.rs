@@ -584,6 +584,7 @@ impl SourceCommandBindings {
         found.then_some((frame, simple))
     }
 
+    #[cfg(test)]
     pub(crate) fn original_variable_uses_global_frame_at_span(
         &self,
         span: tcl_lexer::Span,

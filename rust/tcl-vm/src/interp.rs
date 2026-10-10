@@ -25980,7 +25980,7 @@ mod family_b_tests {
             host.cache_key()
         );
         let child = vm.fork_child_state();
-        assert_eq!(child.dialect_profile.cache_key(), source.cache_key());
+        assert_eq!(child.source_profile().cache_key(), source.cache_key());
         assert_eq!(child.native_invocation_dialect().numbers, logical.numbers);
         assert_eq!(
             child.actual_native_execution_profile().cache_key(),

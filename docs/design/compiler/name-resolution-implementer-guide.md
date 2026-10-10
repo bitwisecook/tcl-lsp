@@ -9241,6 +9241,17 @@ interpreter and same-invocation timing. A scoped descriptor keeps its own
 selection; querying the global catalogue by the displayed command name cannot
 replace it.
 
+For per-command metadata in an owning Module, call
+`SourceInvocationBinding::original_invocation_metadata_for_module(tokens, module, registry)`.
+It validates the retained Module interpretation and this original point's complete
+input, source ancestry, whole word vector and lexer configuration. Only the root
+input or an already retained nested projection is eligible; missing, foreign or
+stale owners decline. Metadata alone does not close an unknown command lookup.
+`original_materialized_footprint_for_module` delegates to this query and then
+requires its separate closed lookup and quiet observer premises. Captured values
+keep their original producers; neither query invents current source words or spans
+for a captured prefix or a materialized script value.
+
 Expression suppression starts with the original Expr operand content base.
 `OriginalRegistryWords::source_expression_script_bodies_at` selects its unique
 complete source operand, including a particular operand among multiple Expr

@@ -361,7 +361,8 @@ pub(crate) fn source_compilation_unit(
     analysis: &tcl_compiler::analyser::AnalysisResult,
     registry: &tcl_registry::CommandRegistry,
 ) -> Option<tcl_compiler::compilation_unit::CompilationUnit> {
-    let (input, config) = tcl_compiler::source_graph::current_analysis(source, analysis)?;
+    let (_image, config) = tcl_compiler::source_graph::current_analysis(source, analysis)?;
+    let input = analysis.resolved_input.as_ref()?;
     if registry.snapshot().semantic_key()
         != input
             .context_registry()

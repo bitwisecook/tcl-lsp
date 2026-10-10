@@ -49,15 +49,15 @@ impl SourceInvocationBinding {
         Some(advice.targets().to_vec())
     }
 
-    /// Select this installer's retained point input under the genuine Module
-    /// producer. Only its original root or nested input projection may supply
-    /// metadata; neither final Module bindings nor a reconstructed profile do.
-    pub(crate) fn original_materialized_footprint_for_module<'a>(
+    /// Actual metadata at this whole original source vector under its Module
+    /// producer. Unknown dispatch remains unknown: this projection grants no
+    /// closed lookup, handler, frame, Normal completion or materialized body.
+    pub(crate) fn original_invocation_metadata_for_module<'a>(
         &'a self,
         tokens: &CommandTokens,
         module: &crate::ir::Module,
-        registry: &'a CommandRegistry,
-    ) -> Option<OriginalSourceMaterializedFootprint<'a>> {
+        registry: &CommandRegistry,
+    ) -> Option<InvocationMetadataContext<'a>> {
         // naming.diagnostic.original-materialized-write-footprint
         // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
         if !module
@@ -69,9 +69,8 @@ impl SourceInvocationBinding {
         }
         let module_metadata = InvocationMetadataContext::for_module(registry, module)?;
         let module_input = module_metadata.source_analysis_input()?;
-        let point = self
-            .lookup_state
-            .as_ref()?
+        let snapshot = self.lookup_state.as_ref()?;
+        let point = snapshot
             .state
             .baseline
             .metadata_context
@@ -87,10 +86,39 @@ impl SourceInvocationBinding {
             Some(point.unit_profile()),
         )?;
         let site = self.invocation_site()?;
-        if !original_module_origin(&site.source, module) {
+        if snapshot.state.current_source_origin.as_ref() != Some(&site.source)
+            || snapshot.state.baseline.registry_snapshot != Some(registry.snapshot().semantic_key())
+            || !original_module_origin(&site.source, module)
+        {
             return None;
         }
-        let source = site.source.source_image().try_text().ok()?;
+        crate::registry_invocation::original_native_compiler_words(
+            site.source.source_image(),
+            tokens.words(),
+            site.offset,
+            config,
+        )?;
+        Some(metadata)
+    }
+
+    /// Select this installer's retained point input under the genuine Module
+    /// producer. Its separate closed footprint checks still own lookup and
+    /// observer eligibility; no final Module bindings or profile are donors.
+    pub(crate) fn original_materialized_footprint_for_module<'a>(
+        &'a self,
+        tokens: &CommandTokens,
+        module: &crate::ir::Module,
+        registry: &'a CommandRegistry,
+    ) -> Option<OriginalSourceMaterializedFootprint<'a>> {
+        // naming.diagnostic.original-materialized-write-footprint
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+        let metadata = self.original_invocation_metadata_for_module(tokens, module, registry)?;
+        let source = self
+            .invocation_site()?
+            .source
+            .source_image()
+            .try_text()
+            .ok()?;
         self.original_materialized_footprint(tokens, source, registry, Some(metadata))
     }
 
@@ -502,6 +530,13 @@ mod tests {
             .retained_source_tokens_for_statement(&script.statements[0])
             .unwrap();
         let binding = tokens.source_binding.as_ref().unwrap();
+        assert_eq!(
+            binding
+                .original_invocation_metadata_for_module(tokens, module, context.commands())
+                .unwrap()
+                .source_analysis_input(),
+            module.source_metadata_input.as_ref(),
+        );
         let footprint = binding
             .original_materialized_footprint_for_module(tokens, module, context.commands())
             .unwrap();
@@ -609,6 +644,11 @@ mod tests {
             assert!(InvocationMetadataContext::for_module(context.commands(), &changed).is_some());
             assert!(
                 binding
+                    .original_invocation_metadata_for_module(tokens, &changed, context.commands())
+                    .is_none()
+            );
+            assert!(
+                binding
                     .original_materialized_footprint_for_module(
                         tokens,
                         &changed,
@@ -649,6 +689,17 @@ mod tests {
             .retained_source_tokens_for_statement(&script.statements[0])
             .unwrap();
         let binding = tokens.source_binding.as_ref().unwrap();
+        assert_eq!(
+            binding
+                .original_invocation_metadata_for_module(
+                    tokens,
+                    &root.ir_module,
+                    context.commands()
+                )
+                .unwrap()
+                .source_analysis_input(),
+            Some(&input),
+        );
         let footprint = binding
             .original_materialized_footprint_for_module(tokens, &root.ir_module, context.commands())
             .unwrap();
@@ -676,6 +727,49 @@ mod tests {
         assert!(
             binding
                 .original_materialized_footprint_for_module(tokens, &changed, context.commands())
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_point_metadata_keeps_unknown_lookup_and_changed_vector_separate() {
+        // naming.diagnostic.original-materialized-write-footprint
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+        // Source/API ownership only: metadata does not prove a reached command.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = unit("missing_original_command VALUE", &context);
+        let module = &unit.ir_module;
+        let script = &module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(&script.statements[0])
+            .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.unknown || binding.may_be_absent);
+        assert_eq!(
+            binding
+                .original_invocation_metadata_for_module(tokens, module, context.commands())
+                .unwrap()
+                .source_analysis_input(),
+            module.source_metadata_input.as_ref(),
+        );
+        assert!(
+            binding
+                .original_materialized_footprint_for_module(tokens, module, context.commands())
+                .is_none()
+        );
+        let mut changed = tokens.clone();
+        changed.word_exprs.pop();
+        assert!(
+            binding
+                .original_invocation_metadata_for_module(&changed, module, context.commands())
+                .is_none()
+        );
+        let mut missing = module.clone();
+        missing.source_metadata_input = None;
+        assert!(
+            binding
+                .original_invocation_metadata_for_module(tokens, &missing, context.commands())
                 .is_none()
         );
     }

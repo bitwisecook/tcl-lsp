@@ -668,7 +668,7 @@ pub fn check_diagnostic_actions<S: std::hash::BuildHasher, H: BuildHasher, I: Bu
             continue;
         }
         let diag_start = line_index.position_at_utf16(diag.span.start(), source);
-        if line_suppressed(
+        if tcl_compiler::analyser::line_suppressed(
             diag.code.as_str(),
             i32::try_from(diag_start.line).unwrap_or(i32::MAX),
             suppressed,

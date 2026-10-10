@@ -14,9 +14,13 @@ Does a local variable edit retain the selected authentic source frame and refuse
 
 The edit contract requires complete current source/grammar and the selected typed frame symbol before planning geometry. The regression applies edits to p only while q retains local, then requires changed-source and occupied changed-name cases to refuse. The frame correspondence is source ownership, not an entered runtime frame or current cell.
 
+CLI variable reduction uses the same current original role and guarded symbol owner for moved setters, aliases and collisions. A captured prefix target cannot borrow a written operand span, and missing or stale analysis is terminal for edits.
+
 ## Scope
 
 Current Rust source edit correspondence, original byte/policy symbol, selected receiver purpose, independently issued written root/list-container geometry, complete source/grammar currency and typed coverage. Native Tcl/Jim/BIG-IP language observations motivate separate questions and do not execute this invariant. Named tests are linked coverage obligations; no execution result is asserted. Edit authority is distinct from readonly selection, source occurrence counts and any physical runtime frame/cell/value capability.
+
+The added CLI controls classify source geometry/currency and independent software edit refusal. They establish no physical Native frame, variable alias/cell identity, runtime read or execution-equivalent rewrite.
 
 ## Provider answers
 
@@ -81,6 +85,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/variable_symbol/rename.rs](../../../../rust/tcl-lsp-core/src/variable_symbol/rename.rs), `variable_symbol::rename::tests::original_variable_rename_uses_authentic_local_frame_and_refuses_stale_or_colliding_sources` (linked): The edit contract requires complete current source/grammar and the selected typed frame symbol before planning geometry. The regression applies edits to p only while q retains local, then requires changed-source and occupied changed-name cases to refuse. The frame correspondence is source ownership, not an entered runtime frame or current cell.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-cli/src/commands/minimize.rs](../../../../rust/tcl-cli/src/commands/minimize.rs), `collect_rename_edits`: Consume AnalysisResult original_variable_symbols and shared Core original_variable_rename_edits under complete current input/image/configuration; convert checked whole component plans to original offsets and reject partial overlapping-container edits.
+- [rust/tcl-cli/src/commands/minimize.rs](../../../../rust/tcl-cli/src/commands/minimize.rs), `commands::minimize::tests::minimise_variable_roles_follow_selected_renames_and_aliases` (linked): Genuine moved setters and source aliases determine original written variable roles; captured receiver names retain their separate containers and cannot be rewritten through a written value operand.
+- [rust/tcl-cli/src/commands/minimize.rs](../../../../rust/tcl-cli/src/commands/minimize.rs), `commands::minimize::tests::minimise_variable_edits_refuse_missing_stale_and_colliding_inputs` (linked): Guarded CLI symbol plans require current whole source/input and retain collision refusal; missing or stale analysis withdraws edits instead of reselecting nominal names.
+
+These source/API bindings carry no executed assertion or Native provider result.
 
 ## Replay
 

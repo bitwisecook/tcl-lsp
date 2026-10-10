@@ -14,9 +14,13 @@ How do procedure inlining and alpha-renaming use the exact original source/confi
 
 SourceContext::for_module joins the complete retained Logical Module interpretation, full metadata and original image. Each invocation additionally retains its exact original words, selected roles and accepted frozen arity. Bound-read eligibility uses this context, preserving refusal for unknown, shadowed, unbound or unowned accesses. Every binding strategy uses the shared strict Tcl parameter syntax and exact declaration name correspondence alongside existing admission, definition identity and escape guards. Alpha-renaming uses the actual lexer policy, shared checked variable/root scanner and borrowed component ranges; scalar literal dollars and parentheses remain literal, separate enabled indices recurse, braced combined indices retain their bytes, and unrenamed roots stay unchanged. Generated list arguments are checked as one complete source word. Equal bytes from another source allocation cannot donate geometry.
 
+Inlining head namespace projection consumes the same actual Module LexerConfig through shared checked WordPart/index decomposition. Whole original spelling, literal escape/index boundaries and enabled child substitutions determine conditional source hazards; unavailable decomposition remains a refusal.
+
 ## Scope
 
-Seven marked software controls define original Module/selected-invocation source ownership, lexical renaming and whole-word syntax. The existing selected-Tcl activation control remains independently linked to original-readonly-formal-topology and supplies no Native activation. C8/C9/Jim lexer controls compare software source projections, not native341 completion fields. Ordinary strict Tcl array-formal rejection is a declaration-purpose guard, not a C84 after-zero installation observation or Jim substitute. Independently imported/lowered reference bodies without the joined complete Module source carrier decline. Native frame, caller-cell, compiled-header, body execution, edit permission and executable admission remain independent. No authored assertion is claimed executed; all seven external providers are not tested.
+Marked software controls define original Module/selected-invocation source ownership, lexical renaming and whole-word syntax. The existing selected-Tcl activation control remains independently linked to original-readonly-formal-topology and supplies no Native activation. C8/C9/Jim lexer controls compare software source projections, not native341 completion fields. Ordinary strict Tcl array-formal rejection is a declaration-purpose guard, not a C84 after-zero installation observation or Jim substitute. Independently imported/lowered reference bodies without the joined complete Module source carrier decline. Native frame, caller-cell, compiled-header, body execution, edit permission and executable admission remain independent. No authored assertion is claimed executed; all seven external providers are not tested.
+
+The additional source control compares lexical software carriers, including selected C8/C9 and Jim grammars, without invoking those providers or comparing native341 result fields. It grants no caller storage, Native header/frame/activation or executable head/body equivalence.
 
 ## Provider answers
 
@@ -95,6 +99,13 @@ The listed Rust sources define the current source eligibility and lexical geomet
 - [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs), `word_parts::tests::original_name_extent_requires_the_actual_source_allocation` (linked): The shared reference scanner supplies name geometry only from its actual borrowed source allocation; equal bytes in a different allocation decline. The exact lexical range supplies no Native receiver or editing permission.
 
 The existing `inlining::tests::original_inlining_activation_requires_selected_c_parameter_grammar` control retains its [readonly formal topology question](original-readonly-formal-topology.md). Its explicit selected-Tcl Logical contract does not execute a Native procedure activation. A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/inlining/heads.rs](../../../../rust/tcl-compiler/src/inlining/heads.rs), `names_a_command`: Inspect retained statement operands under InlineSpec actual Module LexerConfig to identify original command-valued word parts and enabled index substitutions; Empty and Verbatim source carriers retain the same configuration.
+- [rust/tcl-compiler/src/inlining/heads.rs](../../../../rust/tcl-compiler/src/inlining/heads.rs), `substitutes`: Use shared decompose_spanned_checked and WordPart/index traversal; checked parse failure conservatively retains a substitution hazard. Escaped literal brackets and combined braced indices are not reinterpreted as executable children.
+- [rust/tcl-compiler/src/inlining/heads.rs](../../../../rust/tcl-compiler/src/inlining/heads.rs), `root`: Only rewrite retained call heads after the selected whole-word/index scanner declines unrewritable textual command substitution; source spelling/configuration supplies no Native frame or body admission.
+- [rust/tcl-compiler/src/inlining/heads.rs](../../../../rust/tcl-compiler/src/inlining/heads.rs), `inlining::heads::tests::original_head_namespace_scan_keeps_selected_word_and_index_grammar` (linked): Selected whole-word/index grammar distinguishes escaped brackets and literal combined indices from authentic nested substitutions, C8/C9 brace closure, Unicode scalars and Jim expression sugar; malformed or unavailable decomposition conservatively refuses head rewriting.
+
+These source/API bindings carry no executed assertion or Native provider result.
 
 ## Replay
 

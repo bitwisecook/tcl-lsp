@@ -39,6 +39,8 @@ mod environment_notice;
 #[cfg(not(target_family = "wasm"))]
 pub mod exit_watchdog;
 #[cfg(test)]
+mod original_document_metadata_tests;
+#[cfg(test)]
 mod original_workspace_diagnostics_tests;
 pub mod path_glob;
 pub mod rt;
@@ -12880,32 +12882,20 @@ impl Backend {
         // never manufacture one without the pack contents.
         let _registry_generation = self.registry_for_dialect(&doc.dialect).await;
         let Some(mut enriched) = self.db_semantic_tokens(uri).await else {
-            let registry = self.registry_for_dialect(&doc.dialect).await;
-            let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
-            // No salsa input for this document (unindexed buffer): build the
-            // unit and analysis fresh so regex-source highlighting and
-            // user-class object-method resolution still apply, matching the
-            // salsa path below.
-            let data = crate::rt::spawn_blocking(move || {
-                let cu = tcl_compiler::compilation_unit::CompilationUnit::build_for_dialect(
-                    &text, &registry, false, &dialect,
-                );
-                let analysis = tcl_compiler::analyser::Analyser::new().analyse(&text, &dialect);
-                core_semantic_tokens::full_with_cu_and_analysis(
-                    &text,
-                    tcl_lsp_core::profile_for_dialect(&dialect),
-                    &registry,
-                    Some(&cu),
-                    Some(&analysis),
-                )
-                .data
-            })
-            .await
-            .map_err(|err| jsonrpc::Error {
-                code: jsonrpc::ErrorCode::InternalError,
-                message: format!("semantic_tokens worker panicked: {err}").into(),
-                data: None,
-            })?;
+            let analysis = self
+                .fresh_analysis_for(uri, Arc::clone(&doc.text), doc.dialect.clone())
+                .await;
+            let text = Arc::clone(&doc.text);
+            // The configured fresh driver retains pack generation, resource
+            // availability and grammar. The source unit borrows that same input.
+            let data =
+                crate::rt::spawn_blocking(move || unindexed_semantic_tokens(&text, &analysis).data)
+                    .await
+                    .map_err(|err| jsonrpc::Error {
+                        code: jsonrpc::ErrorCode::InternalError,
+                        message: format!("semantic_tokens worker panicked: {err}").into(),
+                        data: None,
+                    })?;
             log_full_convergence_settled(&self.client, uri, false, FullSettleOutcome::NoAnalysis)
                 .await;
             return Ok(data);
@@ -18487,9 +18477,8 @@ impl Backend {
             .map(|(class_q, method)| (class_q.to_owned(), method.to_owned()));
         for (doc_uri, source, dialect) in docs {
             let analysis = self
-                .cached_analysis(&doc_uri)
-                .await
-                .unwrap_or_else(|| Arc::new(Analyser::new().analyse(&source, &dialect)));
+                .analysis_for(&doc_uri, Arc::clone(&source), dialect.clone())
+                .await;
             if let Some((target_class, method)) = &method_target {
                 let receivers: Vec<(String, bool)> = {
                     let index = self.workspace_index.read().await;
@@ -22391,24 +22380,23 @@ impl Backend {
         &self,
         uri: &Uri,
         text: &str,
-        dialect: &'static tcl_dialect::DialectProfile,
+        analysis: &Arc<AnalysisResult>,
         registry: &Arc<CommandRegistry>,
     ) -> tcl_lsp_db::CompilerDiagnostics {
-        let (c_text, c_dialect, c_registry) =
-            (text.to_owned(), dialect.to_owned(), Arc::clone(registry));
+        let (c_text, c_analysis, c_registry) =
+            (text.to_owned(), Arc::clone(analysis), Arc::clone(registry));
         // URI-scoped (folder/project override aware), matching the push
         // path's `resolved_generic_variable_patterns(uri)` so IRULE4002
         // honours a folder's `diagnostics.genericVariablePatterns` override.
         let c_generic = self.resolved_generic_variable_patterns(uri).await;
-        // The pull path builds a standalone unit, so it must be handed the
-        // project's call-site evidence explicitly — the tracked query's own
-        // read of `SourceFile::external_call_sites` never reaches here.
+        // The uncached supplied-input build retains the document's analysis;
+        // project call-site evidence remains an independent producer input.
         let c_evidence = self.cross_file_evidence_for(uri).await;
         crate::rt::spawn_blocking(move || {
-            tcl_lsp_db::compiler_check_diagnostics_uncached(
+            tcl_lsp_db::compiler_check_diagnostics_uncached_from_analysis(
                 &c_text,
                 &c_registry,
-                c_dialect.name,
+                &c_analysis,
                 c_generic.as_deref(),
                 c_evidence.as_deref(),
             )
@@ -22550,7 +22538,7 @@ impl Backend {
         let registry = self.registry_for_dialect(&dialect).await;
 
         let compiler_diags = self
-            .compiler_diagnostics_for(uri, &analysis_text, profile, &registry)
+            .compiler_diagnostics_for(uri, &analysis_text, &analysis, &registry)
             .await;
 
         // XC100-301 translatability lints — independent toggle, f5-irules only.
@@ -25130,6 +25118,33 @@ async fn log_range_convergence_settled(
         .await;
 }
 
+/// The unindexed token path uses the existing analysis owner for both source
+/// schemas and its unit. Supplied refusal never rebuilds a standalone profile.
+fn unindexed_semantic_tokens(
+    text: &str,
+    analysis: &AnalysisResult,
+) -> core_semantic_tokens::SemanticTokens {
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return core_semantic_tokens::SemanticTokens::default();
+    };
+    let context = input.context_registry();
+    let Some(cu) = tcl_lsp_db::compilation_unit_uncached_from_analysis(
+        text,
+        context.commands(),
+        analysis,
+        None,
+    ) else {
+        return core_semantic_tokens::SemanticTokens::default();
+    };
+    core_semantic_tokens::full_with_cu_and_analysis(
+        text,
+        input.analyser_profile(),
+        context.commands(),
+        Some(&cu),
+        Some(analysis),
+    )
+}
+
 /// [`code_action_report`]'s inputs beyond the document and its analysis,
 /// grouped so the call site does not spell out seven parameters.
 struct CodeActionReportInputs {
@@ -25149,18 +25164,18 @@ struct CodeActionReportInputs {
 /// — the pull path's own shape, so a fix is decided against the exact set
 /// the document publishes.
 ///
-/// The checks run uncached with the project's call-site evidence — the same
-/// standalone-unit caveat as the pull-diagnostics path: without it a
-/// quick-fix could offer to delete a branch the project proves reachable.
+/// The checks retain this analysis's complete input and the project's
+/// independent call-site evidence. Missing or stale supplied ownership withholds
+/// compiler suggestions while the existing analyser findings remain available.
 fn code_action_report(
     doc: &DocumentState,
     analysis: &AnalysisResult,
     inputs: &CodeActionReportInputs,
 ) -> core_policy::Report {
-    let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
+    let checks = tcl_lsp_db::compiler_check_diagnostics_uncached_from_analysis(
         &doc.text,
         &inputs.registry,
-        &doc.dialect,
+        analysis,
         inputs.generic_patterns.as_deref(),
         inputs.evidence.as_deref(),
     );

@@ -48,6 +48,8 @@ mod native_coroutine_names;
 pub use native_children::ChildInterpreterCommand;
 mod native_compilation;
 mod native_dictionary;
+#[cfg(feature = "engine")]
+pub(crate) mod native_host_publication;
 mod native_introspection;
 pub(crate) use native_dictionary::DictionaryScopeRead;
 mod native_ensemble_objects;
@@ -85,7 +87,6 @@ use std::rc::{Rc, Weak};
 
 use native_error_headers::{NativeErrorStack, NativeReturnOptions};
 use tcl_core_types::{OoId, RecursionLimit};
-use tcl_runtime_api::RegisteredBacking;
 use tcl_runtime_api::codegen_abi::NATIVE_PROC_STATUS_DECLINED;
 use tcl_runtime_api::error_stack::validate_error_stack;
 use tcl_runtime_api::guard::{
@@ -93,13 +94,14 @@ use tcl_runtime_api::guard::{
     OwnedGuardManager,
 };
 use tcl_runtime_api::jim_error_stack::{
-    JimErrorStack, JimErrorTrace, JimEvaluationFrame, JimScriptLocation, NativeErrorStackProtocol,
-    capture_jim_error_frames,
+    capture_jim_error_frames, JimErrorStack, JimErrorTrace, JimEvaluationFrame, JimScriptLocation,
+    NativeErrorStackProtocol,
 };
+use tcl_runtime_api::RegisteredBacking;
 
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
-use crate::namespace::{CommandBinding, GLOBAL, Namespaces, NsId, RenameOutcome};
+use crate::namespace::{CommandBinding, Namespaces, NsId, RenameOutcome, GLOBAL};
 use crate::obj::{self, TclObj};
 use crate::parse::{self, WordBody, WordPart};
 
@@ -5931,28 +5933,30 @@ impl Interp {
     /// a body to. A command `keep` names keeps its own binding; nothing is
     /// renamed or replaced.
     pub fn retain_commands(&mut self, keep: &dyn Fn(&str) -> bool) {
-        let mut refused: Vec<Vec<u8>> = Vec::new();
-        {
+        self.retain_command_tokens(&|_, report| core::str::from_utf8(report).is_ok_and(keep));
+    }
+
+    /// Keep exact live command generations selected by their original table owners.
+    /// Reporting bytes are provided for a caller's byte whitelist; they never
+    /// supply the generation used for deletion.
+    pub(crate) fn retain_command_tokens(&mut self, keep: &dyn Fn(u64, &[u8]) -> bool) {
+        let refused: Vec<_> = {
             let namespaces = self.namespaces.borrow();
-            let mut pending = vec![crate::namespace::GLOBAL];
-            while let Some(ns) = pending.pop() {
-                let qualified = namespaces.qualified_name(ns);
-                let mut prefix = qualified.clone();
-                if qualified != b"::" {
-                    prefix.extend_from_slice(b"::");
-                }
-                for name in namespaces.command_names(ns) {
-                    let mut full = prefix.clone();
-                    full.extend_from_slice(name);
-                    if !keep(&String::from_utf8_lossy(&full[2..])) {
-                        refused.push(full);
-                    }
-                }
-                pending.extend(namespaces.children(ns));
-            }
-        }
-        for name in refused {
-            self.delete_command(&name);
+            namespaces
+                .native_command_generations()
+                .into_iter()
+                .filter(|&generation| {
+                    namespaces
+                        .native_command_slot_at_node(generation)
+                        .is_some_and(|(ns, simple)| {
+                            let report = namespaces.command_fqn_at(ns, &simple);
+                            !keep(generation, report.strip_prefix(b"::").unwrap_or(&report))
+                        })
+                })
+                .collect()
+        };
+        for generation in refused {
+            self.delete_command_generation(generation);
         }
     }
 
@@ -11164,7 +11168,7 @@ impl Interp {
     /// by owner+prefix handles recursion: only the outermost installs). Returns
     /// how many were pushed (the last `n` of `step_active`, popped on exit).
     fn install_step_traces(&mut self, fqn: &[u8], token: Option<u64>) -> usize {
-        use crate::cmd_trace::{StepActive, ops};
+        use crate::cmd_trace::{ops, StepActive};
         let to_install: Vec<(u8, Vec<u8>)> = {
             let t = self.traces.borrow();
             t.cmd_traces
@@ -11356,7 +11360,7 @@ impl Interp {
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
     ) -> Result<Box<PreparedMissingCommand>, Code> {
         use tcl_registry::command_lookup::{
-            UnknownHandlerNamespace, native_lookup_fallback_policy,
+            native_lookup_fallback_policy, UnknownHandlerNamespace,
         };
         use tcl_syntax::value::ValueOps;
         let Some(policy) = native_lookup_fallback_policy(self.native_invocation_dialect(), origin)
@@ -14172,7 +14176,9 @@ impl Interp {
                 }
             }
             Code::Error => {
-                if let Some(command) = parse::parse_script(&handler_call).first() {
+                if let Some(command) =
+                    parse::parse_script_with_config(&handler_call, self.lexer_config()).first()
+                {
                     self.log_command_info(&handler_call, command);
                 }
                 self.append_frame_noline(b"ensemble unknown subcommand handler");
@@ -16047,10 +16053,9 @@ mod tests {
             ok(i, b"interp alias {} baz {} bar");
             ok(i, b"rename baz {}");
             assert!(i.check_command_guard(token, b"guarded"));
-            assert!(
-                i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
-                    .is_ok()
-            );
+            assert!(i
+                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                .is_ok());
 
             // A change to the lookup environment itself stales the token over
             // it, and the attestation stays.
@@ -16064,10 +16069,9 @@ mod tests {
             // depend on interpreter policy.
             i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
             assert!(i.check_command_guard(token, b"guarded"));
-            assert!(
-                i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
-                    .is_ok()
-            );
+            assert!(i
+                .prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains)
+                .is_ok());
 
             // Renaming the command away drops the guard at its name, and the
             // attestation goes with the command; restoring the name restores it.
@@ -16077,10 +16081,9 @@ mod tests {
                 i.prepare_command_guard(b"guarded", GUARDED_IDENTITY, domains),
                 Err(GuardError::IdentityUnavailable)
             );
-            assert!(
-                i.prepare_command_guard(b"moved", GUARDED_IDENTITY, domains)
-                    .is_ok()
-            );
+            assert!(i
+                .prepare_command_guard(b"moved", GUARDED_IDENTITY, domains)
+                .is_ok());
             ok(i, b"rename moved guarded");
             assert!(i.check_command_guard(token, b"guarded"));
 
@@ -16747,12 +16750,10 @@ mod tests {
                 assert!(!check_retained_fixture_guard(interp, policy, generation));
                 assert!(check_retained_fixture_guard(interp, command, generation));
                 assert!(interp.native_compiler_cache_epochs(GLOBAL).is_none());
-                assert!(
-                    interp
-                        .native_invocation_dialect()
-                        .execution_point()
-                        .is_none()
-                );
+                assert!(interp
+                    .native_invocation_dialect()
+                    .execution_point()
+                    .is_none());
                 assert!(interp.release_command_guard(policy));
                 assert!(interp.release_command_guard(command));
             });
@@ -16913,10 +16914,9 @@ mod tests {
             );
 
             i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
-            assert!(
-                i.prepare_command_guard(b"lassign", GUARDED_IDENTITY, domains)
-                    .is_ok()
-            );
+            assert!(i
+                .prepare_command_guard(b"lassign", GUARDED_IDENTITY, domains)
+                .is_ok());
         });
     }
 
@@ -17639,7 +17639,7 @@ mod tests {
 
     #[test]
     fn original_variable_word_vectors_match_the_selected_native_interpreter() {
-        use tcl_syntax::execution_conformance::{ExecutionDomain, vectors};
+        use tcl_syntax::execution_conformance::{vectors, ExecutionDomain};
         let cases: Vec<_> = vectors(ExecutionDomain::CommandBinding)
             .into_iter()
             .filter(|case| case.id.starts_with("variable_word_"))
@@ -18099,7 +18099,7 @@ mod tests {
     /// here rather than inherited from another test.
     #[test]
     fn completion_code_integers_follow_the_release_selected_number_grammar() {
-        use tcl_syntax::number::{NumberSyntax, set_runtime_syntax};
+        use tcl_syntax::number::{set_runtime_syntax, NumberSyntax};
 
         // Release-independent: decimal, hex, the full signed *and* unsigned
         // 32-bit window, and its reduction to an `int`.

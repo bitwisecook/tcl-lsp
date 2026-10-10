@@ -448,7 +448,32 @@ fn namespace_rename_hazard(
             Some(span),
         ));
     }
-    let registry = crate::registry_for_dialect_profile(dialect);
+    let unavailable = || {
+        RenameRefusal::at(
+            format!(
+                "cannot rename `{cell}`: the complete original source and metadata are unavailable"
+            ),
+            source,
+            line_index,
+            None,
+        )
+    };
+    let Some((input, config)) = analysis
+        .resolved_input
+        .as_ref()
+        .zip(analysis.body_lexer_config)
+    else {
+        return Some(unavailable());
+    };
+    if input.lexer_config() != config
+        || !analysis
+            .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+        || analysis
+            .retained_command_realm()
+            .is_none_or(|realm| !realm.matches_resolved_analysis_input(input))
+    {
+        return Some(unavailable());
+    }
     let mut hazard: Option<(Span, HazardKind)> = None;
     let mut visit = |cmd: &tcl_compiler::segmenter::SegmentedCommand| {
         if hazard.is_some() {
@@ -458,30 +483,32 @@ fn namespace_rename_hazard(
         // text must not be read as a name here — a body word contains every
         // name written inside it.
         let nested = crate::references::dispatch_scan_regions(source, analysis, dialect, cmd);
-        let Some(cmd_name) = cmd.texts.first() else {
-            return;
-        };
-        let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
-        // A computed namespace word: `namespace eval $ns { … }`.  The
-        // analyser records such a word only when its value is
-        // constant-dominated, so anything left here names a namespace nothing
-        // proves is not this one.
-        for idx in
-            registry.arg_indices_for_role(cmd_name, &args, tcl_registry::ArgRole::NamespaceName)
-        {
-            let Some(word) = args.get(idx) else { continue };
-            if !word.contains(['$', '[']) {
+        let words = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+            source, analysis, cmd,
+        );
+        let roles = words
+            .as_ref()
+            .filter(|words| words.roles().is_some())
+            .map(|words| words.written_argument_roles());
+        for (idx, word) in cmd.texts.iter().skip(1).enumerate() {
+            if !word.contains(['$', '['])
+                || !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(
+                    word,
+                    cell,
+                    config.braced_var,
+                )
+            {
                 continue;
             }
-            if !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(
-                word,
-                cell,
-                dialect.grammar.braced_var,
-            ) {
-                continue;
-            }
+            let kind = match &roles {
+                Some(roles) if roles.contains(&(idx, tcl_registry::ArgRole::NamespaceName)) => {
+                    HazardKind::Computed
+                }
+                Some(_) => continue,
+                None => HazardKind::UnknownRole,
+            };
             if let Some(tok) = cmd.argv.get(idx + 1) {
-                hazard = Some((tok.span, HazardKind::Computed));
+                hazard = Some((tok.span, kind));
                 return;
             }
         }
@@ -505,12 +532,22 @@ fn namespace_rename_hazard(
             }
         }
     };
-    crate::rename_safety::walk_document(source, dialect, analysis, &mut visit);
+    crate::executable_regions::visit_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            visit(command);
+            false
+        },
+    );
     let (span, kind) = hazard?;
     let written = source
         .get(span.start() as usize..span.end() as usize)
         .unwrap_or("");
     let reason = match kind {
+        HazardKind::UnknownRole => format!(
+            "cannot rename `{cell}`: the original command's argument roles are unavailable for `{written}`, which may name this namespace"
+        ),
         HazardKind::Computed => format!(
             "cannot rename `{cell}`: this document names a namespace through a value \
              computed at run time (`{written}`), which may be this very namespace — there \
@@ -528,6 +565,7 @@ fn namespace_rename_hazard(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum HazardKind {
+    UnknownRole,
     Computed,
     Unattributed,
 }
@@ -560,6 +598,72 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        // Source edit refusal inventory, not a native namespace or runtime call.
+        use std::sync::Arc;
+        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "source_namespace_reference",
+            arity: tcl_registry::Arity::exact(1),
+            arg_roles: &[(0, tcl_registry::ArgRole::NamespaceName)],
+            surface: registry.get("dict").unwrap().surface,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let store = Arc::new(registry);
+        let context = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.6")
+                .with_command_store(Arc::clone(&store)),
+        );
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let source = "source_namespace_reference $candidate";
+        let mut analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        let index = LineIndex::new(source);
+        let hazard = namespace_rename_hazard(source, profile, &analysis, "::kept", &[], &index)
+            .expect("actual custom NamespaceName role keeps the computed-name blocker");
+        assert!(hazard.reason.contains("computed at run time"));
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4").with_command_store(store),
+        );
+        let older_input =
+            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, older, config);
+        let older_analysis = Analyser::new()
+            .with_resolved_input(older_input)
+            .analyse(source, profile.name);
+        assert!(
+            namespace_rename_hazard(source, profile, &older_analysis, "::kept", &[], &index)
+                .unwrap()
+                .reason
+                .contains("argument roles are unavailable")
+        );
+        analysis.body_lexer_config.as_mut().unwrap().expand_syntax = !config.expand_syntax;
+        assert!(
+            namespace_rename_hazard(source, profile, &analysis, "::kept", &[], &index)
+                .unwrap()
+                .reason
+                .contains("metadata are unavailable")
+        );
+        analysis.body_lexer_config = Some(config);
+        analysis.resolved_input = None;
+        assert!(
+            namespace_rename_hazard(source, profile, &analysis, "::kept", &[], &index)
+                .unwrap()
+                .reason
+                .contains("metadata are unavailable")
+        );
     }
 
     #[test]

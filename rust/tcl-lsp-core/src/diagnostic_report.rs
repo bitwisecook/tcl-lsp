@@ -219,11 +219,10 @@ pub fn standalone_findings(
     ) {
         Ok(context) => context.with_command_store(doc.registry.snapshot().shared_registry()),
         Err(miss) => {
+            let mut analysis = AnalysisResult::default();
+            analysis.analysis_context_unavailable = Some(miss);
             return StandaloneFindings {
-                analysis: AnalysisResult {
-                    analysis_context_unavailable: Some(miss),
-                    ..AnalysisResult::default()
-                },
+                analysis,
                 produced: Vec::new(),
             };
         }
