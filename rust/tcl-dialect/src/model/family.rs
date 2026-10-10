@@ -77,8 +77,7 @@ pub enum Family {
     /// level, closed-world command resolution at rule load, the event
     /// model, and `expr` math-function validation at load (measurements
     /// §4a/§4b/§6). The K36322151 command bans and the closed-world
-    /// guarantee are environment policy, not part of this identity
-    /// (review B12).
+    /// guarantee are environment policy, not part of this identity.
     F5Irules,
     /// Jim Tcl — the 0.76 … 0.84 release ladder, a **reimplementation**
     /// of Tcl rather than a source fork ([`Lineage::Reimplementation`],
@@ -497,8 +496,7 @@ impl std::str::FromStr for Release {
 
 // The five lexer grammars, one value per (family, release ladder step)
 // with a genuine delta. These mirror the private `GRAMMAR_*` constants in
-// `profile.rs` — which cannot be referenced from here without modifying
-// that module, and which die with it in a later phase — and the
+// `profile.rs`. Those constants are private; the
 // `grammar_values_match_the_old_catalogue` test pins byte-equality against
 // the public catalogue so the two cannot drift while both exist.
 
@@ -702,8 +700,8 @@ pub const fn grammar(family: Family, release: Release) -> LexerGrammar {
     }
 }
 
-/// The build/capability profile of a core — semantic, not metadata
-/// (review B1): the same release built differently has a different
+/// The build/capability profile determines semantics: the same release
+/// built differently has a different
 /// character model, expr-function acceptance, and command surface.
 ///
 /// Minimal on purpose: families that are genuinely build-invariant
@@ -735,7 +733,7 @@ pub enum BuildProfileId {
     /// Jim's `--minimal` configure profile — "Disable some optional
     /// features: ipv6, ssl, math, utf8 and some extensions"
     /// (`auto.def:26`). Two of those are *language* facts, not library
-    /// facts, which is review B1's whole claim: without `JIM_UTF8`,
+    /// facts: without `JIM_UTF8`,
     /// `utf8.h` defines `utf8_strlen` as `strlen` ("No utf-8 support.
     /// 1 byte = 1 char"), so `string length é` is 2; without
     /// `JIM_MATH_FUNCTIONS` the nineteen `#ifdef`-guarded rows of
@@ -749,8 +747,7 @@ pub enum BuildProfileId {
     /// The 32-bit `scriptd` build of the F5 trunk hosting iApp
     /// implementations: measured `tcl_platform(wordSize) == 4` against
     /// TMM's 8 (`docs/design/f5/bigip-irule-parser-measurements.md` §4/§4a)
-    /// — the same fork grammar and surface, a different word size. The
-    /// build axis earning its place again (review B1).
+    /// — the same fork grammar and surface, a different word size.
     F5Scriptd32,
     /// An unmeasured build: every capability query answers
     /// [`CapabilityAnswer::Unknown`], never the canonical default (B1).
@@ -883,7 +880,7 @@ impl CapabilitySet {
 pub struct CoreProfileId {
     /// The release on the family's ladder.
     pub release: Release,
-    /// The build profile (review B1 — semantic, not metadata).
+    /// The build profile determines language semantics.
     pub build: BuildProfileId,
 }
 
@@ -1110,8 +1107,8 @@ mod tests {
     }
 
     /// The grammar values here must stay byte-equal to the shipping
-    /// catalogue's while both exist — `profile.rs`'s constants are private
-    /// (and die in a later phase), so the pin runs through the public
+    /// catalogue's while both exist. `profile.rs`'s constants are private,
+    /// so the equality check runs through the public
     /// catalogue rather than referencing them directly.
     #[test]
     fn grammar_values_match_the_old_catalogue() {
@@ -1430,7 +1427,7 @@ mod tests {
         );
     }
 
-    /// Review B1, proved twice over on one ladder: `--minimal` is a
+    /// `--minimal` is a
     /// different *language*, and "the canonical build" names two
     /// different capability records on the Jim ladder because 0.82
     /// flipped `auto.def`'s default.

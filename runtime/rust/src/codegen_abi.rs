@@ -2146,8 +2146,8 @@ unsafe fn expr_bool_impl(interp: *mut Interp, expr: *mut TclObj) -> i32 {
 }
 
 /// Without the numeric tower there is no `expr` evaluator (the `expr` module is
-/// `have_tommath`-gated), so conditions evaluate false. This branch now only
-/// applies to a build that deliberately omits the tower (e.g. a wasm build where
+/// `have_tommath`-gated), so conditions evaluate false. This fallback only
+/// applies to a build that omits the tower (e.g. a wasm build where
 /// `clang`/libtommath was unavailable and `build.rs` degraded the backend off).
 /// The export still exists so emitted modules link.
 ///

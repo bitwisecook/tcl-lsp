@@ -965,7 +965,7 @@ fn depends_row(row: &Stmt, log: &mut Log) -> Vec<ContextDependency> {
 /// `budget {-commands N -wall-clock MS -value-bytes N}`, recorded as
 /// written. A declaration narrows the host's budget and never widens it,
 /// and that rule is the host's alone: it caps each field at its own
-/// configuration when it runs the call (D91). The loader cannot know that
+/// configuration when it runs the call. The loader cannot know that
 /// configuration, and checking against a default host here would be a
 /// second rule, wrong wherever the host is configured otherwise.
 fn budget_row(row: &Stmt, log: &mut Log) -> ImplementationBudget {
@@ -1536,7 +1536,7 @@ speclib probe 2.2 {
     /// `no_store_writes` beside a `stores` row, and an option flag on a
     /// scope that declares no route. A budget above the default host's is
     /// none of these: it is recorded as written, and the host caps it at
-    /// its own when it runs the call (D91).
+    /// its own when it runs the call.
     #[test]
     fn what_cannot_be_used_is_reported_and_dropped() {
         let pack = evaluate_pack(

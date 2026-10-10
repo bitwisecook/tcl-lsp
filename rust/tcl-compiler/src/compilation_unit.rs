@@ -158,7 +158,7 @@ pub struct LatticeRequest<'a> {
 /// caller owns the backing store and its eviction policy.
 pub type ProcLatticeCache<'a> = dyn FnMut(&LatticeRequest<'_>) -> FunctionUnit + 'a;
 
-/// Memoised per-procedure **body-lowering** callback (SRV-INCREMENTAL Task 3):
+/// Memoised per-procedure **body-lowering** callback:
 /// `(qualified name, body source) -> lowered body`.  Named so the build entry
 /// points that thread it stay readable (and clippy's `type_complexity` has
 /// nothing to complain about).
@@ -1959,7 +1959,7 @@ impl CompilationUnit {
     }
 
     /// Like [`Self::build_for_memoized`] but also threads a memoised per-procedure
-    /// **body-lowering** callback (SRV-INCREMENTAL Task 3) into the lowering phase,
+    /// **body-lowering** callback into the lowering phase,
     /// so an unchanged top-level proc's body IR is reused across edits.  The caller
     /// installs it only for context-free files (see [`crate::lowering::Lowerer`]'s
     /// `body_cache`); byte-identity is guarded by the corpus differential gates.

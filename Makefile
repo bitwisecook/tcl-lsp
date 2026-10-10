@@ -1014,7 +1014,7 @@ xtask-resolution-drift: ## Flag namespace-blind simple-name scans over all_procs
 	@echo "==> Checking for name-resolution drift (cargo xtask)"
 	cd $(ROOT) && cargo xtask resolution-drift
 
-xtask-retired-api-gate: ## Flag code uses of the P1-G-retired dialect/registry APIs (zero-reference gate)
+xtask-retired-api-gate: ## Flag code uses of the retired dialect/registry APIs (zero-reference gate)
 	@echo "==> Checking for retired dialect/registry API uses (cargo xtask)"
 	cd $(ROOT) && cargo xtask retired-api-gate
 
@@ -1147,7 +1147,7 @@ tcltest-sweep-check: ## Verify the committed tcltest parity scoreboard is in syn
 	@echo "==> Checking the tcltest parity scoreboard is in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask tcltest-sweep --backend vm --check
 
-# Phase targets for parallel prep-pr execution.  (`_prep-pr-smoke` is VSIX
+# Targets for parallel prep-pr execution.  (`_prep-pr-smoke` is VSIX
 # packaging smoke + standalone-EDA verification — a different thing from the
 # `smoke` test tier below; hence the distinct `_prep-pr-smoke-tier` name.)
 _prep-pr-checks: lint-ts typecheck-ts check-editor-settings typecheck-report-ts lint-report-ts check-report-assets typecheck-spec-studio-ts lint-spec-studio-ts test-installer
@@ -1169,7 +1169,7 @@ prep-pr: format codegen ## Fast local gate (format + codegen + lint + typecheck 
 
 .PHONY: smoke smoke-p test-installer test-exhaustive fuzz test-spectcl-compat
 
-# One fail-closed compatibility lane for the complete SpecTcl contract: legacy
+# One fail-closed compatibility suite for the complete SpecTcl contract: legacy
 # 1.x sources through TclVM (20), 2.0 golden upgrades (3), live 1.x/2.0 hook
 # execution (4), shipped corpus/containment (2), and real-C-Tcl parse validity
 # (1). The installer selects release line 9.0, while tcl-dialect's manifest
@@ -1609,7 +1609,7 @@ ensure-tcl-deps: ## Install Tcl shells needed by Tcl/tclpkg tests and bytecode c
 		SKIP_TCLLIB=1 \
 		bash $(ROOT)scripts/dev/ensure-test-deps.sh
 
-# Tcl 9.0 is the shared gold-standard reference lane for the deep Rust and
+# Tcl 9.0 is the shared gold-standard reference interpreter for the deep Rust and
 # SpecTcl suites. The release manifest owns its exact patchlevel and source tag;
 # callers select only the release line through this entry point.
 ensure-tcl90-reference: ## Install the exact manifest-pinned Tcl 9.0 reference interpreter

@@ -137,7 +137,7 @@ exclude = [
     # raw-pointer `unsafe` over the shared linear memory (c-extension-abi.md §9),
     # so it cannot inherit the workspace `unsafe_code = "forbid"` lint, and it
     # eventually targets wasm32 as a cdylib. Kept out of `cargo test --workspace`
-    # so the LSP/compiler workstream cannot regress on runtime-port churn.
+    # so the LSP/compiler checks cannot regress on runtime-port churn.
     # Gated separately via `make runtime-rust-test`.
     "runtime/rust",
     # CI gate that compiles the vendored tree-sitter-tcl grammar (C) and

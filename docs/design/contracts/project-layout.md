@@ -6,8 +6,7 @@ a change lands in the layer that owns it.
 
 The product is a **Rust workspace** (see
 [`Cargo.toml`](../../../Cargo.toml) `[workspace] members`).  Every crate
-lives under `rust/`.  Python has been fully retired on this branch — the
-crate dependency direction runs from the leaf value types
+lives under `rust/`. The crate dependency direction runs from the leaf value types
 up to the binaries, and is enforced by cargo's own dependency graph.
 
 | Crate | Role |

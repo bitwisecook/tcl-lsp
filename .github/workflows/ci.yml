@@ -111,7 +111,7 @@ jobs:
   #                    clean stock runner provisions a capable C compiler.
   #   spectcl_compat_changed — SpecTcl or its TclVM/compiler/registry/runtime
   #                    and exact-reference-toolchain closure changed. Runs the
-  #                    non-vacuous 15+3+4+2+1 compatibility lane.
+  #                    non-vacuous 15+3+4+2+1 compatibility suite.
   #   runtime_rust_changed — the standalone `runtime/rust` crate, its Tcl 9
   #                    smoke corpus, or one of the path dependencies its own
   #                    cargo workspace resolves changed, so
@@ -1241,8 +1241,8 @@ jobs:
     #
     # Untrusted code must never reach the self-hosted runner, so PRs from forks
     # and Dependabot stay on GitHub-hosted. Trusted PRs and pushes prefer `tank`
-    # while its logical lane is idle, then spill onto hosted capacity when
-    # another run is already occupying that lane. A manual dispatch remains an
+    # while its runner capacity is available, then spill onto hosted capacity when
+    # another run is already using that capacity. A manual dispatch remains an
     # explicit override, and runner-policy changes prove themselves on hosted
     # capacity.
     needs: [channel]
@@ -1386,7 +1386,7 @@ jobs:
 
       # The real-tclsh conformance binaries fail closed when no manifest-pinned
       # interpreter is available. Provision the shared Tcl 9.0 gold-standard
-      # lane through the same tool entry point SpecTcl uses; distro Tcl and a
+      # suite through the same tool entry point SpecTcl uses; distro Tcl and a
       # stale system tclsh9.0 must never decide which oracle CI exercises.
       # The output witnesses (`tcl_test_support::witness_tclsh`) compare under
       # every release they find and report the rest as skipped; requiring the
@@ -1738,7 +1738,7 @@ jobs:
   #
   # `runtime/rust` is its own cargo workspace, deliberately excluded from the
   # root one (it needs `unsafe` over the shared linear memory, and its churn
-  # must not gate the LSP/compiler workstream).  The cost of that exclusion is
+  # must not gate the LSP/compiler checks).  The cost of that exclusion is
   # that `cargo test --workspace --all-features` in `rust-tests` never runs a
   # single test in it, and `wasm-real-link` compiles and LINKS the crate
   # without executing its tests either.  `pr-gate` only formats and clippies
@@ -2088,7 +2088,7 @@ jobs:
           CARGO_PROFILE_RELEASE_LTO: true
         run: make lsp-server-wasi
 
-      # Same handoff shape as `build-server-matrix`'s `server-bins-*`: a plain,
+      # Same artefact layout as `build-server-matrix`'s `server-bins-*`: a plain,
       # short-lived workflow artifact for the downstream packaging job.  The
       # Release asset (attested + SBOM'd) is attached by `build-vsix`, which is
       # the one that can be sure `create-release` has already run.

@@ -948,7 +948,7 @@ pub struct Lowerer<'r> {
     /// into one three-state enum (`clippy::struct_excessive_bools`); see
     /// [`CompileTarget`].
     pub(crate) target: CompileTarget,
-    /// Optional memoised per-procedure body lowering (SRV-INCREMENTAL Task 3).
+    /// Optional memoised per-procedure body lowering.
     /// When set, a **top-level** `proc`'s static literal body is lowered through
     /// this callback `(offset-0 body text, namespace) -> offset-0 body Script`
     /// (the caller rebases by the body offset) instead of `lower_body`, so an
@@ -4269,8 +4269,8 @@ pub fn lower_to_ir(source: &str, registry: &CommandRegistry) -> Module {
 /// For a body free of cross-item context (no nested `proc` / `namespace
 /// import`/`export` / command alias / const-map materialisation), this is
 /// byte-identical to the body the whole-file lowering produces for that
-/// procedure, normalised to offset 0 — the seam the SRV-INCREMENTAL per-procedure
-/// lowering memo (Task 3) keys on the offset-0 body text and feeds back through
+/// procedure, normalised to offset 0 — the seam the per-procedure
+/// lowering memo keys on the offset-0 body text and feeds back through
 /// [`Lowerer::with_body_cache`].
 #[must_use]
 pub fn lower_proc_body_isolated(
@@ -4333,7 +4333,7 @@ pub fn lower_script_module_for_bytecode(
 }
 
 /// Whether a single top-level `proc` body can be lowered in isolation (through
-/// the SRV-INCREMENTAL Task 3 body-cache memo) byte-identically to the in-place
+/// the body-cache memo) byte-identically to the in-place
 /// [`Lowerer::lower_body`].
 ///
 /// The isolated lowering runs against a fresh [`Lowerer`] with an empty
@@ -4535,7 +4535,7 @@ mod body_cache_eligible_tests {
 }
 
 /// Like [`lower_to_ir_with_dialect`] but with a memoised per-procedure body-lowering
-/// callback (SRV-INCREMENTAL Task 3): a top-level `proc`'s static body is lowered
+/// callback: a top-level `proc`'s static body is lowered
 /// through `body_cache` `(offset-0 body text, namespace) -> offset-0 Script` and
 /// rebased, so an unchanged proc's body IR is reused across edits.  The caller must
 /// only install a cache for **context-free** files (see [`Lowerer::body_cache`]);

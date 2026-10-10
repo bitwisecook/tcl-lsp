@@ -1,4 +1,4 @@
-# Value transfers — the registry migration as built
+# Value transfers — the command-knowledge inventory
 
 How the consumer interface in [value-transfers.md](value-transfers.md) and
 the evaluation contract in [value-evaluation.md](value-evaluation.md) sit in

@@ -2335,7 +2335,7 @@ mod tests {
 
     #[test]
     fn streq_promotion_with_numeric_string_literal_is_unsound_noop() {
-        // D5-O120: `$x == "1"` must stay numeric. `"1"` parses as a
+        // `$x == "1"` must stay numeric. `"1"` parses as a
         // number, so Tcl runs the numeric compare; promoting to `eq`
         // would flip the result when `$x` is numeric (e.g. `1.0`).
         // `"1"`/`"3.5"` are numeric; `"yes"` is a Tcl boolean word that

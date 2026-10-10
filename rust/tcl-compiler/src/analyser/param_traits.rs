@@ -249,7 +249,7 @@ pub struct TraitScanEnv<'a> {
     /// The one command surface this document analyses against
     /// ([`DocumentCommandSurface`]): the caller's already-built,
     /// dialect-aware registry generation plus whatever the document
-    /// declares for itself with `# tcl-lsp: stub` (gap ruling R1). Building
+    /// declares for itself with `# tcl-lsp: stub`. Building
     /// a fresh `CommandRegistry::build_default()` per proc would both be
     /// expensive and miss the dialect-specific `arg_role_resolver` /
     /// `arg_roles` the caller's generation has loaded; a stub like

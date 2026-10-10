@@ -3078,7 +3078,7 @@ mod tests {
         );
     }
 
-    // P3: registry-driven container element inference (type-tracking.md).
+    // registry-driven container element inference (type-tracking.md).
 
     /// Helper: the joined lattice of every version of `var` in `func`.
     fn type_of(
@@ -3245,7 +3245,7 @@ mod tests {
         );
     }
 
-    /// P5: constant-keyed array elements are independent variables — each
+    /// constant-keyed array elements are independent variables — each
     /// carries its own type ("array elements behave as independent
     /// scalars"), and the conflated base claims nothing.
     #[test]
@@ -3282,7 +3282,7 @@ mod tests {
         );
     }
 
-    /// P5: a dynamic-key write is a may-write over every known element —
+    /// a dynamic-key write is a may-write over every known element —
     /// the element's type JOINS with the written type (INT ⊔ INT stays
     /// INT; INT ⊔ STRING widens) instead of trusting either side.
     #[test]

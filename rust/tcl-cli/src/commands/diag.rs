@@ -372,7 +372,7 @@ fn collect_rows(
     report.declare_analyser_skip(&policy);
     // Nor did this verb run the optimiser (`diag_policy`): it is declared
     // too, so `--show-suppressed` says why a rewrite-only code is absent
-    // rather than leaving it to read as clean (D47).
+    // rather than leaving it to read as clean.
     report.declare_optimiser_skip(&policy);
     document_rows_of(&report, source, &line_index)
 }

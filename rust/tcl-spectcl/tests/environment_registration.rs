@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **Live environment registration, end to end** (P2-H deliverable E):
+//! **Live environment registration, end to end:**
 //! a pack-declared `environment` block becomes resolvable through the one
 //! ingress seam — `tcl_registry::model::ingress::resolve_environment` —
 //! with its declared detection facts and ambient placements; a

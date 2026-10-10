@@ -16,13 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **The pack-side environment registration seam** (P2-H, deliverable E):
+//! **Pack-side environment registration:**
 //! a loaded pack's `environment` blocks — declarations and `-extend`
 //! contributions — enter the live [`EnvironmentRegistry`] through
 //! [`tcl_registry::model::register_environments`], under the §6.4 trust
 //! lattice, with invalidation riding the registry-generation machinery.
 //!
-//! ## What registers, and what does not (yet)
+//! ## Registered declarations
 //!
 //! - [`PackEnvironment`] declarations register as
 //!   [`EnvironmentDefinition`]s at the pack tier's provenance;

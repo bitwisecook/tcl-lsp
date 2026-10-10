@@ -162,7 +162,7 @@ fn relative(path: &Path, root: &Path) -> String {
 
 // The inventory: every `.tclspec` the repo ships. Paths and their discovery
 // tier/origin/dialect metadata come from `tcl_spectcl::golden`, the same owner
-// used by the loader, golden, upgrade, and real-Tcl lanes.
+// used by the loader, golden, upgrade, and real-Tcl suites.
 
 // The corpus
 

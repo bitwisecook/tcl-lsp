@@ -8905,7 +8905,7 @@ fn a_return_inside_a_call_holding_a_body_stops_the_fold() {
     }
 }
 
-/// Slice 7a's exit witness: the argument-independent O103 folds a procedure
+/// The argument-independent O103 folds a procedure
 /// whose return is a computed constant. `p`'s return is no literal, but its
 /// seedless lattice — the procedure run with its parameters unknown — holds
 /// `x` at `foo` where it returns, so the summary says `p` returns `foo` for

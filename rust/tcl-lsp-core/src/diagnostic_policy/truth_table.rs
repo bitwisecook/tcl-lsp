@@ -28,8 +28,6 @@
 //! the rules the page states, so one set of hand-checked expectations gates
 //! them all. [`Row::runs_on`] says which surfaces can realise a row at all,
 //! and [`check`] compares what a surface rendered with what it should have.
-//! A D-number here is a decision recorded in the landing commit's message
-//! (`git show c6ae07da`): this one is D30.
 //!
 //! A row's program is a means: when a producer stops emitting a subject code
 //! where a row says, the program or the line changes, never the wanted
@@ -232,7 +230,7 @@ impl Row {
     ///   producer and reason rather than one per code). A code the compiler
     ///   checks or the O111 producer emit is no gap there
     ///   ([`PRODUCED_WITHOUT_THE_OPTIMISER`]). A default-off gap is not
-    ///   rendered (D21). `Cli` alone: an abstention suppression of a code
+    ///   rendered. `Cli` alone: an abstention suppression of a code
     ///   the CLI's producers emit is absent, because the CLI does not
     ///   analyse an abstaining document — the integrity pass alone runs —
     ///   though it still declares the analyser's skip and the optimiser, so

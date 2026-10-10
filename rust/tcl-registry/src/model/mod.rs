@@ -31,7 +31,7 @@
 //!   the commands a *document* declares for itself (`# tcl-lsp: stub`
 //!   blocks and `.tcl.stubs` sidecars) ingested as provenance-tagged
 //!   [`SurfaceDeclaration`]s, and the one door a consumer asks about the
-//!   catalogue **and** those declarations (gap ruling R1).
+//!   catalogue **and** those declarations.
 //! - [`context`] — [`ResolvedContext`] (environment + per-axis floor map)
 //!   and the [`ContextQueries`] **assistance view** (§1.2 R-c/R-d split):
 //!   `is_available`, `available_at_targets`.

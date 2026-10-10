@@ -643,7 +643,7 @@ fn editor_identity_row(environment: &mut PackEnvironment, stmt: &Stmt, log: &mut
             stmt.line,
             format!(
                 "`editor_identity {id}` is not a contributed editor language id \
-                 (review B7 — an environment selects one, never mints one); the row \
+                 (an environment selects one, never mints one); the row \
                  is kept without routing"
             ),
         ),

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The §6.1 fail-closed vocabulary classes (review B13, invariant I9).
+//! The §6.1 fail-closed vocabulary classes (invariant I9).
 //!
 //! Revision 1 of the spec-pack contract said "warn and continue" for every
 //! unknown word. That is wrong in one direction: an unknown word saying
@@ -92,7 +92,7 @@ impl std::fmt::Display for VocabularyClass {
 /// closed world. The assistance markers are the shape-and-value families.
 const MARKERS: &[(&str, VocabularyClass)] = &[
     ("taint", VocabularyClass::Semantic),
-    // The 2.0 batch (P2-H): dropping a `provides`/`co_provides` opens
+    // Dropping a `provides`/`co_provides` opens
     // availability a provider gate was closing; dropping a
     // `dynamic_surface`/`unknown_members` closes a surface the author
     // declared open (false unknown-member diagnostics); dropping an

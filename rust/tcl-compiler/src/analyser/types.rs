@@ -3007,7 +3007,7 @@ pub struct StubCommandDef {
 
 impl StubCommandDef {
     /// Ingest this directive as a provenance-tagged
-    /// [`tcl_registry::model::DeclaredCommand`] (gap ruling R1).
+    /// [`tcl_registry::model::DeclaredCommand`].
     ///
     /// The source span stays here — the directive keeps it for diagnostic
     /// emitters — and each argument's role word is canonicalised through

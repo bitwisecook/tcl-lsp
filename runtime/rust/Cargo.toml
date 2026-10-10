@@ -27,7 +27,7 @@
 #      so it does not inherit `[workspace.lints]`.
 #   2. It eventually builds for wasm32 as a cdylib exporting `memory` + the
 #      `Tcl_*` / `tcl_*` symbols. Keeping it out of `cargo test --workspace`
-#      (which CI runs) means the Rust LSP/compiler workstream cannot regress
+#      (which CI runs) means the Rust LSP/compiler checks cannot regress
 #      because of runtime-port churn. This mirrors the `editors/zed` exclusion.
 #
 # `make runtime-rust-test` runs the native `cargo test` here, including the

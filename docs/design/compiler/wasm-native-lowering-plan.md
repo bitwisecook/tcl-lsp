@@ -1,10 +1,9 @@
 # WASM native lowering
 
-> **Status:** the architecture behind the opt-in native tier of
-> `compile_wasm` — the native lowered IR, its lattices and framing elision,
-> the runtime ABI it targets, the sample tiers and framing budgets that gate
-> it, and the corpus evidence behind its priorities. The tier's emitted
-> shapes are documented in [wasm-codegen.md](wasm-codegen.md#the-native-tier).
+The opt-in native tier of `compile_wasm` uses native lowered IR,
+representation lattices and framing elision. This page describes its
+runtime ABI, sample tiers, framing budgets, and corpus evidence. The emitted
+shapes are documented in [wasm-codegen.md](wasm-codegen.md#the-native-tier).
 
 ## 1. Goal and governing rule
 

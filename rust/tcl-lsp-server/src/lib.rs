@@ -17169,7 +17169,7 @@ impl Backend {
             let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
             // A command the user invoked reads no whole-document gate:
             // `features.diagnostics` turns off the published squiggles, not
-            // the rewrite asked for — `tcl opt`'s rule (D19, D39).
+            // the rewrite asked for — `tcl opt`'s rule.
             let policy = layers
                 .builder()
                 .reporting(true)
@@ -33060,7 +33060,7 @@ mod tests {
     /// where the two meanings of "profile" are easy to conflate again.
     /// `tclLsp.features.diagnostics` turns off the published squiggles, not
     /// the rewrite a user asks for: `optimiseDocument` is `tcl opt`'s peer
-    /// and reads no whole-document gate (D19 and D39 in `git show c6ae07da`).
+    /// and reads no whole-document gate.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn optimise_document_command_reads_no_diagnostics_feature_toggle() {
         let src = "puts [llength [list a b c]]\n";
@@ -38534,7 +38534,7 @@ mod tests {
 
     /// A configured folder's documents resolve their policy from the folder's
     /// own three layers; a folder with none of its own resolves under the
-    /// session's (D2 in `git show c6ae07da`).
+    /// session's.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_configured_folder_resolves_its_own_three_layers() {
         let backend = test_backend();
@@ -38584,8 +38584,7 @@ mod tests {
         );
     }
 
-    /// The multi-root corner of D2 (open question 7 in `git show c6ae07da`,
-    /// answered: it stands): a secondary root whose own three layers carry no
+    /// A secondary root whose own three layers carry no
     /// policy section does not inherit the primary root's `.tcl-lsp.ini`.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_secondary_root_does_not_inherit_the_primary_project_file() {
@@ -39609,7 +39608,7 @@ proc p {} {
         );
     }
 
-    /// The bulk pass analyses under the document's own layers (D44): a code
+    /// The bulk pass analyses under the document's own layers: a code
     /// the session turns off and a folder turns back on is computed, shown and
     /// fixed in that folder's documents, and in no other.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

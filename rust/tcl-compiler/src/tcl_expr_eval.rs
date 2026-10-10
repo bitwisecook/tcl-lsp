@@ -1034,7 +1034,7 @@ pub fn parse_literal_in(text: &str, numbers: NumberSyntax) -> Option<TclValue> {
     // The numeric grammar is the shared `tcl_syntax::number` (the same
     // `TclParseNumber` port the runtime const-folds with): `0x`/`0o`/`0b`,
     // leading-zero decimal, `_` separators, `Inf`/`NaN`. A magnitude past a
-    // wide builds the exact bignum (P4 of type-tracking.md), matching C
+    // wide builds the exact bignum (`type-tracking.md`), matching C
     // Tcl's seamless promotion.
     match tcl_syntax::number::parse_whole_with(
         text,
@@ -2557,7 +2557,7 @@ mod tests {
     /// exponents, and NaN branch conditions declining.
     #[test]
     fn adversarial_fold_regressions() {
-        // B7: C compares a bignum and a double EXACTLY — never through the
+        // C compares a bignum and a double EXACTLY — never through the
         // bignum's rounded double view.
         assert_eq!(
             eval_str("18446744073709551617 == 1.8446744073709552e19"),
@@ -2570,7 +2570,7 @@ mod tests {
         );
         assert_eq!(eval_str("10**308 == 1e308"), Some(TclValue::Int(0)));
         assert_eq!(eval_str("(2**1024) == inf"), Some(TclValue::Int(0)));
-        // B8: 0/±1 base collapses precede the negative-bignum-exponent rule.
+        // 0/±1 base collapses precede the negative-bignum-exponent rule.
         assert_eq!(
             eval_str("0**(-(2**64))"),
             None,
@@ -3029,8 +3029,8 @@ mod tests {
                 "{d}"
             );
         }
-        // 9.x runtimes dropped the rule (TIP 114/472) — bpf embeds Tcl 9.0
-        // (D7), so `010` is not octal there either.
+        // 9.x runtimes dropped the rule (TIP 114/472). bpf embeds Tcl 9.0,
+        // so `010` is not octal there either.
         for d in ["tcl9.0", "tcl9.1", "bpf"] {
             assert_eq!(
                 leading_zero_is_octal(
@@ -3381,7 +3381,7 @@ mod tests {
     #[test]
     fn overflow_promotes_to_exact_bignum() {
         // 10 ** 100 overflows a wide: C Tcl promotes to a bignum and so does
-        // the folder (P4, type-tracking.md) — exactly, never wrapped.
+        // the folder (`type-tracking.md`) — exactly, never wrapped.
         let want = format!("1{}", "0".repeat(100));
         assert_eq!(
             eval_str("10 ** 100").map(|v| format_tcl_value(&v)),
@@ -3621,7 +3621,7 @@ mod tests {
 
     #[test]
     fn lshift_overflowing_a_wide_promotes_exactly() {
-        // → P4: `1 << 63` overflows a wide; Tcl promotes to
+        // Promotes: `1 << 63` overflows a wide; Tcl promotes to
         // the bignum 9223372036854775808 and the folder now computes it
         // exactly (never the wrapped `i64::MIN`).
         assert_eq!(

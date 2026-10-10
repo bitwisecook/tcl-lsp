@@ -246,8 +246,7 @@ fn compiler_check_memo_matches_uncached_over_corpus() {
 }
 
 /// Corpus-scale **random-edit** differential for the memoised checks path
-/// (SRV-INCREMENTAL Task 2b gate — the random-edit fuzzer over real source the
-/// status table flags as "still to build").  The sweep above compares memo vs
+/// over real source. The sweep above compares memo vs
 /// uncached on a *fresh* db per file; this drives each file through a fuzzed
 /// **edit sequence** on one **warm** db — prepending blank lines (an offset
 /// shift the per-proc memo must reuse), appending a fuzzed synthetic proc (a

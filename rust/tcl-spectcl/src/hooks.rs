@@ -129,7 +129,7 @@ pub fn programs_of(
             slot: None,
             // A declared implementation answers for the release the call is
             // analysed under, so its body runs on an engine pinned to that
-            // release (D74).
+            // release.
             release_pinned: hook.family == HookFamily::Evaluate,
         });
     }

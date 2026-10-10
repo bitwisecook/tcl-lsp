@@ -2367,7 +2367,7 @@ mod tests {
 
     #[test]
     fn for_each_statement_descends_into_upframe_body() {
-        // FN guard (P1, code review): `UpFrame` (a static-body `uplevel
+        // FN guard: `UpFrame` (a static-body `uplevel
         // ?level? {...}`) has a nested `body: Script` just like `Block` /
         // `While` / `Catch` / `Foreach`, but was missing from the grouped
         // match arm — the visitor stopped at the `UpFrame` statement itself

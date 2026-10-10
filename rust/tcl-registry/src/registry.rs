@@ -1542,7 +1542,7 @@ impl CommandRegistry {
             SurfaceLayer::Core(Family::F5Irules, _) => irules_specs(),
             SurfaceLayer::Package("iapps") => iapps_specs(),
             // The tmsh shell's own pack: the `tmsh::` surface shared with
-            // iApps, without the iApp-only commands (D8).
+            // iApps, without the iApp-only commands.
             SurfaceLayer::Package("tmsh") => tmsh_specs(),
             SurfaceLayer::Package("Tk") => tk_specs(),
             SurfaceLayer::Package("expect") => expect_specs(),

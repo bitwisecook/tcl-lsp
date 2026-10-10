@@ -1040,7 +1040,7 @@ pub struct PackProvides {
 }
 
 /// One `co_provides NAME ?-requires-exact PACKAGE? ?-when PREDICATE?`
-/// row (`SpecTcl` 2.0, review B11): loading this pack's package
+/// row (`SpecTcl` 2.0): loading this pack's package
 /// co-provides `NAME`; requiring `NAME` requires the named package at
 /// the exact loaded version; all of it under an optional build
 /// predicate. Data only — see [`Pack::co_provides`].
@@ -6478,7 +6478,7 @@ fn apply_command_stmt(
         "allow_unknown_subcommands" => {
             spec.allow_unknown_subcommands = parse_flag(stmt.tail());
         }
-        // §6.2's honesty escape hatch (review B6): a provider whose member
+        // §6.2's honesty escape hatch: a provider whose member
         // set is runtime-extensible declares so instead of pretending
         // closure. Two ratified spellings, one fact — on a command the
         // fact is the existing open-subcommand-table flag; the
@@ -11644,7 +11644,7 @@ mod tests {
     }
 
     /// An unknown editor identity keeps the row and drops only the routing
-    /// (review B7: an environment selects from the contributed set).
+    /// An environment selects from the contributed set.
     #[test]
     fn an_unknown_editor_identity_drops_only_the_routing() {
         let pack = evaluate_pack(

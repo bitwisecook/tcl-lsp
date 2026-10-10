@@ -179,7 +179,7 @@ where
     K: ?Sized + Eq + std::hash::Hash + 'a,
 {
     // Key → its slot's position in `slots`, so a duplicate is O(1) to find: a
-    // linear re-scan per element made this O(N²) on every dict operation (D3).
+    // linear re-scan per element made this O(N²) on every dict operation.
     // Both containers are sized from the iterator up front — this runs on every
     // VM dict opcode, so the growth reallocations are worth avoiding.
     let keys = keys.into_iter();

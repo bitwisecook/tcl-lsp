@@ -1431,7 +1431,7 @@ fn the_eleven_loop_witnesses() {
     }
 }
 
-/// Slice 7a's exit witness through the shipped binary: `tcl opt --profile
+/// Through the shipped binary, `tcl opt --profile
 /// full` folds `[p]` to `foo` — `p`'s return computed, the constant read
 /// from its seedless lattice — and `tcl explore --show interproc` prints the
 /// summary that answers it, foldable with the return shape `const('foo')`.

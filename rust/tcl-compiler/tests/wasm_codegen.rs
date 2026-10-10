@@ -205,7 +205,7 @@ puts [add $e $f]
     // fast path re-parses compatibility text — and the direct `[add …]` call
     // is retired along with it, so the last statement is two generic
     // prebuilt-argv invocations — the nested `add` and the `puts`; the native
-    // tier lowers the latter to its `Puts` intrinsic and P5 gives the former
+    // tier lowers the latter to its `Puts` intrinsic and native lowering gives the former
     // its table-installed direct call.
     assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 2, "{wat}");
     assert_eq!(import_calls(&wat, "tcl_codegen_puts"), 0, "{wat}");

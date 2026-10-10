@@ -1342,7 +1342,7 @@ const UNPROVABLE_LOOP: &str =
 
 /// An abstaining document keeps the codes its bytes justify — the integrity
 /// code and a bidirectional control, W305, which reads the decoded text as
-/// text — as the editor's abstention does (D10 in `git show c6ae07da`). A UTF-16
+/// text — as the editor's abstention does. A UTF-16
 /// byte-order mark ahead of UTF-8 text is what abstains here; the tail
 /// decodes losslessly, so the override it carries is still there to find.
 #[test]
@@ -1621,8 +1621,8 @@ fn diag_show_suppressed_lists_a_disabled_analyser_code_as_a_gap() {
         "--source",
         "puts $y",
     ]));
-    // The optimiser, which `diag` never runs, is one row on every document
-    // (D47); the rest is the one code the invocation turned off.
+    // The optimiser, which `diag` never runs, is one row on every document;
+    // the rest is the one code the invocation turned off.
     let (not_run, rows): (Vec<&serde_json::Value>, Vec<&serde_json::Value>) =
         rows.iter().partition(|r| r.get("codes").is_some());
     assert_eq!(not_run.len(), 1, "{not_run:?}");

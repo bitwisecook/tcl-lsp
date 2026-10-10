@@ -438,7 +438,7 @@ fn an_environment_block_with_kind_and_short_name_round_trips_byte_identically() 
     assert_eq!(reloaded.environments, pack.environments);
 }
 
-/// The 2.0 word batch (P2-H): `provides`, `co_provides`,
+/// `SpecTcl` 2.0 declarations: `provides`, `co_provides`,
 /// `dynamic_surface`/`unknown_members`, and the `environment -extend`
 /// block all round-trip through gate A's machinery — export, reload,
 /// identical snapshot, idempotent text.

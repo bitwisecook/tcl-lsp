@@ -238,11 +238,11 @@ impl Analysed {
     /// What `analyze`, `validate`, `review` and `find-legacy` render: the
     /// report `tcl diag` builds for the same text — the analyser, the
     /// compiler checks, the source-style pass and, for a `sslictcl` source,
-    /// the loader — with the optimiser off, as `tcl diag` has it (D5): the
+    /// the loader — with the optimiser off, as `tcl diag` has it: the
     /// rewrites are `optimize`'s, so an O-code a check emits is an
     /// `OptimiserOff` suppression rather than a finding that never existed,
     /// and one only the optimiser emits is in the optimiser's not-run entry
-    /// for the same reason (D47).
+    /// for the same reason.
     fn diagnostics_report(&self) -> Report {
         let mut policy = self.policy.clone();
         policy.optimiser.enabled = false;
@@ -253,7 +253,7 @@ impl Analysed {
 
     /// What `code_actions` reads: the producers' findings and the optimiser's
     /// `rewrites`, under the policy as the layers resolve it, the optimiser
-    /// switch included (D40) — the editor's lightbulb decides the same way.
+    /// switch included — the editor's lightbulb decides the same way.
     fn actions_report(&self, rewrites: Vec<Finding>) -> Report {
         let mut produced = self.produced.clone();
         produced.extend(rewrites);
@@ -400,7 +400,7 @@ fn diag_to_json(shown: &Shown<'_>, sm: &SourceMap<'_>) -> Value {
 /// One suppressed finding as `{code, range, reason, message}`
 /// (`docs/design/compiler/diagnostic-policy.md` § Adapters, MCP JSON).
 /// `message` is added beside the page's three keys: without it a suppressed
-/// W210 does not say which variable (D22 in `git show c6ae07da`).
+/// W210 does not say which variable.
 fn suppressed_to_json(finding: &Finding, reason: Reason, sm: &SourceMap<'_>) -> Value {
     json!({
         "code": finding.code.as_str(),

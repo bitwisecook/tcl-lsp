@@ -281,7 +281,7 @@ the "opening `index.html` straight off disk still works" promise needs.
 
 ## The open-command strip
 
-A pack is many commands and one deliverable, so a strip above the workbench
+A pack contains many commands in one file, so a strip above the workbench
 tabs holds the commands that are open: two specs can be compared, or an option
 table copied across, without a round trip through the browser.
 `web/src/openTabs.ts` decides what it holds — opening, focus, eviction,

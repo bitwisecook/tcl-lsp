@@ -200,7 +200,7 @@ impl LineIndex {
 
     /// Patch the index **in place** for an edit that replaces source bytes
     /// `[start, old_end)` with `new_text`, instead of rebuilding from the whole
-    /// edited document (SRV-INCREMENTAL Task 1).  After the call the index equals
+    /// edited document.  After the call the index equals
     /// `LineIndex::new(edited_source)` for the document the same splice produces —
     /// proven byte-identical over a random-edit fuzz corpus
     /// (`apply_edit_matches_rebuild_under_fuzz`).
@@ -454,7 +454,7 @@ impl LineIndex {
 mod tests {
     use super::*;
 
-    /// SRV-INCREMENTAL Task 1 gate: the in-place [`LineIndex::apply_edit`] patch
+    /// The in-place [`LineIndex::apply_edit`] patch
     /// must be byte-identical to a full rebuild over a random-edit corpus.  ASCII
     /// edits only, so every byte offset is a `char` boundary; the alphabet is
     /// newline-heavy to exercise insert/delete of line-starts in every region.

@@ -283,7 +283,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
-/// D4-F2: `binary scan string formatString ?varName ...?` accepts
+/// `binary scan string formatString ?varName ...?` accepts
 /// variable-name args from index 2 onward (the resolver receives the args
 /// *after* the `scan` subcommand word: `string`, `format`, then the vars).
 /// Resolve `VarWrite` dynamically so calls with arbitrarily many vars don't

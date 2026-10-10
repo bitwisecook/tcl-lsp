@@ -14314,7 +14314,7 @@ fn irules_stays_subtractive_under_the_profile() {
             "f5-irules: {banned:?} is banned and must draw W002, got {codes:?}"
         );
     }
-    // 8.5+/8.6 core: never present at ANY BIG-IP version (D3).
+    // 8.5+/8.6 core: never present at ANY BIG-IP version.
     for versioned in ["dict get {a 1} a", "lmap x {1 2} {set x}"] {
         let codes = codes_for_dialect(versioned, "f5-irules");
         assert!(
@@ -14435,7 +14435,7 @@ fn tmsh_first_class_resolves_its_surface_and_gates_later_core() {
 
 #[test]
 fn bpf_precise_mask_keeps_90_core_and_drops_8x_relics() {
-    // D7: bpf = TCL90|BPF — a genuine Tcl 9.0 base.
+    // bpf = TCL90|BPF — a genuine Tcl 9.0 base.
     // TN: 9.0 core (including 8.5/8.6 additions carried into 9.0) resolves.
     for ok in [
         "dict get {a 1} a",
@@ -14502,7 +14502,7 @@ fn w003_irules_alias_gates_like_the_canonical_profile() {
 
 #[test]
 fn w003_bpf_accepts_both_tips_on_its_tcl_9_runtime() {
-    // bpf embeds Tcl 9.0 (D7): `in`/`ni` (TIP 201) and `lt`/`le`/`gt`/`ge`
+    // bpf embeds Tcl 9.0: `in`/`ni` (TIP 201) and `lt`/`le`/`gt`/`ge`
     // (TIP 461) are all grammatical — no W003.
     assert!(w003_hits("expr {2 in {1 2 3}}", "bpf").is_empty());
     assert!(w003_hits("if {$x lt $y} { puts hi }", "bpf").is_empty());

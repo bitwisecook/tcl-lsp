@@ -17,26 +17,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `bigip-data-schema` — the BIG-IP object-spec data consistency gate
-//! (issue #1404 item 2).
+//! for the hand-maintained object specs.
 //!
-//! `rust/tcl-registry/src/bigip/data/{analytics,apm,ltm,...}.rs` (798 object
-//! kinds, one file per tmsh module word — `analytics`, `apm`, `ltm`, `gtm`,
-//! …, derived from each spec's own `module: Some("...")` field, which every
-//! one of the 798 specs already carries) carried a `Generated ... DO NOT
-//! EDIT` header naming a `scripts/registry-audit/gen_bigip_rust.py`
-//! generator that no longer exists in this branch's tree, and its own
-//! history — the commits that actually ran it against the pre-rewrite
-//! Python registry (`dialects/f5/bigip/registry/specs/`, still present on
-//! `main`) — was intentionally squashed away by the `rust` branch's
-//! rebase-onto-main commit. There is nothing left in this branch's git
-//! history to replay, so the header now says what these files actually are:
-//! hand-maintained. (Originally organised by the first letter of `kind`;
-//! reorganised by tmsh module name per maintainer review on the PR that
-//! introduced this gate — a module word groups related objects far more
-//! usefully than an arbitrary initial letter does.)
-//!
-//! What a generator would otherwise have guaranteed for free is instead
-//! enforced here as a structural drift gate:
+//! Specs under `rust/tcl-registry/src/bigip/data/` are grouped by each
+//! spec's `module` field, with one source file per tmsh module.
+//! This gate checks their structural consistency:
 //!
 //! - **module-list agreement, from three independent sources** — the `.rs`
 //!   files physically present in `data/` (the filesystem), the `mod x;`

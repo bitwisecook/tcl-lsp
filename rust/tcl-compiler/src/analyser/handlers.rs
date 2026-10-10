@@ -7569,7 +7569,7 @@ impl Analyser {
     /// body, and it is why nested control inside one (`oo::define C {if {$x}
     /// {error stop} else {error stop}}`) is not detected: the `if` itself
     /// completes normally as far as the registry is concerned, and reading its
-    /// arms is the typed question this branch does not have an answer for.
+    /// arms requires control-flow facts unavailable to this lexical walk.
     ///
     /// [`InvocationCompletion::Terminates`]: tcl_registry::registry::InvocationCompletion::Terminates
     /// [`InvocationCompletion::ReturnsResult`]: tcl_registry::registry::InvocationCompletion::ReturnsResult

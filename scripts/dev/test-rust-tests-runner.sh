@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Contract test for the binary-aware five-way Rust test fan-out. The matrix keeps
-# shard 1 eligible for the one-physical-host Tank lane; shards 2–5 are always
+# shard 1 eligible for the single Tank runner; shards 2–5 are always
 # hosted. The assertions below parse job and step structure, then exercise the
 # mocked selector API contract so comments or unrelated jobs cannot satisfy it.
 

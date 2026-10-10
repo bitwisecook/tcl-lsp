@@ -16,14 +16,14 @@ It is one of three pages. [value-evaluation.md](value-evaluation.md) is the
 evaluation contract: the routes an answer is computed by, the shared cores
 and engines behind them, state isolation, budgets, and caches.
 [value-transfers-migration.md](value-transfers-migration.md) is the
-registry migration as built: the inventory of command knowledge the
+command-knowledge inventory: what the
 registry owns and what remains elsewhere, the ledger, the gate, and what
 each pass and diagnostic reads.
 [registry-consumer-contracts.md](registry-consumer-contracts.md) places the
 value axis among the other axes and holds the runtime, package, and
 C-extension contracts, none of which this one depends on.
 
-> **Status — built.**
+> **Interface types and consumers.**
 > `CommandSemantics` and the shapes of § The interface are defined in
 > `rust/tcl-registry/src/value_transfer/` (`inputs.rs`, `answers.rs`,
 > `context.rs`, `decline.rs`), and the compiler's `LatticeDriver`
@@ -292,8 +292,8 @@ command bindings and namespace context, the target semantic profile and
 grammar overrides, trace and escape facts, seeds, and any evaluator or
 implementation revision not already fixed by the registry identity. It is
 carried unchanged through lowering, unit construction, per-function
-queries, optimiser consumers, and evaluator calls. As built
-([value-evaluation.md](value-evaluation.md) § *The evaluator generation*):
+queries, optimiser consumers, and evaluator calls
+([value-evaluation.md](value-evaluation.md) § *The evaluator generation*).
 `compilation_unit` and `proc_taint_solve` take
 the overlay (`AnalyserConfig::spec_pack_key`) as an argument, resolved by
 `unit_registry`; `function_lattice`, `function_checks`,
@@ -3092,7 +3092,7 @@ unit-level lattice evaluates.
 
 - [value-evaluation.md](value-evaluation.md) — the evaluation contract behind `evaluate`
 - [value-transfers-examples.md](value-transfers-examples.md) — one program per optimisation and diagnostic, and the declarations in Rust and `.tclspec`
-- [value-transfers-migration.md](value-transfers-migration.md) — the registry migration as built: the inventory, the ledger, the gate, and what each consumer reads
+- [value-transfers-migration.md](value-transfers-migration.md) — the command-knowledge inventory, ledger, gate, and what each consumer reads
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) — the other axes and the runtime, package, and extension contracts
 - [sccp-core-analyses.md](sccp-core-analyses.md) — the lattice and the drivers
 - [constant-folding-type-inference.md](constant-folding-type-inference.md) — the fold-versus-rewrite separation and the type lattice

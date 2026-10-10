@@ -277,7 +277,7 @@ pub fn run_all_checks_with_generic_patterns(
 }
 
 /// Like [`run_all_checks`] but consumes a pre-computed interprocedural taint
-/// solve, so a caller can supply a memoised one (SRV-INCREMENTAL 2b) instead of
+/// solve, so a caller can supply a memoised one instead of
 /// re-solving the whole module on every edit — that solve is ~95% of this pass.
 #[must_use]
 pub fn run_all_checks_with_solved(
@@ -313,7 +313,7 @@ pub fn run_all_checks_with_solved_and_patterns(
     // methods/body units) — rebased to its offset. Factored into
     // [`function_nontaint_checks`] so
     // the LSP db can memoise it per procedure on the offset-0 `FnLatticeKey`
-    // (SRV-INCREMENTAL 2a): an unedited procedure's checks are a cache hit
+    // An unedited procedure's checks are a cache hit
     // instead of recomputed over the whole unit every edit.
     for fu in cu.analysable_body_function_units() {
         for d in function_nontaint_checks(fu, registry, dialect, cu.method_instance_vars(&fu.name))
@@ -341,7 +341,7 @@ pub fn run_all_checks_with_solved_and_patterns(
 /// byte-array S110).
 ///
 /// These read only the `FunctionUnit`, so the LSP db wraps this in a salsa query
-/// keyed on the offset-0 `FnLatticeKey` (SRV-INCREMENTAL 2a) — an unedited
+/// keyed on the offset-0 `FnLatticeKey` — an unedited
 /// procedure's checks are a cache hit.  The S110 `*::payload` byte-command set is
 /// dialect-gated (empty outside iRules).
 #[must_use]
@@ -432,7 +432,7 @@ pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
 /// Append the taint-family warnings (per function, reading the interprocedural
 /// `solved` taints) and the iRules module-level flow checks — the half of
 /// [`run_all_checks_with_solved`] that is *not* per-function-pure (taint already
-/// arrives pre-solved), so SRV-INCREMENTAL 2a does not memoise it.
+/// arrives pre-solved), so the per-procedure cache does not memoise it.
 pub fn push_taint_and_module_checks(
     cu: &CompilationUnit,
     registry: &CommandRegistry,

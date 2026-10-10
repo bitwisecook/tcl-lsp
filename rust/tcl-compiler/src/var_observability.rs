@@ -703,7 +703,7 @@ mod tests {
 
     #[test]
     fn scan_module_global_names_finds_declaration_inside_static_uplevel_body() {
-        // FN guard (P1, code review): a `global` declaration hidden inside a
+        // FN guard: a `global` declaration hidden inside a
         // static-body `uplevel #0 { ... }` lowers to `Statement::UpFrame`,
         // not a plain nested block — `for_each_statement` must still descend
         // into it. Confirmed against tclsh 8.6: `set g 4; proc helper {}

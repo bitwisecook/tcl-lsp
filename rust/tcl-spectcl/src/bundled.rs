@@ -18,10 +18,8 @@
 
 //! The **bundled** tier on its own: the loadables tcl-lsp ships.
 //!
-//! `docs/design/registry/spec-packs.md` puts the EDA vendor libraries here — "the EDA
-//! vendor libraries ship as bundled `.tclspec` loadables … so the loader path
-//! is exercised in production from day one rather than reserved for private
-//! packs" — and since the migration that is literally true: `sdc_base`, `upf` and the
+//! The EDA vendor libraries ship as bundled `.tclspec` loadables:
+//! `sdc_base`, `upf` and the
 //! five vendor packs have no Rust modules behind them at all, so a `get_cells`
 //! or a `synth_design` reaches a registry only by way of [`crate::loader`].
 //!
@@ -29,10 +27,8 @@
 //! together ([`crate::discover`]) and installs the merged set. This is for
 //! every *other* consumer — the `tcl` CLI, `f5-query`, `tcl-mcp`, a test
 //! harness — which has no workspace and no `tclLsp.specPacks`, and simply
-//! wants the registry a dialect is supposed to have. Those callers used to get
-//! the EDA packs for free from `CommandRegistry::load_eda_packs`; they get them
-//! from here now, and the discovery, parse, merge and install they go through
-//! is the same code the server runs.
+//! wants the registry a dialect is supposed to have. Discovery, parsing, merging,
+//! and installation use the same code the server runs.
 //!
 //! Loading is done **once per process** and the result is cached, so the cost
 //! is one directory scan plus ~4,700 lines of Tcl parsed at first use.

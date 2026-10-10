@@ -59,8 +59,7 @@ pub type TclWideInt = i64;
 /// the **shimmer keystone** (value-kinds): the runtime
 /// dispatches free / dup / string-generation through `typePtr`, so built-in
 /// types (int, double, list, …) and extension-registered custom types share one
-/// mechanism — type handling is open, never a closed enum (the §6/Track-2
-/// custom-`Tcl_ObjType` requirement). Signatures match `tcl.h` so an extension's
+/// mechanism. Signatures match `tcl.h` so an extension's
 /// `Tcl_ObjType` slots in unchanged.
 pub type FreeInternalRepProc = extern "C" fn(*mut TclObj);
 pub type DupInternalRepProc = extern "C" fn(*mut TclObj, *mut TclObj);

@@ -652,7 +652,7 @@ mod tests {
         // `EventRequires` keeps its compact record: 461 literals across as many
         // files, on the hover and completion path, where rebuilding a relation
         // list per check would allocate for no semantic gain. Its profile half
-        // already reads through `ProfileFacts` (R12, checkpoint C4).
+        // reads through `ProfileFacts`.
         const ALLOWED: &[&str] = &["    pub profiles: &'static [&'static str],"];
         for (file, source) in SOURCES {
             for (index, line) in source.lines().enumerate() {

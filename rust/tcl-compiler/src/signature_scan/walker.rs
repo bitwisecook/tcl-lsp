@@ -93,7 +93,7 @@ pub(super) fn scan(
         if head.is_empty() {
             continue;
         }
-        // Argument count for cross-file arity (Task 6): words after the head, or
+        // Argument count for cross-file arity: words after the head, or
         // `None` when any argument is `{*}`-expanded (runtime count unknown).
         let arg_count = if cmd
             .expand_word

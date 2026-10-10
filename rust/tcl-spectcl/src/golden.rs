@@ -74,7 +74,7 @@ use crate::loader::{HookDecl, Pack};
 /// The language-neutral owner for the repository-relative directories that
 /// hold every shipped `.tclspec`. CI's changed-path classifier reads this
 /// same manifest, so adding a pack directory cannot silently omit the real
-/// `SpecTcl` execution lane.
+/// `SpecTcl` execution path.
 pub const PACK_DIRS_MANIFEST: &str = include_str!("../data/shipped-pack-dirs.txt");
 
 /// Every shipped-pack directory in manifest order.

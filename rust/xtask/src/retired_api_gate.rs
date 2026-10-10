@@ -53,7 +53,7 @@
 //! waiver on the flagged line or one of the four lines above it, and must
 //! be recorded in the centralisation ledger.
 //!
-//! # The one-oracle gate (gap ruling R10)
+//! # The one-oracle gate
 //!
 //! The second family this file carries is not about *deleted* spellings but
 //! about **owned** ones: does
@@ -534,7 +534,7 @@ pub fn run(_check: bool) -> ExitCode {
 
     if hits > 0 {
         eprintln!(
-            "retired-api-gate: {hits} use(s) of retired P1-G API spellings — resolve \
+            "retired-api-gate: {hits} use(s) of retired API spellings — resolve \
              through `tcl_registry::model::ingress` (the one dialect-name seam) or \
              `ResolvedContext`'s queries instead, or mark a reviewed exception with \
              `// {RETIRED_WAIVER} <reason>` and a ledger entry \

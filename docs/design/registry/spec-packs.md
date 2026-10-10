@@ -47,7 +47,7 @@ spec. The design was driven the same way — by porting hard shipped specs
 drafting specs for external libraries (ticklecharts, apave, SpiceGenTcl,
 tcllib modules) rather than by inventing syntax in the abstract.
 
-**Where the migration half stops, exactly.** `refine NAME { … }` is the
+**Invocation refinement limits.** `refine NAME { … }` is the
 **invocation refinement** — arity, a literal `selector`, argument roles,
 options and relations, availability, and the replacement `traits` /
 `mutator` / effects one call shape states — written in the owning scope's

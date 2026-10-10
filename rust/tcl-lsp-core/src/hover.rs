@@ -1125,10 +1125,6 @@ fn builtin_command_hover_text(
     // command must exist — e.g. iRules bans it), and never shown for a
     // package the profile ships ambiently (an F5 surface is part of the
     // runtime, §7.1 axis C — there is nothing to require).
-    // Ledger C1/F1 (post-P1-G): as in `completion::command_detail` — the
-    // context-keyed twin (`ResolvedContext::ambient_package`) answers
-    // identically over this document's own generation; the swap waits for
-    // the profile stamp.
     if let Some(pkg) = spec.required_package
         && !registry.is_ambient_package(pkg)
     {

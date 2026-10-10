@@ -391,7 +391,7 @@ fn spec_upgrade_translates_dialects_rows_and_moves_the_version_word() {
     );
 }
 
-/// `--restyle` (D13) re-emits the upgraded pack in canonical form; with
+/// `--restyle` re-emits the upgraded pack in canonical form; with
 /// `--check` it only says so.
 #[test]
 fn spec_upgrade_restyle_emits_canonical_form() {

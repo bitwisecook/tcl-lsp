@@ -399,7 +399,7 @@ fn assemble(
     let mut rebuilt = tcl_dialect::model::compiled_definitions();
     for definition in &declared {
         // A bundled pack restating an environment the compiled seed already
-        // carries from that same pack (D17) replaces the seed row: the
+        // carries from that same pack replaces the seed row: the
         // on-disk pack is authoritative, and two rows would collide.
         let seeded = (definition.provenance == Provenance::BundledPack)
             .then(|| {
@@ -551,7 +551,7 @@ fn triage(state: &DynamicState, sources: &[EnvironmentSource]) -> (Vec<bool>, Ve
 /// reload that found nothing new does not invalidate downstream caches —
 /// and so is a set whose **rebuilt registry** is identical to the live
 /// one: the bundled packs restate the very rows the compiled seed already
-/// carries from them (D17), and a publish that changes no definition must
+/// carries from them, and a publish that changes no definition must
 /// not re-key every per-context generation cache in the process.
 #[must_use]
 pub fn sync_environment_sources(sources: Vec<EnvironmentSource>) -> SyncOutcome {
@@ -857,7 +857,7 @@ mod tests {
         assert!(ids.iter().all(|id| id != "tcl"), "{ids:?}");
     }
 
-    /// D17: a bundled pack restating an environment the compiled seed
+    /// a bundled pack restating an environment the compiled seed
     /// already carries from it replaces the seed row rather than colliding
     /// with it; a lower tier claiming the same name is refused with the
     /// provenance named, and the bundled definition keeps resolving.

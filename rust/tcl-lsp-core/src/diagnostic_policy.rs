@@ -392,7 +392,7 @@ pub enum OverlapOwner {
 /// One spelling for every reason, lower-case and hyphenated with an
 /// optional `:detail` — what the CLI rows, the MCP JSON and the truth table
 /// all render (`docs/design/compiler/diagnostic-policy.md` § Adapters, the
-/// reason spellings; D23 in `git show c6ae07da`).
+/// reason spellings).
 impl core::fmt::Display for Reason {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -2368,7 +2368,7 @@ mod policy_tests {
 
     /// `Directives::hit` restates the bucket rule of the owner's
     /// `line_suppressed` rather than calling it, which needs a single-bucket
-    /// predicate `tcl-compiler` does not offer (D24 in `git show c6ae07da`).
+    /// predicate `tcl-compiler` does not offer.
     /// This keeps the two equal: an inline bucket or the file bucket, holding
     /// `*` or a code, silences a line code where `line_suppressed` says so,
     /// and a whole-file code only where the file bucket does.

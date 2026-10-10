@@ -800,7 +800,7 @@ fn s102_fires_for_rename_indirection() {
 
 #[test]
 fn s100_silent_for_array_element_use_site() {
-    // Per-element SSA (type-tracking P5): `arr(n)` and `arr(label)` are
+    // Per-element SSA: `arr(n)` and `arr(label)` are
     // independent variables — `incr arr(n)` reads the INT element, never a
     // conflated symbol carrying the sibling's string.
     let mut lsp = Lsp::tcl();

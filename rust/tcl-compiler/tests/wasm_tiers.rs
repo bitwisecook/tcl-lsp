@@ -171,14 +171,13 @@ const EXPECTED_DIVERGENCES: &[ExpectedDivergence] = &[
         name: "73_coroutine",
         plan: Plan::Default,
         why: "the wasm build refuses `coroutine` outright (\"coroutines are not \
-              supported in the single-threaded wasm build\"). Stack switching \
-              for wasm is P9's own design note.",
+              supported in the single-threaded wasm build\").",
     },
     ExpectedDivergence {
         tier: "t7-dynamic",
         name: "73_coroutine",
         plan: Plan::Analysis,
-        why: "same missing wasm `coroutine` support as the default plan. P9.",
+        why: "same missing wasm `coroutine` support as the default plan.",
     },
     ExpectedDivergence {
         tier: "t7-dynamic",
@@ -186,7 +185,7 @@ const EXPECTED_DIVERGENCES: &[ExpectedDivergence] = &[
         plan: Plan::Native,
         why: "same missing wasm `coroutine` support as the default plan: the \
               native tier hands the script's argv to the runtime unchanged and \
-              the runtime declines it. P9.",
+              the runtime declines it.",
     },
 ];
 

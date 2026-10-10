@@ -108,8 +108,7 @@ impl SpecSurface {
 /// `8.5-9.2`, because the bitmask it replaces was a union of the five
 /// *known* line bits and could not mean "and every line added later". A
 /// spec that genuinely wants open-ended availability writes
-/// [`SpecSurface::core_in`] with a `None` upper bound; the migration did
-/// not widen any spec on its own.
+/// [`SpecSurface::core_in`] with a `None` upper bound.
 impl SpecSurface {
     /// Every Tcl release the ladder has — 8.4 through 9.1.
     pub const ALL_TCL: &'static [Self] = &[Self::core_in(Family::Tcl, &W_ALL_TCL)];

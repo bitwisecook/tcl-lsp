@@ -3607,7 +3607,7 @@ fn issue_940_committed_container_in_foreach_still_fires_s100() {
 
 #[test]
 fn element_tracking_committed_lindex_retrieval_is_silent() {
-    // P3 (type-tracking.md): container elements are shared objects, so a
+    // container elements are shared objects, so a
     // committed numeric element retrieved by `lindex` is genuinely numeric —
     // arithmetic on it is not a shimmer.
     let mut lsp = Lsp::tcl();
@@ -3624,7 +3624,7 @@ fn element_tracking_committed_lindex_retrieval_is_silent() {
 
 #[test]
 fn union_lattice_three_way_merge_reports_every_type() {
-    // P2: a three-way differently-typed merge stays a tracked union rather
+    // a three-way differently-typed merge stays a tracked union rather
     // than collapsing to a silent OVERDEFINED; the phi message names every
     // member.
     let mut lsp = Lsp::tcl();
@@ -3648,7 +3648,7 @@ fn union_lattice_three_way_merge_reports_every_type() {
 
 #[test]
 fn bignum_values_raise_no_false_diagnostics() {
-    // P4: beyond-wide integers classify on the tower (`Bignum`, coarse Int)
+    // beyond-wide integers classify on the tower (`Bignum`, coarse Int)
     // and fold exactly — a bignum literal chain must publish no shimmer /
     // type diagnostics. (The exact fold value is pinned at the compiler
     // tier: `fp_sh_23_bignum_folds_are_exact` and the tcl_expr_eval oracle
@@ -4434,7 +4434,7 @@ fn tmsh_first_class_gates_both_directions_end_to_end() {
 
 #[test]
 fn bpf_first_class_admits_90_core_end_to_end() {
-    // D7: bpf = TCL90|BPF — 9.0-era core (lmap, dict) is
+    // bpf = TCL90|BPF — 9.0-era core (lmap, dict) is
     // real, and the bpf surface resolves.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("bpf");

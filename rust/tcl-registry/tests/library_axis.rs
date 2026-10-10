@@ -162,7 +162,7 @@ fn keyed_default_floor_gates_the_f5_surface() {
     assert_eq!(spec.lifecycle.introduced, Some("16.1.0"));
 
     let default_floor = irules.library_floor_default("f5-irules-cmds");
-    assert_eq!(default_floor, Some("16.1.0"), "D5 oldest-supported default");
+    assert_eq!(default_floor, Some("16.1.0"), "oldest-supported default");
     let overridden = LibraryVersionOverrides {
         bigip_version: Some("15.1.0".to_owned()),
         ..LibraryVersionOverrides::default()

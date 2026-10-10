@@ -81,8 +81,7 @@ pub fn registry_with_packs(
     // Resolved BEFORE entering the overlay builder: the builder's closure
     // runs with the registry cache's lock held, and resolving a document
     // context takes that same lock to reach the un-overlaid store — doing
-    // it inside the closure deadlocks (found in P1-G when the vendor gate
-    // moved from `ProfileQueries` to the context).
+    // it inside the closure deadlocks.
     let context = tcl_registry::model::ingress::static_document_context_for_profile(profile);
     tcl_registry::registry_for_profile_with_overlay(profile, packs.key, |registry| {
         install_into(registry, packs, context);

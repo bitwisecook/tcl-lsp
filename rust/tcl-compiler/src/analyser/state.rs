@@ -554,7 +554,7 @@ pub struct Analyser {
     /// Session/file pins for the keyed library-version axes
     /// (`--bigip-version`-style overrides, dialect-profile-model.md §7.1).
     /// Defaults to empty, in which case each keyed axis falls back to its
-    /// D5 oldest-supported default; feeds
+    /// oldest-supported default; feeds
     /// [`tcl_dialect::DialectProfile::library_floor`].
     pub library_versions: tcl_dialect::LibraryVersionOverrides,
     /// §5.4 range targeting — configuration-declared version targets
@@ -932,7 +932,7 @@ pub struct Analyser {
     /// the top of [`Self::analyse`] from `result.stub_commands` via
     /// [`super::types::build_declared_surface`] — inline
     /// `# tcl-lsp: stub` blocks and workspace `.tcl.stubs` sidecars as
-    /// provenance-tagged surface declarations (gap ruling R1).  Paired
+    /// provenance-tagged surface declarations.  Paired
     /// with the walk's registry generation by
     /// [`Self::command_surface`], the one door analyser and compiler
     /// queries ask; nothing mutates the shared

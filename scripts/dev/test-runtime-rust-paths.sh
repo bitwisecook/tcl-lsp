@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Contract tests for the standalone-runtime CI lane:
+# Contract tests for the standalone-runtime CI job:
 #
 #   1. `scripts/dev/runtime-rust-path.sh` classifies exactly the runtime's
 #      resolved local package closure, its external Tcl 9 smoke corpus and the
@@ -70,7 +70,7 @@ if [ -z "$local_packages" ]; then
 fi
 
 # Every crate in the closure must be classified relevant, and its directory
-# must actually exist (a renamed crate must not silently drop out of the lane).
+# must actually exist (a renamed crate must not silently drop out of the job).
 closure_dirs=''
 for package in $local_packages; do
     case "$package" in

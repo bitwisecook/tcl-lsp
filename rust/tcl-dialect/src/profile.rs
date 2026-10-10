@@ -569,7 +569,7 @@ static CATALOG: [DialectProfile; 19] = [
     },
     // f5-bigip is a config parser, not a Tcl surface; it has no command
     // pack, no Tcl runtime (behaviour axis inert — §11.1), and no expr
-    // grammar. It is first-class as *identity only* (D8): the bare
+    // grammar. It is first-class as *identity only*: the bare
     // the `bigip` surface keys the profile and its versioned schema
     // library — BIG-IP config documents route to the tcl-bigip validator,
     // never the Tcl analyser, so this is not a Tcl-availability surface.
@@ -678,7 +678,7 @@ static CATALOG: [DialectProfile; 19] = [
     // K36322151 sandbox-banned command names only Tcl and so is simply
     // absent — no subtractive disable list. Naming a release here would
     // only re-admit 8.x-only specs the TMM build never had. Signature and
-    // runtime base are both 8.4 (D3) and math operators are not command
+    // runtime base are both 8.4 and math operators are not command
     // heads.
     DialectProfile {
         name: "f5-irules",
@@ -729,7 +729,7 @@ static CATALOG: [DialectProfile; 19] = [
     // `TmshCliScript` reports patchlevel 8.4.6 and reproduces the entire
     // trunk grammar (R-rules, N-rules, inert `{*}`, expr word operators)
     // identically to TMM, and `::tcl::mathop` is measured absent. It is
-    // first-class (D8): the tmsh shell hosts the trunk interpreter plus
+    // first-class: the tmsh shell hosts the trunk interpreter plus
     // the `tmsh::` surface (shared spec data with iApps, tagged
     // `IAPPS|TMSH`). Environment deltas (working `exec`, empty
     // `tcl_platform`, no `tcl_patchLevel`, `info vartype`) live on the
@@ -1418,14 +1418,11 @@ impl DialectProfile {
     /// consumers that still carry `&'static DialectProfile` for an
     /// environment the catalogue has no row for.
     ///
-    /// `jim` is such an environment, deliberately: P6 made a grammar a
-    /// function of `(family, release, build)`, so an environment names its
-    /// family and ladder rather than owning a resolved-grammar row. But the
-    /// compiler, the analyser, every LSP provider and the VM still thread a
-    /// `&'static DialectProfile`, and until this existed the ingress could
-    /// only hand them the permissive fallback — so a `jim` document was
-    /// lexed, lowered, analysed and compiled as Tcl 9.0 end to end, and the
-    /// centralised grammar resolution was never actually asked about it.
+    /// `jim` is such an environment: its grammar depends on
+    /// `(family, release, build)`, so the environment names its family and
+    /// release ladder rather than owning a resolved-grammar row. The compiler,
+    /// analyser, LSP providers and VM receive a `&'static DialectProfile`
+    /// projected from that resolved grammar.
     ///
     /// Identity (name, aliases, display name) is the environment's; the
     /// grammar and the version bases are the point's; every *policy* field
@@ -1596,7 +1593,7 @@ impl DialectProfile {
     /// alias — `None` for anything else, the `tk` ingress and the lenient
     /// sink included.
     ///
-    /// This is the one catalogue lookup left on the profile (P1-G): it is
+    /// This catalogue lookup is
     /// what the environment-model seam (`tcl_registry::model::ingress`)
     /// and the documented per-crate interop twins are built on, and it
     /// resolves an **environment id**, never a user-written dialect
@@ -1777,7 +1774,7 @@ impl DialectProfile {
 
     /// [`Self::library_floor`] with no session overrides — the statically
     /// resolvable floor (`TracksBase` → the runtime base, `Pinned` → the
-    /// shipped version, `Keyed` → the D5 oldest-supported default), for
+    /// shipped version, `Keyed` → the oldest-supported default), for
     /// consumers with no override channel (completion, hover, the CLI
     /// snapshot).
     #[must_use]
@@ -1908,7 +1905,7 @@ mod tests {
             Some("5.45.4")
         );
 
-        // Keyed → override, else the D5 oldest-supported default.
+        // Keyed → override, else the oldest-supported default.
         let irules = DialectProfile::irules();
         assert_eq!(
             irules.library_floor("f5-irules-cmds", &none),
@@ -2190,7 +2187,7 @@ mod tests {
                 packages: &[PackageFloor::named("bigip")],
             }
         );
-        // bpf embeds a genuine Tcl 9.0 (D7).
+        // bpf embeds a genuine Tcl 9.0.
         assert_eq!(
             DialectProfile::find("bpf")
                 .expect("catalogue profile")
@@ -2744,10 +2741,9 @@ mod tests {
         );
     }
 
-    /// Codex P2 on #2157: the F5 dialects carry `runtime_base = V8_4`, so
-    /// after #2128 gave 8.4 its own character model they silently inherited
-    /// it — contradicting `model::family::CoreProfileId::character_model`,
-    /// which deliberately keeps `Utf16CodeUnits` for F5 pending a TMOS
+    /// F5's character model must agree with
+    /// `model::family::CoreProfileId::character_model`, which keeps
+    /// `Utf16CodeUnits` for F5 pending a TMOS
     /// measurement (#2151).
     ///
     /// The two answers must agree, or a compile-time fold and the runtime

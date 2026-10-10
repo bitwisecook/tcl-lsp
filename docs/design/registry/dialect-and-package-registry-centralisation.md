@@ -219,10 +219,9 @@ string-keyed registry doors (`registry_for_dialect`,
 gate's escape hatch is `// retired-api-ok: <reason>` with a row here; its
 own tests prove it fails on a seeded violation of every retired family.
 
-The completion criterion: the migration is done when every row below is
-gone. Most of the remaining rows are the *payload* halves — user-visible
-enumerations, enums and row ids — held because re-keying them is a
-user-facing change (redesign §11 D15).
+The table below records the remaining independent representations and
+their owning APIs. Most rows describe user-visible enumerations, enums,
+and row ids whose keys form part of the public interface.
 
 ### Front end
 

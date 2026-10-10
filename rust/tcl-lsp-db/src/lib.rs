@@ -699,7 +699,7 @@ pub struct AnalyserConfig {
     #[returns(ref)]
     pub generic_variable_patterns: Option<Vec<String>>,
     /// Target BIG-IP release (`tclLsp.bigipVersion`) for the keyed
-    /// library-version axis; `None` = the D5 oldest-supported default.
+    /// library-version axis; `None` = the oldest-supported default.
     #[returns(ref)]
     pub bigip_version: Option<String>,
     /// The workspace's loaded `SpecTcl` pack set, by content identity
@@ -3317,7 +3317,7 @@ fn module_has_trace_facts(module: &tcl_compiler::ir::Module) -> bool {
         || !module.deferred_writes.is_clear()
 }
 
-/// Assemble a document's optimisations from the per-procedure memo (Task 4).
+/// Assemble a document's optimisations from the per-procedure memo.
 ///
 /// For a non-iRules module with no command mutations and a lattice key for every
 /// analysable procedure, each proc's raw optimisations come from the memoised
@@ -6193,7 +6193,7 @@ mod tests {
         );
     }
 
-    /// The per-procedure optimiser memo (`function_optimisations`, Task 4) must
+    /// The per-procedure optimiser memo (`function_optimisations`) must
     /// skip an unrelated procedure across edits: a body edit that does not change a
     /// proc's *opt-projection* (`OptDepsKey`) leaves every other proc's optimise a
     /// cache hit, while the edited proc's own re-keys (its `FnLatticeKey` changed).

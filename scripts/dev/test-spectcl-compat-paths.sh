@@ -55,9 +55,9 @@ fi
 
 echo "SpecTcl compatibility path classifier tests passed"
 
-# The owner target must include the shipped-pack corpus lane directly. The
+# The owner target must include the shipped-pack corpus suite directly. The
 # general workspace test job also reaches it today, but relying on that would
-# let a future test partition silently make the focused merge-blocking lane
+# let a future test partition silently make the focused compatibility check
 # vacuous for production hook installation and invocation.
 spectcl_target=$(awk '
     /^test-spectcl-compat:/ { in_target = 1 }

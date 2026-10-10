@@ -1587,7 +1587,7 @@ fn o113_strength_reduction() {
 
 #[test]
 fn o114_incr_idiom() {
-    // D5-O114: the loop-counter pattern makes `x` INT-typed AND live (read via
+    // the loop-counter pattern makes `x` INT-typed AND live (read via
     // `puts $x`), so the rewrite is sound. tclsh: `set x N; set x [expr {$x+1}]`
     // is the same as `incr x` for INT x.
     let add1 = "proc foo {n} {\n  for {set x 0} {$x < $n} {incr x} {\n    set x [expr {$x + 1}]\n    puts $x\n  }\n}\nfoo 3\n";

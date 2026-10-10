@@ -1207,8 +1207,7 @@ fn the_server_advertises_the_extensions_its_packs_claim() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// Review finding P1-3: a pack-claimed extension has to reach the *index*,
-/// not only the open document.
+/// A pack-claimed extension has to reach the index and the open document.
 ///
 /// The distinction is the whole finding. Opening a `.irulex` file always
 /// worked — `dialect_from_extension` consults pack routing, so the document

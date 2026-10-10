@@ -772,7 +772,7 @@ impl ResolvedContext {
     /// any `package require` — the old `DialectProfile::library_floor`
     /// with the keyed axes already resolved into the context's floor map
     /// (pinned → the pin, tracks-base → the core release, keyed → the
-    /// session pin or the D5 oldest-supported default).
+    /// session pin or the oldest-supported default).
     #[must_use]
     pub fn placement_floor(&self, package: &str) -> Option<&Version> {
         self.placement(package)?;

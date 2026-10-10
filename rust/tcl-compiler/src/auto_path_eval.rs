@@ -2473,7 +2473,7 @@ mod tests {
         assert_eq!(to_tcl_slash_form("/proj/lib"), "/proj/lib");
     }
 
-    /// The P1 itself: `Uri::to_file_path` hands back a native Windows path, and
+    /// Path conversion: `Uri::to_file_path` hands back a native Windows path, and
     /// the `[file dirname [info script]]` idiom must resolve against *it*, not
     /// silently fall through to the process working directory.
     #[test]

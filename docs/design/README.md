@@ -72,7 +72,7 @@ passes, and ownership matrices.
   declarations behind the examples as they are written in the Rust command
   registry and in `.tclspec` packs.
 - [value-transfers-migration.md](compiler/value-transfers-migration.md) —
-  the registry migration as built — the inventory of command knowledge the
+  the command-knowledge inventory — what the
   registry owns and what remains elsewhere, what each analysis,
   optimisation, and diagnostic reads, the third-party tiers, the drift gate
   and its ledger, and the validation matrix.

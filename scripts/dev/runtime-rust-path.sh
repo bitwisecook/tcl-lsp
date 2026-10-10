@@ -17,7 +17,7 @@
 # The case list below is the runtime's LOCAL PACKAGE CLOSURE (the crate itself
 # plus every path dependency `cargo metadata` resolves for it), its external
 # Tcl 9 smoke corpus, the test extension it compiles from the shim's tests,
-# and the lane's build inputs — not a guess.
+# and the job's build inputs — not a guess.
 # `scripts/dev/test-runtime-rust-paths.sh` re-derives that closure from cargo
 # and fails if this list has drifted either way, so a new path dependency
 # cannot silently stop triggering the job, and an over-broad entry cannot
