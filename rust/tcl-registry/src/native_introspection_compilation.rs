@@ -74,7 +74,7 @@ pub fn compile_native_introspection(
         NativeIntrospectionKind::NamespaceOrigin => arguments.len() == 1,
         NativeIntrospectionKind::InfoLevel => arguments.len() <= 1,
         NativeIntrospectionKind::InfoCommands => {
-            matches!(arguments, [word] if matches!(word.shape, Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral)
+            matches!(arguments, [word] if matches!(word.shape, Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral | Shape::BackslashLiteral)
                 && word.literal.as_deref().is_some_and(native_info_commands_literal_is_trivial))
         }
         NativeIntrospectionKind::NamespaceCode => {
@@ -92,6 +92,7 @@ pub fn compile_native_introspection(
 /// caller supplies its original source-channel value and selected registration.
 #[must_use]
 pub fn native_info_commands_literal_is_trivial(bytes: &[u8]) -> bool {
+    let bytes = tcl_core_types::c_string_extent(bytes);
     bytes.starts_with(b"::")
         && !bytes
             .iter()
@@ -177,5 +178,73 @@ mod tests {
             }
         }
         assert_eq!(windows, 75);
+    }
+
+    include!("../tests/data/native_info_commands_literal_original/cases.rs");
+
+    #[test]
+    fn info_commands_selection_matches_one_hundred_fifty_five_original_compiler_windows() {
+        // naming.compiler.original-info-commands-literal-resolution
+        // docs/design/analysis/name-resolution-proofs/compiler-original-info-commands-literal-resolution.md
+        // Rows project original native opcode observations; no registration or runtime
+        // authority is supplied by the pure source recipe comparison.
+        let rows = include_str!("../tests/data/native_info_commands_literal_original/windows.tsv");
+        let mut compared = 0;
+        for row in rows.lines().skip(1) {
+            let fields: Vec<_> = row.split('\t').collect();
+            if fields[0] == "jim" {
+                continue;
+            }
+            let profile = tcl_dialect::DialectProfile::find(fields[0]).unwrap();
+            let version = profile.effective_tcl_version(None).unwrap();
+            let dialect = crate::InvocationDialect::for_version(version);
+            let case = ORIGINAL_INFO_COMMANDS_CASES[fields[1].parse::<usize>().unwrap()];
+            let parsed = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::native(case.2),
+                tcl_lexer::Span::new(0, u32::try_from(case.2.len()).unwrap()),
+                tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+            )
+            .unwrap();
+            assert_eq!(parsed.commands.len(), 1, "{}: {}", fields[0], case.0);
+            let words = NativeCompilerWords::capture(
+                &parsed.commands[0].words,
+                dialect.native_string_protocol().unwrap(),
+            )
+            .unwrap();
+            let selected = compile_native_introspection(
+                &words,
+                2,
+                NativeIntrospectionKind::InfoCommands,
+                version,
+            );
+            assert_eq!(
+                selected.is_some(),
+                fields[3] == "1",
+                "{}: {}",
+                fields[0],
+                case.0
+            );
+            if let Some(selected) = selected {
+                assert_eq!(selected.operands.len(), 1);
+                let projected = project_native_compiler_words(&words, version).unwrap();
+                let actual = projected[2].literal.as_ref().unwrap();
+                let expected: Vec<_> = fields[13]
+                    .as_bytes()
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|pair| {
+                        u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap()
+                    })
+                    .collect();
+                assert_eq!(
+                    actual, &expected,
+                    "{}: {} original pattern bytes",
+                    fields[0], case.0
+                );
+            }
+            compared += 1;
+        }
+        assert_eq!(compared, 155);
     }
 }

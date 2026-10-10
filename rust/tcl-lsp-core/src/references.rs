@@ -1400,7 +1400,7 @@ fn ensemble_subcommand_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         source,
         line,
         character,
-        tcl_lexer::LexerConfig::for_profile(Some(ctx.dialect)),
+        retained_dispatch_context(source, analysis)?.config,
     )?;
     if is_dollar {
         return None;
@@ -2979,8 +2979,8 @@ fn scan_next_dispatch_sites(
 }
 
 /// [`scan_next_dispatch_sites`], but paired with `nextto`'s target-class
-/// argument as written (`None` for plain `next`, which takes no argument, or
-/// for a malformed `nextto` with no argument token). Feeds the
+/// argument from the selected original argv (`None` for a selected helper
+/// with no name-role operand). Unknown target values remain unavailable. Feeds the
 /// constructor/destructor next-chain resolvers
 /// ([`constructor_next_chain_references`] / [`destructor_next_chain_references`]),
 /// which must know *which* class a `nextto` names to decide whether it
@@ -3049,36 +3049,41 @@ fn scan_next_dispatch_region_with_target(
         u32::try_from(start).unwrap_or(0),
         config,
     );
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return;
+    };
+    let context = input.context_registry();
     for cmd in &commands {
-        if let Some(head) = cmd.argv.first() {
-            let (h_start, h_end) = (head.span.start() as usize, head.span.end() as usize);
-            if h_end <= source.len() && h_start < h_end {
-                let h = &source[h_start..h_end];
-                // The next-chain keywords come from the registry
-                // (`TCLOO_NEXT_CHAIN`), not a name list.
-                if crate::definition::method_dispatch_keyword_in(dialect, h)
-                    == Some(tcl_registry::MethodDispatchKind::NextChain)
-                {
-                    // `texts` is the segmenter's already-*decoded* per-word
-                    // reconstruction — unlike `argv`'s token span (which
-                    // covers a braced/quoted word's raw delimiters per this
-                    // codebase's body-span convention, e.g. `{Grandparent`
-                    // for `nextto {Grandparent}`, dropping only the closer),
-                    // `texts[1]` is plain `"Grandparent"` regardless of
-                    // whether the target was written bare, braced, or
-                    // quoted. Slicing the raw span instead left a literal
-                    // `{`/`"` in the target text, which
-                    // `canonicalise_class_name` could never resolve to a
-                    // real class.
-                    // Only the spelling that declares an `ArgRole::Name` at
-                    // argument 0 names an explicit resume-from class —
-                    // `nextto`'s structural marker, per `TCLOO_NEXT_CHAIN`'s
-                    // own doc. `next` declares none, so it captures no target.
-                    let names_target = crate::definition::next_chain_names_a_target_in(dialect, h);
-                    let target = names_target.then(|| cmd.texts.get(1).cloned()).flatten();
-                    out.push((head.span, target));
-                }
-            }
+        if let Some(head) = cmd.argv.first()
+            && let Some(words) =
+                tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                    source, analysis, cmd,
+                )
+            && let Some(target) = words
+                .with_source_schema(&context, |schema| {
+                    if !schema
+                        .semantics
+                        .traits
+                        .contains(tcl_registry::Traits::TCLOO_NEXT_CHAIN)
+                    {
+                        return None;
+                    }
+                    let roles = words.roles()?;
+                    let target = roles.iter().find_map(|&(ordinal, role)| {
+                        (role == tcl_registry::ArgRole::Name).then_some(ordinal)
+                    });
+                    Some(match target {
+                        Some(ordinal) => {
+                            Some(schema.words.arguments().get(ordinal)?.literal()?.to_owned())
+                        }
+                        None => None,
+                    })
+                })
+                .flatten()
+        {
+            // The selected descriptor owns the target value, including an
+            // authentic captured operand; the call keeps its own head span.
+            out.push((head.span, target));
         }
         for (inner_start, inner_end) in nested_dispatch_regions(source, analysis, dialect, cmd) {
             scan_next_dispatch_region_with_target(ctx, inner_start, inner_end, depth + 1, out);
@@ -3634,18 +3639,16 @@ pub(crate) fn strip_outer_braces(source: &str, span: tcl_lexer::Span) -> (usize,
 pub(crate) const MAX_DISPATCH_SCAN_DEPTH: tcl_core_types::RecursionLimit =
     tcl_core_types::RecursionLimit(256);
 
-struct RetainedDispatchContext<'a> {
+struct RetainedDispatchContext {
     dialect: &'static tcl_dialect::DialectProfile,
-    registry: &'a tcl_registry::CommandRegistry,
-    identities: &'a tcl_compiler::realm::CommandBindingRealm,
     config: tcl_lexer::LexerConfig,
     context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
 }
 
-fn retained_dispatch_context<'a>(
+fn retained_dispatch_context(
     source: &str,
-    analysis: &'a AnalysisResult,
-) -> Option<RetainedDispatchContext<'a>> {
+    analysis: &AnalysisResult,
+) -> Option<RetainedDispatchContext> {
     let input = analysis.resolved_input.as_ref()?;
     let config = analysis.body_lexer_config?;
     (input.lexer_config() == config
@@ -3656,13 +3659,25 @@ fn retained_dispatch_context<'a>(
     identities
         .matches_resolved_analysis_input(input)
         .then_some(())?;
+    analysis.resolved_registry()?;
     Some(RetainedDispatchContext {
         dialect: analysis.resolved_profile()?,
-        registry: analysis.resolved_registry()?,
-        identities,
         config,
         context: input.context_registry(),
     })
+}
+
+/// Validated full source context shared by source scans and rename hazards.
+/// This does not select an execution frame, target identity or edit permission.
+pub(crate) fn dispatch_source_context(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<(
+    tcl_lexer::LexerConfig,
+    std::sync::Arc<tcl_registry::model::ContextRegistry>,
+)> {
+    let selected = retained_dispatch_context(source, analysis)?;
+    Some((selected.config, selected.context))
 }
 
 /// Active lexical command substitutions and potential same-frame script bodies
@@ -7935,5 +7950,119 @@ p\uD800";
         assert!(
             method_next_dispatch_spans(&analysis, source, profile, "::C", "m", false,).is_empty()
         );
+    }
+}
+
+#[cfg(test)]
+mod original_next_dispatch_context_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    fn store() -> Arc<tcl_registry::CommandRegistry> {
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let surface = registry.get("dict").unwrap().surface;
+        for (name, roles, min) in [
+            ("source_next", &[][..], 0),
+            (
+                "source_next_named",
+                &[(0, tcl_registry::ArgRole::Name)][..],
+                1,
+            ),
+        ] {
+            registry.insert(tcl_registry::CommandSpec {
+                name,
+                arg_roles: roles,
+                arity: tcl_registry::Arity::at_least(min),
+                traits: tcl_registry::Traits::TCLOO_NEXT_CHAIN,
+                surface,
+                ..tcl_registry::CommandSpec::DEFAULT
+            });
+        }
+        Arc::new(registry)
+    }
+
+    fn analysis(
+        source: &str,
+        environment: &str,
+        store: Arc<tcl_registry::CommandRegistry>,
+    ) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let context = Arc::new(
+            tcl_registry::model::ingress::static_context_for(environment).with_command_store(store),
+        );
+        Analyser::new()
+            .with_resolved_input(ResolvedAnalysisInput::new(
+                profile, profile, context, config,
+            ))
+            .analyse(source, profile.name)
+    }
+
+    fn spans(source: &str, analysis: &AnalysisResult) -> Vec<(tcl_lexer::Span, Option<String>)> {
+        scan_next_dispatch_sites_with_target(
+            source,
+            analysis,
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+        )
+    }
+
+    #[test]
+    fn original_next_dispatch_uses_selected_roles_captured_targets_and_actual_availability() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        // Conditional source topology/values only, not a next-method invocation.
+        let store = store();
+        for (source, target) in [
+            ("source_next", None),
+            ("source_next_named {::Ancestor}", Some("::Ancestor")),
+            ("if 1 {source_next_named {::Ancestor}}", Some("::Ancestor")),
+            (
+                "interp alias {} call_next {} source_next_named ::Ancestor; call_next",
+                Some("::Ancestor"),
+            ),
+        ] {
+            let current = analysis(source, "tcl8.6", store.clone());
+            let found = spans(source, &current);
+            assert_eq!(found.len(), 1, "{source}: {found:?}");
+            assert_eq!(found[0].1.as_deref(), target, "{source}");
+            assert!(
+                spans(source, &analysis(source, "tcl8.4", store.clone())).is_empty(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_next_dispatch_withdraws_known_replacements_missing_and_foreign_source() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let store = store();
+        for source in [
+            "proc source_next_named args {}; source_next_named ::Ancestor",
+            "rename source_next_named {}; source_next_named ::Ancestor",
+            "source_next_named $unknown",
+        ] {
+            assert!(
+                spans(source, &analysis(source, "tcl8.6", store.clone())).is_empty(),
+                "{source}"
+            );
+        }
+        let source = "source_next_named ::Ancestor";
+        let mut current = analysis(source, "tcl8.6", store);
+        assert_eq!(spans(source, &current).len(), 1);
+        let config = current.body_lexer_config.unwrap();
+        current.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+        assert!(spans(source, &current).is_empty());
+        current.body_lexer_config = Some(config);
+        current.resolved_input = Some(ResolvedAnalysisInput::new(
+            tcl_dialect::DialectProfile::plain_tcl(),
+            tcl_dialect::DialectProfile::plain_tcl(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            config,
+        ));
+        assert!(spans(source, &current).is_empty());
+        current.resolved_input = None;
+        assert!(spans(source, &current).is_empty());
     }
 }

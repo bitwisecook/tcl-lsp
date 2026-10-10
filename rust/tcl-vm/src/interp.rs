@@ -20917,7 +20917,7 @@ impl Vm {
                 .error_stack
                 .begin_inner(Value::string("INNER"), context)
             {
-                let _ = self.refuse_host_command(error.to_string());
+                let _ = crate::command::completion_from_tcl_error(self, error.into());
             }
         }
     }
@@ -20944,7 +20944,7 @@ impl Vm {
                 .error_stack
                 .begin_instruction(name, operands)
             {
-                let _ = self.refuse_host_command(error.to_string());
+                let _ = crate::command::completion_from_tcl_error(self, error.into());
             }
         }
     }
@@ -20959,7 +20959,7 @@ impl Vm {
             .error_stack
             .begin_inner(Value::string("INNER"), context)
         {
-            let _ = self.refuse_host_command(error.to_string());
+            let _ = crate::command::completion_from_tcl_error(self, error.into());
             return;
         }
         let frame = if let Some(original) = self
@@ -21004,7 +21004,7 @@ impl Vm {
             .error_stack
             .restart_inner(Value::string("INNER"), context)
         {
-            let _ = self.refuse_host_command(error.to_string());
+            let _ = crate::command::completion_from_tcl_error(self, error.into());
         }
     }
 

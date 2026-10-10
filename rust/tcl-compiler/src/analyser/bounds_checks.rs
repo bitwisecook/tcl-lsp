@@ -1495,7 +1495,10 @@ fn body_may_exit(
 
 #[cfg(test)]
 mod tests {
-    use super::{any_command_recursive, infer_list_length_from_recent_set, sole_command};
+    use super::{
+        BoundsMetadataContext, any_command_recursive, infer_list_length_from_recent_set,
+        sole_command,
+    };
     use crate::analyser::Analyser;
     use tcl_core_types::DiagCode;
 

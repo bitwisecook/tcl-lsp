@@ -6930,7 +6930,12 @@ impl Vm {
                     Ok(bytes) => f
                         .stack
                         .push(bytes.map_or_else(Value::empty, Value::from_native_string_bytes)),
-                    Err(error) => return Tick::Return(self.refuse_host_command(error.to_string())),
+                    Err(error) => {
+                        return Tick::Return(crate::command::completion_from_cmd_error(
+                            self,
+                            error.into(),
+                        ));
+                    }
                 }
             }
             Op::ORIGIN_CMD => {
@@ -6939,13 +6944,21 @@ impl Vm {
                     Ok(Some(bytes)) => match self.native_namespace_origin_result(&bytes) {
                         Ok(result) => f.stack.push(result),
                         Err(error) => {
-                            return Tick::Return(self.refuse_host_command(error.to_string()));
+                            return Tick::Return(crate::command::completion_from_cmd_error(
+                                self,
+                                error.into(),
+                            ));
                         }
                     },
                     Ok(None) => {
                         return Tick::Return(self.native_namespace_origin_failure(&original));
                     }
-                    Err(error) => return Tick::Return(self.refuse_host_command(error.to_string())),
+                    Err(error) => {
+                        return Tick::Return(crate::command::completion_from_cmd_error(
+                            self,
+                            error.into(),
+                        ));
+                    }
                 }
             }
             // `clockRead <which>` reads the same host clock `clock clicks` /
@@ -7635,6 +7648,11 @@ impl Vm {
             // Jim's evaluation frame borrows argv only while this command is
             // active. Completed diagnostic views must not keep arguments shared.
             f.jim_evaluation.invocation = Value::empty();
+            #[cfg(test)]
+            if std::env::var_os("TCL_LSP_TRACE_NATIVE_OPTIONS").is_some() {
+                res.options
+                    .report_native_compound_ownership("deliver-sync-options");
+            }
             if !res.options.to_str().is_empty() {
                 f.last_options = res.options;
             }

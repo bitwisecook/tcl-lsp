@@ -1,0 +1,565 @@
+{
+  "question": "naming.compiler.original-info-commands-literal-resolution",
+  "windows": [
+    {
+      "provider": "8.4.20",
+      "purpose": "original-runtime-info-commands",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c",
+      "original_source_sha256": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+      "original_start_line": 717,
+      "original_end_line": 877,
+      "window_file": "source-anchors/8.4.20/original-runtime-info-commands.txt",
+      "window_sha256": "30b7ae2ff997ebf6efeb9461eb96c8df958265bb6a375da0699fc11874deed4a"
+    },
+    {
+      "provider": "8.4.20",
+      "purpose": "original-installed-command-full-name",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c",
+      "original_source_sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "original_start_line": 2451,
+      "original_end_line": 2501,
+      "window_file": "source-anchors/8.4.20/original-installed-command-full-name.txt",
+      "window_sha256": "b40a276c3a846437d28e75a0d11a8c0cb91a14dded4fb4c7fa1201bb6e482352"
+    },
+    {
+      "provider": "8.4.20",
+      "purpose": "original-command-reference-cache",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclObj.c",
+      "original_source_sha256": "6e20f047f13e19527f746934b7a9472405d1871e0936687004506f966bb8bd9c",
+      "original_start_line": 3315,
+      "original_end_line": 3402,
+      "window_file": "source-anchors/8.4.20/original-command-reference-cache.txt",
+      "window_sha256": "bd8e28e622ea3ddf3d55ec190eebb43e45c82aaba3e40db762fca9c4d183b779"
+    },
+    {
+      "provider": "8.4.20",
+      "purpose": "original-cache-installation",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclObj.c",
+      "original_source_sha256": "6e20f047f13e19527f746934b7a9472405d1871e0936687004506f966bb8bd9c",
+      "original_start_line": 3581,
+      "original_end_line": 3672,
+      "window_file": "source-anchors/8.4.20/original-cache-installation.txt",
+      "window_sha256": "d2f001180bce08ad29d4b0de9c426b98cd93c2d00218c2148b9edcbe59bc96df"
+    },
+    {
+      "provider": "8.4.20",
+      "purpose": "retained-bytecode-layout",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompile.h",
+      "original_source_sha256": "3d7d3b604522a9c5e673076fab8df53316951da1406892d03fe52dd678e2d0ec",
+      "original_start_line": 325,
+      "original_end_line": 421,
+      "window_file": "source-anchors/8.4.20/retained-bytecode-layout.txt",
+      "window_sha256": "4444b81b2a607f19041e31dd98f8c81dffd984d88d68e20d8235ffb829eb477a"
+    },
+    {
+      "provider": "8.4.20",
+      "purpose": "original-instruction-layout",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompile.h",
+      "original_source_sha256": "3d7d3b604522a9c5e673076fab8df53316951da1406892d03fe52dd678e2d0ec",
+      "original_start_line": 589,
+      "original_end_line": 615,
+      "window_file": "source-anchors/8.4.20/original-instruction-layout.txt",
+      "window_sha256": "f975353ded71cb015abc19ff93eb92dbb78cca80b822b71c58c5118ee70ca6ed"
+    },
+    {
+      "provider": "8.4.20",
+      "purpose": "original-opcode-table",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompile.c",
+      "original_source_sha256": "0bc55b283d6cb62a4298d4dc30e050b587d5d1b4e7f145e4f644e237dd7639f8",
+      "original_start_line": 45,
+      "original_end_line": 85,
+      "window_file": "source-anchors/8.4.20/original-opcode-table.txt",
+      "window_sha256": "8998feb6871dc9b9f77894f45e203a4bb1f1e4516784fbaa933b340ca23f11bd"
+    },
+    {
+      "provider": "8.4.20",
+      "purpose": "original-trivial-pattern-predicate",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclUtil.c",
+      "original_source_sha256": "26a0bb5644999077e8a6a82a7ab1bbcf73787f889a35d7ede5369788c66d2e4c",
+      "original_start_line": 1448,
+      "original_end_line": 1485,
+      "window_file": "source-anchors/8.4.20/original-trivial-pattern-predicate.txt",
+      "window_sha256": "0c99da91464f1f6af3f6a6714181ab613ea5a80bbdc63e2dfc4a169756f04816"
+    },
+    {
+      "provider": "8.4.20",
+      "purpose": "original-info-command-registration",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c",
+      "original_source_sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "original_start_line": 130,
+      "original_end_line": 140,
+      "window_file": "source-anchors/8.4.20/original-info-command-registration.txt",
+      "window_sha256": "985f2848d7874794cb3082412e8669b54701e7cda5e00fe4bb1194a00dd0b6c0"
+    },
+    {
+      "provider": "8.5.19",
+      "purpose": "original-runtime-info-commands",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c",
+      "original_source_sha256": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+      "original_start_line": 578,
+      "original_end_line": 738,
+      "window_file": "source-anchors/8.5.19/original-runtime-info-commands.txt",
+      "window_sha256": "16cdd66238a0543613b1f0ae2f5d1b2f86108ee9220c316f60128b2680c49796"
+    },
+    {
+      "provider": "8.5.19",
+      "purpose": "original-installed-command-full-name",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c",
+      "original_source_sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "original_start_line": 2677,
+      "original_end_line": 2727,
+      "window_file": "source-anchors/8.5.19/original-installed-command-full-name.txt",
+      "window_sha256": "62c8e5a18da5c1d56c71e9e8e9c230a136740ccb865eaeac2a3f50b7a5f578bc"
+    },
+    {
+      "provider": "8.5.19",
+      "purpose": "original-command-reference-cache",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclObj.c",
+      "original_source_sha256": "25136b8ad5a833dfecd5e45a2f8f54e52d78e10ff516a5abc61fbdfb7e6ee014",
+      "original_start_line": 4049,
+      "original_end_line": 4136,
+      "window_file": "source-anchors/8.5.19/original-command-reference-cache.txt",
+      "window_sha256": "c0b2d87fda08110f1b60ca50b231e345c704bd6938d51d28ed967a71d9523664"
+    },
+    {
+      "provider": "8.5.19",
+      "purpose": "original-cache-installation",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclObj.c",
+      "original_source_sha256": "25136b8ad5a833dfecd5e45a2f8f54e52d78e10ff516a5abc61fbdfb7e6ee014",
+      "original_start_line": 4288,
+      "original_end_line": 4383,
+      "window_file": "source-anchors/8.5.19/original-cache-installation.txt",
+      "window_sha256": "238637b89e3b390465a2d7f0ce0160440b92b3a20cecddba00f3ac83c464a84b"
+    },
+    {
+      "provider": "8.5.19",
+      "purpose": "retained-bytecode-layout",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompile.h",
+      "original_source_sha256": "9ef1b2690de80b9c193d866d8ef8eb3271e57802c91a96f0f0a01f87c1d1a645",
+      "original_start_line": 337,
+      "original_end_line": 433,
+      "window_file": "source-anchors/8.5.19/retained-bytecode-layout.txt",
+      "window_sha256": "03188e4aaefb6c2cb4c51760b2ba66dd40e8f8e7c8fce1eb9e0c7b41821ccab1"
+    },
+    {
+      "provider": "8.5.19",
+      "purpose": "original-instruction-layout",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompile.h",
+      "original_source_sha256": "9ef1b2690de80b9c193d866d8ef8eb3271e57802c91a96f0f0a01f87c1d1a645",
+      "original_start_line": 690,
+      "original_end_line": 716,
+      "window_file": "source-anchors/8.5.19/original-instruction-layout.txt",
+      "window_sha256": "4725517f80e299284e324bcb14eb92df4aeb7b1b5171c74e54f8f388d8affd2d"
+    },
+    {
+      "provider": "8.5.19",
+      "purpose": "original-opcode-table",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompile.c",
+      "original_source_sha256": "8c2ec76dbbe697201bcad79f9e32c0c1db23faf7ca01eb19e08f3ea9e68dd988",
+      "original_start_line": 45,
+      "original_end_line": 85,
+      "window_file": "source-anchors/8.5.19/original-opcode-table.txt",
+      "window_sha256": "7f2502726eee4a116a1d7397657d98016b54ba0b924952b87babd6ac835952dd"
+    },
+    {
+      "provider": "8.5.19",
+      "purpose": "original-trivial-pattern-predicate",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h",
+      "original_source_sha256": "72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa",
+      "original_start_line": 3744,
+      "original_end_line": 3755,
+      "window_file": "source-anchors/8.5.19/original-trivial-pattern-predicate.txt",
+      "window_sha256": "29889f0bf51cc3648c42c061271c3bd49f19a8caff069d21fb3cbeacaf7bfff3"
+    },
+    {
+      "provider": "8.5.19",
+      "purpose": "original-info-subcommand-registration",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c",
+      "original_source_sha256": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+      "original_start_line": 151,
+      "original_end_line": 161,
+      "window_file": "source-anchors/8.5.19/original-info-subcommand-registration.txt",
+      "window_sha256": "e73c14392f88dd2f798ef307cc3278afe224c7f150834a74553641d08acca752"
+    },
+    {
+      "provider": "8.6.18",
+      "purpose": "original-runtime-info-commands",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c",
+      "original_source_sha256": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+      "original_start_line": 637,
+      "original_end_line": 797,
+      "window_file": "source-anchors/8.6.18/original-runtime-info-commands.txt",
+      "window_sha256": "b723bb7b30c441b6777525dcc75a5fee9c0b6cc0143a84c7ce4e5f6dad2c8eb9"
+    },
+    {
+      "provider": "8.6.18",
+      "purpose": "original-installed-command-full-name",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c",
+      "original_source_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "original_start_line": 3050,
+      "original_end_line": 3100,
+      "window_file": "source-anchors/8.6.18/original-installed-command-full-name.txt",
+      "window_sha256": "914772e67ec3b387346ffaaef9a5a3077750e1546307caef68470b9dc9859702"
+    },
+    {
+      "provider": "8.6.18",
+      "purpose": "original-command-reference-cache",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclObj.c",
+      "original_source_sha256": "7a7ef8ec85c74581129e8f3bef939e3191a432dcb021e0a16f1cf9971049f90d",
+      "original_start_line": 4132,
+      "original_end_line": 4219,
+      "window_file": "source-anchors/8.6.18/original-command-reference-cache.txt",
+      "window_sha256": "1c4ee7d1374b1639cabb098d15e5c524f6c5c9da55030d2760cbb7e285ef2bdd"
+    },
+    {
+      "provider": "8.6.18",
+      "purpose": "original-cache-installation",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclObj.c",
+      "original_source_sha256": "7a7ef8ec85c74581129e8f3bef939e3191a432dcb021e0a16f1cf9971049f90d",
+      "original_start_line": 4375,
+      "original_end_line": 4502,
+      "window_file": "source-anchors/8.6.18/original-cache-installation.txt",
+      "window_sha256": "2e747c82ecb1a9f84aee812fcc385fff81b2407ef268420868437aa002972024"
+    },
+    {
+      "provider": "8.6.18",
+      "purpose": "retained-bytecode-layout",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompile.h",
+      "original_source_sha256": "be854eab265b25091f3e5a9b8d268d3aeca520d12382f135e3b3ddede49e6ed9",
+      "original_start_line": 406,
+      "original_end_line": 502,
+      "window_file": "source-anchors/8.6.18/retained-bytecode-layout.txt",
+      "window_sha256": "2ddfc0b523a41c346efc6d0d33d603f2f41a3695aeadd6805ef99414c10e2f8c"
+    },
+    {
+      "provider": "8.6.18",
+      "purpose": "original-instruction-layout",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompile.h",
+      "original_source_sha256": "be854eab265b25091f3e5a9b8d268d3aeca520d12382f135e3b3ddede49e6ed9",
+      "original_start_line": 855,
+      "original_end_line": 881,
+      "window_file": "source-anchors/8.6.18/original-instruction-layout.txt",
+      "window_sha256": "98cf13a1bb3df3534642de243ef08031a9da615fdc8d98d8326d4bfb91bacbe1"
+    },
+    {
+      "provider": "8.6.18",
+      "purpose": "original-opcode-table",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompile.c",
+      "original_source_sha256": "d1a494975cb56b8850804669e17fb7c5aacc1d70de505ea661f59ca365ab45c8",
+      "original_start_line": 37,
+      "original_end_line": 77,
+      "window_file": "source-anchors/8.6.18/original-opcode-table.txt",
+      "window_sha256": "2cf19e97151e0763f5862a2a085d2a6ae110b45589c21d494275ab2915619f5f"
+    },
+    {
+      "provider": "8.6.18",
+      "purpose": "original-specialised-compilation",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompCmdsGR.c",
+      "original_source_sha256": "edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d",
+      "original_start_line": 580,
+      "original_end_line": 664,
+      "window_file": "source-anchors/8.6.18/original-specialised-compilation.txt",
+      "window_sha256": "39170350fa9071939bfae9c9da16bd5f6bf02c8c30501c7029980ce31df0438b"
+    },
+    {
+      "provider": "8.6.18",
+      "purpose": "original-resolve-command-opcode",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclExecute.c",
+      "original_source_sha256": "2a29cf5e54d1b2ac4ddf56a6f38556bbfb9c8e8913800377c84a6f0bb8caa491",
+      "original_start_line": 4758,
+      "original_end_line": 4782,
+      "window_file": "source-anchors/8.6.18/original-resolve-command-opcode.txt",
+      "window_sha256": "b8b8eaafc960d1b6dd48799fed392189c632e70fdf066a641af27480a8764605"
+    },
+    {
+      "provider": "8.6.18",
+      "purpose": "original-trivial-pattern-predicate",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h",
+      "original_source_sha256": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+      "original_start_line": 4114,
+      "original_end_line": 4125,
+      "window_file": "source-anchors/8.6.18/original-trivial-pattern-predicate.txt",
+      "window_sha256": "d490c64ae687b63552774242779eab6e9fa2a575a4e7fe216017447f602add77"
+    },
+    {
+      "provider": "8.6.18",
+      "purpose": "original-info-subcommand-registration",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c",
+      "original_source_sha256": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+      "original_start_line": 151,
+      "original_end_line": 161,
+      "window_file": "source-anchors/8.6.18/original-info-subcommand-registration.txt",
+      "window_sha256": "432fb59650767b7493af4999b4f0cd49c93729645bcc9e8a52134902b45a419c"
+    },
+    {
+      "provider": "9.0.4",
+      "purpose": "original-runtime-info-commands",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c",
+      "original_source_sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+      "original_start_line": 626,
+      "original_end_line": 786,
+      "window_file": "source-anchors/9.0.4/original-runtime-info-commands.txt",
+      "window_sha256": "16ad107662d0182395ac0e691327e6f6f70545ecb4c78adda536142afe6f3dd8"
+    },
+    {
+      "provider": "9.0.4",
+      "purpose": "original-installed-command-full-name",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c",
+      "original_source_sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+      "original_start_line": 3631,
+      "original_end_line": 3681,
+      "window_file": "source-anchors/9.0.4/original-installed-command-full-name.txt",
+      "window_sha256": "cad8b5a9b1d8fd2bf75b39911b9109c7406752093ba5492558ee234a638863e7"
+    },
+    {
+      "provider": "9.0.4",
+      "purpose": "original-command-reference-cache",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclObj.c",
+      "original_source_sha256": "91a390bd24fbe71108108eeccf9955df0389f0f81dff24f303c32344469e8d4a",
+      "original_start_line": 4310,
+      "original_end_line": 4397,
+      "window_file": "source-anchors/9.0.4/original-command-reference-cache.txt",
+      "window_sha256": "8519e64a1b96e5eecc9992a1991505217c354ff6c27a19b60247076ebea77b2b"
+    },
+    {
+      "provider": "9.0.4",
+      "purpose": "original-cache-installation",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclObj.c",
+      "original_source_sha256": "91a390bd24fbe71108108eeccf9955df0389f0f81dff24f303c32344469e8d4a",
+      "original_start_line": 4569,
+      "original_end_line": 4696,
+      "window_file": "source-anchors/9.0.4/original-cache-installation.txt",
+      "window_sha256": "2650170050508cb52942f55db2022cccacdda2b16173fcdca251e44e2f9cb90d"
+    },
+    {
+      "provider": "9.0.4",
+      "purpose": "retained-bytecode-layout",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompile.h",
+      "original_source_sha256": "22f512199d2e57370496d8a6713921d9ac57538497a3a64966fa1dee7a6a5dc5",
+      "original_start_line": 420,
+      "original_end_line": 516,
+      "window_file": "source-anchors/9.0.4/retained-bytecode-layout.txt",
+      "window_sha256": "3ac0e512aa9955e4157cddb051004c777c642ea90cb495373e89ceb43101aa5d"
+    },
+    {
+      "provider": "9.0.4",
+      "purpose": "original-instruction-layout",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompile.h",
+      "original_source_sha256": "22f512199d2e57370496d8a6713921d9ac57538497a3a64966fa1dee7a6a5dc5",
+      "original_start_line": 876,
+      "original_end_line": 902,
+      "window_file": "source-anchors/9.0.4/original-instruction-layout.txt",
+      "window_sha256": "98cf13a1bb3df3534642de243ef08031a9da615fdc8d98d8326d4bfb91bacbe1"
+    },
+    {
+      "provider": "9.0.4",
+      "purpose": "original-opcode-table",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompile.c",
+      "original_source_sha256": "51b709e7bf2c1f25bb7b3ab371c7dcbd6cf6d2bce509931397303cb770ee21f3",
+      "original_start_line": 36,
+      "original_end_line": 76,
+      "window_file": "source-anchors/9.0.4/original-opcode-table.txt",
+      "window_sha256": "2cf19e97151e0763f5862a2a085d2a6ae110b45589c21d494275ab2915619f5f"
+    },
+    {
+      "provider": "9.0.4",
+      "purpose": "original-specialised-compilation",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompCmdsGR.c",
+      "original_source_sha256": "d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db",
+      "original_start_line": 572,
+      "original_end_line": 656,
+      "window_file": "source-anchors/9.0.4/original-specialised-compilation.txt",
+      "window_sha256": "6f6546f9acbae61ec8ca44b13915511cd78ec22d19d0927250f896b096137b4d"
+    },
+    {
+      "provider": "9.0.4",
+      "purpose": "original-resolve-command-opcode",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclExecute.c",
+      "original_source_sha256": "0c42699cdcf610813ce77e2a6fec505f12d82a87b110950c92824fdf30d3c42a",
+      "original_start_line": 4348,
+      "original_end_line": 4372,
+      "window_file": "source-anchors/9.0.4/original-resolve-command-opcode.txt",
+      "window_sha256": "25347241794b465b7578615abf4675628781db64de0f93db82cf08bc966c5bb4"
+    },
+    {
+      "provider": "9.0.4",
+      "purpose": "original-trivial-pattern-predicate",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h",
+      "original_source_sha256": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053",
+      "original_start_line": 4787,
+      "original_end_line": 4798,
+      "window_file": "source-anchors/9.0.4/original-trivial-pattern-predicate.txt",
+      "window_sha256": "d490c64ae687b63552774242779eab6e9fa2a575a4e7fe216017447f602add77"
+    },
+    {
+      "provider": "9.0.4",
+      "purpose": "original-info-subcommand-registration",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c",
+      "original_source_sha256": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+      "original_start_line": 148,
+      "original_end_line": 158,
+      "window_file": "source-anchors/9.0.4/original-info-subcommand-registration.txt",
+      "window_sha256": "21370a8acf9bdd6b43bd8eaf0c3c4b95b4a01dc168bc68f1f55c41e78dbcd713"
+    },
+    {
+      "provider": "9.1.0",
+      "purpose": "original-runtime-info-commands",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c",
+      "original_source_sha256": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+      "original_start_line": 604,
+      "original_end_line": 764,
+      "window_file": "source-anchors/9.1.0/original-runtime-info-commands.txt",
+      "window_sha256": "3fc9b663e517d06e501b71bdf4e3027a34ae881720bd4e9a736902feb85b182e"
+    },
+    {
+      "provider": "9.1.0",
+      "purpose": "original-installed-command-full-name",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c",
+      "original_source_sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+      "original_start_line": 3601,
+      "original_end_line": 3651,
+      "window_file": "source-anchors/9.1.0/original-installed-command-full-name.txt",
+      "window_sha256": "cad8b5a9b1d8fd2bf75b39911b9109c7406752093ba5492558ee234a638863e7"
+    },
+    {
+      "provider": "9.1.0",
+      "purpose": "original-command-reference-cache",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclObj.c",
+      "original_source_sha256": "58c041dbf20bba3c8fef5782969c661d4d60a6ee0bc915f30e55c19cedb31976",
+      "original_start_line": 4254,
+      "original_end_line": 4341,
+      "window_file": "source-anchors/9.1.0/original-command-reference-cache.txt",
+      "window_sha256": "195aeaf7e01e700d9130b204812215aafb11806d6fb2f2bdc48a5866d7a7154e"
+    },
+    {
+      "provider": "9.1.0",
+      "purpose": "original-cache-installation",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclObj.c",
+      "original_source_sha256": "58c041dbf20bba3c8fef5782969c661d4d60a6ee0bc915f30e55c19cedb31976",
+      "original_start_line": 4513,
+      "original_end_line": 4640,
+      "window_file": "source-anchors/9.1.0/original-cache-installation.txt",
+      "window_sha256": "b6a78da109553968a85bf62a211f1305511a84f3eedd72da129e7dae03fc3afb"
+    },
+    {
+      "provider": "9.1.0",
+      "purpose": "retained-bytecode-layout",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompile.h",
+      "original_source_sha256": "70203ece61377d4cf22a1eae4348d6216bf77372fd7f8a49274f05d8c546d44e",
+      "original_start_line": 500,
+      "original_end_line": 596,
+      "window_file": "source-anchors/9.1.0/retained-bytecode-layout.txt",
+      "window_sha256": "1df9d7881f9cbfe1e8969c1a25c1194cafee80f971fc2b96a18f2e0b7e7dc54e"
+    },
+    {
+      "provider": "9.1.0",
+      "purpose": "original-instruction-layout",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompile.h",
+      "original_source_sha256": "70203ece61377d4cf22a1eae4348d6216bf77372fd7f8a49274f05d8c546d44e",
+      "original_start_line": 1011,
+      "original_end_line": 1037,
+      "window_file": "source-anchors/9.1.0/original-instruction-layout.txt",
+      "window_sha256": "138d9f258d153637dd3bf7d7a37f38f9e04bc909e3f2ce5819a0b5f762d4ab96"
+    },
+    {
+      "provider": "9.1.0",
+      "purpose": "original-opcode-table",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompile.c",
+      "original_source_sha256": "941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f",
+      "original_start_line": 57,
+      "original_end_line": 97,
+      "window_file": "source-anchors/9.1.0/original-opcode-table.txt",
+      "window_sha256": "6af55b8cb4f2d448388cd350d784acb5999521132c7dfb64bb62396383dac6f0"
+    },
+    {
+      "provider": "9.1.0",
+      "purpose": "original-specialised-compilation",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompCmdsGR.c",
+      "original_source_sha256": "3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1",
+      "original_start_line": 522,
+      "original_end_line": 606,
+      "window_file": "source-anchors/9.1.0/original-specialised-compilation.txt",
+      "window_sha256": "5f00f982f8676bba49d7c4211c58942dd15ce9c6f9b7e3fb7dd1573ba9318e11"
+    },
+    {
+      "provider": "9.1.0",
+      "purpose": "original-resolve-command-opcode",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclExecute.c",
+      "original_source_sha256": "9dd4e9a080136f2ce36ee8f9acf4a30e770cc5fc417519468c785d76013151f4",
+      "original_start_line": 4673,
+      "original_end_line": 4697,
+      "window_file": "source-anchors/9.1.0/original-resolve-command-opcode.txt",
+      "window_sha256": "84ff7235be12d2d66fa1aba6a4982d018acbe0ea0d45ac160b03611d31b24d61"
+    },
+    {
+      "provider": "9.1.0",
+      "purpose": "original-trivial-pattern-predicate",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h",
+      "original_source_sha256": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+      "original_start_line": 4818,
+      "original_end_line": 4829,
+      "window_file": "source-anchors/9.1.0/original-trivial-pattern-predicate.txt",
+      "window_sha256": "d490c64ae687b63552774242779eab6e9fa2a575a4e7fe216017447f602add77"
+    },
+    {
+      "provider": "9.1.0",
+      "purpose": "original-info-subcommand-registration",
+      "original_source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c",
+      "original_source_sha256": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+      "original_start_line": 149,
+      "original_end_line": 159,
+      "window_file": "source-anchors/9.1.0/original-info-subcommand-registration.txt",
+      "window_sha256": "53c2c85bbd2f0a7cea421786bc26702ed373a19d1ae835a8589cc44040463108"
+    },
+    {
+      "provider": "jim",
+      "purpose": "info-core-dispatch",
+      "original_source": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "original_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "original_start_line": 15978,
+      "original_end_line": 16155,
+      "window_file": "source-anchors/jim/info-core-dispatch.txt",
+      "window_sha256": "6fbc82b67ac4a475a659f7a39789c106f1255097ce9e3a19d7c341dcd3dce283"
+    },
+    {
+      "provider": "jim",
+      "purpose": "retained-script-layout",
+      "original_source": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "original_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "original_start_line": 3362,
+      "original_end_line": 3392,
+      "window_file": "source-anchors/jim/retained-script-layout.txt",
+      "window_sha256": "e0ee768549f5690e95f3009cb93aa69d3af0aeb9ca54098fcd0ee2dedf0143fa"
+    },
+    {
+      "provider": "jim",
+      "purpose": "retained-token-layout",
+      "original_source": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "original_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "original_start_line": 3287,
+      "original_end_line": 3303,
+      "window_file": "source-anchors/jim/retained-token-layout.txt",
+      "window_sha256": "e605b2a8d89a5c6bb29e694856a518a53f65a98974ecd52749f09698e35c1b68"
+    },
+    {
+      "provider": "jim",
+      "purpose": "original-object-argv",
+      "original_source": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "original_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "original_start_line": 11209,
+      "original_end_line": 11241,
+      "window_file": "source-anchors/jim/original-object-argv.txt",
+      "window_sha256": "9cbf9dadededb4437cd1b16b7679d19d0020e378f18ee4ef05b1764ba8002df8"
+    },
+    {
+      "provider": "jim",
+      "purpose": "original-namespace-info-helper",
+      "original_source": "/workspace/.proofs/native-providers/jimtcl/nshelper.tcl",
+      "original_source_sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+      "original_start_line": 79,
+      "original_end_line": 151,
+      "window_file": "source-anchors/jim/original-namespace-info-helper.txt",
+      "window_sha256": "7923cbe29cabd29d0e0d8f8b4fbbc9b78b0c8da7428f5fcb32b9bbbb975b9dba"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+
+running 5 tests
+test exec::active_manifest_tests::active_currency_rechecks_pack_claims_and_manifest_package_floors ... ok
+test exec::active_manifest_tests::compiled_entry_checks_retained_manifest_and_actual_pack_claims ... ok
+test exec::active_manifest_tests::refused_overlay_pin_preserves_the_active_artifact_identity ... ok
+test exec::active_manifest_tests::stale_pack_command_boundary_does_not_acknowledge_the_changed_epoch ... ok
+test interp::family_b_tests::explicit_host_engine_keeps_source_logical_and_availability_axes_separate ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 723 filtered out; finished in 5.57s
+

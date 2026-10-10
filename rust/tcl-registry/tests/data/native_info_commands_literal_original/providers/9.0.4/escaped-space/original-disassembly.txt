@@ -1,0 +1,14 @@
+ByteCode 0x55ec41781050, refCt 1, epoch 21, interp 0x55ec416fb190 (epoch 21)
+  Source "info commands ::has\ space"
+  Cmds 1, src 26, inst 13, litObjs 1, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x55ec4177fad0, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-11, src 0-25
+  Command 1: "info commands ::has\ space"
+    (0) push1 0 	# "::has space"
+    (2) resolveCmd 
+    (3) dup 
+    (4) strlen 
+    (5) jumpFalse1 +7 	# pc 12
+    (7) list 1 
+    (12) done 

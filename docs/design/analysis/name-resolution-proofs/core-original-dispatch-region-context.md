@@ -16,11 +16,15 @@ retained_dispatch_context requires positive actual retained input, complete orig
 
 Method-reference and namespace rename-hazard scanners share current whole analysis/configuration and selected original source schema under actual availability. A custom dispatch trait or NamespaceName role is usable only through that current owner; known replacements, older same-store availability and missing/foreign/stale ownership preserve refusal. Conditional method spans and namespace blockers retain their independent runtime and edit purposes.
 
+Core callback references consume the separate authored command-prefix data receipt at its actual builder point. Genuine list/alias target roles and original geometry retain full source configuration and package availability; known shadows and incomplete stored writes withdraw advice. This source data does not satisfy a deferred Produced parent, future lookup, entered callback or edit permission.
+
 ## Scope
 
 Current Core source-region implementation contract. Two fixed controls check retained custom schema/PotentialEvaluation versus ReferenceOnly, and original moved namespace source versus replacement/delete/missing/stale ownership. All seven providers are not tested; original provider dispatch/lifetime observations remain separate.
 
 Two additional source/API controls classify reference geometry and rename blockers under authentic custom source roles. They compare no external C/Jim/BIG-IP completion, live receiver, original table/private holder, Native method/body/frame execution or executable rename equivalence. All provider answers remain not tested, with no assertion execution claimed.
+
+Three additional Core source controls have no executed assertion receipt. Their callback-like source role projection grants no current receiver, Native handler/frame, result object, dispatch or execution authority.
 
 ## Provider answers
 
@@ -92,6 +96,13 @@ A named test is a coverage binding, not a claim that it executed.
 - [rust/tcl-lsp-core/src/namespace_rename.rs](../../../../rust/tcl-lsp-core/src/namespace_rename.rs), `namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal` (linked): An authentic custom NamespaceName role retains a computed-name rename blocker; unavailable same-store roles, stale config or missing complete source input retain explicit refusal instead of permitting namespace edits.
 
 These source/API bindings carry no executed assertion or Native provider result.
+
+- [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs), `references`: Project source callback target roles through the genuine authored builder receipt and its full current source/availability owner; captured origins remain distinct from written word offsets.
+- [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs), `references::tests::callback_source_roles_keep_actual_availability_and_original_builder_geometry` (linked): Keep conditional callback roles and source ranges under the actual selected list builder/config/availability, without a deferred parent or Native callback entry.
+- [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs), `references::tests::callback_source_roles_keep_actual_package_availability_in_the_same_store` (linked): Actual package availability independently controls selected callback roles even when the underlying command store is unchanged.
+- [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs), `references::tests::callback_source_targets_withdraw_known_shadows_and_incomplete_stored_writes` (linked): Known target replacement and incomplete stored-prefix writes withdraw authored callback target advice rather than fill from a command label or future lookup.
+
+These bindings are current software contracts without an executed assertion or external provider result.
 
 ## Replay
 

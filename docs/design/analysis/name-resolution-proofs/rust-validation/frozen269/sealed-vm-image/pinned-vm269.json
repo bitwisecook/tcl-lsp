@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-vm269.elf",
+  "sha256": "e511c818e25c8443061a6003b01c8596ffc138da10999a19cfe81eeb124358dc",
+  "build_receipt": "/workspace/.proofs/integration-vm-native-test-build269.json",
+  "build_receipt_sha256": "a5c4b874b40a4a51a2f36166bfca0ac37d9cd1c3a60e5d9bea10d20856d47789",
+  "source_snapshot_sha256": "0e2858f196e6e77c05ac8e2d8fe4a13191816b78c1e8039a01fa1b652a275b2d"
+}

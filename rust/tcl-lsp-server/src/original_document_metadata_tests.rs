@@ -526,3 +526,367 @@ async fn workspace_class_analysis_refuses_withdrawn_base_before_cached_hints() {
         .await;
     assert!(Arc::ptr_eq(&stale_source, &base));
 }
+
+fn index_metadata_directory() -> PathBuf {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let next = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!("tcl-lsp-index352-{}-{next}", std::process::id()));
+    std::fs::create_dir_all(&path).unwrap();
+    path
+}
+
+async fn index_reads(backend: &Backend, name: &str, uri: &Uri) -> Vec<tcl_lexer::Span> {
+    backend
+        .workspace_index
+        .read()
+        .await
+        .variable_refs_of(name, "")
+        .into_iter()
+        .filter(|row| row.uri == uri.as_str())
+        .map(|row| row.span)
+        .collect()
+}
+
+fn index_evidence_handles(backend: &Backend) -> EvidenceHandles {
+    EvidenceHandles {
+        db_config: Arc::clone(&backend.db_config),
+        folder_db_configs: Arc::clone(&backend.folder_db_configs),
+        db: Arc::clone(&backend.db),
+        db_files: Arc::clone(&backend.db_files),
+        db_project_members: Arc::clone(&backend.db_project_members),
+        db_project: Arc::clone(&backend.db_project),
+        workspace_index: Arc::clone(&backend.workspace_index),
+        documents: Arc::clone(&backend.documents),
+        rehoming_gate: Arc::clone(&backend.rehoming_gate),
+        live_publication_gate: Arc::clone(&backend.live_publication_gate),
+        class_factory_generation: Arc::clone(&backend.class_factory_generation),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // These are published source references, without a Native command entry.
+    let (backend, _) = workspace_pack_backend().await;
+    let root = index_metadata_directory();
+    let file = root.join("closed.tcl");
+    let source = "unindexed_metadata::read ::retained\n";
+    std::fs::write(&file, source).unwrap();
+    let uri = Uri::from_file_path(&file).unwrap();
+    backend.reindex_index_from_disk(&uri).await;
+    let reads = index_reads(&backend, "::retained", &uri).await;
+    assert_eq!(reads.len(), 1);
+    assert_eq!(
+        &source[reads[0].start()..reads[0].end_exclusive()],
+        "::retained"
+    );
+
+    install_workspace_read_pack(&backend, 2, false).await;
+    backend.invalidate_diag_inputs();
+    backend
+        .batch_reindex_from_disk(std::slice::from_ref(&uri))
+        .await;
+    assert!(index_reads(&backend, "::retained", &uri).await.is_empty());
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn startup_index_and_factory_reindex_keep_checked_document_roles() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    let (backend, _) = workspace_pack_backend().await;
+    let root = index_metadata_directory();
+    let file = root.join("consumer.tcl");
+    let source = "::Meta create Thing {}\nunindexed_metadata::read ::retained\n";
+    std::fs::write(&file, source).unwrap();
+    let uri = Uri::from_file_path(&file).unwrap();
+    *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+    backend.scan_workspace_folders().await;
+    assert_eq!(index_reads(&backend, "::retained", &uri).await.len(), 1);
+    let handles = index_evidence_handles(&backend);
+    assert!(
+        backend
+            .workspace_index
+            .read()
+            .await
+            .documents_invoking_classes(&HashSet::from(["Meta"]))
+            .contains(uri.as_str())
+    );
+    let affected = HashSet::from(["::Meta".to_owned()]);
+    reindex_unopened_factory_consumers(&handles, &affected).await;
+    assert_eq!(index_reads(&backend, "::retained", &uri).await.len(), 1);
+
+    install_workspace_read_pack(&backend, 2, false).await;
+    backend.invalidate_diag_inputs();
+    reindex_unopened_factory_consumers(&handles, &affected).await;
+    assert!(index_reads(&backend, "::retained", &uri).await.is_empty());
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn source_rehoming_keeps_workspace_roles_in_the_actual_seed_namespace() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // The written source namespace is conditional source advice, not a Native frame.
+    let (backend, _) = workspace_pack_backend().await;
+    let root = index_metadata_directory();
+    let caller_path = root.join("caller.tcl");
+    let sourced_path = root.join("sourced.tcl");
+    std::fs::write(&caller_path, "namespace eval ::app {source sourced.tcl}\n").unwrap();
+    std::fs::write(
+        &sourced_path,
+        "set retained 1\nunindexed_metadata::read retained\n",
+    )
+    .unwrap();
+    let sourced = Uri::from_file_path(&sourced_path).unwrap();
+    *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+    backend.scan_workspace_folders().await;
+    assert!(
+        backend
+            .rehomed_source_seeds
+            .lock()
+            .await
+            .get(sourced.as_str())
+            .is_some_and(|seeds| seeds.iter().any(|seed| seed == "::app"))
+    );
+    let before = index_reads(&backend, "::app::retained", &sourced).await;
+    assert!(!before.is_empty());
+    let read_offset = "set retained 1\nunindexed_metadata::read ".len();
+    assert!(before.iter().any(|span| span.start() == read_offset));
+
+    install_workspace_read_pack(&backend, 2, false).await;
+    backend.invalidate_diag_inputs();
+    backend
+        .rehomed_source_seeds
+        .lock()
+        .await
+        .remove(sourced.as_str());
+    backend.refresh_source_rehoming().await;
+    let after = index_reads(&backend, "::app::retained", &sourced).await;
+    assert!(!after.iter().any(|span| span.start() == read_offset));
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn workspace_index_seed_refuses_stale_and_withdrawn_source_owners() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    let (backend, _) = workspace_pack_backend().await;
+    let uri = Uri::from_str("file:///workspace/index-seed-currency.tcl").unwrap();
+    let source = "unindexed_metadata::read ::retained";
+    let current = backend
+        .fresh_analysis_seed(&uri, Arc::from(source), "tcl".to_owned())
+        .await;
+    assert!(backend.fresh_index_seed_is_current(source, &current).await);
+    let mut missing = current.analysis.as_ref().clone();
+    missing.resolved_input = None;
+    let mut stale = current.analysis.as_ref().clone();
+    stale.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+    let mut foreign = current.analysis.as_ref().clone();
+    foreign.resolved_input = source_analysis(
+        source,
+        tcl_registry::model::resolve_environment("tcl9.1").default_context_registry(),
+    )
+    .resolved_input;
+    let mut unavailable_with_receipts = current.analysis.as_ref().clone();
+    unavailable_with_receipts.analysis_context_unavailable =
+        Some(tcl_registry::model::OverlayMiss {
+            environment: "tcl".to_owned(),
+            overlay: u64::MAX - 352,
+        });
+    for analysis in [missing, stale, foreign, unavailable_with_receipts] {
+        let seed = FreshAnalysisSeed {
+            analysis: Arc::new(analysis),
+            analyser_inputs_epoch: current.analyser_inputs_epoch,
+            class_factory_generation: current.class_factory_generation,
+        };
+        assert!(!backend.fresh_index_seed_is_current(source, &seed).await);
+    }
+    assert!(
+        !backend
+            .fresh_index_seed_is_current("unindexed_metadata::read ::changed", &current)
+            .await
+    );
+    backend.invalidate_diag_inputs();
+    assert!(!backend.fresh_index_seed_is_current(source, &current).await);
+
+    use salsa::Setter as _;
+    {
+        let mut db = backend.db.lock().await;
+        backend
+            .db_config
+            .lock()
+            .await
+            .set_spec_pack_key(&mut *db)
+            .to(u64::MAX - 352);
+    }
+    let unavailable = backend
+        .fresh_analysis_seed(&uri, Arc::from(source), "tcl".to_owned())
+        .await;
+    assert!(unavailable.analysis.analysis_context_unavailable.is_some());
+    assert!(unavailable.analysis.resolved_input.is_none());
+    assert!(unavailable.analysis.command_invocations.is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn fresh_index_driver_keeps_keyed_availability_on_the_same_store() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // No appliance execution or handler entry is inferred from configured availability.
+    let backend = crate::tests::test_backend();
+    let uri = Uri::from_str("file:///workspace/index-availability.tcl").unwrap();
+    let source = "when CLIENTSSL_HANDSHAKE {SSL::c3d cert_lifespan 24}";
+    let older = backend
+        .fresh_analysis_seed(&uri, Arc::from(source), "f5-irules".to_owned())
+        .await;
+    let older_input = older.analysis.resolved_input.as_ref().unwrap();
+    assert!(
+        older
+            .analysis
+            .diagnostics
+            .iter()
+            .any(|row| row.code == DiagCode::W150)
+    );
+    *backend.bigip_version.lock().await = Some("21.1.0".to_owned());
+    backend.sync_db_config().await;
+    backend.invalidate_diag_inputs();
+    let current = backend
+        .fresh_analysis_seed(&uri, Arc::from(source), "f5-irules".to_owned())
+        .await;
+    let current_input = current.analysis.resolved_input.as_ref().unwrap();
+    assert_ne!(current_input, older_input);
+    assert!(Arc::ptr_eq(
+        current_input.borrowed_context_registry().commands(),
+        older_input.borrowed_context_registry().commands()
+    ));
+    assert!(backend.fresh_index_seed_is_current(source, &current).await);
+    assert!(!backend.fresh_index_seed_is_current(source, &older).await);
+    assert!(
+        !current
+            .analysis
+            .diagnostics
+            .iter()
+            .any(|row| row.code == DiagCode::W150)
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // Source rewrites retain authored pack roles without a Native entry.
+    let (backend, registry) = workspace_pack_backend().await;
+    let uri = Uri::from_str("file:///workspace/supplied-optimiser.tcl").unwrap();
+    let source =
+        "proc subject {} {if {1} {unindexed_metadata::read ::retained} else {puts omitted}}";
+    backend.documents.lock("test").await.insert(
+        uri.clone(),
+        DocumentState::new(source.to_owned(), "tcl".to_owned()),
+    );
+    backend
+        .apply_global_config(&serde_json::json!({
+            "optimiser": { "profile": "aggressive" }
+        }))
+        .await;
+    let analysis = backend
+        .analysis_for(&uri, Arc::from(source), "tcl".to_owned())
+        .await;
+    assert!(
+        analysis
+            .qualified_var_refs
+            .iter()
+            .any(|row| row.qualified_name == "::retained")
+    );
+    let mut policy = tcl_lsp_core::diagnostic_policy::PolicyBuilder::new().build();
+    policy.optimiser = tcl_lsp_core::diagnostic_policy::OptimiserPolicy::all_on();
+    let typed =
+        core_report::optimise_under_policy_from_analysis(source, &registry, &analysis, 3, &policy);
+    let branch = typed
+        .applied
+        .iter()
+        .find(|row| row.code == DiagCode::O100)
+        .expect("the actual pack-backed input produces a source branch rewrite");
+    assert_eq!(
+        branch
+            .source_context
+            .as_ref()
+            .unwrap()
+            .registry()
+            .semantic_key(),
+        registry.snapshot().semantic_key()
+    );
+    let response = backend
+        .optimise_document_command(&[serde_json::json!(uri.as_str())])
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        response["optimisations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["code"] == "O100")
+    );
+    let rewritten = response["source"].as_str().unwrap();
+    assert!(rewritten.contains("unindexed_metadata::read ::retained"));
+    assert!(!rewritten.contains("omitted"));
+    let rebuilt = backend
+        .fresh_analysis_for(&uri, Arc::from(rewritten), "tcl".to_owned())
+        .await;
+    assert!(
+        rebuilt
+            .qualified_var_refs
+            .iter()
+            .any(|row| row.qualified_name == "::retained")
+    );
+    assert_eq!(rebuilt.resolved_input, analysis.resolved_input);
+    assert!(!rebuilt.matches_original_source_image(
+        &tcl_lexer::SourceImage::from(source),
+        rebuilt.body_lexer_config.unwrap()
+    ));
+
+    let changed_registry = install_workspace_read_pack(&backend, 2, false).await;
+    backend.invalidate_diag_inputs();
+    let changed = backend
+        .analysis_for(&uri, Arc::from(source), "tcl".to_owned())
+        .await;
+    assert_ne!(changed.resolved_input, analysis.resolved_input);
+    assert_eq!(
+        changed
+            .resolved_registry()
+            .unwrap()
+            .snapshot()
+            .semantic_key(),
+        changed_registry.snapshot().semantic_key()
+    );
+    assert!(
+        !changed
+            .qualified_var_refs
+            .iter()
+            .any(|row| row.qualified_name == "::retained")
+    );
+
+    use salsa::Setter as _;
+    {
+        let mut db = backend.db.lock().await;
+        backend
+            .db_config
+            .lock()
+            .await
+            .set_spec_pack_key(&mut *db)
+            .to(u64::MAX - 353);
+    }
+    backend.invalidate_diag_inputs();
+    let unavailable = backend
+        .analysis_for(&uri, Arc::from(source), "tcl".to_owned())
+        .await;
+    assert!(unavailable.analysis_context_unavailable.is_some());
+    let refused = backend
+        .optimise_document_command(&[serde_json::json!(uri.as_str())])
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(refused["source"], source);
+    assert!(refused["optimisations"].as_array().unwrap().is_empty());
+}

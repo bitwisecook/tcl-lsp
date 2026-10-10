@@ -1,0 +1,88 @@
+ *	May update the internal representation for the object, caching the
+ *	command reference so that the next time this function is called with
+ *	the same object, the command can be found quickly.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Tcl_Command
+Tcl_GetCommandFromObj(
+    Tcl_Interp *interp,		/* The interpreter in which to resolve the
+				 * command and to report errors. */
+    Tcl_Obj *objPtr)	/* The object containing the command's name.
+				 * If the name starts with "::", will be
+				 * looked up in global namespace. Else, looked
+				 * up first in the current namespace, then in
+				 * global namespace. */
+{
+    ResolvedCmdName *resPtr;
+
+    /*
+     * Get the internal representation, converting to a command type if
+     * needed. The internal representation is a ResolvedCmdName that points to
+     * the actual command.
+     *
+     * Check the context namespace and the namespace epoch of the resolved
+     * symbol to make sure that it is fresh. Note that we verify that the
+     * namespace id of the context namespace is the same as the one we cached;
+     * this insures that the namespace wasn't deleted and a new one created at
+     * the same address with the same command epoch. Note that fully qualified
+     * names have a NULL refNsPtr, these checks needn't be made.
+     *
+     * Check also that the command's epoch is up to date, and that the command
+     * is not deleted.
+     *
+     * If any check fails, then force another conversion to the command type,
+     * to discard the old rep and create a new one.
+     */
+
+    resPtr = (ResolvedCmdName *)objPtr->internalRep.twoPtrValue.ptr1;
+    if ((objPtr->typePtr == &tclCmdNameType) && (resPtr != NULL)) {
+	Command *cmdPtr = resPtr->cmdPtr;
+
+	if ((cmdPtr->cmdEpoch == resPtr->cmdEpoch)
+		&& !(cmdPtr->flags & CMD_IS_DELETED)
+		&& (interp == cmdPtr->nsPtr->interp)
+		&& !(cmdPtr->nsPtr->flags & NS_DYING)) {
+	    Namespace *refNsPtr = (Namespace *)
+		    TclGetCurrentNamespace(interp);
+
+	    if ((resPtr->refNsPtr == NULL)
+		    || ((refNsPtr == resPtr->refNsPtr)
+		    && (resPtr->refNsId == refNsPtr->nsId)
+		    && (resPtr->refNsCmdEpoch == refNsPtr->cmdRefEpoch))) {
+		return (Tcl_Command) cmdPtr;
+	    }
+	}
+    }
+
+    /*
+     * OK, must create a new internal representation (or fail) as any cache we
+     * had is invalid one way or another.
+     */
+
+    /* See [07d13d99b0a9] why we cannot call SetCmdNameFromAny() directly here. */
+    if (tclCmdNameType.setFromAnyProc(interp, objPtr) != TCL_OK) {
+	return NULL;
+    }
+    resPtr = (ResolvedCmdName *)objPtr->internalRep.twoPtrValue.ptr1;
+    return (Tcl_Command) (resPtr ? resPtr->cmdPtr : NULL);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclSetCmdNameObj --
+ *
+ *	Modify an object to be an CmdName object that refers to the argument
+ *	Command structure.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	The object's old internal rep is freed. Its string rep is not
+ *	changed. The refcount in the Command structure is incremented to keep
+ *	it from being freed if the command is later deleted until
+ *	TclNRExecuteByteCode has a chance to recognize that it was deleted.
+ *

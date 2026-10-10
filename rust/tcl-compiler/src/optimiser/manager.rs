@@ -982,9 +982,87 @@ pub fn optimise_source_multipass_admitting<F>(
     registry: &CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     max_iterations: usize,
+    admit: F,
+) -> (String, Vec<Optimisation>, usize)
+where
+    F: FnMut(&str, Vec<Optimisation>) -> Vec<Optimisation>,
+{
+    optimise_source_multipass_using(
+        source,
+        max_iterations,
+        |current| optimise_with_dialect(current, registry, dialect),
+        admit,
+    )
+}
+
+/// Rebuild each pass with the complete supplied editing input. Each source
+/// image receives a new source-only entry; no Native entry crosses a rewrite.
+/// Missing or foreign ownership returns the original text without candidates.
+#[must_use]
+pub fn optimise_source_multipass_admitting_with_analysis_input<F>(
+    source: &str,
+    registry: &CommandRegistry,
+    input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    max_iterations: usize,
+    admit: F,
+) -> (String, Vec<Optimisation>, usize)
+where
+    F: FnMut(&str, Vec<Optimisation>) -> Vec<Optimisation>,
+{
+    let Some(input) = input.filter(|input| {
+        crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            registry,
+            input,
+            input.lexer_config(),
+            Some(input.unit_profile()),
+        )
+        .is_some()
+    }) else {
+        return (source.to_owned(), Vec::new(), 0);
+    };
+    optimise_source_multipass_using(
+        source,
+        max_iterations,
+        |current| {
+            let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+                registry,
+                input,
+                input.lexer_config(),
+                Some(input.unit_profile()),
+            );
+            let declared = crate::analyser::utils::document_declared_surface(
+                current,
+                None,
+                input.analyser_profile().name,
+            );
+            let unit = CompilationUnit::build_with_analysis_input(
+                current,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config: input.lexer_config(),
+                    dialect: Some(input.unit_profile()),
+                    external_call_sites: None,
+                    declared_commands: Some(&declared),
+                },
+                Some(&entry),
+                input,
+            )
+            .with_interprocedural(registry, Some(input.unit_profile()));
+            optimise_unit(&unit, registry, Some(input.unit_profile()))
+        },
+        admit,
+    )
+}
+
+fn optimise_source_multipass_using<C, F>(
+    source: &str,
+    max_iterations: usize,
+    mut candidates_for: C,
     mut admit: F,
 ) -> (String, Vec<Optimisation>, usize)
 where
+    C: FnMut(&str) -> Vec<Optimisation>,
     F: FnMut(&str, Vec<Optimisation>) -> Vec<Optimisation>,
 {
     let mut current = source.to_owned();
@@ -992,7 +1070,7 @@ where
     let mut iterations = 0;
     for _ in 0..max_iterations {
         iterations += 1;
-        let candidates = optimise_with_dialect(&current, registry, dialect);
+        let candidates = candidates_for(&current);
         let kept = admit(&current, candidates);
         if kept.is_empty() {
             break;
@@ -1040,6 +1118,54 @@ pub fn optimise_source_multipass(
 mod tests {
     use super::*;
     use tcl_lexer::Span;
+
+    #[test]
+    fn supplied_multipass_rebuilds_each_current_source_image_without_a_native_entry() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = std::sync::Arc::clone(context.commands());
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        let source = "proc subject {} {if {1} {puts retained} else {puts omitted}}";
+        let mut images = Vec::new();
+        let (text, applied, iterations) = optimise_source_multipass_admitting_with_analysis_input(
+            source,
+            &registry,
+            Some(&input),
+            3,
+            |current, candidates| {
+                images.push(current.to_owned());
+                for row in &candidates {
+                    if let Some(context) = &row.source_context {
+                        assert_eq!(context.image().try_text().unwrap(), current);
+                    }
+                }
+                candidates
+                    .into_iter()
+                    .filter(|row| row.code == DiagCode::O100)
+                    .collect()
+            },
+        );
+        assert!(applied.iter().any(|row| row.code == DiagCode::O100));
+        assert!(iterations >= 2);
+        assert_ne!(images[0], images[1]);
+        assert_eq!(images.last().unwrap(), &text);
+        let missing = optimise_source_multipass_admitting_with_analysis_input(
+            source,
+            &registry,
+            None,
+            3,
+            |_, _| panic!("missing supplied input must not enter the rewrite loop"),
+        );
+        assert_eq!(missing, (source.to_owned(), Vec::new(), 0));
+    }
 
     fn registry() -> CommandRegistry {
         // `when` is registry-resolved (no

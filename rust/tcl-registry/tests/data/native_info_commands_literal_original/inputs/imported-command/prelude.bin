@@ -1,0 +1,2 @@
+namespace eval ::N {proc target {} {}; namespace export target}
+namespace eval ::I {namespace import ::N::target}

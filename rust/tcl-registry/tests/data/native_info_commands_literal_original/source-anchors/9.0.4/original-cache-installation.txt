@@ -1,0 +1,128 @@
+ *	as objPtr's internal representation. This ResolvedCmdName pointer will
+ *	be NULL if no matching command was found. The ref count of the cached
+ *	Command's structure (if any) is also incremented.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+SetCmdNameFromAny(
+    Tcl_Interp *interp,		/* Used for error reporting if not NULL. */
+    Tcl_Obj *objPtr)	/* The object to convert. */
+{
+    const char *name;
+    Command *cmdPtr;
+    ResolvedCmdName *resPtr;
+
+    if (interp == NULL) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Find the Command structure, if any, that describes the command called
+     * "name". Build a ResolvedCmdName that holds a cached pointer to this
+     * Command, and bump the reference count in the referenced Command
+     * structure. A Command structure will not be deleted as long as it is
+     * referenced from a CmdName object.
+     */
+
+    name = TclGetString(objPtr);
+    cmdPtr = (Command *)
+	    Tcl_FindCommand(interp, name, /*ns*/ NULL, /*flags*/ 0);
+
+    /*
+     * Stop shimmering and caching nothing when we found nothing.  Just
+     * report the failure to find the command as an error.
+     */
+
+    if (cmdPtr == NULL || !TclRoutineHasName(cmdPtr)) {
+	return TCL_ERROR;
+    }
+
+    resPtr = (ResolvedCmdName *)objPtr->internalRep.twoPtrValue.ptr1;
+    if (TclHasInternalRep(objPtr, &tclCmdNameType) && (resPtr->refCount == 1)) {
+	/*
+	 * Re-use existing ResolvedCmdName struct when possible.
+	 * Cleanup the old fields that need it.
+	 */
+
+	Command *oldCmdPtr = resPtr->cmdPtr;
+
+	if (oldCmdPtr->refCount-- <= 1) {
+	    TclCleanupCommandMacro(oldCmdPtr);
+	}
+    } else {
+	resPtr = NULL;
+    }
+
+    SetCmdNameObj(interp, objPtr, cmdPtr, resPtr);
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_RepresentationCmd --
+ *
+ *	Implementation of the "tcl::unsupported::representation" command.
+ *
+ * Results:
+ *	Reports the current representation (Tcl_Obj type) of its argument.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tcl_RepresentationCmd(
+    TCL_UNUSED(void *),
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const objv[])
+{
+    Tcl_Obj *descObj;
+
+    if (objc != 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "value");
+	return TCL_ERROR;
+    }
+
+    /*
+     * Value is a bignum with a refcount of 14, object pointer at 0x12345678,
+     * internal representation 0x45671234:0x98765432, string representation
+     * "1872361827361287"
+     */
+
+    descObj = Tcl_ObjPrintf("value is a %s with a refcount of %" TCL_SIZE_MODIFIER "d,"
+	    " object pointer at %p",
+	    objv[1]->typePtr ? objv[1]->typePtr->name : "pure string",
+	    objv[1]->refCount, objv[1]);
+
+    if (objv[1]->typePtr) {
+	if (TclHasInternalRep(objv[1], &tclDoubleType)) {
+	    Tcl_AppendPrintfToObj(descObj, ", internal representation %g",
+		    objv[1]->internalRep.doubleValue);
+	} else {
+	    Tcl_AppendPrintfToObj(descObj, ", internal representation %p:%p",
+		    (void *) objv[1]->internalRep.twoPtrValue.ptr1,
+		    (void *) objv[1]->internalRep.twoPtrValue.ptr2);
+	}
+    }
+
+    if (objv[1]->bytes) {
+	Tcl_AppendToObj(descObj, ", string representation \"", -1);
+	Tcl_AppendLimitedToObj(descObj, objv[1]->bytes, objv[1]->length,
+		16, "...");
+	Tcl_AppendToObj(descObj, "\"", -1);
+    } else {
+	Tcl_AppendToObj(descObj, ", no string representation", -1);
+    }
+
+    Tcl_SetObjResult(interp, descObj);
+    return TCL_OK;
+}
+
+/*
+ * Local Variables:

@@ -127,9 +127,10 @@ mod tests {
             assert_eq!(
                 completion.code.as_int(),
                 fields[2].parse::<i64>().unwrap(),
-                "{}/{}",
+                "{}/{} original result: {:?}",
                 fields[0],
-                fields[1]
+                fields[1],
+                completion.result.resident_string_bytes()
             );
             assert_eq!(
                 vm.native_name_operand_bytes(&completion.result)
@@ -172,9 +173,10 @@ mod tests {
             assert_eq!(
                 completion.code.as_int(),
                 fields[2].parse::<i64>().unwrap(),
-                "{}/{}",
+                "{}/{} original result: {:?}",
                 fields[0],
-                fields[1]
+                fields[1],
+                completion.result.resident_string_bytes()
             );
             assert_eq!(
                 vm.native_name_operand_bytes(&completion.result)

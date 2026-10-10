@@ -1,0 +1,12 @@
+ByteCode 0x55d07d025200, refCt 1, epoch 24, interp 0x55d07cfbe880 (epoch 24)
+  Source "info commands $p"
+  Cmds 1, src 16, inst 16, litObjs 1, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x55d07d0331c0, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "p"
+  Commands 1:
+      1: pc 0-14, src 0-15
+  Command 1: "info commands $p"
+    (0) push 0 	# "::tcl::info::commands"
+    (5) loadScalar %v0 	# var "p"
+    (10) invokeStk 2 
+    (15) done 

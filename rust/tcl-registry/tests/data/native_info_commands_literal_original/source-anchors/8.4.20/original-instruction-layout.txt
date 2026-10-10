@@ -1,0 +1,27 @@
+typedef enum InstOperandType {
+    OPERAND_NONE,
+    OPERAND_INT1,		/* One byte signed integer. */
+    OPERAND_INT4,		/* Four byte signed integer. */
+    OPERAND_UINT1,		/* One byte unsigned integer. */
+    OPERAND_UINT4		/* Four byte unsigned integer. */
+} InstOperandType;
+
+typedef struct InstructionDesc {
+    char *name;			/* Name of instruction. */
+    int numBytes;		/* Total number of bytes for instruction. */
+    int stackEffect;            /* The worst-case balance stack effect of the 
+				 * instruction, used for stack requirements 
+				 * computations. The value INT_MIN signals
+				 * that the instruction's worst case effect
+				 * is (1-opnd1).
+				 */
+    int numOperands;		/* Number of operands. */
+    InstOperandType opTypes[MAX_INSTRUCTION_OPERANDS];
+				/* The type of each operand. */
+} InstructionDesc;
+
+extern InstructionDesc tclInstructionTable[];
+
+/*
+ * Definitions of the values of the INST_CALL_BUILTIN_FUNC instruction's
+ * operand byte. Each value denotes a builtin Tcl math function. These

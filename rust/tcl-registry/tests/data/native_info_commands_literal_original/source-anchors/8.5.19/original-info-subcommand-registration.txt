@@ -1,0 +1,11 @@
+ * Array of values describing how to implement each standard subcommand of the
+ * "info" command.
+ */
+
+static const EnsembleImplMap defaultInfoMap[] = {
+    {"args",		   InfoArgsCmd,		    NULL},
+    {"body",		   InfoBodyCmd,		    NULL},
+    {"cmdcount",	   InfoCmdCountCmd,	    NULL},
+    {"commands",	   InfoCommandsCmd,	    NULL},
+    {"complete",	   InfoCompleteCmd,	    NULL},
+    {"default",		   InfoDefaultCmd,	    NULL},

@@ -1,0 +1,13 @@
+{
+  "question": "naming.compiler.original-info-commands-literal-resolution",
+  "role": "Derived comparison fixture projection; not an independent native measurement or backend execution",
+  "original_request_sha256": "c6b1bc485097aeddb738b7c77761c20c90fa0d0837685664ccb2516bece911f4",
+  "original_observations_sha256": "705157e33f1a3f5f8cff890c0c1df454260705b3084750efbac766ff6dc27237",
+  "original_closure_sha256": "e36051cab6520bcd36b98af74a83277a5d3895d56df759bfa1074aa8a6e8d0b3",
+  "case_count": 32,
+  "original_observation_count": 186,
+  "files": {
+    "cases.rs": "c1f0e39644520a2bea2386185cc9c0ca9699a5a0c82fd9f48f40c1dba0a0a06f",
+    "windows.tsv": "9f61229624af4fff511912d5a853489861870c6b23c1846dda4948fe88492aeb"
+  }
+}

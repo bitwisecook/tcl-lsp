@@ -1,0 +1,35 @@
+
+running 6 tests
+test cmd_dict::native_rmw_fixture_tests::c85_dictionary_write_error_retains_defined_host_storage ... ok
+test cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows ... 
+thread 'cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows' (931988) panicked at rust/tcl-vm/src/cmd_dict.rs:1484:17:
+assertion `left == right` failed: tcl8.6/compiled-update-dict-write-error
+  left: [49, 32, 123, 99, 97, 110, 39, 116, 32, 115, 101, 116, 32, 34, 100, 34, 58, 32, 87, 82, 73, 84, 69, 125, 32, 48, 32, 123, 107, 32, 66, 65, 83, 69, 125]
+ right: [49, 32, 123, 99, 97, 110, 39, 116, 32, 115, 101, 116, 32, 34, 100, 34, 58, 32, 87, 82, 73, 84, 69, 125, 32, 48, 32, 119, 111, 114, 107]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes ... native-string-unavailable reason=retired-header protocol=C(V8_6) primary=none live=false references=1 resident=false
+
+thread 'cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes' (932311) panicked at rust/tcl-vm/src/value.rs:5010:18:
+selected compound updater requires checked child storage: StringUpdater
+FAILED
+test cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls ... 
+thread 'cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls' (932534) panicked at rust/tcl-vm/src/cmd_mathop.rs:167:17:
+tcl8.6/0 native mathop source: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls ... 
+thread 'cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls' (932569) panicked at rust/tcl-vm/src/cmd_mathop.rs:122:17:
+tcl8.6/0 native mathop source: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+FAILED
+test value::tests::byte_array_carrier_retains_original_storage_and_string_presence ... ok
+
+failures:
+
+failures:
+    cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows
+    cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes
+    cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls
+    cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls
+
+test result: FAILED. 2 passed; 4 failed; 0 ignored; 0 measured; 722 filtered out; finished in 150.86s
+

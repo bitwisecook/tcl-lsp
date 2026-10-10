@@ -2502,6 +2502,31 @@ impl<'db> ValueTransferContext<'db> {
     }
 }
 
+/// Whole-module facts shared by each function lattice. Each original field
+/// participates structurally in equality and hashing of the interned key.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FnLatticeModuleFacts {
+    /// Fully-qualified names of every class in the compilation unit (sorted) —
+    /// a whole-unit fact identical for every procedure, folded into the key so
+    /// adding/removing a class anywhere invalidates each procedure's lattice (a
+    /// new class can change a body's constructor typing).  Threaded into the
+    /// type-propagation pass in [`function_lattice`].
+    pub known_classes: Vec<String>,
+    /// Literal variable-trace target names (sorted) from
+    /// [`tcl_compiler::ir::Module::traced_variables`] — a whole-module fact
+    /// identical for every procedure, folded into the key exactly like
+    /// `known_classes`: SCCP's trace-safety gate (see
+    /// [`tcl_compiler::sccp::sccp`]) treats a name in this set as never a
+    /// compile-time constant, so a trace installed anywhere in the module can
+    /// change any procedure's cached lattice.
+    pub traced_variables: Vec<String>,
+    /// [`tcl_compiler::ir::Module::has_dynamic_variable_trace`] — `true` when
+    /// a variable-trace install/remove call targets a non-literal name
+    /// anywhere in the module. Folded into the key alongside
+    /// `traced_variables`.
+    pub has_dynamic_variable_trace: bool,
+}
+
 #[salsa::interned]
 pub struct FnLatticeKey<'db> {
     #[returns(ref)]
@@ -2527,28 +2552,9 @@ pub struct FnLatticeKey<'db> {
     /// [`tcl_compiler::compilation_unit::decode_param_constants`] in [`function_lattice`].
     #[returns(ref)]
     pub param_constants: Vec<(String, u32, String)>,
-    /// Fully-qualified names of every class in the compilation unit (sorted) —
-    /// a whole-unit fact identical for every procedure, folded into the key so
-    /// adding/removing a class anywhere invalidates each procedure's lattice (a
-    /// new class can change a body's constructor typing).  Threaded into the
-    /// type-propagation pass in [`function_lattice`].
+    /// Exact whole-module class and variable-trace facts.
     #[returns(ref)]
-    pub known_classes: Vec<String>,
-    /// Literal variable-trace target names (sorted) from
-    /// [`tcl_compiler::ir::Module::traced_variables`] — a whole-module fact
-    /// identical for every procedure, folded into the key exactly like
-    /// `known_classes`: SCCP's trace-safety gate (see
-    /// [`tcl_compiler::sccp::sccp`]) treats a name in this set as never a
-    /// compile-time constant, so a trace installed anywhere in the module can
-    /// change any procedure's cached lattice.
-    #[returns(ref)]
-    pub traced_variables: Vec<String>,
-    /// [`tcl_compiler::ir::Module::has_dynamic_variable_trace`] — `true` when
-    /// a variable-trace install/remove call targets a non-literal name
-    /// anywhere in the module. Folded into the key alongside
-    /// `traced_variables`.
-    #[returns(copy)]
-    pub has_dynamic_variable_trace: bool,
+    pub module_facts: FnLatticeModuleFacts,
     /// Exact dispatch mode and sealed source entry, compared structurally.
     #[returns(ref)]
     pub entry: FnLatticeEntry,
@@ -2610,12 +2616,18 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
     );
     let param_constants =
         tcl_compiler::compilation_unit::decode_param_constants(key.param_constants(db));
-    let known_classes: HashSet<String> = key.known_classes(db).iter().cloned().collect();
-    let traced_variables: BTreeSet<String> = key.traced_variables(db).iter().cloned().collect();
+    let known_classes: HashSet<String> =
+        key.module_facts(db).known_classes.iter().cloned().collect();
+    let traced_variables: BTreeSet<String> = key
+        .module_facts(db)
+        .traced_variables
+        .iter()
+        .cloned()
+        .collect();
     let command_trust = key.entry(db).command_trust.to_mutations();
     let trace_facts = ModuleTraceFacts {
         traced_variables: &traced_variables,
-        has_dynamic_variable_trace: key.has_dynamic_variable_trace(db),
+        has_dynamic_variable_trace: key.module_facts(db).has_dynamic_variable_trace,
         deferred_writes: &key.analysis_context(db).key(db).deferred_writes,
     };
     Arc::new(
@@ -2975,9 +2987,11 @@ fn lattice_request_key<'db>(
             registry: registry.clone(),
         },
         req.param_constants.to_vec(),
-        req.known_classes.to_vec(),
-        req.traced_variables.to_vec(),
-        req.has_dynamic_variable_trace,
+        FnLatticeModuleFacts {
+            known_classes: req.known_classes.to_vec(),
+            traced_variables: req.traced_variables.to_vec(),
+            has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+        },
         FnLatticeEntry {
             plain_command_dispatch: req.plain_command_dispatch,
             source_metadata_input: req.source_metadata_input.cloned(),
@@ -5784,9 +5798,11 @@ p\uD801 ordinary";
                 "f5-irules".to_owned(),
                 snapshot,
                 Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                false,
+                FnLatticeModuleFacts {
+                    known_classes: Vec::new(),
+                    traced_variables: Vec::new(),
+                    has_dynamic_variable_trace: false,
+                },
                 FnLatticeEntry {
                     plain_command_dispatch: false,
                     source_metadata_input: unit.ir_module.source_metadata_input.clone(),
@@ -5827,9 +5843,7 @@ p\uD801 ordinary";
             selected.dialect(&db).clone(),
             selected.snapshot(&db).clone(),
             selected.param_constants(&db).clone(),
-            selected.known_classes(&db).clone(),
-            selected.traced_variables(&db).clone(),
-            selected.has_dynamic_variable_trace(&db),
+            selected.module_facts(&db).clone(),
             FnLatticeEntry {
                 plain_command_dispatch: selected.entry(&db).plain_command_dispatch,
                 source_metadata_input: selected.entry(&db).source_metadata_input.clone(),
@@ -5922,9 +5936,11 @@ p\uD801 ordinary";
                 registry: registry.snapshot(),
             },
             Vec::new(),
-            Vec::new(),
-            Vec::new(),
-            false,
+            FnLatticeModuleFacts {
+                known_classes: Vec::new(),
+                traced_variables: Vec::new(),
+                has_dynamic_variable_trace: false,
+            },
             FnLatticeEntry {
                 plain_command_dispatch: module.plain_command_dispatch,
                 source_metadata_input: input,
@@ -6113,9 +6129,11 @@ p\uD801 ordinary";
                     registry: db.registry("tcl8.6").snapshot(),
                 },
                 Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                false,
+                FnLatticeModuleFacts {
+                    known_classes: Vec::new(),
+                    traced_variables: Vec::new(),
+                    has_dynamic_variable_trace: false,
+                },
                 FnLatticeEntry {
                     plain_command_dispatch: false,
                     source_metadata_input: None,

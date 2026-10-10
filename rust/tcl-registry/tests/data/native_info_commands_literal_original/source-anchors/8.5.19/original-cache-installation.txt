@@ -1,0 +1,96 @@
+ *	as objPtr's internal representation. This ResolvedCmdName pointer will
+ *	be NULL if no matching command was found. The ref count of the cached
+ *	Command's structure (if any) is also incremented.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+SetCmdNameFromAny(
+    Tcl_Interp *interp,		/* Used for error reporting if not NULL. */
+    register Tcl_Obj *objPtr)	/* The object to convert. */
+{
+    Interp *iPtr = (Interp *) interp;
+    char *name;
+    register Command *cmdPtr;
+    Namespace *currNsPtr;
+    register ResolvedCmdName *resPtr;
+
+    if (interp == NULL) {
+	return TCL_ERROR;
+    }
+
+    /*
+     * Find the Command structure, if any, that describes the command called
+     * "name". Build a ResolvedCmdName that holds a cached pointer to this
+     * Command, and bump the reference count in the referenced Command
+     * structure. A Command structure will not be deleted as long as it is
+     * referenced from a CmdName object.
+     */
+
+    name = TclGetString(objPtr);
+    cmdPtr = (Command *) Tcl_FindCommand(interp, name, /*ns*/ NULL, /*flags*/ 0);
+
+    /*
+     * Free the old internalRep before setting the new one. Do this after
+     * getting the string rep to allow the conversion code (in particular,
+     * Tcl_GetStringFromObj) to use that old internalRep.
+     */
+
+    if (cmdPtr) {
+	cmdPtr->refCount++;
+	resPtr = (ResolvedCmdName *) objPtr->internalRep.twoPtrValue.ptr1;
+	if ((objPtr->typePtr == &tclCmdNameType)
+		&& resPtr && (resPtr->refCount == 1)) {
+	    /*
+	     * Reuse the old ResolvedCmdName struct instead of freeing it
+	     */
+
+	    Command *oldCmdPtr = resPtr->cmdPtr;
+	    if (--oldCmdPtr->refCount == 0) {
+		TclCleanupCommandMacro(oldCmdPtr);
+	    }
+	} else {
+	    TclFreeIntRep(objPtr);
+	    resPtr = (ResolvedCmdName *) ckalloc(sizeof(ResolvedCmdName));
+	    resPtr->refCount = 1;
+	    objPtr->internalRep.twoPtrValue.ptr1 = (void *) resPtr;
+	    objPtr->internalRep.twoPtrValue.ptr2 = NULL;
+	    objPtr->typePtr = &tclCmdNameType;
+	}
+	resPtr->cmdPtr = cmdPtr;
+	resPtr->cmdEpoch = cmdPtr->cmdEpoch;
+	if ((*name++ == ':') && (*name == ':')) {
+	    /*
+	     * The name is fully qualified: set the referring namespace to
+	     * NULL.
+	     */
+
+	    resPtr->refNsPtr = NULL;
+	} else {
+	    /*
+	     * Get the current namespace.
+	     */
+
+	    currNsPtr = iPtr->varFramePtr->nsPtr;
+
+	    resPtr->refNsPtr = currNsPtr;
+	    resPtr->refNsId = currNsPtr->nsId;
+	    resPtr->refNsCmdEpoch = currNsPtr->cmdRefEpoch;
+	}
+    } else {
+	TclFreeIntRep(objPtr);
+	objPtr->internalRep.twoPtrValue.ptr1 = NULL;
+	objPtr->internalRep.twoPtrValue.ptr2 = NULL;
+	objPtr->typePtr = &tclCmdNameType;
+    }
+    return TCL_OK;
+}
+
+/*
+ * Local Variables:
+ * mode: c
+ * c-basic-offset: 4
+ * fill-column: 78
+ * End:
+ */

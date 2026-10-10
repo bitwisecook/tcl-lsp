@@ -2042,3 +2042,34 @@ Each receipt is a lossless gzip payload with compressed and uncompressed SHA256.
 The exact locked, offline VM library no-run unit build closes with exit101 after 144.900876s and `uniform_source: true`. Two libtest compilation errors block construction: stale `brace_safe`/`quote_for_script` imports in exec.rs and the old InterpState `dialect_profile` field in interp.rs. It emits no libtest executable and never reaches test inventory or assertions. There is no sealed pin, compiled test pass, aggregate gate or Native provider result.
 
 Its [exact original receipt](frozen268/integration-vm-native-test-build268/receipt.json.gz) is retained as lossless gzip with compressed and uncompressed SHA256. The [complete log](frozen268/integration-vm-native-test-build268/tests.log) preserves every diagnostic. Every immutable source archive leaf is independently checked against the receipt inventory; original commands, paths, source association and timing remain exact.
+
+## Sealed VM269 and compiler dependency checks270–271
+
+The independent VM-only269 no-run build succeeds and produces the [sealed VM269 image](frozen269/sealed-vm-image/pinned-vm269.elf), with its [exact producer/source pin](frozen269/sealed-vm-image/pinned-vm269.json). Its inventory lists728 tests. The separate six-selector focus run records2 passed/4 failed; its five software owner controls pass. The Compiler-only269 build fails at a Core libtest dependency error and supplies no Compiler image. These are per-command outcomes, without an aggregate pass or current-source/provider promotion.
+
+Both270 and271 aggregate no-run builds fail during dependency/libtest compilation and produce no sealed test image. Their logs retain explicit successful tcl_syntax and tcl_engine_tclvm test artifacts, which remain unpinned and unexecuted here. The separate270 three-selector and271 one-selector diagnostics execute the older sealed VM269 ELF against the explicitly recorded current270/271 source association and fail0/3 and0/1 respectively. Their `uniform_source: true` belongs to each recorded current source; it does not make the older ELF a270/271 build. Every original receipt, command, full log, signal/error/trace detail and frozen source association remains exact.
+
+| Closed operation | Status | Recorded result | Exact receipt | Complete log |
+| --- | --- | --- | --- | --- |
+| `integration-vm-native-test-build269` | `compile-passed`, exit0, 107.085306s | no assertions | [Original lossless receipt](frozen269/integration-vm-native-test-build269/receipt.json.gz) | [Whole log](frozen269/integration-vm-native-test-build269/tests.log) |
+| `integration-compiler-native-test-build269` | `compile-blocked`, exit101, 114.857339s | no assertions | [Original lossless receipt](frozen269/integration-compiler-native-test-build269/receipt.json.gz) | [Whole log](frozen269/integration-compiler-native-test-build269/tests.log) |
+| `integration-vm-current-inventory269` | `listed`, exit0, 0.007214s | 728 listed, no assertions | [Original lossless receipt](frozen269/integration-vm-current-inventory269/receipt.json.gz) | [Whole log](frozen269/integration-vm-current-inventory269/tests.log) |
+| `integration-vm-native-focus-tests269` | `failed`, exit101, 150.905162s | 2 passed/4 failed | [Original lossless receipt](frozen269/integration-vm-native-focus-tests269/receipt.json.gz) | [Whole log](frozen269/integration-vm-native-focus-tests269/tests.log) |
+| `integration-vm-current-owner-tests269` | `passed`, exit0, 5.586860s | 5 passed/0 failed | [Original lossless receipt](frozen269/integration-vm-current-owner-tests269/receipt.json.gz) | [Whole log](frozen269/integration-vm-current-owner-tests269/tests.log) |
+| `integration-compiler-consumer-test-build270` | `compile-blocked`, exit101, 109.046702s | no assertions | [Original lossless receipt](frozen270/integration-compiler-consumer-test-build270/receipt.json.gz) | [Whole log](frozen270/integration-compiler-consumer-test-build270/tests.log) |
+| `diagnostic-pinned269-native-frontiers-on270` | `failed`, exit101, 61.761671s | 0 passed/3 failed | [Original lossless receipt](frozen270/diagnostic-pinned269-native-frontiers-on270/receipt.json.gz) | [Whole log](frozen270/diagnostic-pinned269-native-frontiers-on270/tests.log) |
+| `integration-compiler-consumer-test-build271` | `compile-blocked`, exit101, 202.927960s | no assertions | [Original lossless receipt](frozen271/integration-compiler-consumer-test-build271/receipt.json.gz) | [Whole log](frozen271/integration-compiler-consumer-test-build271/tests.log) |
+| `diagnostic-pinned269-dictionary345-backtrace-on271` | `failed`, exit101, 70.441658s | 0 passed/1 failed | [Original lossless receipt](frozen271/diagnostic-pinned269-dictionary345-backtrace-on271/receipt.json.gz) | [Whole log](frozen271/diagnostic-pinned269-dictionary345-backtrace-on271/tests.log) |
+
+The [six-selector focus selection](frozen269/selections/vm-native-focus-selection269.json) and [five-selector owner selection](frozen269/selections/vm-owner-selection269.json) are byte-identical originals. Every selected name is verified against the728-test inventory and actual libtest events. Compressed receipts retain both compressed and uncompressed digests; every distinct archived source leaf is byte-checked. No new Rust build, test, Native replay or mutable source-anchor refresh is performed by this archive.
+
+## Naming272 command selection and workspace compilation
+
+The all-consumer command is blocked before compilation by a Runtime feature that belongs outside the root workspace selection. The separate workspace-only no-run command reaches one ordinary Compiler E0308 producer error. It records a successful Syntax libtest artifact, which remains unsealed and unexecuted; neither command reaches assertions or issues a Compiler/VM image or aggregate pass. Each original receipt retains its complete unchanged naming272 source association, command and elapsed time.
+
+| Closed operation | Status | Exact receipt | Complete log |
+| --- | --- | --- | --- |
+| `integration-all-naming-consumer-test-build272` | `command-blocked`, exit101, 0.065593s; no assertions | [Lossless original](frozen272/integration-all-naming-consumer-test-build272/receipt.json.gz) | [Whole log](frozen272/integration-all-naming-consumer-test-build272/tests.log) |
+| `integration-workspace-naming-consumer-test-build272` | `compile-blocked`, exit101, 140.167522s; no assertions | [Lossless original](frozen272/integration-workspace-naming-consumer-test-build272/receipt.json.gz) | [Whole log](frozen272/integration-workspace-naming-consumer-test-build272/tests.log) |
+
+Compressed receipts round-trip byte-for-byte and retain both compressed and original digests. Every recorded archived source leaf is checked independently. These exact per-command outcomes do not refresh mutable implementation anchors or change Native provider evidence.

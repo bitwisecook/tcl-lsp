@@ -1,0 +1,31 @@
+ * the scriptObj is created again. For example the script:
+ *
+ * subst -nocommands $string
+ * subst -novariables $string
+ *
+ * Will (re)create the internal representation of the $string object
+ * two times.
+ */
+typedef struct ScriptObj
+{
+    ScriptToken *token;         /* Tokens array. */
+    Jim_Obj *fileNameObj;       /* Filename */
+    int len;                    /* Length of token[] */
+    int substFlags;             /* flags used for the compilation of "subst" objects */
+    int inUse;                  /* Used to share a ScriptObj. Currently
+                                   only used by Jim_EvalObj() as protection against
+                                   shimmering of the currently evaluated object. */
+    int firstline;              /* Line number of the first line */
+    int linenr;                 /* Error line number, if any */
+    int missing;                /* Missing char if script failed to parse, (or space or backslash if OK) */
+} ScriptObj;
+
+static void JimSetScriptFromAny(Jim_Interp *interp, struct Jim_Obj *objPtr);
+static int JimParseCheckMissing(Jim_Interp *interp, int ch);
+static ScriptObj *JimGetScript(Jim_Interp *interp, Jim_Obj *objPtr);
+static void JimSetErrorStack(Jim_Interp *interp, ScriptObj *script);
+
+void FreeScriptInternalRep(Jim_Interp *interp, Jim_Obj *objPtr)
+{
+    int i;
+    struct ScriptObj *script = (void *)objPtr->internalRep.ptr;

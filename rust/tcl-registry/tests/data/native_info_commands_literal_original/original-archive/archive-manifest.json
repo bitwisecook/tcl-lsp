@@ -1,0 +1,10 @@
+{
+  "question": "naming.compiler.original-info-commands-literal-resolution",
+  "archive": "/workspace/.proofs/native-info-commands-recipe412/native-info-commands-recipe.tar.gz",
+  "archive_sha256": "f07cea1015685837cb30aaa1bed62eea339766da462807c532975f5ba0fe84a9",
+  "closure_sha256": "e36051cab6520bcd36b98af74a83277a5d3895d56df759bfa1074aa8a6e8d0b3",
+  "observations_sha256": "705157e33f1a3f5f8cff890c0c1df454260705b3084750efbac766ff6dc27237",
+  "measured_case_count": 186,
+  "source_window_count": 56,
+  "bytes": 198161
+}

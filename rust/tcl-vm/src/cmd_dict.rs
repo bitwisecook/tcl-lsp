@@ -1521,6 +1521,7 @@ mod native_rmw_fixture_tests {
     #[test]
     fn dictionary_body_writeback_compares_original_native_observation_windows() {
         // Native proofs: naming.dictionary.update-with-body-and-observer-frontiers;
+        // docs/design/analysis/name-resolution-proofs/dictionary-update-with-body-and-observer-frontiers.md
         // naming.dictionary.c85-original-update-write-error-object-lifetime
         // docs/design/analysis/name-resolution-proofs/dictionary-c85-original-update-write-error-object-lifetime.md
         // naming.dictionary.original-update-write-error-object-lifetime

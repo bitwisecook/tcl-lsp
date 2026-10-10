@@ -30,6 +30,9 @@
 //! double-decoded `eval [subst …]` (W309), closed value arguments left
 //! open (W127), and a hardcoded credential literal (W310).
 
+mod source_reparse;
+mod source_template;
+
 use super::helpers::{has_substitution, is_braced_word};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
@@ -45,38 +48,9 @@ impl Analyser {
         self.registry.as_deref().and_then(|r| r.get(cmd_name))
     }
 
-    /// W101's gate: a command that concatenates **all** of its arguments
-    /// into a script and re-parses the result (`eval`).
-    ///
-    /// [`Traits::EVALUATES_CODE`] alone is too wide for this shape:
-    /// the coroutine injectors (`coroinject` / `coroprobe`) carry it but
-    /// take a coroutine name plus a command *prefix* — a word list that is
-    /// never re-parsed.  The concat-reparse shape is
-    /// [`Traits::SCRIPT_CONCATENATES_ARGS`], the registry's own record of
-    /// "every trailing word joins into one re-parsed script", paired with
-    /// [`Traits::TAINT_SINK`].
-    ///
-    /// `uplevel` is excluded by [`Traits::EVALUATES_IN_SHIFTED_FRAME`], which
-    /// is *why* it belongs to W301 instead: injecting into a script that runs
-    /// in the caller's frame is a frame-escalation finding with its own
-    /// message, not the same warning as injecting into a same-frame `eval`.
-    ///
-    /// Both halves name the semantics directly.  Reading the split indirectly
-    /// — "no `arg_role_resolver`, with a fixed [`ArgRole::Body`] at argument
-    /// 0" — would make W101's scope an accident of how a spec spells its
-    /// argument layout rather than of what the command does, so re-modelling
-    /// `eval`'s roles could silently switch W101 off.
-    fn is_concat_eval_command(&self, cmd_name: &str) -> bool {
-        self.security_spec(cmd_name).is_some_and(|s| {
-            s.traits
-                .contains(Traits::SCRIPT_CONCATENATES_ARGS | Traits::TAINT_SINK)
-                && !s.traits.contains(Traits::EVALUATES_IN_SHIFTED_FRAME)
-        })
-    }
-
     /// W301's gate: a concat-reparse taint sink whose script runs in a
     /// **different stack frame** than the call is written in — `uplevel`.
-    /// The exact complement of [`Self::is_concat_eval_command`] within the
+    /// The shifted-frame counterpart of W101 within the
     /// [`Traits::SCRIPT_CONCATENATES_ARGS`] + [`Traits::TAINT_SINK`] pair, so
     /// every family member is owned by exactly one of the two codes and
     /// neither double-reports.
@@ -86,34 +60,6 @@ impl Analyser {
                 .contains(Traits::SCRIPT_CONCATENATES_ARGS | Traits::TAINT_SINK)
                 && s.traits.contains(Traits::EVALUATES_IN_SHIFTED_FRAME)
         })
-    }
-
-    /// W309's gate: any command that re-parses argument text as a script
-    /// and absorbs tainted data — [`Traits::EVALUATES_CODE`] +
-    /// [`Traits::TAINT_SINK`] (`eval`, `uplevel`).  The coroutine
-    /// injectors carry only the former (command-prefix words, no
-    /// re-parse) and stay out.
-    fn is_script_reparse_sink(&self, cmd_name: &str) -> bool {
-        self.security_spec(cmd_name).is_some_and(|s| {
-            s.traits
-                .contains(Traits::EVALUATES_CODE | Traits::TAINT_SINK)
-        })
-    }
-
-    /// True when the inner script of a `[…]` substitution invokes a
-    /// substitution performer ([`Traits::PERFORMS_SUBSTITUTION`] — `subst`)
-    /// as its command head.  Registry-driven rather than a literal `subst`
-    /// prefix match; `get` resolves a leading `::`, so the
-    /// fully-qualified `[::subst …]` spelling is caught too.
-    fn inner_head_performs_substitution(&self, inner: &str) -> bool {
-        let head = inner
-            .split(|c: char| c.is_ascii_whitespace())
-            .next()
-            .unwrap_or("");
-        !head.is_empty()
-            && self
-                .security_spec(head)
-                .is_some_and(|s| s.traits.contains(Traits::PERFORMS_SUBSTITUTION))
     }
 
     /// **W302.** Original selected error-capture syntax with one literal body
@@ -222,150 +168,9 @@ impl Analyser {
             .collect()
     }
 
-    /// **W101.** Emit "eval with string concatenation" warning
-    /// when an `eval` invocation's argument list could be a
-    /// substitution-driven injection vector.
-    ///
-    /// Suppressed when:
-    ///
-    /// - every argument's representative token is `Str` (braced,
-    ///   `eval {script}` / `eval {a} {b}` — the safe form), or
-    /// - the single argument is a `Cmd` substitution whose inner
-    ///   command head produces a canonical list (per
-    ///   [`tcl_registry::CommandRegistry::is_canonical_list_command`]
-    ///   — `eval [list ...]`, `eval [linsert ...]`, etc.).
-    ///
-    /// Otherwise fires `Severity::Warning` when any argument's
-    /// representative token is `Var` / `Cmd` (substitution at the
-    /// word level), or any argument is a multi-token word
-    /// (substitution within the word — the single-token-word flag
-    /// is `false`).  This is a sound approximation of the
-    /// `all_tokens[1:]`-walk: `process_command` doesn't currently
-    /// thread the full token stream, but multi-token-word implies
-    /// inner substitution and the per-arg representative kind
-    /// covers the single-token VAR / CMD cases.
-    ///
-    /// Diagnostic anchors at the first argument's range.
-    pub(in crate::analyser) fn emit_w101_eval_string_concat(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-        arg_single: &[bool],
-    ) {
-        if !self.is_concat_eval_command(cmd_name) || args.is_empty() || arg_tokens.is_empty() {
-            return;
-        }
-        // ``eval {script}`` / ``eval {a} {b}`` — every word is a
-        // braced literal, no substitution risk.
-        if arg_tokens
-            .iter()
-            .all(|tok| matches!(tok.kind, tcl_lexer::TokenType::Str))
-        {
-            return;
-        }
-        // ``eval [list ...]`` and similar canonical-list idioms —
-        // single-arg ``Cmd`` whose inner head produces a canonical
-        // list.
-        if arg_tokens.len() == 1 && self.is_canonical_list_substitution(arg_tokens[0]) {
-            return;
-        }
-        // Substitution detection.  An argument carries substitution
-        // when:
-        //
-        // - the representative token kind is ``Var`` / ``Cmd``
-        //   (single-token substitution at the word level), or
-        // - the word is multi-token AND its source range contains
-        //   an unescaped ``$`` / ``[`` outside any ``{...}`` block.
-        //
-        // The multi-token-word flag alone is **not** equivalent to
-        // substitution: the segmenter sets ``single_token_word=false``
-        // for any adjacent-token concatenation, including pure-
-        // literal shapes like ``eval foo{bar}`` (Esc+Str joined,
-        // no inner Var/Cmd).  An
-        // ``all_tokens[1:]`` walk would require threading the full
-        // token stream through ``process_command``; instead we do a
-        // brace/backslash-aware source-byte scan over the word's
-        // span, which is sound for the common cases.  Known
-        // approximation gap: ``"foo{$x}bar"`` (substitution inside
-        // a brace pair within a quoted string — Tcl treats braces
-        // as literal inside ``"…"``) is not detected.  Real W101
-        // shapes don't hit that pattern.
-        // Anchor at the *first argument that actually carries the
-        // substitution*, not `arg_tokens[0]`: `eval "safeprefix" $x` puts the
-        // hazard in `$x`, so highlighting the safe literal prefix would point
-        // the developer at the wrong word.
-        let Some(sub_idx) = arg_tokens.iter().enumerate().position(|(i, tok)| {
-            if matches!(
-                tok.kind,
-                tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
-            ) {
-                return true;
-            }
-            if arg_single.get(i).copied() == Some(true) {
-                return false;
-            }
-            self.word_span_contains_substitution(tok.span)
-        }) else {
-            return;
-        };
-        let anchor = arg_tokens[sub_idx];
-        // Quick-fix the common single-line `eval "cmd $a …"` shape: rewrite
-        // the quoted string to `eval [list cmd $a …]`.  `[list]` builds a
-        // properly-quoted list so each substituted word is passed as exactly
-        // one argument and never re-parsed.  Skip when the string spans
-        // lines or carries backslash escapes (list re-quoting could differ).
-        // Only offered when the substituted word is itself the quoted string
-        // (`eval_list_fix` returns empty otherwise).
-        let fixes = self.eval_list_fix(anchor);
-        self.result.diagnostics.push(
-            crate::analyser::types::Diagnostic::new(
-                DiagCode::W101,
-                anchor.span,
-                format!(
-                    "{cmd_name} with substituted arguments risks code injection. \
-Prefer direct invocation or {{*}}$cmdList to preserve argument boundaries."
-                ),
-                Severity::Warning,
-            )
-            .with_fixes(fixes),
-        );
-    }
-
-    /// Build the `eval [list …]` rewrite fix for a W101 diagnostic whose
-    /// `eval` argument is a single-line double-quoted string
-    /// (`eval "cmd $a"` → `eval [list cmd $a]`).  Returns an empty vec for
-    /// any other shape (braced, multi-line, backslash-escaped).
-    fn eval_list_fix(&self, first: tcl_lexer::Token) -> Vec<super::types::CodeFix> {
-        let bytes = self.source.as_bytes();
-        let open = first.span.start() as usize;
-        if bytes.get(open) != Some(&b'"') {
-            return Vec::new();
-        }
-        let Some(rel_close) = self.source[open + 1..].find('"') else {
-            return Vec::new();
-        };
-        let close = open + 1 + rel_close;
-        let inner = &self.source[open + 1..close];
-        if inner.is_empty() || inner.contains('\n') || inner.contains('\\') {
-            return Vec::new();
-        }
-        vec![super::types::CodeFix {
-            span: tcl_lexer::Span::new(first.span.start(), u32::try_from(close + 1).unwrap_or(0)),
-            new_text: format!("[list {inner}]"),
-            description: "Rewrite to `eval [list …]` (passes each substituted \
-word as one argument; no re-parsing)"
-                .to_string(),
-            // W101: `eval [list …]` deliberately stops the substituted words
-            // being re-parsed as script — the injection fix, and a change for a
-            // caller that meant them to be.
-            safety: crate::irules_checks::FixSafety::BehaviourHardening,
-        }]
-    }
-
     /// Scan the source bytes covered by `span` for an unescaped
     /// ``$`` or ``[`` outside any ``{...}`` brace block.  Used by
-    /// [`Self::emit_w101_eval_string_concat`] to detect inner
+    /// the remaining shifted-frame/channel consumers to detect inner
     /// substitution within a multi-token word without requiring
     /// the full token stream to be threaded through
     /// ``process_command``.
@@ -400,7 +205,7 @@ word as one argument; no re-parsing)"
         false
     }
 
-    /// Helper for [`Self::emit_w101_eval_string_concat`].  Returns
+    /// List-idiom probe for shifted-frame and interpreter script advice. Returns
     /// true when `tok` is a `Cmd` token whose inner script's
     /// command head (or `cmd subcmd` pair) produces a canonical
     /// list per the registry — the W101 safe-idiom suppression.
@@ -450,11 +255,8 @@ word as one argument; no re-parsing)"
     /// representative token is `Var` / `Cmd` (single-token substitution
     /// at the word level) or — for a multi-token word — its source span
     /// contains an unescaped `$` / `[` outside any `{...}` block.  This
-    /// is the same approximation of the `all_tokens[1:]` walk that
-    /// [`Self::emit_w101_eval_string_concat`] uses (the analyser doesn't
-    /// thread the full token stream through `process_command`); the
-    /// representative-kind + brace-aware span scan covers every shape in
-    /// the security fixtures.
+    /// representative-kind and brace-aware span scan does not retain
+    /// an original effective operand or select a command descriptor.
     fn args_have_substitution(&self, arg_tokens: &[tcl_lexer::Token], arg_single: &[bool]) -> bool {
         arg_tokens.iter().enumerate().any(|(i, tok)| {
             if matches!(
@@ -468,21 +270,6 @@ word as one argument; no re-parsing)"
             }
             self.word_span_contains_substitution(tok.span)
         })
-    }
-
-    /// Return the trimmed inner script of a `Cmd` substitution token
-    /// (`[ … ]` with the brackets stripped), or `None` for a non-`Cmd`
-    /// token or an unusable span.
-    fn cmd_token_inner(&self, tok: tcl_lexer::Token) -> Option<&str> {
-        if !matches!(tok.kind, tcl_lexer::TokenType::Cmd) {
-            return None;
-        }
-        let start = tok.span.start() as usize + tok.content_offset as usize;
-        let end = tok.span.end() as usize;
-        if start >= end {
-            return None;
-        }
-        Analyser::source_slice(&self.source, start, end).map(str::trim)
     }
 
     /// **W300.** Warn when `source`'s file argument is a `$var` or
@@ -580,46 +367,6 @@ executes arbitrary Tcl code. Ensure the path is not influenced by untrusted inpu
                 ),
                 Severity::Warning,
             ));
-    }
-
-    /// **W309.** Emit "eval/uplevel with `[subst]` — double
-    /// substitution" when an `eval` / `uplevel` argument is a `[subst …]`
-    /// command substitution: `subst` expands `$var` / `[cmd]` once, then
-    /// the outer command re-parses the result as Tcl — a classic
-    /// double-decode injection.  One diagnostic is emitted per command.
-    /// Approximation: only the per-word
-    /// representative `Cmd` tokens are scanned, so a `[subst …]` buried
-    /// inside a larger quoted word isn't detected (same limitation as
-    /// W101 / W309 in the absence of the full token stream).
-    pub(in crate::analyser) fn emit_w309_eval_subst_double_decode(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-    ) {
-        if !self.is_script_reparse_sink(cmd_name) || args.is_empty() || arg_tokens.is_empty() {
-            return;
-        }
-        for tok in arg_tokens {
-            let Some(inner) = self.cmd_token_inner(*tok) else {
-                continue;
-            };
-            if self.inner_head_performs_substitution(inner) {
-                self.result
-                    .diagnostics
-                    .push(crate::analyser::types::Diagnostic::new(
-                        DiagCode::W309,
-                        tok.span,
-                        format!(
-                            "{cmd_name} with [subst] creates double substitution: \
-subst expands $var and [cmd], then {cmd_name} re-parses the result as Tcl. \
-This is a code-injection risk. Use [format] or [string map] for safe templating."
-                        ),
-                        Severity::Error,
-                    ));
-                break;
-            }
-        }
     }
 
     /// **W301.** Emit "uplevel with string-built script" when an
@@ -797,169 +544,6 @@ cause code injection. Use braces: {cmd_name} {sub_name} $child {{...}}"
             i += 1;
         }
         (i < args.len()).then_some((sub.name, i, false))
-    }
-
-    /// The switches to advise on a W102 finding: the options `cmd_name`
-    /// declares **in this dialect** that, added to this call, turn its
-    /// dangerous substitutions off.  `None` when no such set exists, and the
-    /// message then advises no switch at all.
-    ///
-    /// Found by asking the registry what each candidate call would perform,
-    /// never by matching a spelling: the registry owns which switches exist
-    /// and what they do, including that Tcl 9.1's positive family may not be
-    /// combined with the negated one — a combination it reads as unreadable,
-    /// so every candidate widens the answer back to every kind and this
-    /// returns `None`.  That is the answer a positive-family call needs:
-    /// advising `-nocommands` there is advice the interpreter rejects with
-    /// `cannot combine positive and negative options`.  A call whose switches
-    /// the registry cannot read lands in the same place, for the same reason
-    /// — its family is unknown, so no switch can be advised.
-    ///
-    /// A candidate is taken only when it turns a dangerous kind off and turns
-    /// nothing on, which is also what keeps the advice from proposing a
-    /// switch that merely trades one substitution for another.
-    fn substitution_narrowing_switches(
-        &self,
-        cmd_name: &str,
-        args: &[&str],
-        performed: tcl_registry::substitution::SubstitutionKinds,
-    ) -> Option<Vec<&'static str>> {
-        let registry = self.registry.as_deref()?;
-        let spec = registry.get(cmd_name)?;
-        let (operand, switches) = args.split_last()?;
-        let generation = self.analysis_context();
-        let declared = generation.context().available_option_names(spec);
-        let mut chosen: Vec<&'static str> = Vec::new();
-        let mut current = performed;
-        for candidate in declared {
-            if !current.commands && !current.variables {
-                break;
-            }
-            let mut trial: Vec<&str> = switches.to_vec();
-            trial.extend(chosen.iter().copied());
-            trial.push(candidate);
-            trial.push(operand);
-            let kinds = registry.substitutions_performed(cmd_name, &trial)?;
-            let narrows =
-                (current.commands && !kinds.commands) || (current.variables && !kinds.variables);
-            let widens = (!current.commands && kinds.commands)
-                || (!current.variables && kinds.variables)
-                || kinds.backslashes != current.backslashes;
-            if narrows && !widens {
-                chosen.push(candidate);
-                current = kinds;
-            }
-        }
-        (!current.commands && !current.variables).then_some(chosen)
-    }
-
-    /// **W102.** Emit "subst on variable input" when a substitution
-    /// performer's template is a *computed* word — a `$var` reference, or any
-    /// word carrying a substitution — and the call still performs command or
-    /// variable substitution over it, so whatever that word resolves to is
-    /// evaluated a second time.
-    ///
-    /// *Which* substitutions a call performs, and which word is its template,
-    /// is the call's template-word plan
-    /// ([`crate::value_transfer::literal_template_plan`]) over its source
-    /// words: `subst $opt {hello $name}` reports nothing, because the template
-    /// is the *final* argument — the braced literal — and the computed word is
-    /// a switch; and the Tcl 9.1 positive family `subst -backslashes $tmpl`
-    /// reports nothing, because it substitutes neither commands nor
-    /// variables. A command with no plan of its own keeps the registry's
-    /// `substitutions_performed` answer. The walk reaches every body the
-    /// analyser reads; [`Self::emit_w102_template_plans`] re-reads a call the
-    /// lattice has a plan for, whose switch words it may prove.
-    pub(in crate::analyser) fn emit_w102_subst_injection(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-    ) {
-        use crate::value_transfer::SourceWord;
-        // Registry gate: [`Traits::PERFORMS_SUBSTITUTION`] marks the
-        // template-expanding command (`subst`) — any spec that performs
-        // `$var` / `[cmd]` substitution over an argument string.  Checked
-        // before the argument slice is borrowed so the command walk pays
-        // nothing for every other command.
-        if args.is_empty()
-            || arg_tokens.is_empty()
-            || !self
-                .security_spec(cmd_name)
-                .is_some_and(|s| s.traits.contains(Traits::PERFORMS_SUBSTITUTION))
-        {
-            return;
-        }
-        let Some(registry) = self.registry.as_deref() else {
-            return;
-        };
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        // A braced word is the template as written — its `$var`s are the
-        // substitution the call was made for, not a value spliced in from
-        // elsewhere.  Any other word carrying a substitution reaches `subst`
-        // already expanded once, and is expanded again.
-        let source = |index: usize| match arg_tokens.get(index) {
-            Some(tok) if is_braced_word(tok) => SourceWord::Braced,
-            Some(tok) if !has_substitution(&args[index], tok) => SourceWord::Literal,
-            _ => SourceWord::Substituted,
-        };
-        let plan =
-            crate::value_transfer::literal_template_plan(registry, cmd_name, &arg_refs, source);
-        let (performed, dynamic, idx) = if let Some(plan) = plan {
-            (plan.kinds, plan.dynamic, plan.operand.0)
-        } else {
-            let Some(performed) = registry.substitutions_performed(cmd_name, &arg_refs) else {
-                return;
-            };
-            let idx = args.len() - 1;
-            (performed, source(idx) == SourceWord::Substituted, idx)
-        };
-        let Some(tok) = arg_tokens.get(idx) else {
-            return;
-        };
-        // Backslash substitution alone rewrites text; it neither reads a
-        // variable nor runs a command, so there is nothing to inject.
-        if !dynamic || (!performed.commands && !performed.variables) {
-            return;
-        }
-        let advice = self.substitution_narrowing_switches(cmd_name, &arg_refs, performed);
-        self.result
-            .diagnostics
-            .push(w102_diagnostic(cmd_name, tok.span, performed, advice));
-    }
-
-    /// **W102** over the lattice: each call the unit holds a template-word
-    /// plan for (`SccpResult::template_plans`) is re-read with the switch
-    /// values the lattice proves, and its finding replaces the walk's at the
-    /// template word — so `set opt -novariables; subst $opt $x` warns of
-    /// `[cmd]` alone and advises `-nocommands`, as the literal spelling does,
-    /// and a call whose proven switches turn both kinds off warns of nothing.
-    pub(in crate::analyser) fn emit_w102_template_plans(
-        &mut self,
-        function_unit: &crate::compilation_unit::FunctionUnit,
-    ) {
-        for record in &function_unit.sccp.template_plans {
-            self.result
-                .diagnostics
-                .retain(|d| !(d.code == DiagCode::W102 && d.span == record.span));
-            let performed = record.plan.kinds;
-            if !record.plan.dynamic || (!performed.commands && !performed.variables) {
-                continue;
-            }
-            // The advice reads the proven spellings; a switch the lattice does
-            // not prove leaves the call unreadable, and advises nothing.
-            let advice = record.switches.as_ref().and_then(|switches| {
-                let mut words: Vec<&str> = switches.iter().map(String::as_str).collect();
-                words.push("");
-                self.substitution_narrowing_switches(&record.command, &words, performed)
-            });
-            self.result.diagnostics.push(w102_diagnostic(
-                &record.command,
-                record.span,
-                performed,
-                advice,
-            ));
-        }
     }
 
     /// **W103.** Emit "open with a pipeline" when `open`'s first

@@ -220,15 +220,20 @@ fn report_original_expression_candidates(
     let Some(registry) = ctx.registry else {
         return;
     };
-    let tokens = stmt.tokens();
-    let config = tcl_lexer::LexerConfig::for_profile(ctx.dialect);
-    let mut originals = crate::word_subst::lifted_calls(tokens, config)
-        .into_iter()
-        .filter_map(|call| call.tokens)
-        .collect::<Vec<_>>();
-    if let Some(tokens) = tokens {
-        originals.push(tokens.clone());
-    }
+    let Some(module) = ctx
+        .ir_module
+        .filter(|module| module.source.bytes() == ctx.source.as_bytes())
+    else {
+        return;
+    };
+    let Some(tokens) = stmt.tokens() else {
+        return;
+    };
+    let Some(originals) =
+        original_expression_candidate_tokens(tokens, module, registry, ctx.lexer_config())
+    else {
+        return;
+    };
     for tokens in originals {
         let Some(advice) =
             crate::registry_invocation::original_expression_operand_advice(registry, &tokens)
@@ -284,6 +289,38 @@ fn report_original_expression_candidates(
             ctx.report(candidate);
         }
     }
+}
+
+/// Original child advice shares its actual Module owner and point horizons.
+/// Syntax metadata cannot grant expression execution or rewrite equivalence.
+fn original_expression_candidate_tokens(
+    tokens: &crate::ir::CommandTokens,
+    module: &crate::ir::Module,
+    registry: &tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<crate::ir::CommandTokens>> {
+    if config.normalized() != module.lexer_config.normalized() {
+        return None;
+    }
+    let metadata = tokens
+        .source_binding
+        .as_ref()?
+        .original_invocation_metadata_for_module(tokens, module, registry)?;
+    let calls = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+        tokens, config, registry, metadata,
+    )?;
+    let mut originals = calls
+        .into_iter()
+        .map(|call| call.tokens)
+        .collect::<Option<Vec<_>>>()?;
+    originals.push(tokens.clone());
+    for original in &originals {
+        original
+            .source_binding
+            .as_ref()?
+            .original_invocation_metadata_for_module(original, module, registry)?;
+    }
+    Some(originals)
 }
 
 /// Fold `set name [expr {…}]` via the standard chain:
@@ -645,6 +682,124 @@ mod tests {
             crate::command_binding::scan_module_command_mutations(&cu.ir_module, &reg);
         run(&mut ctx, &cu);
         ctx.optimisations
+    }
+
+    fn source_candidate_module(
+        source: &str,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> crate::ir::Module {
+        crate::lowering::Lowerer::with_config(
+            input.borrowed_context_registry().commands(),
+            input.lexer_config(),
+        )
+        .with_resolved_analysis_input(input.clone())
+        .lower(source)
+    }
+
+    fn expression_candidate_advice(
+        module: &crate::ir::Module,
+        registry: &CommandRegistry,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<Vec<crate::registry_invocation::OriginalExpressionOperandAdvice>> {
+        let tokens = module.top_level.statements.last()?.tokens()?;
+        Some(
+            original_expression_candidate_tokens(tokens, module, registry, config)?
+                .iter()
+                .filter_map(|tokens| {
+                    crate::registry_invocation::original_expression_operand_advice(registry, tokens)
+                })
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn original_expression_candidates_keep_actual_config_alias_and_shadow_context() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional original grammar only; these counts prove no Normal or edit.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        config.strict_quoting = !config.strict_quoting;
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        for source in [
+            "set result [expr {2 + 3}]",
+            "rename expr arithmetic; set result [arithmetic {2 + 3}]",
+            "interp alias {} arithmetic {} expr; set result [arithmetic {2 + 3}]",
+        ] {
+            let module = source_candidate_module(source, &input);
+            let advice = expression_candidate_advice(&module, registry, config)
+                .expect("actual original child inventory");
+            assert_eq!(advice.len(), 1, "{source}");
+            assert_eq!(advice[0].expression_text, "2 + 3");
+            assert!(
+                expression_candidate_advice(
+                    &module,
+                    registry,
+                    tcl_lexer::LexerConfig::for_profile(Some(profile)),
+                )
+                .is_none(),
+                "nominal configuration cannot replace actual grammar"
+            );
+        }
+        let shadow = source_candidate_module(
+            "proc expr args {return STUB}; set result [expr {2 + 3}]",
+            &input,
+        );
+        assert!(
+            expression_candidate_advice(&shadow, registry, config)
+                .is_none_or(|advice| advice.is_empty()),
+            "known replacement has no stock Expr role"
+        );
+    }
+
+    #[test]
+    fn original_expression_candidates_decline_missing_foreign_and_changed_module_inputs() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        let original = source_candidate_module("set result [expr {2 + 3}]", &input);
+        assert_eq!(
+            expression_candidate_advice(&original, registry, config)
+                .unwrap()
+                .len(),
+            1
+        );
+        let mut missing = original.clone();
+        missing.source_metadata_input = None;
+        assert!(expression_candidate_advice(&missing, registry, config).is_none());
+        let mut changed = original.clone();
+        changed.lexer_config.expand_syntax = !changed.lexer_config.expand_syntax;
+        assert!(expression_candidate_advice(&changed, registry, changed.lexer_config).is_none());
+        let same_store = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(registry)),
+        );
+        let mut foreign = original.clone();
+        foreign.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            profile, profile, same_store, config,
+        ));
+        assert!(expression_candidate_advice(&foreign, registry, config).is_none());
+        let mut changed_source = original;
+        changed_source.source = tcl_lexer::SourceImage::document("set result [expr {4 + 5}]");
+        assert!(expression_candidate_advice(&changed_source, registry, config).is_none());
     }
 
     #[test]

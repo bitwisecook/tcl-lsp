@@ -118,6 +118,10 @@ enum RegistryPurposeDescription {
     OptionOnly,
     PatternSubstitution,
     IndexBounds,
+    /// Original selected template operand, independent of its runtime value.
+    TemplateSubstitution,
+    /// Original selected script-reparse syntax, independent of execution.
+    ScriptReparse,
 }
 impl From<tcl_compiler::analyser::RegistrySourceDiagnosticKind> for RegistryPurposeDescription {
     fn from(kind: tcl_compiler::analyser::RegistrySourceDiagnosticKind) -> Self {
@@ -144,6 +148,8 @@ impl From<tcl_compiler::analyser::RegistrySourceDiagnosticKind> for RegistryPurp
             Kind::OptionOnly => Self::OptionOnly,
             Kind::PatternSubstitution => Self::PatternSubstitution,
             Kind::IndexBounds => Self::IndexBounds,
+            Kind::TemplateSubstitution => Self::TemplateSubstitution,
+            Kind::ScriptReparse => Self::ScriptReparse,
         }
     }
 }
@@ -171,6 +177,8 @@ impl RegistryPurposeDescription {
             Self::OptionOnly => code == "W217",
             Self::PatternSubstitution => code == "W306",
             Self::IndexBounds => matches!(code, "W230" | "W232"),
+            Self::TemplateSubstitution => code == "W102",
+            Self::ScriptReparse => matches!(code, "W101" | "W309"),
         }
     }
 }
@@ -1901,5 +1909,81 @@ mod tests {
             "translated text with a misleading command and variable name".to_owned();
         diagnostic.fixes.clear();
         assert_eq!(diagnostic_subject_data(&diagnostic), Some(payload));
+    }
+    #[test]
+    fn original_template_transport_keeps_selected_prefix_purpose_and_ignores_presentation() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let source = "interp alias {} render {} subst -nocommands; render \"pré $tmpl\"";
+        let result = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "tcl");
+        let mut diagnostic = result
+            .diagnostics
+            .into_iter()
+            .find(|diagnostic| diagnostic.code == DiagCode::W102)
+            .expect("original source template warning");
+        let payload = diagnostic_subject_data(&diagnostic).unwrap();
+        assert_eq!(payload["subject"]["purpose"], "templateSubstitution");
+        assert_eq!(payload["subject"]["argument"], 1);
+        assert_eq!(payload["subject"]["writtenArgument"], 0);
+        assert_eq!(&source[diagnostic.span.as_range()], "\"pré $tmpl\"");
+        assert!(DiagnosticSubjectData::from_value(&payload, "W102").is_some());
+        assert!(DiagnosticSubjectData::from_value(&payload, "W123").is_none());
+        diagnostic.message = "translated text with misleading command and operand names".to_owned();
+        diagnostic.fixes.clear();
+        assert_eq!(diagnostic_subject_data(&diagnostic), Some(payload));
+    }
+    #[test]
+    fn original_reparse_transport_keeps_both_selected_purposes_without_presentation_names() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let source = "interp alias {} run {} eval {set local}; interp alias {} render {} subst; run [render $tmpl]";
+        let result = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "tcl");
+        for code in [DiagCode::W101, DiagCode::W309] {
+            let mut diagnostic = result
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code == code)
+                .expect("original selected reparse warning")
+                .clone();
+            let payload = diagnostic_subject_data(&diagnostic).unwrap();
+            assert_eq!(payload["subject"]["purpose"], "scriptReparse");
+            assert_eq!(payload["subject"]["argument"], 1);
+            assert_eq!(payload["subject"]["writtenArgument"], 0);
+            assert_eq!(&source[diagnostic.span.as_range()], "[render $tmpl]");
+            assert!(
+                DiagnosticSubjectData::from_value(
+                    &payload,
+                    if code == DiagCode::W101 {
+                        "W101"
+                    } else {
+                        "W309"
+                    }
+                )
+                .is_some()
+            );
+            assert!(DiagnosticSubjectData::from_value(&payload, "W102").is_none());
+            diagnostic.message =
+                "translated text with misleading command and operand names".to_owned();
+            diagnostic.fixes.clear();
+            assert_eq!(diagnostic_subject_data(&diagnostic), Some(payload));
+        }
     }
 }

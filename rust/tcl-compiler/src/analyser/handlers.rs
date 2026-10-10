@@ -12510,7 +12510,7 @@ mod tests {
         // must strip the braces too rather than binding to `"{child}"`.
         assert_eq!(
             elements("[interp create {child}]"),
-            Some(vec!["interp", "create", "child"])
+            Some(vec!["interp".into(), "create".into(), "child".into()])
         );
     }
 
@@ -12521,7 +12521,11 @@ mod tests {
         // fragment would become the bound key.
         assert_eq!(
             elements("[interp create {parent child}]"),
-            Some(vec!["interp", "create", "parent child"])
+            Some(vec![
+                "interp".into(),
+                "create".into(),
+                "parent child".into()
+            ])
         );
     }
 
@@ -12531,9 +12535,18 @@ mod tests {
         // unchanged by the switch to list parsing.
         assert_eq!(
             elements("[interp create -safe -- name]"),
-            Some(vec!["interp", "create", "-safe", "--", "name"])
+            Some(vec![
+                "interp".into(),
+                "create".into(),
+                "-safe".into(),
+                "--".into(),
+                "name".into()
+            ])
         );
-        assert_eq!(elements("[interp create]"), Some(vec!["interp", "create"]));
+        assert_eq!(
+            elements("[interp create]"),
+            Some(vec!["interp".into(), "create".into()])
+        );
         // Only one whole bracketed substitution is a call.
         assert_eq!(elements("interp create child"), None);
     }

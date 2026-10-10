@@ -2131,6 +2131,50 @@ impl Value {
         );
     }
 
+    #[cfg(test)]
+    pub(crate) fn report_native_compound_ownership(&self, label: &str) {
+        fn visit(value: &Value, label: &str, path: &mut Vec<usize>, remaining: &mut usize) {
+            if *remaining == 0 || path.len() > 16 {
+                return;
+            }
+            *remaining -= 1;
+            let primary = value.0.intrep.borrow();
+            let list = match &*primary {
+                IntRep::List { items, .. } => Some(items),
+                _ => None,
+            };
+            eprintln!(
+                "native-compound-ownership label={label} path={path:?} primary={} live={} references={} lifetime_only={} resident={} list_owner={:?} list_backing={:?} list_headers={:?}",
+                value.native_object_type_name(),
+                value.native_object_is_live(),
+                value.native_object_reference_count(),
+                value.1 == NativeValueHandleOwnership::LifetimeOnly,
+                value.resident_string_bytes().is_some(),
+                list.map(crate::NativeListItems::owns_native_header),
+                list.map(crate::NativeListItems::is_whole_backing),
+                list.map(crate::NativeListItems::native_header_reference_count),
+            );
+            if let Some(items) = list {
+                for (index, member) in items.iter().enumerate() {
+                    path.push(index);
+                    visit(member, label, path, remaining);
+                    path.pop();
+                }
+            } else if let IntRep::Dict(dictionary) = &*primary {
+                dictionary.with_pairs(|pairs| {
+                    for (index, (key, member)) in pairs.iter().enumerate() {
+                        path.push(index * 2);
+                        visit(key, label, path, remaining);
+                        *path.last_mut().expect("dictionary member path") += 1;
+                        visit(member, label, path, remaining);
+                        path.pop();
+                    }
+                });
+            }
+        }
+        visit(self, label, &mut Vec::new(), &mut 80);
+    }
+
     fn materialize_native_bytearray_string(
         &self,
         protocol: NativeStringProtocol,

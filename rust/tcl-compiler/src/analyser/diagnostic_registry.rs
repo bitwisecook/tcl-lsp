@@ -166,6 +166,10 @@ pub enum RegistrySourceDiagnosticKind {
     PatternSubstitution,
     /// Literal index/container relationship from the selected original schema.
     IndexBounds,
+    /// A computed template under the selected original substitution grammar.
+    TemplateSubstitution,
+    /// Original selected script-reparse operand and its nested source call.
+    ScriptReparse,
 }
 
 /// A structured source diagnostic subject with original schema ownership.
@@ -258,6 +262,21 @@ impl OriginalDiagnosticInvocation {
             context,
             supplemental_literals: Vec::new(),
         })
+    }
+    /// Same complete source interpretation and context as the active analysis.
+    /// This correspondence carries source advice, never a Native lookup or value.
+    pub(super) fn matches_analysis(&self, analysis: &super::AnalysisResult, source: &str) -> bool {
+        let Some(input) = analysis.resolved_input.as_ref() else {
+            return false;
+        };
+        let image = self.head().image();
+        image.bytes() == source.as_bytes()
+            && self.words.matches_source(image, input.lexer_config())
+            && analysis.matches_original_source_image(image, input.lexer_config())
+            && input.borrowed_context_registry().context() == self.context().context()
+            && self
+                .words
+                .matches_registry(input.borrowed_context_registry().commands())
     }
     pub(super) fn with_schema<'r, T>(
         &'r self,

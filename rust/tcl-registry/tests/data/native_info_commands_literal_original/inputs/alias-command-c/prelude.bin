@@ -1,0 +1,2 @@
+proc ::alpha {} {}
+interp alias {} ::a {} ::alpha

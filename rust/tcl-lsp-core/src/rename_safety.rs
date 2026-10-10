@@ -124,10 +124,7 @@ use tcl_lexer::{LineIndex, Span, TokenType};
 
 use crate::definition::LspRange;
 use crate::definition::span_to_range;
-use crate::references::{
-    MAX_DISPATCH_SCAN_DEPTH, collect_member_bodies_scoped, dispatch_scan_regions,
-    strip_outer_braces, strip_var_decoration,
-};
+use crate::references::{collect_member_bodies_scoped, strip_var_decoration};
 
 /// A refused rename: why, and (when there is one) the offending site.
 ///
@@ -194,6 +191,17 @@ pub fn method_rename_hazard(
     target: MethodRenameTarget<'_>,
     line_index: &LineIndex,
 ) -> Option<RenameRefusal> {
+    if crate::references::dispatch_source_context(source, analysis).is_none() {
+        return Some(RenameRefusal::new(
+            format!(
+                "cannot rename `{}`: the complete original source and metadata are unavailable",
+                target.method
+            ),
+            source,
+            line_index,
+            None,
+        ));
+    }
     unlocatable_member_reference(source, dialect, analysis, target, line_index)
         .or_else(|| renamed_member_would_abort(source, analysis, target, line_index))
         .or_else(|| {
@@ -678,36 +686,21 @@ fn dispatch_hazard(
 /// a hollow guarantee.
 pub(crate) fn walk_document(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     visit: &mut impl FnMut(&SegmentedCommand),
 ) {
-    if !analysis.allows_lexical_declaration_advice() {
-        crate::executable_regions::visit_analysis_executable_commands(
-            source,
-            analysis,
-            &mut |command, _, _| {
-                visit(command);
-                false
-            },
-        );
+    if crate::references::dispatch_source_context(source, analysis).is_none() {
         return;
     }
-    walk_region(source, dialect, analysis, 0, source.len(), 0, visit);
-    for proc_def in analysis.all_procs.values() {
-        walk_body(source, dialect, analysis, proc_def.body_span, visit);
-    }
-    for class_def in analysis.all_classes.values() {
-        for m in class_def
-            .methods
-            .values()
-            .chain(class_def.class_methods.values())
-            .chain(class_def.constructors.iter())
-            .chain(class_def.destructor.iter())
-        {
-            walk_body(source, dialect, analysis, m.body_span, visit);
-        }
-    }
+    crate::executable_regions::visit_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            visit(command);
+            false
+        },
+    );
 }
 
 /// `my $computed` inside a family class's own member bodies — the
@@ -721,6 +714,9 @@ fn walk_self_dispatch(
     target: MethodRenameTarget<'_>,
     hit: &mut impl FnMut(Span),
 ) {
+    let Some((_, context)) = crate::references::dispatch_source_context(source, analysis) else {
+        return;
+    };
     let mut found: Option<Span> = None;
     for class_q in target.family {
         let Some(class_def) = analysis.all_classes.get(class_q) else {
@@ -736,19 +732,43 @@ fn walk_self_dispatch(
                     if found.is_some() {
                         return;
                     }
-                    let (Some(head), Some(member)) = (cmd.argv.first(), cmd.argv.get(1)) else {
+                    let Some(words) =
+                        tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                            source, analysis, cmd,
+                        )
+                    else {
                         return;
                     };
-                    if !matches!(member.kind, TokenType::Var | TokenType::Cmd) {
-                        return;
-                    }
-                    let Some(head_text) = slice(source, head.span) else {
-                        return;
-                    };
-                    if crate::definition::method_dispatch_keyword_in(dialect, head_text)
-                        == Some(tcl_registry::registry::MethodDispatchKind::SelfDispatch)
-                    {
-                        found = Some(member.span);
+                    let member = words
+                        .with_source_schema(&context, |schema| {
+                            if !schema
+                                .semantics
+                                .traits
+                                .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
+                            {
+                                return None;
+                            }
+                            let ordinal = schema.semantics.argument_offset;
+                            let tcl_compiler::registry_invocation::InvocationWordOrigin::Written(
+                                written,
+                            ) = words.origins().get(ordinal.checked_add(1)?)?
+                            else {
+                                return None;
+                            };
+                            cmd.argv.get(*written)?;
+                            if schema.words.arguments().get(ordinal)?.literal().is_some() {
+                                return None;
+                            }
+                            // A composite selector retains the whole actual
+                            // operand; captures and expanded children cannot
+                            // borrow a caller word's location.
+                            let operand = words.operands().get(ordinal)?.as_ref()?;
+                            operand.word()?;
+                            Some(operand.span())
+                        })
+                        .flatten();
+                    if let Some(span) = member {
+                        found = Some(span);
                     }
                 },
             );
@@ -761,7 +781,7 @@ fn walk_self_dispatch(
 
 fn walk_body(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     body_span: Span,
     visit: &mut impl FnMut(&SegmentedCommand),
@@ -769,60 +789,19 @@ fn walk_body(
     if body_span.is_empty() {
         return;
     }
-    if !analysis.allows_lexical_declaration_advice() {
-        crate::executable_regions::visit_analysis_executable_commands(
-            source,
-            analysis,
-            &mut |command, _, _| {
-                if body_span.start() <= command.span.start()
-                    && command.span.end() <= body_span.end()
-                {
-                    visit(command);
-                }
-                false
-            },
-        );
+    if crate::references::dispatch_source_context(source, analysis).is_none() {
         return;
     }
-    let (start, end) = strip_outer_braces(source, body_span);
-    if start >= end {
-        return;
-    }
-    walk_region(source, dialect, analysis, start, end, 0, visit);
-}
-
-fn walk_region(
-    source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    analysis: &AnalysisResult,
-    start: usize,
-    end: usize,
-    depth: u32,
-    visit: &mut impl FnMut(&SegmentedCommand),
-) {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-    if start >= end || end > source.len() || MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
-        return;
-    }
-    let commands = segment_commands_with_offset_and_config(
-        &source[start..end],
-        u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
+    crate::executable_regions::visit_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            if body_span.start() <= command.span.start() && command.span.end() <= body_span.end() {
+                visit(command);
+            }
+            false
+        },
     );
-    for cmd in &commands {
-        visit(cmd);
-        for (inner_start, inner_end) in dispatch_scan_regions(source, analysis, dialect, cmd) {
-            walk_region(
-                source,
-                dialect,
-                analysis,
-                inner_start,
-                inner_end,
-                depth + 1,
-                visit,
-            );
-        }
-    }
 }
 
 fn slice(source: &str, span: Span) -> Option<&str> {
@@ -887,55 +866,85 @@ pub fn namespace_variable_rename_hazard(
     cell: &str,
     line_index: &LineIndex,
 ) -> Option<RenameRefusal> {
-    let registry = crate::registry_for_dialect_profile(dialect);
-    let mut hazard: Option<Span> = None;
+    let Some((config, context)) = crate::references::dispatch_source_context(source, analysis)
+    else {
+        return Some(RenameRefusal::new(
+            format!(
+                "cannot rename `{cell}`: the complete original source and metadata are unavailable"
+            ),
+            source,
+            line_index,
+            None,
+        ));
+    };
+    let mut hazard: Option<(Span, bool)> = None;
     let mut visit = |cmd: &SegmentedCommand| {
         if hazard.is_some() {
             return;
         }
-        let Some(cmd_name) = cmd.texts.first() else {
-            return;
-        };
-        let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
-        for role in [
-            tcl_registry::ArgRole::VarWrite,
-            tcl_registry::ArgRole::VarRead,
-        ] {
-            for idx in registry.arg_indices_for_role(cmd_name, &args, role) {
-                let Some(word) = args.get(idx) else {
-                    continue;
-                };
-                if !tcl_compiler::dynamic_names::names_a_dynamic_variable(word) {
-                    continue;
-                }
-                // Per-site provenance: a word that provably cannot spell this
-                // cell is not a hazard for *this* rename, however dynamic it
-                // is.
-                if !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(
+        let words = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+            source, analysis, cmd,
+        );
+        let roles = words.as_ref().and_then(|words| {
+            words
+                .with_source_schema(&context, |_| {
+                    words.roles().map(|_| words.written_argument_roles())
+                })
+                .flatten()
+        });
+        for (ordinal, word) in cmd.texts.iter().skip(1).enumerate() {
+            let Some(tok) = cmd.argv.get(ordinal + 1) else {
+                continue;
+            };
+            // Known literal names, including braced `$` bytes, cannot be
+            // mistaken for source interpolation or borrowed capture geometry.
+            let static_word = cmd.single_token_word.get(ordinal + 1) == Some(&true)
+                && matches!(tok.kind, TokenType::Esc | TokenType::Str);
+            if static_word
+                || !tcl_compiler::dynamic_names::names_a_dynamic_variable(word)
+                || !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(
                     word,
                     cell,
-                    dialect.grammar.braced_var,
-                ) {
-                    continue;
-                }
-                let Some(tok) = cmd.argv.get(idx + 1) else {
-                    continue;
-                };
-                // …and neither is one whose *value* the analyser proved:
-                // `set n other; set $n 2` names `other` at that site, never
-                // this cell, however wildcard the text is.
-                // Narrowing only — a site with no recorded resolution, or one
-                // the analyser's walk never reached, keeps refusing.
-                if site_resolution_rules_out(analysis, tok.span, cell, dialect) {
-                    continue;
-                }
-                hazard = Some(tok.span);
-                return;
+                    config.braced_var,
+                )
+            {
+                continue;
             }
+            let unknown = match &roles {
+                Some(roles)
+                    if roles.iter().any(|&(index, role)| {
+                        index == ordinal
+                            && matches!(
+                                role,
+                                tcl_registry::ArgRole::VarWrite | tcl_registry::ArgRole::VarRead,
+                            )
+                    }) =>
+                {
+                    false
+                }
+                Some(_) => continue,
+                None => true,
+            };
+            if !unknown && site_resolution_rules_out(analysis, tok.span, cell, dialect) {
+                continue;
+            }
+            hazard = Some((tok.span, unknown));
+            return;
         }
     };
     walk_document(source, dialect, analysis, &mut visit);
-    let span = hazard?;
+    let (span, unknown) = hazard?;
+    if unknown {
+        return Some(RenameRefusal::new(
+            format!(
+                "cannot rename `{cell}`: original variable-name roles are unavailable at a computed operand"
+            ),
+            source,
+            line_index,
+            Some(span),
+        ));
+    }
+
     let written = slice(source, span).unwrap_or("");
     Some(RenameRefusal::new(
         format!(
@@ -969,7 +978,7 @@ fn site_resolution_rules_out(
     analysis: &AnalysisResult,
     span: Span,
     cell: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
 ) -> bool {
     // naming.core.original-dynamic-name-value-purpose
     // docs/design/analysis/name-resolution-proofs/core-original-dynamic-name-value-purpose.md
@@ -978,13 +987,23 @@ fn site_resolution_rules_out(
     if !analysis.allows_lexical_declaration_advice() {
         return false;
     }
+    let Some(config) = analysis.body_lexer_config else {
+        return false;
+    };
+    if analysis
+        .resolved_input
+        .as_ref()
+        .is_none_or(|input| input.lexer_config() != config)
+    {
+        return false;
+    }
     analysis.dynamic_variable_names.iter().any(|site| {
         site.span == span
             && site.resolved.as_deref().is_some_and(|resolved| {
                 !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(
                     resolved,
                     cell,
-                    dialect.grammar.braced_var,
+                    config.braced_var,
                 )
             })
     })
@@ -1271,7 +1290,10 @@ mod tests {
 
     /// [`var_hazard`] under an explicitly named dialect.
     fn var_hazard_as(source: &str, cell: &str, dialect: &str) -> Option<String> {
-        let analysis = analyse(source);
+        let analysis = analyse_as(
+            source,
+            tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+        );
         namespace_variable_rename_hazard(
             source,
             tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
@@ -1855,5 +1877,204 @@ mod original_receiver_hazard_tests {
             range.start_character,
             u32::try_from(source.rfind("method}").unwrap()).unwrap()
         );
+    }
+}
+
+#[cfg(test)]
+mod original_hazard_context_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    fn store() -> Arc<tcl_registry::CommandRegistry> {
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let surface = registry.get("dict").unwrap().surface;
+        registry.insert(tcl_registry::CommandSpec {
+            name: "source_var",
+            arg_roles: &[(0, tcl_registry::ArgRole::VarWrite)],
+            arity: tcl_registry::Arity::exact(2),
+            surface,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        registry.insert(tcl_registry::CommandSpec {
+            name: "source_my",
+            traits: tcl_registry::Traits::TCLOO_SELF_DISPATCH,
+            arity: tcl_registry::Arity::at_least(1),
+            surface,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        Arc::new(registry)
+    }
+
+    fn analysis(
+        source: &str,
+        environment: &str,
+        store: Arc<tcl_registry::CommandRegistry>,
+        config: tcl_lexer::LexerConfig,
+    ) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = Arc::new(
+            tcl_registry::model::ingress::static_context_for(environment).with_command_store(store),
+        );
+        Analyser::new()
+            .with_resolved_input(ResolvedAnalysisInput::new(
+                profile, profile, context, config,
+            ))
+            .analyse(source, profile.name)
+    }
+
+    fn var_reason(source: &str, analysis: &AnalysisResult) -> Option<String> {
+        namespace_variable_rename_hazard(
+            source,
+            tcl_dialect::DialectProfile::plain_tcl(),
+            analysis,
+            "::ns::v",
+            &LineIndex::new(source),
+        )
+        .map(|refusal| refusal.reason)
+    }
+
+    #[test]
+    fn original_variable_hazards_keep_selected_alias_origins_and_unknown_roles() {
+        // naming.core.original-dynamic-name-value-purpose
+        // docs/design/analysis/name-resolution-proofs/core-original-dynamic-name-value-purpose.md
+        // Conditional source hazard advice; no current variable cell or rename grant.
+        let store = store();
+        let config =
+            tcl_lexer::LexerConfig::from_grammar(tcl_dialect::DialectProfile::plain_tcl().grammar);
+        for source in [
+            "source_var ::ns::$n 1",
+            "interp alias {} write {} source_var; write ::ns::$n 1",
+        ] {
+            let current = analysis(source, "tcl8.6", store.clone(), config);
+            assert!(
+                var_reason(source, &current)
+                    .unwrap()
+                    .contains("computed at run time")
+            );
+            let unavailable = analysis(source, "tcl8.4", store.clone(), config);
+            assert!(
+                var_reason(source, &unavailable)
+                    .unwrap()
+                    .contains("roles are unavailable")
+            );
+        }
+        for source in [
+            "source_var {::ns::$n} 1",
+            "interp alias {} write {} source_var ::other::fixed; write $value",
+        ] {
+            assert!(
+                var_reason(source, &analysis(source, "tcl8.6", store.clone(), config)).is_none(),
+                "{source}"
+            );
+        }
+        let source = "proc source_var args {}; source_var ::ns::$n 1";
+        assert!(
+            var_reason(source, &analysis(source, "tcl8.6", store, config))
+                .unwrap()
+                .contains("roles are unavailable")
+        );
+    }
+
+    #[test]
+    fn original_hazard_walk_preserves_grammar_and_missing_foreign_owner_refusal() {
+        // naming.core.original-dynamic-name-value-purpose
+        // docs/design/analysis/name-resolution-proofs/core-original-dynamic-name-value-purpose.md
+        let source = "if 1 {source_var ${a{b}c} 1}";
+        let store = store();
+        let mut config =
+            tcl_lexer::LexerConfig::from_grammar(tcl_dialect::DialectProfile::plain_tcl().grammar);
+        config.braced_var = tcl_lexer::BracedVarStyle::Tcl9Nesting;
+        let mut current = analysis(source, "tcl8.6", store.clone(), config);
+        assert!(var_reason(source, &current).is_some());
+        let mut old = config;
+        old.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+        assert!(var_reason(source, &analysis(source, "tcl8.6", store, old)).is_none());
+        current.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+        assert!(
+            var_reason(source, &current)
+                .unwrap()
+                .contains("metadata are unavailable")
+        );
+        current.body_lexer_config = Some(config);
+        current.resolved_input = Some(ResolvedAnalysisInput::new(
+            tcl_dialect::DialectProfile::plain_tcl(),
+            tcl_dialect::DialectProfile::plain_tcl(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            config,
+        ));
+        assert!(
+            var_reason(source, &current)
+                .unwrap()
+                .contains("metadata are unavailable")
+        );
+        let mut count = 0;
+        walk_document(
+            source,
+            tcl_dialect::DialectProfile::plain_tcl(),
+            &current,
+            &mut |_| count += 1,
+        );
+        assert_eq!(count, 0);
+        current.resolved_input = None;
+        assert!(
+            var_reason(source, &current)
+                .unwrap()
+                .contains("metadata are unavailable")
+        );
+    }
+
+    #[test]
+    fn original_self_hazards_use_selected_helpers_and_captured_selector_positions() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let store = store();
+        let config =
+            tcl_lexer::LexerConfig::from_grammar(tcl_dialect::DialectProfile::plain_tcl().grammar);
+        for (source, expected) in [
+            ("oo::class create C {method m {} {source_my $selector}}", 1),
+            ("oo::class create C {method m {} {source_my m$suffix}}", 1),
+            (
+                "interp alias {} call_my {} source_my; oo::class create C {method m {} {call_my $selector}}",
+                1,
+            ),
+            (
+                "interp alias {} call_my {} source_my fixed; oo::class create C {method m {} {call_my $argument}}",
+                0,
+            ),
+            (
+                "proc source_my args {}; oo::class create C {method m {} {source_my $selector}}",
+                0,
+            ),
+        ] {
+            let current = analysis(source, "tcl8.6", store.clone(), config);
+            let family: Vec<_> = current.all_classes.keys().cloned().collect();
+            assert_eq!(family.len(), 1, "{source}");
+            let target = MethodRenameTarget {
+                family: &family,
+                method: "m",
+                is_classmethod: false,
+                new_name: "renamed",
+            };
+            let mut spans = Vec::new();
+            walk_self_dispatch(
+                source,
+                tcl_dialect::DialectProfile::plain_tcl(),
+                &current,
+                target,
+                &mut |span| spans.push(span),
+            );
+            assert_eq!(spans.len(), expected, "{source}: {spans:?}");
+            let older = analysis(source, "tcl8.4", store.clone(), config);
+            let mut old_spans = Vec::new();
+            walk_self_dispatch(
+                source,
+                tcl_dialect::DialectProfile::plain_tcl(),
+                &older,
+                target,
+                &mut |span| old_spans.push(span),
+            );
+            assert!(old_spans.is_empty(), "{source}");
+        }
     }
 }

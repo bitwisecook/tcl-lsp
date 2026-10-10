@@ -108,7 +108,7 @@ impl OriginalSourceAuthoredCommandPrefix {
                     .with_dialect(self.producer.dialect()),
                 tcl_dialect::model::InvocationRealm::RuleLoader,
             );
-        Some(project(resolution.resolved()?))
+        Some(project(&resolution.resolved()?))
     }
 }
 

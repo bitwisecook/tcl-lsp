@@ -340,6 +340,86 @@ mod tests {
     }
 
     #[test]
+    fn reached_capture_adapters_preserve_typed_retired_foreign_and_first_causes() {
+        // naming.error.original-invocation-context-capture
+        // docs/design/analysis/name-resolution-proofs/error-original-invocation-context-capture.md
+        // Software transport: no Native execution or source-object observation.
+        use tcl_runtime_api::NativeExecutionError;
+        use tcl_syntax::raw_string::NativeValueAccessRefusal;
+        let version = tcl_dialect::TclVersion::V8_6;
+        let strings = NativeStringProtocol::C(version);
+        let member = Value::native_list_constructor(vec![Value::string("old")], strings);
+        let observed = member.native_lifetime_lease();
+        let argv = NativeListItems::new(vec![member], false);
+        let retired = Value::invocation_list_view(&argv);
+        drop(argv);
+        let foreign = Value::native_list_constructor(
+            vec![Value::string("foreign")],
+            NativeStringProtocol::C(tcl_dialect::TclVersion::V9_0),
+        );
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+        let captures: [fn(&mut super::super::Vm, Value); 3] = [
+            super::super::Vm::begin_error_stack_context,
+            super::super::Vm::error_stack_log_value,
+            super::super::Vm::error_stack_restart_with_inner,
+        ];
+        for capture in captures {
+            for context in [&retired, &foreign] {
+                let expected = context
+                    .capture_native_error_context(strings)
+                    .expect_err("unavailable original context")
+                    .native_access_refusal()
+                    .expect("typed operational cause");
+                let mut vm = crate::native_fixture::core(profile);
+                capture(&mut vm, context.clone());
+                assert_eq!(
+                    vm.execution_refusal,
+                    Some(NativeExecutionError::ValueAccessRefusal(expected)),
+                );
+                assert!(vm.native_errors.error_stack.is_reset());
+                let mut prior = crate::native_fixture::core(profile);
+                let first = NativeExecutionError::ValueAccessRefusal(
+                    NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "first capture obligation",
+                    ),
+                );
+                prior.execution_refusal = Some(first.clone());
+                capture(&mut prior, context.clone());
+                assert_eq!(prior.execution_refusal, Some(first));
+            }
+        }
+        assert!(!observed.value().native_object_is_live());
+    }
+
+    #[test]
+    fn reached_instruction_capture_preserves_missing_owner_refusal() {
+        // naming.error.original-invocation-context-capture
+        // docs/design/analysis/name-resolution-proofs/error-original-invocation-context-capture.md
+        use tcl_registry::native_return_options::NativeReturnOptionsApplication;
+        use tcl_runtime_api::NativeExecutionError;
+        use tcl_syntax::raw_string::NativeValueAccessRefusal;
+        let mut vm =
+            crate::native_fixture::core(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let purpose = NativeReturnOptionsApplication::Immediate;
+        let name = vm
+            .actual_native_invocation_dialect()
+            .native_return_options_application(purpose)
+            .unwrap()
+            .inner_context_name()
+            .unwrap();
+        vm.native_errors.error_stack.configure(None);
+        vm.capture_original_return_instruction_context(purpose, name, &[Value::string("actual")]);
+        assert_eq!(
+            vm.execution_refusal,
+            Some(NativeExecutionError::ValueAccessRefusal(
+                NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "native instruction context owner"
+                ),
+            )),
+        );
+    }
+
+    #[test]
     fn explicit_stack_copies_original_members_into_the_private_header() {
         let recipe = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
             .native_error_objects_protocol()

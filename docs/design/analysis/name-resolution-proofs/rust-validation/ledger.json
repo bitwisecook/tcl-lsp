@@ -110011,6 +110011,658 @@
       "tests": [],
       "question_ids": [],
       "limits": "The exact locked, offline VM no-run library test build closes at two VM libtest compilation errors: unresolved stale brace_safe/quote_for_script imports in exec.rs and the old InterpState dialect_profile field in interp.rs. It emits no libtest executable, never reaches test inventory or assertions and supplies no sealed pin, compiled test pass, aggregate gate or Native provider result."
+    },
+    {
+      "id": "rust.frozen269.integration-vm-native-test-build269",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/integration-vm-native-test-build269/receipt.json.gz",
+        "sha256": "227617b0e741a8003ef1ce55057e05a7fd06b0e92b68abd4278e4019075d4997",
+        "compression": "gzip",
+        "uncompressed_sha256": "a5c4b874b40a4a51a2f36166bfca0ac37d9cd1c3a60e5d9bea10d20856d47789"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/integration-vm-native-test-build269/tests.log",
+        "sha256": "46170d24a4f71bad78cf0739ed3337e74d6a09ba91ecbd0a5a0def13d8dd1580"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 0,
+      "seconds": 107.08530551299918,
+      "uniform_source": true,
+      "status": "compile-passed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. The independent VM-only no-run269 build emits its actual tcl_vm test executable, separately sealed as VM269. Construction is not an assertion result.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/sealed-vm-image/pinned-vm269.elf",
+        "sha256": "e511c818e25c8443061a6003b01c8596ffc138da10999a19cfe81eeb124358dc",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/sealed-vm-image/pinned-vm269.json",
+        "metadata_sha256": "9b71a76f4e83bee10f0c778254a3f22b9939e66c7820e827b462d5445c9f016f",
+        "build_receipt_id": "rust.frozen269.integration-vm-native-test-build269",
+        "original_source_snapshot_sha256": "0e2858f196e6e77c05ac8e2d8fe4a13191816b78c1e8039a01fa1b652a275b2d"
+      }
+    },
+    {
+      "id": "rust.frozen269.integration-compiler-native-test-build269",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/integration-compiler-native-test-build269/receipt.json.gz",
+        "sha256": "b04a86b18a7b8034c471bbd81ad75130ae4f69115e07749b0948e56ca2fc8ec5",
+        "compression": "gzip",
+        "uncompressed_sha256": "c5e97427850d4936b234f9d5c2ba9954739e78750be0fa2b16772469655d8a14"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/integration-compiler-native-test-build269/tests.log",
+        "sha256": "d3ae1f144a5c7f894a3bc1af82d638fd3d6c1c2217dfbf2f6e3fd233069d1b00"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 114.85733937000623,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. This dependency/libtest compilation failure reaches no assertions or sealed image for this invocation. No test executable is emitted."
+    },
+    {
+      "id": "rust.frozen269.integration-vm-current-inventory269",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/integration-vm-current-inventory269/receipt.json.gz",
+        "sha256": "08d5f1df69c4c61d1caca798d2f9d88dc8cc033ff5fb4f428be590840aa63321",
+        "compression": "gzip",
+        "uncompressed_sha256": "e2946c7f96b02e69c4c6a2a46ffb17476a0fe83b87e4df384cd7281c873210ef"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/integration-vm-current-inventory269/tests.log",
+        "sha256": "6105d8583653f073d94cbf1e4f77190062537f13d401a2b3a238e6b662d7254a"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm269.elf",
+        "--list",
+        "--format=terse"
+      ],
+      "exit": 0,
+      "seconds": 0.007213635020889342,
+      "uniform_source": true,
+      "status": "listed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. The independently built sealed VM269 ELF lists728 exact tests; listing grants no assertion result.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/sealed-vm-image/pinned-vm269.elf",
+        "sha256": "e511c818e25c8443061a6003b01c8596ffc138da10999a19cfe81eeb124358dc",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/sealed-vm-image/pinned-vm269.json",
+        "metadata_sha256": "9b71a76f4e83bee10f0c778254a3f22b9939e66c7820e827b462d5445c9f016f",
+        "build_receipt_id": "rust.frozen269.integration-vm-native-test-build269",
+        "original_source_snapshot_sha256": "0e2858f196e6e77c05ac8e2d8fe4a13191816b78c1e8039a01fa1b652a275b2d"
+      }
+    },
+    {
+      "id": "rust.frozen269.integration-vm-native-focus-tests269",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/integration-vm-native-focus-tests269/receipt.json.gz",
+        "sha256": "98d721281ff645e5f5f4e6918cb822e04bfc76dcbedd0fe3e7e90018e2c6d9b5",
+        "compression": "gzip",
+        "uncompressed_sha256": "03ac639b2a36a0da2ade286c43d8a94b75b6043caf305005068ce36ee5b1f04c"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/integration-vm-native-focus-tests269/tests.log",
+        "sha256": "2001f684f19390364695ffd24d16e655104f11a06383d18a32e1af20f90086dd"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm269.elf",
+        "--exact",
+        "cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows",
+        "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+        "cmd_dict::native_rmw_fixture_tests::c85_dictionary_write_error_retains_defined_host_storage",
+        "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+        "cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls",
+        "value::tests::byte_array_carrier_retains_original_storage_and_string_presence",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit": 101,
+      "seconds": 150.90516240301076,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 2,
+        "failed": 4,
+        "ignored": 0,
+        "filtered_out": 722
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::c85_dictionary_write_error_retains_defined_host_storage",
+          "status": "passed",
+          "purpose": "Actual sealed VM269 ELF assertion under its original naming269 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows",
+          "status": "failed",
+          "purpose": "Actual sealed VM269 ELF assertion under its original naming269 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+          "status": "failed",
+          "purpose": "Actual sealed VM269 ELF assertion under its original naming269 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+          ]
+        },
+        {
+          "selector": "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+          "status": "failed",
+          "purpose": "Actual sealed VM269 ELF assertion under its original naming269 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls",
+          "status": "failed",
+          "purpose": "Actual sealed VM269 ELF assertion under its original naming269 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "value::tests::byte_array_carrier_retains_original_storage_and_string_presence",
+          "status": "passed",
+          "purpose": "Actual sealed VM269 ELF assertion under its original naming269 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [
+        "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+      ],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. The six-selector focus run is2 passed/4 failed; the separate five software owner controls pass. Their exact events apply only to this sealed source/image, not current changed definitions or the other backend.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/sealed-vm-image/pinned-vm269.elf",
+        "sha256": "e511c818e25c8443061a6003b01c8596ffc138da10999a19cfe81eeb124358dc",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/sealed-vm-image/pinned-vm269.json",
+        "metadata_sha256": "9b71a76f4e83bee10f0c778254a3f22b9939e66c7820e827b462d5445c9f016f",
+        "build_receipt_id": "rust.frozen269.integration-vm-native-test-build269",
+        "original_source_snapshot_sha256": "0e2858f196e6e77c05ac8e2d8fe4a13191816b78c1e8039a01fa1b652a275b2d"
+      }
+    },
+    {
+      "id": "rust.frozen269.integration-vm-current-owner-tests269",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/integration-vm-current-owner-tests269/receipt.json.gz",
+        "sha256": "40e76d9cdc0c048c47ffdb1c11170683351c36c1eb18aaa462fbb7fbcef3449c",
+        "compression": "gzip",
+        "uncompressed_sha256": "56d167afa14e43e998c8c61ed225b46225f36e70fdf933a92d3dd6ca312ccc6b"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/integration-vm-current-owner-tests269/tests.log",
+        "sha256": "a79de910fff802a4e1dfbe156ee86dc1e5ac1dc9c2fb9c2b4a23fb2759b00324"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm269.elf",
+        "--exact",
+        "exec::active_manifest_tests::active_currency_rechecks_pack_claims_and_manifest_package_floors",
+        "exec::active_manifest_tests::compiled_entry_checks_retained_manifest_and_actual_pack_claims",
+        "exec::active_manifest_tests::refused_overlay_pin_preserves_the_active_artifact_identity",
+        "exec::active_manifest_tests::stale_pack_command_boundary_does_not_acknowledge_the_changed_epoch",
+        "interp::family_b_tests::explicit_host_engine_keeps_source_logical_and_availability_axes_separate",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "seconds": 5.586860462004552,
+      "uniform_source": true,
+      "status": "passed",
+      "result": {
+        "passed": 5,
+        "failed": 0,
+        "ignored": 0,
+        "filtered_out": 723
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "exec::active_manifest_tests::active_currency_rechecks_pack_claims_and_manifest_package_floors",
+          "status": "passed",
+          "purpose": "Actual sealed VM269 ELF assertion under its original naming269 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "exec::active_manifest_tests::compiled_entry_checks_retained_manifest_and_actual_pack_claims",
+          "status": "passed",
+          "purpose": "Actual sealed VM269 ELF assertion under its original naming269 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "exec::active_manifest_tests::refused_overlay_pin_preserves_the_active_artifact_identity",
+          "status": "passed",
+          "purpose": "Actual sealed VM269 ELF assertion under its original naming269 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "exec::active_manifest_tests::stale_pack_command_boundary_does_not_acknowledge_the_changed_epoch",
+          "status": "passed",
+          "purpose": "Actual sealed VM269 ELF assertion under its original naming269 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "interp::family_b_tests::explicit_host_engine_keeps_source_logical_and_availability_axes_separate",
+          "status": "passed",
+          "purpose": "Actual sealed VM269 ELF assertion under its original naming269 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. The six-selector focus run is2 passed/4 failed; the separate five software owner controls pass. Their exact events apply only to this sealed source/image, not current changed definitions or the other backend.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/sealed-vm-image/pinned-vm269.elf",
+        "sha256": "e511c818e25c8443061a6003b01c8596ffc138da10999a19cfe81eeb124358dc",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/sealed-vm-image/pinned-vm269.json",
+        "metadata_sha256": "9b71a76f4e83bee10f0c778254a3f22b9939e66c7820e827b462d5445c9f016f",
+        "build_receipt_id": "rust.frozen269.integration-vm-native-test-build269",
+        "original_source_snapshot_sha256": "0e2858f196e6e77c05ac8e2d8fe4a13191816b78c1e8039a01fa1b652a275b2d"
+      }
+    },
+    {
+      "id": "rust.frozen270.integration-compiler-consumer-test-build270",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen270/integration-compiler-consumer-test-build270/receipt.json.gz",
+        "sha256": "215b9b45dc264f2d5c95cb815a9cf5ed4fe0b9ebe2be418409abc491ddbae242",
+        "compression": "gzip",
+        "uncompressed_sha256": "361dc302be75ff75f23a2d614c4eb63e54cf40c566fe25c72d6d2ece6d3ac50d"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen270/integration-compiler-consumer-test-build270/tests.log",
+        "sha256": "8695908562387924cc628ace9ade0a246ce44bd29b2286a30d8bfcc5a7eb9008"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "-p",
+        "tcl-engine-tclvm",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 109.04670197601081,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. This dependency/libtest compilation failure reaches no assertions or sealed image for this invocation. The log explicitly records successful tcl_syntax and tcl_engine_tclvm test artifacts before the blocked Compiler/Registry build; neither artifact is sealed or assigned an assertion outcome here.",
+      "unsealed_test_artifacts": [
+        {
+          "target": "tcl_syntax",
+          "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_syntax-54a8e65bf9653704",
+          "scope": "Actual Cargo compiler-artifact event only; no sealed image, inventory or assertions."
+        },
+        {
+          "target": "tcl_engine_tclvm",
+          "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_engine_tclvm-fb346ec5c98debea",
+          "scope": "Actual Cargo compiler-artifact event only; no sealed image, inventory or assertions."
+        }
+      ]
+    },
+    {
+      "id": "rust.frozen270.diagnostic-pinned269-native-frontiers-on270",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen270/diagnostic-pinned269-native-frontiers-on270/receipt.json.gz",
+        "sha256": "46c8966670e4f493c5302e51cfb58a252dfa61789f9e993b37b033d0b9d013a7",
+        "compression": "gzip",
+        "uncompressed_sha256": "1c35da665c7689713693eb72ffcb1d7c96ca98f80e24546be40287ddb662af3d"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen270/diagnostic-pinned269-native-frontiers-on270/tests.log",
+        "sha256": "8e18c221d30a61e13bd380156e06418a16ca4d46a983390070d62525c80d3726"
+      },
+      "command": [
+        "/usr/bin/env",
+        "TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC=1",
+        "TCL_LSP_ORACLE_PROGRESS=1",
+        "/workspace/.proofs/pinned-vm269.elf",
+        "--exact",
+        "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+        "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+        "cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit": 101,
+      "seconds": 61.76167102900217,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 3,
+        "ignored": 0,
+        "filtered_out": 725
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+          "status": "failed",
+          "purpose": "Actual sealed VM269 ELF assertion with separately retained current naming270 compiler/runtime source association; this mixed diagnostic is not a naming270 build or artifact result. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+          ]
+        },
+        {
+          "selector": "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+          "status": "failed",
+          "purpose": "Actual sealed VM269 ELF assertion with separately retained current naming270 compiler/runtime source association; this mixed diagnostic is not a naming270 build or artifact result. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls",
+          "status": "failed",
+          "purpose": "Actual sealed VM269 ELF assertion with separately retained current naming270 compiler/runtime source association; this mixed diagnostic is not a naming270 build or artifact result. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [
+        "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+      ],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. Explicit mixed provenance: the executable was independently built/sealed from269, while the launcher records the stable current270 source used by its invoked diagnostics/runtime compilation. uniform_source=true certifies only that recorded270 source association did not change during this command; it does not make the269 image a270 build or promote any270 artifact.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/sealed-vm-image/pinned-vm269.elf",
+        "sha256": "e511c818e25c8443061a6003b01c8596ffc138da10999a19cfe81eeb124358dc",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/sealed-vm-image/pinned-vm269.json",
+        "metadata_sha256": "9b71a76f4e83bee10f0c778254a3f22b9939e66c7820e827b462d5445c9f016f",
+        "build_receipt_id": "rust.frozen269.integration-vm-native-test-build269",
+        "original_source_snapshot_sha256": "0e2858f196e6e77c05ac8e2d8fe4a13191816b78c1e8039a01fa1b652a275b2d"
+      }
+    },
+    {
+      "id": "rust.frozen271.integration-compiler-consumer-test-build271",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen271/integration-compiler-consumer-test-build271/receipt.json.gz",
+        "sha256": "eefe59508c5ec877f9293d9d4ad4244f06fbbe5a9e1152d68e199e8a39904967",
+        "compression": "gzip",
+        "uncompressed_sha256": "3f17b501b6855be7fd4a7be7335c5b6f62a06f773492e455d680ea13a055ce6b"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen271/integration-compiler-consumer-test-build271/tests.log",
+        "sha256": "2161213a915b642f2a6e71b6a70bf35d3bf8aef13a5223c5c4e348e2d65b860d"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "-p",
+        "tcl-engine-tclvm",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 202.92795960299554,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. This dependency/libtest compilation failure reaches no assertions or sealed image for this invocation. The log explicitly records successful tcl_syntax and tcl_engine_tclvm test artifacts before the blocked Compiler/Registry build; neither artifact is sealed or assigned an assertion outcome here.",
+      "unsealed_test_artifacts": [
+        {
+          "target": "tcl_syntax",
+          "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_syntax-54a8e65bf9653704",
+          "scope": "Actual Cargo compiler-artifact event only; no sealed image, inventory or assertions."
+        },
+        {
+          "target": "tcl_engine_tclvm",
+          "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_engine_tclvm-fb346ec5c98debea",
+          "scope": "Actual Cargo compiler-artifact event only; no sealed image, inventory or assertions."
+        }
+      ]
+    },
+    {
+      "id": "rust.frozen271.diagnostic-pinned269-dictionary345-backtrace-on271",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen271/diagnostic-pinned269-dictionary345-backtrace-on271/receipt.json.gz",
+        "sha256": "74d14fa35049db756b8a0b8b973fcdb9d6799a813e68238f358cf3da64d5728e",
+        "compression": "gzip",
+        "uncompressed_sha256": "ddff25c7c314e7a94288d04bc645dfc8789c94c9b527ce3f018362aa52ab91b4"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen271/diagnostic-pinned269-dictionary345-backtrace-on271/tests.log",
+        "sha256": "c354e231719ed2e04ee9bfec2be5a02303d6561259425974e2fe399b48f08109"
+      },
+      "command": [
+        "/usr/bin/env",
+        "RUST_BACKTRACE=1",
+        "TCL_LSP_ORACLE_PROGRESS=1",
+        "/workspace/.proofs/pinned-vm269.elf",
+        "--exact",
+        "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit": 101,
+      "seconds": 70.44165768599487,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 727
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+          "status": "failed",
+          "purpose": "Actual sealed VM269 ELF assertion with separately retained current naming271 compiler/runtime source association; this mixed diagnostic is not a naming271 build or artifact result. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+          ]
+        }
+      ],
+      "question_ids": [
+        "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+      ],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. Explicit mixed provenance: the executable was independently built/sealed from269, while the launcher records the stable current271 source used by its invoked diagnostics/runtime compilation. uniform_source=true certifies only that recorded271 source association did not change during this command; it does not make the269 image a271 build or promote any271 artifact.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/sealed-vm-image/pinned-vm269.elf",
+        "sha256": "e511c818e25c8443061a6003b01c8596ffc138da10999a19cfe81eeb124358dc",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/sealed-vm-image/pinned-vm269.json",
+        "metadata_sha256": "9b71a76f4e83bee10f0c778254a3f22b9939e66c7820e827b462d5445c9f016f",
+        "build_receipt_id": "rust.frozen269.integration-vm-native-test-build269",
+        "original_source_snapshot_sha256": "0e2858f196e6e77c05ac8e2d8fe4a13191816b78c1e8039a01fa1b652a275b2d"
+      }
+    },
+    {
+      "id": "rust.frozen272.integration-all-naming-consumer-test-build272",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen272/integration-all-naming-consumer-test-build272/receipt.json.gz",
+        "sha256": "d846708d25b67dac7ddee07f15092b80c1cfd23afbf04973b01f1dee0ff90719",
+        "compression": "gzip",
+        "uncompressed_sha256": "44f9baa3cde41c64208727cdee6282be59468824513db80e89ffe5392a158693"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen272/integration-all-naming-consumer-test-build272/tests.log",
+        "sha256": "658a741484c5ff147b22809d0a5d928f32f69feb8b07f41f2a3431a01e433ec8"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "-p",
+        "tcl-vm",
+        "-p",
+        "tcl-lsp-core",
+        "-p",
+        "tcl-lsp-db",
+        "-p",
+        "tcl-lsp-server",
+        "-p",
+        "tcl-engine-tclvm",
+        "-p",
+        "tcl-runtime",
+        "--features",
+        "tcl-runtime/engine",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 0.06559348298469558,
+      "uniform_source": true,
+      "status": "command-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Exact decompressed original receipt retains all frozen source hashes and compile/archive roots; each archived leaf is independently byte-checked. Git head is a recorded source association, not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Cargo rejects the selected tcl-runtime/engine feature before compilation because Runtime is outside this root workspace package selection. No compiler/test executable, assertions or sealed image is produced by this command; it is a command-selection failure, not a Native behaviour result. uniform_source=true certifies this recorded naming272 source image only. Later repairs, other invocations and Native provider evidence are independent."
+    },
+    {
+      "id": "rust.frozen272.integration-workspace-naming-consumer-test-build272",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen272/integration-workspace-naming-consumer-test-build272/receipt.json.gz",
+        "sha256": "124dc343bb0b2dd8fe49a028fc1ea5e3a9507c0c9196cb0340541acfb4e87f3c",
+        "compression": "gzip",
+        "uncompressed_sha256": "63cbf3243b48a7ddbfaaa076ac5775e4005e4c27be5f6f41973fff4ebb9d0e44"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen272/integration-workspace-naming-consumer-test-build272/tests.log",
+        "sha256": "05f77d5c5fa2258029068787d3b84f6975df7aa28864d0d4041fe819412e3a95"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "-p",
+        "tcl-vm",
+        "-p",
+        "tcl-lsp-core",
+        "-p",
+        "tcl-lsp-db",
+        "-p",
+        "tcl-lsp-server",
+        "-p",
+        "tcl-engine-tclvm",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 140.16752153800917,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Exact decompressed original receipt retains all frozen source hashes and compile/archive roots; each archived leaf is independently byte-checked. Git head is a recorded source association, not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The workspace-only no-run command reaches one ordinary Compiler E0308 producer type/borrow error and stops before unit assertions or a Compiler/VM image. Its log records one successful tcl_syntax libtest compiler-artifact event; that artifact remains unsealed, uninventoried and unexecuted here. No aggregate successful build, test or Native outcome follows. uniform_source=true certifies this recorded naming272 source image only. Later repairs, other invocations and Native provider evidence are independent.",
+      "unsealed_test_artifacts": [
+        {
+          "target": "tcl_syntax",
+          "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_syntax-896b776365d8a73f",
+          "scope": "Actual successful Cargo artifact event only; no sealed image, inventory or assertions."
+        }
+      ]
     }
   ]
 }

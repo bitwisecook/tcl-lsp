@@ -1,0 +1,38 @@
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclMatchIsTrivial(pattern)
+    CONST char *pattern;
+{
+    CONST char *p = pattern;
+
+    while (1) {
+	switch (*p++) {
+	case '\0':
+	    return 1;
+	case '*':
+	case '?':
+	case '[':
+	case '\\':
+	    return 0;
+	}
+    }
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_DStringInit --
+ *
+ *	Initializes a dynamic string, discarding any previous contents
+ *	of the string (Tcl_DStringFree should have been called already
+ *	if the dynamic string was previously in use).
+ *
+ * Results:
+ *	None.
+ *

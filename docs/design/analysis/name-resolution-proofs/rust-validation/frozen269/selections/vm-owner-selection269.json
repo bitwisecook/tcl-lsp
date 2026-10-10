@@ -1,0 +1,13 @@
+{
+  "source_image": "naming269",
+  "pin_sha256": "e511c818e25c8443061a6003b01c8596ffc138da10999a19cfe81eeb124358dc",
+  "inventory_count": 728,
+  "selected": [
+    "exec::active_manifest_tests::active_currency_rechecks_pack_claims_and_manifest_package_floors",
+    "exec::active_manifest_tests::compiled_entry_checks_retained_manifest_and_actual_pack_claims",
+    "exec::active_manifest_tests::refused_overlay_pin_preserves_the_active_artifact_identity",
+    "exec::active_manifest_tests::stale_pack_command_boundary_does_not_acknowledge_the_changed_epoch",
+    "interp::family_b_tests::explicit_host_engine_keeps_source_logical_and_availability_axes_separate"
+  ],
+  "zero_matches": []
+}

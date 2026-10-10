@@ -4978,7 +4978,7 @@ fn info_commands_grammar(
         return NativeCompilationSelection::Generic;
     }
     let absolute = shapes.len() == 2
-        && literal_shape(shapes[1])
+        && static_value_shape(shapes[1])
         && words.arguments().literal_at(1).is_some_and(|pattern| {
             crate::native_introspection_compilation::native_info_commands_literal_is_trivial(
                 pattern.as_bytes(),

@@ -16,11 +16,15 @@ child_eval_original evaluates the selected original body in the actual child. Be
 
 The Runtime embedding adapter shares this host-only boundary. Its typed host refusal is uncatchable by guest catch, preserves effects already reached and leaves pending result/return/options state intact. Actual child transport retains an earlier parent cause and result. Explicit guest ScriptBytes errors and nonstandard completions retain a separate original options path; no host reason is fabricated as guest error options.
 
+The central CmdCore refusal adapter preserves the first original typed ValueAccessRefusal independently of later failures. Its software control neither enters a child nor supplies Native command/value-operation availability; the original child-host public observation remains a separate measured scope.
+
 ## Scope
 
 One fixed Runtime source/API control uses an explicit authored host worker in a created model child, with and without an existing parent refusal. It compares the actual retained typed cause in both states and unchanged parent result. All seven native providers are not tested; no external process or native object/header/frame observation answers this API question.
 
 One additional embedding software control binds this typed-host boundary and prior-parent precedence; it does not execute a native child or assert C/Jim guest exception equivalence. Exact counted result/resident facts are authored Rust inputs, not independently produced Native object observations.
+
+One additional adapter-only current software control has no executed assertion receipt. Exact typed first-cause preservation does not issue child execution, Native invocation/frame or external provider identity.
 
 ## Provider answers
 
@@ -89,6 +93,11 @@ A named test is a coverage binding, not a claim that it executed.
 - [runtime/rust/src/engine.rs](../../../../runtime/rust/src/engine.rs), `engine::tests::host_refusal_is_uncatchable_and_retains_prior_effects_and_completion_state` (linked): Typed host execution refusal remains outside guest catch/completion, retains earlier effects and prevents later effects. The model keeps the prior result/resident bytes, pending return state/options and prior-parent host cause when transporting a child refusal.
 
 These source/API bindings carry no executed assertion or Native provider result.
+
+- [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `completion_from_cmd_error`: Route original CmdCore typed refusal through the existing first-Host-cause owner; preserve typed identity instead of construct a String Host failure or guest message.
+- [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `command::tests::original_command_core_refusal_keeps_typed_first_host_cause` (linked): The shared CmdCore error adapter retains the first actual typed ValueAccessRefusal when a later distinct refusal is reported; it does not enter a child or establish native command/value availability.
+
+These bindings are current software contracts without an executed assertion or external provider result.
 
 ## Replay
 

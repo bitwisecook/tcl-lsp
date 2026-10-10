@@ -2337,7 +2337,7 @@ pub(crate) fn err_with_code(
 /// Convert a portable command-layer error without losing its Tcl identity.
 pub(crate) fn completion_from_cmd_error(vm: &mut Vm, error: CmdError) -> Completion<Value> {
     if let Some(error) = error.native_access_refusal() {
-        return vm.refuse_host_command(error.to_string());
+        return vm.refuse_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(error));
     }
     let details = error.into_byte_details();
     let explicit_code_store =
@@ -2353,7 +2353,9 @@ pub(crate) fn completion_from_cmd_error(vm: &mut Vm, error: CmdError) -> Complet
             .ok_or(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("wrong arguments"))
     }) {
         Ok(update) => update,
-        Err(refusal) => return vm.refuse_host_command(refusal.to_string()),
+        Err(refusal) => {
+            return vm.refuse_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(refusal));
+        }
     };
     let string_protocol = details.string_result.or_else(|| {
         wrong_arguments
@@ -2387,7 +2389,7 @@ pub(crate) fn completion_from_cmd_error(vm: &mut Vm, error: CmdError) -> Complet
     if let Some(materialization) = string_result
         && let Err(error) = result.retain_native_string_representation(materialization)
     {
-        return vm.refuse_host_command(error.to_string());
+        return completion_from_tcl_error(vm, error.into());
     }
     let mut extra = Vec::with_capacity(3);
     extra.push(("-errorcode", code));
@@ -3746,6 +3748,25 @@ pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 mod tests {
     use super::parse_params;
     use tcl_syntax::value::ValueOps;
+
+    #[test]
+    fn original_command_core_refusal_keeps_typed_first_host_cause() {
+        // naming.interpreter.original-child-host-refusal-transport
+        // docs/design/analysis/name-resolution-proofs/interpreter-original-child-host-refusal-transport.md
+        // Central CmdCore adapter control only; this does not enter a child or
+        // supply native invocation, command or value-operation availability.
+        use tcl_syntax::raw_string::NativeValueAccessRefusal;
+        let original =
+            NativeValueAccessRefusal::CommandProtocolUnavailable("original command query");
+        let later = NativeValueAccessRefusal::CharacterModelUnavailable;
+        let mut vm = crate::Vm::new();
+        let _ = super::completion_from_cmd_error(&mut vm, original.into());
+        let completion = super::completion_from_cmd_error(&mut vm, later.into());
+        assert!(matches!(
+            vm.finish_host_execution(completion),
+            Err(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(actual)) if actual == original
+        ));
+    }
 
     #[test]
     fn jim_core_alias_query_retains_original_prefix_header_and_members() {

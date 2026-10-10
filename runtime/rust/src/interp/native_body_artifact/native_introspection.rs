@@ -91,7 +91,9 @@ impl Interp {
                     .map_err(|error| self.report_cmd_error(error.into()))?;
                 match bytes {
                     Some(bytes) if !bytes.is_empty() => {
-                        let name = obj::Owned::fresh(obj::new_string_bytes(&bytes));
+                        let name = self
+                            .native_namespace_origin_result(&bytes)
+                            .map_err(|error| self.report_cmd_error(error.into()))?;
                         obj::Owned::fresh(self.new_list_object(&[name.as_ptr()]))
                     }
                     _ => obj::Owned::fresh(obj::new_obj()),
@@ -365,3 +367,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod info_commands_literal_tests;

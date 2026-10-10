@@ -1,0 +1,88 @@
+ *      May update the internal representation for the object, caching
+ *      the command reference so that the next time this procedure is
+ *	called with the same object, the command can be found quickly.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Tcl_Command
+Tcl_GetCommandFromObj(interp, objPtr)
+    Tcl_Interp *interp;		/* The interpreter in which to resolve the
+				 * command and to report errors. */
+    register Tcl_Obj *objPtr;	/* The object containing the command's
+				 * name. If the name starts with "::", will
+				 * be looked up in global namespace. Else,
+				 * looked up first in the current namespace,
+				 * then in global namespace. */
+{
+    Interp *iPtr = (Interp *) interp;
+    register ResolvedCmdName *resPtr;
+    register Command *cmdPtr;
+    Namespace *currNsPtr;
+    int result;
+    CallFrame *savedFramePtr;
+    char *name;
+
+    /*
+     * If the variable name is fully qualified, do as if the lookup were
+     * done from the global namespace; this helps avoid repeated lookups 
+     * of fully qualified names. It costs close to nothing, and may be very
+     * helpful for OO applications which pass along a command name ("this"),
+     * [Patch 456668]
+     */
+
+    savedFramePtr = iPtr->varFramePtr;
+    name = Tcl_GetString(objPtr);
+    if ((*name++ == ':') && (*name == ':')) {
+	iPtr->varFramePtr = NULL;
+    }
+
+    /*
+     * Get the internal representation, converting to a command type if
+     * needed. The internal representation is a ResolvedCmdName that points
+     * to the actual command.
+     */
+    
+    if (objPtr->typePtr != &tclCmdNameType) {
+        result = tclCmdNameType.setFromAnyProc(interp, objPtr);
+        if (result != TCL_OK) {
+	    iPtr->varFramePtr = savedFramePtr;
+            return (Tcl_Command) NULL;
+        }
+    }
+    resPtr = (ResolvedCmdName *) objPtr->internalRep.twoPtrValue.ptr1;
+
+    /*
+     * Get the current namespace.
+     */
+    
+    if (iPtr->varFramePtr != NULL) {
+	currNsPtr = iPtr->varFramePtr->nsPtr;
+    } else {
+	currNsPtr = iPtr->globalNsPtr;
+    }
+
+    /*
+     * Check the context namespace and the namespace epoch of the resolved
+     * symbol to make sure that it is fresh. If not, then force another
+     * conversion to the command type, to discard the old rep and create a
+     * new one. Note that we verify that the namespace id of the context
+     * namespace is the same as the one we cached; this insures that the
+     * namespace wasn't deleted and a new one created at the same address
+     * with the same command epoch.
+     */
+    
+    cmdPtr = NULL;
+    if ((resPtr != NULL)
+	    && (resPtr->refNsPtr == currNsPtr)
+	    && (resPtr->refNsId == currNsPtr->nsId)
+	    && (resPtr->refNsCmdEpoch == currNsPtr->cmdRefEpoch)) {
+        cmdPtr = resPtr->cmdPtr;
+        if (cmdPtr->cmdEpoch != resPtr->cmdEpoch
+		|| (cmdPtr->flags & CMD_IS_DELETED)) {
+            cmdPtr = NULL;
+        }
+    }
+
+    if (cmdPtr == NULL) {
+        result = tclCmdNameType.setFromAnyProc(interp, objPtr);

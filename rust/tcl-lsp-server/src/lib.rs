@@ -467,6 +467,50 @@ struct FreshAnalysisSeed {
     class_factory_generation: u64,
 }
 
+struct FreshAnalysisDriver {
+    analyser: Analyser,
+    analyser_inputs_epoch: u64,
+    class_factory_generation: u64,
+}
+
+impl FreshAnalysisDriver {
+    fn analyse(mut self, text: &str, dialect: &str, namespace: Option<&str>) -> FreshAnalysisSeed {
+        let text = tcl_lexer::normalise_lone_cr(text);
+        let analysis = match namespace {
+            Some(namespace) => self
+                .analyser
+                .analyse_with_source_namespace(&text, dialect, namespace),
+            None => self.analyser.analyse(&text, dialect),
+        };
+        FreshAnalysisSeed {
+            analysis: Arc::new(analysis),
+            analyser_inputs_epoch: self.analyser_inputs_epoch,
+            class_factory_generation: self.class_factory_generation,
+        }
+    }
+}
+
+struct ScannedDocument {
+    uri: Uri,
+    text: String,
+    dialect: String,
+    seed: FreshAnalysisSeed,
+}
+
+impl ScannedDocument {
+    fn into_index_row(self) -> (Uri, String, String, AnalysisResult) {
+        let analysis = match self.seed.analysis.analysis_context_unavailable.as_ref() {
+            Some(miss) => AnalysisResult {
+                dialect: self.dialect.clone(),
+                analysis_context_unavailable: Some(miss.clone()),
+                ..AnalysisResult::default()
+            },
+            None => self.seed.analysis.as_ref().clone(),
+        };
+        (self.uri, self.text, self.dialect, analysis)
+    }
+}
+
 /// A snapshot of what the editor holds for every open document, by path.
 ///
 /// Built by [`Backend::open_document_texts`] and handed to the iRulesLX
@@ -4907,36 +4951,8 @@ async fn refresh_cross_file_evidence(
     reschedule_peers(slots, uri, changed).await;
 }
 
-/// Re-index the **unopened** workspace documents whose analysis the
-/// class-factory oracle can change, once the oracle has been published.
-///
-/// The startup scan analyses every file with a bare `Analyser::new()` and
-/// merges the result into `workspace_index` *before*
-/// [`sync_workspace_class_factories`] has anything to publish — it cannot
-/// be otherwise, because the oracle is computed **from** those files. So
-/// a document holding `Meta create Widget {…}` is first indexed as if
-/// `Meta` were an unknown command, and every class it manufactures is
-/// missing from the index the navigation providers read. An **open**
-/// document recovers: `reschedule_peers` marks it dirty and its
-/// diagnostics worker re-analyses it with the oracle in hand. An unopened
-/// one has no diagnostics slot to mark, so without this pass nothing
-/// re-indexes it, and a plain `oo::class` would resolve unopened where a
-/// manufactured class would not.
-///
-/// Scoped to the documents that can actually be affected: a document
-/// qualifies only when one of its recorded invocations resolves to a
-/// metaclass the oracle names ([`core_workspace_index::WorkspaceIndex::documents_invoking_classes`]),
-/// so a workspace with no metaclass re-indexes nothing and a workspace
-/// with one re-indexes its handful of consumers, not every file it holds.
-///
-/// One pass suffices however deep the metaclass chain is: the oracle is
-/// already a fixpoint over the whole project when this runs, so every
-/// link is known before the first document is re-analysed. Re-indexing
-/// can add manufactured **classes** to the index, never new *factories* —
-/// those come from salsa's own fixpoint, which this does not feed.
-///
-/// Lock order is the global one — `rehoming_gate` → `documents` → `db` →
-/// `workspace_index`.
+/// Re-index closed factory consumers with their checked document input. The
+/// oracle supplies reporting hints; it does not replace source metadata.
 async fn reindex_unopened_factory_consumers(
     handles: &EvidenceHandles,
     affected_factory_names: &HashSet<String>,
@@ -4944,25 +4960,10 @@ async fn reindex_unopened_factory_consumers(
     if affected_factory_names.is_empty() {
         return;
     }
-    let (oracle, texts) = {
-        let db = handles.db.lock().await;
-        let files = handles.db_files.lock().await;
-        let oracle = Backend::published_class_factories(&db, &files);
-        let texts: HashMap<Uri, (String, String)> = files
-            .iter()
-            .map(|(uri, &file)| {
-                (
-                    uri.clone(),
-                    (file.text(&*db).clone(), file.dialect(&*db).clone()),
-                )
-            })
-            .collect();
-        (oracle, texts)
-    };
     let keys: HashSet<&str> = affected_factory_names
         .iter()
         .map(|k| tcl_compiler::naming::unroot_rooted_key(k).unwrap_or(k))
-        .collect::<HashSet<&str>>();
+        .collect();
     let candidates = handles
         .workspace_index
         .read()
@@ -4972,6 +4973,7 @@ async fn reindex_unopened_factory_consumers(
         return;
     }
     let _rehoming_guard = handles.rehoming_gate.lock().await;
+    let generation = *handles.class_factory_generation.read().await;
     let open: HashSet<String> = handles
         .documents
         .lock("warm_open_documents")
@@ -4979,39 +4981,139 @@ async fn reindex_unopened_factory_consumers(
         .keys()
         .map(|u| u.as_str().to_owned())
         .collect();
-    let mut work: Vec<(Uri, String, String)> = Vec::new();
-    for uri_str in candidates {
-        if open.contains(&uri_str) {
-            continue;
-        }
-        let Ok(uri) = Uri::from_str(&uri_str) else {
-            continue;
-        };
-        if let Some((text, dialect)) = texts.get(&uri) {
-            work.push((uri, text.clone(), dialect.clone()));
-        }
-    }
+    let global = *handles.db_config.lock().await;
+    let folders = handles.folder_db_configs.lock().await.clone();
+    let (oracle, work) = {
+        let db = handles.db.lock().await;
+        let files = handles.db_files.lock().await;
+        let oracle = Backend::published_class_factories(&db, &files);
+        let work = candidates
+            .into_iter()
+            .filter_map(|uri| {
+                if open.contains(&uri) {
+                    return None;
+                }
+                let uri = Uri::from_str(&uri).ok()?;
+                let file = *files.get(&uri)?;
+                let config = longest_folder_match(&folders, &uri)
+                    .copied()
+                    .unwrap_or(global);
+                Some((
+                    uri,
+                    file,
+                    config,
+                    Backend::configured_analyser_from_db_config(config, &*db),
+                ))
+            })
+            .collect::<Vec<_>>();
+        (oracle, work)
+    };
     if work.is_empty() {
         return;
     }
-    let oracle_for_task = oracle.clone();
-    let analysed = crate::rt::spawn_blocking(move || {
-        work.into_iter()
-            .map(|(uri, text, dialect)| {
-                let analysis = Analyser::new()
-                    .with_workspace_class_factories(oracle_for_task.clone())
-                    .analyse(&text, &dialect)
-                    .clone();
-                (uri, analysis)
-            })
-            .collect::<Vec<_>>()
+    let snapshot = handles
+        .db
+        .snapshot("reindex_unopened_factory_consumers")
+        .await;
+    let rows = crate::rt::spawn_blocking(move || {
+        salsa::Cancelled::catch(|| {
+            work.into_iter()
+                .map(|(uri, file, config, analyser)| {
+                    let text = file.text(&*snapshot).clone();
+                    let dialect = file.dialect(&*snapshot).clone();
+                    let input = tcl_lsp_db::document_analysis_input(&*snapshot, file, config);
+                    let analysis = match &input {
+                        Ok(input) => analyser
+                            .with_resolved_input(input.as_ref().clone())
+                            .with_workspace_class_factories(oracle.clone())
+                            .analyse(&text, &dialect),
+                        Err(miss) => AnalysisResult {
+                            dialect: dialect.clone(),
+                            analysis_context_unavailable: Some(miss.clone()),
+                            ..AnalysisResult::default()
+                        },
+                    };
+                    FactoryIndexSeed {
+                        uri,
+                        file,
+                        text,
+                        dialect,
+                        input,
+                        analysis,
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
     })
     .await
     .unwrap_or_default();
-    let mut index = handles.workspace_index.write().await;
-    for (uri, analysis) in &analysed {
-        index.remove_document(uri.as_str());
-        index.add_document(uri.as_str(), analysis);
+    publish_factory_index_seeds(handles, generation, &rows).await;
+}
+
+struct FactoryIndexSeed {
+    uri: Uri,
+    file: tcl_lsp_db::SourceFile,
+    text: String,
+    dialect: String,
+    input: Result<
+        Arc<tcl_compiler::analyser::ResolvedAnalysisInput>,
+        tcl_registry::model::OverlayMiss,
+    >,
+    analysis: AnalysisResult,
+}
+
+async fn publish_factory_index_seeds(
+    handles: &EvidenceHandles,
+    generation: u64,
+    rows: &[FactoryIndexSeed],
+) {
+    loop {
+        let factory_generation = handles.class_factory_generation.read().await;
+        if *factory_generation != generation {
+            return;
+        }
+        let global = *handles.db_config.lock().await;
+        let folders = handles.folder_db_configs.lock().await.clone();
+        let docs = handles.documents.lock("factory_index_publish").await;
+        let db = handles.db.lock().await;
+        let files = handles.db_files.lock().await;
+        let Ok(mut index) = handles.workspace_index.try_write() else {
+            drop(files);
+            drop(db);
+            drop(docs);
+            drop(factory_generation);
+            drop(handles.workspace_index.write().await);
+            continue;
+        };
+        for row in rows {
+            let config = longest_folder_match(&folders, &row.uri)
+                .copied()
+                .unwrap_or(global);
+            let source_current = match &row.input {
+                Ok(input) => {
+                    row.analysis.resolved_input.as_ref() == Some(input.as_ref())
+                        && tcl_compiler::source_graph::current_analysis(&row.text, &row.analysis)
+                            .is_some()
+                }
+                Err(miss) => {
+                    row.analysis.analysis_context_unavailable.as_ref() == Some(miss)
+                        && row.analysis.resolved_input.is_none()
+                }
+            };
+            if !source_current
+                || docs.contains_key(&row.uri)
+                || files.get(&row.uri) != Some(&row.file)
+                || row.file.text(&*db) != &row.text
+                || row.file.dialect(&*db) != &row.dialect
+                || tcl_lsp_db::document_analysis_input(&*db, row.file, config) != row.input
+            {
+                continue;
+            }
+            index.remove_document(row.uri.as_str());
+            index.add_document(row.uri.as_str(), &row.analysis);
+        }
+        return;
     }
 }
 
@@ -5081,6 +5183,8 @@ async fn refresh_can_change_result(
 /// The handles [`sync_cross_file_evidence`] needs, cloned off a [`DiagInputs`]
 /// before [`run_diagnostics_core`] consumes it.
 struct EvidenceHandles {
+    db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
+    folder_db_configs: Arc<Mutex<Vec<(Uri, tcl_lsp_db::AnalyserConfig)>>>,
     db: Arc<TrackedMutex<tcl_lsp_db::TclDatabase>>,
     db_files: Arc<TrackedMutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
     db_project_members: Arc<Mutex<HashSet<Uri>>>,
@@ -5124,6 +5228,8 @@ struct CrossFileEvidenceChanges {
 impl EvidenceHandles {
     fn from_inputs(inputs: &DiagInputs) -> Self {
         Self {
+            db_config: Arc::clone(&inputs.db_config),
+            folder_db_configs: Arc::clone(&inputs.folder_db_configs),
             db: Arc::clone(&inputs.db),
             db_files: Arc::clone(&inputs.db_files),
             db_project_members: Arc::clone(&inputs.db_project_members),
@@ -11585,6 +11691,19 @@ impl Backend {
         text: Arc<str>,
         dialect: String,
     ) -> FreshAnalysisSeed {
+        let driver = self.fresh_analysis_driver(uri).await;
+        let analyser_inputs_epoch = driver.analyser_inputs_epoch;
+        let class_factory_generation = driver.class_factory_generation;
+        crate::rt::spawn_blocking(move || driver.analyse(&text, &dialect, None))
+            .await
+            .unwrap_or_else(|_| FreshAnalysisSeed {
+                analysis: Arc::default(),
+                analyser_inputs_epoch,
+                class_factory_generation,
+            })
+    }
+
+    async fn fresh_analysis_driver(&self, uri: &Uri) -> FreshAnalysisDriver {
         // Analyse outside Salsa with the same per-folder config the cached path
         // would have used, so the result still honours folder-scoped
         // suppression and cross-file factory oracle without retaining a
@@ -11629,21 +11748,47 @@ impl Backend {
             }
         };
         let file_path = uri.to_file_path().map(|path| path.display().to_string());
-        let analysis = crate::rt::spawn_blocking(move || {
-            let analysis_text = tcl_lexer::normalise_lone_cr(&text);
-            let mut analyser =
-                Self::configured_analyser(disabled, na_mode, extra, pack_key, resource)
-                    .with_workspace_class_factories(workspace_class_factories)
-                    .with_file_path(file_path);
-            Arc::new(analyser.analyse(&analysis_text, &dialect))
-        })
-        .await
-        .unwrap_or_default();
-        FreshAnalysisSeed {
-            analysis,
+        FreshAnalysisDriver {
+            analyser: Self::configured_analyser(disabled, na_mode, extra, pack_key, resource)
+                .with_workspace_class_factories(workspace_class_factories)
+                .with_file_path(file_path),
             analyser_inputs_epoch,
             class_factory_generation,
         }
+    }
+
+    async fn fresh_index_generation_is_current(&self, seed: &FreshAnalysisSeed) -> bool {
+        self.diag_inputs_epoch() == seed.analyser_inputs_epoch
+            && *self.class_factory_generation.read().await == seed.class_factory_generation
+    }
+
+    async fn fresh_index_seed_is_current(&self, source: &str, seed: &FreshAnalysisSeed) -> bool {
+        self.fresh_index_generation_is_current(seed).await
+            && tcl_compiler::source_graph::current_analysis(source, &seed.analysis).is_some()
+    }
+
+    async fn current_scanned_rows(
+        &self,
+        scanned: Vec<ScannedDocument>,
+    ) -> Vec<(Uri, String, String, AnalysisResult)> {
+        let mut rows = Vec::with_capacity(scanned.len());
+        for document in scanned {
+            if self.fresh_index_generation_is_current(&document.seed).await
+                && (document
+                    .seed
+                    .analysis
+                    .analysis_context_unavailable
+                    .is_some()
+                    || tcl_compiler::source_graph::current_analysis(
+                        &document.text,
+                        &document.seed.analysis,
+                    )
+                    .is_some())
+            {
+                rows.push(document.into_index_row());
+            }
+        }
+        rows
     }
 
     /// Return a snapshot of the current workspace folder
@@ -13190,25 +13335,15 @@ impl Backend {
     /// reindex, so both agree on exactly how a disk-backed file is
     /// turned into an index/salsa entry.
     async fn scan_disk_file(
-        store: &Arc<dyn vfs::SourceStore>,
+        store: Arc<dyn vfs::SourceStore>,
         uri: Uri,
         document_overrides: Arc<HashMap<String, String>>,
         folder_dialects: Arc<Vec<(Uri, String)>>,
         default_dialect: Arc<String>,
-        resource: Arc<ResourceAnalyserInputs>,
-    ) -> Option<(Uri, String, String, AnalysisResult)> {
-        let store = Arc::clone(store);
+        driver: FreshAnalysisDriver,
+    ) -> Option<ScannedDocument> {
         crate::rt::spawn_blocking(move || {
             let path = uri.to_file_path()?;
-            // Normalise on the way in, exactly as `read_document` does for the
-            // interactive path, so a disk-backed file's index entry, salsa
-            // input and diagnostics describe the same script the editor would
-            // see once the file is opened: the background and interactive
-            // paths must not disagree about where a lone `\r` breaks a line.
-            // Read through the shared decoder: `read_to_string`
-            // would fail on ill-formed UTF-8 and `.ok()?` would then drop the
-            // whole file — its procs, its `source` edges, its symbols — out of
-            // the index with nothing said about it.
             let (raw, _) = store.read_source(&path).ok()?;
             let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
             let dialect = Self::dialect_for_closed_sync(
@@ -13218,20 +13353,13 @@ impl Backend {
                 &folder_dialects,
                 &default_dialect,
             );
-            // The declared edges belong here as much as on the interactive
-            // path: this analysis becomes the file's *index* entry, and
-            // `workspace_index` harvests `package_requires` from it. Without
-            // them a closed file's entry omits the implied requires, so a
-            // sibling that inherits through `source` under-reports — and the
-            // same file yields different requires depending on whether it was
-            // reached through this path or the closed-file branch of
-            // `compute_base_analysis`, which does carry them.
-            let analysis = resource
-                .as_ref()
-                .clone()
-                .apply(Analyser::new())
-                .analyse(&text, &dialect);
-            Some((uri, text, dialect, analysis))
+            let seed = driver.analyse(&text, &dialect, None);
+            Some(ScannedDocument {
+                uri,
+                text,
+                dialect,
+                seed,
+            })
         })
         .await
         .ok()
@@ -13261,46 +13389,40 @@ impl Backend {
         let document_overrides = self.document_dialect_override_snapshot().await;
         let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
         let default_dialect = Arc::new(self.session_dialect().await);
-        // No document in hand: this batch spans folders, so the global values
-        // are the only coherent answer.
-        let resource = Arc::new(self.resource_analyser_inputs(None).await);
         let concurrency =
             crate::rt::available_parallelism().min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
-        let futures: Vec<_> = uris
-            .iter()
-            .cloned()
-            .map(|uri| {
-                let document_overrides = Arc::clone(&document_overrides);
-                let folder_dialects = Arc::clone(&folder_dialects);
-                let default_dialect = Arc::clone(&default_dialect);
-                let store = Arc::clone(&self.store);
-                let resource = Arc::clone(&resource);
-                async move {
-                    let scanned = Self::scan_disk_file(
-                        &store,
-                        uri.clone(),
-                        document_overrides,
-                        folder_dialects,
-                        default_dialect,
-                        resource,
-                    )
-                    .await;
-                    Some((uri, scanned))
-                }
-            })
-            .collect();
+        let mut futures = Vec::with_capacity(uris.len());
+        for uri in uris {
+            let driver = self.fresh_analysis_driver(uri).await;
+            let uri = uri.clone();
+            let document_overrides = Arc::clone(&document_overrides);
+            let folder_dialects = Arc::clone(&folder_dialects);
+            let default_dialect = Arc::clone(&default_dialect);
+            let store = Arc::clone(&self.store);
+            futures.push(async move {
+                let scanned = Self::scan_disk_file(
+                    store,
+                    uri.clone(),
+                    document_overrides,
+                    folder_dialects,
+                    default_dialect,
+                    driver,
+                )
+                .await;
+                Some((uri, scanned))
+            });
+        }
         let results = run_bounded(futures, concurrency).await;
 
-        let mut replacements: Vec<(Uri, String, String, AnalysisResult)> = Vec::new();
+        let mut replacements = Vec::new();
         let mut to_remove: Vec<Uri> = Vec::new();
         for (uri, scanned) in results {
             match scanned {
-                Some((uri, text, dialect, analysis)) => {
-                    replacements.push((uri, text, dialect, analysis));
-                }
+                Some(document) => replacements.push(document),
                 None => to_remove.push(uri),
             }
         }
+        let replacements = self.current_scanned_rows(replacements).await;
         self.publish_disk_results(
             &replacements,
             &to_remove,
@@ -13320,20 +13442,21 @@ impl Backend {
         let document_overrides = self.document_dialect_override_snapshot().await;
         let folder_dialects = Arc::new(self.folder_dialect_overrides().await);
         let default_dialect = Arc::new(self.session_dialect().await);
-        let resource = Arc::new(self.resource_analyser_inputs(Some(uri)).await);
+        let driver = self.fresh_analysis_driver(uri).await;
         let scanned = Self::scan_disk_file(
-            &self.store,
+            Arc::clone(&self.store),
             uri.clone(),
             document_overrides,
             folder_dialects,
             default_dialect,
-            resource,
+            driver,
         )
         .await;
         match scanned {
             Some(scanned) => {
+                let rows = self.current_scanned_rows(vec![scanned]).await;
                 self.publish_disk_results(
-                    std::slice::from_ref(&scanned),
+                    &rows,
                     &[],
                     DiskRemovalPolicy::ClosedOnly,
                     "reindex_index_from_disk",
@@ -18950,13 +19073,18 @@ impl Backend {
                     .into_iter()
                     .find(|profile| profile.name() == name)
             });
-        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let analysis_text = tcl_lexer::normalise_lone_cr(&doc.text);
+        let analysis = self
+            .analysis_for(&uri, Arc::from(analysis_text.as_ref()), doc.dialect.clone())
+            .await;
+        let registry = analysis
+            .resolved_registry()
+            .map(|registry| registry.snapshot().shared_registry());
         let layers = self.resolved_policy_layers(&uri).await;
-        let text = doc.text.clone();
+        let text = analysis_text.into_owned();
         let dialect = doc.dialect.clone();
         let value = crate::rt::spawn_blocking(move || {
             tcl_spectcl::hooks::ensure_thread_host();
-            let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
             // A command the user invoked reads no whole-document gate:
             // `features.diagnostics` turns off the published squiggles, not
             // the rewrite asked for — `tcl opt`'s rule.
@@ -18967,8 +19095,18 @@ impl Backend {
                 .dialect(tcl_lsp_core::profile_for_dialect(&dialect))
                 .build();
             let passes = policy.optimiser.profile.max_iterations();
-            let optimised =
-                core_report::optimise_under_policy(&text, &registry, dialect_opt, passes, &policy);
+            let optimised = registry.as_ref().map_or_else(
+                || core_report::OptimisedSource {
+                    text: text.clone(),
+                    applied: Vec::new(),
+                    iterations: 0,
+                },
+                |registry| {
+                    core_report::optimise_under_policy_from_analysis(
+                        &text, registry, &analysis, passes, &policy,
+                    )
+                },
+            );
             let (source, opts) = (optimised.text, optimised.applied);
             let line_index = tcl_lexer::LineIndex::new_lsp(&text);
             let items: Vec<serde_json::Value> = opts
@@ -21881,6 +22019,19 @@ impl Backend {
         )
     }
 
+    fn configured_analyser_from_db_config(
+        config: tcl_lsp_db::AnalyserConfig,
+        db: &dyn salsa::Database,
+    ) -> Analyser {
+        Self::configured_analyser(
+            config.disabled_diagnostics(db).iter().cloned().collect(),
+            config.non_ascii_mode(db),
+            config.extra_commands(db).iter().cloned().collect(),
+            config.spec_pack_key(db),
+            ResourceAnalyserInputs::from_db_config(config, db),
+        )
+    }
+
     /// [`Self::configured_analyser`] taking the recovery path's **shared**
     /// widened known-command set (see [`RecoveryNameCache`]), so the cached set
     /// is handed over as a refcount bump instead of being deep-copied into the
@@ -23989,9 +24140,19 @@ impl Backend {
         &self,
         uri: &Uri,
         open_revision: Option<u64>,
-        analyses: &[AnalysisResult],
+        source: &str,
+        analyses: &[FreshAnalysisSeed],
     ) -> bool {
         loop {
+            for analysis in analyses {
+                if !self.fresh_index_generation_is_current(analysis).await
+                    || (analysis.analysis.analysis_context_unavailable.is_none()
+                        && tcl_compiler::source_graph::current_analysis(source, &analysis.analysis)
+                            .is_none())
+                {
+                    return false;
+                }
+            }
             let docs = self.documents.lock("refresh_source_rehoming_publish").await;
             let current = match open_revision {
                 Some(revision) => docs.get(uri).is_some_and(|current| {
@@ -24012,7 +24173,9 @@ impl Backend {
             index.retag("refresh_source_rehoming_publish: add_document");
             index.remove_document(uri.as_str());
             for analysis in analyses {
-                index.add_document(uri.as_str(), analysis);
+                if analysis.analysis.analysis_context_unavailable.is_none() {
+                    index.add_document(uri.as_str(), &analysis.analysis);
+                }
             }
             return true;
         }
@@ -24071,7 +24234,6 @@ impl Backend {
                 None if recorded.is_empty() => return,
                 None => HashMap::new(),
             };
-            let resource = self.resource_analyser_inputs(None).await;
             let mut work: Vec<(String, Vec<String>)> = Vec::new();
             for (uri, seeds) in &desired {
                 let seeds: Vec<String> = seeds.iter().cloned().collect();
@@ -24108,32 +24270,23 @@ impl Backend {
                     RehomingDocumentSnapshot::Pending => return,
                     RehomingDocumentSnapshot::Missing => continue,
                 };
-                let text = doc.text.clone();
-                let dialect = doc.dialect.clone();
-                let seeds_for_worker = seeds.clone();
-                let resource_for_worker = resource.clone();
-                let Ok(analyses) = crate::rt::spawn_blocking(move || {
-                    seeds_for_worker
-                        .iter()
-                        .map(|seed| {
-                            // Re-homing overwrites the document's index entry,
-                            // so it must not re-drop the implied requires the
-                            // scan put there.
-                            let mut analyser = resource_for_worker.clone().apply(Analyser::new());
-                            if seed == Self::STANDALONE_SEED {
-                                analyser.analyse(&text, &dialect)
-                            } else {
-                                analyser.analyse_with_source_namespace(&text, &dialect, seed)
-                            }
-                        })
-                        .collect::<Vec<AnalysisResult>>()
-                })
-                .await
-                else {
-                    continue;
-                };
+                let mut analyses = Vec::with_capacity(seeds.len());
+                for namespace in &seeds {
+                    let driver = self.fresh_analysis_driver(&uri).await;
+                    let text = Arc::clone(&doc.text);
+                    let dialect = doc.dialect.clone();
+                    let namespace = namespace.clone();
+                    let Ok(analysis) = crate::rt::spawn_blocking(move || {
+                        driver.analyse(&text, &dialect, Some(&namespace))
+                    })
+                    .await
+                    else {
+                        return;
+                    };
+                    analyses.push(analysis);
+                }
                 if !self
-                    .publish_rehomed_if_current(&uri, open_revision, &analyses)
+                    .publish_rehomed_if_current(&uri, open_revision, &doc.text, &analyses)
                     .await
                 {
                     return;
@@ -24486,6 +24639,8 @@ impl Backend {
         // for every class a cross-file metaclass manufactures until some later
         // edit happens to re-run the diagnostics worker.
         let scan_handles = EvidenceHandles {
+            db_config: Arc::clone(&self.db_config),
+            folder_db_configs: Arc::clone(&self.folder_db_configs),
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
             db_project_members: Arc::clone(&self.db_project_members),
@@ -24615,26 +24770,25 @@ impl Backend {
     ) -> (PackageResolver, usize) {
         let open = Arc::new(open);
         let folder_dialects = Arc::new(folder_dialects);
-        // The scan reaches files across every folder, so the global values are
-        // the only coherent answer here.
-        let resource = Arc::new(self.resource_analyser_inputs(None).await);
         let concurrency =
             crate::rt::available_parallelism().min(WORKSPACE_ANALYSIS_MAX_CONCURRENCY);
         let permits = Arc::new(Semaphore::new(concurrency));
         let mut tasks = crate::rt::JoinSet::new();
         for path in files {
+            let Some(uri) = canonical_file_uri(&path) else {
+                continue;
+            };
+            let driver = self.fresh_analysis_driver(&uri).await;
             let Ok(permit) = Arc::clone(&permits).acquire_owned().await else {
                 break;
             };
             let open = Arc::clone(&open);
             let folder_dialects = Arc::clone(&folder_dialects);
             let default_dialect = default_dialect.clone();
-            let resource = Arc::clone(&resource);
             let store = Arc::clone(&self.store);
             tasks.spawn(async move {
                 let _permit = permit;
                 crate::rt::spawn_blocking(move || {
-                    let uri = canonical_file_uri(&path)?;
                     if open.contains(&uri) {
                         return None;
                     }
@@ -24646,13 +24800,13 @@ impl Backend {
                     let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
                     let dialect = folder_dialect_for(&uri, &folder_dialects)
                         .unwrap_or_else(|| default_dialect.clone());
-                    // Same reason as `scan_disk_file`: this analysis becomes
-                    // the file's index entry, and `package_requires` is
-                    // harvested from it, so a `source` descendant inherits
-                    // whatever the edges imply here.
-                    let mut analyser = resource.as_ref().clone().apply(Analyser::new());
-                    let analysis = analyser.analyse(&text, &dialect);
-                    Some((uri, text, dialect, analysis))
+                    let seed = driver.analyse(&text, &dialect, None);
+                    Some(ScannedDocument {
+                        uri,
+                        text,
+                        dialect,
+                        seed,
+                    })
                 })
                 .await
                 .ok()
@@ -24660,13 +24814,14 @@ impl Backend {
             });
         }
         let mut files_count = 0usize;
-        let mut batch: Vec<(Uri, String, String, AnalysisResult)> = Vec::new();
+        let mut batch = Vec::new();
         while let Some(result) = tasks.join_next().await {
             let Ok(Some(item)) = result else {
                 continue;
             };
             batch.push(item);
             if batch.len() >= SCAN_MERGE_BATCH_SIZE {
+                let batch = self.current_scanned_rows(std::mem::take(&mut batch)).await;
                 files_count += batch.len();
                 // Fold in the `auto_path` mutations this batch's own files
                 // install (`lappend auto_path [file dirname …]`) before
@@ -24675,10 +24830,10 @@ impl Backend {
                 resolver =
                     extend_resolver_with_document_auto_paths(self.store.as_ref(), resolver, &batch);
                 self.merge_workspace_scan_results(&batch).await;
-                batch.clear();
             }
         }
         if !batch.is_empty() {
+            let batch = self.current_scanned_rows(batch).await;
             files_count += batch.len();
             resolver =
                 extend_resolver_with_document_auto_paths(self.store.as_ref(), resolver, &batch);
@@ -42389,6 +42544,8 @@ info exists ::N::v\uD800";
             .db_set_source(&main, "helper dev\n", "tcl8.6".to_owned())
             .await;
         let handles = EvidenceHandles {
+            db_config: Arc::clone(&backend.db_config),
+            folder_db_configs: Arc::clone(&backend.folder_db_configs),
             db: Arc::clone(&backend.db),
             db_files: Arc::clone(&backend.db_files),
             db_project_members: Arc::clone(&backend.db_project_members),
@@ -42465,6 +42622,8 @@ info exists ::N::v\uD800";
             "the regression requires the previous covered index view",
         );
         let handles = EvidenceHandles {
+            db_config: Arc::clone(&backend.db_config),
+            folder_db_configs: Arc::clone(&backend.folder_db_configs),
             db: Arc::clone(&backend.db),
             db_files: Arc::clone(&backend.db_files),
             db_project_members: Arc::clone(&backend.db_project_members),
@@ -42508,6 +42667,8 @@ info exists ::N::v\uD800";
             .db_set_source(&target, "proc target {} {}\n", "tcl8.6".to_owned())
             .await;
         let handles = EvidenceHandles {
+            db_config: Arc::clone(&backend.db_config),
+            folder_db_configs: Arc::clone(&backend.folder_db_configs),
             db: Arc::clone(&backend.db),
             db_files: Arc::clone(&backend.db_files),
             db_project_members: Arc::clone(&backend.db_project_members),
@@ -42567,6 +42728,8 @@ info exists ::N::v\uD800";
             "the database has not seen the quarantine"
         );
         let handles = EvidenceHandles {
+            db_config: Arc::clone(&backend.db_config),
+            folder_db_configs: Arc::clone(&backend.folder_db_configs),
             db: Arc::clone(&backend.db),
             db_files: Arc::clone(&backend.db_files),
             db_project_members: Arc::clone(&backend.db_project_members),
@@ -42609,6 +42772,8 @@ info exists ::N::v\uD800";
             .db_set_source(&orphan, "proc local {} {}\n", "tcl8.6".to_owned())
             .await;
         let handles = EvidenceHandles {
+            db_config: Arc::clone(&backend.db_config),
+            folder_db_configs: Arc::clone(&backend.folder_db_configs),
             db: Arc::clone(&backend.db),
             db_files: Arc::clone(&backend.db_files),
             db_project_members: Arc::clone(&backend.db_project_members),
@@ -42672,6 +42837,8 @@ info exists ::N::v\uD800";
             )
             .await;
         let handles = EvidenceHandles {
+            db_config: Arc::clone(&backend.db_config),
+            folder_db_configs: Arc::clone(&backend.folder_db_configs),
             db: Arc::clone(&backend.db),
             db_files: Arc::clone(&backend.db_files),
             db_project_members: Arc::clone(&backend.db_project_members),
@@ -42746,6 +42913,8 @@ info exists ::N::v\uD800";
             .await
             .replace_document(main.as_str(), &analysis);
         let handles = EvidenceHandles {
+            db_config: Arc::clone(&backend.db_config),
+            folder_db_configs: Arc::clone(&backend.folder_db_configs),
             db: Arc::clone(&backend.db),
             db_files: Arc::clone(&backend.db_files),
             db_project_members: Arc::clone(&backend.db_project_members),
@@ -42832,6 +43001,8 @@ info exists ::N::v\uD800";
             .await
             .replace_document(main.as_str(), &analysis);
         let handles = EvidenceHandles {
+            db_config: Arc::clone(&backend.db_config),
+            folder_db_configs: Arc::clone(&backend.folder_db_configs),
             db: Arc::clone(&backend.db),
             db_files: Arc::clone(&backend.db_files),
             db_project_members: Arc::clone(&backend.db_project_members),

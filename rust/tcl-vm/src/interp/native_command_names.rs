@@ -871,3 +871,6 @@ mod tests {
         assert!(original.native_command_name_cache().is_some());
     }
 }
+
+#[cfg(test)]
+mod info_commands_literal_tests;

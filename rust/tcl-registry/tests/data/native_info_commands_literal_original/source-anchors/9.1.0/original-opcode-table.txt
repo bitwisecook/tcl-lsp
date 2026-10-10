@@ -1,0 +1,41 @@
+ * operand. Similarly, "stktop" and "stknext" refer to the topmost and next to
+ * topmost stack elements.
+ *
+ * Note that the load, store, and incr instructions do not distinguish local
+ * from global variables; the bytecode interpreter at runtime uses the
+ * existence of a procedure call frame to distinguish these.
+ */
+
+InstructionDesc const tclInstructionTable[] = {
+    /*  Name	      Bytes stackEffect	  Operand types */
+    TCL_INSTRUCTION_ENTRY(
+	"done",			-1),
+	/* Finish ByteCode execution and return stktop (top stack item) */
+    DEPRECATED_INSTRUCTION_ENTRY1(
+	"push1",	  2,	+1,	  OPERAND_LIT1),
+	/* Push object at ByteCode objArray[op1] */
+    TCL_INSTRUCTION_ENTRY1(
+	"push",		  5,	+1,	  OPERAND_LIT4),
+	/* Push object at ByteCode objArray[op4] */
+    TCL_INSTRUCTION_ENTRY(
+	"pop",			-1),
+	/* Pop the topmost stack object */
+    TCL_INSTRUCTION_ENTRY(
+	"dup",			+1),
+	/* Duplicate the topmost stack object and push the result */
+    TCL_INSTRUCTION_ENTRY1(
+	"strcat",	  2,	INT_MIN,  OPERAND_UINT1),
+	/* Concatenate the top op1 items and push result */
+    DEPRECATED_INSTRUCTION_ENTRY1(
+	"invokeStk1",	  2,	INT_MIN,  OPERAND_UINT1),
+	/* Invoke command named objv[0]; <objc,objv> = <op1,top op1> */
+    TCL_INSTRUCTION_ENTRY1(
+	"invokeStk",	  5,	INT_MIN,  OPERAND_UINT4),
+	/* Invoke command named objv[0]; <objc,objv> = <op4,top op4> */
+    TCL_INSTRUCTION_ENTRY(
+	"evalStk",		0),
+	/* Evaluate command in stktop using Tcl_EvalObj. */
+    TCL_INSTRUCTION_ENTRY(
+	"exprStk",		0),
+	/* Execute expression in stktop using Tcl_ExprStringObj. */
+

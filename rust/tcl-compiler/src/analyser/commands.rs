@@ -2032,17 +2032,22 @@ impl Analyser {
     /// dispatcher is at its line budget.
     fn emit_injection_diagnostics(
         &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[Token],
-        arg_single: &[bool],
-        cmd_tok: Token,
+        site: &DispatchSite<'_>,
+        original: Option<&super::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
-        self.emit_w101_eval_string_concat(cmd_name, args, arg_tokens, arg_single);
-        self.emit_w102_subst_injection(cmd_name, args, arg_tokens);
+        let DispatchSite {
+            cmd_name,
+            args,
+            arg_tokens,
+            arg_single,
+            cmd_tok,
+            ..
+        } = *site;
+        self.emit_w101_eval_string_concat(original);
+        self.emit_w102_subst_injection(original);
         self.emit_w103_open_pipeline(cmd_name, args, arg_tokens, arg_single);
         self.emit_w300_source_variable(cmd_name, args, arg_tokens);
-        self.emit_w309_eval_subst_double_decode(cmd_name, args, arg_tokens);
+        self.emit_w309_eval_subst_double_decode(original);
         self.emit_w301_uplevel_injection(cmd_name, args, arg_tokens, arg_single);
         self.emit_w312_interp_eval_injection(cmd_name, args, arg_tokens, arg_single);
         self.emit_w303_redos(cmd_name, args, arg_tokens, cmd_tok);
@@ -2172,7 +2177,7 @@ impl Analyser {
         self.emit_w002_disabled_command(unavailable, scope_path);
         self.emit_e004_clause_shape_diagnostic(original.as_ref());
         self.emit_w142_context_gate(original.as_ref());
-        self.emit_injection_diagnostics(cmd_name, args, arg_tokens, arg_single, cmd_tok);
+        self.emit_injection_diagnostics(site, original.as_ref());
         self.emit_w306_literal_expected(original.as_ref());
         // W310 runs for every command (it scans args for credential
         // option flags), so it takes no cmd_name guard.
@@ -2391,7 +2396,7 @@ impl Analyser {
             return None;
         }
         let sm = tcl_lexer::SourceMap::new(&self.source);
-        let descended = descend_token(&sm, *token, self.lexer_config());
+        let descended = descend_token(&sm, *token, word.config());
         let mut segments = segments_from_tree(descended.tree(), &sm);
         if segments.len() != 1 {
             return None;

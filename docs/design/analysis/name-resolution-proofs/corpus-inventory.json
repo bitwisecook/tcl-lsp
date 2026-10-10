@@ -25709,6 +25709,1584 @@
       "reason": "Exact pinned C8.6/C9 source windows for token-owned coroutine resume; source inspection supplement only, no new guest launch, cache/refcount/frame/Normal permission."
     },
     {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/Makefile.observer",
+      "sha256": "9fa74cfc0ae10b81b834b87416db7e2bdb0b342ab5d5dc8066d42fd8d2340f71",
+      "bytes": 512,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/archive-copy.json",
+      "sha256": "5f24915a84d483798bbae95da1341b8315f3e9cd5df4270a418ed0526b9ea9fa",
+      "bytes": 331,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/baseline-case0.receipt.json",
+      "sha256": "499f5653a27a71bc08e02deeba2602bf6c0f26406be51b53ac9cbf3d759229ea",
+      "bytes": 7265,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/baseline-case0.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/baseline-case0.stdout",
+      "sha256": "9250aa92b34ff0ff1b87358bcfa4ac93aba4d0f3b4f88d08f6b6dec6a6077fc6",
+      "bytes": 241,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/baseline-case19.receipt.json",
+      "sha256": "49991e49590057f980fdd138349e8157a62f1aeba77d40462ea89d1e4123d6f7",
+      "bytes": 7268,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/baseline-case19.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/baseline-case19.stdout",
+      "sha256": "9f2d927a77f3c38175d0b65e621c65d348b72c39f17bdb2e609560217fead8f4",
+      "bytes": 278,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/baseline-case9.receipt.json",
+      "sha256": "ca124b59af4d4dfd521814463e2e4a8b049cc2187724f99379a2d3e66b4af2be",
+      "bytes": 7265,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/baseline-case9.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/baseline-case9.stdout",
+      "sha256": "b4b81dbe05b966e99bf8ccc05f9ea11bced7fa8673026bf59ca5b83bfdece4ac",
+      "bytes": 280,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/baseline-compile.receipt.json",
+      "sha256": "79eac80d3297df34f60695ce443a6673480e8621f8f34a0a7504747f8a68a357",
+      "bytes": 7548,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/baseline-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/baseline-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/baseline-probe",
+      "sha256": "19511affa8c25c04c5bbfbc582ed7eb8c3385c4b7c6002dcf15580d244498efb",
+      "bytes": 1889176,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/build-archive.receipt.json",
+      "sha256": "9e6cc325cc996f3e1056e0636f295e8e8ff388eb4ea796f9a86694ba4f1a6f4b",
+      "bytes": 7853,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/build-archive.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/build-archive.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/build-execute.receipt.json",
+      "sha256": "e6a7b61dcf1b7da58e929e284e715c99710f483d564a7b78bf9c376a4f5daf73",
+      "bytes": 7509,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/build-execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/build-execute.stdout",
+      "sha256": "1834fd63fcc1935fedba4512666f198e28527caf3e78c296dedc8dd6239cc063",
+      "bytes": 2343,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/build-object.receipt.json",
+      "sha256": "be33368edbe31b129b26e9f7486ddb3705935589d23eac82a9ced553aacee294",
+      "bytes": 7649,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/build-object.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/build-object.stdout",
+      "sha256": "5bc2d19df676bb164f27e045b8008979c6a17f9592444c1f7e3a5921c52c9974",
+      "bytes": 2335,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/libtcl8.6.a",
+      "sha256": "0fa455d1ae1e8c98ed5110e4d1953b9ed4289a500da92c05f11d47b4929419d1",
+      "bytes": 3245136,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case0.receipt.json",
+      "sha256": "b2e0f26de7921f75714479b6b51d9248531df918c3402a29d98c55a586856800",
+      "bytes": 7842,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case0.stderr",
+      "sha256": "1e91f1304dbdce3cb96c254d1f0a362a2e22a9c4060cdaa4a100ad6d716548e9",
+      "bytes": 102,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case0.stdout",
+      "sha256": "9250aa92b34ff0ff1b87358bcfa4ac93aba4d0f3b4f88d08f6b6dec6a6077fc6",
+      "bytes": 241,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case19.receipt.json",
+      "sha256": "3abf1001c30e481ebf6339c922c0f32382845ce14399c2f9557a4b8c998f99f9",
+      "bytes": 7844,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case19.stderr",
+      "sha256": "1e91f1304dbdce3cb96c254d1f0a362a2e22a9c4060cdaa4a100ad6d716548e9",
+      "bytes": 102,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case19.stdout",
+      "sha256": "9f2d927a77f3c38175d0b65e621c65d348b72c39f17bdb2e609560217fead8f4",
+      "bytes": 278,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case9.receipt.json",
+      "sha256": "8e061bd7a7746c901e3429ab230378a4198a247602e1849553000f8b46215ada",
+      "bytes": 7841,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case9.stderr",
+      "sha256": "9fd0e374738a9c464df576e466204d07b133e4eb8452fe3e8131a99e2c40bc49",
+      "bytes": 99,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-case9.stdout",
+      "sha256": "b4b81dbe05b966e99bf8ccc05f9ea11bced7fa8673026bf59ca5b83bfdece4ac",
+      "bytes": 280,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-compile.receipt.json",
+      "sha256": "955f8f95097a1b3acad7dc41682833abe2630779a0738fffae718e10f14d418f",
+      "bytes": 8144,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/observed-probe",
+      "sha256": "d3618980d7f605cfd44c33febfba9631e395eed8cbb84b649a0ea9ebf46d3f3b",
+      "bytes": 1889528,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/summary.json",
+      "sha256": "285fe3ab30067da1ba4bfcd9d3004faaff58e2939f60ffd7252d0e0549cd9b55",
+      "bytes": 407,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/tclExecute.o",
+      "sha256": "c19bdaee84ff2a8360da4da15a73492a61b018d19a7daf25f895650cfe091edf",
+      "bytes": 127232,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/tclObj.o",
+      "sha256": "70940310a7eccf71ab9dc85558bc24bc6e3fbb5a0d85d2c47d9872ce7d410726",
+      "bytes": 36952,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/version-compile.receipt.json",
+      "sha256": "14ddd2d575f666f21db888bc72950304ebf00aa3111728188e11f58996afd9d6",
+      "bytes": 7407,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/version-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/version-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/version-probe",
+      "sha256": "2db00f59fcf765f5b425c9463793c62ead37020d66c0a6b67cbda0f6513865f8",
+      "bytes": 1866216,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/version.c",
+      "sha256": "4f0913bed4a031404ed66a401fabb794860ec50ea1a0d5e8561ae96c575fa41e",
+      "bytes": 229,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/version.receipt.json",
+      "sha256": "83727d3d05e31dbf65a24c9e1b7d7252abfa4b6f0e2cd8bbcb98b5d5a68bdbcf",
+      "bytes": 7101,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/8.6.18/version.stdout",
+      "sha256": "14b8b5ab5e57aa72195601892ac554c63d31a187b1d2e50ef29d605f6a6acb06",
+      "bytes": 9,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/Makefile.observer",
+      "sha256": "4da50c0557c77b3ca625f18d938dca2e0b3a44bd2618affec4b9ea116e0dcec5",
+      "bytes": 506,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/archive-copy.json",
+      "sha256": "3dca3a66a5673d17794037f11a7a52fe4256db3a69c48656c9ada91916794a42",
+      "bytes": 329,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/baseline-case0.receipt.json",
+      "sha256": "ff047e2a8a1b0b41daf0317b5499d3d47eb0ca44e603c72872d6b2a6e753a581",
+      "bytes": 7260,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/baseline-case0.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/baseline-case0.stdout",
+      "sha256": "9250aa92b34ff0ff1b87358bcfa4ac93aba4d0f3b4f88d08f6b6dec6a6077fc6",
+      "bytes": 241,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/baseline-case19.receipt.json",
+      "sha256": "4a7b6e8b2e4f6b815ef2db96c6b3b470de43d79d436debff90ca6114ae6eb073",
+      "bytes": 7263,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/baseline-case19.stderr",
+      "sha256": "64c629ee9184ec76994b6cf3f544f6ef8143c6d22cdbdf0061179b805a506b28",
+      "bytes": 44,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/baseline-case19.stdout",
+      "sha256": "9f2d927a77f3c38175d0b65e621c65d348b72c39f17bdb2e609560217fead8f4",
+      "bytes": 278,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/baseline-case9.receipt.json",
+      "sha256": "fc13d345f4bf30feac710132a3fdf211543c803bcc7750c85d059979ba3d0c6b",
+      "bytes": 7262,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/baseline-case9.stderr",
+      "sha256": "a5c797ce1fd5c231d6a794f443061fd234ac92caf2e23b537648c7566942fa04",
+      "bytes": 44,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/baseline-case9.stdout",
+      "sha256": "b4b81dbe05b966e99bf8ccc05f9ea11bced7fa8673026bf59ca5b83bfdece4ac",
+      "bytes": 280,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/baseline-compile.receipt.json",
+      "sha256": "61d9eee3cd2f1dbc969d1b077bb1d3b628babad5f1b4bdfaec94293df8476bd4",
+      "bytes": 7541,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/baseline-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/baseline-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/baseline-probe",
+      "sha256": "a5bfc924b3dbcf5f80b6066ae8561eb83e8fcfa5138b7aa8d523ca399a074204",
+      "bytes": 2292680,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/build-archive.receipt.json",
+      "sha256": "189592f0ed7ac35b13a58879156f938313b1a11468b86026d5d753e95410951c",
+      "bytes": 7844,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/build-archive.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/build-archive.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/build-execute.receipt.json",
+      "sha256": "17395e27693c064fe1729bf6026bdd4180499948de32b430d2c863ec1fdabb4b",
+      "bytes": 7502,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/build-execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/build-execute.stdout",
+      "sha256": "3e187b0b818f6743fca4ae151be838d48afeb28bd00e0a048822a3729f1a9fe3",
+      "bytes": 2514,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/build-object.receipt.json",
+      "sha256": "a8cabaed6ed618c080eb1f1498d5baa990e1ba1ba79651ede614acfbc90a0a73",
+      "bytes": 7640,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/build-object.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/build-object.stdout",
+      "sha256": "b5c02d5b272f4aeb413319b55543f9798443be415384fe98413c45b9f48145c0",
+      "bytes": 2506,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/libtcl9.0.a",
+      "sha256": "dfc648b4c5d1788c6caea8b24686f7e7bf97f9fe8d0de3835e5e9fd04efb6dd5",
+      "bytes": 3867766,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/observed-case0.receipt.json",
+      "sha256": "082cdcbba91d22eb08474d316f20fa367505cf69d46a773c97d28af58749575f",
+      "bytes": 7835,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/observed-case0.stderr",
+      "sha256": "1e91f1304dbdce3cb96c254d1f0a362a2e22a9c4060cdaa4a100ad6d716548e9",
+      "bytes": 102,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/observed-case0.stdout",
+      "sha256": "9250aa92b34ff0ff1b87358bcfa4ac93aba4d0f3b4f88d08f6b6dec6a6077fc6",
+      "bytes": 241,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/observed-case19.receipt.json",
+      "sha256": "5c66744556b0177dd1c099a8fbd570d8d2d45f1f465471a42eefc298324efabd",
+      "bytes": 7837,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/observed-case19.stderr",
+      "sha256": "bda631bf408cd40fe3c436b4bb9c574ac2d02bdaa60c3495170980875ea5877d",
+      "bytes": 44,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/observed-case19.stdout",
+      "sha256": "9f2d927a77f3c38175d0b65e621c65d348b72c39f17bdb2e609560217fead8f4",
+      "bytes": 278,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/observed-case9.receipt.json",
+      "sha256": "b6da9d110d1ca2ec4bc8b6dcb8addba03651fc9d07750ee53e1a990c73a90067",
+      "bytes": 7835,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/observed-case9.stderr",
+      "sha256": "5e5bc948eb92d110a87b70242565e329c634ef4485f0938ced8361167b097d4c",
+      "bytes": 44,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/observed-case9.stdout",
+      "sha256": "b4b81dbe05b966e99bf8ccc05f9ea11bced7fa8673026bf59ca5b83bfdece4ac",
+      "bytes": 280,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/observed-compile.receipt.json",
+      "sha256": "64ba33fb0fd107d8a316e70ce8c56f3c0d68c3599d7e52696195e7612996077b",
+      "bytes": 8133,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/observed-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/observed-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/observed-probe",
+      "sha256": "8d9a2adb426d5c44650ab35ef6e7098045edde303f2f806754a44279399406ce",
+      "bytes": 2292992,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/summary.json",
+      "sha256": "8130d926a35df6f7d7e41d5eeacda8163cab7f2f07188d5ea3bd19699cd5f8e1",
+      "bytes": 410,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/tclExecute.o",
+      "sha256": "0a9b6ad07139cf3bb62340a03589220a8915ceea8942c814a9e7c01c61dfc1c2",
+      "bytes": 126144,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/tclObj.o",
+      "sha256": "cf3aa3f7218abd5bd1ecd0366998c9a59c8c2fb1d199e7ece5103031e7cc929e",
+      "bytes": 43560,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/version-compile.receipt.json",
+      "sha256": "9f1d731dd72be624d787e61b25e4b41694d169864cd084917e0135d9bd8558d3",
+      "bytes": 7400,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/version-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/version-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/version-probe",
+      "sha256": "19a207223791f7a40037336496ca24b914fbf5addb0c8a6dcd2e757fe182a0ff",
+      "bytes": 2269712,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/version.c",
+      "sha256": "4f0913bed4a031404ed66a401fabb794860ec50ea1a0d5e8561ae96c575fa41e",
+      "bytes": 229,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/version.receipt.json",
+      "sha256": "33d1a87452e2f90401fe8e9e7abe948bb87a01f81150a4450b1da7eeb4003248",
+      "bytes": 7099,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.0.4/version.stdout",
+      "sha256": "8daa9d62bc1b051c17a0fdd4a5a32675e98792c2e5006680ab98bef740476050",
+      "bytes": 8,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/Makefile.observer",
+      "sha256": "37346f7a52805fa1e1895fb16e90ecf03227308064e1967835a6af23ad8e45ba",
+      "bytes": 506,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/archive-copy.json",
+      "sha256": "49229e8ebfd4bf5032f06ebd2021898eafe92010326ff361b599ad3054172ba5",
+      "bytes": 329,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/baseline-case0.receipt.json",
+      "sha256": "86c6d313fae390ff4ecdf686d401c1e58270217d181debe3edb3deaf6cdfd5f2",
+      "bytes": 7261,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/baseline-case0.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/baseline-case0.stdout",
+      "sha256": "9250aa92b34ff0ff1b87358bcfa4ac93aba4d0f3b4f88d08f6b6dec6a6077fc6",
+      "bytes": 241,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/baseline-case19.receipt.json",
+      "sha256": "5f36afd7d0aad47107a0f4d4449a357d0c5cb011e855b283b6a43037601dc9d4",
+      "bytes": 7264,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/baseline-case19.stderr",
+      "sha256": "e76745e74c5850fcadddd59b2e89d81eab943cad640f458e56a8b01a4b839ac4",
+      "bytes": 44,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/baseline-case19.stdout",
+      "sha256": "9f2d927a77f3c38175d0b65e621c65d348b72c39f17bdb2e609560217fead8f4",
+      "bytes": 278,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/baseline-case9.receipt.json",
+      "sha256": "08b3d512c7c8ac8052fd1c16ad79350316e1faf2c41ee10cbd62b2976537e46e",
+      "bytes": 7261,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/baseline-case9.stderr",
+      "sha256": "64b56675bc773d04cb5a94d7bfd223a25ded39a7a42af455dd7b55fd67cb7d0b",
+      "bytes": 43,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/baseline-case9.stdout",
+      "sha256": "b4b81dbe05b966e99bf8ccc05f9ea11bced7fa8673026bf59ca5b83bfdece4ac",
+      "bytes": 280,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/baseline-compile.receipt.json",
+      "sha256": "32853e51718c0cd0495c4d035dd9b7604bc1b63e906c6e77473157588c700205",
+      "bytes": 7540,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/baseline-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/baseline-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/baseline-probe",
+      "sha256": "35848cfce4b263b4804255f220f21a03eacff0fc3cab49d3565e7639c6a20427",
+      "bytes": 2530160,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/build-archive.receipt.json",
+      "sha256": "8d3cdd3b3f2e6f7cd014d003d8c48e4d3387e2289ebe4f6a58bd807c4e9714b6",
+      "bytes": 7843,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/build-archive.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/build-archive.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/build-execute.receipt.json",
+      "sha256": "a0b6cdb7529011c01aeb396531f77d2d8869e7c1467529b2b0f7af701780222f",
+      "bytes": 7503,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/build-execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/build-execute.stdout",
+      "sha256": "9d43a9a4108b131b019dd38e314a612fe6e03d44a0f8f41241d89c752fd32c5a",
+      "bytes": 2555,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/build-object.receipt.json",
+      "sha256": "6d65b3e08a40a256abbf566ce9be22d0794d5327d00b2194ddc0570376c3303c",
+      "bytes": 7642,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/build-object.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/build-object.stdout",
+      "sha256": "ddc0770a7da6f6909c52dc3a14c72f3c819d2b12c32ef86711978d2263693235",
+      "bytes": 2547,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/libtcl9.1.a",
+      "sha256": "a039185258e7518a8125d18cdb302cdb9ee6d9ba3a0ed9dbd53a2fad0734d6e4",
+      "bytes": 4114874,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/observed-case0.receipt.json",
+      "sha256": "ec5a3a24b369fbeb0b9b47529a2b7febb49b8d030a5f4955c75fc82380bbe784",
+      "bytes": 7834,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/observed-case0.stderr",
+      "sha256": "1e91f1304dbdce3cb96c254d1f0a362a2e22a9c4060cdaa4a100ad6d716548e9",
+      "bytes": 102,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/observed-case0.stdout",
+      "sha256": "9250aa92b34ff0ff1b87358bcfa4ac93aba4d0f3b4f88d08f6b6dec6a6077fc6",
+      "bytes": 241,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/observed-case19.receipt.json",
+      "sha256": "ff78a737c09af93c4c745c29cd9cae1f50ff853acdeb1739f46cb12d6c8df965",
+      "bytes": 7837,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/observed-case19.stderr",
+      "sha256": "1e67f1048decd835aecdd26b01f3627bd230caacdf7ca021f6f935cdc4f08ec2",
+      "bytes": 44,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/observed-case19.stdout",
+      "sha256": "9f2d927a77f3c38175d0b65e621c65d348b72c39f17bdb2e609560217fead8f4",
+      "bytes": 278,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/observed-case9.receipt.json",
+      "sha256": "ce5966e5448bf3be96e521c3a89bdf8cb67bbdf4e60594bee8c83bbc6d49ae4b",
+      "bytes": 7834,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/observed-case9.stderr",
+      "sha256": "d1e9691dcc55ba901b172aff12fd900e60c61d422820a1ecd3f66df8fda9903f",
+      "bytes": 43,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/observed-case9.stdout",
+      "sha256": "b4b81dbe05b966e99bf8ccc05f9ea11bced7fa8673026bf59ca5b83bfdece4ac",
+      "bytes": 280,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/observed-compile.receipt.json",
+      "sha256": "51b0d75bae47afbbe136dada3bfa774763281c2a215e86dcc7da42d357d00e73",
+      "bytes": 8133,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/observed-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/observed-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/observed-probe",
+      "sha256": "c3bbd01f2bdb6d0711e905d223e1d5de0e6ecce734c9ffb8b250a2bc687b07fd",
+      "bytes": 2530472,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/summary.json",
+      "sha256": "b53082415134f4f8932b5acc2686dc6d72c440e1a25bfcdba059ab566d705a59",
+      "bytes": 410,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/tclExecute.o",
+      "sha256": "1a6ef2b03d2b1fc3313d1e149d6a599d04f1bf9a93fa13faa605ec3de0494f86",
+      "bytes": 137104,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/tclObj.o",
+      "sha256": "e46381a5b19da889ce5452afb5f290e1a64f62b27628102dabd7141588fbe395",
+      "bytes": 43344,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/version-compile.receipt.json",
+      "sha256": "d8463430e0d68492976674321264da5976de7197988b6c7341b650be4ea92b95",
+      "bytes": 7400,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/version-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/version-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/version-probe",
+      "sha256": "eba407815aa46a287a8f4a4250590cbf07021bb6c5e83d70df019f511c891f4a",
+      "bytes": 2507192,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/version.c",
+      "sha256": "4f0913bed4a031404ed66a401fabb794860ec50ea1a0d5e8561ae96c575fa41e",
+      "bytes": 229,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/version.receipt.json",
+      "sha256": "78cb30e013ddb84f93b82eacc450e51c5d0043ebbc5a9bbc2703e2e8e4629059",
+      "bytes": 7098,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/9.1.0/version.stdout",
+      "sha256": "e99a8295b6adcc82e54aa294d384cd4c613c91b7529c199b41589a8f1c1db84f",
+      "bytes": 8,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/recorded-path-map.json",
+      "sha256": "813ad224a1cc81bce9a51fd9a7336340e3bcde2e8f8c2e9b5d4312f70d2d0fc5",
+      "bytes": 74991,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/8.6.18/observed-tclExecute.c",
+      "sha256": "cf78b5c51ab1d3c9158d1f676386dd0e89cb9af852a59af42fcc73fb37c8b521",
+      "bytes": 296184,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/8.6.18/observed-tclObj.c",
+      "sha256": "835b9f7a90ec18c284fd8c7d21e0634c8f9c8587c3c44f68f76166482aac70e6",
+      "bytes": 131480,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/8.6.18/original-tclExecute.c",
+      "sha256": "2a29cf5e54d1b2ac4ddf56a6f38556bbfb9c8e8913800377c84a6f0bb8caa491",
+      "bytes": 295513,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/8.6.18/original-tclObj.c",
+      "sha256": "7a7ef8ec85c74581129e8f3bef939e3191a432dcb021e0a16f1cf9971049f90d",
+      "bytes": 131144,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/8.6.18/original-tclVar.c",
+      "sha256": "2af24d8fa81db05a2805652ac4359d55ec1e2ef8bbcdad86c4000e25dfd61946",
+      "bytes": 186606,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/8.6.18/tclExecute.c.patch",
+      "sha256": "f961c0f1d522f89023978eef2f5494fd46499619875eb04c5d79f334aa527476",
+      "bytes": 1019,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/8.6.18/tclObj.c.patch",
+      "sha256": "8dbbbca301b4c2700fbb164fa7c3eea2c671e923857d199c6b47fc9ee73b7b6d",
+      "bytes": 885,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.0.4/observed-tclExecute.c",
+      "sha256": "05a8c570eb5c4bbe8a4d69742dc1e0406a5fbfa24457eda22594fc0bf32d9e3f",
+      "bytes": 282231,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.0.4/observed-tclObj.c",
+      "sha256": "1ffebe9542a7904b445d31d88973103e7d05452b22be4a3677a78a5f993eef7c",
+      "bytes": 134675,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.0.4/original-tclExecute.c",
+      "sha256": "0c42699cdcf610813ce77e2a6fec505f12d82a87b110950c92824fdf30d3c42a",
+      "bytes": 281560,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.0.4/original-tclObj.c",
+      "sha256": "91a390bd24fbe71108108eeccf9955df0389f0f81dff24f303c32344469e8d4a",
+      "bytes": 134339,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.0.4/original-tclVar.c",
+      "sha256": "0ed96dbf7949b0cb84dabd6b9be971ceb00dd97458c87264cc03541c618496fc",
+      "bytes": 211464,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.0.4/tclExecute.c.patch",
+      "sha256": "4f43c4528dfb083ceb10767005fddeee93944eb6a8443e6e7029a791e786847b",
+      "bytes": 1022,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.0.4/tclObj.c.patch",
+      "sha256": "4fbf5550cd9d676475b3c85346179a354ef3808a416345e102928105d5cecfcb",
+      "bytes": 888,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.1.0/observed-tclExecute.c",
+      "sha256": "fa73b44c044cb82ae649a2751df63e64a9dc3c87672aa16d627d5118421fa462",
+      "bytes": 297242,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.1.0/observed-tclObj.c",
+      "sha256": "f6a39155f74c8a6a0947e8cabef2350dd2798c90d7c7590887e0bca2b5a5df4a",
+      "bytes": 132368,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.1.0/original-tclExecute.c",
+      "sha256": "9dd4e9a080136f2ce36ee8f9acf4a30e770cc5fc417519468c785d76013151f4",
+      "bytes": 296571,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.1.0/original-tclObj.c",
+      "sha256": "58c041dbf20bba3c8fef5782969c661d4d60a6ee0bc915f30e55c19cedb31976",
+      "bytes": 132032,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.1.0/original-tclVar.c",
+      "sha256": "270bf098d3a2817b117531713a49367729d030b9b3b05c10dfd4acbba7554759",
+      "bytes": 213213,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.1.0/tclExecute.c.patch",
+      "sha256": "22e86bb1c43f2fcd01947be9b6d32fc762512e5c7362bfa539e68345f3697b1e",
+      "bytes": 1101,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/9.1.0/tclObj.c.patch",
+      "sha256": "ba4776d32f3561d06cbc6964edfe4cf85ee6068cfa5755a1d618b431069e5e73",
+      "bytes": 890,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/capture.py",
+      "sha256": "2bff9be8657c5badb2b5a0eebc887ab694d89b8ccf76d8c6b7ccd7805e2d9c8b",
+      "bytes": 5094,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/observed-probe.c",
+      "sha256": "2fc93c8d36f35ec1d1179babc229c8980bd77ff4a2b3b488e9f49c8f4ff86070",
+      "bytes": 64785,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/original-probe.c",
+      "sha256": "e95451728352a915dfbc033719e60aabcab9ae4f53566088b583bbd4f12c6f3d",
+      "bytes": 64336,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/original-source.tcl",
+      "sha256": "092c3aa2025b580b926d4b065e10d1d83d86e5620e20a17da9d58ee2c6f67b33",
+      "bytes": 349,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/request.json",
+      "sha256": "0c2292045cf2ec422dd29efca2cf39febb38acc27e12c4b748b93b4bea64da42",
+      "bytes": 7826,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/generic/tcl.h",
+      "sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "bytes": 94296,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/generic/tclInt.h",
+      "sha256": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+      "bytes": 174090,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/unix/Makefile",
+      "sha256": "8afb8697cb70b90518876861086bdb43f6e31b5e96e6d8091ae7b1de33d90d7e",
+      "bytes": 80480,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/unix/libtcl8.6.a",
+      "sha256": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+      "bytes": 3244104,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/generic/tcl.h",
+      "sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+      "bytes": 93953,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/generic/tclInt.h",
+      "sha256": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053",
+      "bytes": 197762,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/unix/Makefile",
+      "sha256": "69f1915c208d66c7e38e6871c7f51c8f7be7c2138b45a5361641f9e91854fea5",
+      "bytes": 94015,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/unix/libtcl9.0.a",
+      "sha256": "dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4",
+      "bytes": 3866510,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/generic/tcl.h",
+      "sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "bytes": 92559,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/generic/tclInt.h",
+      "sha256": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+      "bytes": 199725,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/unix/Makefile",
+      "sha256": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+      "bytes": 94302,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/unix/libtcl9.1.a",
+      "sha256": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+      "bytes": 4113834,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/summary.json",
+      "sha256": "e7f2a8984208b81e44d116a4ee0e4b0b6ca63ec1175ca82e23f5b3b355c9d75c",
+      "bytes": 927,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/8.6.18/case0.receipt.json",
+      "sha256": "82d6d11ac3cb2e4634fcfb1a2bba548d4bd94ef96ea628addec8498e7a5c6da7",
+      "bytes": 7684,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/8.6.18/case0.stderr",
+      "sha256": "9a38cebb071aa3f92885f509c2b9513d74761ad4513934ec0a7fdf7cdb400d2e",
+      "bytes": 207,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/8.6.18/case0.stdout",
+      "sha256": "9250aa92b34ff0ff1b87358bcfa4ac93aba4d0f3b4f88d08f6b6dec6a6077fc6",
+      "bytes": 241,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/8.6.18/case19.receipt.json",
+      "sha256": "1b182f4dce0aaf4431726b729ccf5d6827bef79f82d7957b737bf94c876fc0a7",
+      "bytes": 7685,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/8.6.18/case19.stderr",
+      "sha256": "9a38cebb071aa3f92885f509c2b9513d74761ad4513934ec0a7fdf7cdb400d2e",
+      "bytes": 207,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/8.6.18/case19.stdout",
+      "sha256": "9f2d927a77f3c38175d0b65e621c65d348b72c39f17bdb2e609560217fead8f4",
+      "bytes": 278,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/8.6.18/case9.receipt.json",
+      "sha256": "1cce995e679c6592b5c7f50db29212853cf3fff7847e558b56e66676d01ff5f4",
+      "bytes": 7684,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/8.6.18/case9.stderr",
+      "sha256": "acf8977f40a9352589f333df097a99b237aefd2177538da75ec2d22bb274a704",
+      "bytes": 201,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/8.6.18/case9.stdout",
+      "sha256": "b4b81dbe05b966e99bf8ccc05f9ea11bced7fa8673026bf59ca5b83bfdece4ac",
+      "bytes": 280,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/8.6.18/compile.receipt.json",
+      "sha256": "3b39fd88e19d654361dffb237dcf0d321e62c45bad05856d8c2dd68e8cdcdf46",
+      "bytes": 7985,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/8.6.18/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/8.6.18/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/8.6.18/observed-probe",
+      "sha256": "bdd1e56310c39577303abc03a76add7de807e849e01bf752623731371fbee850",
+      "bytes": 1889528,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.0.4/case0.receipt.json",
+      "sha256": "018d2eb0481487ce37683c0865a32f856015013214a7b00bef2290265035adeb",
+      "bytes": 7681,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.0.4/case0.stderr",
+      "sha256": "9a38cebb071aa3f92885f509c2b9513d74761ad4513934ec0a7fdf7cdb400d2e",
+      "bytes": 207,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.0.4/case0.stdout",
+      "sha256": "9250aa92b34ff0ff1b87358bcfa4ac93aba4d0f3b4f88d08f6b6dec6a6077fc6",
+      "bytes": 241,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.0.4/case19.receipt.json",
+      "sha256": "833b560b263484a3ced7928b2ef8a7ca2b662f5222cf9f995cc422a20d7b4a75",
+      "bytes": 7685,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.0.4/case19.stderr",
+      "sha256": "0828be020a21d94d1b84cbd0cad4eb01cc661bfb991f7c379ba01ac86562d7d8",
+      "bytes": 148,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.0.4/case19.stdout",
+      "sha256": "9f2d927a77f3c38175d0b65e621c65d348b72c39f17bdb2e609560217fead8f4",
+      "bytes": 278,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.0.4/case9.receipt.json",
+      "sha256": "37b23530ada99faf1bd5234ebcb7176db47e8efa7c9513e196269eb36e2cf23b",
+      "bytes": 7683,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.0.4/case9.stderr",
+      "sha256": "bc9c12da9256f33cff62205aeb1f9ad2d68510a755ce950e880433e98b4fd060",
+      "bytes": 146,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.0.4/case9.stdout",
+      "sha256": "b4b81dbe05b966e99bf8ccc05f9ea11bced7fa8673026bf59ca5b83bfdece4ac",
+      "bytes": 280,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.0.4/compile.receipt.json",
+      "sha256": "347303ca84ac2ec82c762986805da5ccca9ce498be62019b830787430493db05",
+      "bytes": 7980,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.0.4/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.0.4/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.0.4/observed-probe",
+      "sha256": "01eb6ba41eeabc021e8eff6df22151537764eb14b5e687e8aca85e2bec32cdd8",
+      "bytes": 2292992,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.1.0/case0.receipt.json",
+      "sha256": "4671fdd9b67c4dbcdade910a2fb864f3eaea8228a47a4da0ea5b62f8e9b7ba33",
+      "bytes": 7682,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.1.0/case0.stderr",
+      "sha256": "9a38cebb071aa3f92885f509c2b9513d74761ad4513934ec0a7fdf7cdb400d2e",
+      "bytes": 207,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.1.0/case0.stdout",
+      "sha256": "9250aa92b34ff0ff1b87358bcfa4ac93aba4d0f3b4f88d08f6b6dec6a6077fc6",
+      "bytes": 241,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.1.0/case19.receipt.json",
+      "sha256": "5e7fe7d674ef3d826c1ebe4def41a22c83362b6c722bbdd13533427865185f5c",
+      "bytes": 7684,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.1.0/case19.stderr",
+      "sha256": "a771b7332db5d850421d720114f599360e92d52e966c8f7a30fb55f4f597424b",
+      "bytes": 149,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.1.0/case19.stdout",
+      "sha256": "9f2d927a77f3c38175d0b65e621c65d348b72c39f17bdb2e609560217fead8f4",
+      "bytes": 278,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.1.0/case9.receipt.json",
+      "sha256": "1ca2f63ef4d599166b671945b47729b37772b955756dcd926ab33aad9d98ee01",
+      "bytes": 7683,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.1.0/case9.stderr",
+      "sha256": "96ec03ab9497ab41464d0c46634d79e2e59b36fa9868838a55bffd39a33ec7c7",
+      "bytes": 144,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.1.0/case9.stdout",
+      "sha256": "b4b81dbe05b966e99bf8ccc05f9ea11bced7fa8673026bf59ca5b83bfdece4ac",
+      "bytes": 280,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.1.0/compile.receipt.json",
+      "sha256": "d0887471527ff0cabbc5c725a213cda89dfce2c413acbfb81391b7b530345aba",
+      "bytes": 7980,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.1.0/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.1.0/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/9.1.0/observed-probe",
+      "sha256": "f3403144ffcda4afe31dec22319d43a5cd2a59b393bd63d7116a8e485a1a90a9",
+      "bytes": 2530472,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/request/capture.py",
+      "sha256": "bd811a9baa26dc160e26b6c2fdf8bf0be60cb020b90449d897ebfd5155b7ba13",
+      "bytes": 2081,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/request/observed-probe.c",
+      "sha256": "4d6f5d9aed01a37e7c906e09cd0f23767397769d9b529e686703adfc4a1f0f4a",
+      "bytes": 65047,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/request/original-probe.c",
+      "sha256": "e95451728352a915dfbc033719e60aabcab9ae4f53566088b583bbd4f12c6f3d",
+      "bytes": 64336,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/request/original-source.tcl",
+      "sha256": "092c3aa2025b580b926d4b065e10d1d83d86e5620e20a17da9d58ee2c6f67b33",
+      "bytes": 349,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/request/request.json",
+      "sha256": "3939613b30ae3425a80659c5807a53ebe001ecc540506d00fd368cbffeaa670e",
+      "bytes": 8371,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399/summary.json",
+      "sha256": "6db44f13c5535490aa3e8ebf65e0730d7107bf3470afbdd74584a0707305da67",
+      "bytes": 613,
+      "candidate": true,
+      "classification": "pending",
+      "proof_ids": [],
+      "reason": "Requires inspection of the retained input, provider and observation fields."
+    },
+    {
       "path": "rust/tcl-registry/tests/data/native_dict_write_error_lifetime226/Makefile.observer",
       "sha256": "917e4d33de8b5d6198a6bf7870d725954eee23254995e6618bcc1f7917e1d3a4",
       "bytes": 558,

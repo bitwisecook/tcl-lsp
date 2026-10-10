@@ -2392,27 +2392,49 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// every other index this resolution answers.
     #[must_use]
     pub fn option_effects(&self) -> OptionEffects {
-        let dialect = self.dialect;
+        self.option_effects_for_arguments(self.words.arguments())
+    }
+
+    fn option_effects_for_arguments(
+        &self,
+        arguments: crate::InvocationArguments<'_>,
+    ) -> OptionEffects {
         let scope = self.semantics.option_scope;
-        let options: Vec<&OptionSpec> = self
-            .semantics
-            .options
-            .base
-            .iter()
-            .chain(self.semantics.options.form)
-            .filter(|option| option.supports_dialect(dialect, scope.parent_surface))
-            .collect();
+        let options = self.semantics.options.available().collect::<Vec<_>>();
         let offset = self.semantics.argument_offset;
         let mut effects = crate::option_effect::option_effects_over(
             &options,
             scope.families,
-            self.words.arguments().slice_from(offset),
+            arguments.slice_from(offset),
             scope.reserved_trailing_words,
-            dialect,
+            self.dialect,
             scope.prefix_matching,
         );
         effects.option_end += offset;
         effects
+    }
+
+    /// Interpret proposed advisory operands under this already selected
+    /// descriptor's option grammar and complete availability. This pure
+    /// projection neither reselects a command nor creates original argv,
+    /// accepted handler arguments or successful evaluation.
+    #[must_use]
+    pub fn authored_source_substitution_proposal(
+        &self,
+        arguments: crate::InvocationArguments<'_>,
+    ) -> Option<crate::substitution::SubstitutionKinds> {
+        if !self
+            .semantics
+            .traits
+            .contains(Traits::PERFORMS_SUBSTITUTION)
+        {
+            return None;
+        }
+        let count = arguments.exact_argv_len()?;
+        let effects = self.option_effects_for_arguments(arguments);
+        (effects.complete
+            && effects.option_end + self.semantics.option_scope.reserved_trailing_words >= count)
+            .then(|| effects.substitution_kinds())
     }
 
     /// Which substitutions this call performs over its own argument text, or
