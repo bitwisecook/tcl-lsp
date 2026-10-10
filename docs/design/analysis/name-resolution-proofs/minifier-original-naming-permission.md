@@ -14,9 +14,13 @@ Do Native minifier naming, insertion, semantic and keyword passes refuse missing
 
 The eligibility planner keeps naming/observer, alias store/insertion, semantic transfer and keyword point/handler obligations separate from syntax. A separately sealed scalar body-equivalence receipt and complete original edit geometry can enable the bounded private formal pass; missing other contracts still produce explicit enum refusals. Clearing reporting maps or relabelling the analysis cannot enable a missing pass, and isolated does not issue a contract. CLI drivers preserve refusal reasons alongside supported syntax or scalar compaction. General public/global alpha renaming, inserted aliases and semantic/keyword transformations remain unavailable without their own permissions.
 
+The marked hosted source definition distinguishes compact source presentation from alpha-renaming permission: source syntax can be retained while names and the empty symbol mapping remain unchanged.
+
 ## Scope
 
 Current Core naming eligibility and Tcl/F5 CLI result transport, including partial scalar-formal success alongside independent missing passes. The bounded scalar body contract is a separate question; this record does not claim general Native alpha renaming or alias optimisation.
+
+This binding supplies no Native alpha/edit/evaluation equivalence or hosted provider outcome. Existing original naming evidence and separately pinned software results remain unchanged.
 
 ## Provider answers
 
@@ -83,6 +87,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::original_scalar_minification_keeps_isolation_and_other_pass_permissions_separate` (linked): A genuine scalar receipt does not donate public naming, inserted stores, semantic transfer or keyword selection.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify_with_analysis`: Use current original analysis/source syntax for compact presentation while independently requiring the alpha-renaming contract for name changes.
+- [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::original_hosted_minifier_keeps_source_syntax_without_native_alpha_permission` (linked): A genuine hosted source minification context permits source formatting while MissingAlphaRenameContract preserves every name and an empty rename map; hosted syntax does not supply Native alpha permission.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

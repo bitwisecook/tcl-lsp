@@ -14,9 +14,13 @@ Does the analyser retain the exact original instance member or lifecycle declara
 
 The selected definition walk issues a readonly context from one canonical declaration and complete original ParamList/Body words. Source class joins validate the complete retained input and publication/site/word correspondence. Next-chain source advice consumes the common complete Registry invocation, original publication/relation MRO, counted member ledger and shared formal binder; source ownership fallback retains whole-document lineage. After a genuine selected factory and closed declaration workers, source method bodies remain retained when the separate inherited runtime-chain check refuses overlapping mixin entries.
 
+Linked lexical-next controls retain complete original declaration/call words and the selected effective argument count, including expansion and nextto target layout. Preceding unrelated edits require current whole-image correspondence; the typed report retains declaration bytes and unknown-width state despite changed prose.
+
 ## Scope
 
 C TclOO instance-side source declarations with authentic whole Document words and the same immutable availability/configuration input. Class-object, provider, transformed/materialised and ambiguous bodies do not receive this context. Absolute nextto target geometry is modelled; relative targets without actual object namespace remain unavailable. No native installation, entered receiver/provider, runtime next chain, Normal or edit grant is inferred.
+
+These three software source/transport controls establish no entered receiver, runtime MRO, current method table, native next chain, evaluated argv, physical frame, Normal or edit permission. Absolute source target geometry and genuine parent-body ownership remain independent requirements, and no assertion outcome is attached.
 
 ## Provider answers
 
@@ -86,6 +90,15 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/deferred_method.rs](../../../../rust/tcl-compiler/src/command_binding/deferred_method.rs), `command_binding::deferred_method::tests::original_overlapping_mixin_keeps_declared_body_without_a_dispatch_chain` (linked): C86/C90/C91 selected closed method workers retain original body/formal and complete conditional helper words while overlapping mixin runtime chain and completed-world authority remain unavailable.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/analyser/types/original_member_context.rs](../../../../rust/tcl-compiler/src/analyser/types/original_member_context.rs), `OriginalLexicalNextCall::source_argument_count`: Count the authentic selected effective vector under the retained helper/options grammar; captured or expanded words retain their original minimum and unknown-width obligations.
+- [rust/tcl-compiler/src/analyser/per_item.rs](../../../../rust/tcl-compiler/src/analyser/per_item.rs), `Analyser::fill_deferred_bodies`: Use genuine current whole declaration source for deferred lexical-next advice when an isolated body lacks its original parent receipt.
+- [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs), `diagnostic_subject_data`: Serialize the original lexical-next declaration and effective count with its typed source purpose, independently of message prose or runtime next dispatch.
+- [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs), `diagnostic_subject::tests::lexical_next_arity_transport_retains_declaration_and_effective_count` (linked): Typed lexical-next arity transport retains original class declaration bytes and effective minimum/indeterminate count, validates the appropriate diagnostic code and ignores changed presentation text.
+- [rust/tcl-compiler/src/analyser/types/original_member_context.rs](../../../../rust/tcl-compiler/src/analyser/types/original_member_context.rs), `analyser::types::original_member_context::tests::original_lexical_next_count_uses_effective_words_and_whole_call_geometry` (linked): Original next/colon-qualified next/expanded next/absolute nextto retain the actual selected effective count and complete whole-call source words; nextto target data is excluded only by the selected helper grammar.
+- [rust/tcl-compiler/src/analyser/per_item.rs](../../../../rust/tcl-compiler/src/analyser/per_item.rs), `analyser::per_item::tests::original_next_advice_reconstructs_whole_source_after_preceding_edits` (linked): The actual source-ownership fallback reconstructs complete current declaration/call words after preceding unrelated edits, retaining original source images and full member-body configuration rather than reusing detached body text.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

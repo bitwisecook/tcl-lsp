@@ -62,7 +62,7 @@ pub trait NativeIncrementObjects {
 }
 
 fn reading_increment(error: CmdError) -> CmdError {
-    if error.native_access_refusal().is_some() {
+    if error.native_execution_refusal().is_some() {
         return error;
     }
     let mut details = error.into_byte_details();

@@ -14,14 +14,7 @@ fn refuse_access(
     interp: &mut Interp,
     error: tcl_syntax::value::ValueError,
 ) -> NativeExecutionError {
-    if let Some(cause) = error.native_access_refusal() {
-        interp.refuse_native_access(cause);
-    } else {
-        interp.refuse_host_command(format!("native completion value access failed: {error}"));
-    }
-    interp
-        .native_execution_refusal()
-        .expect("original host cause retained")
+    interp.refuse_completion_value_access(error)
 }
 
 /// Snapshot actual guest result/options bytes or return the original host cause.

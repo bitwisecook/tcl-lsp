@@ -45,7 +45,7 @@ pub struct OriginalLogicalFormalBinding {
     references: Vec<OriginalLogicalFormalReference>,
 }
 impl OriginalLogicalFormalBinding {
-    /// Unchanged ASCII name selected by the original formal-list grammar.
+    /// Unchanged Unicode scalar name selected by the original formal-list grammar.
     #[must_use]
     pub fn name(&self) -> &str {
         &self.name
@@ -264,8 +264,7 @@ fn declared_formals(word: &NativeWord) -> Option<Vec<OriginalLogicalFormalBindin
     }
     let content = word.content_span().ok()?;
     let raw = word.image().bytes().get(content.as_range())?;
-    if tcl_syntax::word_rules::original_static_word_ascii_presentation(word).as_deref() != Some(raw)
-    {
+    if tcl_syntax::word_rules::original_static_word_unicode_value(word).as_deref() != Some(raw) {
         return None;
     }
     let text = std::str::from_utf8(raw).ok()?;
@@ -287,7 +286,6 @@ fn declared_formals(word: &NativeWord) -> Option<Vec<OriginalLogicalFormalBindin
                 .ok()??;
         if !name.literal
             || specifier.get(name.value.clone())? != parameter.name
-            || !parameter.name.is_ascii()
             || parameter.name.as_bytes().contains(&0)
             || !seen.insert(parameter.name.as_str())
         {
@@ -402,7 +400,7 @@ fn retain_command_references(
 
 fn static_word(word: &NativeWord) -> bool {
     !word.group().expand
-        && tcl_syntax::word_rules::original_static_word_ascii_presentation(word).is_some()
+        && tcl_syntax::word_rules::original_static_word_unicode_value(word).is_some()
 }
 
 fn binding_effects_closed(schema: &tcl_registry::ResolvedInvocation<'_, '_>) -> bool {
@@ -524,6 +522,112 @@ mod tests {
             input.lexer_config(),
         );
         assert!(!record.matches_source(source, &foreign));
+    }
+
+    #[test]
+    fn logical_unicode_formals_retain_literal_fields_and_original_scalar_reads() {
+        // naming.minifier.logical-formal-binding-alpha
+        // docs/design/analysis/name-resolution-proofs/logical-formal-binding-alpha.md
+        let source = "proc identité {naïve {東京 défaut} {é😀 fixed}} {list ${naïve} ${東京} \"${é😀}/${naïve}\"; return ${東京}}\n";
+        let analysis = analyse(source);
+        let records = original_logical_procedure_bindings(source, &analysis).unwrap();
+        assert_eq!(records.len(), 1);
+        let record = &records[0];
+        assert!(record.matches_source(source, analysis.resolved_input.as_ref().unwrap()));
+        assert!(record.alpha_binding_lookup_closed());
+        assert_eq!(
+            record
+                .formals()
+                .iter()
+                .map(OriginalLogicalFormalBinding::name)
+                .collect::<Vec<_>>(),
+            ["naïve", "東京", "é😀"]
+        );
+        assert_eq!(
+            record
+                .formals()
+                .iter()
+                .map(|formal| formal.references().len())
+                .collect::<Vec<_>>(),
+            [2, 2, 1]
+        );
+        for formal in record.formals() {
+            assert_eq!(
+                source.get(formal.declaration_span().as_range()),
+                Some(formal.name())
+            );
+            assert_eq!(
+                record.formal_at(formal.declaration_span().start()),
+                Some(formal)
+            );
+            for reference in formal.references() {
+                assert_eq!(
+                    source.get(reference.name_span().as_range()),
+                    Some(formal.name())
+                );
+                assert_eq!(
+                    reference.original_word().image(),
+                    &SourceImage::document(source)
+                );
+                assert_eq!(
+                    record.formal_at(reference.name_span().start()),
+                    Some(formal)
+                );
+            }
+        }
+        assert!(source.contains("{東京 défaut}"));
+    }
+
+    #[test]
+    fn logical_unicode_formals_refuse_cooked_units_and_withdrawn_source_owners() {
+        // naming.minifier.logical-formal-binding-alpha
+        // docs/design/analysis/name-resolution-proofs/logical-formal-binding-alpha.md
+        for source in [
+            r#"proc p "\u00e9" {return ${é}}"#,
+            r#"proc p "\uD800" {return ${�}}"#,
+            r#"proc p {é é} {return ${é}}"#,
+            "proc p {é\0} {return ${é}}",
+        ] {
+            let analysis = analyse(source);
+            assert!(
+                original_logical_procedure_bindings(source, &analysis)
+                    .unwrap()
+                    .is_empty(),
+                "{source:?}"
+            );
+        }
+        let source = "proc p {é} {return ${é}}";
+        let mut analysis = analyse(source);
+        assert_eq!(
+            original_logical_procedure_bindings(source, &analysis)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(
+            original_logical_procedure_bindings("proc p {é} {return ${other}}", &analysis)
+                .is_none()
+        );
+        let input = analysis.resolved_input.as_ref().unwrap().clone();
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        analysis.resolved_input = Some(ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        ));
+        assert!(original_logical_procedure_bindings(source, &analysis).is_none());
+        let context = input.context_registry();
+        analysis.resolved_input = Some(ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            Arc::new(context.with_command_store(context.commands().snapshot().shared_registry())),
+            input.lexer_config(),
+        ));
+        assert!(original_logical_procedure_bindings(source, &analysis).is_none());
+        analysis.resolved_input = None;
+        assert!(original_logical_procedure_bindings(source, &analysis).is_none());
     }
 
     #[test]

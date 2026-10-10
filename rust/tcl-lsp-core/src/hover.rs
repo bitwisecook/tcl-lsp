@@ -3502,7 +3502,8 @@ fn method_dispatch_hover(
     }
     if crate::receiver_identity::definition_reference_at_cursor(analysis, source, cursor_offset)
         .is_some()
-        || crate::definition::object_masks_external_dispatch(analysis, source, line, character)
+        || crate::definition::object_dispatch_mask(analysis, source, line, character)
+            .withholds_workspace_fallback()
     {
         return ControlFlow::Break(None);
     }

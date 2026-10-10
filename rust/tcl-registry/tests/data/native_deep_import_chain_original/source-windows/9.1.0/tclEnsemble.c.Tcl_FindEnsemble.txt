@@ -1,0 +1,138 @@
+ */
+
+Tcl_Command
+Tcl_FindEnsemble(
+    Tcl_Interp *interp,		/* Where to do the lookup, and where to write
+				 * the errors if TCL_LEAVE_ERR_MSG is set in
+				 * the flags. */
+    Tcl_Obj *cmdNameObj,	/* Name of command to look up. */
+    int flags)			/* Either 0 or TCL_LEAVE_ERR_MSG; other flags
+				 * are probably not useful. */
+{
+    Tcl_Command token;
+
+    token = Tcl_FindCommand(interp, TclGetString(cmdNameObj), NULL, flags);
+    if (token == NULL) {
+	return NULL;
+    }
+
+    if (((Command *) token)->objProc2 != TclEnsembleImplementationCmd) {
+	/*
+	 * Reuse existing infrastructure for following import link chains
+	 * rather than duplicating it.
+	 */
+
+	token = TclGetOriginalCommand(token);
+
+	if (token == NULL ||
+		((Command *) token)->objProc2 != TclEnsembleImplementationCmd) {
+	    if (flags & TCL_LEAVE_ERR_MSG) {
+		Tcl_SetObjResult(interp, Tcl_ObjPrintf(
+			"\"%s\" is not an ensemble command",
+			TclGetString(cmdNameObj)));
+		Tcl_SetErrorCode(interp, "TCL", "LOOKUP", "ENSEMBLE",
+			TclGetString(cmdNameObj), (char *)NULL);
+	    }
+	    return NULL;
+	}
+    }
+
+    return token;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_IsEnsemble --
+ *
+ *	Simple test for ensemble-hood that takes into account imported
+ *	ensemble commands as well.
+ *
+ * Results:
+ *	Boolean value
+ *
+ * Side effects:
+ *	None
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tcl_IsEnsemble(
+    Tcl_Command token)		/* The command to check. */
+{
+    Command *cmdPtr = (Command *) token;
+
+    if (cmdPtr->objProc2 == TclEnsembleImplementationCmd) {
+	return 1;
+    }
+    cmdPtr = (Command *) TclGetOriginalCommand((Tcl_Command) cmdPtr);
+    if (cmdPtr == NULL || cmdPtr->objProc2 != TclEnsembleImplementationCmd) {
+	return 0;
+    }
+    return 1;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclMakeEnsemble --
+ *
+ *	Create an ensemble from a table of implementation commands. The
+ *	ensemble will be subject to (limited) compilation if any of the
+ *	implementation commands are compilable.
+ *
+ *	The 'name' parameter may be a single command name or a list if
+ *	creating an ensemble subcommand (see the binary implementation).
+ *
+ *	Currently, the TCL_ENSEMBLE_PREFIX ensemble flag is only used on
+ *	top-level ensemble commands.
+ *
+ *	This code is not safe to run in Safe interpreter after user code has
+ *	executed. That's OK right now because it's just used to set up Tcl,
+ *	but it means we mustn't expose it at all, not even to Tk (until we can
+ *	hide commands in namespaces directly).
+ *
+ * Results:
+ *	Handle for the new ensemble, or NULL on failure.
+ *
+ * Side effects:
+ *	May advance the bytecode compilation epoch.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Tcl_Command
+TclMakeEnsemble(
+    Tcl_Interp *interp,
+    const char *name,		/* The ensemble name (as explained above) */
+    const EnsembleImplMap map[])/* The subcommands to create */
+{
+    Tcl_Command ensemble;
+    Tcl_Namespace *ns;
+    Tcl_DString buf, hiddenBuf;
+    const char **nameParts = NULL;
+    const char *cmdName = NULL;
+    Tcl_Size i, nameCount = 0;
+    int ensembleFlags = 0;
+    Tcl_Size hiddenLen;
+
+    /*
+     * Construct the path for the ensemble namespace and create it.
+     */
+
+    Tcl_DStringInit(&buf);
+    Tcl_DStringInit(&hiddenBuf);
+    TclDStringAppendLiteral(&hiddenBuf, "tcl:");
+    Tcl_DStringAppend(&hiddenBuf, name, TCL_AUTO_LENGTH);
+    TclDStringAppendLiteral(&hiddenBuf, ":");
+    hiddenLen = Tcl_DStringLength(&hiddenBuf);
+    if (name[0] == ':' && name[1] == ':') {
+	/*
+	 * An absolute name, so use it directly.
+	 */
+
+	cmdName = name;
+	Tcl_DStringAppend(&buf, name, TCL_AUTO_LENGTH);
+	ensembleFlags = TCL_ENSEMBLE_PREFIX;
+    } else {

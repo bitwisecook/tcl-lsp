@@ -16,11 +16,15 @@ All 24 unchanged original Jim scripts produce catch code 0 and exact result UNAV
 
 The two existing VM comparator definitions explicitly select NamespaceInfo only for their original Jim guarded rows. Their source, expected rows and assertions remain unchanged. The fresh current-Jim record supports exactly24 guarded public code0/UNAVAILABLE outcomes and the independent helper declaration; C result/control records retain their own original scope.
 
+The linked guard comparator reads the unchanged current-Jim original source and measured public code/result fields, then supplies the NamespaceInfo library explicitly to its software fixture. That fixture choice is bounded to the comparison; optional software access diagnostics add no provider evidence.
+
 ## Scope
 
 Each original source file is byte-identical to its existing public capture and row hex. The actual observation wrapper reconstructs exact counted ASCII source using binary format H* and catch {eval $source}, then reports result hex. All 24 sources contain no raw NUL or non-ASCII; source escapes and guarded unevaluated branches do not establish binary input, operator execution or native compilation. One independently launched metadata source catches public patchlevel, helper args/body and absolute command-inventory queries. Six exact source windows retain actual CLI static initialisation, namespace/nshelper extension roster, generated helper, original Tcl helper, namespace-aware Info forwarding and selected Makefile context. The current CLI/header/static archive/configuration/source/version inputs are checked before and after launch against 78 required pins. No new compiler is run. Inherited environment and system-library/compiler versions are unrecorded; the explicit overlay is empty. Old original row/manifests and their recorded CLI digest remain unchanged, but the old executable and source/library roster are unavailable and are never reconstructed from successful repeated results. Shared helper source bytes are compared independently without new mutable implementation pins or backend pass claims. C8.4–C9.1 and BIG-IP have no process in this request; their separate original mathop evidence remains independent.
 
 These are linked software definitions, not a successful60/84-window execution report. Each independently pinned Rust receipt retains its actual failures or results, including Host ownership refusals separately from Guest/provider outcomes. The helper fixture grants no global library/bootstrap change, specialised Jim opcode, reached mathop operator, Native object/frame or provenance for the old different CLI.
+
+This definition binding does not add a current assertion outcome or broaden the twenty-four original public completions into compiled opcode, private header, lookup roster or old CLI provenance. Independently pinned software outcomes and the existing original source/helper capture keep their separate exact image and purpose.
 
 ## Provider answers
 
@@ -769,6 +773,11 @@ A named test is a coverage binding, not a claim that it executed.
 - [rust/tcl-vm/src/cmd_mathop.rs](../../../../rust/tcl-vm/src/cmd_mathop.rs), `cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls` (linked): Only original Jim guarded public script completion parity has fresh435 context evidence; existing C original controls and all source/result assertions remain exact. This links the software assertion definition only. Independent actual execution receipts retain their own failures and scope; no whole-provider or specialised compilation pass is inferred.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
+
+- [rust/tcl-vm/src/native_fixture.rs](../../../../rust/tcl-vm/src/native_fixture.rs), `interpreter_with_scripted_libraries`: Select the actual software engine and explicitly requested original scripted distribution library for a bounded comparator; no global library roster or old differing CLI provenance follows.
+- [rust/tcl-vm/src/cmd_mathop.rs](../../../../rust/tcl-vm/src/cmd_mathop.rs), `cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers` (linked): The software comparator uses the unchanged independently recorded current-Jim identity0 original source and public code/result fields with an explicit NamespaceInfo library fixture. Optional access diagnostics supply no provider evidence or opcode/header conclusion.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

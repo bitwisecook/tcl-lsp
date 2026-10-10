@@ -163,7 +163,9 @@ impl Interp {
         code: Code,
     ) -> Result<BodyProtectedCompletion, Code> {
         let result = obj::Owned::retain(self.result_obj());
-        let options = obj::Owned::fresh(crate::cmd_error::completion_options(self, code));
+        let options = crate::cmd_error::completion_options(self, code)
+            .map_err(|error| self.refuse_native_execution(error))?;
+        let options = obj::Owned::fresh(options);
         if self.host_refusal_pending() {
             return Err(Code::Error);
         }

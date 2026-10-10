@@ -3856,13 +3856,6 @@ impl Value {
         }
     }
 
-    pub(crate) fn cached_list_length(&self) -> Option<usize> {
-        match &*self.0.intrep.borrow() {
-            IntRep::List { items, .. } => Some(items.len()),
-            _ => None,
-        }
-    }
-
     fn restore_coerced_integer(&self) -> Option<i64> {
         let integer = match *self.0.intrep.borrow() {
             IntRep::CoercedDouble(value) => Some(value),
@@ -4698,6 +4691,12 @@ impl Value {
         protocol: tcl_syntax::native_string::NativeStringProtocol,
     ) -> Result<Vec<(Value, Value)>, tcl_syntax::value::ValueError> {
         self.check_native_header()?;
+        self.seal_compound_string_protocol(protocol)
+            .map_err(|error| {
+                ValueError::NativeStringAccess(
+                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+                )
+            })?;
         if let Some(pairs) = self.cached_dictionary_representation() {
             return Ok(pairs);
         }
@@ -6037,6 +6036,54 @@ mod tests {
             .original()
             .with_cached_dictionary_representation(|pairs, _| assert!(pairs.is_empty()))
             .unwrap();
+    }
+
+    #[test]
+    fn native_dictionary_getter_checks_foreign_compound_recipe_before_cached_members() {
+        // naming.invocation.original-object-materialization-purpose
+        // docs/design/analysis/name-resolution-proofs/invocation-original-object-materialization-purpose.md
+        // Software carrier/cache contract: no Native worker or conversion admission.
+        let original = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_0);
+        let foreign = NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
+        for dictionary in [false, true] {
+            for resident in [false, true] {
+                let key = Value::new_native_string_bytes(b"key".as_slice());
+                let member = Value::int(17);
+                let value = if dictionary {
+                    Value::native_dictionary_constructor(
+                        vec![(key.clone(), member.clone())],
+                        None,
+                        original,
+                    )
+                    .unwrap()
+                } else {
+                    Value::native_list_constructor(vec![key.clone(), member.clone()], original)
+                };
+                let value = if resident {
+                    value.with_resident_string_bytes(Rc::from(b"key 17".as_slice()))
+                } else {
+                    value
+                };
+                let primary = value.native_object_type_name();
+                let member_references = member.native_object_reference_count();
+                assert!(matches!(
+                    value.native_object_dict_pairs(foreign),
+                    Err(ValueError::NativeStringAccess(
+                        tcl_syntax::raw_string::NativeStringAccessError::Unavailable(
+                            tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
+                        ),
+                    )),
+                ));
+                assert_eq!(value.native_object_type_name(), primary);
+                assert_eq!(value.resident_string_bytes().is_some(), resident);
+                assert_eq!(member.native_object_reference_count(), member_references);
+                assert!(member.resident_string_bytes().is_none());
+                let pairs = value.native_object_dict_pairs(original).unwrap();
+                assert!(pairs[0].0.is_same_object(&key));
+                assert!(pairs[0].1.is_same_object(&member));
+                assert!(member.resident_string_bytes().is_none());
+            }
+        }
     }
 
     #[test]

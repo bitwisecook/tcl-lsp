@@ -2343,6 +2343,9 @@ pub(crate) fn err_with_code(
 
 /// Convert a portable command-layer error without losing its Tcl identity.
 pub(crate) fn completion_from_cmd_error(vm: &mut Vm, error: CmdError) -> Completion<Value> {
+    if let Some(error) = error.native_execution_refusal() {
+        return vm.refuse_tcl_host_failure(crate::error::TclHostFailure::Execution(error.clone()));
+    }
     if let Some(error) = error.native_access_refusal() {
         return vm.refuse_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(error));
     }

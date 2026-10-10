@@ -922,13 +922,12 @@ impl ValueOps for Vm {
     }
 
     fn list_len(&mut self, value: &Value) -> Result<usize, ValueError> {
-        use tcl_registry::native_stock_list::{
-            LogicalListLengthProvider, NativeObjectLengthAction,
-        };
-        let protocol = self
-            .native_invocation_dialect()
-            .object_length_protocol(Some(LogicalListLengthProvider::Tcl84CoreSimulation))
+        use tcl_registry::native_stock_list::NativeObjectLengthAction;
+        let purpose = self
+            .object_materialization()
             .ok_or(ValueError::CommandProtocolUnavailable("object list length"))?;
+        value.check_native_header()?;
+        let protocol = purpose.length_protocol();
         let class = value.stock_list_input_class();
         let canonical_empty = match value.resident_string_storage_identity() {
             Some(tcl_syntax::native_string::NativeStringStorageIdentity::CanonicalEmpty) => true,
@@ -949,13 +948,12 @@ impl ValueOps for Vm {
         match protocol.action(class, canonical_empty).ok_or(
             ValueError::CommandProtocolUnavailable("object list length storage"),
         )? {
-            NativeObjectLengthAction::CachedList => {
-                value
-                    .cached_list_length()
-                    .ok_or(ValueError::CommandProtocolUnavailable(
-                        "object list length storage",
-                    ))
-            }
+            NativeObjectLengthAction::CachedList => value
+                .native_list_backing_in(purpose.protocol())?
+                .map(|backing| backing.len())
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "object list length storage",
+                )),
             NativeObjectLengthAction::Constant(length) => Ok(length),
             NativeObjectLengthAction::ConvertToList => {
                 self.list_elements(value).map(|elements| elements.len())

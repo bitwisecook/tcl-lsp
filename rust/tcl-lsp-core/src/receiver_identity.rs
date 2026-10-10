@@ -353,10 +353,13 @@ pub(crate) fn captured_methods_at_command<'a>(
         return Vec::new();
     }
     tokens.source_binding = Some(binding.clone());
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return Vec::new();
+    };
     let Some(metadata) =
         tcl_compiler::registry_invocation::InvocationMetadataContext::for_analysis_input(
             current.registry(),
-            analysis.resolved_input.as_ref(),
+            input,
         )
     else {
         return Vec::new();

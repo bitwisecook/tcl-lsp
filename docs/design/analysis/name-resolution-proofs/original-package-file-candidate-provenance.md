@@ -14,9 +14,13 @@ How can original package file suggestions preserve genuine source operand geomet
 
 Original package providers capture one complete current analysis/context and shared source structure. Only commands inside the genuine selected loader body region can supply Source schema candidates; the shared selected native Source grammar owns filename and option ordinals. Static UTF8/no-zero filename advice retains its whole original word and shared schema, including unresolved applicability. A conventional scalar dir/path spelling remains a separate deferred-text hint without claiming its future variable value. Caller directory entries carry no filename operand/schema. Original mode obtains source candidates only through shared schema and owned loader/body geometry; inert braced or quoted data cannot supply script regions. Computed list-built loaders without a genuine script/value receipt retain directory advice. These candidates grant no future command lookup, package provision, file load, Normal, execution or edit. A genuine contiguous deferred-body inventory can independently issue conditional Registry source schema under the same full image, configuration and context. UnknownFutureEntry remains explicit, and future invocations never become selected document lookup. Genuine original declaration observations use this same conditional schema; auto_index source advice consumes the shared projection. The deferred global-entry descriptor is explicitly C-family-only. A list-produced loader without a genuine script receipt retains directory advice. The pkgIndex file scanner retains the selected whole-file lexer grammar, while nested body BOM bytes remain content. Candidates require the actual retained analysis/context generation; an identical cloned analysis is accepted, while a reconstructed context around its old Realm refuses.
 
+The marked file candidate definition joins original selected body roles to their timing purpose. An authentic Potential loader body can retain its original source operand as a candidate; ReferenceOnly syntax cannot.
+
 ## Scope
 
 Readonly file advice for original C-loader package declarations. Structural loader/source syntax remains separate from deferred runtime behavior and filesystem success. Deferred source-schema candidates preserve unknown future entry and independently unavailable runtime lookup. The Registry family descriptor supplies authored analysis geometry, not a scheduling observation or successful callback, package provision or source load.
+
+A candidate is conditional source provenance only. No actual package load/file existence, closed path, entered child/frame, Native dispatch, completion or assertion outcome follows from this definition.
 
 ## Provider answers
 
@@ -91,6 +95,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs), `package_resolver::original_names::file_candidates::tests::original_package_file_currency_keeps_file_ingress_and_nested_bom_distinct` (linked): All five C source grammars keep the file-selected BOM configuration in loader, filename and shared schema; changing source or LeadingBom refuses. A nested BOM is content and does not become a Source command or navigation operand.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs), `FileCandidateScanner::new`: Capture genuine original source/analysis input for selected package body and operand candidate scans.
+- [rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs), `FileCandidateScanner::collect`: Require Potential loader evaluation purpose before recording the original source operand as a file candidate; ReferenceOnly roles do not donate it.
+- [rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs), `package_resolver::original_names::file_candidates::tests::original_package_file_candidates_require_potential_loader_evaluation` (linked): Authentic custom package body roles yield a SourceOperand file candidate only for Potential loader evaluation; ReferenceOnly body syntax retains its independent non-evaluation purpose.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

@@ -512,13 +512,13 @@ fn remove_prepared_host_command(
 
 fn provide_package(vm: &mut Vm, name: &str, version: &str) -> Result<(), EngineError> {
     vm.package_provide(name, version)
-        .map_err(|error| internal_error(error, vm.native_scalar_carrier_dialect()))
+        .map_err(|error| internal_error(vm, error))
 }
 
 fn read_variable(vm: &mut Vm, name: &str) -> Result<Value, EngineError> {
     let value = vm
         .read_variable(name)
-        .map_err(|error| internal_error(error, vm.native_scalar_carrier_dialect()))?;
+        .map_err(|error| internal_error(vm, error))?;
     from_vm_value(&value, vm.native_scalar_carrier_dialect())
 }
 
@@ -527,12 +527,12 @@ fn set_variable(vm: &mut Vm, name: &str, value: &Value) -> Result<(), EngineErro
         name,
         to_vm_value(value, vm.native_scalar_carrier_dialect())?,
     )
-    .map_err(|error| internal_error(error, vm.native_scalar_carrier_dialect()))
+    .map_err(|error| internal_error(vm, error))
 }
 
 fn unset_variable(vm: &mut Vm, name: &str) -> Result<(), EngineError> {
     vm.unset_variable(name)
-        .map_err(|error| internal_error(error, vm.native_scalar_carrier_dialect()))
+        .map_err(|error| internal_error(vm, error))
 }
 
 /// Evaluate `script` in the VM's current frame and report how it completed: a
@@ -551,7 +551,7 @@ fn evaluate(vm: &mut Vm, script: &str) -> Result<HostOutcome, EngineError> {
         Code::Break => CompletionCode::Break,
         Code::Continue => CompletionCode::Continue,
         Code::Error => {
-            let failure = script_error(&completion, vm.native_scalar_carrier_dialect());
+            let failure = script_error(vm, &completion);
             if matches!(
                 failure,
                 EngineError::Script { .. } | EngineError::ScriptBytes { .. }
@@ -559,7 +559,7 @@ fn evaluate(vm: &mut Vm, script: &str) -> Result<HostOutcome, EngineError> {
                 // The host command takes the error as its own, so `$errorCode`
                 // and `$errorInfo` are what a `catch` of the script would leave.
                 vm.publish_caught_error(&completion)
-                    .map_err(|error| internal_error(error, vm.native_scalar_carrier_dialect()))?;
+                    .map_err(|error| internal_error(vm, error))?;
             }
             return Err(failure);
         }
@@ -578,21 +578,15 @@ fn evaluate(vm: &mut Vm, script: &str) -> Result<HostOutcome, EngineError> {
 
 /// The error a failed completion is, with the `-errorcode` its options carry and
 /// a budget the VM reported as the budget it outran.
-fn script_error(
-    completion: &Completion<tcl_vm::Value>,
-    dialect: tcl_registry::InvocationDialect,
-) -> EngineError {
-    TclVmEngine::completion_to_result(completion, dialect)
+fn script_error(vm: &mut Vm, completion: &Completion<tcl_vm::Value>) -> EngineError {
+    TclVmEngine::completion_to_result(vm, completion)
         .expect_err("an error completion has no normal value")
 }
 
 /// Export an internal VM failure without rebuilding its guest completion.
-fn internal_error(
-    error: tcl_vm::TclError,
-    dialect: tcl_registry::InvocationDialect,
-) -> EngineError {
+fn internal_error(vm: &mut Vm, error: tcl_vm::TclError) -> EngineError {
     match error.into_completion() {
-        Ok(completion) => script_error(&completion, dialect),
+        Ok(completion) => script_error(vm, &completion),
         Err(failure) => EngineError::ExecutionRefusal(failure.to_string()),
     }
 }
@@ -1546,12 +1540,16 @@ impl TclVmEngine {
     /// [`EngineError::BudgetExceeded`] — the host must be able to tell "your
     /// hook is too expensive" from "your hook is wrong".
     fn completion_to_result(
+        vm: &mut Vm,
         completion: &Completion<tcl_vm::Value>,
-        dialect: tcl_registry::InvocationDialect,
     ) -> Result<Value, EngineError> {
+        let dialect = vm.native_scalar_carrier_dialect();
         if completion.code.is_ok() || completion.code == Code::Return {
             return from_vm_value(&completion.result, dialect);
         }
+        let code = vm
+            .completion_option_bytes_checked(completion, b"-errorcode")
+            .map_err(|error| internal_error(vm, error))?;
         let message = native_string_bytes(&completion.result, dialect)?;
         match message.as_ref() {
             b"command count limit exceeded" => {
@@ -1560,34 +1558,6 @@ impl TclVmEngine {
             b"time limit exceeded" => Err(EngineError::BudgetExceeded(BudgetKind::WallClock)),
             b"value size limit exceeded" => Err(EngineError::BudgetExceeded(BudgetKind::ValueSize)),
             _ => {
-                let protocol = dialect.native_string_protocol().ok_or_else(|| {
-                    EngineError::ExecutionRefusal(
-                        "native completion option protocol is unavailable".into(),
-                    )
-                })?;
-                let code = if let Some(code) = completion
-                    .options
-                    .with_cached_dictionary_representation(|pairs, _| {
-                        Self::completion_error_code(
-                            pairs.iter().map(|(key, value)| (key, value)),
-                            dialect,
-                        )
-                    }) {
-                    code?
-                } else {
-                    let items = completion
-                        .options
-                        .native_object_list_elements(protocol)
-                        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
-                    Self::completion_error_code(
-                        items
-                            .as_chunks::<2>()
-                            .0
-                            .iter()
-                            .map(|[key, value]| (key, value)),
-                        dialect,
-                    )?
-                };
                 let options = native_string_bytes(&completion.options, dialect)?;
                 if options.is_empty() {
                     Err(EngineError::script_bytes(message.to_vec(), code))
@@ -1600,18 +1570,6 @@ impl TclVmEngine {
                 }
             }
         }
-    }
-
-    fn completion_error_code<'a>(
-        pairs: impl Iterator<Item = (&'a tcl_vm::Value, &'a tcl_vm::Value)>,
-        dialect: tcl_registry::InvocationDialect,
-    ) -> Result<Option<Vec<u8>>, EngineError> {
-        for (key, value) in pairs {
-            if native_string_bytes(key, dialect)?.as_ref() == b"-errorcode" {
-                return Ok(Some(native_string_bytes(value, dialect)?.to_vec()));
-            }
-        }
-        Ok(None)
     }
 }
 
@@ -1786,7 +1744,7 @@ impl Engine for TclVmEngine {
             .vm
             .try_invoke_command(&handle.procedure, &arguments)
             .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
-        Self::completion_to_result(&completion, self.vm.native_scalar_carrier_dialect())
+        Self::completion_to_result(&mut self.vm, &completion)
     }
 
     fn set_budget(&mut self, budget: Budget) -> Result<(), EngineError> {
@@ -3162,7 +3120,83 @@ mod tests {
     }
 
     #[test]
+    fn checked_completion_projection_keeps_guest_option_conversion_error_guest() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // A constructed malformed carrier reaches the actual checked guest
+        // conversion owner; this is not an original-provider observation.
+        let mut engine = TclVmEngine::new();
+        let completion = Completion::new(
+            Code::Error,
+            tcl_vm::Value::int(17),
+            tcl_vm::Value::list(vec![tcl_vm::Value::string("-errorcode")]),
+        );
+        let error = TclVmEngine::completion_to_result(&mut engine.vm, &completion).unwrap_err();
+        assert!(matches!(
+            &error,
+            EngineError::Script { .. } | EngineError::ScriptBytes { .. }
+        ));
+        assert_eq!(
+            error.script_code_bytes(),
+            Some(b"TCL VALUE DICTIONARY".as_slice())
+        );
+        assert!(error.script_options_bytes().is_some());
+        assert!(completion.result.resident_string_bytes().is_none());
+        assert!(completion.options.resident_string_bytes().is_none());
+    }
+
+    #[test]
+    fn checked_completion_projection_retains_host_before_original_result_getter() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // This deliberately retained owner failure proves adapter channel and
+        // ordering only; no getter failure or original-provider pass is claimed.
+        let mut engine = TclVmEngine::new();
+        engine
+            .vm
+            .set_var("before", tcl_vm::Value::string("RETAINED"))
+            .unwrap();
+        let key = tcl_vm::Value::int(41);
+        let value = tcl_vm::Value::int(42);
+        let completion = Completion::new(
+            Code::Error,
+            tcl_vm::Value::int(17),
+            tcl_vm::Value::list(vec![key.clone(), value.clone()]),
+        );
+        let cause = tcl_syntax::raw_string::NativeValueAccessRefusal::ExpressionEngineUnavailable;
+        engine
+            .vm
+            .refuse_tcl_host_failure(tcl_vm::TclHostFailure::ValueAccess(cause));
+        assert!(matches!(
+            TclVmEngine::completion_to_result(&mut engine.vm, &completion),
+            Err(EngineError::ExecutionRefusal(_))
+        ));
+        assert!(key.resident_string_bytes().is_none());
+        assert!(value.resident_string_bytes().is_none());
+        assert!(completion.result.resident_string_bytes().is_none());
+        assert!(completion.options.resident_string_bytes().is_none());
+        let error = engine.vm.try_eval_source("set late UNREACHED").unwrap_err();
+        assert!(matches!(error,
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(original)
+                if original == cause
+        ));
+        assert!(engine.vm.get_var("late").is_none());
+        assert_eq!(
+            engine
+                .vm
+                .get_var("before")
+                .unwrap()
+                .resident_string_bytes()
+                .unwrap()
+                .as_ref(),
+            b"RETAINED"
+        );
+    }
+
+    #[test]
     fn guest_byte_error_retains_complete_native_options() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         let completion = tcl_vm::Completion::new(
             tcl_vm::Code::Error,
             tcl_vm::Value::from_string_bytes(b"prefix\0\xFF".as_slice()),
@@ -3174,9 +3208,10 @@ mod tests {
             ]),
         );
         let expected_options = completion.options.string_bytes();
+        let mut engine = TclVmEngine::new();
         let error = super::internal_error(
+            &mut engine.vm,
             tcl_vm::TclError::from_completion(completion),
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0),
         );
         let EngineError::ScriptBytes {
             message,
@@ -3193,6 +3228,8 @@ mod tests {
 
     #[test]
     fn guest_error_export_preserves_original_stringless_dictionary_and_members() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         use tcl_dialect::TclVersion;
         for version in [
             TclVersion::V8_5,
@@ -3201,6 +3238,11 @@ mod tests {
             TclVersion::V9_1,
         ] {
             let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let mut vm = Vm::new();
+            let native = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+                .unit_profile();
+            vm.set_dialect_profile(native);
+            assert!(vm.set_native_engine_profile(native));
             let key = tcl_vm::Value::new_native_string_bytes(b"-errorcode".as_slice());
             let code = tcl_vm::Value::new_native_string_bytes(b"CODE\0\xff".as_slice());
             let key_identity = key.native_object_identity();
@@ -3222,7 +3264,7 @@ mod tests {
                 message,
                 code: exported_code,
                 options,
-            } = TclVmEngine::completion_to_result(&completion, dialect).unwrap_err()
+            } = TclVmEngine::completion_to_result(&mut vm, &completion).unwrap_err()
             else {
                 panic!("original guest-error export")
             };
@@ -3251,8 +3293,9 @@ mod tests {
 
     #[test]
     fn guest_dictionary_options_refuse_an_unknown_native_issuer_without_shimmer() {
-        let mut dialect =
-            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
         let options = tcl_vm::Value::native_dictionary_constructor(
             vec![(
                 tcl_vm::Value::string("-errorcode"),
@@ -3268,10 +3311,21 @@ mod tests {
             tcl_vm::Value::string("FAILED"),
             options,
         );
-        dialect.core_point = None;
-        dialect.native_family = None;
+        let mut vm = Vm::new();
+        let unknown = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+        )));
+        vm.set_dialect_profile(unknown);
+        assert!(
+            vm.native_scalar_carrier_dialect()
+                .native_string_protocol()
+                .is_none()
+        );
         assert!(matches!(
-            TclVmEngine::completion_to_result(&completion, dialect),
+            TclVmEngine::completion_to_result(&mut vm, &completion),
             Err(EngineError::ExecutionRefusal(_))
         ));
         assert_eq!(completion.options.native_object_identity(), identity);

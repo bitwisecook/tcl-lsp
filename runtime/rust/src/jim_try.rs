@@ -172,7 +172,7 @@ fn clauses(
                                 break;
                             }
                             Ok(_) => {}
-                            Err(error) if error.native_access_refusal().is_some() => {
+                            Err(error) if error.native_execution_refusal().is_some() => {
                                 return Err(error);
                             }
                             Err(_) => return Err(CmdError::wrong_args_bytes(USAGE)),
@@ -275,7 +275,10 @@ pub(crate) fn command(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if let Some(name) = handler.vars.get(1) {
                 let mut receipt = interp.jim_return_receipt();
                 receipt.error_code = body_error_code;
-                let options = crate::cmd_error::jim_options_object(interp, receipt, code);
+                let options = match crate::cmd_error::jim_options_object(interp, receipt, code) {
+                    Ok(options) => options,
+                    Err(error) => return interp.refuse_native_execution(error),
+                };
                 bind(interp, name, &options)
             } else {
                 true

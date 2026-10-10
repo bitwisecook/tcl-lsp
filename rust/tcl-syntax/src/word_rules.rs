@@ -425,6 +425,65 @@ pub fn original_static_word_source_bytes(word: &tcl_lexer::NativeWord) -> Option
     Some(value)
 }
 
+/// Static Unicode value of one complete original Document word. Interpreted
+/// numeric escapes must retain Unicode scalar values before any presentation
+/// conversion; an unrepresentable unit cannot become a replacement-character
+/// name or literal fact. Braced escapes remain literal under the retained
+/// grammar. This supplies no Native value, naming policy or evaluation proof.
+#[must_use]
+pub fn original_static_word_unicode_value(word: &tcl_lexer::NativeWord) -> Option<Vec<u8>> {
+    use tcl_lexer::{ExecutablePart, ExecutableText, SourceChannel, WordKind};
+    let value = original_static_word_source_bytes(word)?;
+    if word.group().kind != WordKind::Braced {
+        let arena = word.executable_parts();
+        for component in arena.list(arena.root()) {
+            if !matches!(
+                component.part,
+                ExecutablePart::Text(ExecutableText::Decoded(_))
+            ) {
+                continue;
+            }
+            let raw = arena.bytes(component.span)?;
+            let mut offset = 0;
+            while offset < raw.len() {
+                if raw[offset] != b'\\' {
+                    offset += 1;
+                    continue;
+                }
+                let fragment = tcl_lexer::source_backslash_fragment_in(
+                    raw,
+                    offset,
+                    SourceChannel::Document,
+                    word.config().escapes,
+                    |_| tcl_lexer::EscapedInputUnit {
+                        width: 1,
+                        value: tcl_lexer::EscapedInputValue::CopyOriginal,
+                    },
+                )?;
+                if let tcl_lexer::BackslashFragmentValue::Codepoint(unit) = fragment.value {
+                    let scalar = char::from_u32(unit)?;
+                    let mut encoded = [0; 4];
+                    if crate::backslash::decode_bytes_in(
+                        raw.get(offset..fragment.end)?,
+                        word.config().escapes,
+                    )
+                    .as_ref()
+                        != scalar.encode_utf8(&mut encoded).as_bytes()
+                    {
+                        return None;
+                    }
+                }
+                if fragment.end <= offset || fragment.end > raw.len() {
+                    return None;
+                }
+                offset = fragment.end;
+            }
+        }
+    }
+    std::str::from_utf8(&value).ok()?;
+    Some(value)
+}
+
 /// Exact original Document coordinate of a static ASCII presentation boundary.
 /// Parsed literal and escape components retain their own source extents. A
 /// boundary inside a scanner-selected escape result or across ambiguous source
@@ -599,6 +658,61 @@ mod original_metadata_tests {
         let length = u32::try_from(image.len()).unwrap();
         let plan = tcl_lexer::native_script_words_in(image, Span::new(0, length), config).unwrap();
         plan.commands[0].words[0].clone()
+    }
+
+    #[test]
+    fn static_unicode_values_keep_original_units_separate_from_replacement_presentation() {
+        // naming.source.original-static-unicode-value-projection
+        // docs/design/analysis/name-resolution-proofs/source-original-static-unicode-value-projection.md
+        // This checked Document view does not classify Native string values.
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile))
+                .expect("supported source grammar");
+            let config = LexerConfig::for_file_grammar(point.grammar());
+            if profile == "jim" {
+                assert_eq!(config.escapes, tcl_dialect::EscapeSyntax::Jim);
+            }
+            for (source, expected) in [
+                ("café", "café"),
+                (r"caf\u00e9", "café"),
+                (r"café\uFFFD", "café�"),
+                ("café�", "café�"),
+                (r"{café\uD800}", r"café\uD800"),
+                (r"café\\uD800", r"café\uD800"),
+            ] {
+                let original = word(SourceImage::document(source), config);
+                assert_eq!(
+                    original_static_word_unicode_value(&original).as_deref(),
+                    Some(expected.as_bytes()),
+                    "{profile}: {source}"
+                );
+            }
+            for source in [r"café\uD800", r#""café\uD801""#, r"café\uDC00"] {
+                let original = word(SourceImage::document(source), config);
+                assert!(original_static_word_source_bytes(&original).is_some());
+                assert!(
+                    original_static_word_unicode_value(&original).is_none(),
+                    "{profile}: {source}"
+                );
+            }
+            for source in ["$name", "[name]"] {
+                let original = word(SourceImage::document(source), config);
+                assert!(original_static_word_unicode_value(&original).is_none());
+            }
+            if config.expand_syntax {
+                let original = word(SourceImage::document("{*}{café}"), config);
+                assert!(original.group().expand);
+                assert!(original_static_word_unicode_value(&original).is_none());
+            }
+            let original = word(SourceImage::native("café".as_bytes()), config);
+            assert!(original_static_word_unicode_value(&original).is_none());
+        }
+        let original = word(SourceImage::document(r"café\uD800"), LexerConfig::default());
+        assert_eq!(
+            original_static_word_source_bytes(&original).as_deref(),
+            Some("café�".as_bytes())
+        );
+        assert!(original_static_word_unicode_value(&original).is_none());
     }
 
     #[test]

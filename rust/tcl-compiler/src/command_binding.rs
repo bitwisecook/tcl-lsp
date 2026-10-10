@@ -2155,7 +2155,7 @@ fn original_static_layout_projection(
         // Independent authored simulation metadata does not issue a Native slot.
         (logical_source || dialect.authored_name_policy().is_none()).then_some(())?;
         let presentation = if logical_source {
-            tcl_syntax::word_rules::original_static_word_source_bytes(head)?
+            tcl_syntax::word_rules::original_static_word_unicode_value(head)?
         } else {
             tcl_syntax::word_rules::original_static_word_ascii_presentation(head)?
         };

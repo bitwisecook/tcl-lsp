@@ -2085,7 +2085,7 @@ pub fn prepare_search_pattern_original<O: NativeRegexObjects<E>, E: RegexEngine>
     match prepare_pattern_original::<O, E>(ops, pattern, flags, version) {
         Ok(compiled) => Ok(compiled),
         Err(error) => {
-            if error.0.native_access_refusal().is_some() || error.0.unicode_refusal().is_some() {
+            if error.0.native_execution_refusal().is_some() {
                 return Err(error);
             }
             flags.nosub = false;

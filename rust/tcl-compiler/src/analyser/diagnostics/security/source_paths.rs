@@ -482,7 +482,8 @@ mod tests {
         blocks.sort_by_key(|(block, _)| **block);
         for (block, contents) in blocks {
             for (index, statement) in contents.statements.iter().enumerate() {
-                let tokens = statement.statement.tokens();
+                let inline_tokens = statement.statement.tokens();
+                let tokens = function.cfg.source_tokens_at(*block, index);
                 let mut uses = statement
                     .uses
                     .iter()
@@ -499,10 +500,11 @@ mod tests {
                     crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(registry, metadata, tokens).is_some()
                 });
                 eprintln!(
-                    "[diagnostic-source-values] statement={block:?}/{index} kind={:?} command={} span={:?} tokens={} binding={} logical_operation={} uses={uses:?} defs={defs:?}",
+                    "[diagnostic-source-values] statement={block:?}/{index} kind={:?} command={} span={:?} inline_tokens={} retained_tokens={} binding={} logical_operation={} uses={uses:?} defs={defs:?}",
                     std::mem::discriminant(&statement.statement),
                     statement.statement.canonical_command_or_source(),
                     statement.statement.span(),
+                    inline_tokens.is_some(),
                     tokens.is_some(),
                     tokens.is_some_and(|tokens| tokens.source_binding.is_some()),
                     logical_operation,

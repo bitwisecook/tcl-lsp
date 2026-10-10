@@ -14,9 +14,13 @@ Do snippet variable choices and event templates consume current original referen
 
 Variable snippet choices use the same original visibility and source-reference decoder owner as ordinary variable completion. Current complete image/configuration is required, unsupported reference spellings are omitted and Native or hosted unavailability cannot reopen the lexical reporting-map branch. Event context retains actual Analysis, current SourceStructure script placement and original hosted event declaration cards. Guarded shared source-schema metadata validates the complete actual ContextRegistry and authentic effective roles; only a current document-root script offers an event template. Event display names describe independently retained source declarations rather than selecting a reached event. Snippet formatting escapes complete reference choices without reconstructing a name from a label.
 
+The marked event source definition retains current source cards and placement, with separate explicit profile compatibility. Changed whole source cannot reuse previous cards.
+
 ## Scope
 
 Readonly source candidates and explicit snippet authoring placement. Unicode braced references, opaque unsupported units, erased reporting maps, nested event source placement and changed whole source/configuration are fixed Rust coverage. This supplies no live variable read, cell binding, selected runtime event, TMM worker, appliance availability, execution or edit-equivalence grant. Explicit lexical source advice retains its independently selected compatibility branch.
+
+Source event/snippet context does not establish handler reachability, event invocation, a BIG-IP execution result, compilation, frame authority or an assertion outcome.
 
 ## Provider answers
 
@@ -80,6 +84,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs), `completion::original_snippet_context_tests::original_snippet_events_keep_retained_cards_and_actual_script_placement` (linked): Authentic hosted event cards survive erased reporting symbol maps; nested script placement suppresses event templates while document-root placement remains available, and changed source/full configuration refuses context.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lsp-core/src/irules_context.rs](../../../../rust/tcl-lsp-core/src/irules_context.rs), `EventHandlerFacts::from_analysis`: Require current original source/analysis correspondence, authentic selected event traits and original script placement for source authoring context.
+- [rust/tcl-lsp-core/src/irules_context.rs](../../../../rust/tcl-lsp-core/src/irules_context.rs), `EventHandlerFacts::for_profile`: Keep explicit profile compatibility construction separate from actual analysis-issued source card correspondence.
+- [rust/tcl-lsp-core/src/irules_context.rs](../../../../rust/tcl-lsp-core/src/irules_context.rs), `irules_context::tests::original_event_compatibility_constructor_uses_current_source_cards` (linked): Event compatibility construction retains genuine current source cards and original script placement; a replaced whole image cannot reuse old cards, and explicit profile construction remains a separate source compatibility path.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

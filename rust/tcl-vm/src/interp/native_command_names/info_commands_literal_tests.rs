@@ -54,7 +54,15 @@ fn compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_hea
         // Oracle provider labels use the shared ingress aliases, including
         // `jim`; they are not the interned profile catalogue names.
         let profile = tcl_registry::model::ingress::resolve_environment(fields[0]).unit_profile();
-        let mut vm = crate::native_fixture::interpreter(profile);
+        // The original configured Jim provider loads nshelper.tcl. Its
+        // namespace-aware inventory enters that current, literal script worker;
+        // a core-and-compiler fixture supplies no library binding by itself.
+        let libraries = if fields[0] == "jim" {
+            &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceInfo][..]
+        } else {
+            &[][..]
+        };
+        let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(profile, libraries);
         if fields[0] == "jim" {
             assert!(
                 vm.native_invocation_dialect()

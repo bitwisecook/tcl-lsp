@@ -14,9 +14,13 @@ How do readonly source role queries retain procedure Name, ParamList and Body po
 
 Registry source-role queries use the selected descriptor's authored role projection. Original analysis structure projects those roles only through its retained complete ContextRegistry, Registry semantic key and exact effective argv. Executable facts retain their independent native definition result and uncertainty. Expansion, unknown controls, foreign source and mismatched contexts cannot acquire complete source roles. The selected source role vocabulary uses one conditional keyword grammar for literal shape and structured role queries. Unknown payload expression/body bytes retain their positions only where actual optional keyword controls determine layout; unknown controls or expanded cardinality decline. The selected output command and ensemble member share an available-flag/channel layout, with a single unknown operand retaining no channel role and larger unknown leading selectors declining.
 
+The marked standalone alias definition retains conditional original source roles under complete source/input/configuration while known replacement or deletion remains a barrier.
+
 ## Scope
 
 Readonly source grammar and original operand correspondence. This supplies no handler selection, native formal acceptance, compiler admission, entered frame, Normal or edit permission. Descriptive selected source role grammar; no provider observation, handler/body entry, variable cell, Normal or edit equivalence grant.
+
+Explicit standalone is a source compatibility purpose. Source role/body spans issue no Native entry, future lookup, original handler reflection, execution, mutation or assertion outcome.
 
 ## Provider answers
 
@@ -85,6 +89,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/name_producer_tests.rs](../../../../rust/tcl-compiler/src/analyser/name_producer_tests.rs), `analyser::name_producer_tests::original_dynamic_variable_producer_preserves_alias_written_origins_and_known_shadowing` (linked): A setter alias retains the actual written dynamic VarWrite site and compatibility resolved presentation. A known set procedure replacement yields no stock dynamic-variable site; current Native value and rename authority are separate.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `OriginalSourceRegistryContext::capture`: Capture an explicit fresh complete original source/input context for conditional registry roles, without analyzing detached body text as another entry.
+- [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `OriginalSourceRegistryContext::words`: Resolve original conditional source roles under actual complete input and known alias/replacement barriers; preserve no runtime operand lookup authority.
+- [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `registry_invocation::source_structure::tests::original_standalone_selected_alias_roles_keep_source_purpose` (linked): Explicit standalone selected alias roles preserve actual original static source/body purpose and configuration; operands do not preserve runtime lookup, and known deleted/replaced aliases withdraw the source selection.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

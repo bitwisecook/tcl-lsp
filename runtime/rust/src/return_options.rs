@@ -241,9 +241,6 @@ pub(crate) fn publish(
                 Err(error) => return interp.report_cmd_error(error),
             }
         }
-        if ops.protocol == ReturnOptionsProtocol::Jim084 && errorcode.is_none() {
-            errorcode = Some(interp.error_code());
-        }
         if ops.protocol == ReturnOptionsProtocol::Tcl84 {
             for value in [&mut info, &mut errorcode].into_iter().flatten() {
                 value.truncate(
@@ -309,12 +306,15 @@ mod tests {
         let carried = interp.pending_return_option_objects();
         assert_eq!(carried[0].key.as_ptr(), key.as_ptr());
         assert_eq!(carried[0].value.as_ptr(), value.as_ptr());
-        let options = Owned::fresh(crate::cmd_error::completion_options(&mut interp, Code::Ok));
+        let options =
+            Owned::fresh(crate::cmd_error::completion_options(&mut interp, Code::Ok).unwrap());
         let pairs = crate::dict::dict_pairs(options.as_ptr()).unwrap();
-        assert!(pairs
-            .iter()
-            .any(|&(stored_key, stored_value)| stored_key == key.as_ptr()
-                && stored_value == value.as_ptr()));
+        assert!(
+            pairs
+                .iter()
+                .any(|&(stored_key, stored_value)| stored_key == key.as_ptr()
+                    && stored_value == value.as_ptr())
+        );
     }
 
     #[test]

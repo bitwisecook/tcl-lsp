@@ -14,9 +14,13 @@ Does the exact interp create s install a parent command, do the handle and path 
 
 All five C releases create the parent command s, both evaluation forms produce ok for the two fixed controls, and successful deletion leaves no s command. Current Jim rejects the tested create/eval/delete forms and has no s command; its missing-handle results establish no child execution.
 
+The secondary linked source recipe retains original creation and parent-command/body word correspondence under the same complete input/image/config and ordered source transitions. Known delete/move/shadow, unknown table mutation, alias indirection and incomplete/substituted body layouts withhold it.
+
 ## Scope
 
 Six fresh provider processes retain six actual version rows and 48 sequential caught observations of the fixed ASCII source. The creation, inventory, completion and deletion states share each process in source order. C command inventory establishes the public parent spelling only; return/value results do not measure hidden handle objects, addresses, generations, entered frames, source-model Normal, compiler admission or arbitrary constructor completion. Jim form rejection remains separate from C success. No BIG-IP answer or independently executed Rust assertion is supplied. The linked Realm selector separately checks authored source command advice: named child creation changes its parent handle spelling, while foreign child hide/expose/invokehidden preserve the stock parent format schema. Equivalent stock descriptor semantics are compared without borrowing an intermediate report representation or native physical tokens from the CLI.
+
+Conditional source ancestry is not original child interpreter existence, creation/delete equivalence, executed parent-command dispatch, frame or body admission. The original public created-parent controls retain their measured versions and limits; no assertion outcome or new provider result follows from this source binding.
 
 ## Provider answers
 
@@ -96,6 +100,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/realm.rs](../../../../rust/tcl-compiler/src/realm.rs), `realm::tests::a_safe_interpreters_hidden_command_states_nothing_here` (linked): A named safe child retains a nonempty source map with its own parent handle rebound; actual source resolution keeps the same stock format descriptor before/after creation and foreign child visibility operations. This is Rust source advice coverage, not replay of the native CLI capture or a private token/effect observation.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/command_binding/source_transition_advice/interpreter_handle.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/interpreter_handle.rs), `AdviceInvocationContext::interpreter_handle_body`: Require actual ordered created-parent source state and one whole original handle/body invocation; current source/image/config and known barrier checks remain independent of actual interpreter execution.
+- [rust/tcl-compiler/src/command_binding/source_transition_advice/interpreter_handle.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/interpreter_handle.rs), `command_binding::source_transition_advice::interpreter_handle::tests::original_created_handle_body_retains_source_order_and_refuses_unowned_entries` (linked): Original source creation/handle/body words retain exact input/image/config and ordered creator ancestry. Missing creation, delete/move/shadow/unknown table barriers, alias indirection, abbreviated or substituted/non-single body vectors withdraw this conditional recipe; no child dispatch is entered.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

@@ -27,6 +27,7 @@
 //! with a plain `From`.
 
 use tcl_platform::HostError;
+use tcl_runtime_api::NativeExecutionError;
 use tcl_syntax::raw_string::{
     NativeStringAccessError, NativeValueAccessRefusal, UnicodeAccessError,
 };
@@ -112,7 +113,7 @@ pub struct CmdError {
 /// Cold completion obligations stay off every successful command's stack frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CmdErrorMetadata {
-    native_access_refusal: Option<NativeValueAccessRefusal>,
+    native_execution_refusal: Option<NativeExecutionError>,
     string_result: Option<tcl_syntax::native_string::NativeStringProtocol>,
     error_code: CmdErrorCodeUpdate,
     primitive_getter: Option<Box<NativeScalarGetterError>>,
@@ -126,7 +127,7 @@ impl CmdError {
         Self {
             message: message.into().into_bytes(),
             metadata: Box::new(CmdErrorMetadata {
-                native_access_refusal: None,
+                native_execution_refusal: None,
                 string_result: None,
                 error_code: CmdErrorCodeUpdate::Default,
                 primitive_getter: None,
@@ -149,7 +150,7 @@ impl CmdError {
         Self {
             message: message.into(),
             metadata: Box::new(CmdErrorMetadata {
-                native_access_refusal: None,
+                native_execution_refusal: None,
                 string_result: None,
                 error_code: CmdErrorCodeUpdate::Set(error_code.into()),
                 primitive_getter: None,
@@ -170,7 +171,7 @@ impl CmdError {
         Self {
             message: message.into().into_bytes(),
             metadata: Box::new(CmdErrorMetadata {
-                native_access_refusal: None,
+                native_execution_refusal: None,
                 string_result: None,
                 error_code: CmdErrorCodeUpdate::Set(error_code.into().into_bytes()),
                 primitive_getter: None,
@@ -186,7 +187,7 @@ impl CmdError {
         Self {
             message: message.into(),
             metadata: Box::new(CmdErrorMetadata {
-                native_access_refusal: None,
+                native_execution_refusal: None,
                 string_result: None,
                 error_code: CmdErrorCodeUpdate::Default,
                 primitive_getter: None,
@@ -215,7 +216,7 @@ impl CmdError {
     /// A retained operational refusal, which must bypass guest catch/finally.
     #[must_use]
     pub fn unicode_refusal(&self) -> Option<UnicodeAccessError> {
-        match self.metadata.native_access_refusal {
+        match self.native_access_refusal() {
             Some(NativeValueAccessRefusal::Unicode(error)) => Some(error),
             _ => None,
         }
@@ -224,10 +225,28 @@ impl CmdError {
     /// Host-only access failure; inspect this before publishing result/options.
     #[must_use]
     pub fn native_access_refusal(&self) -> Option<NativeValueAccessRefusal> {
-        self.metadata.native_access_refusal
+        match &self.metadata.native_execution_refusal {
+            Some(NativeExecutionError::ValueAccessRefusal(error)) => Some(*error),
+            _ => None,
+        }
     }
 
-    /// Consume the exact native guest error fields after checking the refusal tag.
+    /// Complete original host failure; adapters inspect this before guest fields.
+    #[must_use]
+    pub fn native_execution_refusal(&self) -> Option<&NativeExecutionError> {
+        self.metadata.native_execution_refusal.as_ref()
+    }
+
+    /// Retain an actual operational failure without manufacturing a Tcl error.
+    #[must_use]
+    pub fn from_execution_refusal(error: NativeExecutionError) -> Self {
+        let mut refusal = Self::new_bytes(Vec::new());
+        refusal.metadata.native_execution_refusal = Some(error);
+        refusal
+    }
+
+    /// Consume guest fields after inspecting `native_execution_refusal`.
+    /// This positive projection does not transport a host failure.
     #[must_use]
     pub fn into_byte_details(self) -> CmdErrorDetails {
         CmdErrorDetails {
@@ -247,7 +266,7 @@ impl CmdError {
         Self {
             message: details.message,
             metadata: Box::new(CmdErrorMetadata {
-                native_access_refusal: None,
+                native_execution_refusal: None,
                 string_result: details.string_result,
                 error_code: details.error_code,
                 error_info: details.error_info,
@@ -268,7 +287,7 @@ impl CmdError {
         Self {
             message,
             metadata: Box::new(CmdErrorMetadata {
-                native_access_refusal: None,
+                native_execution_refusal: None,
                 string_result: None,
                 error_code: CmdErrorCodeUpdate::Set(error_code),
                 primitive_getter: None,
@@ -279,23 +298,23 @@ impl CmdError {
     }
 
     /// The checked Unicode view of the Tcl error message.
-    pub fn message(&self) -> Result<&str, NativeValueAccessRefusal> {
-        if let Some(error) = self.metadata.native_access_refusal {
-            return Err(error);
+    pub fn message(&self) -> Result<&str, NativeExecutionError> {
+        if let Some(error) = &self.metadata.native_execution_refusal {
+            return Err(error.clone());
         }
         std::str::from_utf8(&self.message)
-            .map_err(|error| NativeValueAccessRefusal::from(unicode_error(error)))
+            .map_err(|error| NativeExecutionError::ValueAccessRefusal(unicode_error(error).into()))
     }
 
     /// Tcl's structured `-errorcode` list, when the command supplied one.
-    pub fn error_code(&self) -> Result<Option<&str>, NativeValueAccessRefusal> {
-        if let Some(error) = self.metadata.native_access_refusal {
-            return Err(error);
+    pub fn error_code(&self) -> Result<Option<&str>, NativeExecutionError> {
+        if let Some(error) = &self.metadata.native_execution_refusal {
+            return Err(error.clone());
         }
         self.error_code_bytes()
             .map(std::str::from_utf8)
             .transpose()
-            .map_err(|error| NativeValueAccessRefusal::from(unicode_error(error)))
+            .map_err(|error| NativeExecutionError::ValueAccessRefusal(unicode_error(error).into()))
     }
 
     /// Positive explicit error-code bytes. Absence does not distinguish Default
@@ -318,12 +337,13 @@ impl CmdError {
 
     /// Positive result-only projection. This deliberately omits state and
     /// propagation obligations; completion adapters must use `into_byte_details`.
-    pub fn into_message(self) -> Result<String, NativeValueAccessRefusal> {
-        if let Some(error) = self.metadata.native_access_refusal {
-            return Err(error);
+    pub fn into_message(self) -> Result<String, NativeExecutionError> {
+        if let Some(error) = &self.metadata.native_execution_refusal {
+            return Err(error.clone());
         }
-        String::from_utf8(self.message)
-            .map_err(|error| NativeValueAccessRefusal::from(unicode_error(error.utf8_error())))
+        String::from_utf8(self.message).map_err(|error| {
+            NativeExecutionError::ValueAccessRefusal(unicode_error(error.utf8_error()).into())
+        })
     }
 
     /// Consume checked Unicode result bytes while retaining the complete code
@@ -336,20 +356,20 @@ impl CmdError {
             CmdErrorCodeUpdate,
             Option<Box<NativeScalarGetterError>>,
         ),
-        NativeValueAccessRefusal,
+        NativeExecutionError,
     > {
         let (message, code, _, _, primitive) = self.into_details()?;
         Ok((message, code, primitive))
     }
 
     /// Consume the error, including any accumulated callback trace metadata.
-    pub fn into_details(self) -> Result<UnicodeErrorDetails, NativeValueAccessRefusal> {
-        if let Some(error) = self.metadata.native_access_refusal {
-            return Err(error);
+    pub fn into_details(self) -> Result<UnicodeErrorDetails, NativeExecutionError> {
+        if let Some(error) = &self.metadata.native_execution_refusal {
+            return Err(error.clone());
         }
         Ok((
             String::from_utf8(self.message).map_err(|error| {
-                NativeValueAccessRefusal::from(unicode_error(error.utf8_error()))
+                NativeExecutionError::ValueAccessRefusal(unicode_error(error.utf8_error()).into())
             })?,
             self.metadata.error_code,
             self.metadata.error_info,
@@ -434,7 +454,7 @@ impl CmdError {
 
 impl core::fmt::Display for CmdError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if let Some(error) = self.metadata.native_access_refusal {
+        if let Some(error) = self.native_execution_refusal() {
             return error.fmt(f);
         }
         match self.message() {
@@ -522,7 +542,8 @@ fn unicode_error(error: std::str::Utf8Error) -> UnicodeAccessError {
 impl From<UnicodeAccessError> for CmdError {
     fn from(error: UnicodeAccessError) -> Self {
         let mut refusal = Self::new_bytes(Vec::new());
-        refusal.metadata.native_access_refusal = Some(error.into());
+        refusal.metadata.native_execution_refusal =
+            Some(NativeExecutionError::ValueAccessRefusal(error.into()));
         refusal
     }
 }
@@ -530,7 +551,8 @@ impl From<UnicodeAccessError> for CmdError {
 impl From<NativeValueAccessRefusal> for CmdError {
     fn from(error: NativeValueAccessRefusal) -> Self {
         let mut refusal = Self::new_bytes(Vec::new());
-        refusal.metadata.native_access_refusal = Some(error);
+        refusal.metadata.native_execution_refusal =
+            Some(NativeExecutionError::ValueAccessRefusal(error));
         refusal
     }
 }
@@ -633,7 +655,9 @@ mod tests {
         assert_eq!(error.error_code_bytes(), Some(b"RAW \xfe".as_slice()));
         assert!(matches!(
             error.error_code(),
-            Err(NativeValueAccessRefusal::Unicode(_))
+            Err(NativeExecutionError::ValueAccessRefusal(
+                NativeValueAccessRefusal::Unicode(_)
+            ))
         ));
         assert_eq!(
             error.into_byte_details(),

@@ -636,7 +636,7 @@ impl CodegenCtx<'_> {
             let dialect = crate::environment_ingress::authoring_invocation_dialect(
                 self.registry,
                 self.dialect,
-                tcl_lexer::LexerConfig::for_profile(self.dialect),
+                self.lexer_config(),
             );
             let (facts, selection) = crate::registry_invocation::native_compilation_syntax(
                 self.registry,
@@ -1467,7 +1467,7 @@ impl CodegenCtx<'_> {
         crate::word_subst::nested_command_words(
             spelling,
             &crate::ir::SourceSite::opaque(tcl_lexer::Span::new(0, 0)),
-            tcl_lexer::LexerConfig::for_profile(self.dialect),
+            self.lexer_config(),
         )
         .ok()
     }
@@ -1816,7 +1816,7 @@ impl CodegenCtx<'_> {
             let dialect = crate::environment_ingress::authoring_invocation_dialect(
                 self.registry,
                 self.dialect,
-                tcl_lexer::LexerConfig::for_profile(self.dialect),
+                self.lexer_config(),
             );
             let Some((
                 _,
@@ -2928,6 +2928,94 @@ mod tests {
         context.ingress_lexer_config = Some(config);
         context.set_source_image(image);
         context
+    }
+
+    #[test]
+    fn inline_source_recovery_keeps_ingress_expansion_and_quote_grammar() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Opaque compatibility syntax owns lexical shape, never Native admission.
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let source = "list {*}$values";
+        let mut context = CodegenCtx::new(false, &[], &registry);
+        context.dialect = Some(profile);
+        for expanded in [false, true] {
+            let config = tcl_lexer::LexerConfig {
+                expand_syntax: expanded,
+                ..tcl_lexer::LexerConfig::for_profile(Some(profile))
+            };
+            context.ingress_lexer_config = Some(config);
+            let recovered = context.original_inline_syntax(source).unwrap();
+            let original =
+                original_argument_tokens(&tcl_lexer::SourceImage::document(source), config);
+            assert_eq!(recovered.argv, original.argv);
+            assert_eq!(recovered.argv_texts, original.argv_texts);
+            assert_eq!(
+                matches!(recovered.words()[1], WordExpr::Expand { .. }),
+                expanded
+            );
+            assert!(recovered.source_binding.is_none());
+            assert!(context.native_entry.is_none());
+        }
+        let config = tcl_lexer::LexerConfig {
+            quote_termination: tcl_dialect::QuoteTermination::Concatenating,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::for_profile(Some(profile))
+        };
+        context.ingress_lexer_config = Some(config);
+        let concatenated = context.original_inline_syntax(r#"[list "A"B]"#).unwrap();
+        assert_eq!(concatenated.words().len(), 2);
+        context
+            .ingress_lexer_config
+            .as_mut()
+            .unwrap()
+            .quote_termination = tcl_dialect::QuoteTermination::Strict;
+        assert!(context.original_inline_syntax(r#"[list "A"B]"#).is_none());
+    }
+
+    #[test]
+    fn retained_source_lexing_does_not_supply_native_invocation_admission() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig {
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::for_profile(Some(profile))
+        };
+        let input =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
+        let source = "lappend x {*}$values";
+        let registry = context.commands();
+        let bindings = crate::command_binding::SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            registry,
+            crate::command_binding::SourceAnalysisOptions::for_logical_source(&input).unwrap(),
+        );
+        let image = tcl_lexer::SourceImage::document(source);
+        let mut tokens = original_argument_tokens(&image, config);
+        bindings.stamp_original_tokens(&mut tokens);
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.original_lexer_config_for_tokens(&tokens).is_some());
+        assert!(binding.admitted_inline_invocation().is_none());
+        let parts = parse_cmd_parts_expand(source);
+        let mut codegen = CodegenCtx::new(false, &[], registry);
+        codegen.dialect = Some(profile);
+        codegen.ingress_lexer_config = Some(config);
+        codegen.set_source_image(image);
+        codegen.with_invocation_tokens(Some(&tokens), |codegen| {
+            assert!(codegen.entered_command_surrogate("lappend").is_none());
+            assert!(!codegen.try_emit_expanded_native_call(&parts));
+            assert!(codegen.instructions.is_empty());
+        });
+        codegen.with_invocation_tokens(None, |codegen| {
+            assert!(codegen.entered_command_surrogate("lappend").is_none());
+            assert!(!codegen.try_emit_expanded_native_call(&parts));
+        });
+        assert!(codegen.native_entry.is_none());
     }
 
     #[test]

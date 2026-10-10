@@ -813,7 +813,7 @@ pub fn encode_output_bytes(bytes: &[u8], newline: bool, config: ChannelConfig) -
 /// prefix has been written, preserving the structured error code.
 #[must_use]
 pub fn channel_output_error(name: &str, error: CmdError) -> CmdError {
-    if error.native_access_refusal().is_some() {
+    if error.native_execution_refusal().is_some() {
         return error;
     }
     let mut details = error.into_byte_details();

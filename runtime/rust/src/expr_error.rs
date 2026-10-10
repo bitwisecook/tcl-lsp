@@ -31,6 +31,8 @@ pub struct ExprError {
     pub(crate) preserve_result: bool,
     /// Host-only operational refusal, independent of guest message/code bytes.
     pub native_access_refusal: Option<tcl_syntax::raw_string::NativeValueAccessRefusal>,
+    /// Complete first host cause retained independently of guest fields.
+    pub native_execution_refusal: Option<tcl_runtime_api::NativeExecutionError>,
     /// Selected syntax or invalid-type state updates, excluding arithmetic failures.
     /// Reached primitive result producer, independent of diagnostic spelling.
     pub(crate) string_result: Option<tcl_syntax::native_string::NativeStringProtocol>,
@@ -45,6 +47,7 @@ impl ExprError {
             code: None,
             preserve_result: false,
             native_access_refusal: None,
+            native_execution_refusal: None,
             string_result: None,
             error_stage: None,
         }
@@ -56,6 +59,7 @@ impl ExprError {
             code: None,
             preserve_result: false,
             native_access_refusal: None,
+            native_execution_refusal: None,
             string_result: None,
             error_stage: None,
         }
@@ -68,6 +72,7 @@ impl ExprError {
             code: (!code.is_empty()).then_some(code),
             preserve_result: false,
             native_access_refusal: None,
+            native_execution_refusal: None,
             string_result: None,
             error_stage: None,
         }
@@ -79,6 +84,7 @@ impl ExprError {
             code: Some(code.to_vec()),
             preserve_result: false,
             native_access_refusal: None,
+            native_execution_refusal: None,
             string_result: None,
             error_stage: None,
         }
@@ -130,9 +136,24 @@ impl ExprError {
             code,
             preserve_result: false,
             native_access_refusal: None,
+            native_execution_refusal: None,
             string_result: None,
             error_stage: Some(Box::new(stage)),
         }
+    }
+
+    pub(crate) fn from_execution_refusal(error: tcl_runtime_api::NativeExecutionError) -> Self {
+        let mut failure = Self::msg(b"");
+        failure.native_execution_refusal = Some(error);
+        failure
+    }
+
+    /// Retain an explicit guest code, including a positively supplied empty code.
+    #[cfg(have_tommath)]
+    pub(crate) fn from_guest_parts(message: Vec<u8>, code: Vec<u8>) -> Self {
+        let mut error = Self::from_bytes(message);
+        error.code = Some(code);
+        error
     }
 
     pub(crate) fn host_refusal(error: tcl_syntax::raw_string::NativeValueAccessRefusal) -> Self {
@@ -141,6 +162,7 @@ impl ExprError {
             code: None,
             preserve_result: false,
             native_access_refusal: Some(error),
+            native_execution_refusal: None,
             string_result: None,
             error_stage: None,
         }
@@ -152,6 +174,9 @@ impl crate::interp::Interp {
     pub(crate) fn report_expr_error(&mut self, error: ExprError) -> crate::interp::Code {
         if self.host_refusal_pending() {
             return crate::interp::Code::Error;
+        }
+        if let Some(refusal) = error.native_execution_refusal {
+            return self.refuse_native_execution(refusal);
         }
         if let Some(refusal) = error.native_access_refusal {
             return self.refuse_native_access(refusal);

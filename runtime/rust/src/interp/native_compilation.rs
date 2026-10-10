@@ -35,6 +35,7 @@ pub(super) struct CompilationState {
     fixed_math: Option<tcl_runtime_api::native_compilation::NativeMathFunctionTable>,
     execution: CompilationExecution,
     admission_error: Option<NativeCompilationAdmissionError>,
+    execution_refusal: Option<tcl_runtime_api::NativeExecutionError>,
     native_access_refusal: Option<tcl_syntax::raw_string::NativeValueAccessRefusal>,
     host_command_refusal: Option<Box<tcl_runtime_api::NativeHostCommandRefusal>>,
 }
@@ -107,7 +108,15 @@ impl Interp {
     /// Retained host admission error, distinct from a native Tcl completion.
     /// A failed preflight prevents script effects even if Tcl catches its result.
     pub fn native_compilation_admission_error(&self) -> Option<NativeCompilationAdmissionError> {
-        self.native_compilation.borrow().admission_error
+        let state = self.native_compilation.borrow();
+        state
+            .admission_error
+            .or_else(|| match &state.execution_refusal {
+                Some(tcl_runtime_api::NativeExecutionError::CompilationAdmission(error)) => {
+                    Some(*error)
+                }
+                _ => None,
+            })
     }
 
     /// Reached Unicode access failure retained outside guest completion.
@@ -122,13 +131,22 @@ impl Interp {
     pub fn native_access_refusal(
         &self,
     ) -> Option<tcl_syntax::raw_string::NativeValueAccessRefusal> {
-        self.native_compilation.borrow().native_access_refusal
+        let state = self.native_compilation.borrow();
+        state
+            .native_access_refusal
+            .or_else(|| match &state.execution_refusal {
+                Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(error)) => {
+                    Some(*error)
+                }
+                _ => None,
+            })
     }
 
     /// Any retained host-only execution failure; guest capture cannot consume it.
     pub fn host_refusal_pending(&self) -> bool {
         let state = self.native_compilation.borrow();
-        state.admission_error.is_some()
+        state.execution_refusal.is_some()
+            || state.admission_error.is_some()
             || state.native_access_refusal.is_some()
             || state.host_command_refusal.is_some()
     }
@@ -140,8 +158,10 @@ impl Interp {
         if self.host_refusal_pending() {
             return super::Code::Error;
         }
+        let original_cause = origin.native_execution_refusal();
         let origin = origin.native_compilation.borrow();
         let mut target = self.native_compilation.borrow_mut();
+        target.execution_refusal = original_cause;
         if target.admission_error.is_none() {
             target.admission_error = origin.admission_error;
         }
@@ -159,6 +179,9 @@ impl Interp {
     /// Actual retained host cause; guest completion state never supplies it.
     pub fn native_execution_refusal(&self) -> Option<tcl_runtime_api::NativeExecutionError> {
         let state = self.native_compilation.borrow();
+        if let Some(error) = &state.execution_refusal {
+            return Some(error.clone());
+        }
         if let Some(error) = state.admission_error {
             return Some(tcl_runtime_api::NativeExecutionError::CompilationAdmission(
                 error,
@@ -177,11 +200,17 @@ impl Interp {
 
     /// Original host callback metadata, without projecting its diagnostic text.
     pub fn native_host_command_refusal(&self) -> Option<tcl_runtime_api::NativeHostCommandRefusal> {
-        self.native_compilation
-            .borrow()
+        let state = self.native_compilation.borrow();
+        state
             .host_command_refusal
             .as_deref()
             .cloned()
+            .or_else(|| match &state.execution_refusal {
+                Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(error)) => {
+                    Some((**error).clone())
+                }
+                _ => None,
+            })
     }
 
     /// A host callback's retained reporting text, independently of guest result bytes.
@@ -235,8 +264,21 @@ impl Interp {
         crate::interp::Code::Error
     }
 
+    /// Retain the first actual cause before unwinding a failed value projection.
+    /// Nested consumers never reset or replace an earlier refusal.
+    pub(crate) fn refuse_native_execution(
+        &mut self,
+        error: tcl_runtime_api::NativeExecutionError,
+    ) -> Code {
+        if !self.host_refusal_pending() {
+            self.native_compilation.borrow_mut().execution_refusal = Some(error);
+        }
+        Code::Error
+    }
+
     pub(crate) fn reset_native_compilation_admission(&self) {
         let mut state = self.native_compilation.borrow_mut();
+        state.execution_refusal = None;
         state.admission_error = None;
         state.native_access_refusal = None;
         state.host_command_refusal = None;

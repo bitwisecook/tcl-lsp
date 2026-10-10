@@ -14,9 +14,13 @@ Do source symbol cards retain genuine original name operands, selected Registry 
 
 The common advice owner admits direct written operands only under independently positioned Registry assistance or separately applicable catalogue declaration metadata. Native source cards retain their authentic name input, selected definer, immutable role and Registry semantic key in a sealed original declaration inventory; absent original inputs are terminal. Hosted event cards use the independently selected vendor producer and context with no Native input or lexical fallback. The analyser and outline read these genuine rows after reporting maps are cleared. The fixed assertions distinguish opaque native names, reject a source-defined shadow, retain an actual hosted HTTP_REQUEST source declaration and reject its invalid body. No native handler entry, package load, command publication or editable name follows. Hosted symbol cards ask the shared guarded conditional vendor issuer before any generic declaration advice. A definite source-defined event handler blocks even an empty body; unavailable TMM mutation spellings retain unknown source transitions and conditional advice rather than inventing a successful tombstone.
 
+The linked symbol control retains the actual original namespace geometry for a selected source declaration card. Its non-root scope joins the genuine source image and complete configuration; changed whole image withholds correspondence rather than reconstructing a namespace from the label.
+
 ## Scope
 
 Current Rust readonly SymbolDef source cards for C8.6 tcltest and genuine hosted F5 source policy. Whole source/channel/configuration, selected role and actual Registry remain independent requirements. Inserted alias operands and expanded argument origins are unavailable to this direct source-card form. Hosted context is authored metadata, not a measured appliance build. No native or appliance execution result is attached.
+
+This source card establishes no Native namespace holder, command publication, executed symbol definer, body/frame entry, storage, edit or assertion outcome. Hosted source metadata and external provider answers retain their independent purposes.
 
 ## Provider answers
 
@@ -84,6 +88,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/document_symbols/original.rs](../../../../rust/tcl-lsp-core/src/document_symbols/original.rs), `document_symbols::original::registry_ledger_tests::original_registry_outline_uses_sealed_roles_and_names_after_reporting_maps_clear` (linked): Two genuine opaque Registry source cards retain distinct names and Test roles after reporting map removal; displaced complete source withdraws the outline.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs), `Analyser::handle_defines_symbol`: Retain the genuine selected symbol name operand and original namespace geometry under the complete source/config/input; the card remains readonly source declaration advice.
+- [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs), `analyser::handlers::original_registry_symbol_tests::original_registry_symbol_cards_retain_the_actual_namespace_geometry` (linked): The actual selected tcltest symbol card retains the genuine non-root source namespace scope and complete original image/config; a prepended changed image cannot borrow the card. Reporting labels supply no namespace holder or publication.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

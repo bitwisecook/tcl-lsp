@@ -194,7 +194,7 @@ impl core_re::NativeRegexSource for Interp {
                 }
                 tcl_syntax::native_jim_index::JimIndexEvaluationError::Expression(error) => error,
             };
-            if error.native_access_refusal().is_some() {
+            if error.native_execution_refusal().is_some() {
                 error
             } else {
                 let mut message = b"bad index \"".to_vec();

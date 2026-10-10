@@ -16,11 +16,15 @@ OriginalSourceScriptPurpose selects Syntax or PotentialEvaluation over the same 
 
 Readonly body-name ownership preserves the genuine counted source ByteLiteral contents through checked UTF-8 for the body and interpreter selector. The original installer horizon, complete source/input/config and independently selected Current interpreter remain required; a named or unknown child cannot be substituted.
 
+The marked file candidate definition joins original selected body roles to their timing purpose. An authentic Potential loader body can retain its original source operand as a candidate; ReferenceOnly syntax cannot.
+
 ## Scope
 
 One shared geometry owner and selected Registry timing owner. Genuine reference-only and potential Body descriptors are distinguished without a new parser or reporting-head lookup. Unsupported source geometry/context stays unavailable. Source syntax and potential evaluation do not authorise runtime execution or edits.
 
 This existing-control source refinement changes no assertion identity or status. Logical Body versus ReferenceOnly purposes and missing/foreign source refusals remain independent. It establishes no Native body/frame entry, evaluated value, completed store, cell identity, Normal or assertion outcome.
+
+A candidate is conditional source provenance only. No actual package load/file existence, closed path, entered child/frame, Native dispatch, completion or assertion outcome follows from this definition.
 
 ## Provider answers
 
@@ -94,6 +98,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs), `OriginalSourceMaterializedFootprint::body_name_ownership`: Project checked UTF-8 from the actual retained counted source body/interpreter selector under the existing original installer snapshot and complete Current-scope input/config guard.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs), `FileCandidateScanner::new`: Capture genuine original source/analysis input for selected package body and operand candidate scans.
+- [rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs), `FileCandidateScanner::collect`: Require Potential loader evaluation purpose before recording the original source operand as a file candidate; ReferenceOnly roles do not donate it.
+- [rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs), `package_resolver::original_names::file_candidates::tests::original_package_file_candidates_require_potential_loader_evaluation` (linked): Authentic custom package body roles yield a SourceOperand file candidate only for Potential loader evaluation; ReferenceOnly body syntax retains its independent non-evaluation purpose.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 

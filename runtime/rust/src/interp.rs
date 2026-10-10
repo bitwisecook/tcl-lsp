@@ -873,6 +873,27 @@ enum CommandGenerationLookup {
     Found { fqn: Vec<u8>, command: Command },
 }
 
+/// Import queries share a generation walk while retaining their separate
+/// surface and retained-ensemble contracts.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ImportQueryPurpose {
+    /// Procedure/ensemble introspection respects actual command availability.
+    Introspection,
+    /// Namespace origin projects the original command-table binding.
+    Origin,
+}
+
+/// A query result retains the actual binding generation and its current name.
+/// An imported ensemble can retain a live configuration independently from its
+/// source binding; its command is not replaced by a fabricated ensemble binding.
+struct ImportQueryTarget {
+    fqn: Vec<u8>,
+    generation: u64,
+    command: Command,
+    retained_ensemble: Option<Rc<crate::ensemble::EnsembleToken>>,
+    followed_import: bool,
+}
+
 /// A selected miss retains its own lookup context instead of restarting lookup
 /// in the variable frame restored after a tailcall or alias invocation.
 enum CommandDispatchSelection {
@@ -4423,16 +4444,110 @@ impl Interp {
         false
     }
 
-    /// Resolve an import's retained source token. Tcl redirects follow the
-    /// exact generation through rename and visibility moves. Once that token
-    /// truly retires, command replacement deliberately falls back through the
-    /// mutable source projection; a merely surface-gated token is still
-    /// present and must not take that fallback.
+    /// Select an exact source generation before the deliberate retired-token
+    /// replacement fallback. A surface-gated live token never uses that fallback.
+    fn import_source_binding(
+        &self,
+        source: &[u8],
+        generation: u64,
+        purpose: ImportQueryPurpose,
+    ) -> Option<(Vec<u8>, u64, Command)> {
+        match purpose {
+            ImportQueryPurpose::Introspection => match self.command_by_generation(generation) {
+                CommandGenerationLookup::Found { fqn, command } => {
+                    return Some((fqn, generation, command));
+                }
+                CommandGenerationLookup::Unavailable => return None,
+                CommandGenerationLookup::Missing => {}
+            },
+            ImportQueryPurpose::Origin => {
+                if let Some((fqn, command)) = self.raw_command_location_by_generation(generation) {
+                    return Some((fqn, generation, command));
+                }
+            }
+        }
+        match purpose {
+            ImportQueryPurpose::Introspection => {
+                let (command, generation) =
+                    self.resolve_dispatchable_with_generation(GLOBAL, source)?;
+                let generation = generation?;
+                let (fqn, _) = self.raw_command_location_by_generation(generation)?;
+                Some((fqn, generation, command))
+            }
+            ImportQueryPurpose::Origin => {
+                let namespaces = self.namespaces.borrow();
+                Some((
+                    namespaces.resolve_fqn(GLOBAL, source)?,
+                    namespaces.resolve_generation(GLOBAL, source)?,
+                    namespaces.resolve(GLOBAL, source)?,
+                ))
+            }
+        }
+    }
+
+    /// Resolve an invocation's one immediate import source with its actual
+    /// availability gate. Query traversal shares this exact source selection.
     fn resolve_import_source(&self, source: &[u8], generation: u64) -> Option<Command> {
-        match self.command_by_generation(generation) {
-            CommandGenerationLookup::Found { command, .. } => Some(command),
-            CommandGenerationLookup::Unavailable => None,
-            CommandGenerationLookup::Missing => self.resolve_dispatchable(GLOBAL, source),
+        self.import_source_binding(source, generation, ImportQueryPurpose::Introspection)
+            .map(|(_, _, command)| command)
+    }
+
+    /// Select an introspection query's original current-namespace table entry.
+    fn import_query_binding(&self, name: &[u8]) -> Option<(Vec<u8>, u64, Command)> {
+        let namespaces = self.namespaces.borrow();
+        let current = self.current_ns.get();
+        Some((
+            namespaces.resolve_fqn(current, name)?,
+            namespaces.resolve_generation(current, name)?,
+            namespaces.resolve(current, name)?,
+        ))
+    }
+
+    /// Follow actual imported bindings to the query's terminal owner. The
+    /// visited-generation set rejects a malformed cycle without truncating a
+    /// valid chain. Names remain current projections, never visited identities.
+    fn resolve_import_query(
+        &self,
+        (mut fqn, mut generation, mut command): (Vec<u8>, u64, Command),
+        purpose: ImportQueryPurpose,
+    ) -> Option<ImportQueryTarget> {
+        let mut visited = std::collections::BTreeSet::new();
+        let mut followed_import = false;
+        loop {
+            if !visited.insert(generation) {
+                return None;
+            }
+            let Command::Imported {
+                source,
+                source_generation,
+                ensemble,
+                ..
+            } = &command
+            else {
+                return Some(ImportQueryTarget {
+                    fqn,
+                    generation,
+                    command,
+                    retained_ensemble: None,
+                    followed_import,
+                });
+            };
+            followed_import = true;
+            let ensemble = ensemble.as_ref().filter(|token| !token.is_deleted());
+            if purpose == ImportQueryPurpose::Introspection
+                && let Some(ensemble) = ensemble
+            {
+                return Some(ImportQueryTarget {
+                    fqn,
+                    generation,
+                    retained_ensemble: Some(ensemble.clone()),
+                    command,
+                    followed_import,
+                });
+            }
+            let source = ensemble.map_or_else(|| source.clone(), |token| token.name());
+            (fqn, generation, command) =
+                self.import_source_binding(&source, *source_generation, purpose)?;
         }
     }
 
@@ -4495,42 +4610,25 @@ impl Interp {
     /// if `name` is not an ensemble), plus the fully-qualified name of the
     /// command that actually **owns** that config.
     ///
-    /// `namespace import` is followed to its source: in C an imported command
-    /// shares the source's command token, and the ensemble config hangs off
-    /// that token, so configuring through an alias configures the origin and
-    /// both spellings observe one config (tclsh 9.0.4-pinned). Reading through
-    /// the alias likewise reads the origin's config, and the alias stays an
-    /// alias — `namespace origin` still answers the source.
+    /// `namespace import` follows the source's retained ensemble configuration.
+    /// Configuring through an import changes the same live token observed by
+    /// the origin; the import remains a separate binding and namespace origin
+    /// follows its actual command-generation chain.
     pub(crate) fn ensemble_config_at(
         &self,
         name: &[u8],
     ) -> Option<Rc<crate::ensemble::EnsembleToken>> {
-        let mut cur = self
-            .namespaces
-            .borrow()
-            .resolve(self.current_ns.get(), name)?;
-        // Bounded walk: an import chain cannot outlive the table, and a
-        // malformed cycle terminates instead of spinning.
-        for _ in 0..64 {
-            match cur {
-                Command::Ensemble(token) => return Some(token),
-                Command::Imported {
-                    source,
-                    source_generation,
-                    ensemble,
-                    ..
-                } => {
-                    if let Some(token) = ensemble {
-                        if !token.is_deleted() {
-                            return Some(token);
-                        }
-                    }
-                    cur = self.resolve_import_source(&source, source_generation)?;
-                }
-                _ => return None,
-            }
+        let target = self.resolve_import_query(
+            self.import_query_binding(name)?,
+            ImportQueryPurpose::Introspection,
+        )?;
+        if let Some(ensemble) = target.retained_ensemble {
+            return Some(ensemble);
         }
-        None
+        match target.command {
+            Command::Ensemble(token) => Some(token),
+            _ => None,
+        }
     }
 
     /// Every alias command's name across the whole tree (`interp aliases`).
@@ -6977,6 +7075,9 @@ impl Interp {
         target: &tcl_runtime_api::ArrayTarget,
         key: &[u8],
     ) -> tcl_runtime_api::ArrayElementRead<*mut TclObj> {
+        if let Some(error) = self.native_execution_refusal() {
+            return tcl_runtime_api::ArrayElementRead::HostRefusal(error);
+        }
         let live_array = crate::vars::array_target_at(
             &self.frames.borrow(),
             &self.namespaces.borrow(),
@@ -7010,72 +7111,98 @@ impl Interp {
         let trace_errored = self
             .fire_read_trace(target.name_bytes(), Some(key))
             .is_some();
-        let trace_failure = trace_errored.then(|| {
-            (
-                self.result_bytes(),
-                self.error_code(),
-                self.error_info(),
-                i64::from(self.error_line()),
-            )
-        });
-
-        let outcome = match self.array_operation_target(target) {
-            Some(operation)
-                if crate::vars::array_names_at_target(
-                    &self.frames.borrow(),
-                    &self.namespaces.borrow(),
-                    &operation,
-                )
-                .is_some() =>
-            {
-                if let Some((_, _, info, line)) = trace_failure {
-                    self.publish_and_reset_error();
-                    tcl_runtime_api::ArrayElementRead::Missing(
-                        tcl_runtime_api::ArrayReadMiss::trace_error(Some(info), line),
+        let trace_failure = if trace_errored {
+            self.error_code_bytes_checked().and_then(|code| {
+                let message = self.completion_result_bytes_checked()?;
+                let info = self.completion_error_info_bytes_checked()?;
+                Ok(Some((message, code, info, i64::from(self.error_line()))))
+            })
+        } else if let Some(error) = self.native_execution_refusal() {
+            Err(error)
+        } else {
+            Ok(None)
+        };
+        let outcome = match trace_failure {
+            Err(error) => tcl_runtime_api::ArrayElementRead::HostRefusal(error),
+            Ok(trace_failure) => match self.array_operation_target(target) {
+                Some(operation)
+                    if crate::vars::array_names_at_target(
+                        &self.frames.borrow(),
+                        &self.namespaces.borrow(),
+                        &operation,
                     )
-                } else {
-                    let value = selected.as_ref().map_or_else(
-                        || self.var_get_elem(target.name_bytes(), key),
-                        |(array, element)| {
-                            crate::vars::get_element_at_target(
-                                &self.frames.borrow(),
-                                &self.namespaces.borrow(),
-                                array,
-                                key,
-                                *element,
+                    .is_some() =>
+                {
+                    if let Some((_, _, info, line)) = trace_failure {
+                        self.publish_and_reset_error();
+                        if let Some(error) = self.native_execution_refusal() {
+                            tcl_runtime_api::ArrayElementRead::HostRefusal(error)
+                        } else {
+                            tcl_runtime_api::ArrayElementRead::Missing(
+                                tcl_runtime_api::ArrayReadMiss::trace_error(Some(info), line),
+                            )
+                        }
+                    } else {
+                        let value = selected.as_ref().map_or_else(
+                            || self.var_get_elem(target.name_bytes(), key),
+                            |(array, element)| {
+                                crate::vars::get_element_at_target(
+                                    &self.frames.borrow(),
+                                    &self.namespaces.borrow(),
+                                    array,
+                                    key,
+                                    *element,
+                                )
+                            },
+                        );
+                        value.map_or_else(
+                            || {
+                                let miss = if live_was_array {
+                                    tcl_runtime_api::ArrayReadMiss::missing()
+                                } else {
+                                    tcl_runtime_api::ArrayReadMiss::lookup(error_code_list(&[
+                                        b"TCL",
+                                        b"LOOKUP",
+                                        b"VARNAME",
+                                        target.name_bytes(),
+                                    ]))
+                                };
+                                tcl_runtime_api::ArrayElementRead::Missing(miss)
+                            },
+                            tcl_runtime_api::ArrayElementRead::Value,
+                        )
+                    }
+                }
+                Some(operation) => {
+                    let invalidation = if crate::vars::array_target_is_set(
+                        &self.frames.borrow(),
+                        &self.namespaces.borrow(),
+                        &operation,
+                    ) {
+                        tcl_runtime_api::ArrayInvalidation::Retyped
+                    } else {
+                        tcl_runtime_api::ArrayInvalidation::Unset
+                    };
+                    trace_failure.map_or_else(
+                        || tcl_runtime_api::ArrayElementRead::ArrayInvalidated(invalidation),
+                        |(message, code, info, line)| {
+                            tcl_runtime_api::ArrayElementRead::TraceError(
+                                tcl_runtime_api::ArrayReadFailure::new_bytes(
+                                    message,
+                                    code,
+                                    Some(info),
+                                    Some(line),
+                                ),
                             )
                         },
-                    );
-                    value.map_or_else(
-                        || {
-                            let miss = if live_was_array {
-                                tcl_runtime_api::ArrayReadMiss::missing()
-                            } else {
-                                tcl_runtime_api::ArrayReadMiss::lookup(error_code_list(&[
-                                    b"TCL",
-                                    b"LOOKUP",
-                                    b"VARNAME",
-                                    target.name_bytes(),
-                                ]))
-                            };
-                            tcl_runtime_api::ArrayElementRead::Missing(miss)
-                        },
-                        tcl_runtime_api::ArrayElementRead::Value,
                     )
                 }
-            }
-            Some(operation) => {
-                let invalidation = if crate::vars::array_target_is_set(
-                    &self.frames.borrow(),
-                    &self.namespaces.borrow(),
-                    &operation,
-                ) {
-                    tcl_runtime_api::ArrayInvalidation::Retyped
-                } else {
-                    tcl_runtime_api::ArrayInvalidation::Unset
-                };
-                trace_failure.map_or_else(
-                    || tcl_runtime_api::ArrayElementRead::ArrayInvalidated(invalidation),
+                None => trace_failure.map_or_else(
+                    || {
+                        tcl_runtime_api::ArrayElementRead::ArrayInvalidated(
+                            tcl_runtime_api::ArrayInvalidation::Unset,
+                        )
+                    },
                     |(message, code, info, line)| {
                         tcl_runtime_api::ArrayElementRead::TraceError(
                             tcl_runtime_api::ArrayReadFailure::new_bytes(
@@ -7086,25 +7213,8 @@ impl Interp {
                             ),
                         )
                     },
-                )
-            }
-            None => trace_failure.map_or_else(
-                || {
-                    tcl_runtime_api::ArrayElementRead::ArrayInvalidated(
-                        tcl_runtime_api::ArrayInvalidation::Unset,
-                    )
-                },
-                |(message, code, info, line)| {
-                    tcl_runtime_api::ArrayElementRead::TraceError(
-                        tcl_runtime_api::ArrayReadFailure::new_bytes(
-                            message,
-                            code,
-                            Some(info),
-                            Some(line),
-                        ),
-                    )
-                },
-            ),
+                ),
+            },
         };
         if let tcl_runtime_api::ArrayElementRead::Value(value) = &outcome {
             // The selected element's retained cell is released immediately
@@ -8212,27 +8322,14 @@ impl Interp {
 
     /// The proc definition bound to `name` (for `info body`/`args`/`default`).
     pub(crate) fn proc_def(&self, name: &[u8]) -> Option<Rc<ProcDef>> {
-        let mut cmd = self
-            .namespaces
-            .borrow()
-            .resolve(self.current_ns.get(), name)?;
-        // Follow `namespace import` redirects to the underlying proc, so
-        // `info args`/`body`/`default` work on an imported proc (info-1.7/2.4).
-        for _ in 0..64 {
-            match cmd {
-                Command::Proc(def) => return Some(def.declaration()),
-                Command::Imported {
-                    source,
-                    source_generation,
-                    ensemble,
-                    ..
-                } if ensemble.as_ref().is_none_or(|token| token.is_deleted()) => {
-                    cmd = self.resolve_import_source(&source, source_generation)?;
-                }
-                _ => return None,
-            }
+        let target = self.resolve_import_query(
+            self.import_query_binding(name)?,
+            ImportQueryPurpose::Introspection,
+        )?;
+        match target.command {
+            Command::Proc(def) => Some(def.declaration()),
+            _ => None,
         }
-        None
     }
 
     /// Capture the selected target cell before installing an element alias.
@@ -8521,42 +8618,18 @@ impl Interp {
             .map(|(fqn, _)| fqn)
     }
 
-    /// The command an interned command was ultimately imported from — C's
-    /// `TclGetOriginalCommand` (following an imported command's retained
-    /// ensemble token or by-name source to a fixed point), interned in its turn.
-    /// `None` when it is not an imported command. Backs
-    /// `Namespaces::command_origin`. Bounded against a cycle a retargeting bug
-    /// could leave behind; a well-formed chain is acyclic.
+    /// The actual terminal binding an interned command was imported from,
+    /// interned with its current name and genuine generation. Origin follows
+    /// imported bindings independently from introspection's live-ensemble stop.
+    /// Nonimports and malformed generation cycles have no imported source.
     pub(crate) fn imported_source_id(&self, id: u32) -> Option<u32> {
-        let (_, mut generation) = self.command_identity(id)?;
-        let (mut fqn, mut command) = self.raw_command_location_by_generation(generation)?;
-        let mut hops = 0;
-        while let Command::Imported {
-            source,
-            source_generation,
-            ensemble,
-            ..
-        } = command
-        {
-            let source = ensemble
-                .filter(|token| !token.is_deleted())
-                .map_or(source, |token| token.name());
-            if let Some(next) = self.raw_command_by_generation(source_generation) {
-                fqn = source;
-                generation = source_generation;
-                command = next;
-            } else {
-                let namespaces = self.namespaces.borrow();
-                fqn = namespaces.resolve_fqn(GLOBAL, &source)?;
-                generation = namespaces.resolve_generation(GLOBAL, &source)?;
-                command = namespaces.resolve(GLOBAL, &source)?;
-            }
-            hops += 1;
-            if hops >= 64 {
-                break;
-            }
-        }
-        (hops > 0).then(|| self.intern_cmd(&fqn, generation))
+        let (_, generation) = self.command_identity(id)?;
+        let (fqn, command) = self.raw_command_location_by_generation(generation)?;
+        let target =
+            self.resolve_import_query((fqn, generation, command), ImportQueryPurpose::Origin)?;
+        target
+            .followed_import
+            .then(|| self.intern_cmd(&target.fqn, target.generation))
     }
 
     /// Immediate source binding and optional real-ensemble identity for a new
@@ -8668,8 +8741,8 @@ impl Interp {
         if self.host_refusal_pending() {
             return Code::Error;
         }
-        if let Some(error) = error.native_access_refusal() {
-            return self.refuse_native_access(error);
+        if let Some(error) = error.native_execution_refusal() {
+            return self.refuse_native_execution(error.clone());
         }
         let details = error.into_byte_details();
         let explicit_code_store =
@@ -8954,7 +9027,7 @@ impl Interp {
 
     /// Dispatch retained background-error prefixes and preserve the caller's result.
     pub(crate) fn process_bg_errors(&mut self) {
-        while !self.bg_queue.borrow().is_empty() {
+        while !self.host_refusal_pending() && !self.bg_queue.borrow().is_empty() {
             let batch = {
                 let mut pending = self.bg_queue.borrow_mut();
                 std::mem::take(&mut *pending)
@@ -8981,6 +9054,9 @@ impl Interp {
                             .collect::<Vec<_>>(),
                         Err(error) => {
                             self.report_cmd_error(error.into());
+                            if self.host_refusal_pending() {
+                                return;
+                            }
                             continue;
                         }
                     };
@@ -9008,9 +9084,15 @@ impl Interp {
                         Ok(None) => {}
                         Err(error) => {
                             self.report_cmd_error(error.into());
+                            if self.host_refusal_pending() {
+                                return;
+                            }
                             continue;
                         }
                     }
+                }
+                if self.host_refusal_pending() {
+                    return;
                 }
                 unsafe {
                     self.set_obj_result(saved.as_ptr());
@@ -9758,33 +9840,117 @@ impl Interp {
         *self.exc.borrow_mut() = snap.1;
     }
 
-    /// The current `errorCode` (for `catch`'s `-errorcode`): the stamped value,
-    /// or `NONE`.
-    pub(crate) fn error_code(&self) -> Vec<u8> {
-        let projected = {
-            let exc = self.exc.borrow();
-            if let Some(original) = &exc.native.code {
-                self.native_invocation_dialect()
-                    .native_string_protocol()
-                    .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "private error-code string",
-                    ))
-                    .and_then(|protocol| {
-                        crate::dict::native_object_bytes(original.as_ptr(), protocol)
-                    })
-            } else if exc.code.is_empty() && !exc.code_explicit {
-                Ok(b"NONE".to_vec())
-            } else {
-                Ok(exc.code.clone())
-            }
-        };
-        match projected {
-            Ok(bytes) => bytes,
-            Err(error) => {
-                self.clone().report_cmd_error(error.into());
-                Vec::new()
-            }
+    /// Exact current error-code bytes, with an absent implicit code represented
+    /// by the guest `NONE` list. A positive explicit empty code remains empty.
+    /// Host failures are returned before and after the actual original getter.
+    pub(crate) fn error_code_bytes_checked(
+        &mut self,
+    ) -> Result<Vec<u8>, tcl_runtime_api::NativeExecutionError> {
+        if let Some(error) = self.native_execution_refusal() {
+            return Err(error);
         }
+        let (original, stamped, explicit) = {
+            let exc = self.exc.borrow();
+            (
+                exc.native
+                    .code
+                    .as_ref()
+                    .map(|value| obj::NativeObjectLifetime::retain(value.as_ptr())),
+                exc.code.clone(),
+                exc.code_explicit,
+            )
+        };
+        let bytes = if let Some(original) = original {
+            let protocol = self
+                .native_invocation_dialect()
+                .native_string_protocol()
+                .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "private error-code string",
+                ));
+            let bytes = protocol
+                .and_then(|protocol| crate::dict::native_object_bytes(original.as_ptr(), protocol))
+                .map_err(|error| self.refuse_completion_value_access(error))?;
+            obj::check_native_liveness(original.as_ptr())
+                .map_err(|error| self.refuse_completion_value_access(error))?;
+            bytes
+        } else if stamped.is_empty() && !explicit {
+            b"NONE".to_vec()
+        } else {
+            stamped
+        };
+        if let Some(error) = self.native_execution_refusal() {
+            return Err(error);
+        }
+        Ok(bytes)
+    }
+
+    /// Read the genuine current result without a context-free presentation getter.
+    pub(crate) fn completion_result_bytes_checked(
+        &mut self,
+    ) -> Result<Vec<u8>, tcl_runtime_api::NativeExecutionError> {
+        self.completion_object_bytes_checked(self.result_obj())
+    }
+
+    /// Project accumulated error info or the original result at its actual getter.
+    pub(crate) fn completion_error_info_bytes_checked(
+        &mut self,
+    ) -> Result<Vec<u8>, tcl_runtime_api::NativeExecutionError> {
+        if let Some(error) = self.native_execution_refusal() {
+            return Err(error);
+        }
+        if self.uses_jim_error_stack() {
+            let original = self.jim_stacktrace_object();
+            return self.completion_object_bytes_checked(original.as_ptr());
+        }
+        let accumulated = self.exc.borrow().info.clone();
+        match accumulated {
+            Some(bytes) => Ok(bytes),
+            None => self.completion_result_bytes_checked(),
+        }
+    }
+
+    fn completion_object_bytes_checked(
+        &mut self,
+        original: *mut TclObj,
+    ) -> Result<Vec<u8>, tcl_runtime_api::NativeExecutionError> {
+        if let Some(error) = self.native_execution_refusal() {
+            return Err(error);
+        }
+        obj::check_native_liveness(original)
+            .map_err(|error| self.refuse_completion_value_access(error))?;
+        let original = obj::NativeObjectLifetime::retain(original);
+        let bytes = self
+            .native_object_string_bytes(original.as_ptr())
+            .map_err(|error| self.refuse_completion_value_access(error))?;
+        obj::check_native_liveness(original.as_ptr())
+            .map_err(|error| self.refuse_completion_value_access(error))?;
+        if let Some(error) = self.native_execution_refusal() {
+            return Err(error);
+        }
+        Ok(bytes.to_vec())
+    }
+
+    /// Retain a reached original metadata getter failure without changing guest
+    /// state. Reentrant callbacks' earlier host cause remains authoritative.
+    pub(crate) fn refuse_completion_value_access(
+        &mut self,
+        error: tcl_syntax::value::ValueError,
+    ) -> tcl_runtime_api::NativeExecutionError {
+        if let Some(cause) = error.native_access_refusal() {
+            self.refuse_native_access(cause);
+        } else {
+            self.refuse_host_command(format!("native completion value access failed: {error}"));
+        }
+        self.native_execution_refusal()
+            .expect("original host cause retained")
+    }
+
+    /// Positive guest fixture projection; production uses the fallible owner.
+    #[cfg(test)]
+    pub(crate) fn error_code(&self) -> Vec<u8> {
+        self.clone()
+            .error_code_bytes_checked()
+            .expect("fixture has genuine guest error-code state")
     }
 
     /// Mark the live error's `-errorcode` as explicitly supplied (so an explicit
@@ -9934,17 +10100,29 @@ impl Interp {
             {
                 self.publish_native_error_objects();
             } else if !self.uses_c84_global_error_info() || !self.exc.borrow().native.legacy_copy {
-                let info = self.error_info();
-                let code = self.error_code();
+                let info = match self.completion_error_info_bytes_checked() {
+                    Ok(info) => info,
+                    Err(_) => return,
+                };
+                let code = match self.error_code_bytes_checked() {
+                    Ok(code) => code,
+                    Err(_) => return,
+                };
                 let ei = new_string(&info);
                 if self.var_set(b"::errorInfo", ei).is_err() {
                     drop_fresh(ei);
+                }
+                if self.host_refusal_pending() {
+                    return;
                 }
                 let ec = new_string(&code);
                 if self.var_set(b"::errorCode", ec).is_err() {
                     drop_fresh(ec);
                 }
             }
+        }
+        if self.host_refusal_pending() {
+            return;
         }
         *self.exc.borrow_mut() = ExceptionState::default();
         // The exception is consumed: drop any `-during` chain link with it.
@@ -15598,7 +15776,11 @@ mod tests {
                 Code::Error
             );
             assert_eq!(interp.result_bytes(), b"RESULT BEFORE");
-            assert_eq!(interp.error_code(), b"CODE BEFORE");
+            assert_eq!(interp.exc.borrow().code, b"CODE BEFORE");
+            assert_eq!(
+                interp.error_code_bytes_checked().unwrap_err(),
+                interp.native_execution_refusal().unwrap()
+            );
             assert_eq!(
                 interp.native_access_refusal(),
                 Some(
@@ -18683,6 +18865,9 @@ mod tests {
 
 #[cfg(test)]
 mod native_error_log_tests;
+
+#[cfg(test)]
+mod native_error_code_projection_tests;
 
 mod native_command_traces;
 mod native_error_headers;

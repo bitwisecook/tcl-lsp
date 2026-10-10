@@ -1100,7 +1100,8 @@ impl ExprOps for TowerOps<'_> {
                 // operand-type error (not the generic "expected boolean").
                 Err(error)
                     if dialect.expression_operand_error_presentation().is_some()
-                        || error.native_access_refusal.is_some() =>
+                        || error.native_access_refusal.is_some()
+                        || error.native_execution_refusal.is_some() =>
                 {
                     Err(error)
                 }

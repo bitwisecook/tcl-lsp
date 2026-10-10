@@ -1214,3 +1214,22 @@ fn restriction_refuses_a_retired_original_host_receipt_before_table_effects() {
         Ok("RETAINED ::set".to_owned())
     );
 }
+
+#[test]
+fn completion_metadata_getter_failure_preserves_host_channel_and_prior_guest_effects() {
+    // Software integration: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let Some(built) = built() else { return };
+    let mut engine = WasmEngine::new(&built.runtime).unwrap();
+    engine.set_release("tcl9.0").unwrap();
+    let error = run(&mut engine, "set ::prior BEFORE; catch {return -level 0 -code error -errorcode [lseq 100000001] BODY} captured options; set ::after YES").unwrap_err();
+    assert!(matches!(error, EngineError::ExecutionRefusal(_)));
+    // This independent entry clears only admission; actual earlier cells survive.
+    assert_eq!(
+        run(
+            &mut engine,
+            "list [set ::prior] [info exists ::after] [info exists captured] [info exists options]"
+        ),
+        Ok("BEFORE 0 0 0".to_owned())
+    );
+}

@@ -1,0 +1,107 @@
+{
+  "scope": "Derived review only. Six original source executions and six separately recorded version queries are the authorities; each provider has exactly five public string comparison/length rows.",
+  "rows": [
+    {
+      "provider": "8.4.20",
+      "version": "8.4.20",
+      "source_exit": 0,
+      "source_seconds": 0.004219799011480063,
+      "version_exit": 0,
+      "version_seconds": 0.010135877004358917,
+      "source_sha256": "a47322273b762a0f42be1c309e3674b225b471e7ad1de6c32b57d5cd8740eec3",
+      "stdout_sha256": "909e0bdaf764bdac62c386263aa4a4f7db1ad39a63be04b7960fbb981dec6ec9",
+      "rows": [
+        "SOURCE_SURROGATE_REPLACEMENT|0|1|1",
+        "SOURCE_ADJACENT_SURROGATES|0|1",
+        "SOURCE_REPLACEMENT_SELF|1",
+        "SOURCE_VALID_UNICODE|0|4",
+        "SOURCE_BRACED_ESCAPE|0|6"
+      ]
+    },
+    {
+      "provider": "8.5.19",
+      "version": "8.5.19",
+      "source_exit": 0,
+      "source_seconds": 0.004889861011179164,
+      "version_exit": 0,
+      "version_seconds": 0.01135357900056988,
+      "source_sha256": "a47322273b762a0f42be1c309e3674b225b471e7ad1de6c32b57d5cd8740eec3",
+      "stdout_sha256": "909e0bdaf764bdac62c386263aa4a4f7db1ad39a63be04b7960fbb981dec6ec9",
+      "rows": [
+        "SOURCE_SURROGATE_REPLACEMENT|0|1|1",
+        "SOURCE_ADJACENT_SURROGATES|0|1",
+        "SOURCE_REPLACEMENT_SELF|1",
+        "SOURCE_VALID_UNICODE|0|4",
+        "SOURCE_BRACED_ESCAPE|0|6"
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "version": "8.6.18",
+      "source_exit": 0,
+      "source_seconds": 0.01569341801223345,
+      "version_exit": 0,
+      "version_seconds": 0.011825103021692485,
+      "source_sha256": "a47322273b762a0f42be1c309e3674b225b471e7ad1de6c32b57d5cd8740eec3",
+      "stdout_sha256": "909e0bdaf764bdac62c386263aa4a4f7db1ad39a63be04b7960fbb981dec6ec9",
+      "rows": [
+        "SOURCE_SURROGATE_REPLACEMENT|0|1|1",
+        "SOURCE_ADJACENT_SURROGATES|0|1",
+        "SOURCE_REPLACEMENT_SELF|1",
+        "SOURCE_VALID_UNICODE|0|4",
+        "SOURCE_BRACED_ESCAPE|0|6"
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "version": "9.0.4",
+      "source_exit": 0,
+      "source_seconds": 0.007945457997266203,
+      "version_exit": 0,
+      "version_seconds": 0.00949591101380065,
+      "source_sha256": "a47322273b762a0f42be1c309e3674b225b471e7ad1de6c32b57d5cd8740eec3",
+      "stdout_sha256": "909e0bdaf764bdac62c386263aa4a4f7db1ad39a63be04b7960fbb981dec6ec9",
+      "rows": [
+        "SOURCE_SURROGATE_REPLACEMENT|0|1|1",
+        "SOURCE_ADJACENT_SURROGATES|0|1",
+        "SOURCE_REPLACEMENT_SELF|1",
+        "SOURCE_VALID_UNICODE|0|4",
+        "SOURCE_BRACED_ESCAPE|0|6"
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "version": "9.1.0",
+      "source_exit": 0,
+      "source_seconds": 0.026111732004210353,
+      "version_exit": 0,
+      "version_seconds": 0.006723023019731045,
+      "source_sha256": "a47322273b762a0f42be1c309e3674b225b471e7ad1de6c32b57d5cd8740eec3",
+      "stdout_sha256": "909e0bdaf764bdac62c386263aa4a4f7db1ad39a63be04b7960fbb981dec6ec9",
+      "rows": [
+        "SOURCE_SURROGATE_REPLACEMENT|0|1|1",
+        "SOURCE_ADJACENT_SURROGATES|0|1",
+        "SOURCE_REPLACEMENT_SELF|1",
+        "SOURCE_VALID_UNICODE|0|4",
+        "SOURCE_BRACED_ESCAPE|0|6"
+      ]
+    },
+    {
+      "provider": "jim",
+      "version": "0.84-9-g5bac7c9",
+      "source_exit": 0,
+      "source_seconds": 0.0062932969885878265,
+      "version_exit": 0,
+      "version_seconds": 0.008410471986280754,
+      "source_sha256": "a47322273b762a0f42be1c309e3674b225b471e7ad1de6c32b57d5cd8740eec3",
+      "stdout_sha256": "909e0bdaf764bdac62c386263aa4a4f7db1ad39a63be04b7960fbb981dec6ec9",
+      "rows": [
+        "SOURCE_SURROGATE_REPLACEMENT|0|1|1",
+        "SOURCE_ADJACENT_SURROGATES|0|1",
+        "SOURCE_REPLACEMENT_SELF|1",
+        "SOURCE_VALID_UNICODE|0|4",
+        "SOURCE_BRACED_ESCAPE|0|6"
+      ]
+    }
+  ]
+}

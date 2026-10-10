@@ -876,38 +876,48 @@ mod tests {
             )),
             ..SourceAnalysisOptions::default()
         };
-        let image = tcl_lexer::SourceImage::document("set suffix _hi");
-        let mut state = ModuleCommandBindings::initial_with_options(
+        let bindings = super::super::SourceCommandBindings::analyse_with_options(
+            "set suffix _hi",
+            input.lexer_config(),
             registry,
             options,
-            Some(input.lexer_config()),
         );
-        state.current_source_origin = Some(Arc::new(super::super::SourceOriginId::authored_image(
-            image.clone(),
-        )));
-        let namespace = SourceNamespaceKey::authored("::");
-        let frame = crate::var_resolve::VariableExecutionFrame::Global;
+        let mut points = bindings.dispatch_points_at(0);
+        let point = points.next().expect("genuine before-set source point");
+        assert!(points.next().is_none());
+        assert_eq!(point.head.as_deref(), Some("set"));
+        let state = point.state.clone();
+        assert_eq!(state.logical_source_name_advice_input(), Some(&input));
+        let image = state.current_source_origin.as_ref().unwrap().source_image();
+        let namespace = point.namespace_key.clone();
+        let frame = state.variable_frame.clone();
+        assert_eq!(
+            state.source_variables.namespace_identity.as_ref(),
+            Some(&namespace)
+        );
         let context = super::super::root_source_execution_context(
             &frame,
-            "::",
+            &point.namespace,
             &namespace,
             input.lexer_config(),
             registry,
             options,
         );
         let command = crate::segmenter::segment_commands_image_with_offset_and_config(
-            &image,
+            image,
             0,
             context.config,
         )
         .unwrap()
         .remove(0);
         let tokens = crate::ir::CommandTokens::from_segmented(
-            &tcl_lexer::SourceMap::from_image(&image),
+            &tcl_lexer::SourceMap::from_image(image),
             context.config,
             &command,
         );
-        let selected = source_binding_projection(&state, "set", &namespace);
+        let selected = point.lookup_binding("set");
+        assert!(!selected.unknown && !selected.may_be_absent);
+        assert_eq!(selected.targets.len(), 1);
         test(&tokens, &selected.targets[0], state, context);
     }
 

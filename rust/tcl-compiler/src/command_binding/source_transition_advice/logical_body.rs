@@ -271,7 +271,7 @@ impl LogicalBodyWalk<'_, '_> {
             !body.matches_source(self.context.origin.source_image(), self.context.config)
                 || !body.matches_context(self.context.context)
                 || content.and_then(|span| container.image().bytes().get(span.as_range()))
-                    != tcl_syntax::word_rules::original_static_word_ascii_presentation(container)
+                    != tcl_syntax::word_rules::original_static_word_source_bytes(container)
                         .as_deref()
         }) {
             return None;
@@ -371,6 +371,9 @@ impl LogicalBodyWalk<'_, '_> {
             .and_then(|word| word.input.as_ref())
             .cloned()
         else {
+            self.inspect_deferred_operands(tape, graph, native, (scope, depth))?;
+            tape.registry_barriers
+                .insert(native.first()?.span().start());
             graph.widen(native);
             return Some(());
         };
@@ -433,6 +436,28 @@ impl LogicalBodyWalk<'_, '_> {
         head: &SourceAdviceNameInput,
         parent: (&Arc<OriginalDeclaredLogicalBodyContext>, usize),
     ) -> Option<bool> {
+        let (scope, _) = parent;
+        let operand_barrier = self.inspect_deferred_operands(tape, graph, native, parent)?;
+        if graph.blocks_registry_source(head) {
+            tape.registry_barriers
+                .insert(native.first()?.span().start());
+        }
+        if let Some(selection) = graph
+            .declared_source_selection(self.context.origin, head, native)
+            .and_then(|selection| selection.with_logical_body(Arc::clone(scope)))
+        {
+            tape.retain_declared(selection);
+        }
+        Some(operand_barrier)
+    }
+
+    fn inspect_deferred_operands(
+        &mut self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &mut AdviceGraph,
+        native: &[NativeWord],
+        parent: (&Arc<OriginalDeclaredLogicalBodyContext>, usize),
+    ) -> Option<bool> {
         let (scope, depth) = parent;
         let effects = original_operand_effects(native);
         let operand_barrier = !effects.is_empty();
@@ -446,16 +471,6 @@ impl LogicalBodyWalk<'_, '_> {
                 }
                 OriginalOperandEffect::Unknown => graph.record_uncertainty(native),
             }
-        }
-        if graph.blocks_registry_source(head) {
-            tape.registry_barriers
-                .insert(native.first()?.span().start());
-        }
-        if let Some(selection) = graph
-            .declared_source_selection(self.context.origin, head, native)
-            .and_then(|selection| selection.with_logical_body(Arc::clone(scope)))
-        {
-            tape.retain_declared(selection);
         }
         Some(operand_barrier)
     }
@@ -736,8 +751,7 @@ mod tests {
         assert!(words_at(source, &missing, "string index abc 99").is_none());
         let mut foreign = baseline;
         let profile = tcl_dialect::DialectProfile::plain_tcl();
-        let commands =
-            std::sync::Arc::new(tcl_registry::command_registry::CommandRegistry::build_default());
+        let commands = std::sync::Arc::new(tcl_registry::CommandRegistry::build_default());
         let context = std::sync::Arc::new(
             tcl_registry::model::ingress::context_for_profile(profile).with_command_store(commands),
         );
@@ -748,5 +762,85 @@ mod tests {
             tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
         ));
         assert!(words_at(source, &foreign, "string index abc 99").is_none());
+    }
+    #[test]
+    fn logical_unicode_body_children_keep_exact_original_source_geometry() {
+        // naming.source.original-editor-body-structure
+        // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+        let source = "proc π {} {return [string index café 99]}\n";
+        let baseline = analyse_source(source);
+        let words = words_at(source, &baseline, "string index café 99").unwrap();
+        let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+            panic!("missing genuine Unicode deferred body");
+        };
+        assert_eq!(
+            advice.logical_source_input(),
+            baseline.resolved_input.as_ref()
+        );
+        assert!(advice.original_head().native_input().is_none());
+        assert_eq!(
+            source.get(
+                advice
+                    .logical_source_body()
+                    .unwrap()
+                    .content_span()
+                    .as_range()
+            ),
+            Some("return [string index café 99]")
+        );
+        let cooked = r#"proc p {} "puts\u0020café""#;
+        let cooked_analysis = analyse_source(cooked);
+        assert!(words_at(cooked, &cooked_analysis, r"puts\u0020café").is_none());
+        let mut changed = baseline.clone();
+        changed.body_lexer_config = Some(tcl_lexer::LexerConfig {
+            strict_quoting: !baseline.body_lexer_config.unwrap().strict_quoting,
+            ..baseline.body_lexer_config.unwrap()
+        });
+        assert!(words_at(source, &changed, "string index café 99").is_none());
+        assert!(words_at(&format!("{source} "), &baseline, "string index café 99").is_none());
+        let native = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        if let Some(words) = words_at(source, &native, "string index café 99")
+            && let OriginalRegistrySource::SourceTransitions(advice) = words.source()
+        {
+            assert!(advice.logical_source_input().is_none());
+            assert!(!advice.obligations().contains(
+                &super::SourceCommandTransitionObligation::DeferredLogicalBodyApplicability
+            ));
+        }
+    }
+
+    #[test]
+    fn logical_computed_heads_keep_children_and_refuse_parent_dispatch() {
+        // naming.source.original-editor-body-structure
+        // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+        for source in ["[list puts] VALUE", "proc p {} {[list puts] VALUE}"] {
+            let analysis = analyse_source(source);
+            let child = words_at(source, &analysis, "list puts").unwrap();
+            assert_eq!(child.command(), "list");
+            let OriginalRegistrySource::SourceTransitions(advice) = child.source() else {
+                panic!("missing original computed-head child point");
+            };
+            assert_eq!(
+                advice.logical_source_input(),
+                analysis.resolved_input.as_ref()
+            );
+            assert_eq!(
+                advice.logical_source_body().is_some(),
+                source.starts_with("proc")
+            );
+            assert!(words_at(source, &analysis, "[list puts] VALUE").is_none());
+        }
+        for source in [
+            "[list puts] [rename string {}] [string index café 99]",
+            "proc p {} {[list puts] [rename string {}] [string index café 99]}",
+        ] {
+            let analysis = analyse_source(source);
+            assert!(words_at(source, &analysis, "rename string {}").is_some());
+            assert!(words_at(source, &analysis, "string index café 99").is_none());
+        }
+        let source = "proc p {} {[list puts] VALUE}";
+        let mut missing = analyse_source(source);
+        missing.resolved_input = None;
+        assert!(words_at(source, &missing, "list puts").is_none());
     }
 }

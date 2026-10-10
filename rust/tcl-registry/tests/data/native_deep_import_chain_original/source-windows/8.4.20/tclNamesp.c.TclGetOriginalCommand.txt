@@ -1,0 +1,104 @@
+ *	an imported command, the procedure returns NULL.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Tcl_Command
+TclGetOriginalCommand(command)
+    Tcl_Command command;	/* The imported command for which the
+				 * original command should be returned. */
+{
+    register Command *cmdPtr = (Command *) command;
+    ImportedCmdData *dataPtr;
+
+    if (cmdPtr->deleteProc != DeleteImportedCmd) {
+	return (Tcl_Command) NULL;
+    }
+    
+    while (cmdPtr->deleteProc == DeleteImportedCmd) {
+	dataPtr = (ImportedCmdData *) cmdPtr->objClientData;
+	cmdPtr = dataPtr->realCmdPtr;
+    }
+    return (Tcl_Command) cmdPtr;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * InvokeImportedCmd --
+ *
+ *	Invoked by Tcl whenever the user calls an imported command that
+ *	was created by Tcl_Import. Finds the "real" command (in another
+ *	namespace), and passes control to it.
+ *
+ * Results:
+ *	Returns TCL_OK if successful, and  TCL_ERROR if anything goes wrong.
+ *
+ * Side effects:
+ *	Returns a result in the interpreter's result object. If anything
+ *	goes wrong, the result object is set to an error message.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+InvokeImportedCmd(clientData, interp, objc, objv)
+    ClientData clientData;	/* Points to the imported command's
+				 * ImportedCmdData structure. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* The argument objects. */
+{
+    register ImportedCmdData *dataPtr = (ImportedCmdData *) clientData;
+    register Command *realCmdPtr = dataPtr->realCmdPtr;
+
+    return (*realCmdPtr->objProc)(realCmdPtr->objClientData, interp,
+            objc, objv);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * DeleteImportedCmd --
+ *
+ *	Invoked by Tcl whenever an imported command is deleted. The "real"
+ *	command keeps a list of all the imported commands that refer to it,
+ *	so those imported commands can be deleted when the real command is
+ *	deleted. This procedure removes the imported command reference from
+ *	the real command's list, and frees up the memory associated with
+ *	the imported command.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Removes the imported command from the real command's import list.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+DeleteImportedCmd(clientData)
+    ClientData clientData;	/* Points to the imported command's
+				 * ImportedCmdData structure. */
+{
+    ImportedCmdData *dataPtr = (ImportedCmdData *) clientData;
+    Command *realCmdPtr = dataPtr->realCmdPtr;
+    Command *selfPtr = dataPtr->selfPtr;
+    register ImportRef *refPtr, *prevPtr;
+
+    prevPtr = NULL;
+    for (refPtr = realCmdPtr->importRefPtr;  refPtr != NULL;
+            refPtr = refPtr->nextPtr) {
+	if (refPtr->importedCmdPtr == selfPtr) {
+	    /*
+	     * Remove *refPtr from real command's list of imported commands
+	     * that refer to it.
+	     */
+	    
+	    if (prevPtr == NULL) { /* refPtr is first in list */
+		realCmdPtr->importRefPtr = refPtr->nextPtr;
+	    } else {

@@ -14275,12 +14275,9 @@ impl Backend {
         // result, which is indistinguishable from "no local answer" here —
         // without this gate the cross-file method tier below would resolve
         // the class's own member right past the mask.
-        if core_definition::object_masks_external_dispatch(
-            &analysis,
-            &doc.text,
-            pos.line,
-            pos.character,
-        ) {
+        if core_definition::object_dispatch_mask(&analysis, &doc.text, pos.line, pos.character)
+            .withholds_workspace_fallback()
+        {
             return Ok(Vec::new());
         }
         // Cross-file TclOO method definition: a `$obj method` / `my method`
@@ -29307,12 +29304,9 @@ impl LanguageServer for Backend {
         // of the class chain, so it is a *definitive* no-hover and must not
         // fall through to the cross-file method tier — the same gate
         // `compute_definition` applies ahead of its own.
-        if core_definition::object_masks_external_dispatch(
-            &analysis,
-            &doc.text,
-            pos.line,
-            pos.character,
-        ) {
+        if core_definition::object_dispatch_mask(&analysis, &doc.text, pos.line, pos.character)
+            .withholds_workspace_fallback()
+        {
             return Ok(None);
         }
         // A `my method` / `$obj method` dispatch whose provider class lives

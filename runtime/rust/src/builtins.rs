@@ -793,6 +793,18 @@ struct InterpExprCtx<'a> {
 
 #[cfg(have_tommath)]
 impl InterpExprCtx<'_> {
+    fn propagated_error(&mut self, code: Code) -> crate::expr_error::ExprError {
+        self.propagated = true;
+        self.propagated_code = code;
+        if let Some(error) = self.interp.native_execution_refusal() {
+            return crate::expr_error::ExprError::from_execution_refusal(error);
+        }
+        match self.interp.completion_result_bytes_checked() {
+            Ok(message) => crate::expr_error::ExprError::from_bytes(message),
+            Err(error) => crate::expr_error::ExprError::from_execution_refusal(error),
+        }
+    }
+
     fn read_selected_variable(
         &mut self,
         base: &[u8],
@@ -809,22 +821,17 @@ impl InterpExprCtx<'_> {
                     // (error, or `return`/`break`/`continue`) out of the whole
                     // expression, exactly like a `[cmd]` operand.
                     Err(code) => {
-                        self.propagated = true;
-                        self.propagated_code = code;
-                        return Err(crate::expr_error::ExprError::from_bytes(obj_bytes(
-                            self.interp.get_obj_result(),
-                        )));
+                        return Err(self.propagated_error(code));
                     }
                 }
             }
             other => other,
         };
         if let Some(code) = self.interp.fire_read_trace(base, elem.as_deref()) {
-            self.propagated = true;
-            self.propagated_code = code;
-            return Err(crate::expr_error::ExprError::from_bytes(obj_bytes(
-                self.interp.get_obj_result(),
-            )));
+            return Err(self.propagated_error(code));
+        }
+        if let Some(error) = self.interp.native_execution_refusal() {
+            return Err(crate::expr_error::ExprError::from_execution_refusal(error));
         }
         let obj = match &elem {
             Some(k) => self.interp.var_get_elem(base, k),
@@ -920,11 +927,7 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
         // the others it holds the substitution's result value.
         let code = self.interp.eval_str(script);
         if code != Code::Ok {
-            self.propagated = true;
-            self.propagated_code = code;
-            return Err(crate::expr_error::ExprError::from_bytes(obj_bytes(
-                self.interp.get_obj_result(),
-            )));
+            return Err(self.propagated_error(code));
         }
         Ok(crate::obj::Owned::retain(self.interp.get_obj_result()))
     }
@@ -935,11 +938,7 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
     ) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
         let code = self.interp.eval_body_obj(original.as_ptr());
         if code != Code::Ok {
-            self.propagated = true;
-            self.propagated_code = code;
-            return Err(crate::expr_error::ExprError::from_bytes(obj_bytes(
-                self.interp.get_obj_result(),
-            )));
+            return Err(self.propagated_error(code));
         }
         Ok(crate::obj::Owned::retain(self.interp.get_obj_result()))
     }
@@ -960,13 +959,7 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
             Ok(v) => Ok(crate::obj::Owned::fresh(crate::obj::new_string_bytes(&v))),
             // A `"…"` operand whose `[cmd]` completed non-OK carries that code
             // (error, or `return`/`break`/`continue`) out of the expression.
-            Err(code) => {
-                self.propagated = true;
-                self.propagated_code = code;
-                Err(crate::expr_error::ExprError::from_bytes(obj_bytes(
-                    self.interp.get_obj_result(),
-                )))
-            }
+            Err(code) => Err(self.propagated_error(code)),
         }
     }
 
@@ -1014,9 +1007,25 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
             // propagated; `expr` raises it as its own (`while executing`). Carry
             // the math function's `-errorcode` (TCL WRONGARGS / ARITH DOMAIN) so
             // `expr`'s re-raise preserves it.
-            let msg = obj_bytes(self.interp.get_obj_result());
-            let code = self.interp.error_code();
-            return Err(crate::expr_error::ExprError::from_parts(msg, code));
+            let code = self
+                .interp
+                .error_code_bytes_checked()
+                .map_err(crate::expr_error::ExprError::from_execution_refusal)?;
+            let msg = self
+                .interp
+                .native_object_string_bytes(self.interp.get_obj_result())
+                .map_err(|error| {
+                    crate::expr_error::ExprError::from_execution_refusal(
+                        self.interp.refuse_completion_value_access(error),
+                    )
+                })?;
+            if let Some(cause) = self.interp.native_execution_refusal() {
+                return Err(crate::expr_error::ExprError::from_execution_refusal(cause));
+            }
+            return Err(crate::expr_error::ExprError::from_guest_parts(
+                msg.to_vec(),
+                code,
+            ));
         }
         Ok(crate::obj::Owned::retain(self.interp.get_obj_result()))
     }
@@ -1306,6 +1315,13 @@ pub(crate) fn native_jim_wide_expression(
                 {
                     return Ok(value);
                 }
+            }
+            Err(error) if error.native_execution_refusal.is_some() => {
+                return Err(tcl_cmd_core::CmdError::from_execution_refusal(
+                    error
+                        .native_execution_refusal
+                        .expect("matched original host refusal"),
+                ));
             }
             Err(error) if error.native_access_refusal.is_some() => {
                 return Err(error

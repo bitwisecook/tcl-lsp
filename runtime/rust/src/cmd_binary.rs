@@ -403,13 +403,15 @@ impl tcl_cmd_core::binary::FormatValueOps for Interp {
         let cache = self.native_invocation_dialect().binary_data_conversion() == Some(policy);
         self.native_binary_bytes_with(*value, policy, cache)
             .map_err(|_| {
-                if let Some(refusal) = self.native_access_refusal() {
-                    return tcl_cmd_core::CmdError::from(refusal);
-                }
-                tcl_cmd_core::CmdError::with_error_code_bytes(
-                    self.result_bytes(),
-                    self.error_code(),
-                )
+                let code = match self.error_code_bytes_checked() {
+                    Ok(code) => code,
+                    Err(error) => return tcl_cmd_core::CmdError::from_execution_refusal(error),
+                };
+                let message = match self.completion_result_bytes_checked() {
+                    Ok(message) => message,
+                    Err(error) => return tcl_cmd_core::CmdError::from_execution_refusal(error),
+                };
+                tcl_cmd_core::CmdError::with_error_code_bytes(message, code)
             })
     }
 

@@ -13306,6 +13306,198 @@ fn tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque() {
     }
 }
 
+/// Change only the original test head/name/description fixture words. The
+/// remaining original option words and every setup/body/cleanup byte stay
+/// unchanged. Captured name/description words belong to the alias declaration.
+fn tcltest_aliased_fixture(source: &str, profile: &str, captured: bool) -> (String, u32) {
+    let context = tcl_registry::model::ingress::static_context_for(profile);
+    let config = tcl_lexer::LexerConfig::for_profile(context.commands().profile());
+    let command = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+        .into_iter()
+        .find(|command| command.name() == "test")
+        .expect("one original reported test command");
+    assert!(command.word_views_aligned());
+    let head = tcl_lexer::word_span_at(source, command.argv[0].span);
+    let last_header_word = tcl_lexer::word_span_at(source, command.argv[2].span);
+    let capture = if captured {
+        &source[head.end() as usize..last_header_word.end() as usize]
+    } else {
+        ""
+    };
+    let tail_start = if captured {
+        last_header_word.end()
+    } else {
+        head.end()
+    };
+    let prefix = format!(
+        "{}interp alias {{}} report_test {{}} ::tcltest::test{capture}\n",
+        &source[..head.start() as usize]
+    );
+    let offset = u32::try_from(prefix.len()).expect("finite fixture offset");
+    let aliased = format!("{prefix}report_test{}", &source[tail_start as usize..]);
+    assert_eq!(
+        &aliased[offset as usize + "report_test".len()..],
+        &source[tail_start as usize..],
+        "original option/body bytes are retained"
+    );
+    (aliased, offset)
+}
+
+#[test]
+fn tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads() {
+    // naming.diagnostic.original-package-source-advice
+    // docs/design/analysis/name-resolution-proofs/diagnostic-original-package-source-advice.md
+    // Original #2286 programs, source-only alias/ordinal and W210 regression.
+    // Selecting a package fixture grants no new Native handler/frame permission.
+    for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        for source in [
+            include_str!("../../../tests/data/diagnostics/tcltest-shared-frame/1.tcl"),
+            include_str!("../../../tests/data/diagnostics/tcltest-shared-frame/2.tcl"),
+            include_str!("../../../tests/data/diagnostics/tcltest-shared-frame/3.tcl"),
+            include_str!("../../../tests/data/diagnostics/tcltest-shared-frame/4.tcl"),
+        ] {
+            for captured in [false, true] {
+                let (aliased, offset) = tcltest_aliased_fixture(source, profile, captured);
+                let analysis = crate::provider_fixtures::analyse(
+                    &aliased,
+                    profile,
+                    &[crate::provider_fixtures::Provider::Tcltest],
+                );
+                let undefined = analysis
+                    .diagnostics
+                    .iter()
+                    .filter(|diagnostic| diagnostic.code == DiagCode::W210)
+                    .collect::<Vec<_>>();
+                assert!(
+                    undefined.is_empty(),
+                    "{profile}/captured={captured}/{aliased}\n{undefined:?}"
+                );
+                let words = crate::registry_invocation::source_registry_words_at(
+                    &aliased, &analysis, offset,
+                )
+                .expect("actual package-selected original alias source");
+                let captured_count = usize::from(captured) * 2;
+                for argument in 0..captured_count {
+                    assert_eq!(
+                        words.origins()[argument + 1],
+                        crate::registry_invocation::InvocationWordOrigin::BindingPrefix(argument)
+                    );
+                    assert!(words.operands()[argument].is_none());
+                    let original = words.original_argument_word(argument).unwrap();
+                    assert!(original.span().end() < offset);
+                }
+                let roles = words.roles().expect("selected original lifecycle roles");
+                let mut body_count = 0;
+                for &(argument, role) in roles {
+                    if role != tcl_registry::ArgRole::Body {
+                        continue;
+                    }
+                    body_count += 1;
+                    assert_eq!(
+                        words.origins()[argument + 1],
+                        crate::registry_invocation::InvocationWordOrigin::Written(
+                            argument + 1 - captured_count
+                        )
+                    );
+                    let original = words.original_argument_word(argument).unwrap();
+                    assert!(original.span().start() > offset);
+                    assert_eq!(original.image().bytes(), aliased.as_bytes());
+                }
+                assert_eq!(body_count, 3, "setup/body/cleanup remain script operands");
+            }
+        }
+    }
+}
+
+#[test]
+fn tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque() {
+    // naming.diagnostic.original-package-source-advice
+    // docs/design/analysis/name-resolution-proofs/diagnostic-original-package-source-advice.md
+    // Captured effective ordinals do not move the source read to result data.
+    for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        for captured in [false, true] {
+            let alias = if captured {
+                "interp alias {} report_test {} ::tcltest::test t shared"
+            } else {
+                "interp alias {} report_test {} ::tcltest::test"
+            };
+            let header = if captured { "" } else { "t shared " };
+            let source = format!(
+                "package require tcltest\nnamespace import -force ::tcltest::*\n{alias}\n\
+                 proc exercise {{}} {{report_test {header}-setup {{set prepared 1}} \
+                 -body {{puts $prepared; puts $absent}} \
+                 -cleanup {{puts $prepared}} -result {{[puts $data_only]}}}}\nexercise\n"
+            );
+            let selected = crate::provider_fixtures::analyse(
+                &source,
+                profile,
+                &[crate::provider_fixtures::Provider::Tcltest],
+            );
+            let undefined = selected
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == DiagCode::W210)
+                .collect::<Vec<_>>();
+            assert_eq!(undefined.len(), 1, "{profile}/{source}\n{undefined:?}");
+            assert_eq!(
+                &source[undefined[0].span.as_range()],
+                "$absent",
+                "the original body read owns the warning, not setup/cleanup/result data"
+            );
+            let call_offset = u32::try_from(source.rfind("report_test ").unwrap()).unwrap();
+            assert!(
+                crate::registry_invocation::source_registry_words_at(
+                    &source,
+                    &selected,
+                    call_offset,
+                )
+                .is_some()
+            );
+            let mut missing = selected.clone();
+            missing.resolved_input = None;
+            assert!(
+                crate::registry_invocation::source_registry_words_at(
+                    &source,
+                    &missing,
+                    call_offset,
+                )
+                .is_none()
+            );
+            assert!(
+                crate::registry_invocation::source_registry_words_at(
+                    &(source.clone() + "# changed image\n"),
+                    &selected,
+                    call_offset,
+                )
+                .is_none()
+            );
+            for opaque_source in [
+                source.clone(),
+                source.replacen(
+                    alias,
+                    &format!("proc ::tcltest::test args {{return ordinary}}\n{alias}"),
+                    1,
+                ),
+            ] {
+                let selected_providers = [crate::provider_fixtures::Provider::Tcltest];
+                let providers = if opaque_source == source {
+                    &[][..]
+                } else {
+                    &selected_providers[..]
+                };
+                let opaque = crate::provider_fixtures::analyse(&opaque_source, profile, providers);
+                assert!(
+                    opaque
+                        .diagnostics
+                        .iter()
+                        .all(|diagnostic| diagnostic.code != DiagCode::W210),
+                    "an unselected or replaced package handler keeps body data opaque: {opaque_source}"
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn append_and_lappend_define_their_target_variable() {
     // `append`/`lappend` create their first argument if absent, so the target

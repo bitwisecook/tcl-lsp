@@ -396,7 +396,7 @@ fn vwait_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             break;
         }
         process_one(interp);
-        if interp.native_access_refusal().is_some() {
+        if interp.host_refusal_pending() {
             completion = Code::Error;
             break;
         }
@@ -414,12 +414,12 @@ fn jim_wait(interp: &mut Interp, original: *mut TclObj) -> Code {
     };
     while !interp.events_mut().is_empty() {
         process_one(interp);
-        if interp.native_access_refusal().is_some() {
+        if interp.host_refusal_pending() {
             return Code::Error;
         }
         let current = match interp.original_global_event_value(original) {
             Ok(value) => value.map(obj::Owned::retain),
-            Err(code) if interp.native_access_refusal().is_some() => return code,
+            Err(code) if interp.host_refusal_pending() => return code,
             Err(_) => None,
         };
         match (&before, current) {
@@ -484,12 +484,18 @@ fn update_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     };
     interp.process_bg_errors();
+    if interp.host_refusal_pending() {
+        return Code::Error;
+    }
     while service_ready(interp, idle && !p.idle_update_runs_timers()) {
-        if interp.native_access_refusal().is_some() {
+        if interp.host_refusal_pending() {
             return Code::Error;
         }
     }
     interp.process_bg_errors();
+    if interp.host_refusal_pending() {
+        return Code::Error;
+    }
     if p.clears_update_result() {
         interp.set_result_bytes(b"");
     }
@@ -502,7 +508,7 @@ fn service_ready(interp: &mut Interp, idle_only: bool) -> bool {
         let script = interp.events_mut().pop_turn(turn);
         let Some(script) = script else { break };
         run_event(interp, script.as_ptr());
-        if interp.native_access_refusal().is_some() {
+        if interp.host_refusal_pending() {
             break;
         }
     }
@@ -528,9 +534,15 @@ fn run_event(interp: &mut Interp, script: *mut TclObj) {
         Ok(p) => p,
         Err(_) => return,
     };
-    if interp.native_access_refusal().is_none() && p.reports_callback_code(code.as_int()) {
+    if !interp.host_refusal_pending() && p.reports_callback_code(code.as_int()) {
         let message = obj::Owned::retain(interp.get_obj_result());
-        let options = obj::Owned::fresh(crate::cmd_error::completion_options(interp, code));
+        let options = match crate::cmd_error::completion_options(interp, code) {
+            Ok(options) => obj::Owned::fresh(options),
+            Err(error) => {
+                interp.refuse_native_execution(error);
+                return;
+            }
+        };
         interp.report_bg_error_original(message, options);
         interp.process_bg_errors();
     }

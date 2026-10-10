@@ -14,9 +14,13 @@ How do shared info vars/globals consumers retain the actual sealed C/Jim variabl
 
 NativeNameProtocol::variable_lookup_policy projects Tcl or Jim from its already selected recipe. NamePolicyProtocol forwards that projection while retaining authority independently. Runtime and VM Namespaces::variable_lookup_policy delegate their actual name_policy_protocol rather than deriving a replacement recipe from a catalogue profile. Shared info::vars and info::globals require selected_variable_inventory_policy before pattern conversion, inventory collection or result publication. An unsupported actual naming purpose returns the typed variable inventory lookup policy refusal. The selected-purpose controls cover six supported software backend selections. Explicit Standalone ingress with unsupported Jim0.79 source purpose has no independently retained native core, leaves the nonresident original pattern untouched and preserves prior Runtime guest result. An independently retained genuine C8.6 native issuer keeps its original inventory purpose even when the source catalogue profile changes to unsupported Jim0.79.
 
+Selected variable-name inventory and compound object materialization have independent owners. The tagged materialization query retains actual engine, installed authored and standalone compatibility purposes for list/dictionary conversion and length; an inventory-name purpose cannot fill a missing compound recipe.
+
 ## Scope
 
 Four marked software/API definitions distinguish actual selected policy plus simple variable results, explicit Standalone VM refusal before pattern getter, Runtime refusal with prior guest result retained, and an independently retained native issuer despite changed source compatibility. These are software admission/storage/result controls, not original external C/Jim process comparisons or Jim0.79 observations. Catalogue release/compatibility, physical table/frame currency, actual object getter authority and provider authority remain independent. A pure sealed policy projection confers no Native entry, reached handler, private variable identity, completed source evaluation, object/cache observation or complete inventory law. All seven external providers remain not tested; no executed Rust assertion is attached by this binding.
+
+This owner refinement adds no selector or assertion result. The failed actual C-core/unknown-source inventory control remains a separately pinned software outcome; object policy definitions alone establish no table scan, pattern getter result, Native value/cache identity or provider pass.
 
 ## Provider answers
 
@@ -88,6 +92,10 @@ A named test is a coverage binding, not a claim that it executed.
 - [rust/tcl-vm/src/interp/native_variable_inventory_policy_tests.rs](../../../../rust/tcl-vm/src/interp/native_variable_inventory_policy_tests.rs), `interp::native_variable_inventory_policy_tests::genuine_native_inventory_policy_survives_unknown_source_profile` (linked): An independently retained actual C8.6 native issuer preserves its selected inventory purpose and original variable results after source compatibility changes to Jim0.79; the source profile cannot revoke or create that issuer. Current software definition only; no external-provider observation or assertion outcome attached.
 
 A source profile and an independently retained native issuer are distinct policy premises; no assertion outcome is attached by this source binding.
+
+- [rust/tcl-vm/src/interp/object_materialization.rs](../../../../rust/tcl-vm/src/interp/object_materialization.rs), `InterpState::object_materialization`: Keep compound object conversion and length purpose independent of selected variable-name inventory policy and descriptive source profile.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

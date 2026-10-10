@@ -143834,6 +143834,170 @@
         }
       },
       "limits": "The separate25-control run closes24 passed/1 failed. Complete84/60 mathop and345 dictionary comparators pass, alongside observation-window/live-host-storage/error/manifest/byte controls. Info186 fails at Jim absolute-existing Guest completion1 versus original0; all C loop advancement is partial test progress, not a completed186 or provider PASS. No aggregate gate PASS or other-image result; original external Native processes remain immutable and independent."
+    },
+    {
+      "id": "rust.frozen291.integration-compiler-registry-core-db-server-test-build291",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen291/integration-compiler-registry-core-db-server-test-build291/receipt.json.gz",
+        "sha256": "281ec16024bf719521942a7edbd159cef7fa5def9a1e0c8aa7ef51fd7270a63d",
+        "compression": "gzip",
+        "uncompressed_sha256": "5a1b6162477e01bc6292a7ade0ca1eb9e4f8927d040c2ac163bf2bde7bed908c"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen291/integration-compiler-registry-core-db-server-test-build291/tests.log",
+        "sha256": "068d9bd09d00212cf3ea587c1396b79e885a4867d51864607e569f5f656a5ec1"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-lsp-core",
+        "-p",
+        "tcl-lsp-db",
+        "-p",
+        "tcl-lsp-server",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 351.4107577780087,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The unchanged decompressed original receipt retains every immutable source hash, compile/archive path, head and exact command association. Every archived source leaf is independently byte-checked. Head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Two Compiler fixture errors block this exact five-package no-run command. The whole log also records three test executable creation events for Server, DB and Registry. Those events are retained as unsealed artifacts from a failed invocation; no independent successful producer receipt, strict executable pin, test inventory or unit assertion is claimed. This is a compilation-only failure; no Native provider failure, other-command success or aggregate gate result is inferred."
+    },
+    {
+      "id": "rust.frozen292.integration-vm-own-test-build292",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen292/integration-vm-own-test-build292/receipt.json.gz",
+        "sha256": "531f80e0325ea69aeb3dad5ea58899432558ae4a03eb50ef222ce78ada742449",
+        "compression": "gzip",
+        "uncompressed_sha256": "4c4350a73c9c57d60cb193a0499e3437195023253fedc4a2239605493bfa213a"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen292/integration-vm-own-test-build292/tests.log",
+        "sha256": "41fcdd4ca70c4e465acd07eaaa36d4f895825e98586ed9ae34016935317b2d0c"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 24.978410898009315,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The unchanged decompressed original receipt retains every immutable source hash, compile/archive path, head and exact command association. Every archived source leaf is independently byte-checked. Head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "One Registry library type error in value_transfer/const_ops.rs blocks this exact VM no-run command. The log records no test executable creation event. No successful producer receipt, strict executable pin, test inventory or unit assertion is claimed. This is a compilation-only failure; no Native provider failure, other-command success or aggregate gate result is inferred."
+    },
+    {
+      "id": "rust.frozen293.integration-vm-own-test-build293",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen293/integration-vm-own-test-build293/receipt.json.gz",
+        "sha256": "3276d5922c40a4265065170692727c6cc3ac80484001e3eb11ad1384228a6ef7",
+        "compression": "gzip",
+        "uncompressed_sha256": "32a5546b55c4ae75db276024be52536b1d1a55ad78931bc7eda42e5cb863300a"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen293/integration-vm-own-test-build293/tests.log",
+        "sha256": "de2438f5167974945e0f497e0d99be50d0ea9354455c7c9b648dab9e6de02ccc"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 28.933596857998054,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The unchanged decompressed original receipt retains every immutable source hash, compile/archive path, head and exact command association. Every archived source leaf is independently byte-checked. Head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Six Registry library errors for the missing NativeExecutionError type block this exact VM no-run command. No test executable creation event is recorded. No successful producer pin, test inventory, unit assertion, Native provider outcome or aggregate gate result is claimed."
+    },
+    {
+      "id": "rust.frozen294.integration-vm-own-test-build294",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen294/integration-vm-own-test-build294/receipt.json.gz",
+        "sha256": "3905144ccc7fb592534a86efdc71e120e373133f6764c5437410a00b994a7ddd",
+        "compression": "gzip",
+        "uncompressed_sha256": "fef9424f277e0d9fceaeed918632844db0dc92e826abe046ee81020fb591f7d0"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen294/integration-vm-own-test-build294/tests.log",
+        "sha256": "0a3f6ab90e19d076d965e5a5695b7195093ca9fe2a6406a47d5cd2ea4ae68091"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 129.60293946400634,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The unchanged decompressed original receipt retains every immutable source hash, compile/archive path, head and exact command association. Every archived source leaf is independently byte-checked. Head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "One VM test fixture type error blocks this exact no-run command: the inherent dictionary convenience query returns a String key, while this control requires the original Value key identity. No test executable creation event is recorded. No successful producer pin, test inventory, unit assertion, Native provider outcome or aggregate gate result is claimed."
     }
   ]
 }

@@ -16,11 +16,23 @@ Current complete source/config/Registry/context, genuine effective operand origi
 
 Folding consumes the shared original source structure under complete current document source/config and actual availability. Alias-captured original body ordinals remain distinct from ordinary data; known target replacement, missing input and changed source withhold geometry. Conditional local body-name advice reads checked UTF-8 from the genuine counted source value and keeps the original installer/full-input/current-interpreter guards.
 
+Possible case-body advice may retain a selected body ordinal after a genuine known option prefix while its subject and selection remain unknown. Definite Native invocation values continue to refuse, and an unknown active prefix cannot manufacture a source option width or body position.
+
+Deferred Logical procedure substitutions retain their genuine original parent body and deferred applicability. Immediate root substitutions retain their original alias point and captures without a deferred parent or future-body applicability. Both inventories follow original child evaluation order; earlier selected mutations can withdraw later child advice, and retained operand data does not supply source lookup permission.
+
+Additional marked source definitions preserve analysis-issued body ancestry and explicit standalone alias body roles without turning a detached equal-text body into a new source entry. Known replacement or deletion withdraws conditional source roles.
+
 ## Scope
 
 Readonly source geometry and presentation for original C Tcl/Jim/hosted source. No command occupancy, CPP admission, runtime frame, handler Normal or rewrite equivalence follows; explicit Logical compatibility is a separate ingress. Explicit Logical lexical list/formal geometry remains distinct from Native naming/list receipts. Only genuine complete original parent words and proved source mappings supply interior extents; cooked/opaque/malformed/dynamic/expanded or stale operands cannot fabricate formal colours, Native objects or frame facts.
 
 These source bindings provide region geometry and conditional lexical name ownership only. They cannot establish Native body/frame entry, completed local store, read exclusion, interpreter-child membership, current contents or edit/erasure permission. The existing body-owner control retains its genuine Logical Current positive and independent missing/changed-source negatives; no assertion result is attached.
+
+This marked Registry source-shape control supplies no evaluated option value, Native argv width, exhaustive match, entered case body, handler/frame or Normal. Existing source geometries and actual provider observations remain independent; no assertion outcome is attached.
+
+The two linked source contracts keep parent-body geometry separate from immediate root data. Neither grants Native body/frame entry, reached deferred callback, evaluated argv, future table contents, handler admission or Normal. Conditional child transitions do not publish completed mutations into the enclosing graph, and no assertion outcome is attached.
+
+These definitions add source correspondence and purpose bindings only. They establish no entered body/frame, future lookup, runtime command mutation, safe rewrite or assertion outcome; original provider objects remain unchanged.
 
 ## Provider answers
 
@@ -136,6 +148,26 @@ A named test is a coverage binding, not a claim that it executed.
 - [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs), `OriginalSourceMaterializedFootprint::body_name_ownership`: Use checked UTF-8 of the genuine counted body and interpreter selector values while retaining the original installer snapshot, whole input/config/source and Current-interpreter scope guard.
 - [rust/tcl-lsp-core/src/folding.rs](../../../../rust/tcl-lsp-core/src/folding.rs), `folding::tests::original_folding_keeps_actual_availability_without_native_body_entry` (linked): Folding reads authentic selected source body roles under actual availability; older same-source availability, missing input and changed retained input withhold lmap body geometry without granting Native body entry.
 - [rust/tcl-lsp-core/src/folding.rs](../../../../rust/tcl-lsp-core/src/folding.rs), `folding::tests::original_folding_keeps_captured_body_ordinals_and_source_replacements` (linked): Folding retains original alias-captured body ordinals, refuses a replaced selected target and withdraws changed source. The shared original source structure supplies geometry only.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-registry/src/case_bodies.rs](../../../../rust/tcl-registry/src/case_bodies.rs), `CaseListSpec::possible_body_operands`: Retain conditional original source body ordinals under selected known option grammar while preserving unknown selection and potential error residuals; definite invocation layout remains separate.
+- [rust/tcl-registry/src/case_bodies.rs](../../../../rust/tcl-registry/src/case_bodies.rs), `case_bodies::tests::possible_case_subject_does_not_close_native_option_selection` (linked): A known selected -regexp prefix permits a conditional body position with unknown subject and selection_unknown residual; definite Native invocation_values still refuses, and an unknown active option prefix cannot invent source positions.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs), `AdviceInvocationContext::retain_logical_procedure_body`: Retain a conditional inventory from the genuine Logical procedure or namespace parent/body and complete original source input; child transitions do not publish mutations into the enclosing graph.
+- [rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs), `LogicalBodyWalk::parent_scope`: Join genuine original deferred parent-body ancestry and selected schema before the bounded shared executable-part traversal.
+- [rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs), `AdviceInvocationContext::inspect_operand_effects`: Traverse actual immediate root operand substitutions in original evaluation order, retaining selected alias/capture data while recording unknown effects and withholding a deferred parent.
+- [rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs), `command_binding::source_transition_advice::logical_body::tests::logical_deferred_substitutions_keep_original_body_and_evaluation_order` (linked): Genuine deferred Logical procedure substitutions retain the whole original parent body/image/config and DeferredLogicalBodyApplicability; an earlier nested rename withdraws later selected child advice. Original operand lookup permission remains absent.
+- [rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs), `command_binding::source_transition_advice::body_effects::logical_body_inventory_tests::logical_root_substitutions_keep_alias_point_without_future_body_applicability` (linked): An authentic immediate root substitution retains its selected alias point and original captured list/set operands, with no original deferred parent or conditional/deferred body applicability. Root source data cannot become future body admission.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-lsp-core/src/namespace_rename/original.rs](../../../../rust/tcl-lsp-core/src/namespace_rename/original.rs), `original_coverage`: Reuse genuine complete analysis source/body regions and withhold foreign or missing input instead of recapturing detached bodies.
+- [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `OriginalRegistryWords::source_script_bodies`: Retain selected original conditional body geometry and its source purpose; this facade does not issue lookup-preserving operands or Native body entry.
+- [rust/tcl-lsp-core/src/namespace_rename/original.rs](../../../../rust/tcl-lsp-core/src/namespace_rename/original.rs), `namespace_rename::original::tests::original_namespace_coverage_reuses_analysis_body_sources_and_rejects_foreign_images` (linked): Namespace coverage uses the actual analysis-issued body and child sources; a foreign whole image or missing input cannot recapture detached bodies from a nominal standalone registry.
+- [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `registry_invocation::source_structure::tests::original_standalone_selected_alias_roles_keep_source_purpose` (linked): An explicit standalone source owner selects original alias roles/body geometry under retained configuration, with no lookup-preserving operands; deletion/replacement withdraws that conditional selection.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 

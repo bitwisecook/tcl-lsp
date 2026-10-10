@@ -16,9 +16,13 @@ DocumentLineEndingProjection retains one complete original Document SourceImage 
 
 Original provider direct/file-channel line-ending observations remain separately recorded in [source-original-crlf-evaluation-channels.md](source-original-crlf-evaluation-channels.md). Actual-analysis layout uses this geometry under the independent [formatting contract](editor-original-source-formatting.md).
 
+The shared Document projection may transfer its derived LF presentation as an owned String through into_text. Consuming that presentation preserves its existing purpose boundary: text alone carries no original image, coordinate receipt, source grammar or Native value authority.
+
 ## Scope
 
 Two marked Lexer software controls cover mixed CRLF/lone-CR/LF text, whole Unicode words, every valid presentation byte boundary, collapsed/Unicode-interior/out-of-range refusals, empty/end extents and the NativeValue/opaque-byte negative channels. They are current source/API definitions with no completed assertion result or external-provider process attached. The projection is document geometry, independently of lexer grammar, original values, source input currency, current command lookup, entry/frame, Native String/object/cache birth, Normal completion or safe rewrite. Original direct-versus-file CRLF evaluation330 remains a separate measured provider question; it does not admit this software geometry or a Native value channel.
+
+This current API refinement adds no selector or executed result. The original Document image and checked offset/span projection remain separate; NativeValue input remains refused and original direct/file evaluation observations are unchanged.
 
 ## Provider answers
 
@@ -83,6 +87,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lexer/src/source_map.rs](../../../../rust/tcl-lexer/src/source_map.rs), `source_map::document_line_ending_projection_tests::document_projection_refuses_collapsed_boundary_native_values_and_non_source_extents` (linked): Collapsed CR/LF middle endpoints, Unicode interiors, out-of-range coordinates, NativeValue and invalid UTF-8 refuse; empty, LF, lone-CR and CRLF whole extents retain checked round-trip geometry.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lexer/src/source_map.rs](../../../../rust/tcl-lexer/src/source_map.rs), `DocumentLineEndingProjection::into_text`: Consume only derived Document LF presentation; original source identity, checked coordinate geometry, grammar and Native value/execution authority do not transfer to the String.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

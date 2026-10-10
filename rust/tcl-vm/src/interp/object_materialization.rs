@@ -20,12 +20,24 @@ pub(crate) enum ObjectMaterialization {
 }
 
 impl ObjectMaterialization {
-    pub(crate) const fn protocol(self) -> NativeStringProtocol {
+    const fn recipe(self) -> NativeStringMaterialization {
         match self {
             Self::Native(recipe)
             | Self::AuthoredLogical(recipe)
-            | Self::StandaloneCompatibility(recipe) => recipe.protocol(),
+            | Self::StandaloneCompatibility(recipe) => recipe,
         }
+    }
+
+    pub(crate) const fn protocol(self) -> NativeStringProtocol {
+        self.recipe().protocol()
+    }
+
+    pub(crate) const fn length_protocol(
+        self,
+    ) -> tcl_registry::native_stock_list::NativeObjectLengthProtocol {
+        tcl_registry::native_stock_list::NativeObjectLengthProtocol::from_materialization(
+            self.recipe(),
+        )
     }
 }
 
@@ -105,6 +117,7 @@ mod tests {
         let key = Value::int(17);
         let member = Value::int(23);
         let list = vm.new_list(vec![member.clone()]);
+        assert_eq!(vm.list_len(&list), Ok(1));
         let elements = vm.list_elements(&list).unwrap();
         assert!(elements[0].is_same_object(&member));
         for dictionary in [
@@ -115,8 +128,13 @@ mod tests {
             vm.new_dict_with_hash_bucket_count_checked(vec![(key.clone(), member.clone())], 8)
                 .unwrap(),
         ] {
+            let original_pairs = <Vm as ValueOps>::dict_pairs(&mut vm, &dictionary).unwrap();
+            assert!(original_pairs[0].0.is_same_object(&key));
+            assert!(original_pairs[0].1.is_same_object(&member));
+            // The test convenience adapter projects key text independently of
+            // the original Dictionary key header retained by the native getter.
             let pairs = vm.dict_pairs(&dictionary).unwrap();
-            assert!(pairs[0].0.is_same_object(&key));
+            assert_eq!(pairs[0].0, "17");
             assert!(pairs[0].1.is_same_object(&member));
             assert!(
                 dictionary
@@ -146,8 +164,13 @@ mod tests {
             selected.protocol(),
             NativeStringProtocol::C(TclVersion::V8_4)
         );
+        assert_eq!(
+            selected.length_protocol().logical_provider(),
+            Some(tcl_registry::native_stock_list::LogicalListLengthProvider::Tcl84CoreSimulation),
+        );
         let member = Value::int(17);
         let list = vm.new_list(vec![member.clone()]);
+        assert_eq!(vm.list_len(&list), Ok(1));
         assert!(vm.list_elements(&list).unwrap()[0].is_same_object(&member));
         vm.set_dialect_profile(unknown_jim());
         assert!(
@@ -156,6 +179,7 @@ mod tests {
                 .is_some()
         );
         assert!(vm.object_materialization().is_none());
+        assert!(vm.list_len(&member).is_err());
         assert!(vm.list_elements(&member).is_err());
         assert!(vm.dict_pairs(&member).is_err());
         assert!(vm.new_dict_checked(Vec::new()).is_err());
@@ -187,6 +211,7 @@ mod tests {
         ));
         let member = Value::int(17);
         let list = vm.new_list(vec![member.clone()]);
+        assert_eq!(vm.list_len(&list), Ok(1));
         assert!(vm.list_elements(&list).unwrap()[0].is_same_object(&member));
         vm.set_dialect_profile(
             tcl_registry::model::ingress::resolve_environment("jim").analyser_profile(),
@@ -209,6 +234,7 @@ mod tests {
         vm.set_dialect_profile(unknown_jim());
         assert!(vm.object_materialization().is_none());
         let untouched = Value::int(23);
+        assert!(vm.list_len(&untouched).is_err());
         assert!(vm.list_elements(&untouched).is_err());
         assert!(vm.dict_pairs(&untouched).is_err());
         assert!(untouched.resident_string_bytes().is_none());
@@ -233,6 +259,7 @@ mod tests {
             foreign,
         )
         .unwrap();
+        assert!(vm.list_len(&list).is_err());
         assert!(vm.list_elements(&list).is_err());
         assert!(vm.dict_pairs(&dictionary).is_err());
         assert!(list.resident_string_bytes().is_none());

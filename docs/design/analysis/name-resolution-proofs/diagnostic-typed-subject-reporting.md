@@ -14,9 +14,13 @@ Does diagnostic reporting retain the emitting typed package/source subject indep
 
 The emitting diagnostic supplies its typed subject. The shared versioned readonly projection retains package bytes or original command bytes, policy description, source channel and reporting span without parsing message/fix text. Missing, malformed, future and code-mismatched payloads remain unknown. A decoded description supplies reporting advice only; it recreates neither original source ownership nor a native allocation, lookup/execution or editable-reference grant.
 
+Typed Report transport preserves original counted subjects independently of message prose. Unavailable source generations remain an explicit input-refusal payload through empty finding sets and protocol publication; a successfully analysed empty document is a different state.
+
 ## Scope
 
 Current Compiler-to-Core reporting contract used by protocol adapters. The named tests bind concrete opaque-byte, changed-presentation and absent-payload assertions; no execution of these Rust tests or native-language result is claimed by this record. The structured subject retains its genuine source manufacturer separately from serialized display/coordinates.
+
+These three controls bind Core/Server software data transport and refusal only. Their source walk/status and structured DTO do not grant Native lookup, handler/body/frame entry, runtime name identity, edit eligibility or assertion outcome. The original semantic issuer remains independent of display text and serialized coordinates.
 
 ## Provider answers
 
@@ -82,6 +86,17 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs), `tests::unresolved_transport_uses_the_emitting_original_source_owner` (linked): W123 transports original source units/channel and emitting geometry despite a changed diagnostic message.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lsp-core/src/diagnostic_report.rs](../../../../rust/tcl-lsp-core/src/diagnostic_report.rs), `standalone_findings`: Resolve one complete explicit standalone input before the source walk and retain typed unavailable-generation refusal rather than empty-clean findings.
+- [rust/tcl-lsp-core/src/diagnostic_report.rs](../../../../rust/tcl-lsp-core/src/diagnostic_report.rs), `document_report_with_analysis`: Carry actual retained analysis and its typed unavailable status into Report policy without reconstructing source ownership from findings.
+- [rust/tcl-lsp-core/src/diagnostic_policy.rs](../../../../rust/tcl-lsp-core/src/diagnostic_policy.rs), `Finding::structured_data`: Project the original typed analyser or compiler subject directly, retaining counted units independently of diagnostic message wording.
+- [rust/tcl-lsp-core/src/diagnostic_policy.rs](../../../../rust/tcl-lsp-core/src/diagnostic_policy.rs), `Report::retain_analysis_context`: Keep actual typed analysis-context refusal alongside finding policy; empty finding sets do not establish successful source input.
+- [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs), `lift_report`: Publish the retained original structured subject and explicit unavailable-generation payload; message text is presentation only.
+- [rust/tcl-lsp-core/src/diagnostic_report.rs](../../../../rust/tcl-lsp-core/src/diagnostic_report.rs), `diagnostic_report::tests::an_unavailable_overlay_is_not_a_successfully_empty_report` (linked): A typed unavailable overlay produces no source walk and remains explicit Report input refusal, independently of a genuinely successful empty document/report. Empty findings cannot erase unavailable status.
+- [rust/tcl-lsp-core/src/diagnostic_policy.rs](../../../../rust/tcl-lsp-core/src/diagnostic_policy.rs), `diagnostic_policy::tests::report_retains_typed_subjects_independently_of_diagnostic_presentation` (linked): Original counted RequiredPackage subject bytes survive changed diagnostic prose and Report policy conversion; the retained original analyser diagnostic and structured DTO share the same semantic subject.
+- [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs), `tests::report_publication_retains_unavailable_generation_status` (linked): The actual protocol publication adapter emits an explicit analysisContextUnavailable payload for retained OverlayMiss even when there are no findings; a successful empty Report remains distinct.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

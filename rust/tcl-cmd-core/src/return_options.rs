@@ -231,7 +231,7 @@ pub fn prepare_option_pairs<O: ReturnOptionsOps>(
 ) -> Result<PreparedOptionPairs<O::Value>, CmdError> {
     let items = match ops.list(original) {
         Ok(items) if items.len().is_multiple_of(2) => items,
-        Err(error) if error.native_access_refusal().is_some() => return Err(error),
+        Err(error) if error.native_execution_refusal().is_some() => return Err(error),
         _ => {
             let bytes = ops.bytes(original)?;
             let prefix: &[u8] = match purpose {
@@ -523,7 +523,7 @@ pub(crate) fn validate_list<O: ReturnOptionsOps>(
 ) -> Result<(), CmdError> {
     match ops.list(value) {
         Ok(items) if !stack || items.len().is_multiple_of(2) => Ok(()),
-        Err(error) if error.native_access_refusal().is_some() => Err(error),
+        Err(error) if error.native_execution_refusal().is_some() => Err(error),
         result => {
             let bytes = ops.bytes(value)?;
             let (prefix, code): (&[u8], &[u8]) = match (stack, result.is_ok()) {

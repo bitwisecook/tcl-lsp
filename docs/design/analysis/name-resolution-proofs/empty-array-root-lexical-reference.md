@@ -14,9 +14,13 @@ After set {(k)} VALUE, what do $(k), ${(k)}, ${} and inert {$(k)} return on the 
 
 C Tcl 8.4.20 through 9.1.0 reads VALUE through $(k) and ${(k)}; ${} errors because the empty root is an array. Jim 0.84-9-g5bac7c9 treats $(k) as expression syntax and errors, reads VALUE through ${(k)}, and reads its empty-root dictionary as k VALUE through ${}. The inert form returns literal $(k) on all six. This is the tested ASCII lexical/value distinction, with no command existence, edit, Native header or compiler admission grant.
 
+The marked Core geometry definition preserves an independent array index when the original qualified root is edited to empty.
+
 ## Scope
 
 Five fixed caught ASCII source controls passed as exact file bytes to shell stdin; actual info patchlevel output, ELF/header/source-owner/Makefile hashes and process stdout/stderr retained. BIG-IP not tested. No raw zero, opaque non-UTF8, source channel conversion or original object representation claim.
+
+This is a software source-edit geometry binding only. Original Native lexical reference rows remain unchanged; geometry does not establish alias/cell/observer currentness, successful application, evaluation or edit admission.
 
 ## Provider answers
 
@@ -95,6 +99,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs), `word_parts::template_policy_tests::jim_expression_components_retain_parentheses_and_native_token_sites` (linked): The shared lexer retains Jim expression parentheses while C selects an array reference with an empty root; this is lexical geometry only, separate from observed native values.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lsp-core/src/original_name_edit.rs](../../../../rust/tcl-lsp-core/src/original_name_edit.rs), `original_variable_root_name_edit`: Keep original variable-root source geometry and the independently selected index when constructing the lexical edit, including an empty root.
+- [rust/tcl-lsp-core/src/original_name_edit.rs](../../../../rust/tcl-lsp-core/src/original_name_edit.rs), `original_name_edit::original_variable_root_edit_tests::original_c_empty_array_root_edit_preserves_the_independent_index` (linked): Original C lexical root edit changes only the qualified root to empty while retaining the exact independent array index and original span; edit geometry supplies no runtime permission.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

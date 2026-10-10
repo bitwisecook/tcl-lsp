@@ -16,11 +16,15 @@ OriginalSourceClassDeclaration retains the selected original definer vector, ful
 
 The separate Logical constructor-shape query requires the canonical same-source class declaration, selected family grammar and exact original factory/captured operands. Overridden or unavailable manufacturers and missing/typed unavailable input withhold it. Native constructor_shape and Native class membership queries retain their independent receipts.
 
+The marked outline source definition retains an original class header separately from member-role availability; an older retained release does not borrow Tcl9 member syntax from a catalogue label.
+
 ## Scope
 
 Five class-call source controls cover moves, captured manufacturer prefixes, canonical declaration joins, stale images, known replacement/deletion/cycles, expansions, private/overridden manufacturers, selected family grammar and explicit/bare Snit layouts. Two Compiler constructor-signature controls and one Core transport control retain genuine TclOO parameter source words, mandatory names and typed counts under the same source seal. Snit constructor layout does not borrow a TclOO signature. These are source-carrier controls: no successful construction, installed class, runtime dispatch, filter closure, Native admission, entered frame, Normal or edit permission is established. A fixed source control compares distinct precomposed/combining original class slots and authentic canonical class joins under selected C8.6/C9.0/C9.1 source grammars, plus a Jim class-name value containing a space. The independent native command-distinct-unicode procedure observations do not establish class factory, object, frame or stored-handle execution.
 
 This linked Logical source shape supplies no Native constructor invocation, class allocation, object identity, physical receiver/frame, Normal completion or assertion result; original provider answers and existing Native source controls remain unchanged.
+
+Outline/source declaration purpose supplies no reached allocation, constructor dispatch, Native identity/frame/Normal, edit grant or new assertion outcome. Existing provider data remain unchanged.
 
 ## Provider answers
 
@@ -130,6 +134,11 @@ A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs), `OriginalSourceConstructorCall::logical_constructor_shape`: Join the canonical current Logical class declaration and independently selected family constructor grammar; no Native constructor or runtime membership/frame authority follows.
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs), `command_binding::source_transition_advice::source_class::tests::original_logical_constructor_shape_keeps_canonical_factory_without_native_authority` (linked): A genuine current Logical class declaration and selected constructor family preserve original factory/captured alias shape; private or overridden manufacturers refuse. Native constructor_shape and source_class remain absent, and missing/typed unavailable actual input withdraws the conditional Logical shape.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-lsp-core/src/document_symbols.rs](../../../../rust/tcl-lsp-core/src/document_symbols.rs), `document_symbols_from_analysis`: Use actual original source class/header/member roles and retained availability when constructing the outline; unavailable member grammar or configurable factory labels do not fill it.
+- [rust/tcl-lsp-core/src/document_symbols.rs](../../../../rust/tcl-lsp-core/src/document_symbols.rs), `document_symbols::tests::original_outline_does_not_borrow_tcl9_member_roles_under_tcl86` (linked): An original C86 source class header may remain in the outline while unavailable Tcl9 member roles do not; a configurable factory without the genuine header cannot borrow that outline identity.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 

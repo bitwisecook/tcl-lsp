@@ -415,6 +415,12 @@ where
             }
         };
         match read {
+            ArrayElementRead::HostRefusal(failure) => {
+                for value in &pinned {
+                    ops.unpin_value(value);
+                }
+                return Err(CmdError::from_execution_refusal(failure));
+            }
             ArrayElementRead::Value(value) => {
                 // `array_read_elem_at` returns a transiently-owned handle: it
                 // has to acquire that hold before releasing its selected cell,

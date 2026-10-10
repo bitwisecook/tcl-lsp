@@ -1,0 +1,28 @@
+{
+  "provider": "9.0.4",
+  "request_sha256": "8c5af0bf7228d00602117707874594e9d503419ea0f24f11ad1b80d14e25c8f5",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/workspace/.proofs/native-deep-import-chain449/probe.tcl"
+  ],
+  "selected_environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+  },
+  "source_sha256": "7afc6c1d4b18fdb5352838131077d21157eced317c34d4c1c98f8ecca9751b7a",
+  "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+  "executable_sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+  "version_channel": "CASE version.patchlevel, original public info patchlevel; independent executable path query",
+  "returncode": 0,
+  "signal": null,
+  "timeout": false,
+  "start_unix_seconds": 1791660048.466049,
+  "end_unix_seconds": 1791660048.4983084,
+  "stdout_file": "/workspace/.proofs/native-deep-import-chain449/providers/9.0.4/execute.stdout",
+  "stdout_sha256": "3c731108b05ab505ef6ac76531c9965b32607c990c345e3ee929f6f237793f5f",
+  "stderr_file": "/workspace/.proofs/native-deep-import-chain449/providers/9.0.4/execute.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "observed_case_count": 95,
+  "required_case_count": 95,
+  "closed_marker": true,
+  "status": "closed"
+}

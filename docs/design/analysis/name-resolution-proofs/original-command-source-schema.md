@@ -16,11 +16,15 @@ Analysis retains the conflict-withdrawing original pre-walk conditional metadata
 
 Authored source presentation retains selected inline/block body roles and effective operand ordinals. Dynamic expression data and expanded width do not become invented body presentation.
 
+Seven additional marked source definitions retain semantic role authority after reporting-map erasure, known shadow/deletion refusal, full lexer/hosted source purpose, genuine lambda parent geometry, current static pattern hover and original list-child lineage.
+
 ## Scope
 
 Current shared below-Core source words/schema, original pre-walk ledger and Core wrappers. Fixed assertions cover genuine selected/conditional/hosted vectors, source origins/roles and whole-source/configuration/Registry/context checks. Seven providers are not tested; no native or Rust execution receipt is attached.
 
 Presentation advice supplies no current source contents, entered body, Native command/frame identity or safe editor action. Actual consumers must separately retain complete source currency and their own purpose permissions.
+
+Original selected source roles, written spans and full configuration are software premises. They supply no physical argv/receiver/frame, evaluated pattern result, Native command lookup, hosted appliance behavior, edit safety or new assertion outcome. Derived list-child positions do not become original written-word receipts.
 
 ## Provider answers
 
@@ -99,6 +103,21 @@ A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs), `ResolvedInvocation::authored_source_argument_presentation`: Read source presentation from the actual selected descriptor and effective ordinal, refusing non-body or expanded-width operands.
 - [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs), `resolved_invocation::original_source_presentation_tests::original_source_presentation_uses_selected_roles_and_effective_ordinals` (linked): Source presentation derives inline/block body roles from the actual selected descriptor and effective argument ordinal; dynamic expression and expanded width do not invent presentation for an operand. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs), `OriginalTokenRoles::capture`: Retain current complete analysis/source metadata for semantic source roles independently of reporting maps.
+- [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs), `insert_source_roles`: Insert authentic selected source role coordinates, withholding known replacement/deletion and preserving hosted source purpose.
+- [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs), `collect_lambda`: Use genuine original lambda parent/body geometry for conditional expression colors.
+- [rust/tcl-lsp-core/src/hover.rs](../../../../rust/tcl-lsp-core/src/hover.rs), `original_pattern_format_hover`: Require current retained source configuration and selected original static pattern operand, without borrowing captured/written identities.
+- [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `conditional_source_operands`: Retain original static word and list-child ancestry for conditional source operands, with no invented written word or lookup receipt.
+- [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs), `semantic_tokens::original::original_source_schema_tests::original_semantic_source_roles_survive_reporting_map_erasure` (linked): Original semantic role tokens survive erasure of reporting maps because actual selected source metadata owns the roles; original written geometry remains independent.
+- [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs), `semantic_tokens::original::original_source_schema_tests::original_semantic_roles_decline_custom_and_deleted_command_cells` (linked): Known custom or deleted command cells withhold their catalogue roles; the selected static role coordinates do not come from reported names.
+- [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs), `semantic_tokens::original::original_source_schema_tests::original_semantic_source_grammar_and_hosted_object_roles_remain_independent` (linked): Full retained source grammar and hosted object roles remain separate; a selected hosted source role may color conditional source names while known shadows withdraw it, without BIG-IP execution evidence.
+- [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs), `semantic_tokens::original::original_source_schema_tests::original_expression_colours_require_actual_source_roles_and_lambda_parent_geometry` (linked): Expression colors require actual selected original source roles and genuine lambda parent geometry; ordinary data and expression/operator purpose remain distinct.
+- [rust/tcl-lsp-core/src/hover.rs](../../../../rust/tcl-lsp-core/src/hover.rs), `hover::original_pattern_hover_tests::original_pattern_hover_keeps_actual_schema_operands_and_current_source` (linked): Pattern hover requires current actual schema and original static written operands; set-data, custom/deleted commands and captured alias operands cannot supply that written pattern view.
+- [rust/tcl-lsp-core/src/hover.rs](../../../../rust/tcl-lsp-core/src/hover.rs), `hover::original_pattern_hover_tests::original_pattern_hover_preserves_full_lexer_configuration` (linked): Pattern hover retains complete LexerConfig, including BOM handling, and withdraws a changed source/configuration instead of relexing with a nominal profile.
+- [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `registry_invocation::source_structure::tests::original_conditional_operand_keeps_its_static_word_and_list_lineage` (linked): Conditional foreach operands preserve original static word/list-child lineage and spans; derived list children do not manufacture a written word key or original lookup permission.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 

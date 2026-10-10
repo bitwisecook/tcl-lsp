@@ -1171,9 +1171,12 @@ fn original_words(
                 .iter()
                 .enumerate()
                 .map(|(ordinal, original)| {
-                    let value = tcl_syntax::word_rules::original_static_word_source_bytes(original)
-                        .filter(|bytes| std::str::from_utf8(bytes).is_ok() && !bytes.contains(&0))
-                        .map(Arc::<[u8]>::from);
+                    let value =
+                        tcl_syntax::word_rules::original_static_word_unicode_value(original)
+                            .filter(|bytes| {
+                                std::str::from_utf8(bytes).is_ok() && !bytes.contains(&0)
+                            })
+                            .map(Arc::<[u8]>::from);
                     SourceAdviceWord {
                         original: original.clone(),
                         input: value.as_ref().map(|bytes| {
@@ -1617,6 +1620,13 @@ impl AdviceInvocationContext<'_> {
             .and_then(|head| head.input.as_ref())
             .cloned()
         else {
+            if matches!(self.policy, AdviceNamingPolicy::Logical(_)) {
+                // The original children execute before an unknown parent head;
+                // retaining them does not select that head from result data.
+                let _ = self.inspect_operand_effects(graph, &invocation.words, tape);
+                tape.registry_barriers
+                    .insert(invocation.words.first()?.span().start());
+            }
             graph.widen(&invocation.words);
             return Some(());
         };
@@ -1816,6 +1826,54 @@ mod tests {
     use crate::registry_invocation::source_structure::{
         OriginalRegistrySource, source_registry_words,
     };
+
+    #[test]
+    fn logical_original_advice_words_keep_lossless_values_and_native_units_independent() {
+        // naming.source.authored-command-transition-advice
+        // docs/design/analysis/name-resolution-proofs/authored-command-transition-advice.md
+        use super::{AdviceNamingPolicy, original_words};
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+        assert!(input.has_logical_source_name_context());
+        let source = r"rename café\uFFFD café\uD800";
+        let plan = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document(source),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let originals = &plan.commands[0].words;
+        let words = original_words(originals, &AdviceNamingPolicy::Logical(input)).unwrap();
+        assert_eq!(words[1].value.as_deref(), Some("café�".as_bytes()));
+        assert!(words[1].input.as_ref().unwrap().logical_input().is_some());
+        assert!(words[1].input.as_ref().unwrap().native_input().is_none());
+        assert_eq!(words[1].original, originals[1]);
+        assert!(words[2].value.is_none());
+        assert!(words[2].input.is_none());
+        assert_eq!(words[2].original, originals[2]);
+        assert_eq!(
+            tcl_syntax::word_rules::original_static_word_source_bytes(&originals[2]).as_deref(),
+            Some("café�".as_bytes())
+        );
+
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let native_plan = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document(source),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+        )
+        .unwrap();
+        let native = original_words(
+            &native_plan.commands[0].words,
+            &AdviceNamingPolicy::Native(dialect.authored_name_policy().unwrap()),
+        )
+        .unwrap();
+        assert!(native[2].value.is_some());
+        assert!(native[2].input.as_ref().unwrap().native_input().is_some());
+        assert!(native[2].input.as_ref().unwrap().logical_input().is_none());
+    }
 
     #[test]
     fn original_move_qualifier_retains_the_complete_operand_and_rejects_other_projections() {

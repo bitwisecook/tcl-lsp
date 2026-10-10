@@ -61,25 +61,35 @@
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_lexer::{Span, TokenType};
+use tcl_lexer::{SourceImage, Span};
 use tcl_registry::CommandRegistry;
 
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::Statement;
-use crate::segmenter::segment_commands_with_offset_and_config;
 use crate::ssa::{Symbol, ValueKey, Version};
 
 /// Source spans of the def-site value literals that feed a `regexp` / `regsub`
 /// pattern through a variable whose reaching definitions are all lexical
 /// string literals. Sorted by start, de-duplicated. Empty when the unit has no
-/// such flow (the common case), so callers pay nothing extra.
+/// such flow (the common case), so callers pay nothing extra. The compatibility
+/// dialect argument does not replace the CU's retained input or source grammar;
+/// missing or stale supplied owners withhold this readonly result.
 #[must_use]
 pub fn regex_source_literal_spans(
     source: &str,
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<Span> {
+    let module = &cu.ir_module;
+    if module.source != SourceImage::document(source)
+        || !module
+            .retained_source_bindings
+            .as_deref()
+            .is_some_and(|owner| owner.matches_module(module, registry))
+    {
+        return Vec::new();
+    }
     let mut spans: Vec<Span> = Vec::new();
     let mut units: Vec<&FunctionUnit> =
         Vec::with_capacity(cu.procedures.len() + cu.methods.len() + cu.body_units.len() + 1);
@@ -95,7 +105,7 @@ pub fn regex_source_literal_spans(
     // body track its def-site literal the same way a proc body does.
     units.extend(cu.body_units.values());
     for fu in units {
-        collect_in_function(source, fu, registry, dialect, &mut spans);
+        collect_in_function(fu, module, registry, &mut spans);
     }
     spans.sort_by_key(|s| (s.start(), s.end()));
     spans.dedup();
@@ -118,12 +128,18 @@ struct Scan {
 }
 
 fn collect_in_function(
-    source: &str,
     fu: &FunctionUnit,
+    module: &crate::ir::Module,
     registry: &CommandRegistry,
-    dialect: &'static tcl_dialect::DialectProfile,
     out: &mut Vec<Span>,
 ) {
+    if !module.source_entry.metadata_context.is_standalone()
+        && fu
+            .invocation_metadata_context_for_module(registry, module)
+            .is_none()
+    {
+        return;
+    }
     let mut scan = Scan::default();
 
     for (block_id, block) in &fu.cfg.blocks {
@@ -146,29 +162,23 @@ fn collect_in_function(
             };
             // A literal assignment records its value-word span, keyed by the
             // SSA version it defines.
-            if is_literal_assignment(stmt)
-                && let Some(vspan) = value_word_span(source, dialect, fu.abs_span(stmt.span()))
-            {
+            if let Some(vspan) = literal_value_word_span(stmt, module, registry) {
                 for (sym, ver) in &ssa_stmt.defs {
                     let key = (*sym, *ver);
-                    scan.const_def_span.entry(key).or_insert(vspan);
+                    scan.const_def_span.entry(key).or_insert(fu.abs_span(vspan));
                     // `AssignValue` also covers a quoted or bare literal
                     // (`set re "x+"`, `set re x+`) when the word has no
                     // substitution.  Admit only that statically literal
                     // subset; `$x`, `[cmd]`, and compound words remain
                     // dynamic and must never become regex sources merely
                     // because SCCP happens to infer a string value.
-                    if matches!(stmt, Statement::AssignConst { .. })
-                        || value_word_is_static_literal(source, dialect, fu.abs_span(stmt.span()))
-                    {
-                        scan.literal_source_defs.insert(key);
-                    }
+                    scan.literal_source_defs.insert(key);
                 }
             }
 
             // Resolve the exact substitution rather than looking up a display
             // name in a statement-wide union of versions.
-            if let Some(word) = regex_pattern_word(stmt, registry)
+            if let Some(word) = regex_pattern_word(stmt, module, registry)
                 && let Some(read) =
                     crate::ssa::SsaSourceView::at_statement(&fu.ssa, *block_id, stmt_idx)
                         .read_word(word)
@@ -267,77 +277,94 @@ fn is_literal_assignment(stmt: &Statement) -> bool {
     )
 }
 
-/// The absolute span of the *value word* of a typed assignment command that
-/// begins at `stmt_span.start()`.
-///
-/// The value word's **start** is recovered by re-segmenting the statement span
-/// (arg 2 of the assignment), but the segmenter's representative-token span clamps
-/// off a quoted/braced word's closing delimiter (and the IR statement span can
-/// itself stop before it), so the word's **end** is recomputed by matching the
-/// opening delimiter in the source. The caller has already proved that the
-/// registry selected assignment IR, so this helper reads that IR shape and
-/// never creates a second table of command spellings. `None` when the source
-/// command has no value word.
-fn value_word_span(
-    source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    stmt_span: Span,
+/// The whole unchanged literal word selected by this original setter.
+/// Source geometry and conditional Logical assignment metadata grant no
+/// physical definition: the caller still uses the independently retained SSA.
+fn literal_value_word_span(
+    stmt: &Statement,
+    module: &crate::ir::Module,
+    registry: &CommandRegistry,
 ) -> Option<Span> {
-    let start = stmt_span.start() as usize;
-    let end = (stmt_span.end() as usize).min(source.len());
-    let text = source.get(start..end.max(start))?;
-    let seg = segment_commands_with_offset_and_config(
-        text,
-        u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
-    )
-    .into_iter()
-    .next()?;
-    if seg.argv.len() < 3 {
+    if !is_literal_assignment(stmt) {
         return None;
     }
-    let word_start = seg.argv.get(2)?.span.start() as usize;
-    Some(delimited_word_span(source, word_start))
+    let tokens = stmt.tokens()?;
+    let metadata = source_metadata_at(tokens, module, registry)?;
+    let value = if let Some(metadata) =
+        metadata.filter(|metadata| metadata.permits_logical_source_names())
+    {
+        let selected = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )?;
+        if selected.facts.operation
+            != tcl_registry::SemanticOperationId::StructuredLowering(
+                tcl_registry::hooks::LoweringHookId::Set,
+            )
+            || selected.effective.words.len() != 3
+        {
+            return None;
+        }
+        selected.effective.words.get(2)?.clone()
+    } else {
+        crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )?
+        .value_assignment()?
+        .value
+    };
+    let mut matches = tokens
+        .words()
+        .iter()
+        .enumerate()
+        .filter(|(_, word)| **word == value);
+    let (ordinal, _) = matches.next()?;
+    if matches.next().is_some() || ordinal == 0 {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    let site = binding.invocation_site()?;
+    let image = site.source.source_image();
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    let words = crate::registry_invocation::original_native_compiler_words(
+        image,
+        tokens.words(),
+        site.offset,
+        config,
+    )?;
+    let original = words.get(ordinal)?;
+    let content = image
+        .bytes()
+        .get(original.content_span().ok()?.as_range())?;
+    (tcl_syntax::word_rules::original_static_word_unicode_value(original).as_deref()
+        == Some(content))
+    .then_some(original.span())
 }
 
-/// Whether the `set` value word is lexically a single literal with no Tcl
-/// substitution.  `AssignValue` is also used for quoted/bare literals, but
-/// its flattened `value` cannot distinguish those from `$var`, `[cmd]`, or a
-/// compound word.  Reuse the segmenter's lossless fragments for that gate.
-fn value_word_is_static_literal(
-    source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    stmt_span: Span,
-) -> bool {
-    let start = stmt_span.start() as usize;
-    let end = (stmt_span.end() as usize).min(source.len());
-    let Some(text) = source.get(start..end.max(start)) else {
-        return false;
-    };
-    let Some(seg) = segment_commands_with_offset_and_config(
-        text,
-        u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
-    )
-    .into_iter()
-    .next() else {
-        return false;
-    };
-    let Some(fragments) = seg.word_fragments.get(2) else {
-        return false;
-    };
-    let [fragment] = fragments.as_slice() else {
-        return false;
-    };
-    // Braced words are AssignConst in the normal lowering path.  Esc is both
-    // bare and quoted text; reject backslash-bearing words because their value
-    // depends on Tcl backslash substitution rather than source spelling.  Use
-    // the raw token slice here: the compatibility fragment text may already
-    // have normalised an escape away.
-    let raw = source
-        .get(fragment.token.span.start() as usize..fragment.token.span.end() as usize)
-        .unwrap_or_default();
-    fragment.token.kind == TokenType::Esc && !raw.contains('\\')
+/// Keep supplied missing ownership terminal. Only a positively tagged
+/// standalone Module may use its explicitly selected compatibility context.
+fn source_metadata_at<'a>(
+    tokens: &'a crate::ir::CommandTokens,
+    module: &crate::ir::Module,
+    registry: &CommandRegistry,
+) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>> {
+    let owner = module.retained_source_bindings.as_deref()?;
+    if !owner.matches_module(module, registry)
+        || tokens.synthetic.is_some()
+        || !tokens.words_align_with_argv_text()
+    {
+        return None;
+    }
+    if module.source_entry.metadata_context.is_standalone()
+        && module.source_metadata_input.is_none()
+    {
+        return owner.owns_original_tokens(tokens).then_some(None);
+    }
+    Some(Some(
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_invocation_metadata_for_module(tokens, module, registry)?,
+    ))
 }
 
 /// The full span of the word beginning at byte `start`: for a `"…"` / `{…}`
@@ -345,6 +372,7 @@ fn value_word_is_static_literal(
 /// brace nesting); a bareword ends at the next unescaped whitespace or command
 /// separator. Recovers the closing delimiter the segmenter's token span clamps
 /// off.
+#[cfg(test)]
 fn delimited_word_span(source: &str, start: usize) -> Span {
     let bytes = source.as_bytes();
     let s32 = u32::try_from(start).unwrap_or(0);
@@ -375,6 +403,7 @@ fn delimited_word_span(source: &str, start: usize) -> Span {
 /// Scan from `i` for the `close` delimiter, honouring `\`-escapes and (when
 /// `open != close`) nesting.  Returns the index *past* the close, or the input
 /// length when unterminated.
+#[cfg(test)]
 fn scan_to_close(bytes: &[u8], mut i: usize, open: u8, close: u8) -> usize {
     let mut depth = 1usize;
     while i < bytes.len() {
@@ -437,14 +466,45 @@ pub(crate) fn source_pattern_index(
 /// the actual handler. Physical read identity is resolved separately by SSA.
 fn regex_pattern_word<'a>(
     stmt: &'a Statement,
+    module: &crate::ir::Module,
     registry: &CommandRegistry,
 ) -> Option<&'a crate::ir::WordExpr> {
-    let toks = stmt.tokens()?;
-    let normal =
-        crate::registry_invocation::normal_representation_invocation(registry, None, toks)?;
-    let idx = normal.pattern_source_argument_index(registry)?;
-    let argv_idx = idx + 1; // shift back past the command word
-    let word = toks.word_exprs.get(argv_idx)?;
+    let tokens = stmt.tokens()?;
+    let metadata = source_metadata_at(tokens, module, registry)?;
+    let idx = if let Some(metadata) =
+        metadata.filter(|metadata| metadata.permits_logical_source_names())
+    {
+        let selected = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )?;
+        let realm = tokens.source_binding.as_ref()?.invocation_realm()?;
+        let patterns = selected.with_metadata_schema(registry, metadata, realm, |schema| {
+            schema.authored_source_pattern_arguments()
+        })?;
+        let mut patterns = patterns
+            .into_iter()
+            .filter(|pattern| pattern.kind == tcl_registry::patterns::PatternType::Regex);
+        let pattern = patterns.next()?;
+        if patterns.next().is_some() {
+            return None;
+        }
+        match selected
+            .effective
+            .origins
+            .get(usize::from(pattern.index).checked_add(1)?)?
+        {
+            crate::registry_invocation::InvocationWordOrigin::Written(index) => {
+                index.checked_sub(1)?
+            }
+            _ => return None,
+        }
+    } else {
+        crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )?
+        .pattern_source_argument_index(registry)?
+    };
+    let word = tokens.words().get(idx.checked_add(1)?)?;
     word.sole_variable_substitution()?;
     Some(word)
 }
@@ -452,9 +512,158 @@ fn regex_pattern_word<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::segmenter::segment_commands_with_offset_and_config;
 
     fn spans_text(source: &str) -> Vec<String> {
         spans_text_dialect(source, tcl_dialect::DialectProfile::find("tcl9.0").unwrap())
+    }
+
+    fn logical_regex_unit(
+        source: &str,
+        context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        config: tcl_lexer::LexerConfig,
+    ) -> CompilationUnit {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(context),
+            config,
+        );
+        CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        )
+    }
+
+    #[test]
+    fn original_regex_roles_keep_alias_origins_and_do_not_supply_native_reads() {
+        // naming.core.original-pattern-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-pattern-retained-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let source = "interp alias {} matcher {} regexp --; matcher ${ré} subject";
+        let unit = logical_regex_unit(source, &context, config);
+        let statement = unit.ir_module.top_level.statements.last().unwrap();
+        let word = regex_pattern_word(statement, &unit.ir_module, context.commands())
+            .expect("original written pattern after captured option");
+        assert_eq!(&source[word.source().span.as_range()], "${ré}");
+        let metadata = source_metadata_at(
+            statement.tokens().unwrap(),
+            &unit.ir_module,
+            context.commands(),
+        )
+        .unwrap();
+        assert!(
+            crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+                context.commands(),
+                metadata,
+                statement.tokens().unwrap(),
+            )
+            .is_none(),
+            "conditional source roles do not prove a normal Native handler"
+        );
+        assert!(
+            regex_source_literal_spans(source, &unit, context.commands(), profile).is_empty(),
+            "a source role supplies no physical SSA read"
+        );
+        let mut missing = statement.clone();
+        missing.tokens_mut().unwrap().source_binding = None;
+        assert!(regex_pattern_word(&missing, &unit.ir_module, context.commands()).is_none());
+        for source in [
+            "interp alias {} matcher {} regexp -- {x+}; matcher $subject",
+            "interp alias {} matcher {} regexp --; matcher {*}$values",
+            "interp alias {} matcher {} regexp --; proc matcher {a b} {}; matcher $re subject",
+        ] {
+            let unit = logical_regex_unit(source, &context, config);
+            assert!(
+                regex_pattern_word(
+                    unit.ir_module.top_level.statements.last().unwrap(),
+                    &unit.ir_module,
+                    context.commands()
+                )
+                .is_none(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_regex_inventory_keeps_full_configuration_and_withdraws_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig {
+            expand_syntax: false,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let source = "set re {*}; regexp -- $re subject";
+        let unit = logical_regex_unit(source, &context, config);
+        let setter = unit.ir_module.top_level.statements.first().unwrap();
+        let literal = literal_value_word_span(setter, &unit.ir_module, context.commands())
+            .expect("actual original literal under disabled expansion");
+        assert_eq!(&source[literal.as_range()], "{*}");
+        let pattern = unit.ir_module.top_level.statements.last().unwrap();
+        assert!(regex_pattern_word(pattern, &unit.ir_module, context.commands()).is_some());
+        for mutate in [0, 1, 2] {
+            let mut changed = unit.ir_module.clone();
+            match mutate {
+                0 => changed.source_metadata_input = None,
+                1 => changed.lexer_config.expand_syntax = true,
+                _ => changed.retained_source_bindings = None,
+            }
+            assert!(literal_value_word_span(setter, &changed, context.commands()).is_none());
+            assert!(regex_pattern_word(pattern, &changed, context.commands()).is_none());
+        }
+        let foreign = CommandRegistry::build_default();
+        assert!(regex_pattern_word(pattern, &unit.ir_module, &foreign).is_none());
+        assert!(
+            regex_source_literal_spans(
+                "set re OTHER; regexp -- $re subject",
+                &unit,
+                context.commands(),
+                profile
+            )
+            .is_empty()
+        );
+        let options = "regsub -command -- $re subject callback out";
+        let current = logical_regex_unit(options, &context, config);
+        assert!(
+            regex_pattern_word(
+                current.ir_module.top_level.statements.last().unwrap(),
+                &current.ir_module,
+                context.commands()
+            )
+            .is_some()
+        );
+        let older =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let older = std::sync::Arc::new(
+            older.with_command_store(context.commands().snapshot().shared_registry()),
+        );
+        let old_unit = logical_regex_unit(options, &older, config);
+        assert!(
+            regex_pattern_word(
+                old_unit.ir_module.top_level.statements.last().unwrap(),
+                &old_unit.ir_module,
+                older.commands()
+            )
+            .is_none()
+        );
     }
 
     #[test]

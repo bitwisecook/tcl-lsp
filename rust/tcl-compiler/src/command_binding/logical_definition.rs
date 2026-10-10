@@ -262,7 +262,7 @@ pub(super) fn original_static_invocation_words(
 }
 
 pub(super) fn static_value(word: &NativeWord) -> Option<String> {
-    let bytes = tcl_syntax::word_rules::original_static_word_source_bytes(word)?;
+    let bytes = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
     static_bytes_text(&bytes)
 }
 
@@ -356,9 +356,18 @@ mod tests {
     }
 
     fn final_presence(source: &str, input: &ResolvedAnalysisInput) -> SourceCommandSlotPresence {
+        assert!(input.has_logical_source_name_context());
         let analysis = crate::analyser::Analyser::new()
             .with_resolved_input(input.clone())
             .analyse(source, input.analyser_profile().name);
+        let realm = analysis.retained_command_realm().unwrap();
+        assert!(realm.matches_resolved_analysis_input(input));
+        assert_eq!(
+            realm
+                .source_bindings_ref()
+                .original_logical_source_name_advice_input(),
+            Some(input)
+        );
         let offset = crate::segmenter::segment_commands_with_offset_and_config(
             source,
             0,
@@ -368,11 +377,16 @@ mod tests {
         .unwrap()
         .span
         .start();
-        let binding = analysis
-            .retained_command_realm()
-            .unwrap()
-            .invocation_at_source("", offset);
-        assert_eq!(binding.logical_source_name_advice_input(), Some(input));
+        let binding = realm.invocation_at_source("", offset);
+        if binding.invocation_site().is_some() {
+            assert_eq!(binding.logical_source_name_advice_input(), Some(input));
+        } else {
+            // A preceding unknown/abrupt operation may leave this written
+            // call unrepresented. The retained realm keeps the source input;
+            // it does not manufacture a reached lookup at the missing point.
+            assert!(binding.unknown);
+            assert!(binding.targets.is_empty());
+        }
         assert!(binding.original_recorded_head_name_input().is_none());
         binding.selected_slot_diagnostic_presence()
     }
@@ -453,6 +467,36 @@ mod tests {
             project(tcl_lexer::SourceImage::native("café".as_bytes().to_vec())),
             None
         );
+    }
+
+    #[test]
+    fn logical_definition_keeps_unrepresentable_names_distinct_from_literal_replacement() {
+        // naming.source.logical-procedure-definition-model
+        // docs/design/analysis/name-resolution-proofs/logical-procedure-definition-model.md
+        // Authored source lookup remains separate from Native string/name units.
+        let input = input();
+        for source in [
+            "proc café� {} {}; café�",
+            r"proc café\uFFFD {} {}; café�",
+            r"proc {café\uD800} {} {}; {café\uD800}",
+        ] {
+            assert_eq!(
+                final_presence(source, &input),
+                SourceCommandSlotPresence::Present,
+                "{source}"
+            );
+        }
+        for source in [
+            r"proc café\uD800 {} {}; café�",
+            r"proc café\uD801 {} {}; café�",
+            r"proc café� {} {}; café\uD800",
+        ] {
+            assert_ne!(
+                final_presence(source, &input),
+                SourceCommandSlotPresence::Present,
+                "{source}"
+            );
+        }
     }
 
     #[test]

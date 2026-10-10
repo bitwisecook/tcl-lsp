@@ -1,0 +1,104 @@
+    }
+
+    command = Tcl_GetCommandFromObj(interp, objv[2]);
+    if (command == (Tcl_Command) NULL) {
+	Tcl_AppendStringsToObj(Tcl_GetObjResult(interp),
+		"invalid command name \"", Tcl_GetString(objv[2]),
+		"\"", (char *) NULL);
+	return TCL_ERROR;
+    }
+    origCommand = TclGetOriginalCommand(command);
+    if (origCommand == (Tcl_Command) NULL) {
+	/*
+	 * The specified command isn't an imported command. Return the
+	 * command's name qualified by the full name of the namespace it
+	 * was defined in.
+	 */
+	
+	Tcl_GetCommandFullName(interp, command, Tcl_GetObjResult(interp));
+    } else {
+	Tcl_GetCommandFullName(interp, origCommand, Tcl_GetObjResult(interp));
+    }
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * NamespaceParentCmd --
+ *
+ *	Invoked to implement the "namespace parent" command that returns the
+ *	fully-qualified name of the parent namespace for a specified
+ *	namespace. Handles the following syntax:
+ *
+ *	    namespace parent ?name?
+ *
+ * Results:
+ *	Returns TCL_OK if successful, and TCL_ERROR if anything goes wrong.
+ *
+ * Side effects:
+ *	Returns a result in the interpreter's result object. If anything
+ *	goes wrong, the result is an error message.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+NamespaceParentCmd(dummy, interp, objc, objv)
+    ClientData dummy;		/* Not used. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj *CONST objv[];	/* Argument objects. */
+{
+    Tcl_Namespace *nsPtr;
+    int result;
+
+    if (objc == 2) {
+        nsPtr = Tcl_GetCurrentNamespace(interp);
+    } else if (objc == 3) {
+	result = GetNamespaceFromObj(interp, objv[2], &nsPtr);
+        if (result != TCL_OK) {
+            return result;
+        }
+        if (nsPtr == NULL) {
+            Tcl_AppendStringsToObj(Tcl_GetObjResult(interp),
+                    "unknown namespace \"", Tcl_GetString(objv[2]),
+		    "\" in namespace parent command", (char *) NULL);
+            return TCL_ERROR;
+        }
+    } else {
+        Tcl_WrongNumArgs(interp, 2, objv, "?name?");
+        return TCL_ERROR;
+    }
+
+    /*
+     * Report the parent of the specified namespace.
+     */
+
+    if (nsPtr->parentPtr != NULL) {
+        Tcl_SetStringObj(Tcl_GetObjResult(interp),
+	        nsPtr->parentPtr->fullName, -1);
+    }
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * NamespaceQualifiersCmd --
+ *
+ *	Invoked to implement the "namespace qualifiers" command that returns
+ *	any leading namespace qualifiers in a string. These qualifiers are
+ *	namespace names separated by "::"s. For example, for "::foo::p" this
+ *	command returns "::foo", and for "::" it returns "". This command
+ *	is the complement of the "namespace tail" command. Note that this
+ *	command does not check whether the "namespace" names are, in fact,
+ *	the names of currently defined namespaces. Handles the following
+ *	syntax:
+ *
+ *	    namespace qualifiers string
+ *
+ * Results:
+ *	Returns TCL_OK if successful, and  TCL_ERROR if anything goes wrong.
+ *
+ * Side effects:

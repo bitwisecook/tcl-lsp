@@ -872,48 +872,286 @@ pub(crate) fn object_member_state_at<'a>(
     }
 }
 
-/// Whether the cursor sits on an **external** instance-method call whose
-/// receiver's per-object member state masks the method name:
-/// an `oo::objdefine` unexport of the name, or an unexported per-object
-/// member — either makes `$obj m` answer `unknown method` (tclsh 9.0.4 /
-/// 8.6.14) regardless of what the class chain provides.
-///
-/// The in-document provider already answers a masked call with a definitive
-/// empty result, but an empty result is indistinguishable from "no local
-/// answer" at the server boundary, so the cross-file method tier would
-/// resolve the class's own member right past it — this predicate is the
-/// gate that tier (and the in-document hover) consults.  `false` for `my`
-/// dispatches (internal — the mask is about external visibility) and
-/// whenever the binding has no state or an ambiguous one.
+/// Withhold workspace method fallback for a retained external visibility mask
+/// or an unavailable current source query. Per-object source summaries remain
+/// conditional source advice; they do not establish Native method visibility.
+/// Missing source currency withholds fallback without asserting a hidden method.
 #[must_use]
-pub fn object_masks_external_dispatch(
+pub fn object_dispatch_mask(
     analysis: &AnalysisResult,
     source: &str,
     line: u32,
     character: u32,
+) -> ExternalObjectDispatchMask {
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return ExternalObjectDispatchMask::Unavailable;
+    };
+    let cursor = byte_offset_at(&LineIndex::new(source), source, line, character);
+    let mut mask = ExternalObjectDispatchMask::Clear;
+    crate::executable_regions::visit_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            if !command
+                .argv
+                .get(1)
+                .is_some_and(|word| word.span.start() <= cursor && cursor < word.span.end())
+            {
+                return false;
+            }
+            mask = object_dispatch_mask_at_command(analysis, source, command, &current, cursor);
+            true
+        },
+    );
+    mask
+}
+
+/// Original visibility and conditional source advice stay separate. None of
+/// these outcomes proves method execution or permission to resolve a fallback.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExternalObjectDispatchMask {
+    /// This local source query supplies no visibility mask.
+    Clear,
+    /// A retained original Native receiver entry is not exported.
+    Native,
+    /// Selected per-object source configuration describes a possible mask.
+    ConditionalSource,
+    /// Current source or the mask's required original input is unavailable.
+    Unavailable,
+}
+
+impl ExternalObjectDispatchMask {
+    /// Withhold workspace selection for a mask or an unavailable source query.
+    #[must_use]
+    pub const fn withholds_workspace_fallback(self) -> bool {
+        match self {
+            Self::Clear => false,
+            Self::Native | Self::ConditionalSource | Self::Unavailable => true,
+        }
+    }
+}
+
+fn object_dispatch_mask_at_command(
+    analysis: &AnalysisResult,
+    source: &str,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    current: &crate::original_context::CurrentSourceContext<'_>,
+    cursor: u32,
+) -> ExternalObjectDispatchMask {
+    use tcl_compiler::command_binding::SourceOriginKind;
+    let Some(head) = command.argv.first() else {
+        return ExternalObjectDispatchMask::Unavailable;
+    };
+    let Some(realm) = analysis.retained_command_realm() else {
+        return ExternalObjectDispatchMask::Unavailable;
+    };
+    let binding = realm.invocation_at_source(command.name(), head.span.start());
+    if !matches!(binding.source_origin().map(|origin| origin.kind()),
+        Some(SourceOriginKind::Authored(bytes)) if bytes.as_ref() == source.as_bytes())
+    {
+        return ExternalObjectDispatchMask::Unavailable;
+    }
+    let Some((_, tokens)) = binding.original_recorded_command() else {
+        return ExternalObjectDispatchMask::Unavailable;
+    };
+    let Some(head) = tokens.word_exprs.first() else {
+        return ExternalObjectDispatchMask::Unavailable;
+    };
+    if binding
+        .receiver_self_method_entry(current.registry())
+        .is_some()
+        || original_internal_dispatch(source, analysis, command, tokens, current)
+    {
+        return ExternalObjectDispatchMask::Clear;
+    }
+    let variable_receiver = head.sole_variable_substitution().is_some();
+    let accesses = variable_receiver
+        .then(|| realm.variable_accesses_for_invocation_args(head.source().span.start()));
+    let selected = if let Some(accesses) = &accesses {
+        accesses
+            .iter()
+            .find_map(|access| binding.object_receiver_method_entry(access, head))
+    } else {
+        binding
+            .frozen_object_receiver_method_entry(head)
+            .or_else(|| binding.named_object_receiver_method_entry())
+    };
+    if let Some((class, entry, _)) = selected {
+        if crate::receiver_identity::original_class(analysis, source, class).is_none()
+            || !matches!(entry.declaration().source.kind(), SourceOriginKind::Authored(bytes)
+                if bytes.as_ref() == source.as_bytes())
+        {
+            return ExternalObjectDispatchMask::Unavailable;
+        }
+        return if entry.is_exported() {
+            ExternalObjectDispatchMask::Clear
+        } else {
+            ExternalObjectDispatchMask::Native
+        };
+    }
+    let position = LineIndex::new(source).position_at_utf16(cursor, source);
+    let Some((receiver, method, _)) = instance_method_at_cursor(
+        source,
+        position.line,
+        position.character.get(),
+        current.config(),
+    ) else {
+        return ExternalObjectDispatchMask::Clear;
+    };
+    let Some(state) = object_member_state_at(
+        analysis,
+        source,
+        &receiver,
+        position.line,
+        position.character.get(),
+    ) else {
+        return if analysis.object_member_state.contains_key(&receiver) {
+            ExternalObjectDispatchMask::Unavailable
+        } else {
+            ExternalObjectDispatchMask::Clear
+        };
+    };
+    let same_namespace = analysis
+        .original_namespace_scope_at(cursor)
+        .zip(analysis.original_namespace_scope_at(state.anchor_offset))
+        .is_some_and(|(call, anchor)| call == anchor);
+    if !same_namespace
+        || state.anchor_offset > cursor
+        || state.conditional
+        || !original_object_configuration_anchor(source, analysis, state.anchor_offset, current)
+    {
+        return ExternalObjectDispatchMask::Unavailable;
+    }
+    if state
+        .methods
+        .get(&method)
+        .is_some_and(|method| method.visibility != DeclaredMemberVisibility::Public.as_str())
+        || state.unexports.contains(&method)
+    {
+        ExternalObjectDispatchMask::ConditionalSource
+    } else {
+        ExternalObjectDispatchMask::Clear
+    }
+}
+
+/// The summary's source anchor belongs to a selected per-object configuration.
+/// This authenticates source advice, without identifying a Native receiver.
+fn original_object_configuration_anchor(
+    source: &str,
+    analysis: &AnalysisResult,
+    anchor: u32,
+    current: &crate::original_context::CurrentSourceContext<'_>,
 ) -> bool {
-    let Some((inst, method, _is_dollar)) =
-        instance_method_at_cursor(source, line, character, dialect_config(analysis))
+    use tcl_compiler::registry_invocation::source_structure;
+    let context = current.context();
+    let mut selected = false;
+    crate::executable_regions::visit_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            if !command.argv.iter().any(|word| word.span.start() == anchor) {
+                return false;
+            }
+            let Some(words) = source_structure::source_registry_words(source, analysis, command)
+            else {
+                return false;
+            };
+            selected = words.with_source_schema(&context, |schema| {
+                schema.authored_source_definition_body_grammar().is_some()
+                    && schema.state_transitions().facts().iter().any(|fact| {
+                        let tcl_registry::StateTransition::ObjectDispatch(
+                            tcl_registry::ObjectDispatchTransition::Configure {
+                                target,
+                                layer: tcl_registry::ObjectDispatchLayer::Object,
+                            },
+                        ) = &fact.transition
+                        else {
+                            return false;
+                        };
+                        target
+                            .argument_index()
+                            .and_then(|index| words.original_argument_word(index))
+                            .is_some_and(|word| word.span().start() == anchor)
+                    })
+            }) == Some(true);
+            selected
+        },
+    );
+    selected
+}
+
+/// Conditional internal-dispatch shape from the original selected descriptor.
+/// A variable's reporting name is never interpreted as a command head.
+fn original_internal_dispatch(
+    source: &str,
+    analysis: &AnalysisResult,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    tokens: &tcl_compiler::ir::CommandTokens,
+    current: &crate::original_context::CurrentSourceContext<'_>,
+) -> bool {
+    use tcl_compiler::registry_invocation::source_structure;
+    let context = current.context();
+    if source_structure::source_registry_words(source, analysis, command).and_then(|words| {
+        words.with_source_schema(&context, |schema| {
+            schema
+                .semantics
+                .traits
+                .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
+        })
+    }) == Some(true)
+    {
+        return true;
+    }
+    let Some(original) = tcl_compiler::registry_invocation::original_native_compiler_words(
+        &tcl_lexer::SourceImage::document(source),
+        tokens.words(),
+        command.argv.first().map_or(0, |word| word.span.start()),
+        tokens.native_lexer_config(current.config()),
+    ) else {
+        return false;
+    };
+    let Some(child) = original
+        .first()
+        .and_then(source_structure::original_single_source_command_substitution)
     else {
         return false;
     };
-    if is_self_dispatch_keyword(&inst)
-        || is_self_receiver_call(
-            &inst,
-            tcl_lexer::LexerConfig::for_profile(Some(crate::profile_for_dialect(
-                &analysis.dialect,
-            ))),
-        )
-    {
-        return false;
-    }
-    let Some(st) = object_member_state_at(analysis, source, &inst, line, character) else {
+    let Some(head) = child.command().words.first() else {
         return false;
     };
-    if let Some(md) = st.methods.get(&method) {
-        return md.visibility != DeclaredMemberVisibility::Public.as_str();
+    let Some(words) =
+        source_structure::source_registry_words_at(source, analysis, head.span().start())
+    else {
+        return false;
+    };
+    if words.head_source().and_then(|head| head.word()) != Some(head) {
+        return false;
     }
-    st.unexports.contains(&method)
+    words.with_source_schema(&context, |schema| {
+        let Some(shape) = schema.authored_source_arity() else {
+            return false;
+        };
+        if shape.command.self_receiver_words.is_empty() {
+            return false;
+        }
+        match schema.words.arguments().exact_argv_len() {
+            Some(0) => shape.arity.accepts(0),
+            Some(1) => {
+                shape.arity.accepts(1)
+                    && shape.command.self_receiver_words.iter().any(|word| {
+                        match schema.words.arguments().get(0) {
+                            Some(tcl_registry::InvocationWord::Literal(value)) => value == *word,
+                            Some(tcl_registry::InvocationWord::KnownBytes(value)) => {
+                                value == word.as_bytes()
+                            }
+                            _ => false,
+                        }
+                    })
+            }
+            _ => false,
+        }
+    }) == Some(true)
 }
 
 /// The extent (byte range) of the innermost proc / method body scope that
@@ -1016,55 +1254,6 @@ pub(crate) enum MethodBucket {
     /// provider matching the receiver class itself is always accepted
     /// regardless (it's not "inherited" there, it's the direct owner).
     Class,
-}
-
-/// The `TclOO` method-context keyword `word` is under `dialect`, or `None`.
-///
-/// The crate's single entry to
-/// [`tcl_registry::CommandRegistry::method_dispatch_keyword`], so every
-/// provider asks the registry through one place rather than carrying a
-/// `head == "my"` / `matches!(head, "my" | "next" | "nextto")` literal.
-/// A dialect that gains or loses one of
-/// these keywords propagates through its `CommandSpec`, never through a
-/// walker edit.
-///
-/// `definition` threads `AnalysisResult::dialect` — the dialect the document
-/// was actually analysed under — through its own registry lookups.
-/// The remaining `""` callers are the ones with no analysis in scope;
-/// `""` resolves to the permissive plain-Tcl profile (availability mask
-/// `ALL_TCL`), so every 8.6+ `TclOO` keyword still resolves there.
-pub(crate) fn method_dispatch_keyword_in(
-    dialect: &'static tcl_dialect::DialectProfile,
-    word: &str,
-) -> Option<tcl_registry::MethodDispatchKind> {
-    crate::registry_for_dialect_profile(dialect).method_dispatch_keyword(word)
-}
-
-/// Whether `word` is the `TclOO` self-dispatch keyword (`my`) — the word
-/// after it names a method on the *enclosing* class, reaching non-exported
-/// methods a `$obj` dispatch cannot.
-pub(crate) fn is_self_dispatch_keyword(word: &str) -> bool {
-    method_dispatch_keyword_in(crate::profile_for_dialect(""), word)
-        == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
-}
-
-/// Whether `receiver` (as returned by [`instance_method_at_cursor`]) is a
-/// `TclOO` self-receiver command substitution — `[self]` / `[self
-/// object]` — which dispatches exactly like `my`: the word after it names
-/// a method on the *enclosing* class, not an inferred type.
-///
-/// Registry data via [`tcl_registry::CommandRegistry::is_self_receiver_call`]
-/// (same `""`-dialect convention as [`is_self_dispatch_keyword`]) rather
-/// than matching `receiver` by name — `receiver` is parsed generically as a
-/// command substitution first, so this answers `false` for any receiver
-/// that isn't even bracket-shaped without special-casing that here either.
-pub(crate) fn is_self_receiver_call(receiver: &str, config: tcl_lexer::LexerConfig) -> bool {
-    let Some((cmd, args)) =
-        tcl_compiler::value_shapes::parse_command_substitution_with_config(receiver, config)
-    else {
-        return false;
-    };
-    crate::registry_for_dialect("").is_self_receiver_call(&cmd, args.first().map(String::as_str))
 }
 
 /// Resolve `TclOO` `next` / `nextto` at the cursor to the super-method's
@@ -1274,7 +1463,7 @@ pub(crate) fn instance_method_at_cursor(
         // resolves at compile time regardless of the object's runtime name
         // This function only extracts the receiver text;
         // whether `head` names anything real is answered downstream by the
-        // registry (`is_self_dispatch_keyword` / `is_self_receiver_call`)
+        // original selected descriptor (`original_internal_dispatch`)
         // exactly as for a bareword receiver below — most substitutions
         // resolve to nothing there, which is the correct outcome, not a
         // reason to reject the shape here.
@@ -4166,6 +4355,199 @@ mod tests {
         a.analyse(source, "tcl8.6").clone()
     }
 
+    fn external_mask_at(
+        source: &str,
+        analysis: &AnalysisResult,
+        selector: &str,
+    ) -> ExternalObjectDispatchMask {
+        let cursor = u32::try_from(source.rfind(selector).unwrap()).unwrap();
+        let position = LineIndex::new(source).position_at_utf16(cursor, source);
+        object_dispatch_mask(analysis, source, position.line, position.character.get())
+    }
+
+    #[test]
+    fn original_external_visibility_keeps_variable_and_object_names_separate_from_self_dispatch() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        for (construction, receiver) in [
+            ("C create my", "my"),
+            ("set my [C new]", "$my"),
+            ("C create {[self]}", "{[self]}"),
+        ] {
+            for (method, expected) in [
+                ("Hidden", ExternalObjectDispatchMask::Native),
+                ("visible", ExternalObjectDispatchMask::Clear),
+            ] {
+                let source = format!(
+                    "oo::class create C {{}}; {construction}; oo::objdefine {receiver} {{method {method} {{}} {{}}}}; {receiver} {method}"
+                );
+                let mut analysis = Analyser::new().analyse(&source, "tcl8.6");
+                assert!(
+                    analysis.original_object_configurations().next().is_some(),
+                    "{source}"
+                );
+                analysis.object_member_state.clear();
+                analysis.dialect = "presentation label".into();
+                assert_eq!(
+                    external_mask_at(&source, &analysis, method),
+                    expected,
+                    "{source}"
+                );
+                assert_eq!(expected.withholds_workspace_fallback(), method == "Hidden");
+            }
+        }
+    }
+
+    #[test]
+    fn original_internal_visibility_uses_the_selected_receiver_local_head() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source = "proc my args {return DECOY}; oo::class create C {method Hidden {} {}; method run {} {my Hidden}}; C create obj; obj run";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let offset = u32::try_from(source.find("my Hidden").unwrap()).unwrap();
+        let selected = analysis
+            .retained_command_realm()
+            .unwrap()
+            .invocation_at_source("my", offset);
+        assert!(
+            selected
+                .receiver_self_method_entry(analysis.resolved_registry().unwrap())
+                .is_some()
+        );
+        assert_eq!(
+            external_mask_at(source, &analysis, "Hidden}"),
+            ExternalObjectDispatchMask::Clear
+        );
+        assert!(!external_mask_at(source, &analysis, "Hidden}").withholds_workspace_fallback());
+    }
+
+    #[test]
+    fn original_source_visibility_keeps_full_lexer_input_and_conditional_mask_purpose() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source = "\u{feff}oo::class create C {method m {} {}}; set my [C new]; oo::objdefine $my {unexport m}; $my m";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..tcl_lexer::LexerConfig::for_profile(Some(profile))
+        };
+        let input =
+            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+        let mut analysis = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "presentation label");
+        assert_eq!(analysis.body_lexer_config, Some(config));
+        assert!(
+            analysis
+                .object_member_state
+                .get("my")
+                .is_some_and(|states| { states.iter().any(|state| state.unexports.contains("m")) })
+        );
+        assert!(
+            analysis.original_object_configurations().next().is_none(),
+            "source advice cannot invent a Native allocation"
+        );
+        assert_eq!(
+            external_mask_at(source, &analysis, "m"),
+            ExternalObjectDispatchMask::ConditionalSource
+        );
+        analysis.dialect = "jim".into();
+        assert_eq!(
+            external_mask_at(source, &analysis, "m"),
+            ExternalObjectDispatchMask::ConditionalSource
+        );
+        let other_namespace = "oo::class create C {method m {} {}}; set my [C new]; oo::objdefine $my {unexport m}; namespace eval other {set my [C new]; $my m}";
+        let other = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(other_namespace, "presentation label");
+        assert!(other.object_member_state.contains_key("my"));
+        let mask = external_mask_at(other_namespace, &other, "m}");
+        assert_eq!(mask, ExternalObjectDispatchMask::Unavailable);
+        assert!(mask.withholds_workspace_fallback());
+    }
+
+    #[test]
+    fn original_external_visibility_withholds_populated_unavailable_stale_and_foreign_input() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source = "oo::class create C {}; C create obj; oo::objdefine obj {method visible {} {return VISIBLE}}; obj visible";
+        let baseline = Analyser::new().analyse(source, "tcl8.6");
+        assert!(baseline.original_object_configurations().next().is_some());
+        assert_eq!(
+            external_mask_at(source, &baseline, "visible"),
+            ExternalObjectDispatchMask::Clear
+        );
+        let input = baseline.resolved_input.as_ref().unwrap();
+        let older =
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry();
+        let older_same_store = std::sync::Arc::new(
+            older.with_command_store(
+                input
+                    .context_registry()
+                    .commands()
+                    .snapshot()
+                    .shared_registry(),
+            ),
+        );
+        for unavailable in [
+            {
+                let mut next = baseline.clone();
+                next.resolved_input = None;
+                next
+            },
+            {
+                let mut next = baseline.clone();
+                next.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+                    environment: "tcl8.6".into(),
+                    overlay: 999,
+                });
+                next
+            },
+            {
+                let mut next = baseline.clone();
+                next.body_lexer_config.as_mut().unwrap().strict_quoting =
+                    !input.lexer_config().strict_quoting;
+                next
+            },
+            {
+                let mut next = baseline.clone();
+                next.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    input.analyser_profile(),
+                    input.unit_profile(),
+                    older_same_store,
+                    input.lexer_config(),
+                ));
+                next
+            },
+            {
+                let mut next = baseline.clone();
+                next.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    input.analyser_profile(),
+                    input.unit_profile(),
+                    older,
+                    input.lexer_config(),
+                ));
+                next
+            },
+        ] {
+            assert!(
+                unavailable
+                    .original_object_configurations()
+                    .next()
+                    .is_some()
+            );
+            let mask = external_mask_at(source, &unavailable, "visible");
+            assert_eq!(mask, ExternalObjectDispatchMask::Unavailable);
+            assert!(mask.withholds_workspace_fallback());
+        }
+        let changed = source.replace("return VISIBLE", "return CHANGED");
+        let mask = external_mask_at(&changed, &baseline, "visible");
+        assert_eq!(mask, ExternalObjectDispatchMask::Unavailable);
+        assert!(mask.withholds_workspace_fallback());
+    }
+
     #[test]
     fn original_declaration_advice_cannot_choose_between_redefinitions() {
         // Implementation contract: naming.consumer.original-declaration-advice-ambiguity
@@ -7045,8 +7427,7 @@ c\uD800";
         // `[x] bark` — a command-substitution head is not a bare object
         // command, but this function only extracts the receiver text;
         // whether `[x]` names anything a caller can resolve is a semantic
-        // question answered downstream (`is_self_dispatch_keyword` /
-        // `is_self_receiver_call`), not here. Rejecting every bracketed head
+        // question answered downstream by the original selected descriptor, not here. Rejecting every bracketed head
         // outright would also reject `[self]` / `[self object]`, TclOO's own
         // same-object dispatch spelling.
         let src = "[x] bark\n";
@@ -7060,7 +7441,7 @@ c\uD800";
     fn instance_method_at_cursor_extracts_a_self_receiver_head_with_brackets_intact() {
         // `[self] m`. The brackets must survive
         // extraction: `parse_command_substitution` (and so
-        // `is_self_receiver_call`) requires them.
+        // `original_internal_dispatch`) requires them.
         let src = "[self] mrun\n";
         assert_eq!(
             instance_method_at_cursor(src, 0, 8, tcl_lexer::LexerConfig::default()),

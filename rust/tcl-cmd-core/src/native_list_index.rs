@@ -251,7 +251,9 @@ fn convert_spelling<O: NativeListIndexOps>(
                 O::index_install_offset(original, offset)?;
                 return Ok(Some(offset.resolve(end)));
             }
-            Err(error) if report || error.native_access_refusal().is_some() => return Err(error),
+            Err(error) if report || error.native_execution_refusal().is_some() => {
+                return Err(error);
+            }
             Err(_) => return Ok(None),
         }
     }

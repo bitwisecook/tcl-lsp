@@ -2819,7 +2819,7 @@ mod tests {
             Err(OriginalAuthoredProgramSourceDecline::SourceOwnerUnavailable)
         );
         let mut missing_point = module.clone();
-        missing_point.top_level.command_binding_sites.clear();
+        missing_point.top_level.command_binding_sites = Default::default();
         for statement in &mut missing_point.top_level.statements {
             if let Statement::AssignValue { tokens, .. } | Statement::Call { tokens, .. } =
                 statement

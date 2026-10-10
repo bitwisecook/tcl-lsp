@@ -51,6 +51,7 @@ use tcl_dialect::{
     ByteStringEncoding, DialectProfile, LexerGrammar, NumberSyntax, StringCharacterModel,
     TclVersion,
 };
+use tcl_runtime_api::NativeExecutionError;
 use tcl_syntax::number::{Number, ParseFlags, format_double, parse_whole_with};
 use tcl_syntax::raw_string::{NativeValueAccessRefusal, UnicodeAccessError};
 use tcl_syntax::value::{DictPairs, ValueError, ValueOps, canonical_dict_slots};
@@ -726,7 +727,7 @@ impl<'ctx> ConstOps<'ctx> {
     pub fn decline(&mut self, error: &CmdError) -> DeclineReason {
         match error.message() {
             Ok(message) => self.decline_raising(Raised::parse_failure(&self.target, message)),
-            Err(refusal) => self.decline_access(refusal),
+            Err(refusal) => self.decline_execution(refusal),
         }
     }
 
@@ -747,6 +748,22 @@ impl<'ctx> ConstOps<'ctx> {
                     |message| Raised::parse_failure(&self.target, message),
                 );
                 self.decline_raising(raised)
+            }
+        }
+    }
+
+    /// Classify an operational decline by its typed owner, without inspecting
+    /// its diagnostic. The caller retains the borrowed command's full cause;
+    /// an analysis decline never manufactures a guest completion.
+    fn decline_execution(&mut self, refusal: NativeExecutionError) -> DeclineReason {
+        match refusal {
+            NativeExecutionError::ValueAccessRefusal(refusal) => self.decline_access(refusal),
+            NativeExecutionError::CompilationAdmission(_)
+            | NativeExecutionError::CompileServiceRefusal(_)
+            | NativeExecutionError::ExpressionRefusal(_)
+            | NativeExecutionError::HostCommandRefusal(_) => {
+                self.poison(DeclineReason::Unsupported);
+                self.fault.expect("recorded operational refusal")
             }
         }
     }
@@ -1428,6 +1445,50 @@ mod tests {
         assert_eq!(ops.decline_value(&bad), DeclineReason::WrongRepresentation);
         let _ = ops.as_int(&ConstValue::text("5"));
         assert_eq!(ops.raised(), None, "the run's fault wins");
+    }
+
+    #[test]
+    fn typed_host_decline_preserves_original_cause_and_first_fault_without_guest_raise() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Software constant-analysis adapter; no original-provider observation.
+        let profile = DialectProfile::find("tcl8.6").unwrap();
+        let cause = NativeExecutionError::HostCommandRefusal(Box::new(
+            tcl_runtime_api::NativeHostCommandRefusal {
+                reason: "unmatched open quote in list".to_owned(),
+                source_profile: profile.cache_key(),
+                native_profile: profile.cache_key(),
+                interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity {
+                    owner:
+                        tcl_runtime_api::native_compilation::NativeInterpreterIdentity::fresh_owner(
+                        ),
+                    interpreter: 11,
+                },
+                frame: 3,
+                namespace: "::original".into(),
+                namespace_token: 17,
+            },
+        ));
+        let original = CmdError::from_execution_refusal(cause.clone());
+        let mut budget = Budget::evaluation();
+        let mut ops = admit(Some("tcl8.6"), &mut budget, Needs::NONE);
+        assert_eq!(ops.decline(&original), DeclineReason::Unsupported);
+        assert_eq!(ops.raised(), None);
+        assert_eq!(original.native_execution_refusal(), Some(&cause));
+
+        let later = CmdError::from(NativeValueAccessRefusal::Unicode(UnicodeAccessError {
+            valid_up_to: 0,
+            error_len: Some(1),
+        }));
+        assert_eq!(ops.decline(&later), DeclineReason::Unsupported);
+        assert_eq!(ops.fault(), Some(DeclineReason::Unsupported));
+        assert_eq!(ops.raised(), None);
+        assert_eq!(original.native_execution_refusal(), Some(&cause));
+
+        let mut budget = Budget::evaluation();
+        let mut fresh = admit(Some("tcl8.6"), &mut budget, Needs::NONE);
+        assert_eq!(fresh.decline(&later), DeclineReason::NotText);
+        assert_eq!(fresh.raised(), None);
     }
 
     /// The error every release the target names agrees on, field by field:

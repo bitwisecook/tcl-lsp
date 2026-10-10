@@ -86,6 +86,25 @@ pub struct NativeObjectLengthProtocol {
 }
 
 impl NativeObjectLengthProtocol {
+    /// Compose the length recipe from an already selected object materialization
+    /// descriptor, retaining its explicit authored simulation origin. This pure
+    /// projection selects no engine, original header, entry or normal execution.
+    #[must_use]
+    pub const fn from_materialization(
+        recipe: crate::native_string_materialization::NativeStringMaterialization,
+    ) -> Self {
+        let logical = match recipe.logical_provider() {
+            Some(
+                crate::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+            ) => Some(LogicalListLengthProvider::Tcl84CoreSimulation),
+            None => None,
+        };
+        Self {
+            engine: recipe.protocol(),
+            logical,
+        }
+    }
+
     /// Retained logical origin, which grants no actual native object proof.
     #[must_use]
     pub const fn logical_provider(self) -> Option<LogicalListLengthProvider> {

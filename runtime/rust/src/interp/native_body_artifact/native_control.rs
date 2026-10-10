@@ -326,7 +326,9 @@ impl Builder<'_> {
                         Ok(index)
                     }
                     Err(error) => {
-                        if error.native_access_refusal.is_some() {
+                        if error.native_access_refusal.is_some()
+                            || error.native_execution_refusal.is_some()
+                        {
                             return Err(unavailable("native constant expression execution"));
                         }
                         let message = self.expression_syntax_message(&error.msg);
@@ -594,7 +596,10 @@ struct CompiledExpressionContext<'a> {
 impl CompiledExpressionContext<'_> {
     fn error(&mut self, code: Code) -> crate::expr_error::ExprError {
         self.propagated = Some(code);
-        crate::expr_error::ExprError::from_bytes(Vec::new())
+        match self.interp.native_execution_refusal() {
+            Some(error) => crate::expr_error::ExprError::from_execution_refusal(error),
+            None => crate::expr_error::ExprError::from_bytes(Vec::new()),
+        }
     }
 }
 impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
@@ -1166,14 +1171,21 @@ impl Interp {
                 // SAFETY: PUSH_RESULT transfers the interpreter's existing
                 // reference to the protected result on the evaluation stack.
                 let original_result = unsafe { obj::Owned::from_raw(original_result) };
-                let original_options = options
-                    .as_ref()
-                    .map(|_| obj::Owned::fresh(crate::cmd_error::completion_options(self, code)));
+                let original_options = if options.is_some() {
+                    let options = crate::cmd_error::completion_options(self, code)
+                        .map_err(|error| self.refuse_native_execution(error))?;
+                    Some(obj::Owned::fresh(options))
+                } else {
+                    None
+                };
                 if protocol.resets_result_before_stores() {
                     // END_CATCH reaches Tcl_ResetResult after the original
                     // result/options have been captured, before either store.
                     // Its real global writes can invoke guest trace callbacks.
                     self.publish_and_reset_error();
+                    if self.host_refusal_pending() {
+                        return Err(Code::Error);
+                    }
                     self.set_return_state(1, Code::Ok);
                 }
                 self.clear_return_options();

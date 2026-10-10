@@ -1,0 +1,138 @@
+ *	ensemble commands as well.
+ *
+ * Results:
+ *	Boolean value
+ *
+ * Side effects:
+ *	None
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tcl_IsEnsemble(
+    Tcl_Command token)
+{
+    Command *cmdPtr = (Command *) token;
+    if (cmdPtr->objProc == NsEnsembleImplementationCmd) {
+	return 1;
+    }
+    cmdPtr = (Command *) TclGetOriginalCommand((Tcl_Command) cmdPtr);
+    if (cmdPtr == NULL || cmdPtr->objProc != NsEnsembleImplementationCmd) {
+	return 0;
+    }
+    return 1;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclMakeEnsemble --
+ *
+ *	Create an ensemble from a table of implementation commands. The
+ *	ensemble will be subject to (limited) compilation if any of the
+ *	implementation commands are compilable.
+ *
+ * Results:
+ *	Handle for the ensemble, or NULL if creation of it fails.
+ *
+ * Side effects:
+ *	May advance bytecode compilation epoch.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Tcl_Command
+TclMakeEnsemble(
+    Tcl_Interp *interp,
+    const char *name,
+    const EnsembleImplMap map[])
+{
+    Tcl_Command ensemble;	/* The overall ensemble. */
+    Tcl_Namespace *tclNsPtr;	/* Reference to the "::tcl" namespace. */
+    Tcl_DString buf;
+
+    tclNsPtr = Tcl_FindNamespace(interp, "::tcl", NULL,
+	    TCL_CREATE_NS_IF_UNKNOWN);
+    if (tclNsPtr == NULL) {
+	Tcl_Panic("unable to find or create ::tcl namespace!");
+    }
+    Tcl_DStringInit(&buf);
+    Tcl_DStringAppend(&buf, "::tcl::", -1);
+    Tcl_DStringAppend(&buf, name, -1);
+    tclNsPtr = Tcl_FindNamespace(interp, Tcl_DStringValue(&buf), NULL,
+	    TCL_CREATE_NS_IF_UNKNOWN);
+    if (tclNsPtr == NULL) {
+	Tcl_Panic("unable to find or create %s namespace!",
+		Tcl_DStringValue(&buf));
+    }
+    ensemble = Tcl_CreateEnsemble(interp, Tcl_DStringValue(&buf)+5, tclNsPtr,
+	    TCL_ENSEMBLE_PREFIX);
+    Tcl_DStringAppend(&buf, "::", -1);
+    if (ensemble != NULL) {
+	Tcl_Obj *mapDict;
+	int i, compile = 0;
+
+	TclNewObj(mapDict);
+	for (i=0 ; map[i].name != NULL ; i++) {
+	    Tcl_Obj *fromObj, *toObj;
+	    Command *cmdPtr;
+
+	    fromObj = Tcl_NewStringObj(map[i].name, -1);
+	    TclNewStringObj(toObj, Tcl_DStringValue(&buf),
+		    Tcl_DStringLength(&buf));
+	    Tcl_AppendToObj(toObj, map[i].name, -1);
+	    Tcl_DictObjPut(NULL, mapDict, fromObj, toObj);
+	    cmdPtr = (Command *) Tcl_CreateObjCommand(interp,
+		    TclGetString(toObj), map[i].proc, NULL, NULL);
+	    cmdPtr->compileProc = map[i].compileProc;
+	    compile |= (map[i].compileProc != NULL);
+	}
+	Tcl_SetEnsembleMappingDict(interp, ensemble, mapDict);
+	if (compile) {
+	    Tcl_SetEnsembleFlags(interp, ensemble,
+		    TCL_ENSEMBLE_PREFIX | ENSEMBLE_COMPILE);
+	}
+    }
+    Tcl_DStringFree(&buf);
+
+    return ensemble;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * NsEnsembleImplementationCmd --
+ *
+ *	Implements an ensemble of commands (being those exported by a
+ *	namespace other than the global namespace) as a command with the same
+ *	(short) name as the namespace in the parent namespace.
+ *
+ * Results:
+ *	A standard Tcl result code. Will be TCL_ERROR if the command is not an
+ *	unambiguous prefix of any command exported by the ensemble's
+ *	namespace.
+ *
+ * Side effects:
+ *	Depends on the command within the namespace that gets executed. If the
+ *	ensemble itself returns TCL_ERROR, a descriptive error message will be
+ *	placed in the interpreter's result.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+NsEnsembleImplementationCmd(
+    ClientData clientData,
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const objv[])
+{
+    EnsembleConfig *ensemblePtr = clientData;
+				/* The ensemble itself. */
+    Tcl_Obj **tempObjv;		/* Space used to construct the list of
+				 * arguments to pass to the command that
+				 * implements the ensemble subcommand. */
+    int result;			/* The result of the subcommand execution. */
+    Tcl_Obj *prefixObj;		/* An object containing the prefix words of
+				 * the command that implements the

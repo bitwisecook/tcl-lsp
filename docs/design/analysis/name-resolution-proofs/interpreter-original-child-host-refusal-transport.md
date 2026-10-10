@@ -18,6 +18,8 @@ The Runtime embedding adapter shares this host-only boundary. Its typed host ref
 
 The central CmdCore refusal adapter preserves the first original typed ValueAccessRefusal independently of later failures. Its software control neither enters a child nor supplies Native command/value-operation availability; the original child-host public observation remains a separate measured scope.
 
+The linked Wasm adapter control keeps an explicit host ExecutionRefusal outside guest catch and retains earlier guest effects. It observes the actual embedding API only when its required Wasm fixture is available; a skipped fixture supplies no executed outcome.
+
 ## Scope
 
 One fixed Runtime source/API control uses an explicit authored host worker in a created model child, with and without an existing parent refusal. It compares the actual retained typed cause in both states and unchanged parent result. All seven native providers are not tested; no external process or native object/header/frame observation answers this API question.
@@ -25,6 +27,8 @@ One fixed Runtime source/API control uses an explicit authored host worker in a 
 One additional embedding software control binds this typed-host boundary and prior-parent precedence; it does not execute a native child or assert C/Jim guest exception equivalence. Exact counted result/resident facts are authored Rust inputs, not independently produced Native object observations.
 
 One additional adapter-only current software control has no executed assertion receipt. Exact typed first-cause preservation does not issue child execution, Native invocation/frame or external provider identity.
+
+This secondary source binding does not measure original child-interpreter creation, argv, callback or C/Jim frame behaviour and supplies no Native equivalence. Original provider answers remain tied to their existing captures; the independent embedding transport contract describes this software adapter. No assertion outcome is attached.
 
 ## Provider answers
 
@@ -98,6 +102,11 @@ These source/API bindings carry no executed assertion or Native provider result.
 - [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `command::tests::original_command_core_refusal_keeps_typed_first_host_cause` (linked): The shared CmdCore error adapter retains the first actual typed ValueAccessRefusal when a later distinct refusal is reported; it does not enter a child or establish native command/value availability.
 
 These bindings are current software contracts without an executed assertion or external provider result.
+
+- [rust/tcl-engine-wasm/tests/under_wasm.rs](../../../../rust/tcl-engine-wasm/tests/under_wasm.rs), `RefusingHost::invoke`: Supply an explicit host contract refusal to the Wasm adapter independently of Tcl guest error/completion metadata or child-interpreter creation.
+- [rust/tcl-engine-wasm/tests/under_wasm.rs](../../../../rust/tcl-engine-wasm/tests/under_wasm.rs), `host_refusal_bypasses_guest_catch_and_keeps_prior_effects` (linked): The actual Wasm host adapter ExecutionRefusal bypasses guest catch and preserves a prior guest store; the following store is absent. Requires the Wasm build/toolchain; early unavailable return is not an executed pass. This is an adapter software control, not an original child-interpreter observation.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

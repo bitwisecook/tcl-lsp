@@ -565,7 +565,15 @@ remain the runtime's typed first cause, outside Tcl completion and `catch`.
 The host queries `tcl_engine_host_refusal_pending` immediately after an invocation
 and before reading completion output or calling a guest object getter. A host
 refusal leaves that output untouched. Its optional text export is presentation;
-consumers do not reparse it into semantic state. `tcl_engine_begin` clears the
+consumers do not reparse it into semantic state.
+`tcl_engine_error_code` returns one owned object with the exact guest error-code
+bytes. An absent implicit code is `NONE`; an explicitly empty code is empty.
+An actual getter failure returns null and retains the first typed host cause.
+The caller settles `tcl_engine_host_refusal_pending` immediately after this
+getter before accessing or releasing a returned object. Catch, try, events,
+expression and binary helpers use the same fallible completion metadata owner;
+a host refusal supplies no fresh empty guest code or options dictionary.
+`tcl_engine_begin` clears the
 previous entry's admission state only at an independent public engine entry
 (installation, removal, compilation or invocation), never inside a callback,
 replay step or materialiser. Earlier guest effects remain available to a fresh

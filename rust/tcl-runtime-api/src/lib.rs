@@ -210,6 +210,8 @@ pub struct ArrayTarget {
 /// contract prevents the shared command core from guessing storage identity.
 #[derive(Debug, Clone)]
 pub enum ArrayElementRead<V> {
+    /// Actual first host cause; no guest trace/missing-element semantics apply.
+    HostRefusal(NativeExecutionError),
     /// The selected element still has a value after its read traces. Pointer
     /// runtimes return this with one transient ownership hold already acquired;
     /// the shared command core releases it after list materialisation.

@@ -271,15 +271,20 @@ pub unsafe extern "C" fn tcl_engine_provide_package(
     }
 }
 
-/// `tcl_engine_error_code(interp) -> object` — the error code of the error the
-/// interpreter holds (`NONE` when nothing stated one).
+/// Return an owned byte-exact error-code object: implicit absence is `NONE`,
+/// while an explicitly empty code remains empty. A getter or existing Host
+/// refusal returns null and retains the interpreter's first typed cause.
 ///
 /// # Safety
-/// `interp` must be live.
+/// `interp` must be live. A null result must be settled through the Host channel
+/// before accessing an object; otherwise the caller releases the returned hold.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_engine_error_code(interp: *mut Interp) -> *mut TclObj {
     // SAFETY: caller guarantees a live interpreter.
-    let code = unsafe { (*interp).error_code() };
+    let code = match unsafe { (*interp).error_code_bytes_checked() } {
+        Ok(code) => code,
+        Err(_) => return core::ptr::null_mut(),
+    };
     let object = new_string(&code);
     // SAFETY: a fresh object; the hold is the caller's.
     unsafe { incr_ref_count(object) };

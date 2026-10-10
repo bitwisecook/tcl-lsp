@@ -406,6 +406,7 @@ pub(crate) fn completion<C: AsContextMut<Data = HostState>>(
         let options = string_bytes(context, exports, interp, options)?;
         let error_code = if code == 1 {
             let original = call(context, &exports.error_code, interp)?;
+            settle(context, exports, interp)?;
             let bytes = string_bytes(context, exports, interp, original);
             call(context, &exports.release, original)?;
             Some(bytes?)

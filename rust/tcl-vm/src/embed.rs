@@ -570,6 +570,37 @@ impl Vm {
         result.map_err(TclError::from_completion)
     }
 
+    /// Read an exact completion option through this interpreter's shared
+    /// Dictionary/List owner and checked original byte getter. Absence is `None`;
+    /// an explicitly empty value is `Some(Vec::new())`. Original key/value
+    /// headers are retained, and no diagnostic supplies option identity.
+    /// This lookup remains in the current entry and does not reset a refusal.
+    ///
+    /// # Errors
+    /// Returns the first retained Host cause before or after a reached getter,
+    /// or the checked option owner's genuine guest conversion failure.
+    pub fn completion_option_bytes_checked(
+        &mut self,
+        completion: &Completion<Value>,
+        key: &[u8],
+    ) -> Result<Option<Vec<u8>>, TclError> {
+        let value = opt_get_checked(self, &completion.options, key)?;
+        if let Some(cause) = self.execution_refusal.clone() {
+            return Err(TclError::from_execution_failure(cause));
+        }
+        let bytes = value
+            .map(|value| {
+                tcl_syntax::value::ValueOps::native_string_bytes(self, &value)
+                    .map(|bytes| bytes.to_vec())
+                    .map_err(|error| crate::command::completion_option_failure(self, error))
+            })
+            .transpose()?;
+        if let Some(cause) = self.execution_refusal.clone() {
+            return Err(TclError::from_execution_failure(cause));
+        }
+        Ok(bytes)
+    }
+
     /// Publish `$errorInfo` and `$errorCode` for `completion`, an error a host
     /// command took as its own: one that evaluated a script and swallowed its
     /// failure leaves them as a `catch` of the script would have, so what the
@@ -777,6 +808,124 @@ impl Vm {
 #[cfg(test)]
 mod embedding_settlement_tests {
     use super::*;
+
+    #[test]
+    fn public_completion_option_bytes_retains_opaque_empty_and_absent_members() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Software API control: these constructed carriers do not establish an
+        // original C Tcl/Jim physical-object or completion observation.
+        let mut vm = crate::native_fixture::interpreter(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
+        );
+        let key = Value::new_native_string_bytes(b"-opaque\0\xff".as_slice());
+        let value = Value::new_native_string_bytes(b"VALUE\0\xfe".as_slice());
+        let empty = Value::new_native_string_bytes(b"".as_slice());
+        let pairs = vec![
+            (key.clone(), value.clone()),
+            (Value::new_native_string_bytes(b"-empty".as_slice()), empty),
+        ];
+        let list = Value::list(
+            pairs
+                .iter()
+                .flat_map(|(key, value)| [key.clone(), value.clone()])
+                .collect(),
+        );
+        let dictionary = tcl_syntax::value::ValueOps::new_dict_checked(&mut vm, pairs).unwrap();
+        for options in [list, dictionary] {
+            let identity = options.native_object_identity();
+            let was_dictionary = options.cached_dictionary_bucket_count();
+            let completion = Completion::new(Code::Error, Value::int(17), options);
+            assert_eq!(
+                vm.completion_option_bytes_checked(&completion, b"-opaque\0\xff")
+                    .unwrap(),
+                Some(b"VALUE\0\xfe".to_vec())
+            );
+            assert_eq!(
+                vm.completion_option_bytes_checked(&completion, b"-opaque")
+                    .unwrap(),
+                None
+            );
+            assert_eq!(
+                vm.completion_option_bytes_checked(&completion, b"-empty")
+                    .unwrap(),
+                Some(Vec::new())
+            );
+            assert_eq!(
+                vm.completion_option_bytes_checked(&completion, b"-absent")
+                    .unwrap(),
+                None
+            );
+            assert_eq!(completion.options.native_object_identity(), identity);
+            assert_eq!(
+                completion.options.cached_dictionary_bucket_count(),
+                was_dictionary
+            );
+            assert!(completion.options.resident_string_bytes().is_none());
+            assert!(completion.result.resident_string_bytes().is_none());
+            if was_dictionary.is_some() {
+                completion
+                    .options
+                    .with_cached_dictionary_representation(|pairs, _| {
+                        assert!(pairs.iter().any(|(original_key, original_value)| {
+                            original_key.is_same_object(&key)
+                                && original_value.is_same_object(&value)
+                        }));
+                    })
+                    .unwrap();
+                assert!(completion.options.cached_list_representation().is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn public_completion_option_bytes_preserves_first_host_before_any_getter() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // The retained refusal is a software owner control, not a measured
+        // original-provider failure or a claim that a getter was reached.
+        let mut vm = crate::native_fixture::interpreter(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
+        );
+        vm.set_var("before", Value::string("RETAINED")).unwrap();
+        let key = Value::int(41);
+        let value = Value::int(42);
+        let completion = Completion::new(
+            Code::Error,
+            Value::int(17),
+            Value::list(vec![key.clone(), value.clone()]),
+        );
+        let cause = tcl_syntax::raw_string::NativeValueAccessRefusal::ExpressionEngineUnavailable;
+        vm.refuse_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(cause));
+        for wanted in [b"41".as_slice(), b"ABSENT".as_slice()] {
+            let error = vm
+                .completion_option_bytes_checked(&completion, wanted)
+                .unwrap_err();
+            assert!(matches!(error,
+                TclError::Host(crate::error::TclHostFailure::Execution(
+                    tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(original)
+                )) if original == cause
+            ));
+            assert!(key.resident_string_bytes().is_none());
+            assert!(value.resident_string_bytes().is_none());
+            assert!(completion.options.resident_string_bytes().is_none());
+            assert!(completion.result.resident_string_bytes().is_none());
+            assert_eq!(
+                vm.execution_refusal,
+                Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    cause
+                ))
+            );
+        }
+        assert_eq!(
+            vm.get_var("before")
+                .unwrap()
+                .resident_string_bytes()
+                .unwrap()
+                .as_ref(),
+            b"RETAINED"
+        );
+    }
 
     #[test]
     fn embedding_settlement_retains_complete_original_guest_result_and_options() {

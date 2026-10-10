@@ -506,11 +506,7 @@ impl VarStore for Interp {
                 tcl_runtime_api::ArrayReadMiss::missing(),
             ));
         }
-        let result = self.array_read_elem_at_target(target, key);
-        if let Some(refusal) = self.native_access_refusal() {
-            return Err(refusal.into());
-        }
-        Ok(result)
+        Ok(self.array_read_elem_at_target(target, key))
     }
 
     fn unset_elem_bytes_at(
@@ -824,15 +820,15 @@ pub(crate) fn capture_completion(
         // Transport only: callers inspect the retained host channel before publication.
         return Completion::new(api_code(code), core::ptr::null_mut(), core::ptr::null_mut());
     }
-    let result = interp.result_obj();
-    let options = crate::cmd_error::completion_options(interp, code);
-    // SAFETY: `result` is interp-owned and `options` is fresh. Give the
-    // completion one owned reference to each; the caller adopts both.
-    unsafe {
-        obj::incr_ref_count(result);
-        obj::incr_ref_count(options);
-    }
-    Completion::new(api_code(code), result, options)
+    let result = obj::Owned::retain(interp.result_obj());
+    let options = match crate::cmd_error::completion_options(interp, code) {
+        Ok(options) => obj::Owned::fresh(options),
+        Err(error) => {
+            interp.refuse_native_execution(error);
+            return Completion::new(api_code(code), core::ptr::null_mut(), core::ptr::null_mut());
+        }
+    };
+    Completion::new(api_code(code), result.into_raw(), options.into_raw())
 }
 
 /// Run a full, prebuilt command argv through the inherent dispatcher, then

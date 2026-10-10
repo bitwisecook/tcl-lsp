@@ -111,7 +111,7 @@
 //! # No command names here
 //!
 //! Every command-level fact this module uses comes from the registry: the
-//! self-dispatch keyword ([`crate::definition::method_dispatch_keyword_in`]),
+//! self-dispatch keyword ([`tcl_registry::Traits::TCLOO_SELF_DISPATCH`]),
 //! the definition-body member grammar (`definition_body` /
 //! [`tcl_registry::MemberRefKind`]), the same-frame and frame-shifted body
 //! roles ([`crate::references::nested_dispatch_regions`]), and the
@@ -1231,7 +1231,7 @@ mod tests {
 
     /// FP guard: the same, through the registry's own self-dispatch keyword
     /// inside the class's own bodies (`my $m`) — recognised via
-    /// [`crate::definition::method_dispatch_keyword_in`], never a literal
+    /// [`tcl_registry::Traits::TCLOO_SELF_DISPATCH`], never a literal
     /// `== "my"`.
     #[test]
     fn fp_refuses_a_computed_member_name_dispatched_through_my() {

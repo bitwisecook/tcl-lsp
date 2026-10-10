@@ -104,7 +104,7 @@ pub fn merge<O: NativeReturnMergeObjects>(
             loop {
                 let pairs = match ops.dictionary_pairs(&nested) {
                     Ok(pairs) => pairs,
-                    Err(error) if error.native_access_refusal().is_some() => return Err(error),
+                    Err(error) if error.native_execution_refusal().is_some() => return Err(error),
                     Err(_) => return Err(invalid_options(ops, protocol, &nested)?),
                 };
                 for (key, value) in pairs {
@@ -119,7 +119,7 @@ pub fn merge<O: NativeReturnMergeObjects>(
         } else {
             let elements = match ops.list(&value) {
                 Ok(elements) if elements.len().is_multiple_of(2) => elements,
-                Err(error) if error.native_access_refusal().is_some() => return Err(error),
+                Err(error) if error.native_execution_refusal().is_some() => return Err(error),
                 _ => return Err(invalid_options(ops, protocol, &value)?),
             };
             pending.extend(
@@ -175,7 +175,7 @@ pub fn merge_stack<O: NativeReturnMergeObjects>(
 ) -> Result<MergedNativeReturnOptions<O::Value>, CmdError> {
     let elements = match ops.list(original) {
         Ok(elements) if elements.len().is_multiple_of(2) => elements,
-        Err(error) if error.native_access_refusal().is_some() => return Err(error),
+        Err(error) if error.native_execution_refusal().is_some() => return Err(error),
         _ => {
             let bytes = ops.bytes(original)?;
             let bytes = &bytes[..bytes

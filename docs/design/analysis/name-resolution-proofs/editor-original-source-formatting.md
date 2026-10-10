@@ -18,6 +18,8 @@ Whole-document and range formatting accept the actual AnalysisResult through a s
 
 Actual-analysis formatting retains the supplied complete realm/input/config, SourceAnalysisEntry and provider coverage without reanalysis. A Document-only checked newline projection joins complete presentation words to the genuine original source vector before schema queries. SourceSyntaxStructure retains its already-issued definition-member vocabulary and original whole words/body regions; that parent purpose precedes same-spelling global commands. Known replacement, unknown lookup and provider incompleteness remain distinct. LF/CRLF/lone-CR client ending and range coordinates remain independently selected.
 
+Formatter newline presentation consumes the shared Document line-ending owner, with already-LF input retained as a borrowed view. A failed complete projection preserves the original text; the derived presentation cannot replace the actual analysis source/input or selected parent-member receipt.
+
 ## Scope
 
 Current formatting source-role and argument-presentation consumers, exact source case/list layout, captured operand geometry and separate literal-expression bracing. Fixed tests assert a retained alias prefix cannot widen written operands, a real custom handler keeps its argument as data, actual for-body presentation remains selected, and static bracing differs from dynamic/shadowed inputs. Seven native providers are not tested for this Rust implementation contract; no executed formatter receipt is attached.
@@ -25,6 +27,8 @@ Current formatting source-role and argument-presentation consumers, exact source
 These two linked formatting controls are current source geometry and ownership definitions without attached assertion outcomes. Original CRLF evaluation channels, Native execution equivalence and independent expression rewrite admission remain separate questions.
 
 These five linked software controls cover actual owner retention and original source geometry, not Native execution or rewrite equivalence. Standalone formatting retains its explicit separate input contract; lexical budget refusal occurs before layout capture. Presentation offsets grant no original value, descriptor, command table, body/frame entry, Normal or edit admission. No assertion outcome or original-provider result is attached to these bindings.
+
+This owner-only refinement changes no linked assertion or provider answer. LF/CRLF/lone-CR Document presentation supplies no Native run-time string, command word, body entry, source rewrite equivalence or original value authority.
 
 ## Provider answers
 
@@ -110,6 +114,10 @@ No assertion outcome is attached to these source bindings; software outcomes ret
 - [rust/tcl-lsp-core/src/formatting/mod.rs](../../../../rust/tcl-lsp-core/src/formatting/mod.rs), `formatting::tests::analysed_formatting_keeps_replaced_unknown_and_provider_barrier_purposes_separate` (linked): Known replaced or unknown command heads cannot donate script-body indentation, while authentic selected syntax remains independent of the has_dynamic_providers coverage flag.
 - [rust/tcl-lsp-core/src/formatting/mod.rs](../../../../rust/tcl-lsp-core/src/formatting/mod.rs), `formatting::tests::analysed_formatting_retains_selected_definition_parent_body_geometry` (linked): LF/CRLF/lone-CR member body formatting uses the genuine already-selected definition parent vocabulary and original complete body regions, preserving independent client ending/edit coordinates.
 - [rust/tcl-lsp-core/src/formatting/mod.rs](../../../../rust/tcl-lsp-core/src/formatting/mod.rs), `formatting::tests::analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias` (linked): A genuine declaration-member method keeps its selected original argv/body vocabulary ahead of a same-spelling global alias; the same text in an ordinary procedure body supplies no definition-member receipt.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-lsp-core/src/formatting/mod.rs](../../../../rust/tcl-lsp-core/src/formatting/mod.rs), `normalise_document_line_endings`: Use the shared DocumentLineEndingProjection for formatter LF presentation while keeping already-LF input borrowed; inability to represent a complete checked extent preserves the original text.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 

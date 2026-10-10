@@ -20,6 +20,8 @@ set one [format %c 233]; set two "e[format %c 769]"; proc $one {} {return ONE}; 
 
 The six original provider scripts, process statuses, caught guest completion codes and binary-scan result hex are retained independently. Binary-scan output is a script result observation, not a physical native UTF storage or object-header window. No raw00 source ingress, return options, refcounts, compiler preparation, physical namespace/frame/object identity, executed Rust correspondence or BIG-IP claim is made.
 
+These authored source receipts are separate from the original public Unicode command-identity experiment. They establish no native allocation, lookup/call completion, Unicode normalisation, object cache or frame, and attach no assertion or provider result.
+
 ## Measured answers
 
 | Provider | Status | Answer |
@@ -35,6 +37,8 @@ The six original provider scripts, process statuses, caught guest completion cod
 ## Conclusion
 
 All six captured programs return ONE TWO for the two separately generated names; no Unicode equivalence is inferred.
+
+A linked source constructor control preserves precomposed and decomposed class name bytes as distinct source slots and retains literal multiword Jim class names. Source reporting uses the genuine selected class name input rather than an ASCII label gate.
 
 ## Evidence
 
@@ -69,6 +73,11 @@ All six captured programs return ONE TWO for the two separately generated names;
 ## Source anchors and implementation tests
 
 No interpreter-source excerpt or executed Rust test is attached to this question. The selected name-policy owner must retain each consumer purpose separately; this native script result cannot substitute for a Rust assertion.
+
+- [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `source_constructor_call_at`: Join genuine source class declaration/factory call geometry while retaining exact producer name units independently of original runtime identity.
+- [rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs), `command_binding::source_transition_advice::source_class::tests::original_native_class_names_keep_distinct_source_units_without_ascii_report_gate` (linked): Selected class source receipts preserve distinct UTF8 precomposed/decomposed name bytes and source slots without an ASCII report filter; a literal multiword Jim class name remains complete. Source constructor geometry does not execute or normalize either name.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

@@ -4266,9 +4266,10 @@ primitive Wide/GetDouble cache policy for the reached Increment/Expr stages.
 String materialization, object list length and wrong-argument presentation have
 separate selected owners. A numeral grammar or a compatible Tcl release does
 not select any of these native protocols. `InvocationDialect::execution_point`
-retains the actual engine and build; `native_string_protocol` authenticates its
-supported string recipe. Logical F5 simulation uses an explicitly requested
-provider and retains that logical origin independently of native authority.
+describes the selected engine/build axis; the adapter still needs its independent
+actual owner before using a native recipe. Logical F5 simulation uses an
+explicitly requested provider and retains that logical origin independently of
+native authority.
 
 | Purpose | Shared owner | Required adapter evidence |
 | --- | --- | --- |
@@ -4279,12 +4280,28 @@ provider and retains that logical origin independently of native authority.
 | Wrong-argument header | `native_usage_protocol` / `usage_protocol` | Retained original header words after the actual dispatch rewrite |
 | Cached index header expansion | `NativeUsageWord::{CanonicalIndex,RewrittenIndex}` | Authenticated original index cache and whether the word belongs to the restored ensemble prefix |
 
-`InvocationDialect::native_string_materialization` issues the general object-string
-recipe for actual C Tcl or Jim, or the explicitly authored F5 Tcl8.4 core
-simulation. `ByteArrayStringRecipe` is the narrower C-only updater capability.
-List parsing, dictionary parsing and character counting use the general owner;
-Jim's lack of a C ByteArray type does not exclude its native string/list parser.
-Source lexer overrides do not select these original-object conversion rules.
+`InvocationDialect::native_string_materialization` describes the general
+C/Jim object-string recipe or explicitly authored F5 Tcl8.4 simulation.
+`ByteArrayStringRecipe` is the narrower C-only updater capability; character and
+numeric operations keep their separate selected purposes.
+
+VM list/dictionary getters and constructors use
+`InterpState::object_materialization`. A reached native host activation supplies
+its own purpose. Otherwise an installed logical name/materialization provider
+requires its current F5 source contract; an unavailable selected logical purpose
+refuses without physical fallback. Without that logical selection, the retained
+actual engine supplies the native recipe independently of source grammar.
+Distribution bootstrap preserves standalone compatibility under a distinct tag,
+which grants no actual engine or entered command. Checked getters and checked dictionary
+constructors refuse missing recipes; infallible constructors retain their plain
+portable construction contract.
+
+`NativeObjectLengthProtocol::from_materialization` composes that same selected
+recipe and explicit logical tag. `ValueOps::list_len` checks the original live
+header and retained whole List backing before reading a cached length, without
+rendering members. General List/Dict getters keep foreign backing refusal and
+original member identity. Jim's lack of a C ByteArray type does not exclude its
+separate string/list purpose. See the [object purpose contract](../analysis/name-resolution-proofs/invocation-original-object-materialization-purpose.md).
 
 Jim List parsing pins original Source information before string materialization.
 `Vm::native_object_list_elements_in` and Runtime's checked List conversion
@@ -7173,14 +7190,26 @@ without potential-evaluation authority; missing or stale input refuses capture.
 These spans and tokens grant neither entered bodies nor Native names or edits.
 See the [highlight geometry contract](../analysis/name-resolution-proofs/cli-original-source-highlight-geometry.md).
 
-`format_tcl_with_input` accepts the caller's actual `ResolvedAnalysisInput`.
-`FormatterConfig::for_resolved_input` keeps its complete lexer configuration,
-profile and structural ContextRegistry while retaining independent style
-options. Formatting maps actual effective roles back to their own written
-origins and uses separate case/list presentation. It does not format captured
-prefixes as if they were document operands. Keyword transformations require
-their own permission; a literal expression rewrite additionally requires the
-bounded original-expression equivalence receipt. See the
+When an `AnalysisResult` exists, call
+`formatting_with_analysis(source, &style, &analysis)` or
+`range_formatting_with_analysis(source, range, &style, &analysis)`.
+`CurrentSourceContext` and `AnalysisFormattingLayout` retain its complete input,
+realm, source entry and provider world; missing or stale owners supply no edits.
+`FormatterConfig::for_resolved_input` preserves independent style settings beside
+the retained lexer configuration, profile and ContextRegistry. The input-only
+`format_tcl_with_input` remains an explicit standalone analysis contract.
+
+`DocumentLineEndingProjection` retains the genuine Document image while exposing
+LF presentation. Complete original word vectors map through checked spans before
+source-schema queries; collapsed CRLF-middle and UTF8-interior boundaries remain
+unmappable. `into_text` consumes presentation only and issues no original word or
+entry. Client edit coordinates and configured output terminators remain separate.
+Formatting prioritises the retained typed definition-member vocabulary over a
+global same-spelling command, while original `NativeWord` and independent formal
+and value receipts stay owned by their source. Effective roles map only to their written origins;
+captured prefixes acquire no document operand or edit permission. Keyword and
+literal-expression transformations retain their independent permission and
+bounded equivalence requirements. See the [Document projection](../analysis/name-resolution-proofs/source-original-document-line-ending-projection.md),
 [source structure](../analysis/name-resolution-proofs/original-editor-body-structure.md)
 and [formatting](../analysis/name-resolution-proofs/editor-original-source-formatting.md)
 contracts.
@@ -8912,6 +8941,27 @@ operands. `ReferenceOnly`, known source replacement/deletion and missing/stale
 context return no region; consumers preserve that refusal. A potential source
 body is not an actual entered frame, receiver identity or an editable reference.
 See the [dispatch-region contract](../analysis/name-resolution-proofs/core-original-dispatch-region-context.md).
+
+Core `definition::object_dispatch_mask` returns `ExternalObjectDispatchMask`
+after checking `CurrentSourceContext` and the original invocation. Core hover
+and both Server method fallback tiers call `withholds_workspace_fallback`:
+
+| Result | Retained evidence | Workspace fallback |
+| --- | --- | --- |
+| `Native` | An unexported original receiver method entry at the current allocation/dispatch generation and canonical class source | Withheld |
+| `ConditionalSource` | A private/unexported per-object source summary with an authentic selected object-configuration anchor, matching source scope and original namespace | Withheld |
+| `Unavailable` | Missing, stale, foreign, older or explicitly unavailable input, or incomplete/ambiguous mask ownership | Withheld without asserting a hidden method |
+| `Clear` | This local query supplies no visibility mask | Other method-selection obligations still apply |
+
+The retained Native own-object configuration ledger accepts method definitions;
+source `unexport` summaries keep their independent conditional purpose. A report
+summary cannot supply a Native receiver or refresh that ledger. Internal `my`
+and genuine `[self]` shape use the original selected descriptor or receiver-local
+entry. `$my` remains a variable receiver, and literal `{[self]}` is an object name
+rather than a command substitution. These outcomes grant no method execution,
+Normal completion, edit coverage or permission to select a workspace method.
+The [dispatch-region contract](../analysis/name-resolution-proofs/core-original-dispatch-region-context.md)
+keeps the corresponding source/software controls separate from provider results.
 
 For Runtime procedure calls, `run_selected_procedure_body` keeps the actual
 preselected C artifact or Jim original body when an AOT entry declines or is

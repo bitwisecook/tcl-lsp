@@ -345,7 +345,7 @@ fn original_handler_code(
                         break;
                     }
                     Ok(_) => {}
-                    Err(error) if error.native_access_refusal().is_some() => {
+                    Err(error) if error.native_execution_refusal().is_some() => {
                         return Err(crate::command::completion_from_cmd_error(vm, error));
                     }
                     Err(_) => {

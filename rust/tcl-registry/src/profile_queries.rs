@@ -33,9 +33,9 @@ use tcl_dialect::DialectProfile;
 use crate::hover::OptionSpec;
 use crate::model::context::core_tcl_floor;
 use crate::registry::CommandRegistry;
+use crate::spec::CommandSpec;
 #[cfg(test)]
-use crate::spec::SubSubCommand;
-use crate::spec::{CommandSpec, SubCommand};
+use crate::spec::{SubCommand, SubSubCommand};
 use crate::traits::Traits;
 #[cfg(test)]
 use tcl_dialect::model::{Family, SpecProvider};

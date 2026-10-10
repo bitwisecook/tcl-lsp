@@ -18,6 +18,8 @@ Conditional Logical declaration values retain Unicode moves and authentic captur
 
 Logical capture consumers use the shared exact literal_bytes facet with checked UTF8 and no-zero projection. Exact Unicode, literal dollar and empty source data retain their bytes and capture order; dynamic, opaque, expanded, invalid UTF8 or zero-containing values refuse. Complete original source/vector/input/configuration/store and selected origin guards remain unchanged.
 
+Logical procedure name projection uses the checked static Unicode Document value instead of treating replacement presentation as identity. Literal or explicit U+FFFD and braced literal escape spellings remain distinct from unrepresentable interpreted escapes.
+
 ## Scope
 
 Static original Logical definitions under a positively retained complete input, known Authored namespace and quiet selected stock source definer. Genuine original words and effective captured-prefix operands use the selected actual source schema and strict formal grammar; labels cannot reconstruct a declaration. The full context supplies only the authored model roster; foreign context/configuration tokens, Native input and unknown/unsealed input cannot borrow it. Selected source grammar may have a Jim point without a Native name policy. Stored body validity, actual invocation, Native publication/Normal and physical frames remain independent. Unknown/rebound/dynamic/opaque/invalid-namespace inputs decline; Native and hosted source stay separate.
@@ -25,6 +27,8 @@ Static original Logical definitions under a positively retained complete input, 
 Two additional unexecuted source/software controls confer no Native definition publication, value/name receipt, Handler/body/frame entry, physical storage or Normal completion. Existing original Native definition/formal experiments remain separate.
 
 The added literal-byte control is an unexecuted source/software definition. The checked Logical text facet supplies no Native name/value/argv identity, physical object/cache/frame, entered handler, publication or Normal completion; independent symbolic cell/storage purposes remain guarded.
+
+The additional marked source definition retains the original positive Logical source owner and its existing configuration/input/unknown guards. It supplies no original Native unit, publication, entry, Normal or assertion result; public escape comparison observations are independently recorded.
 
 ## Provider answers
 
@@ -106,6 +110,11 @@ These source bindings establish no executed assertion result; exact software out
 - [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `command_binding::logical_definition::tests::logical_captured_values_keep_exact_unicode_bytes_and_refuse_unknown_units` (linked): Two genuine Logical source capture consumers read the shared exact literal_bytes facet with checked UTF-8/no-zero projection. Original source/vector/context/store/selection guards and capture order remain unchanged. Unknown, opaque, expansion, non-UTF-8 and zero-containing values refuse. Existing Unicode producer and independent symbolic cell/storage guards preserved; no Native name/argv/handler/frame/value/Normal grants. Software definition only; no assertion result or Native value/argv completion is attached.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
+
+- [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `static_value`: Use the checked static Unicode Document facet before projecting a Logical String name, while preserving independent original source/configuration and zero/channel guards.
+- [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `command_binding::logical_definition::tests::logical_definition_keeps_unrepresentable_names_distinct_from_literal_replacement` (linked): Retained Logical source procedure lookup accepts literal/explicit replacement and braced literal escape names but does not identify interpreted unrepresentable escape names with that replacement. No Native publication, unit policy or execution outcome follows.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

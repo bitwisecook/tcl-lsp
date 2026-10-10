@@ -2463,3 +2463,28 @@ restored.chmod(0o755)
 ```
 
 Restoration establishes measured payload identity only; it performs no new build/run and grants no Native header/frame/handler authority. The 326 complete/3 bounded dictionary-window assertions preserve post-free boundaries; live host storage is independent. Original public measurement archives and failed Info/inventory assertions remain unchanged.
+
+## Compiler, Registry, Core, DB and Server no-run build291: compilation only
+
+The original `cargo test` no-run command selects the five named packages and closes with exit101 after 351.410758s and `uniform_source: true`. Two Compiler fixture errors block this exact five-package no-run command. The whole log also records three test executable creation events for Server, DB and Registry. Those events are retained as unsealed artifacts from a failed invocation; no independent successful producer receipt, strict executable pin, test inventory or unit assertion is claimed. This record supplies no Native provider failure, assertion outcome or aggregate gate result.
+
+The [unchanged original receipt](frozen291/integration-compiler-registry-core-db-server-test-build291/receipt.json.gz) is retained as lossless gzip with compressed and uncompressed SHA256. The [whole original log](frozen291/integration-compiler-registry-core-db-server-test-build291/tests.log) preserves both Compiler errors and all three executable events. All 31980 immutable source archive leaves are independently byte-checked. Original command, paths, source association and timing remain unchanged.
+
+## VM no-run build292: dependency compilation only
+
+The original `cargo test` no-run command selects VM and closes with exit101 after 24.978411s and `uniform_source: true`. One Registry library type error in value_transfer/const_ops.rs blocks this exact VM no-run command. The log records no test executable creation event. No successful producer receipt, strict executable pin, test inventory or unit assertion is claimed. This record supplies no Native provider failure, assertion outcome or aggregate gate result.
+
+The [unchanged original receipt](frozen292/integration-vm-own-test-build292/receipt.json.gz) is retained as lossless gzip with compressed and uncompressed SHA256. The [whole original log](frozen292/integration-vm-own-test-build292/tests.log) preserves the Registry type error and unused-import warning. All 31997 immutable source archive leaves are independently byte-checked. Original command, paths, source association and timing remain unchanged.
+
+## VM no-run build293: compilation only
+
+The exact original `cargo test -p tcl-vm --lib --no-run` command closes with exit101 after 28.933597s and `uniform_source: true`. Six Registry library errors for the missing NativeExecutionError type block this exact VM no-run command. No test executable creation event is recorded. The retained unused-import warning remains in the whole log. No successful producer pin, test inventory, unit assertion, Native provider outcome or aggregate gate result is claimed.
+
+The [unchanged original receipt](frozen293/integration-vm-own-test-build293/receipt.json.gz) is retained as lossless gzip with compressed and uncompressed SHA256. The [whole original log](frozen293/integration-vm-own-test-build293/tests.log) preserves every diagnostic. All 31997 immutable source archive leaves are independently byte-checked. Original command, paths, source association and timing remain unchanged.
+
+
+## VM no-run build294: compilation only
+
+The exact original `cargo test -p tcl-vm --lib --no-run` command closes with exit101 after 129.602939s and `uniform_source: true`. One VM test fixture type error blocks this exact no-run command: the inherent dictionary convenience query returns a String key, while this control requires the original Value key identity. No test executable creation event is recorded. The retained unused-import warning remains in the whole log. No successful producer pin, test inventory, unit assertion, Native provider outcome or aggregate gate result is claimed.
+
+The [unchanged original receipt](frozen294/integration-vm-own-test-build294/receipt.json.gz) is retained as lossless gzip with compressed and uncompressed SHA256. The [whole original log](frozen294/integration-vm-own-test-build294/tests.log) preserves every diagnostic. All 31999 immutable source archive leaves are independently byte-checked. Original command, paths, source association and timing remain unchanged.

@@ -854,10 +854,10 @@ mod tests {
             interp.log_command_bytes(1, b"failing command");
             let original = interp.exc.borrow().native.info.as_ref().unwrap().as_ptr();
             assert!(!interp.exc.borrow().native.legacy_copy);
-            let options = obj::Owned::fresh(crate::cmd_error::completion_options(
-                &mut interp,
-                super::super::Code::Error,
-            ));
+            let options = obj::Owned::fresh(
+                crate::cmd_error::completion_options(&mut interp, super::super::Code::Error)
+                    .unwrap(),
+            );
             assert!(interp.exc.borrow().native.legacy_copy);
             assert_eq!(
                 interp.exc.borrow().native.info.as_ref().unwrap().as_ptr(),

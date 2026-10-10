@@ -373,7 +373,11 @@ fn capture_answer(interp: &mut Interp, code: Code) -> Result<HostOutcome, Engine
     if code == Code::Error {
         return Err(EngineError::ScriptBytes {
             message: result.to_vec(),
-            code: Some(interp.error_code()),
+            code: Some(
+                interp
+                    .error_code_bytes_checked()
+                    .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?,
+            ),
             options: Some(options.to_vec()),
         });
     }
@@ -1024,6 +1028,33 @@ mod tests {
         let mut engine = RuntimeEngine::new();
         engine.set_release(profile).unwrap();
         engine
+    }
+
+    #[test]
+    fn completion_metadata_getter_failure_is_host_refusal_at_engine_boundary() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut engine = engine("tcl9.0");
+        let error = engine.eval_in_invocation("set ::prior BEFORE; catch {return -level 0 -code error -errorcode [lseq 100000001] BODY} captured options; set ::after YES").unwrap_err();
+        assert!(matches!(error, EngineError::ExecutionRefusal(_)));
+        assert_eq!(
+            engine.interp.native_execution_refusal(),
+            Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::Materialization(
+                    tcl_syntax::raw_string::NativeMaterializationLimitError::new(
+                        100_000_001,
+                        100_000_000
+                    ),
+                ),
+            ),)
+        );
+        assert_eq!(
+            crate::interp::obj_bytes(engine.interp.var_get(b"::prior").unwrap()),
+            b"BEFORE"
+        );
+        for name in [b"captured".as_slice(), b"options", b"::after"] {
+            assert!(!engine.interp.var_exists(name));
+        }
     }
 
     // Software embedding controls: the audited name recipes live in the shared
