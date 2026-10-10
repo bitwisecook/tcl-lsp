@@ -694,6 +694,7 @@ mod tests {
         )
         .with_resolved_analysis_input(input.clone())
         .lower(source)
+        .clone()
     }
 
     fn expression_candidate_advice(

@@ -93,6 +93,10 @@ pub fn prepare_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<CallHierarchyItem> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Vec::new();
+    }
+
     if let std::ops::ControlFlow::Break(selected) =
         crate::original_declaration::select("", source, analysis, line, character)
     {
@@ -133,22 +137,6 @@ pub fn prepare_in_program(
         return vec![item_for_method(source, class_def, method, &line_index)];
     }
     Vec::new()
-}
-
-/// Synthetic call-hierarchy name for a class method:
-/// `<class-qualified-name>::<method-name>` (e.g. `::C::greet`).
-/// Whether `head` is a `TclOO` method-context keyword under `dialect` —
-/// `my`, `next`, `nextto`, or `self`.
-///
-/// The registry-first replacement for the `matches!(head, "my" | "next" |
-/// "nextto")` literals this module carried: a dialect that
-/// gains or loses one of these propagates through its `CommandSpec`, never
-/// through an edit here. All three kinds are excluded together because none
-/// of them is an *unresolved command reference* — a dispatch keyword resolves
-/// through the object's method table and an introspection keyword resolves to
-/// nothing at all, so neither belongs in a bare-head call scan.
-fn is_method_dispatch_keyword(dialect: &'static tcl_dialect::DialectProfile, head: &str) -> bool {
-    crate::definition::method_dispatch_keyword_in(dialect, head).is_some()
 }
 
 fn method_item_name(class_def: &ClassDef, method: &MethodDef) -> String {
@@ -373,49 +361,58 @@ fn dispatch_reaches(caller_kind: &str, target_kind: &str) -> bool {
     (caller_kind == "classmethod") == (target_kind == "classmethod")
 }
 
-/// Re-segment a method body and return `(head_word, head_span)`
-/// for every command invocation in it.  Surrounding braces are
-/// stripped so the segmenter descends into the body rather than
-/// treating the leading `{` as a braced literal.
+/// Conditional source calls in the same lexical method frame. Selected
+/// helper traits exclude method dispatch without reparsing a written head.
 fn segment_body_calls(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     body_span: tcl_lexer::Span,
 ) -> Vec<(String, tcl_lexer::Span)> {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-    if body_span.is_empty() {
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return Vec::new();
+    };
+    if !analysis.allows_lexical_declaration_advice() {
         return Vec::new();
     }
-    let mut start = body_span.start() as usize;
-    let mut end = body_span.end() as usize;
-    if start >= source.len() || end > source.len() || start > end {
+    let Some(frame) =
+        crate::definition::source_frame_extent(analysis, body_span.start().saturating_add(1))
+    else {
         return Vec::new();
-    }
-    if source.as_bytes().get(start) == Some(&b'{') {
-        start += 1;
-    }
-    if end > start && source.as_bytes().get(end - 1) == Some(&b'}') {
-        end -= 1;
-    }
-    let body_text = &source[start..end];
-    let commands = segment_commands_with_offset_and_config(
-        body_text,
-        u32::try_from(start).unwrap_or(body_span.start()),
-        tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
+    };
+    let mut calls = Vec::new();
+    crate::executable_regions::visit_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            let Some(head) = command.argv.first() else {
+                return false;
+            };
+            if !span_contains(body_span, head.span)
+                || crate::definition::source_frame_extent(analysis, head.span.start())
+                    != Some(frame)
+            {
+                return false;
+            }
+            let is_helper =
+                crate::original_invocation::source_registry_words(source, analysis, command)
+                    .and_then(|words| {
+                        words.with_source_schema(&current.context(), |schema| {
+                            schema.semantics.traits.intersects(
+                                tcl_registry::Traits::TCLOO_SELF_DISPATCH
+                                    | tcl_registry::Traits::TCLOO_NEXT_CHAIN
+                                    | tcl_registry::Traits::TCLOO_INTROSPECTION,
+                            )
+                        })
+                    })
+                    .unwrap_or(false);
+            if !is_helper {
+                calls.push((command.name().to_owned(), head.span));
+            }
+            false
+        },
     );
-    let mut out = Vec::new();
-    for cmd in &commands {
-        let Some(head) = cmd.argv.first() else {
-            continue;
-        };
-        let h_start = head.span.start() as usize;
-        let h_end = head.span.end() as usize;
-        if h_start >= source.len() || h_end > source.len() {
-            continue;
-        }
-        out.push((source[h_start..h_end].to_owned(), head.span));
-    }
-    out
+    calls
 }
 
 /// Build a [`CallHierarchyItem`] for a given proc definition.
@@ -582,6 +579,10 @@ pub fn unresolved_outgoing_calls_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<UnresolvedOutgoingCall> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Vec::new();
+    }
+
     if !analysis.allows_lexical_declaration_advice() {
         return Vec::new();
     }
@@ -635,7 +636,7 @@ pub fn unresolved_outgoing_calls_in_program(
 /// unresolved, not silently treated as if it had resolved to the method.
 fn unresolved_method_outgoing_calls(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     item: &CallHierarchyItem,
     analysis: &AnalysisResult,
     line_index: &LineIndex,
@@ -647,15 +648,7 @@ fn unresolved_method_outgoing_calls(
     };
     let mut by_head: std::collections::BTreeMap<String, Vec<LspRange>> =
         std::collections::BTreeMap::new();
-    for (head, span) in segment_body_calls(source, dialect, source_method.body_span) {
-        // A `TclOO` method-context keyword is not an unresolved command
-        // reference — the actual dispatch target (the word *after* `my`) is
-        // handled by `method_outgoing_calls`'s `scan_my_method_sites` pass,
-        // never by this bare-head scan. Membership comes from the registry,
-        // not a name list.
-        if is_method_dispatch_keyword(dialect, &head) {
-            continue;
-        }
+    for (head, span) in segment_body_calls(source, analysis, source_method.body_span) {
         // Local top-level proc?  Resolved from the class's namespace (a
         // method body's commands resolve there), with the deterministic
         // simple-name fallback — not a namespace-blind `any` scan.
@@ -726,6 +719,10 @@ pub fn incoming_calls_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<IncomingCall> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Vec::new();
+    }
+
     if !analysis.allows_lexical_declaration_advice() {
         let Some(identity) = &item.identity else {
             return Vec::new();
@@ -777,6 +774,10 @@ pub fn incoming_calls_for_target(
     target_qualified: &str,
     target_name_span: Option<tcl_lexer::Span>,
 ) -> Vec<IncomingCall> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Vec::new();
+    }
+
     if !analysis.allows_lexical_declaration_advice() {
         return Vec::new();
     }
@@ -876,6 +877,10 @@ pub fn outgoing_calls_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Vec<OutgoingCall> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Vec::new();
+    }
+
     if !analysis.allows_lexical_declaration_advice() {
         let Some(identity) = &item.identity else {
             return Vec::new();
@@ -1019,6 +1024,10 @@ pub fn incoming_instance_method_calls_in_class(
     method: &str,
     external_callback_allowed: bool,
 ) -> Vec<IncomingCall> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Vec::new();
+    }
+
     if !analysis.allows_lexical_declaration_advice() {
         return Vec::new();
     }
@@ -1234,10 +1243,7 @@ fn method_outgoing_calls(
         &mut by_target,
     );
     let class_ns = tcl_syntax::naming::key_holder_and_tail(&class_def.qualified_name).0;
-    for (head, span) in segment_body_calls(source, dialect, source_method.body_span) {
-        if is_method_dispatch_keyword(dialect, &head) {
-            continue;
-        }
+    for (head, span) in segment_body_calls(source, analysis, source_method.body_span) {
         // Top-level user proc?  Resolved from the class's namespace (a
         // method body's commands resolve there) — a deterministic
         // simple-name fallback, never a namespace-blind `p.name == head`
@@ -2325,5 +2331,98 @@ mod tests {
             .is_empty(),
             "an instance method has no bare class-command dispatch"
         );
+    }
+}
+
+#[cfg(test)]
+mod original_source_context_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    fn analyse(
+        source: &str,
+        environment: &str,
+        store: Arc<tcl_registry::CommandRegistry>,
+    ) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let context = Arc::new(
+            tcl_registry::model::ingress::static_context_for(environment).with_command_store(store),
+        );
+        Analyser::new()
+            .with_resolved_input(ResolvedAnalysisInput::new(
+                profile, profile, context, config,
+            ))
+            .analyse(source, profile.name)
+    }
+
+    fn store() -> Arc<tcl_registry::CommandRegistry> {
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let surface = Some(tcl_dialect::model::SpecSurface::TCL90_PLUS);
+        registry.insert(tcl_registry::CommandSpec {
+            name: "source_dispatch",
+            traits: tcl_registry::Traits::TCLOO_SELF_DISPATCH,
+            surface,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        Arc::new(registry)
+    }
+
+    fn method_body(analysis: &AnalysisResult) -> tcl_lexer::Span {
+        analysis.all_classes.values().next().unwrap().methods["m"].body_span
+    }
+
+    #[test]
+    fn original_method_hierarchy_uses_selected_helpers_and_same_source_frame() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source = "oo::class create C {method m {} {source_dispatch; if 1 {puts x}; proc later {} {hidden}; missing}}";
+        let store = store();
+        let current = analyse(source, "tcl9.0", store.clone());
+        let calls = segment_body_calls(source, &current, method_body(&current));
+        let heads = calls
+            .iter()
+            .map(|(head, _)| head.as_str())
+            .collect::<Vec<_>>();
+        assert!(
+            heads.contains(&"puts") && heads.contains(&"missing"),
+            "{heads:?}"
+        );
+        assert!(
+            !heads.contains(&"source_dispatch") && !heads.contains(&"hidden"),
+            "{heads:?}"
+        );
+        let old = analyse(source, "tcl8.6", store);
+        assert!(
+            segment_body_calls(source, &old, method_body(&old))
+                .iter()
+                .any(|(head, _)| head == "source_dispatch")
+        );
+    }
+
+    #[test]
+    fn original_method_hierarchy_keeps_replaced_helpers_unresolved_and_withdraws_stale_source() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source =
+            "proc source_dispatch args {}; oo::class create C {method m {} {source_dispatch}}";
+        let mut current = analyse(source, "tcl9.0", store());
+        let body = method_body(&current);
+        assert!(
+            segment_body_calls(source, &current, body)
+                .iter()
+                .any(|(head, _)| head == "source_dispatch")
+        );
+        assert!(
+            segment_body_calls(
+                &source.replace("source_dispatch", "other_dispatch"),
+                &current,
+                body
+            )
+            .is_empty()
+        );
+        current.resolved_input = None;
+        assert!(segment_body_calls(source, &current, body).is_empty());
     }
 }

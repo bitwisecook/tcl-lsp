@@ -2048,8 +2048,8 @@ impl Analyser {
         self.emit_w103_open_pipeline(cmd_name, args, arg_tokens, arg_single);
         self.emit_w300_source_variable(cmd_name, args, arg_tokens);
         self.emit_w309_eval_subst_double_decode(original);
-        self.emit_w301_uplevel_injection(cmd_name, args, arg_tokens, arg_single);
-        self.emit_w312_interp_eval_injection(cmd_name, args, arg_tokens, arg_single);
+        self.emit_w301_uplevel_injection(original);
+        self.emit_w312_interp_eval_injection(original);
         self.emit_w303_redos(cmd_name, args, arg_tokens, cmd_tok);
     }
 

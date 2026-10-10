@@ -45,16 +45,15 @@ pub fn type_definition(
     character: u32,
     analysis: &AnalysisResult,
 ) -> Vec<LspRange> {
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return Vec::new();
+    };
     let line_index = LineIndex::new(source);
     let cursor = byte_offset_at(&line_index, source, line, character);
     if !analysis.allows_lexical_declaration_advice() {
-        let Some(config) = analysis.body_lexer_config else {
-            return Vec::new();
-        };
+        let config = current.config();
         let image = tcl_lexer::SourceImage::document(source);
-        if !analysis.matches_original_source_image(&image, config) {
-            return Vec::new();
-        }
         if analysis
             .original_variable_root_in_source(&image, config, cursor)
             .is_some()

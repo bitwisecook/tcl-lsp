@@ -1120,7 +1120,7 @@ mod tests {
     use tcl_lexer::Span;
 
     #[test]
-    fn supplied_multipass_rebuilds_each_current_source_image_without_a_native_entry() {
+    fn supplied_multipass_refreshes_conditional_candidates_for_each_source_image() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let context =
@@ -1135,6 +1135,7 @@ mod tests {
         );
         let source = "proc subject {} {if {1} {puts retained} else {puts omitted}}";
         let mut images = Vec::new();
+        let mut branch_candidates = Vec::new();
         let (text, applied, iterations) = optimise_source_multipass_admitting_with_analysis_input(
             source,
             &registry,
@@ -1142,11 +1143,12 @@ mod tests {
             3,
             |current, candidates| {
                 images.push(current.to_owned());
-                for row in &candidates {
-                    if let Some(context) = &row.source_context {
-                        assert_eq!(context.image().try_text().unwrap(), current);
-                    }
-                }
+                branch_candidates.push(
+                    candidates
+                        .iter()
+                        .filter(|row| row.code == DiagCode::O100)
+                        .count(),
+                );
                 candidates
                     .into_iter()
                     .filter(|row| row.code == DiagCode::O100)
@@ -1157,6 +1159,13 @@ mod tests {
         assert!(iterations >= 2);
         assert_ne!(images[0], images[1]);
         assert_eq!(images.last().unwrap(), &text);
+        assert!(branch_candidates[0] > 0);
+        assert_eq!(
+            branch_candidates[1], 0,
+            "the rewritten image must not reuse the old branch candidate"
+        );
+        assert!(text.contains("retained"));
+        assert!(!text.contains("omitted"));
         let missing = optimise_source_multipass_admitting_with_analysis_input(
             source,
             &registry,

@@ -2073,3 +2073,41 @@ The all-consumer command is blocked before compilation by a Runtime feature that
 | `integration-workspace-naming-consumer-test-build272` | `compile-blocked`, exit101, 140.167522s; no assertions | [Lossless original](frozen272/integration-workspace-naming-consumer-test-build272/receipt.json.gz) | [Whole log](frozen272/integration-workspace-naming-consumer-test-build272/tests.log) |
 
 Compressed receipts round-trip byte-for-byte and retain both compressed and original digests. Every recorded archived source leaf is checked independently. These exact per-command outcomes do not refresh mutable implementation anchors or change Native provider evidence.
+
+## Sealed VM273 and independent dependency builds
+
+The independent VM-only no-run273 build succeeds and yields the [lossless storage of the sealed actual VM273 image](frozen273/sealed-vm-image/pinned-vm273.elf.gz) with its [exact producer/source metadata](frozen273/sealed-vm-image/pinned-vm273.json). Its inventory lists735 tests. The list-gated23-selector frontier run records19 passed/4 failed; the separate dictionary-publication backtrace records0 passed/1 failed. These are actual assertions from this exact source/image, without an aggregate pass, other-backend result or Native provider promotion.
+
+The separate workspace-only build reaches two ordinary DB tuple Eq/Hash macro errors; the independent Compiler/Registry/Syntax/Engine build reaches five Compiler libtest fixture errors. Both retain successful but unsealed/unexecuted test-artifact events in their full logs. Their failure does not invalidate the separately produced VM image or issue another executable/pin/assertion result. Each exact original command and frozen naming273 source association remains unchanged.
+
+| Closed operation | Status | Recorded result | Exact receipt | Complete log |
+| --- | --- | --- | --- | --- |
+| `integration-vm-native-test-build273` | `compile-passed`, exit0, 113.245286s | no assertions | [Original lossless receipt](frozen273/integration-vm-native-test-build273/receipt.json.gz) | [Whole log](frozen273/integration-vm-native-test-build273/tests.log) |
+| `integration-vm-current-inventory273` | `listed`, exit0, 0.012205s | 735 listed, no assertions | [Original lossless receipt](frozen273/integration-vm-current-inventory273/receipt.json.gz) | [Whole log](frozen273/integration-vm-current-inventory273/tests.log) |
+| `integration-vm-native-frontier-tests273` | `failed`, exit101, 140.928231s | 19 passed/4 failed | [Original lossless receipt](frozen273/integration-vm-native-frontier-tests273/receipt.json.gz) | [Whole log](frozen273/integration-vm-native-frontier-tests273/tests.log) |
+| `integration-workspace-naming-consumer-test-build273` | `compile-blocked`, exit101, 102.644712s | no assertions | [Original lossless receipt](frozen273/integration-workspace-naming-consumer-test-build273/receipt.json.gz) | [Whole log](frozen273/integration-workspace-naming-consumer-test-build273/tests.log) |
+| `integration-compiler-registry-consumer-test-build273` | `compile-blocked`, exit101, 263.125773s | no assertions | [Original lossless receipt](frozen273/integration-compiler-registry-consumer-test-build273/receipt.json.gz) | [Whole log](frozen273/integration-compiler-registry-consumer-test-build273/tests.log) |
+| `diagnostic-native273-dictionary345-backtrace` | `failed`, exit101, 85.483665s | 0 passed/1 failed | [Original lossless receipt](frozen273/diagnostic-native273-dictionary345-backtrace/receipt.json.gz) | [Whole log](frozen273/diagnostic-native273-dictionary345-backtrace/tests.log) |
+
+The [23-selector frontier selection](frozen273/selections/vm-native-frontier-selection273.json) is the byte-identical original; every requested name is verified against the735-test inventory and actual libtest events. The exact four failed selectors remain visible, including both mathop source controls and the329/345 dictionary comparisons. Passing owned-storage, byte-carrier, reached error capture/refusal, typed first-cause, active-manifest and other software controls do not promote external Native evidence. Every receipt compresses losslessly with both digests retained; every frozen source leaf and the sealed image producer/hash association are independently checked. No build, test or Native replay is launched by this archive.
+
+
+The [image storage receipt](frozen273/sealed-vm-image/lossless-image-storage.json) retains both stored gzip and original measured ELF digests/lengths. The original producer metadata is unchanged. Restore a local executable from the repository root only after checking both identities:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/sealed-vm-image")
+record = json.loads((base / "lossless-image-storage.json").read_text())
+packed = (base / "pinned-vm273.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/pinned-vm273.elf")
+restored.write_bytes(original)
+restored.chmod(0o755)
+```
+
+Decompression restores the measured executable byte-for-byte; it is neither a new build nor an assertion or Native replay.

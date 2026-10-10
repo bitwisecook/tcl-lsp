@@ -346,7 +346,10 @@ pub(crate) fn register_builtins_with_native_core(
     {
         crate::cmd_binary::register(vm);
     }
-    crate::cmd_mathop::register(vm);
+    if native.is_none_or(tcl_registry::special_vars::NativeBootstrapProtocol::registers_core_mathop)
+    {
+        crate::cmd_mathop::register(vm);
+    }
     crate::cmd_lseq::register(vm);
     crate::cmd_prefix::register(vm);
     crate::cmd_namespace::register(vm);

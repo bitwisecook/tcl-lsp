@@ -9,7 +9,7 @@ use tcl_compiler::analyser::AnalysisResult;
 use tcl_registry::{CommandSpec, Traits};
 
 struct SelectedContext {
-    command: String,
+    spec: CommandSpec,
     arguments: Vec<Option<String>>,
     active: usize,
 }
@@ -22,12 +22,10 @@ pub(super) fn items(
     analysis: &AnalysisResult,
     partial: &str,
 ) -> Option<Vec<CompletionItem>> {
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let selected = select(source, analysis, cursor)?;
-    let context = analysis.resolved_input.as_ref()?.context_registry();
-    let registry = analysis.resolved_registry()?;
-    let spec = context
-        .context()
-        .resolve_spec(registry, &selected.command)?;
+    let context = current.context();
+    let spec = &selected.spec;
     let profile = analysis.resolved_profile()?;
     let floor = package_version_floor(analysis, spec, profile);
     let query = Some(context.context().authoring_query());
@@ -37,7 +35,7 @@ pub(super) fn items(
         .flatten();
     let switches = SwitchAdvice {
         spec,
-        profile,
+        context: context.context(),
         floor,
         query,
     };
@@ -101,7 +99,7 @@ pub(super) fn items(
 
 struct SwitchAdvice<'a> {
     spec: &'a CommandSpec,
-    profile: &'static tcl_dialect::DialectProfile,
+    context: &'a tcl_registry::model::ResolvedContext,
     floor: Option<&'a str>,
     query: Option<tcl_dialect::model::SurfaceQuery<'a>>,
 }
@@ -138,7 +136,7 @@ impl SwitchAdvice<'_> {
                 let start = end.saturating_sub(switch_partial.chars().count());
                 return Some(super::switch_completions(
                     options,
-                    self.profile,
+                    self.context,
                     surface,
                     &switch_partial,
                     (
@@ -189,6 +187,7 @@ fn option_values(
 }
 
 fn select(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<SelectedContext> {
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     if analysis.has_original_vendor_source_names() {
         let (metadata, _) = crate::original_invocation::selected_vendor_registry_words_at(
             source, analysis, cursor,
@@ -227,7 +226,10 @@ fn select(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Select
             })
             .collect();
         return Some(SelectedContext {
-            command: shape.command().to_owned(),
+            spec: shape
+                .context()
+                .resolve_spec(current.registry(), shape.command())?
+                .clone(),
             arguments,
             active,
         });
@@ -265,8 +267,11 @@ fn select(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Select
                 .map(str::to_owned)
         })
         .collect();
+    let spec = words.with_source_schema(&current.context(), |schema| {
+        schema.authored_source_descriptors().command.clone()
+    })?;
     Some(SelectedContext {
-        command: words.command,
+        spec,
         arguments,
         active,
     })
@@ -349,5 +354,101 @@ mod tests {
         analysis.dialect = "tcl8.6".into();
         assert!(items(source, 12, 0, 12, &analysis, "HTTP_RE").is_some());
         assert!(items("when CLIENT_A", 12, 0, 12, &analysis, "HTTP_RE").is_none());
+    }
+    fn logical_analysis(
+        source: &str,
+        environment: &str,
+        store: std::sync::Arc<tcl_registry::CommandRegistry>,
+    ) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let context = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for(environment).with_command_store(store),
+        );
+        Analyser::new()
+            .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile, profile, context, config,
+            ))
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn original_logical_completion_uses_actual_availability_and_captured_ordinals() {
+        // naming.core.original-registry-context-completion
+        // docs/design/analysis/name-resolution-proofs/original-registry-context-completion.md
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let surface = registry.get("dict").unwrap().surface;
+        let subcommands = registry.get("string").unwrap().subcommands;
+        registry.insert(tcl_registry::CommandSpec {
+            name: "source_classify",
+            surface,
+            subcommands,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let store = std::sync::Arc::new(registry);
+        for source in [
+            "source_classify is al",
+            "interp alias {} classify {} source_classify is\nclassify al",
+        ] {
+            let current = logical_analysis(source, "tcl8.6", store.clone());
+            assert!(current.allows_lexical_declaration_advice());
+            let cursor = u32::try_from(source.len()).unwrap();
+            let (line, column) = if source.contains('\n') {
+                (1, 11)
+            } else {
+                (0, cursor)
+            };
+            let result = items(source, cursor, line, column, &current, "al").unwrap();
+            assert!(result.iter().any(|item| item.label == "alnum"), "{source}");
+            let old = logical_analysis(source, "tcl8.4", store.clone());
+            assert!(items(source, cursor, line, column, &old, "al").is_none());
+        }
+        let source = "proc source_classify args {}; source_classify is al";
+        let current = logical_analysis(source, "tcl8.6", store);
+        assert!(
+            items(
+                source,
+                u32::try_from(source.len()).unwrap(),
+                0,
+                u32::try_from(source.len()).unwrap(),
+                &current,
+                "al"
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn original_completion_switches_use_actual_option_surface_and_current_source() {
+        // naming.core.original-registry-context-completion
+        // docs/design/analysis/name-resolution-proofs/original-registry-context-completion.md
+        let store = std::sync::Arc::new(tcl_registry::CommandRegistry::build_default());
+        let source = "chan configure stdin -inputm";
+        let cursor = u32::try_from(source.len()).unwrap();
+        let current = logical_analysis(source, "tcl9.0", store.clone());
+        assert!(
+            items(source, cursor, 0, cursor, &current, "inputm")
+                .unwrap()
+                .iter()
+                .any(|item| item.label == "-inputmode")
+        );
+        let old = logical_analysis(source, "tcl8.6", store);
+        assert!(
+            !items(source, cursor, 0, cursor, &old, "inputm")
+                .unwrap()
+                .iter()
+                .any(|item| item.label == "-inputmode")
+        );
+        assert!(
+            items(
+                "chan configure stdin -inputx",
+                cursor,
+                0,
+                cursor,
+                &current,
+                "inputm"
+            )
+            .is_none()
+        );
     }
 }

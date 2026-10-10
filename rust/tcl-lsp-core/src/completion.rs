@@ -283,125 +283,6 @@ fn char_col_to_utf16(line_text: &str, char_col: usize) -> u32 {
         .sum()
 }
 
-/// Cursor context threaded into [`switch_completion_items`] — bundled so
-/// the helper stays under the argument-count budget.
-#[derive(Clone, Copy)]
-struct SwitchCompletionCtx<'a> {
-    spec: &'a tcl_registry::CommandSpec,
-    source: &'a str,
-    line: u32,
-    character: u32,
-    word_idx: usize,
-    analysis: &'a AnalysisResult,
-    profile: &'static tcl_dialect::DialectProfile,
-}
-
-/// Option-flag completion for a `-<cursor>` position: resolves the
-/// subcommand-scoped option table (`chan configure -<cursor>`) before
-/// falling back to the command's own top-level table — an ensemble's real
-/// options live on the subcommand (`SubCommand::options`), and only that
-/// table is dialect-correct for a subcommand-specific option (e.g. `chan
-/// configure -inputmode`, 9.0+, absent from `chan`'s own top-level table).
-///
-/// A two-level ensemble narrows once more: `namespace ensemble create` and
-/// `namespace ensemble configure` recognise different options, so the
-/// dispatch word at index 2 selects between them through
-/// [`SubCommand::option_scope`]. Offering the merged set put
-/// `-command` — a guaranteed `bad option` — in `configure`'s list and left
-/// its readable `-namespace` out of it.
-///
-/// Mirrors the sub-arg-value resolution in [`context_aware_completions`].
-/// Returns `None` when the resolved table has no options at all (so the
-/// caller falls through to the next completion context).
-fn switch_completion_items(
-    ctx: &SwitchCompletionCtx<'_>,
-    switch_partial: &str,
-) -> Option<Vec<CompletionItem>> {
-    let SwitchCompletionCtx {
-        spec,
-        source,
-        line,
-        character,
-        word_idx,
-        analysis,
-        profile,
-    } = *ctx;
-    let sub = (word_idx >= 2)
-        .then(|| nth_word_on_line(source, line, 1))
-        .flatten()
-        .and_then(|sub_name| {
-            spec.resolve_subcommand_for_dialect(
-                &sub_name,
-                Some(crate::document_context_for_profile(profile).authoring_query()),
-            )
-        });
-    let floor = package_version_floor(analysis, spec, profile);
-    let (options, parent_surface) = match sub {
-        Some(sub) => {
-            // The dispatch word of a two-level ensemble, when the cursor is
-            // past it — `namespace ensemble configure -⟨tab⟩` has it at
-            // index 2. `None` (nothing typed there yet, or a `$var`) keeps
-            // the subcommand's own, wider table.
-            let next = (word_idx >= 3)
-                .then(|| nth_word_on_line(source, line, 2))
-                .flatten();
-            let scope = sub.option_scope(
-                next.as_deref(),
-                Some(crate::document_context_for_profile(profile).authoring_query()),
-                floor,
-                spec.surface,
-            );
-            (scope.options, scope.surface)
-        }
-        None => (spec.options, spec.surface),
-    };
-    if options.is_empty() {
-        return None;
-    }
-    // Replacement range spans the `-partial` already typed (dash column →
-    // cursor) so the dash isn't duplicated.
-    let line_text = source.split('\n').nth(line as usize).unwrap_or("");
-    let cursor_col = utf16_col_to_char_col(line_text, character).min(line_text.chars().count());
-    let dash_col = cursor_col.saturating_sub(switch_partial.chars().count());
-    let edit = (
-        char_col_to_utf16(line_text, dash_col),
-        char_col_to_utf16(line_text, cursor_col),
-    );
-    Some(switch_completions(
-        options,
-        profile,
-        parent_surface,
-        switch_partial,
-        edit,
-        floor,
-    ))
-}
-
-fn subcommand_arg_value_completion(
-    spec: &tcl_registry::CommandSpec,
-    source: &str,
-    line: u32,
-    word_idx: usize,
-    analysis: &AnalysisResult,
-    partial: &str,
-    profile: &'static tcl_dialect::DialectProfile,
-) -> Option<Vec<CompletionItem>> {
-    if word_idx < 2 {
-        return None;
-    }
-    let sub_name = nth_word_on_line(source, line, 1)?;
-    let sub = spec.resolve_subcommand(&sub_name)?;
-    let sub_arg_idx = u8::try_from(word_idx - 2).unwrap_or(u8::MAX);
-    if sub.arg_values_at(sub_arg_idx).is_empty() {
-        return None;
-    }
-    let floor = package_version_floor(analysis, spec, profile);
-    Some(arg_value_completions_from(
-        sub.available_arg_values_at(sub_arg_idx, floor),
-        partial,
-    ))
-}
-
 /// Registry-driven, context-aware completion: switch / event-name /
 /// user-proc / subcommand / arg-value suggestions resolved from the
 /// surrounding command's [`CommandRegistry`] spec.  Returns `None` when the
@@ -525,170 +406,7 @@ fn context_aware_completions(
         return Some(scoped_op_completions(scoped, partial));
     }
 
-    let spec = registry.get(&cmd)?;
-
-    // Switch completion fires when the identifier
-    // partial is preceded by a literal `-` on the
-    // line.  `word_partial_at_position` stops at the
-    // dash (it's not an identifier char), so detect
-    // the dash here and rebuild the switch partial.
-    if let Some(switch_partial) = switch_partial_at_position(source, line, character, partial)
-        && let Some(items) = switch_completion_items(
-            &SwitchCompletionCtx {
-                spec,
-                source,
-                line,
-                character,
-                word_idx,
-                analysis,
-                profile,
-            },
-            &switch_partial,
-        )
-    {
-        return Some(items);
-    }
-    // iRules `when EVENT { body }`: when the cursor is
-    // typing the first argument of an event-handler
-    // command, enumerate the known event names from the
-    // shared event registry.
-    if word_idx == 1 && spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER) {
-        return Some(event_name_completions(partial));
-    }
-    // iRules `call PROC_NAME ?ARGS?`: when the cursor
-    // is typing the first argument of an
-    // `INVOKES_USER_PROC` command (today only `call`
-    // in iRules), surface user-defined proc names —
-    // and only those, not built-in commands.
-    if word_idx == 1
-        && spec
-            .traits
-            .contains(tcl_registry::Traits::INVOKES_USER_PROC)
-    {
-        return Some(invoked_proc_completions(analysis, partial));
-    }
-    if word_idx == 1 && !spec.subcommands.is_empty() {
-        return Some(subcommand_completions(spec, analysis, profile, partial));
-    }
-    // Second-level subcommand completion — the word after a two-level
-    // ensemble's first-level subcommand (`info object <op>`, `info class
-    // <op>`).  The first-level word is at index 1; offer its declared
-    // `sub_subcommands` at index 2.
-    if word_idx == 2
-        && let Some(sub_name) = nth_word_on_line(source, line, 1)
-        && let Some(sub) = spec.resolve_subcommand(&sub_name)
-        && !sub.sub_subcommands.is_empty()
-    {
-        let floor = package_version_floor(analysis, spec, profile);
-        return Some(sub_subcommand_completions(
-            crate::document_context_for_profile(profile)
-                .available_sub_subcommands(spec, sub, floor),
-            partial,
-        ));
-    }
-    // Subcommand argument-value completion — e.g.
-    // `string is <class>`.  When the cursor is at
-    // word-index ≥ 2 of a command whose subcommand
-    // (the word at index 1) declares enumerable
-    // values for that sub-arg position, list them.
-    if let Some(items) =
-        subcommand_arg_value_completion(spec, source, line, word_idx, analysis, partial, profile)
-    {
-        return Some(items);
-    }
-    if let Some(items) =
-        option_value_completion(spec, source, line, word_idx, analysis, partial, profile)
-    {
-        return Some(items);
-    }
-    if let Some(items) =
-        command_arg_value_completion(spec, source, line, word_idx, analysis, partial, profile)
-    {
-        return Some(items);
-    }
-    None
-}
-
-/// Option-value completion — when the word immediately before the cursor is a
-/// value-taking option that declares an enumerable value set, offer those
-/// values (e.g. `button .b -relief <cursor>` → flat|raised|…).  Matches by
-/// name or alias; arity-`One` covered (the value follows the switch).
-fn option_value_completion(
-    spec: &tcl_registry::CommandSpec,
-    source: &str,
-    line: u32,
-    word_idx: usize,
-    analysis: &AnalysisResult,
-    partial: &str,
-    profile: &'static tcl_dialect::DialectProfile,
-) -> Option<Vec<CompletionItem>> {
-    if word_idx < 2 {
-        return None;
-    }
-    let prev = nth_word_on_line(source, line, word_idx - 1)?;
-    if !prev.starts_with('-') {
-        return None;
-    }
-    let opt = spec
-        .options
-        .iter()
-        .chain(spec.command_forms.iter().flat_map(|f| f.options.iter()))
-        .find(|o| o.matches(prev.as_str()))?;
-    // A value a later package release introduced (or retired) is not offered
-    // against an older floor — the same gate the switch names themselves get.
-    let floor = package_version_floor(analysis, spec, profile);
-    let values: Vec<&tcl_registry::ArgValue> = opt
-        .value_values()
-        .iter()
-        .filter(|value| value.available_for_version(floor))
-        .collect();
-    if !values.is_empty() {
-        return Some(arg_value_completions_from(values, partial));
-    }
-    // A boolean-valued option has no enumerable `values` — Tcl accepts every
-    // spelling `abbrev::boolean_table` resolves, prefixes included, which a
-    // closed set cannot express. The registry says so with
-    // `ArgRole::Boolean`, and the vocabulary comes from the one place that
-    // models it.
-    opt.value_is_boolean()
-        .then(|| boolean_value_completions(partial))
-}
-
-/// Command-level positional arg-value completion — the bareword value sets
-/// declared directly on the command (not a subcommand).  Covers iRules `when
-/// EVENT timing enable|disable` and `HTTP::respond <status>
-/// content|noserver|version`.  The argument index is the 0-based position
-/// after the command name (`word_idx - 1`).
-fn command_arg_value_completion(
-    spec: &tcl_registry::CommandSpec,
-    source: &str,
-    line: u32,
-    word_idx: usize,
-    analysis: &AnalysisResult,
-    partial: &str,
-    profile: &'static tcl_dialect::DialectProfile,
-) -> Option<Vec<CompletionItem>> {
-    if word_idx < 1 {
-        return None;
-    }
-    let arg_idx = u8::try_from(word_idx - 1).unwrap_or(u8::MAX);
-    // `when`'s keyword tail carries an enumerable value slot only after the
-    // `timing` keyword (the `priority` keyword takes a numeric argument).
-    // Even-index value slots are gated on the preceding literal being
-    // `timing`.
-    if spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER)
-        && arg_idx >= 2
-        && nth_word_on_line(source, line, word_idx - 1).as_deref() != Some("timing")
-    {
-        return None;
-    }
-    // Both version gates apply: the value's own lifecycle and any
-    // command-level `versioned_arg_values` entry naming it, so a literal a
-    // later package release introduced (or retired) is not offered against an
-    // older floor.
-    let floor = package_version_floor(analysis, spec, profile);
-    let values = spec.available_arg_values_at(arg_idx, floor);
-    (!values.is_empty()).then(|| arg_value_completions_from(values, partial))
+    original_context::items(source, cursor, line, character, analysis, partial)
 }
 
 /// [`completions`]'s `$var` / `${var}` trigger branch, split out so the
@@ -725,9 +443,8 @@ fn variable_trigger_completions(
 ///
 /// `analysis` is the pre-computed analyser result; the caller
 /// (server) is expected to cache it.  `registry`, when `Some`,
-/// extends proc-name completion with built-in command names —
-/// every command registered in the caller's dialect-aware
-/// registry surfaces at the same cursor contexts.  Returns an
+/// remains a compatibility parameter. Actual command advice comes from the
+/// retained document Registry and full availability context.  Returns an
 /// empty vector when there is no useful suggestion (delimiter
 /// run, EOF, etc.).
 ///
@@ -751,34 +468,26 @@ pub fn completions(
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
-    registry: Option<&CommandRegistry>,
+    _registry: Option<&CommandRegistry>,
     workspace: Option<&crate::workspace_index::WorkspaceIndex>,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<CompletionItem> {
-    if !analysis.allows_lexical_declaration_advice()
-        && !analysis.body_lexer_config.is_some_and(|config| {
-            analysis
-                .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
-        })
-    {
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
         return Vec::new();
-    }
+    };
     if let Some(items) = variable_trigger_completions(source, line, character, analysis) {
         return items;
     }
     let partial = word_partial_at_position(source, line, character);
     // Shared by the position lookups below instead of each rebuilding its own.
     let line_index = tcl_lexer::LineIndex::new(source);
-    // Canonicalise once so every dialect-sensitive path below agrees on the
-    // interned profile identity, including legacy iRules aliases.
-    let profile = analysis.resolved_profile().unwrap_or(dialect);
-    let registry = analysis.resolved_registry().or(registry);
+    // The current source owner retains the profile and actual command store.
+    let profile = current.profile();
+    let registry = Some(current.registry());
 
-    // Context-aware completions — switch + subcommand + event-name.
-    // All three require the caller-provided registry to look up
-    // the surrounding command's spec.  Without a registry we
-    // can't tell which switches / subcommands / events are valid,
-    // so fall through to plain command + proc completion.
+    // Per-point schema advice preserves effective operand origins, known
+    // command barriers and the retained availability context.
     if let Some(registry) = registry
         && let Some(items) = context_aware_completions(
             source, line, character, analysis, registry, &partial, profile,
@@ -2037,7 +1746,7 @@ fn switch_partial_at_position(
 
 fn switch_completions(
     options: &[tcl_registry::hover::OptionSpec],
-    profile: &'static tcl_dialect::DialectProfile,
+    context: &tcl_registry::model::ResolvedContext,
     parent_surface: Option<&'static [SpecSurface]>,
     partial: &str,
     edit: (u32, u32),
@@ -2047,8 +1756,7 @@ fn switch_completions(
         .iter()
         .filter(|opt| {
             opt.available_for_version(package_version)
-                && crate::document_context_for_profile(profile)
-                    .option_available(opt, parent_surface)
+                && context.option_available(opt, parent_surface)
         })
         .collect();
     opts.sort_unstable_by_key(|opt| opt.name);
@@ -2151,6 +1859,7 @@ fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
     items
 }
 
+#[cfg(test)]
 fn subcommand_completions(
     spec: &tcl_registry::CommandSpec,
     analysis: &AnalysisResult,
@@ -2386,19 +2095,6 @@ fn sub_subcommand_completions(
         decorate_fuzzy_items(&mut items, partial);
     }
     items
-}
-
-/// Return the `n`-th whitespace-delimited word on `line` of
-/// `source` (0-based), if present.  Used to recover the
-/// subcommand keyword (word index 1) for argument-value
-/// completion.
-fn nth_word_on_line(source: &str, line: u32, n: usize) -> Option<String> {
-    source
-        .split('\n')
-        .nth(line as usize)?
-        .split_whitespace()
-        .nth(n)
-        .map(str::to_owned)
 }
 
 /// Build completions for a value position the registry declares boolean

@@ -2,6 +2,7 @@
 //! Actual compiled and generic command inventory results and retained original literals.
 
 use crate::{Code, Value};
+use tcl_syntax::value::ValueOps;
 
 include!("../../../../tcl-registry/tests/data/native_info_commands_literal_original/cases.rs");
 const WINDOWS: &str = include_str!(

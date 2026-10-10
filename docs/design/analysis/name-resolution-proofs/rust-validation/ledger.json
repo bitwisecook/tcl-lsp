@@ -110663,6 +110663,528 @@
           "scope": "Actual successful Cargo artifact event only; no sealed image, inventory or assertions."
         }
       ]
+    },
+    {
+      "id": "rust.frozen273.integration-vm-native-test-build273",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/integration-vm-native-test-build273/receipt.json.gz",
+        "sha256": "3a968b124aa6f40f38d67df02cb1d77f420a8f12e54817d760eac7c48236f279",
+        "compression": "gzip",
+        "uncompressed_sha256": "f2dad7cd37559085798edeeaadbe278c1b2d284668e163a03656f47b16ea4bbe"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/integration-vm-native-test-build273/tests.log",
+        "sha256": "bb35f0206e7467b9d3617283e6c78e7aa6de11b64273f489b5195fdfd8352137"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 0,
+      "seconds": 113.24528634201852,
+      "uniform_source": true,
+      "status": "compile-passed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. The independent VM-only no-run273 build emits its actual tcl_vm test executable, separately sealed as VM273. Construction is not an assertion result.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/sealed-vm-image/pinned-vm273.elf.gz",
+        "sha256": "685969c4230223a9a6e8b6838ae6cc063c995f0d43e5f81b54522706abd03e36",
+        "compression": "gzip",
+        "uncompressed_sha256": "81717199bc118a999775a1d928b490d4e1a1c599ef000418f98a95e8fa2cd1e4",
+        "uncompressed_bytes": 101318440,
+        "compressed_bytes": 19816995,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/sealed-vm-image/pinned-vm273.json",
+        "metadata_sha256": "2174cf61681ba213a3b0dba15133f4c8e344ff306f6037fbd2a2da945eda289f",
+        "build_receipt_id": "rust.frozen273.integration-vm-native-test-build273",
+        "original_source_snapshot_sha256": "48fd35141e4280829a8cb989ab30c800f927d6f59e97452e09b13ee284414183"
+      }
+    },
+    {
+      "id": "rust.frozen273.integration-vm-current-inventory273",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/integration-vm-current-inventory273/receipt.json.gz",
+        "sha256": "d50aaded9e7986ed9d44fc6f67834d23d22fd24e1358cd6bada02b68b151d584",
+        "compression": "gzip",
+        "uncompressed_sha256": "a8e9cc23f5c22f1800aa7ae2b52794a47a3defaf1b5db75ccab142a0fede3b8b"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/integration-vm-current-inventory273/tests.log",
+        "sha256": "79c9c06b1d24c42508d59494253adc159c7737ddde846d2bf8c5e1588b22794d"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm273.elf",
+        "--list"
+      ],
+      "exit": 0,
+      "seconds": 0.01220533499144949,
+      "uniform_source": true,
+      "status": "listed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. The independently built sealed VM273 ELF lists735 exact tests; listing grants no assertion result.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/sealed-vm-image/pinned-vm273.elf.gz",
+        "sha256": "685969c4230223a9a6e8b6838ae6cc063c995f0d43e5f81b54522706abd03e36",
+        "compression": "gzip",
+        "uncompressed_sha256": "81717199bc118a999775a1d928b490d4e1a1c599ef000418f98a95e8fa2cd1e4",
+        "uncompressed_bytes": 101318440,
+        "compressed_bytes": 19816995,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/sealed-vm-image/pinned-vm273.json",
+        "metadata_sha256": "2174cf61681ba213a3b0dba15133f4c8e344ff306f6037fbd2a2da945eda289f",
+        "build_receipt_id": "rust.frozen273.integration-vm-native-test-build273",
+        "original_source_snapshot_sha256": "48fd35141e4280829a8cb989ab30c800f927d6f59e97452e09b13ee284414183"
+      }
+    },
+    {
+      "id": "rust.frozen273.integration-vm-native-frontier-tests273",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/integration-vm-native-frontier-tests273/receipt.json.gz",
+        "sha256": "198a611c182f49ba3fbf54f2831f3034ae5b384d3cb4f362a141a4e26ecc3d36",
+        "compression": "gzip",
+        "uncompressed_sha256": "32cc9d0bce0322e69235d470da376a8ba7505a1b72b8a0f35e36dbe2101f786d"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/integration-vm-native-frontier-tests273/tests.log",
+        "sha256": "875bf69a35754a77e895dca807202b9f925ec460176bf301fee97616c03e6926"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm273.elf",
+        "--exact",
+        "cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows",
+        "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+        "cmd_dict::native_rmw_fixture_tests::c85_dictionary_write_error_retains_defined_host_storage",
+        "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+        "cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls",
+        "value::tests::byte_array_carrier_retains_original_storage_and_string_presence",
+        "interp::native_error_stack::tests::reached_error_capture_retains_original_argv_members_after_invocation_release",
+        "interp::native_error_stack::tests::reached_error_capture_declines_retired_argv_and_missing_protocol",
+        "interp::native_error_stack::tests::private_stack_retains_header_and_children_through_save_cow_and_restore",
+        "interp::native_error_stack::tests::reached_capture_adapters_preserve_typed_retired_foreign_and_first_causes",
+        "interp::native_error_stack::tests::reached_instruction_capture_preserves_missing_owner_refusal",
+        "cmd_dict::native_rmw_fixture_tests::c86_dictionary_write_error_retains_its_own_defined_host_storage",
+        "exec::active_manifest_tests::active_currency_rechecks_pack_claims_and_manifest_package_floors",
+        "exec::active_manifest_tests::compiled_entry_checks_retained_manifest_and_actual_pack_claims",
+        "exec::active_manifest_tests::refused_overlay_pin_preserves_the_active_artifact_identity",
+        "exec::active_manifest_tests::stale_pack_command_boundary_does_not_acknowledge_the_changed_epoch",
+        "interp::family_b_tests::explicit_host_engine_keeps_source_logical_and_availability_axes_separate",
+        "value_ops::raw_value_tests::safe_index_functions_require_the_actual_fixed_table",
+        "value_ops::raw_value_tests::portable_error_adapter_separates_raw_guest_result_from_unicode_refusal",
+        "value_ops::raw_value_tests::jim_range_retains_native_seek_and_cached_count_until_conversion",
+        "error::tests::typed_access_refusal_bypasses_catch_and_finally",
+        "cmd_lseq::tests::sequence_backend_capacity_bypasses_guest_capture_and_finally",
+        "command::tests::original_command_core_refusal_keeps_typed_first_host_cause",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit": 101,
+      "seconds": 140.9282312769792,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 19,
+        "failed": 4,
+        "ignored": 0,
+        "filtered_out": 712
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::c85_dictionary_write_error_retains_defined_host_storage",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.dictionary.c85-original-update-write-error-object-lifetime"
+          ]
+        },
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::c86_dictionary_write_error_retains_its_own_defined_host_storage",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.dictionary.original-update-write-error-object-lifetime"
+          ]
+        },
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows",
+          "status": "failed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.dictionary.c85-original-update-write-error-object-lifetime",
+            "naming.dictionary.update-with-body-and-observer-frontiers",
+            "naming.dictionary.original-update-write-error-object-lifetime"
+          ]
+        },
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+          "status": "failed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+          ]
+        },
+        {
+          "selector": "cmd_lseq::tests::sequence_backend_capacity_bypasses_guest_capture_and_finally",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+          "status": "failed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls",
+          "status": "failed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "command::tests::original_command_core_refusal_keeps_typed_first_host_cause",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.interpreter.original-child-host-refusal-transport"
+          ]
+        },
+        {
+          "selector": "error::tests::typed_access_refusal_bypasses_catch_and_finally",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "exec::active_manifest_tests::active_currency_rechecks_pack_claims_and_manifest_package_floors",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.compiler.active-manifest-revalidation"
+          ]
+        },
+        {
+          "selector": "exec::active_manifest_tests::compiled_entry_checks_retained_manifest_and_actual_pack_claims",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.compiler.active-manifest-revalidation"
+          ]
+        },
+        {
+          "selector": "exec::active_manifest_tests::refused_overlay_pin_preserves_the_active_artifact_identity",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.compiler.active-manifest-revalidation"
+          ]
+        },
+        {
+          "selector": "exec::active_manifest_tests::stale_pack_command_boundary_does_not_acknowledge_the_changed_epoch",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.compiler.active-manifest-revalidation"
+          ]
+        },
+        {
+          "selector": "interp::family_b_tests::explicit_host_engine_keeps_source_logical_and_availability_axes_separate",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "interp::native_error_stack::tests::private_stack_retains_header_and_children_through_save_cow_and_restore",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "interp::native_error_stack::tests::reached_capture_adapters_preserve_typed_retired_foreign_and_first_causes",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.error.original-invocation-context-capture"
+          ]
+        },
+        {
+          "selector": "interp::native_error_stack::tests::reached_error_capture_declines_retired_argv_and_missing_protocol",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.error.original-invocation-context-capture"
+          ]
+        },
+        {
+          "selector": "interp::native_error_stack::tests::reached_error_capture_retains_original_argv_members_after_invocation_release",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.error.original-invocation-context-capture"
+          ]
+        },
+        {
+          "selector": "interp::native_error_stack::tests::reached_instruction_capture_preserves_missing_owner_refusal",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.error.original-invocation-context-capture"
+          ]
+        },
+        {
+          "selector": "value::tests::byte_array_carrier_retains_original_storage_and_string_presence",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "value_ops::raw_value_tests::jim_range_retains_native_seek_and_cached_count_until_conversion",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "value_ops::raw_value_tests::portable_error_adapter_separates_raw_guest_result_from_unicode_refusal",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "value_ops::raw_value_tests::safe_index_functions_require_the_actual_fixed_table",
+          "status": "passed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [
+        "naming.compiler.active-manifest-revalidation",
+        "naming.dictionary.c85-original-update-write-error-object-lifetime",
+        "naming.dictionary.original-update-write-error-object-lifetime",
+        "naming.dictionary.update-with-body-and-observer-frontiers",
+        "naming.error.original-invocation-context-capture",
+        "naming.interpreter.original-child-host-refusal-transport",
+        "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+      ],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. The23 exact-selector frontier run records19 passed/4 failed; the isolated dictionary-publication backtrace repeats its one failing selector. Their exact per-selector outcomes apply only to this sealed source/image, without aggregate success, other-backend or Native provider promotion.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/sealed-vm-image/pinned-vm273.elf.gz",
+        "sha256": "685969c4230223a9a6e8b6838ae6cc063c995f0d43e5f81b54522706abd03e36",
+        "compression": "gzip",
+        "uncompressed_sha256": "81717199bc118a999775a1d928b490d4e1a1c599ef000418f98a95e8fa2cd1e4",
+        "uncompressed_bytes": 101318440,
+        "compressed_bytes": 19816995,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/sealed-vm-image/pinned-vm273.json",
+        "metadata_sha256": "2174cf61681ba213a3b0dba15133f4c8e344ff306f6037fbd2a2da945eda289f",
+        "build_receipt_id": "rust.frozen273.integration-vm-native-test-build273",
+        "original_source_snapshot_sha256": "48fd35141e4280829a8cb989ab30c800f927d6f59e97452e09b13ee284414183"
+      }
+    },
+    {
+      "id": "rust.frozen273.integration-workspace-naming-consumer-test-build273",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/integration-workspace-naming-consumer-test-build273/receipt.json.gz",
+        "sha256": "68c03b28c5f9e6688b880c85c90288906f4d9ff3edd02a63e66e8ddbafd15e1b",
+        "compression": "gzip",
+        "uncompressed_sha256": "9fd094d10461ce685ceb87ff40f913af51ec8d14bcbf1aab456754f9309cb4a7"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/integration-workspace-naming-consumer-test-build273/tests.log",
+        "sha256": "86bc99856b8deaa1bb82c0a6ca9c74a9e0a950e01143dcb3cf31a3594facd7b2"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "-p",
+        "tcl-lsp-core",
+        "-p",
+        "tcl-lsp-db",
+        "-p",
+        "tcl-lsp-server",
+        "-p",
+        "tcl-engine-tclvm",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 102.64471211997443,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. This dependency/libtest compilation failure reaches no assertions or sealed image for this invocation. The log records successful libtest artifact events before this blocked dependency/test compilation; every listed artifact remains unsealed and unexecuted for this invocation.",
+      "unsealed_test_artifacts": [
+        {
+          "target": "tcl_syntax",
+          "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_syntax-896b776365d8a73f",
+          "scope": "Actual Cargo compiler-artifact event only; no sealed image, inventory or assertions."
+        }
+      ]
+    },
+    {
+      "id": "rust.frozen273.integration-compiler-registry-consumer-test-build273",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/integration-compiler-registry-consumer-test-build273/receipt.json.gz",
+        "sha256": "03af9cf413f2a7fac58d576b72c5a219438d32e1aed75b1e98056a12c6b5b0cd",
+        "compression": "gzip",
+        "uncompressed_sha256": "93f3ebf8f16ad73a0fb8ef5675b39cb9043cff07359b7abe4eb6166f9cfa9523"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/integration-compiler-registry-consumer-test-build273/tests.log",
+        "sha256": "9ba98d846f6abfc621362a6cb6ce917a75ef713431349013370f29e44e0ac030"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "-p",
+        "tcl-engine-tclvm",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 263.125773044012,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. This dependency/libtest compilation failure reaches no assertions or sealed image for this invocation. The log records successful libtest artifact events before this blocked dependency/test compilation; every listed artifact remains unsealed and unexecuted for this invocation.",
+      "unsealed_test_artifacts": [
+        {
+          "target": "tcl_syntax",
+          "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_syntax-54a8e65bf9653704",
+          "scope": "Actual Cargo compiler-artifact event only; no sealed image, inventory or assertions."
+        },
+        {
+          "target": "tcl_engine_tclvm",
+          "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_engine_tclvm-fb346ec5c98debea",
+          "scope": "Actual Cargo compiler-artifact event only; no sealed image, inventory or assertions."
+        },
+        {
+          "target": "tcl_registry",
+          "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_registry-c6c4bf0ac18a85c6",
+          "scope": "Actual Cargo compiler-artifact event only; no sealed image, inventory or assertions."
+        }
+      ]
+    },
+    {
+      "id": "rust.frozen273.diagnostic-native273-dictionary345-backtrace",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/diagnostic-native273-dictionary345-backtrace/receipt.json.gz",
+        "sha256": "c784ebb7dc28b53fb2a102d937b5e8e5bace36e7082c5df1eb4ffb10215a88a4",
+        "compression": "gzip",
+        "uncompressed_sha256": "fa976b7f78b43d5de3b97b40b6bd74891b294d430af675bd3b85bcfe8193f638"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/diagnostic-native273-dictionary345-backtrace/tests.log",
+        "sha256": "e253332d95fe8768cc7e80089e44cc591b7b0d159f8f79b483db542f094a8e86"
+      },
+      "command": [
+        "/usr/bin/env",
+        "RUST_BACKTRACE=1",
+        "TCL_LSP_ORACLE_PROGRESS=1",
+        "/workspace/.proofs/pinned-vm273.elf",
+        "--exact",
+        "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit": 101,
+      "seconds": 85.48366518100374,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 734
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+          "status": "failed",
+          "purpose": "Actual sealed VM273 ELF assertion under its original naming273 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+          ]
+        }
+      ],
+      "question_ids": [
+        "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+      ],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. The23 exact-selector frontier run records19 passed/4 failed; the isolated dictionary-publication backtrace repeats its one failing selector. Their exact per-selector outcomes apply only to this sealed source/image, without aggregate success, other-backend or Native provider promotion.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/sealed-vm-image/pinned-vm273.elf.gz",
+        "sha256": "685969c4230223a9a6e8b6838ae6cc063c995f0d43e5f81b54522706abd03e36",
+        "compression": "gzip",
+        "uncompressed_sha256": "81717199bc118a999775a1d928b490d4e1a1c599ef000418f98a95e8fa2cd1e4",
+        "uncompressed_bytes": 101318440,
+        "compressed_bytes": 19816995,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen273/sealed-vm-image/pinned-vm273.json",
+        "metadata_sha256": "2174cf61681ba213a3b0dba15133f4c8e344ff306f6037fbd2a2da945eda289f",
+        "build_receipt_id": "rust.frozen273.integration-vm-native-test-build273",
+        "original_source_snapshot_sha256": "48fd35141e4280829a8cb989ab30c800f927d6f59e97452e09b13ee284414183"
+      }
     }
   ]
 }

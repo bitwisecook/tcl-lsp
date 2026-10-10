@@ -83,6 +83,7 @@ pub mod oo_body;
 mod oo_dispatch;
 pub mod original_call_hierarchy;
 pub mod original_command_rename;
+mod original_context;
 pub mod original_declaration;
 pub mod original_indexed_location;
 mod original_invocation;

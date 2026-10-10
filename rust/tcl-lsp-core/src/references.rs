@@ -2985,7 +2985,7 @@ fn scan_next_dispatch_sites(
 /// ([`constructor_next_chain_references`] / [`destructor_next_chain_references`]),
 /// which must know *which* class a `nextto` names to decide whether it
 /// chains to the class under a given lens.
-fn scan_next_dispatch_sites_with_target(
+pub(crate) fn scan_next_dispatch_sites_with_target(
     source: &str,
     analysis: &AnalysisResult,
     body: tcl_lexer::Span,
@@ -3649,21 +3649,11 @@ fn retained_dispatch_context(
     source: &str,
     analysis: &AnalysisResult,
 ) -> Option<RetainedDispatchContext> {
-    let input = analysis.resolved_input.as_ref()?;
-    let config = analysis.body_lexer_config?;
-    (input.lexer_config() == config
-        && analysis
-            .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config))
-    .then_some(())?;
-    let identities = analysis.retained_command_realm()?;
-    identities
-        .matches_resolved_analysis_input(input)
-        .then_some(())?;
-    analysis.resolved_registry()?;
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     Some(RetainedDispatchContext {
-        dialect: analysis.resolved_profile()?,
-        config,
-        context: input.context_registry(),
+        dialect: current.profile(),
+        config: current.config(),
+        context: current.context(),
     })
 }
 

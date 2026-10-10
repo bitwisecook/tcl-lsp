@@ -1,0 +1,7 @@
+include /workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile
+BUILD_DIR := /workspace/tcl-lsp/tmp/tcl9.0.4/unix
+.PHONY: observed-dictionary observed-object
+observed-dictionary:
+	$(CC) -c $(CC_SWITCHES) /tmp/native-dictionary-with-lifetime405/9.0.4/observed-tclDictObj.c -o /tmp/native-dictionary-with-lifetime405-capture/9.0.4/tclDictObj.o
+observed-object:
+	$(CC) -c $(CC_SWITCHES) /tmp/native-dictionary-with-lifetime405/9.0.4/observed-tclObj.c -o /tmp/native-dictionary-with-lifetime405-capture/9.0.4/tclObj.o

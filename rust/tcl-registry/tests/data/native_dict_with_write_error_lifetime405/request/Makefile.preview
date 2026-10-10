@@ -1,0 +1,7 @@
+include /SDK/unix/Makefile
+BUILD_DIR := /SDK/unix
+.PHONY: observed-dictionary observed-object
+observed-dictionary:
+	$(CC) -c $(CC_SWITCHES) /REQ/8.6.18/observed-tclDictObj.c -o /OUT/tclDictObj.o
+observed-object:
+	$(CC) -c $(CC_SWITCHES) /REQ/8.6.18/observed-tclObj.c -o /OUT/tclObj.o

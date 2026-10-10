@@ -178,7 +178,7 @@ impl RegistryPurposeDescription {
             Self::PatternSubstitution => code == "W306",
             Self::IndexBounds => matches!(code, "W230" | "W232"),
             Self::TemplateSubstitution => code == "W102",
-            Self::ScriptReparse => matches!(code, "W101" | "W309"),
+            Self::ScriptReparse => matches!(code, "W101" | "W301" | "W309" | "W312"),
         }
     }
 }
@@ -1983,6 +1983,52 @@ mod tests {
             diagnostic.message =
                 "translated text with misleading command and operand names".to_owned();
             diagnostic.fixes.clear();
+            assert_eq!(diagnostic_subject_data(&diagnostic), Some(payload));
+        }
+    }
+    #[test]
+    fn original_crossing_transport_keeps_captured_ordinals_and_ignores_presentation() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let source = "interp alias {} frame {} uplevel 1; interp alias {} child {} interp invokehidden {} -namespace ::N; frame \"pré $value\"; child $command";
+        let result = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "tcl");
+        for (code, argument, span) in [
+            (DiagCode::W301, 1, "\"pré $value\""),
+            (DiagCode::W312, 4, "$command"),
+        ] {
+            let mut diagnostic = result
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code == code)
+                .expect("original crossing warning")
+                .clone();
+            let payload = diagnostic_subject_data(&diagnostic).unwrap();
+            assert_eq!(payload["subject"]["purpose"], "scriptReparse");
+            assert_eq!(payload["subject"]["argument"], argument);
+            assert_eq!(payload["subject"]["writtenArgument"], 0);
+            assert_eq!(&source[diagnostic.span.as_range()], span);
+            assert!(
+                DiagnosticSubjectData::from_value(
+                    &payload,
+                    if code == DiagCode::W301 {
+                        "W301"
+                    } else {
+                        "W312"
+                    }
+                )
+                .is_some()
+            );
+            assert!(DiagnosticSubjectData::from_value(&payload, "W102").is_none());
+            diagnostic.message = "unrelated presentation names".to_owned();
             assert_eq!(diagnostic_subject_data(&diagnostic), Some(payload));
         }
     }

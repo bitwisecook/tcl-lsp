@@ -18,6 +18,8 @@ Method-reference and namespace rename-hazard scanners share current whole analys
 
 Core callback references consume the separate authored command-prefix data receipt at its actual builder point. Genuine list/alias target roles and original geometry retain full source configuration and package availability; known shadows and incomplete stored writes withdraw advice. This source data does not satisfy a deferred Produced parent, future lookup, entered callback or edit permission.
 
+Source next/self dispatch consumers share authentic original selected roles, helper/composite selectors and exact captured/written coordinates under actual availability/configuration. Known target replacement/deletion or missing/foreign/stale source owners withdraw their conditional references/hazards.
+
 ## Scope
 
 Current Core source-region implementation contract. Two fixed controls check retained custom schema/PotentialEvaluation versus ReferenceOnly, and original moved namespace source versus replacement/delete/missing/stale ownership. All seven providers are not tested; original provider dispatch/lifetime observations remain separate.
@@ -25,6 +27,8 @@ Current Core source-region implementation contract. Two fixed controls check ret
 Two additional source/API controls classify reference geometry and rename blockers under authentic custom source roles. They compare no external C/Jim/BIG-IP completion, live receiver, original table/private holder, Native method/body/frame execution or executable rename equivalence. All provider answers remain not tested, with no assertion execution claimed.
 
 Three additional Core source controls have no executed assertion receipt. Their callback-like source role projection grants no current receiver, Native handler/frame, result object, dispatch or execution authority.
+
+Three additional Core source controls have no executed assertion or provider receipt. Original roles and lookup horizons do not establish Native receiver/frame/dispatch execution, caller body entry, compiler admission or rename/edit equivalence.
 
 ## Provider answers
 
@@ -101,6 +105,14 @@ These source/API bindings carry no executed assertion or Native provider result.
 - [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs), `references::tests::callback_source_roles_keep_actual_availability_and_original_builder_geometry` (linked): Keep conditional callback roles and source ranges under the actual selected list builder/config/availability, without a deferred parent or Native callback entry.
 - [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs), `references::tests::callback_source_roles_keep_actual_package_availability_in_the_same_store` (linked): Actual package availability independently controls selected callback roles even when the underlying command store is unchanged.
 - [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs), `references::tests::callback_source_targets_withdraw_known_shadows_and_incomplete_stored_writes` (linked): Known target replacement and incomplete stored-prefix writes withdraw authored callback target advice rather than fill from a command label or future lookup.
+
+These bindings are current software contracts without an executed assertion or external provider result.
+
+- [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs), `scan_next_dispatch_sites`: Source next/nextto references traverse authentic executable regions and original selected invocation roles under the complete actual analysis input.
+- [rust/tcl-lsp-core/src/rename_safety.rs](../../../../rust/tcl-lsp-core/src/rename_safety.rs), `walk_self_dispatch`: Self hazards consume original selected helpers/captured selector mapping under the same source dispatch context; reference advice does not grant Native entry or edits.
+- [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs), `references::original_next_dispatch_context_tests::original_next_dispatch_uses_selected_roles_captured_targets_and_actual_availability` (linked): Source next dispatch scans authentic selected roles and captured targets under actual same-store availability.
+- [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs), `references::original_next_dispatch_context_tests::original_next_dispatch_withdraws_known_replacements_missing_and_foreign_source` (linked): Known replacement/deletion and missing/foreign or stale source owners withdraw original next target advice.
+- [rust/tcl-lsp-core/src/rename_safety.rs](../../../../rust/tcl-lsp-core/src/rename_safety.rs), `rename_safety::original_hazard_context_tests::original_self_hazards_use_selected_helpers_and_captured_selector_positions` (linked): Self-method hazard scanning retains selected helper/composite selector and captured/written original positions.
 
 These bindings are current software contracts without an executed assertion or external provider result.
 

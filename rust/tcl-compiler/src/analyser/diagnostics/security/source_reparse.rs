@@ -15,7 +15,10 @@ use tcl_registry::Traits;
 impl Analyser {
     /// The single child retains its original lookup horizon and selected
     /// return descriptor. This source idiom supplies no measured result value.
-    fn original_canonical_list_substitution(&self, word: &tcl_lexer::NativeWord) -> bool {
+    pub(super) fn original_canonical_list_substitution(
+        &self,
+        word: &tcl_lexer::NativeWord,
+    ) -> bool {
         self.original_substitution_call(word).is_some_and(|child| {
             child.with_schema(|schema| schema.return_type() == Some(tcl_registry::TclType::List))
                 == Some(true)

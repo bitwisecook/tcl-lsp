@@ -3138,7 +3138,7 @@ impl InterpState {
         let Some(registry) = self.profile_registry else {
             return true;
         };
-        if let Some(admitted) = registry.native_command_admission(
+        if let Some(admitted) = tcl_registry::CommandRegistry::native_command_admission(
             name,
             tcl_registry::InvocationDialect::of_profile(self.command_surface_profile),
         ) {

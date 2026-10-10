@@ -228,6 +228,9 @@ pub fn definition_with(
     analysis: &AnalysisResult,
     program: Option<ProgramExports<'_>>,
 ) -> Vec<LspRange> {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
+        return Vec::new();
+    }
     let view = CallResolution {
         registry: None,
         program,
@@ -464,11 +467,9 @@ fn next_dispatch_definition(
     line_index: &LineIndex,
     line: u32,
     character: u32,
-    word: &str,
+    _word: &str,
 ) -> Option<Vec<LspRange>> {
-    is_next_chain_keyword_in(crate::profile_for_analysis(analysis), word)
-        .then(|| next_dispatch_target(analysis, source, line_index, line, character, word))
-        .flatten()
+    next_dispatch_target(analysis, source, line_index, line, character)
         .map(|span| vec![span_to_range(source, line_index, span)])
 }
 
@@ -925,6 +926,11 @@ fn variable_scope_extent(
     _name: &str,
     offset: u32,
 ) -> Option<(u32, u32)> {
+    source_frame_extent(analysis, offset)
+}
+
+/// Lexical source-frame boundary only; no entered-frame identity is issued.
+pub(crate) fn source_frame_extent(analysis: &AnalysisResult, offset: u32) -> Option<(u32, u32)> {
     fn innermost(
         scope: &tcl_compiler::analyser::Scope,
         offset: u32,
@@ -1061,33 +1067,6 @@ pub(crate) fn is_self_receiver_call(receiver: &str, config: tcl_lexer::LexerConf
     crate::registry_for_dialect("").is_self_receiver_call(&cmd, args.first().map(String::as_str))
 }
 
-/// Whether `word` is a `TclOO` next-chain keyword (`next` / `nextto`) under
-/// `dialect` — a registry that predates `TclOO` answers `false`.
-fn is_next_chain_keyword_in(dialect: &'static tcl_dialect::DialectProfile, word: &str) -> bool {
-    method_dispatch_keyword_in(dialect, word) == Some(tcl_registry::MethodDispatchKind::NextChain)
-}
-
-/// Whether a next-chain keyword names an explicit resume-from class in its
-/// first argument — `nextto`'s structural marker, an
-/// [`tcl_registry::ArgRole::Name`] at index 0 on the spec, which `next` does
-/// not declare. Distinguishing the two structurally rather than by name is
-/// what `TCLOO_NEXT_CHAIN`'s own documentation asks consumers to do.
-pub(crate) fn next_chain_names_a_target_in(
-    dialect: &'static tcl_dialect::DialectProfile,
-    word: &str,
-) -> bool {
-    method_dispatch_keyword_in(dialect, word) == Some(tcl_registry::MethodDispatchKind::NextChain)
-        && crate::registry_for_dialect_profile(dialect)
-            .get(word)
-            .is_some_and(|spec| spec.arg_role_at(0) == Some(tcl_registry::ArgRole::Name))
-}
-
-/// [`next_chain_names_a_target_in`] against the dialect-less plain-Tcl
-/// profile.
-fn next_chain_names_a_target(word: &str) -> bool {
-    next_chain_names_a_target_in(crate::profile_for_dialect(""), word)
-}
-
 /// Resolve `TclOO` `next` / `nextto` at the cursor to the super-method's
 /// `name_span`.
 ///
@@ -1102,19 +1081,16 @@ fn next_dispatch_target(
     line_index: &LineIndex,
     line: u32,
     character: u32,
-    keyword: &str,
 ) -> Option<tcl_lexer::Span> {
     let cursor = byte_offset_at(line_index, source, line, character);
-    let (class_q, method) = enclosing_method(analysis, cursor)?;
-    let start_from: Option<String> = if next_chain_names_a_target(keyword) {
-        // Byte offset of the cursor within its line, so `word_after` can pick
-        // the occurrence the cursor is on (not merely the first).
-        let line_start = byte_offset_at(line_index, source, line, 0);
-        let cursor_in_line = cursor.saturating_sub(line_start) as usize;
-        let target = word_after(source, line, cursor_in_line, keyword)?;
-        Some(canonicalise_class(analysis, cursor, &target)?)
-    } else {
-        None
+    let (class_q, method, body) = enclosing_method(analysis, cursor)?;
+    let (_, target) =
+        crate::references::scan_next_dispatch_sites_with_target(source, analysis, body)
+            .into_iter()
+            .find(|(head, _)| head.start() <= cursor && cursor < head.end())?;
+    let start_from = match target {
+        Some(target) => Some(canonicalise_class(analysis, cursor, &target)?),
+        None => None,
     };
     let hierarchy = analysis.class_hierarchy();
     let next_class = hierarchy.member_next_provider(
@@ -1139,7 +1115,10 @@ fn next_dispatch_target(
 /// cursor inside a constructor matches nothing here, and `next` — the
 /// ordinary way a subclass forwards to its superclass's constructor —
 /// resolves to no location at all.
-fn enclosing_method(analysis: &AnalysisResult, cursor: u32) -> Option<(String, String)> {
+fn enclosing_method(
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Option<(String, String, tcl_lexer::Span)> {
     use tcl_compiler::analyser::class_hierarchy::{CONSTRUCTOR_MEMBER, DESTRUCTOR_MEMBER};
     let cd = analysis
         .all_classes
@@ -1157,43 +1136,13 @@ fn enclosing_method(analysis: &AnalysisResult, cursor: u32) -> Option<(String, S
     named
         .chain(ctors)
         .find(|(_, m)| m.body_span.start() <= cursor && cursor <= m.body_span.end())
-        .map(|(mname, _)| (cd.qualified_name.clone(), mname.to_owned()))
-}
-
-/// The whitespace-delimited word that follows `keyword` on the cursor's
-/// line (used to read the class name in `nextto Class`).
-///
-/// `cursor_in_line` is the cursor's byte offset within the line.  When a
-/// line has several `keyword` occurrences (a comment, a string, or a second
-/// statement), the occurrence the cursor sits on — or the nearest one
-/// starting at or before the cursor — is chosen, so `nextto` go-to-def
-/// resolves the class the user is actually pointing at rather than the
-/// first match on the line.
-fn word_after(source: &str, line: u32, cursor_in_line: usize, keyword: &str) -> Option<String> {
-    let line_text = source.split('\n').nth(line as usize)?;
-    // Select the keyword occurrence anchored on the cursor.
-    let mut chosen: Option<usize> = None;
-    let mut search = 0;
-    while let Some(rel) = line_text[search..].find(keyword) {
-        let idx = search + rel;
-        let end = idx + keyword.len();
-        if idx <= cursor_in_line && cursor_in_line <= end {
-            chosen = Some(idx); // cursor is on the keyword itself
-            break;
-        }
-        if idx <= cursor_in_line {
-            chosen = Some(idx); // best occurrence at/before the cursor so far
-        }
-        search = end;
-    }
-    // Fall back to the first occurrence when the cursor precedes them all.
-    let idx = chosen.or_else(|| line_text.find(keyword))?;
-    let rest = line_text[idx + keyword.len()..].trim_start();
-    let word: String = rest
-        .chars()
-        .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == ':')
-        .collect();
-    (!word.is_empty()).then_some(word)
+        .map(|(mname, method)| {
+            (
+                cd.qualified_name.clone(),
+                mname.to_owned(),
+                method.body_span,
+            )
+        })
 }
 
 /// Canonicalise a written class name to the qualified form keyed in
@@ -7800,5 +7749,76 @@ mod original_namespace_export_advice_tests {
             ),
             Some("::B".to_owned())
         );
+    }
+}
+
+#[cfg(test)]
+mod original_next_source_context_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    fn analyse(source: &str, environment: &str) -> AnalysisResult {
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let surface = Some(tcl_dialect::model::SpecSurface::TCL90_PLUS);
+        registry.insert(tcl_registry::CommandSpec {
+            name: "source_next_named",
+            traits: tcl_registry::Traits::TCLOO_NEXT_CHAIN,
+            arg_roles: &[(0, tcl_registry::ArgRole::Name)],
+            arity: tcl_registry::Arity::at_least(1),
+            surface,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let context = Arc::new(
+            tcl_registry::model::ingress::static_context_for(environment)
+                .with_command_store(Arc::new(registry)),
+        );
+        Analyser::new()
+            .with_resolved_input(ResolvedAnalysisInput::new(
+                profile, profile, context, config,
+            ))
+            .analyse(source, profile.name)
+    }
+
+    fn target(source: &str, analysis: &AnalysisResult, needle: &str) -> Option<tcl_lexer::Span> {
+        let offset = source.rfind(needle).unwrap();
+        let index = LineIndex::new(source);
+        let position = index.position_at_utf16(u32::try_from(offset).unwrap(), source);
+        next_dispatch_target(
+            analysis,
+            source,
+            &index,
+            position.line,
+            position.character.get(),
+        )
+    }
+
+    #[test]
+    fn original_next_definition_uses_captured_target_and_selected_availability() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source = "oo::class create Base {method m {} {}}\ninterp alias {} jump {} source_next_named Base\noo::class create C {superclass Base; method m {} {jump}}";
+        let current = analyse(source, "tcl9.0");
+        let base = current
+            .all_classes
+            .values()
+            .find(|class| class.name == "Base")
+            .unwrap();
+        assert_eq!(
+            target(source, &current, "jump"),
+            Some(base.methods["m"].name_span)
+        );
+        let old = analyse(source, "tcl8.6");
+        assert!(target(source, &old, "jump").is_none());
+        let shadow = source.replace(
+            "interp alias",
+            "proc source_next_named args {}; interp alias",
+        );
+        assert!(target(&shadow, &analyse(&shadow, "tcl9.0"), "jump").is_none());
+        let unknown = source.replace("source_next_named Base", "source_next_named $unknown");
+        assert!(target(&unknown, &analyse(&unknown, "tcl9.0"), "jump").is_none());
+        assert!(target(&source.replace("Base", "Else"), &current, "jump").is_none());
     }
 }

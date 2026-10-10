@@ -2569,7 +2569,7 @@ impl Interp {
         let Some(registry) = self.0.profile_registry.get() else {
             return true; // the permissive fallback profile gates nothing
         };
-        if let Some(admitted) = registry.native_command_admission(
+        if let Some(admitted) = tcl_registry::CommandRegistry::native_command_admission(
             name,
             tcl_registry::InvocationDialect::of_profile(self.dialect_profile()),
         ) {

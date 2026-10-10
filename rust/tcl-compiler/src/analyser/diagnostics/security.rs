@@ -30,6 +30,7 @@
 //! double-decoded `eval [subst …]` (W309), closed value arguments left
 //! open (W127), and a hardcoded credential literal (W310).
 
+mod source_crossing;
 mod source_reparse;
 mod source_template;
 
@@ -46,20 +47,6 @@ impl Analyser {
     /// checks below — none of them match on command-name strings.
     fn security_spec(&self, cmd_name: &str) -> Option<&tcl_registry::CommandSpec> {
         self.registry.as_deref().and_then(|r| r.get(cmd_name))
-    }
-
-    /// W301's gate: a concat-reparse taint sink whose script runs in a
-    /// **different stack frame** than the call is written in — `uplevel`.
-    /// The shifted-frame counterpart of W101 within the
-    /// [`Traits::SCRIPT_CONCATENATES_ARGS`] + [`Traits::TAINT_SINK`] pair, so
-    /// every family member is owned by exactly one of the two codes and
-    /// neither double-reports.
-    fn is_level_eval_command(&self, cmd_name: &str) -> bool {
-        self.security_spec(cmd_name).is_some_and(|s| {
-            s.traits
-                .contains(Traits::SCRIPT_CONCATENATES_ARGS | Traits::TAINT_SINK)
-                && s.traits.contains(Traits::EVALUATES_IN_SHIFTED_FRAME)
-        })
     }
 
     /// **W302.** Original selected error-capture syntax with one literal body
@@ -170,7 +157,7 @@ impl Analyser {
 
     /// Scan the source bytes covered by `span` for an unescaped
     /// ``$`` or ``[`` outside any ``{...}`` brace block.  Used by
-    /// the remaining shifted-frame/channel consumers to detect inner
+    /// the remaining channel consumers to detect inner
     /// substitution within a multi-token word without requiring
     /// the full token stream to be threaded through
     /// ``process_command``.
@@ -201,50 +188,6 @@ impl Analyser {
                 _ => {}
             }
             i += 1;
-        }
-        false
-    }
-
-    /// List-idiom probe for shifted-frame and interpreter script advice. Returns
-    /// true when `tok` is a `Cmd` token whose inner script's
-    /// command head (or `cmd subcmd` pair) produces a canonical
-    /// list per the registry — the W101 safe-idiom suppression.
-    ///
-    /// Conservative: rejects multi-command scripts (containing `;`
-    /// or newline) because `[list a b; set x $user]` returns the
-    /// last command's result, which isn't necessarily a safe list.
-    fn is_canonical_list_substitution(&self, tok: tcl_lexer::Token) -> bool {
-        if !matches!(tok.kind, tcl_lexer::TokenType::Cmd) {
-            return false;
-        }
-        let Some(registry) = self.registry.as_deref() else {
-            return false;
-        };
-        let start = tok.span.start() as usize + tok.content_offset as usize;
-        let end = tok.span.end() as usize;
-        let Some(script) = Analyser::source_slice(&self.source, start, end).map(str::trim) else {
-            return false;
-        };
-        if script.is_empty() || script.contains(';') || script.contains('\n') {
-            return false;
-        }
-        // ``parts[0]`` = command head; check both bare form and
-        // ``"head sub"`` compound form.
-        let mut iter = script.splitn(2, char::is_whitespace);
-        let Some(head) = iter.next() else {
-            return false;
-        };
-        if registry.is_canonical_list_command(head) {
-            return true;
-        }
-        if let Some(rest) = iter.next() {
-            let mut sub_iter = rest.trim_start().splitn(2, char::is_whitespace);
-            if let Some(sub) = sub_iter.next() {
-                let compound = format!("{head} {sub}");
-                if registry.is_canonical_list_command(&compound) {
-                    return true;
-                }
-            }
         }
         false
     }
@@ -367,183 +310,6 @@ executes arbitrary Tcl code. Ensure the path is not influenced by untrusted inpu
                 ),
                 Severity::Warning,
             ));
-    }
-
-    /// **W301.** Emit "uplevel with string-built script" when an
-    /// `uplevel` script argument risks injection: either multiple script
-    /// arguments (concatenated like `eval`) or a single unbraced script
-    /// word carrying substitution.  Skips a leading `?level?` argument;
-    /// the `[list …]` idiom is the recognised safe form.
-    pub(in crate::analyser) fn emit_w301_uplevel_injection(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-        arg_single: &[bool],
-    ) {
-        if !self.is_level_eval_command(cmd_name) || args.is_empty() || arg_tokens.is_empty() {
-            return;
-        }
-        // The literal-level probe stays local rather than reusing the
-        // spec's arg-role resolver: the resolver treats a *dynamic* first
-        // word (`uplevel $lvl $body`) as a level when a script word
-        // follows, but for injection purposes a substituted word must be
-        // scanned as script — the conservative posture this check takes.
-        let script_idx = usize::from(uplevel_has_level(&args[0]));
-        if script_idx >= args.len() || script_idx >= arg_tokens.len() {
-            return;
-        }
-        let remaining = &args[script_idx..];
-        let remaining_toks = &arg_tokens[script_idx..];
-        if remaining.len() > 1 {
-            // Multiple args = concat behaviour = danger.
-            if self.args_have_substitution(arg_tokens, arg_single) {
-                self.result
-                    .diagnostics
-                    .push(crate::analyser::types::Diagnostic::new(
-                        DiagCode::W301,
-                        remaining_toks[0].span,
-                        format!(
-                            "{cmd_name} with multiple arguments concatenates them into \
-a script (like eval). Use a single braced body or {{*}}$cmdList to avoid injection."
-                        ),
-                        Severity::Warning,
-                    ));
-            }
-        } else if let Some(tok) = remaining_toks.first() {
-            // Single arg — unbraced + substituted (and not [list …]).
-            if matches!(tok.kind, tcl_lexer::TokenType::Str)
-                || self.is_canonical_list_substitution(*tok)
-            {
-                return;
-            }
-            // A single *pure* variable substitution (`uplevel 1 $body`) is the
-            // safe single-substitution idiom: tclsh evaluates `$body` once in
-            // the target frame, no concatenation / second substitution.  The
-            // script word must be exactly one `Var` token — a concatenation
-            // (`$a$b`, `pre$x`) is not a single token and stays flagged.
-            if arg_single.get(script_idx).copied() == Some(true)
-                && matches!(tok.kind, tcl_lexer::TokenType::Var)
-            {
-                return;
-            }
-            if self.args_have_substitution(arg_tokens, arg_single) {
-                self.result
-                    .diagnostics
-                    .push(crate::analyser::types::Diagnostic::new(
-                        DiagCode::W301,
-                        tok.span,
-                        format!(
-                            "{cmd_name} with an unbraced script argument may cause \
-double substitution. Use braces: {cmd_name} 1 {{...}}"
-                        ),
-                        Severity::Warning,
-                    ));
-            }
-        }
-    }
-
-    /// **W312.** Emit "interp eval / invokehidden injection" when a
-    /// cross-interpreter script argument risks injection — the same shape
-    /// as W301 but for the child-interpreter dispatch.
-    ///
-    /// The eligible subcommands are the parent spec's
-    /// `taint_interp_eval_subcommands` list (`interp eval` /
-    /// `interp invokehidden`, Tk's `console eval` and
-    /// `consoleinterp eval|record`) — never a command-name match.  The
-    /// subcommand word resolves through the registry's ensemble rule
-    /// (exact or unique prefix, C Tcl's `Tcl_GetIndexFromObj`), so the
-    /// abbreviated `interp ev …` C Tcl accepts is checked too.
-    pub(in crate::analyser) fn emit_w312_interp_eval_injection(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-        arg_single: &[bool],
-    ) {
-        let Some((sub_name, script_start, concatenates)) =
-            self.interp_eval_script_location(cmd_name, args)
-        else {
-            return;
-        };
-        if script_start >= args.len() || script_start >= arg_tokens.len() {
-            return;
-        }
-        let script_args = &args[script_start..];
-        let script_toks = &arg_tokens[script_start..];
-        // A Body-role sink (`interp eval`) with multiple script words
-        // concatenates them, like `eval`.
-        if concatenates && script_args.len() > 1 {
-            if self.args_have_substitution(arg_tokens, arg_single) {
-                self.result
-                    .diagnostics
-                    .push(crate::analyser::types::Diagnostic::new(
-                        DiagCode::W312,
-                        script_toks[0].span,
-                        format!(
-                            "{cmd_name} {sub_name} with multiple arguments concatenates \
-them into a script (like eval). Use a single braced body to avoid injection."
-                        ),
-                        Severity::Warning,
-                    ));
-            }
-            return;
-        }
-        let tok = script_toks[0];
-        if matches!(tok.kind, tcl_lexer::TokenType::Str) || self.is_canonical_list_substitution(tok)
-        {
-            return;
-        }
-        if self.args_have_substitution(arg_tokens, arg_single) {
-            self.result
-                .diagnostics
-                .push(crate::analyser::types::Diagnostic::new(
-                    DiagCode::W312,
-                    tok.span,
-                    format!(
-                        "{cmd_name} {sub_name} with an unbraced script argument may \
-cause code injection. Use braces: {cmd_name} {sub_name} $child {{...}}"
-                    ),
-                    Severity::Warning,
-                ));
-        }
-    }
-
-    /// Resolve a W312 call site against the registry: `Some((canonical
-    /// subcommand name, absolute index of the first script word, whether
-    /// multiple script words concatenate))` when `cmd_name`'s spec lists
-    /// the resolved subcommand in `taint_interp_eval_subcommands`, else
-    /// `None`.
-    ///
-    /// The script position comes from the subcommand's declared
-    /// [`ArgRole::Body`] (`interp eval PATH script` → absolute index 2;
-    /// `console eval script` → 1); a listed sink *without* a Body role
-    /// (`interp invokehidden` — the words are invoked verbatim, never
-    /// re-parsed) locates the hidden command word instead: past the
-    /// interpreter path, skipping `-opt` words.
-    fn interp_eval_script_location(
-        &self,
-        cmd_name: &str,
-        args: &[String],
-    ) -> Option<(&'static str, usize, bool)> {
-        let spec = self.security_spec(cmd_name)?;
-        if spec.taint_interp_eval_subcommands.is_empty() || args.is_empty() {
-            return None;
-        }
-        let sub = spec.resolve_subcommand(&args[0])?;
-        if !spec.taint_interp_eval_subcommands.contains(&sub.name) {
-            return None;
-        }
-        if let Some((idx, _)) = sub.arg_roles.iter().find(|(_, r)| *r == ArgRole::Body) {
-            // +1: subcommand arg roles are relative to the word after the
-            // subcommand.
-            return Some((sub.name, *idx as usize + 1, true));
-        }
-        let mut i = 2;
-        while i < args.len() && args[i].starts_with('-') {
-            i += 1;
-        }
-        (i < args.len()).then_some((sub.name, i, false))
     }
 
     /// **W103.** Emit "open with a pipeline" when `open`'s first
@@ -1495,14 +1261,6 @@ fn is_literal_credential_value(value: &str, tok: &tcl_lexer::Token) -> bool {
         tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
     ) && !value.starts_with('$')
         && !value.contains('[')
-}
-
-/// Return `true` when an `uplevel` first argument is a level
-/// specifier (`1`, `#0`, …) rather than the script itself: strip
-/// any leading `#` then require a non-empty all-digit remainder.
-fn uplevel_has_level(arg0: &str) -> bool {
-    let stripped = arg0.trim_start_matches('#');
-    !stripped.is_empty() && stripped.bytes().all(|b| b.is_ascii_digit())
 }
 
 /// Return `(pattern_text, token)` pairs for every regex pattern

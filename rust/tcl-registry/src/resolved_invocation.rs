@@ -2796,6 +2796,57 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         ))
     }
 
+    /// Possible source script tails under the selected frame descriptor.
+    /// A computed leading probe retains both selector/no-selector alternatives;
+    /// no frame, accepted level or successful body entry is established.
+    #[must_use]
+    pub fn authored_source_frame_script_arguments(&self) -> Option<Vec<std::ops::Range<usize>>> {
+        self.source_frame_script_arguments(false)
+    }
+
+    /// Possible tails for a separately admitted Logical source model, using
+    /// the existing unanimous authored frame grammar. This does not select
+    /// Native level grammar, a physical frame or a successful body entry.
+    #[must_use]
+    pub fn authored_logical_source_frame_script_arguments(
+        &self,
+    ) -> Option<Vec<std::ops::Range<usize>>> {
+        self.source_frame_script_arguments(true)
+    }
+
+    fn source_frame_script_arguments(&self, logical: bool) -> Option<Vec<std::ops::Range<usize>>> {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let frame = self.semantics.frame_effect?;
+        if frame.layout != crate::FrameArgLayout::ScriptInSelectedFrame {
+            return None;
+        }
+        let offset = self.semantics.argument_offset;
+        let arguments = self.words.arguments().slice_from(offset);
+        let count = arguments.exact_argv_len()?;
+        let layout = if logical {
+            frame.logical_source_layout(arguments)
+        } else {
+            frame.resolve_arguments(arguments)
+        };
+        use crate::frame_effect::FrameArgumentResolution as Layout;
+        let starts = match layout {
+            Layout::Valid { level_word_len, .. } => vec![level_word_len],
+            Layout::Invalid => Vec::new(),
+            Layout::Unknown if frame.level_word == crate::FrameLevelWord::LeadingProbe => {
+                vec![0, 1]
+            }
+            Layout::Unknown => return None,
+        };
+        Some(
+            starts
+                .into_iter()
+                .filter(|start| *start < count)
+                .map(|start| offset + start..offset + count)
+                .collect(),
+        )
+    }
+
     /// The type this call's result is represented as —
     /// `CommandSpec::return_type_for_call` re-keyed on the resolution: the
     /// selected subcommand's (or instance method's) declared type for a
@@ -4860,6 +4911,95 @@ mod tests {
             registry.option_variable_scope("scope-owner", &["-g", "named"], 1, query),
             Some(crate::VariableScope::Global)
         );
+    }
+
+    #[test]
+    fn original_frame_script_advice_keeps_selected_and_logical_layouts_separate() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        let registry = CommandRegistry::build_default();
+        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        for (arguments, expected) in [
+            (vec![Literal("1"), Dynamic], Some(vec![1..2])),
+            (vec![Dynamic, Dynamic], Some(vec![0..2, 1..2])),
+            (vec![Literal("1")], Some(Vec::new())),
+            (vec![Literal("1"), Expanded], None),
+        ] {
+            let selected = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(Literal("uplevel"), &arguments)
+                        .with_dialect(dialect),
+                    dialect.authoring_query(),
+                )
+                .resolved()
+                .unwrap();
+            assert_eq!(selected.authored_source_frame_script_arguments(), expected);
+            assert_eq!(
+                selected.authored_logical_source_frame_script_arguments(),
+                expected
+            );
+            if arguments == [Dynamic, Dynamic] {
+                assert!(
+                    selected.frame_effect().is_none(),
+                    "possible source tails do not close the ordinary frame layout"
+                );
+            }
+        }
+        let arguments = [Literal("1"), Dynamic];
+        let selected = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(Literal("uplevel"), &arguments),
+                dialect.authoring_query(),
+            )
+            .resolved()
+            .unwrap();
+        assert_eq!(
+            selected.authored_logical_source_frame_script_arguments(),
+            Some(vec![1..2])
+        );
+    }
+
+    #[test]
+    fn original_invokehidden_options_keep_the_path_prefix_and_actual_availability() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        // Native source anchor: native_event_original/source/8.6.18/tclInterp.c
+        // OPT_INVOKEHID scans i=3 while the path remains original objv[2].
+        use crate::InvocationWord::{Dynamic, Literal};
+        let current =
+            crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let older = crate::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(current.commands()));
+        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let arguments = [
+            Literal("invokehidden"),
+            Dynamic,
+            Literal("-namespace"),
+            Dynamic,
+            Dynamic,
+        ];
+        for (context, available) in [(current.as_ref(), true), (&older, false)] {
+            let selected =
+                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    context.commands(),
+                    Some(context.context()),
+                    crate::InvocationWords::structured(Literal("interp"), &arguments)
+                        .with_dialect(dialect),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                )
+                .resolved()
+                .unwrap();
+            let scan = selected.authored_source_diagnostic_options().unwrap();
+            assert_eq!(selected.semantics.options.positional_prefix_words, 1);
+            let [option] = scan.options.as_slice() else {
+                panic!("selected original option")
+            };
+            assert_eq!(option.argument, 2);
+            assert_eq!(option.values, Some(3..4));
+            assert_eq!(option.available, available);
+            assert_eq!(scan.boundary, AuthoredSourceOptionBoundary::Dynamic(4));
+        }
     }
 
     #[test]

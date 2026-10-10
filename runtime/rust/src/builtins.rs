@@ -74,7 +74,11 @@ fn install_for_bootstrap(
     crate::cmd_mathfunc::install(interp);
     // `::tcl::mathop::*` — the operators as real commands (tower-gated).
     #[cfg(have_tommath)]
-    crate::cmd_mathop::install(interp);
+    if protocol
+        .is_none_or(tcl_registry::special_vars::NativeBootstrapProtocol::registers_core_mathop)
+    {
+        crate::cmd_mathop::install(interp);
+    }
     crate::cmd_list::install(interp);
     #[cfg(have_tommath)]
     crate::cmd_lseq::install(interp);

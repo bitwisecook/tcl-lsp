@@ -768,6 +768,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         native_compilation: Some(NATIVE_INTERP),
         name: "invokehidden",
+        // C Tcl's InterpObjCmd scans from objv[3], after the path at objv[2]:
+        // retained tclInterp.c 8.6.18, case OPT_INVOKEHID.
+        // The prefix is data even when its value is computed or dash-leading.
+        option_prefix_words: 1,
         // Positional arity is `path hiddenCmdName` plus an unbounded
         // `?arg ...?` tail; `-namespace`/`-global`/`--` sit after `path`
         // (not leading), but since the tail is already open-ended their

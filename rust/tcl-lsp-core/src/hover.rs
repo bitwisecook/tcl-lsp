@@ -119,8 +119,8 @@ pub fn hover(
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
 ) -> Option<Hover> {
-    // Retained document owners take precedence; caller metadata is a fallback
-    // only for explicitly lexical analysis without those owners.
+    // Source-backed queries select the retained document owner; caller metadata
+    // remains a compatibility parameter and does not replace it.
     hover_with_profile(
         source,
         line,
@@ -144,37 +144,23 @@ pub fn hover_in_program(
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
-    registry: Option<&CommandRegistry>,
-    profile: &'static tcl_dialect::DialectProfile,
+    _registry: Option<&CommandRegistry>,
+    _profile: &'static tcl_dialect::DialectProfile,
     program: Option<crate::definition::ProgramExports<'_>>,
 ) -> Option<Hover> {
     // naming.core.original-registry-source-hover
     // docs/design/analysis/name-resolution-proofs/original-registry-source-hover.md
-    let lexical = analysis.allows_lexical_declaration_advice();
-    if !lexical {
-        let config = analysis.body_lexer_config?;
-        if !analysis
-            .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
-        {
-            return None;
-        }
-    }
-    let profile = analysis
-        .resolved_profile()
-        .or_else(|| lexical.then_some(profile))?;
-    let registry = analysis
-        .resolved_registry()
-        .or_else(|| lexical.then_some(registry).flatten());
-    if !lexical && registry.is_none() {
-        return None;
-    }
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     hover_impl(
         source,
         line,
         character,
         analysis,
-        crate::definition::CallResolution { registry, program },
-        profile,
+        crate::definition::CallResolution {
+            registry: Some(current.registry()),
+            program,
+        },
+        current.profile(),
     )
 }
 

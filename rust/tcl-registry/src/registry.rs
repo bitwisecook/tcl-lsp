@@ -4152,18 +4152,16 @@ impl CommandRegistry {
     /// Measured native command admission when catalogue ancestry cannot express
     /// a reimplementation's absence. Unknown releases/builds remain unknown.
     #[must_use]
-    pub fn native_command_admission(
-        &self,
-        name: &str,
-        dialect: crate::InvocationDialect,
-    ) -> Option<bool> {
+    pub fn native_command_admission(name: &str, dialect: crate::InvocationDialect) -> Option<bool> {
         // This is a stock implementation admission query. A live custom
         // native binding is not constrained by the fresh engine's roster.
-        (self.get(name).is_some()
-            && dialect.core_point
-                == Some(tcl_dialect::model::DialectPoint::canonical(
-                    tcl_dialect::model::Release::JIM_0_84,
-                )))
+        // Catalogue absence is not permission for an original stock identity.
+        // naming.mathop-binding-and-written-head-controls
+        // docs/design/analysis/name-resolution-proofs/mathop-binding-and-written-head-controls.md
+        (dialect.core_point
+            == Some(tcl_dialect::model::DialectPoint::canonical(
+                tcl_dialect::model::Release::JIM_0_84,
+            )))
         .then(|| {
             jim_fresh_command_names().contains(&tcl_syntax::naming::normalise_qualified_name(name))
         })

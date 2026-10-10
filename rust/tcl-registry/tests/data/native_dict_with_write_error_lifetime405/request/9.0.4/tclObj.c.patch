@@ -1,0 +1,35 @@
+--- original/tclObj.c
++++ observed/tclObj.c
+@@ -15,6 +15,8 @@
+  */
+ 
+ #include "tclInt.h"
++extern Tcl_Obj *tclLspWithWatch;
++extern int tclLspWithFinalFree;
+ #include "tclTomMath.h"
+ #include <math.h>
+ 
+@@ -1290,6 +1292,11 @@
+ TclFreeObj(
+     Tcl_Obj *objPtr)	/* The object to be freed. */
+ {
++    if (objPtr == tclLspWithWatch) {
++        tclLspWithFinalFree++;
++        tclLspWithWatch = NULL;
++        fprintf(stderr,"WITH_FINAL_FREE|count=%d\n",tclLspWithFinalFree);
++    }
+     const Tcl_ObjType *typePtr = objPtr->typePtr;
+ 
+     /*
+@@ -1415,6 +1422,11 @@
+ TclFreeObj(
+     Tcl_Obj *objPtr)	/* The object to be freed. */
+ {
++    if (objPtr == tclLspWithWatch) {
++        tclLspWithFinalFree++;
++        tclLspWithWatch = NULL;
++        fprintf(stderr,"WITH_FINAL_FREE|count=%d\n",tclLspWithFinalFree);
++    }
+     /*
+      * Invalidate the string rep first so we can use the bytes value for our
+      * pointer chain, and signal an obj deletion (as opposed to shimmering)

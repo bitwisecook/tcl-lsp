@@ -366,19 +366,9 @@ fn capture_answer(interp: &mut Interp, code: Code) -> Result<HostOutcome, Engine
     if let Some(kind) = interp.limit_exceeded() {
         return Err(EngineError::BudgetExceeded(budget_kind(kind)));
     }
-    let completion = crate::state_traits::capture_completion(interp, code);
-    // SAFETY: the shared capture transfers one owned reference to each object.
-    let result = unsafe { obj::Owned::from_raw(completion.result) };
-    let options = unsafe { obj::Owned::from_raw(completion.options) };
-    if let Some(error) = host_error(interp) {
-        return Err(error);
-    }
-    let result = interp
-        .native_object_string_bytes(result.as_ptr())
-        .map_err(value_error)?;
-    let options = interp
-        .native_object_string_bytes(options.as_ptr())
-        .map_err(value_error)?;
+    let completion = crate::completion::capture_bytes(interp, code).map_err(value_error)?;
+    let result = completion.result;
+    let options = completion.options;
     if code == Code::Error {
         return Err(EngineError::ScriptBytes {
             message: result.to_vec(),
@@ -387,7 +377,7 @@ fn capture_answer(interp: &mut Interp, code: Code) -> Result<HostOutcome, Engine
         });
     }
     Ok(HostOutcome {
-        code: CompletionCode::from_int(code.as_int()).expect("non-error completion"),
+        code: CompletionCode::from_int(completion.code.as_int()).expect("non-error completion"),
         value: Value::string_bytes(result),
         options: Value::string_bytes(options),
     })

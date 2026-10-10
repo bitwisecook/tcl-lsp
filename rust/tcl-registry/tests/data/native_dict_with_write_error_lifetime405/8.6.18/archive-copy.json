@@ -1,0 +1,6 @@
+{
+  "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+  "destination": "/tmp/native-dictionary-with-lifetime405-capture/8.6.18/libtcl8.6.a",
+  "source_sha256": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb",
+  "copied_sha256": "980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb"
+}

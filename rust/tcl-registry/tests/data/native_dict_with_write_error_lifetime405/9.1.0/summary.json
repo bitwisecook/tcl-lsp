@@ -1,0 +1,24 @@
+{
+  "version": "9.1.0",
+  "request_sha256": "d1c0b7f06139c75df5a0b35ce14e909c26398f4ebd769a31a57c00f708cc0073",
+  "launcher_sha256": "84e419d0f705deb9aa3be5a055b68cedae0f70ecfb2ea6ac967bd43d2b8212a5",
+  "commands": 13,
+  "original_source_unchanged": true,
+  "observation_purpose": "TclDictWithFinish exact selected writeback header; independent from UpdateEnd",
+  "separate_instrumented_archive": true,
+  "exits": [
+    0,
+    0,
+    0,
+    -4,
+    0,
+    -4,
+    0,
+    0,
+    0,
+    0,
+    -4,
+    0,
+    -4
+  ]
+}
