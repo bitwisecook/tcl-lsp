@@ -9724,11 +9724,16 @@ purpose; a missing actual engine or publication owner cannot borrow it.
 
 `NativeBooleanExpressionResultProduction` separately describes the producer
 before conversion. An inline expression's result conversion differs from the
-public expression API's result and C8.6+ copy. C8.6+ peephole compilation removes
-TRY_NUM before a conditional jump, while the API retains its evaluated expression
-program; internal operator conversions remain independent. Selecting that descriptor or
-passing its ABI tag does not certify that production has happened: the physical
-producer must perform it before exposing a privately owned normalised operand.
+public expression API's result and C8.6+ copy. The
+[current optimizer source interpretation](../analysis/name-resolution-proofs/numeric-current-optimizer-boolean-result-production.md)
+retains the configured Tcl 8.6.18, 9.0.4 and 9.1.0 rewrite, installation and call
+windows. Those sources replace `INST_TRY_CVT_TO_NUMERIC` with NOPs when the next
+instruction is an explicitly listed consumer; the 9.1 short-jump cases retain
+their build guard. This source rationale supplies no observed opcode or
+source-to-library build equivalence. Internal operator conversions remain
+independent. Selecting the descriptor or passing its ABI tag does not certify
+that production has happened: the physical producer must perform it before
+exposing a privately owned normalised operand.
 The original [primitive and expression truth captures](../analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md)
 record each whole measured route separately. Software ordering controls over
 supplied getter outcomes test the API contract and grant no Native equivalence.

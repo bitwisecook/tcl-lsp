@@ -27,7 +27,10 @@ impl Value {
             .native_string_protocol()
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
         let current = self.native_scalar_cache();
-        let original = self.native_string_bytes(string).map_err(ValueError::from)?;
+        let original = self
+            .native_string_bytes(string)
+            .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+            .map_err(ValueError::from)?;
         if let Some(environment) = environment {
             let before = environment
                 .c_integer_abi()
@@ -56,7 +59,9 @@ impl Value {
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
         let (materialize, cache, outcome) = conversion.into_parts();
         if materialize {
-            self.native_string_bytes(string).map_err(ValueError::from)?;
+            self.native_string_bytes(string)
+                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+                .map_err(ValueError::from)?;
         }
         if let Some(cache) = cache {
             self.adopt_native_scalar_cache(cache, scalar, dialect)?;
@@ -107,6 +112,7 @@ impl Value {
     ) -> Result<(Option<usize>, Option<usize>), ValueError> {
         self.check_native_header()?;
         self.seal_compound_string_protocol(protocol)
+            .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
             .map_err(ValueError::from)?;
         match &*self.0.intrep.borrow() {
             IntRep::List { items, .. } => Ok((Some(items.len()), None)),

@@ -2282,6 +2282,10 @@ pub struct UnknownProcInfo {
     /// Command names explicitly dispatched (e.g. switch arm
     /// labels).
     pub dispatch_targets: std::collections::BTreeSet<String>,
+    /// Canonical possible source bodies with their option-selection and
+    /// no-match residuals. These describe advisory syntax, independently of
+    /// selected effects, current command occupancy or Native execution.
+    pub case_body_residuals: Vec<tcl_registry::case_bodies::CaseBodyOperands>,
     /// Calls a renamed original ``unknown`` (e.g.
     /// ``_original_unknown``).
     pub chains_original: bool,

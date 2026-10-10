@@ -106,7 +106,10 @@ impl SourceInvocationBinding {
         owner.metadata_context(registry)
     }
 
-    fn original_invocation_metadata_for_input<'a>(
+    /// Join the unchanged original point/vector to its full supplied input,
+    /// config, origin and command store. This carries metadata only and grants
+    /// no execution, handler completion, body entry or physical frame.
+    pub(crate) fn original_invocation_metadata_for_input<'a>(
         &'a self,
         tokens: &CommandTokens,
         input: &crate::analyser::ResolvedAnalysisInput,

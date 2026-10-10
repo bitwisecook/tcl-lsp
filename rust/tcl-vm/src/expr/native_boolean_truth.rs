@@ -88,8 +88,7 @@ impl<'a> OriginalOps<'a> {
     }
     fn publish(&mut self, value: Value) -> Result<(), CmdError> {
         self.current()?;
-        let original = self.vm.adopt_native_interp_result(value)?;
-        self.vm.result = original.into_value();
+        self.vm.adopt_native_interp_result(value)?;
         self.current()
     }
     fn scalar_probe(
@@ -144,6 +143,7 @@ impl NativeBooleanTruthOps for OriginalOps<'_> {
                     .native_string_protocol()
                     .ok_or_else(unavailable)?,
             )
+            .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
             .map_err(ValueError::from)?
             .to_vec())
     }

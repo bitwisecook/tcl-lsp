@@ -2045,7 +2045,11 @@ pub unsafe extern "C" fn tcl_intrinsic_invoke_argv(
                 )),
             );
         }
-        return TCL_INVOKE_ABI_OK;
+        return if unsafe { (*interp).host_refusal_pending() } {
+            TCL_INVOKE_ABI_HOST_REFUSED
+        } else {
+            TCL_INVOKE_ABI_OK
+        };
     };
     // SAFETY: `interp` is live; direct execution only borrows `args`.
     let Some(code) = (unsafe { (*interp).execute_intrinsic(intrinsic, args) }) else {
@@ -2181,7 +2185,11 @@ pub unsafe extern "C" fn tcl_invoke_argv(
                 )),
             );
         }
-        return TCL_INVOKE_ABI_OK;
+        return if unsafe { (*interp).host_refusal_pending() } {
+            TCL_INVOKE_ABI_HOST_REFUSED
+        } else {
+            TCL_INVOKE_ABI_OK
+        };
     };
     // SAFETY: the current interpreter is live for this ABI call.
     let completion = unsafe { crate::state_traits::dispatch_prebuilt_argv(&mut *interp, words) };
@@ -3710,6 +3718,143 @@ mod tests {
             release_words(&words);
             tcl_runtime_set_current_interp(ptr::null_mut());
             tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    fn hold_actual_activation_bound() -> usize {
+        // Reach the real entry bound without modifying interpreter depth fields.
+        for entered in 0..1024 {
+            if tcl_codegen_activation_enter() != 0 {
+                assert!(entered > 0, "the genuine interpreter enters an activation");
+                return entered;
+            }
+        }
+        panic!("the bounded software fixture did not reach the actual activation refusal");
+    }
+
+    fn selected_c86_activation_interpreter() -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn activation_refusal_preserves_first_host_and_all_caller_owned_outputs() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // This reaches the actual software activation bound; it does not assert
+        // a C Tcl nesting limit or an original provider callback chronology.
+        leak_free(|| unsafe {
+            let mut interp = selected_c86_activation_interpreter();
+            tcl_runtime_set_current_interp(&raw mut interp);
+            let entered = hold_actual_activation_bound();
+            interp.set_result_bytes(b"PRIOR\0\xff");
+            let prior = interp.result_obj();
+            let first =
+                tcl_syntax::raw_string::NativeValueAccessRefusal::ExpressionEngineUnavailable;
+            interp.refuse_native_access(first.clone());
+            let words = [
+                owned_word(b"string"),
+                owned_word(b"length"),
+                owned_word(b"abc"),
+            ];
+            let counts = words.map(|word| (*word).ref_count);
+            let result = owned_word(b"CALLER RESULT");
+            let options = owned_word(b"-caller YES");
+            let output_counts = ((*result).ref_count, (*options).ref_count);
+            let mut out = TclCompletionAbi {
+                code: 77,
+                result,
+                options,
+            };
+            for intrinsic in [false, true] {
+                let status = if intrinsic {
+                    tcl_intrinsic_invoke_argv(
+                        IntrinsicId::StringLength.stable_id(),
+                        words.as_ptr(),
+                        3,
+                        &raw mut out,
+                    )
+                } else {
+                    tcl_invoke_argv(words.as_ptr(), 3, &raw mut out)
+                };
+                assert_eq!(status, TCL_INVOKE_ABI_HOST_REFUSED);
+                assert_eq!(
+                    interp.native_execution_refusal(),
+                    Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                        first.clone()
+                    ),)
+                );
+                assert_eq!(out.code, 77);
+                assert_eq!(out.result, result);
+                assert_eq!(out.options, options);
+                assert_eq!(((*result).ref_count, (*options).ref_count), output_counts);
+                assert_eq!(words.map(|word| (*word).ref_count), counts);
+                assert_eq!(interp.result_obj(), prior);
+                assert_eq!(interp.result_bytes(), b"PRIOR\0\xff");
+            }
+            for _ in 0..entered {
+                tcl_codegen_activation_leave(0);
+            }
+            tcl_completion_release(&raw mut out);
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+        });
+    }
+
+    #[test]
+    fn activation_guest_refusal_keeps_its_real_owned_completion() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Both public routes reach the genuine software entry bound; this only
+        // checks its Guest/Host separation and ownership, not a native depth claim.
+        leak_free(|| unsafe {
+            let mut interp = selected_c86_activation_interpreter();
+            tcl_runtime_set_current_interp(&raw mut interp);
+            let entered = hold_actual_activation_bound();
+            let words = [
+                owned_word(b"string"),
+                owned_word(b"length"),
+                owned_word(b"abc"),
+            ];
+            let counts = words.map(|word| (*word).ref_count);
+            for intrinsic in [false, true] {
+                let mut out = TclCompletionAbi {
+                    code: 77,
+                    result: ptr::null_mut(),
+                    options: ptr::null_mut(),
+                };
+                let status = if intrinsic {
+                    tcl_intrinsic_invoke_argv(
+                        IntrinsicId::StringLength.stable_id(),
+                        words.as_ptr(),
+                        3,
+                        &raw mut out,
+                    )
+                } else {
+                    tcl_invoke_argv(words.as_ptr(), 3, &raw mut out)
+                };
+                assert_eq!(status, TCL_INVOKE_ABI_OK);
+                assert_eq!(out.code, 1);
+                assert!(!out.result.is_null());
+                assert!(!out.options.is_null());
+                assert_eq!(
+                    obj_bytes(out.result),
+                    b"too many nested evaluations (infinite loop?)"
+                );
+                assert_eq!(option(&out, b"-code"), b"1");
+                assert!(interp.native_execution_refusal().is_none());
+                assert_eq!(words.map(|word| (*word).ref_count), counts);
+                tcl_completion_release(&raw mut out);
+            }
+            for _ in 0..entered {
+                tcl_codegen_activation_leave(0);
+            }
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
         });
     }
 

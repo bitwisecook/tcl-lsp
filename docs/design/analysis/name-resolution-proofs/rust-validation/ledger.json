@@ -189745,6 +189745,100 @@
           "uncompressed_sha256": "d7c12800d9ef1a0b02155cd69826645a6948f985f0823f65439da23477181797"
         }
       }
+    },
+    {
+      "id": "rust.frozen304.integration-shared-owner-own-test-build304",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen304/integration-shared-owner-own-test-build304/receipt.json.gz",
+        "sha256": "41dec095aa2540c6a90d50b581c8f4ac1bff4085f4f7c60994bb0ba2b05ff137",
+        "compression": "gzip",
+        "uncompressed_sha256": "3b4c5ab2583d58a50bbbf860c6d57d9c34886be1188b6f2590c56df3c28e8968"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen304/integration-shared-owner-own-test-build304/tests.log",
+        "sha256": "54748de5c9c693c808ed076915288b4af3725c24e289924a5d3445b884362657"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "-p",
+        "tcl-cmd-core",
+        "-p",
+        "tcl-vm",
+        "-p",
+        "tcl-runtime-api",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 115.67499489701004,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The unchanged decompressed original receipt retains the complete source image, exact command, compile/archive paths and head association. All32931 archived source leaves independently byte-verified per operation; original metadata is not replaced."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "This actual no-run build closes with exit101 after nine VM ordinary-library diagnostics: eight E0277 missing ValueError conversion bounds for NativeStringUnavailable and one E0609 access to nonexistent Vm.result. Repeated diagnostics remain exact in the original log. Compiler has a VM development dependency, so the separate Compiler/Syntax/CmdCore/RuntimeAPI command also encounters the same VM errors. No libtest assertions ran and no whole successful producer, strict pin or inventory is admitted from either failed operation. The first six-package command records newly created Syntax, CmdCore and RuntimeAPI test executable events; these partial events remain unsealed and confer no producer or assertion success. Independent later producer/admission/assertion records retain their own source/command/image scope. No Native provider outcome, aggregate gate result or mutable anchor refresh is inferred."
+    },
+    {
+      "id": "rust.frozen304.integration-compiler-syntax-core-api-own-test-build304",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen304/integration-compiler-syntax-core-api-own-test-build304/receipt.json.gz",
+        "sha256": "bc8090f00bf2c104b30d6e56160e80f84272a2de669cd8bf71d846cc9a7b97d8",
+        "compression": "gzip",
+        "uncompressed_sha256": "51c46b721a0f82999040ab8b1593e6f33ca974f55a86f6493031beb8fe5df64f"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen304/integration-compiler-syntax-core-api-own-test-build304/tests.log",
+        "sha256": "f404820008552627f64aaaddc216dbc1fa0e52e8daf9316637e20a90d116e4a6"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-syntax",
+        "-p",
+        "tcl-cmd-core",
+        "-p",
+        "tcl-runtime-api",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 11.142933130002348,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The unchanged decompressed original receipt retains the complete source image, exact command, compile/archive paths and head association. All32931 archived source leaves independently byte-verified per operation; original metadata is not replaced."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "This actual no-run build closes with exit101 after nine VM ordinary-library diagnostics: eight E0277 missing ValueError conversion bounds for NativeStringUnavailable and one E0609 access to nonexistent Vm.result. Repeated diagnostics remain exact in the original log. Compiler has a VM development dependency, so the separate Compiler/Syntax/CmdCore/RuntimeAPI command also encounters the same VM errors. No libtest assertions ran and no whole successful producer, strict pin or inventory is admitted from either failed operation. This second four-package log records no test executable creation event. Independent later producer/admission/assertion records retain their own source/command/image scope. No Native provider outcome, aggregate gate result or mutable anchor refresh is inferred."
     }
   ]
 }

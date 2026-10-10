@@ -70,7 +70,7 @@ use super::types::{
     RenamedMember, Scope, ScopeKind, UnknownProcInfo,
 };
 use super::utils::{param_name_spans_for_token, parse_param_list};
-use crate::ir::{MethodKind, Statement, SwitchMode};
+use crate::ir::{MethodKind, Statement};
 use crate::signature_scan::types::ParamDef;
 
 /// Original-handler chaining follows the retained implementation identity.
@@ -2968,12 +2968,11 @@ impl Analyser {
     /// Lowers the proc body to IR, then walks the resulting
     /// top-level [`Statement`]s looking for:
     ///
-    /// - `Statement::Switch` whose subject is `$<first_param>` (or
-    ///   `${first_param}`) — exact arms become explicit
-    ///   dispatch targets; glob/regexp modes flip
-    ///   ``has_pattern_dispatch``.  ``string tolower`` /
-    ///   ``string toupper`` in the subject sets
-    ///   ``case_insensitive``.
+    /// - Selected original case syntax referencing the first parameter —
+    ///   exact labels become possible dispatch targets; glob/regexp modes
+    ///   mark pattern dispatch. Canonical body-selection residuals remain
+    ///   explicit. Selected case-folding child descriptors retain their own
+    ///   original operand before setting ``case_insensitive``.
     /// - `Statement::Call` / `Statement::Barrier` that chains the original
     ///   handler ([`chains_original_unknown`]) — sets ``chains_original``.
     /// - a call that shells out ([`spawns_process`]) — sets ``has_exec``.
@@ -3040,6 +3039,9 @@ impl Analyser {
             let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
                 .with_dialect(Some(profile))
                 .with_context_registry(std::sync::Arc::clone(&context));
+            if let Some(input) = retained {
+                lowerer = lowerer.with_resolved_analysis_input(input.clone());
+            }
             if let Some(entry) = &self.source_analysis_entry {
                 lowerer.set_source_analysis_options(entry.options());
             } else if let Some(input) =
@@ -3076,7 +3078,15 @@ impl Analyser {
 
         let mut info = UnknownProcInfo::default();
         for stmt in &script.statements {
-            walk_unknown_stmt(stmt, &context, metadata, &first_param, &mut info, 0);
+            walk_unknown_stmt(
+                stmt,
+                &script,
+                &context,
+                metadata,
+                &first_param,
+                &mut info,
+                0,
+            );
         }
 
         info
@@ -3167,6 +3177,7 @@ const MAX_UNKNOWN_STMT_WALK_DEPTH: tcl_core_types::RecursionLimit =
 /// [`MAX_UNKNOWN_STMT_WALK_DEPTH`].
 fn walk_unknown_stmt(
     stmt: &Statement,
+    script: &crate::ir::Script,
     context: &tcl_registry::model::ContextRegistry,
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
     first_param: &str,
@@ -3176,39 +3187,50 @@ fn walk_unknown_stmt(
     if MAX_UNKNOWN_STMT_WALK_DEPTH.exceeded(depth) {
         return;
     }
+    let case = metadata.and_then(|metadata| {
+        if metadata.permits_logical_source_names() {
+            crate::registry_invocation::source_structure::original_logical_source_case_for_tokens(
+                script.retained_source_tokens_for_statement(stmt)?,
+                context.commands(),
+                metadata,
+            )
+        } else {
+            crate::registry_invocation::source_structure::original_native_source_case_for_statement(
+                script,
+                stmt,
+                context.commands(),
+                metadata,
+            )
+        }
+    });
+    if let Some(case) = case
+        && case.references_parameter(first_param)
+    {
+        info.case_insensitive |= case.folds_case();
+        if case.mode() == tcl_registry::spec::CaseMatchMode::Exact {
+            info.dispatch_targets
+                .extend(case.patterns().iter().cloned());
+        } else {
+            info.has_pattern_dispatch = true;
+        }
+        info.case_body_residuals.push(case.body_operands().clone());
+    }
     match stmt {
-        Statement::Switch {
-            subject,
-            arms,
-            mode,
-            ..
-        } => {
-            // Subject reference: ``$first`` or ``${first}``
-            // (both forms are checked).
-            let dollar = format!("${first_param}");
-            let braced = format!("${{{first_param}}}");
-            let subject_refs_first = subject.contains(&dollar) || subject.contains(&braced);
-
-            if subject_refs_first {
-                if subject.contains("string tolower") || subject.contains("string toupper") {
-                    info.case_insensitive = true;
-                }
-                if *mode == SwitchMode::Exact {
-                    for arm in arms {
-                        if arm.pattern != "default" {
-                            info.dispatch_targets.insert(arm.pattern.clone());
-                        }
-                    }
-                } else {
-                    info.has_pattern_dispatch = true;
-                }
-            }
+        Statement::Switch { arms, .. } => {
             // Recurse into arm bodies (a switch arm may contain
             // an exec or auto_load that should still register).
             for arm in arms {
                 if let Some(body) = &arm.body {
                     for inner in &body.statements {
-                        walk_unknown_stmt(inner, context, metadata, first_param, info, depth + 1);
+                        walk_unknown_stmt(
+                            inner,
+                            body,
+                            context,
+                            metadata,
+                            first_param,
+                            info,
+                            depth + 1,
+                        );
                     }
                 }
             }
@@ -3240,12 +3262,20 @@ fn walk_unknown_stmt(
         } => {
             for clause in clauses {
                 for inner in &clause.body.statements {
-                    walk_unknown_stmt(inner, context, metadata, first_param, info, depth + 1);
+                    walk_unknown_stmt(
+                        inner,
+                        &clause.body,
+                        context,
+                        metadata,
+                        first_param,
+                        info,
+                        depth + 1,
+                    );
                 }
             }
             if let Some(body) = else_body {
                 for inner in &body.statements {
-                    walk_unknown_stmt(inner, context, metadata, first_param, info, depth + 1);
+                    walk_unknown_stmt(inner, body, context, metadata, first_param, info, depth + 1);
                 }
             }
         }
@@ -3256,7 +3286,7 @@ fn walk_unknown_stmt(
         | Statement::Block { body, .. }
         | Statement::UpFrame { body, .. } => {
             for inner in &body.statements {
-                walk_unknown_stmt(inner, context, metadata, first_param, info, depth + 1);
+                walk_unknown_stmt(inner, body, context, metadata, first_param, info, depth + 1);
             }
         }
         Statement::Try {
@@ -3266,16 +3296,24 @@ fn walk_unknown_stmt(
             ..
         } => {
             for inner in &body.statements {
-                walk_unknown_stmt(inner, context, metadata, first_param, info, depth + 1);
+                walk_unknown_stmt(inner, body, context, metadata, first_param, info, depth + 1);
             }
             for handler in handlers {
                 for inner in &handler.body.statements {
-                    walk_unknown_stmt(inner, context, metadata, first_param, info, depth + 1);
+                    walk_unknown_stmt(
+                        inner,
+                        &handler.body,
+                        context,
+                        metadata,
+                        first_param,
+                        info,
+                        depth + 1,
+                    );
                 }
             }
             if let Some(body) = finally_body {
                 for inner in &body.statements {
-                    walk_unknown_stmt(inner, context, metadata, first_param, info, depth + 1);
+                    walk_unknown_stmt(inner, body, context, metadata, first_param, info, depth + 1);
                 }
             }
         }
@@ -5311,14 +5349,22 @@ snit::type {C\uD800} {}";
         assert!(info.empty_stub);
     }
 
-    fn logical_unknown_analyser() -> Analyser {
+    fn logical_unknown_input(
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> super::super::ResolvedAnalysisInput {
         let profile = tcl_dialect::DialectProfile::plain_tcl();
-        let input = super::super::ResolvedAnalysisInput::new(
+        super::super::ResolvedAnalysisInput::new(
             profile,
             profile,
-            tcl_registry::model::ingress::context_for_profile(profile),
+            context,
             tcl_lexer::LexerConfig::for_profile(Some(profile)),
-        );
+        )
+    }
+
+    fn logical_unknown_analyser() -> Analyser {
+        let input = logical_unknown_input(tcl_registry::model::ingress::context_for_profile(
+            tcl_dialect::DialectProfile::plain_tcl(),
+        ));
         assert!(input.has_logical_source_name_context());
         Analyser::new().with_resolved_input(input)
     }
@@ -5343,23 +5389,36 @@ snit::type {C\uD800} {}";
             crate::lowering::Lowerer::with_config(context.commands(), input.lexer_config());
         lowerer.set_source_analysis_options(options);
         let lowered = lowerer.lower(body);
+        let statement = lowered.top_level.statements.first().unwrap();
         let binding = lowered
             .top_level
-            .command_binding_sites
-            .iter()
-            .find(|site| site.span.start() == 0)
-            .unwrap()
-            .source_tokens
-            .as_ref()
+            .retained_source_tokens_for_statement(statement)
             .unwrap()
             .source_binding
             .as_ref()
             .unwrap();
         assert_eq!(binding.logical_source_name_advice_input(), Some(&input));
         assert!(matches!(
-            lowered.top_level.statements.first(),
-            Some(Statement::Switch { .. })
+            statement,
+            Statement::Call { .. } | Statement::Barrier { .. }
         ));
+        // The possible source bodies do not settle the unknown option branch.
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            context.commands(),
+            &input,
+        )
+        .unwrap();
+        let case =
+            crate::registry_invocation::source_structure::original_logical_source_case_for_tokens(
+                lowered
+                    .top_level
+                    .retained_source_tokens_for_statement(statement)
+                    .unwrap(),
+                context.commands(),
+                metadata,
+            )
+            .unwrap();
+        assert!(case.body_operands().selection_unknown);
         let mut logical = logical_unknown_analyser();
         assert!(
             logical
@@ -5410,6 +5469,358 @@ snit::type {C\uD800} {}";
                 "{dialect}"
             );
         }
+    }
+
+    #[test]
+    fn original_unknown_case_advice_retains_residuals_in_final_info() {
+        // naming.compiler.original-unknown-handler-source-context
+        // docs/design/analysis/name-resolution-proofs/compiler-original-unknown-handler-source-context.md
+        // Possible source dispatch keeps its selection/error and no-match
+        // paths; it supplies no Native occupancy, chosen effect or body entry.
+        let mut analyser = logical_unknown_analyser();
+        let result = analyser.analyse(
+            "proc unknown {cmd args} {switch -exact $cmd {café {return 1} default {return 0}}}",
+            "tcl",
+        );
+        let info = result
+            .unknown_proc_info
+            .expect("original unknown declaration");
+        assert!(info.dispatch_targets.contains("café"));
+        assert!(!info.dispatch_targets.contains("default"));
+        assert!(!info.has_pattern_dispatch);
+        let [residual] = info.case_body_residuals.as_slice() else {
+            panic!("the final AnalysisResult must retain its canonical case residual")
+        };
+        assert!(residual.selection_unknown);
+        assert!(!residual.no_match_possible);
+        assert_eq!(residual.bodies.len(), 2);
+        assert_eq!(residual.patterns.len(), 2);
+
+        let input = logical_unknown_analyser().resolved_input.unwrap();
+        let context = input.context_registry();
+        let closed = "switch -exact -- $cmd {foo {return 1} default {return 0}}";
+        let mut lowerer =
+            crate::lowering::Lowerer::with_config(context.commands(), input.lexer_config())
+                .with_resolved_analysis_input(input.clone());
+        let script = lowerer.lower(closed).top_level.clone();
+        assert!(matches!(
+            script.statements.first(),
+            Some(Statement::Switch { .. })
+        ));
+        let mut analyser = Analyser::new().with_resolved_input(input);
+        let info = analyser.extract_unknown_proc_info(closed, &[param("cmd")]);
+        assert!(info.dispatch_targets.contains("foo"));
+        assert_eq!(info.case_body_residuals.len(), 1);
+        assert!(!info.case_body_residuals[0].selection_unknown);
+        assert!(!info.case_body_residuals[0].no_match_possible);
+    }
+
+    #[test]
+    fn original_unknown_case_advice_keeps_captured_ordinals_and_literal_parameter_names() {
+        // naming.compiler.original-unknown-handler-source-context
+        // docs/design/analysis/name-resolution-proofs/compiler-original-unknown-handler-source-context.md
+        let source = "interp alias {} ::choisiré {} switch -exact; ::choisiré $cmd {é {return 1} default {return 0}}";
+        let mut analyser = logical_unknown_analyser();
+        let info = analyser.extract_unknown_proc_info(source, &[param("cmd")]);
+        assert!(info.dispatch_targets.contains("é"));
+        let [residual] = info.case_body_residuals.as_slice() else {
+            panic!("the captured selector retains a case residual")
+        };
+        assert!(residual.selection_unknown);
+        assert_eq!(residual.bodies[0].argument, 2);
+        assert_eq!(residual.bodies[0].list_element, Some(1));
+        assert_eq!(residual.patterns[0].argument, 2);
+        assert_eq!(residual.patterns[0].list_element, Some(0));
+
+        for source in [
+            "switch -exact $cmdSuffix {foo {return 1}}",
+            "switch -exact {$cmd} {foo {return 1}}",
+            "switch -exact $cmd(index) {foo {return 1}}",
+        ] {
+            let info = analyser.extract_unknown_proc_info(source, &[param("cmd")]);
+            assert!(info.dispatch_targets.is_empty(), "{source}");
+            assert!(info.case_body_residuals.is_empty(), "{source}");
+        }
+        let info = analyser.extract_unknown_proc_info(
+            "switch -exact ${$cmd} {literal {return 1}}",
+            &[param("$cmd")],
+        );
+        assert!(info.dispatch_targets.contains("literal"));
+    }
+
+    fn original_case_availability_contexts() -> (
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) {
+        use std::sync::Arc;
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut spec = registry.get("switch").unwrap().clone();
+        spec.name = "current_case";
+        spec.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(spec);
+        let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(current.commands())),
+        );
+        assert!(Arc::ptr_eq(current.commands(), older.commands()));
+        (current, older)
+    }
+
+    #[test]
+    fn original_unknown_case_advice_refuses_missing_foreign_changed_and_shadowed_owners() {
+        // naming.compiler.original-unknown-handler-source-context
+        // docs/design/analysis/name-resolution-proofs/compiler-original-unknown-handler-source-context.md
+        use crate::registry_invocation::{
+            InvocationMetadataContext, source_structure::original_logical_source_case_for_tokens,
+        };
+        use std::sync::Arc;
+        let (current, older) = original_case_availability_contexts();
+        let input = logical_unknown_input(Arc::clone(&current));
+        let profile = input.unit_profile();
+        let config = input.lexer_config();
+        let source =
+            "interp alias {} selecté {} current_case -exact; selecté $cmd {foo {return 1}}";
+        let mut analyser = Analyser::new().with_resolved_input(input.clone());
+        let positive = analyser.extract_unknown_proc_info(source, &[param("cmd")]);
+        assert!(positive.dispatch_targets.contains("foo"));
+        assert!(positive.case_body_residuals[0].no_match_possible);
+        let mut lowerer = crate::lowering::Lowerer::with_config(current.commands(), config)
+            .with_resolved_analysis_input(input.clone());
+        let script = lowerer.lower(source).top_level.clone();
+        let tokens = script
+            .retained_source_tokens_for_statement(script.statements.last().unwrap())
+            .unwrap();
+        let metadata =
+            InvocationMetadataContext::for_analysis_input(current.commands(), &input).unwrap();
+        assert!(
+            original_logical_source_case_for_tokens(tokens, current.commands(), metadata).is_some()
+        );
+        assert!(
+            original_logical_source_case_for_tokens(
+                tokens,
+                current.commands(),
+                current.as_ref().into()
+            )
+            .is_none()
+        );
+        let foreign = logical_unknown_input(
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+        );
+        let mut changed_config = config;
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        let changed = super::super::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&current),
+            changed_config,
+        );
+        for input in [&foreign, &changed] {
+            let metadata = InvocationMetadataContext::for_analysis_input(
+                input.borrowed_context_registry().commands(),
+                input,
+            )
+            .unwrap();
+            assert!(
+                original_logical_source_case_for_tokens(tokens, current.commands(), metadata)
+                    .is_none()
+            );
+        }
+        let mut missing = tokens.clone();
+        missing.source_binding = None;
+        assert!(
+            original_logical_source_case_for_tokens(&missing, current.commands(), metadata)
+                .is_none()
+        );
+        let mut altered = tokens.clone();
+        let crate::ir::WordExpr::Variable { spelling, .. } = &mut altered.word_exprs[1] else {
+            panic!("original written subject")
+        };
+        *spelling = "$other".into();
+        assert!(
+            original_logical_source_case_for_tokens(&altered, current.commands(), metadata)
+                .is_none()
+        );
+        let mut absent = Analyser::new();
+        assert!(
+            absent
+                .extract_unknown_proc_info(source, &[param("cmd")])
+                .dispatch_targets
+                .is_empty()
+        );
+        let mut unavailable = Analyser::new().with_resolved_input(logical_unknown_input(older));
+        assert!(
+            unavailable
+                .extract_unknown_proc_info(source, &[param("cmd")])
+                .dispatch_targets
+                .is_empty()
+        );
+        for source in [
+            "proc current_case args {}; interp alias {} selecté {} current_case -exact; selecté $cmd {foo {return 1}}",
+            "interp alias {} selecté {} current_case -exact; proc current_case args {}; selecté $cmd {foo {return 1}}",
+            "current_case $option $cmd {foo {return 1}}",
+        ] {
+            assert!(
+                analyser
+                    .extract_unknown_proc_info(source, &[param("cmd")])
+                    .dispatch_targets
+                    .is_empty(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_unknown_case_advice_selects_the_original_case_fold_child() {
+        // naming.compiler.original-unknown-handler-source-context
+        // docs/design/analysis/name-resolution-proofs/compiler-original-unknown-handler-source-context.md
+        let mut analyser = logical_unknown_analyser();
+        let source =
+            "interp alias {} foldé {} string tolower; switch -exact [foldé $cmd] {foo {return 1}}";
+        let info = analyser.extract_unknown_proc_info(source, &[param("cmd")]);
+        assert!(info.dispatch_targets.contains("foo"));
+        assert!(info.case_insensitive);
+        for source in [
+            "proc string args {}; switch -exact [string tolower $cmd] {foo {return 1}}",
+            "switch -exact [list {string tolower $cmd}] {foo {return 1}}",
+            "switch -exact [string tolower $other] {foo {return 1}}",
+        ] {
+            let info = analyser.extract_unknown_proc_info(source, &[param("cmd")]);
+            assert!(info.dispatch_targets.is_empty(), "{source}");
+            assert!(!info.case_insensitive, "{source}");
+        }
+        let input = logical_unknown_analyser().resolved_input.unwrap();
+        let context = input.context_registry();
+        let mut lowerer =
+            crate::lowering::Lowerer::with_config(context.commands(), input.lexer_config())
+                .with_resolved_analysis_input(input.clone());
+        let script = lowerer.lower(source).top_level.clone();
+        let mut tokens = script
+            .retained_source_tokens_for_statement(script.statements.last().unwrap())
+            .unwrap()
+            .clone();
+        assert!(!tokens.nested_bindings.is_empty());
+        tokens.nested_bindings.clear();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            context.commands(),
+            &input,
+        )
+        .unwrap();
+        let case =
+            crate::registry_invocation::source_structure::original_logical_source_case_for_tokens(
+                &tokens,
+                context.commands(),
+                metadata,
+            )
+            .unwrap();
+        assert!(!case.references_parameter("cmd"));
+        assert!(!case.folds_case());
+    }
+
+    #[test]
+    fn original_unknown_native_case_advice_requires_typed_switch_and_original_input() {
+        // naming.compiler.original-unknown-handler-source-context
+        // docs/design/analysis/name-resolution-proofs/compiler-original-unknown-handler-source-context.md
+        // This fixture retains actual registration and compiler entry. The
+        // readonly case query grants no successful variable read or body entry.
+        use crate::registry_invocation::{
+            InvocationMetadataContext, InvocationMetadataInput,
+            source_structure::original_native_source_case_for_statement,
+        };
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let profile = environment.unit_profile();
+        let context = environment.default_context_registry();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = super::super::ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            profile,
+            context.clone(),
+            config,
+        );
+        let (_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let options = crate::command_binding::SourceAnalysisOptions {
+            metadata_context: InvocationMetadataInput::SuppliedSource(Some(&input)),
+            native_entry: Some(&captured),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
+            .with_dialect(Some(profile))
+            .with_resolved_analysis_input(input.clone());
+        lowerer.set_source_analysis_options(options);
+        let script = lowerer
+            .lower("switch -exact -- $cmd {foo {return 1} default {return 0}}")
+            .top_level
+            .clone();
+        let statement = script.statements.first().unwrap();
+        assert!(matches!(statement, Statement::Switch { .. }));
+        let metadata =
+            InvocationMetadataContext::for_analysis_input(context.commands(), &input).unwrap();
+        let case = original_native_source_case_for_statement(
+            &script,
+            statement,
+            context.commands(),
+            metadata,
+        )
+        .expect("typed original Native case source");
+        assert!(case.references_parameter("cmd"));
+        assert_eq!(case.patterns(), &["foo"]);
+        assert!(!case.body_operands().selection_unknown);
+        assert!(!case.body_operands().no_match_possible);
+        let mut info = UnknownProcInfo::default();
+        walk_unknown_stmt(
+            statement,
+            &script,
+            &context,
+            Some(metadata),
+            "cmd",
+            &mut info,
+            0,
+        );
+        assert!(info.dispatch_targets.contains("foo"));
+        assert_eq!(info.case_body_residuals.len(), 1);
+        assert!(
+            original_native_source_case_for_statement(
+                &script,
+                statement,
+                context.commands(),
+                context.as_ref().into(),
+            )
+            .is_none()
+        );
+        let mut missing = script.clone();
+        missing.command_binding_sites = Default::default();
+        assert!(
+            original_native_source_case_for_statement(
+                &missing,
+                &missing.statements[0],
+                context.commands(),
+                metadata,
+            )
+            .is_none()
+        );
+        let mut generic_lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
+            .with_resolved_analysis_input(input.clone());
+        let generic = generic_lowerer
+            .lower("switch -exact -- $cmd {foo {return 1} default {return 0}}")
+            .top_level
+            .clone();
+        let generic_statement = generic.statements.first().unwrap();
+        assert!(!matches!(generic_statement, Statement::Switch { .. }));
+        assert!(
+            original_native_source_case_for_statement(
+                &generic,
+                generic_statement,
+                context.commands(),
+                metadata,
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -5501,6 +5912,13 @@ _original_unknown $cmd $args";
         let mut loader = registry.get("package").unwrap().clone();
         loader.name = "context_package";
         loader.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        let mut subcommands = loader.subcommands.to_vec();
+        subcommands
+            .iter_mut()
+            .find(|subcommand| subcommand.name == "require")
+            .unwrap()
+            .surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        loader.subcommands = Box::leak(subcommands.into_boxed_slice());
         registry.insert(loader);
         let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
         let older = Arc::new(
@@ -5544,6 +5962,61 @@ _original_unknown $cmd $args";
         );
     }
 
+    fn assert_captured_logical_source_target(
+        tokens: &crate::ir::CommandTokens,
+        context: &tcl_registry::model::ContextRegistry,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    ) {
+        let input = metadata.source_analysis_input().unwrap();
+        let original = tokens.source_binding.as_ref().unwrap();
+        let target = original
+            .proved_execution_target()
+            .expect("closed Logical source target");
+        assert!(target.registry_backed);
+        let dialect = original
+            .original_source_word_dialect_for_tokens(tokens)
+            .expect("actual Logical source dialect");
+        assert!(dialect.native_name_protocol().is_none());
+        assert!(
+            crate::command_binding::SourceAnalysisOptions::for_logical_source(input)
+                .unwrap()
+                .native_entry
+                .is_none()
+        );
+        let selected = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            context.commands(), metadata, tokens,
+        ).unwrap();
+        assert!(
+            selected
+                .with_metadata_schema(
+                    context.commands(),
+                    metadata,
+                    original.invocation_realm().unwrap(),
+                    |schema| {
+                        let target_spec = context.context().resolve_spec_in_realm(
+                            context.commands(),
+                            &target.command,
+                            original.invocation_realm().unwrap(),
+                        )?;
+                        Some(std::ptr::eq(
+                            target_spec,
+                            schema.semantics.state_transitions.command,
+                        ))
+                    },
+                )
+                .unwrap()
+        );
+        assert_eq!(
+            selected.evaluated_words[0].literal_bytes(),
+            Some(b"require".as_slice())
+        );
+        assert_eq!(
+            selected.effective.origins[1],
+            crate::registry_invocation::InvocationWordOrigin::BindingPrefix(0)
+        );
+        assert_eq!(selected.effective.written_argument(1), Some(0));
+    }
+
     #[test]
     fn original_unknown_operation_advice_refuses_missing_foreign_changed_and_dynamic_source() {
         // naming.compiler.original-unknown-handler-source-context
@@ -5559,7 +6032,6 @@ _original_unknown $cmd $args";
         let statement = script.statements.last().unwrap();
         let original = statement.tokens().unwrap().source_binding.as_ref().unwrap();
         assert!(original.original_recorded_head_name_input().is_none());
-        assert!(original.proved_execution_target().is_none());
         let metadata = InvocationMetadataContext::for_source_input(
             context.commands(),
             &input,
@@ -5567,9 +6039,10 @@ _original_unknown $cmd $args";
             Some(input.unit_profile()),
         )
         .unwrap();
+        assert_captured_logical_source_target(statement.tokens().unwrap(), &context, metadata);
         let inspect = |statement: &Statement, metadata| {
             let mut info = UnknownProcInfo::default();
-            walk_unknown_stmt(statement, &context, metadata, "cmd", &mut info, 0);
+            walk_unknown_stmt(statement, &script, &context, metadata, "cmd", &mut info, 0);
             info
         };
         assert!(inspect(statement, Some(metadata)).has_auto_load);

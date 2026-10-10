@@ -2738,3 +2738,25 @@ for kind in ("registry", "api"):
 ```
 
 Restoration proves exact payload bytes and launches no assertion. The unchanged [Registry pin](frozen303/sealed-registry-api-images/pinned-registry303.json) and [API pin](frozen303/sealed-registry-api-images/pinned-api303.json), with their [Registry storage](frozen303/sealed-registry-api-images/lossless-registry-image-storage.json) and [API storage](frozen303/sealed-registry-api-images/lossless-api-image-storage.json) records, preserve the original measured identities, including their recorded workspace executable paths.
+
+## Source304 independent failed library-test builds
+
+Both exact no-run commands use the immutable Source304 image and close with
+exit101 and `uniform_source: true`. Each original log retains nine VM library
+diagnostics: eight E0277 bounds for `ValueError: From<NativeStringUnavailable>`
+and one E0609 access to nonexistent `Vm.result`. Compiler's VM development
+dependency also makes the separately selected four-package command fail.
+
+| Exact command scope | Seconds | Original full receipt | Original log | Test executable events |
+| --- | --- | --- | --- | --- |
+| Compiler, Registry, Syntax, CmdCore, VM, RuntimeAPI | 115.67499489701004 | [lossless gzip](frozen304/integration-shared-owner-own-test-build304/receipt.json.gz) | [whole log](frozen304/integration-shared-owner-own-test-build304/tests.log) | newly created Syntax, CmdCore and RuntimeAPI, all unsealed |
+| Compiler, Syntax, CmdCore, RuntimeAPI | 11.142933130002348 | [lossless gzip](frozen304/integration-compiler-syntax-core-api-own-test-build304/receipt.json.gz) | [whole log](frozen304/integration-compiler-syntax-core-api-own-test-build304/tests.log) | none recorded |
+
+Each decompressed receipt preserves the unchanged command, head, archive and
+complete 32,931-leaf source inventory. Every archived source byte association is
+independently verified; gzip restoration returns the full original receipt
+bytes and SHA. Neither failed operation admits a whole successful producer,
+strict pin, executable inventory or assertion. The partial creation events do
+not establish assertion availability or success. Independent producer and
+assertion records retain their own exact source/command/image scope. No Native
+provider outcome, aggregate pass or mutable anchor refresh is inferred.
