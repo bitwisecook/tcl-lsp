@@ -4,24 +4,24 @@
 //! actual interpreter, checked object/getter, host environment and result owner.
 
 use crate::{
-    interp::{Interp, native_operation_currency::NativeOperationCurrency},
+    interp::{native_operation_currency::NativeOperationCurrency, Interp},
     obj::{self, Owned, TclObj},
 };
 use std::{cell::Cell, rc::Rc};
 use tcl_cmd_core::{
-    CmdError,
     native_boolean_truth::{
-        NativeBooleanExpressionResultOps, NativeBooleanTruthOps,
         original_boolean_expression_result, original_boolean_truth,
+        NativeBooleanExpressionResultOps, NativeBooleanTruthOps,
     },
+    CmdError,
 };
 use tcl_registry::{
-    InvocationDialect,
     native_boolean_truth::{
         NativeBooleanExpressionResultProduction as Production,
         NativeBooleanExpressionResultProtocol as ResultProtocol,
         NativeBooleanTruthProtocol as TruthProtocol, NativeBooleanTruthPurpose as Purpose,
     },
+    InvocationDialect,
 };
 use tcl_syntax::{
     native_boolean_truth::NativeBooleanTruthProbe as Probe,
@@ -884,10 +884,12 @@ mod tests {
             Some(Cache::WordBoolean(false))
         );
         let right = Owned::fresh(obj::new_string_bytes(b"4294967296"));
-        assert!(
-            native_boolean_for_interp(&mut interp, right.as_ptr(), Purpose::LogicalAndInstruction)
-                .unwrap()
-        );
+        assert!(native_boolean_for_interp(
+            &mut interp,
+            right.as_ptr(),
+            Purpose::LogicalAndInstruction
+        )
+        .unwrap());
         assert_eq!(
             obj::native_scalar_cache(right.as_ptr()).unwrap(),
             Some(Cache::Tcl84Long(4_294_967_296))

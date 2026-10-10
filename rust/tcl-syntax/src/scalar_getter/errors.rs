@@ -35,6 +35,7 @@ pub struct NativeScalarGetterError {
     failure: Failure,
     message: Vec<u8>,
     error_code: NativeScalarGetterErrorCode,
+    eval_error_code: NativeScalarGetterErrorCode,
     eval_nul_terminated: bool,
 }
 
@@ -92,6 +93,15 @@ impl NativeScalarGetterError {
         &self.error_code
     }
 
+    /// Additional update at actual script propagation, after the primitive
+    /// update. C8.4 invalid-input getters reset the error episode without
+    /// replacing its global code; Tcl_AddObjErrorInfo later supplies NONE.
+    /// Merely rendering a live primitive failure does not select this boundary.
+    #[must_use]
+    pub const fn eval_error_code_update(&self) -> &NativeScalarGetterErrorCode {
+        &self.eval_error_code
+    }
+
     /// Bytes exposed by the measured `Tcl_Eval` propagation stage. This is a
     /// separate projection: a primitive C8.5 cached failure can retain NUL and
     /// its suffix while legacy interpreter propagation truncates that result.
@@ -131,6 +141,13 @@ impl NativeScalarGetterProtocol {
             failure,
             message: presentation.message,
             error_code: presentation.error_code,
+            eval_error_code: if self.tcl_version() == Some(TclVersion::V8_4)
+                && matches!(failure, Failure::Invalid | Failure::InvalidOctal)
+            {
+                NativeScalarGetterErrorCode::Set(b"NONE".to_vec())
+            } else {
+                NativeScalarGetterErrorCode::Unchanged
+            },
             eval_nul_terminated: presentation.eval_nul_terminated,
         })
     }
@@ -292,13 +309,7 @@ impl NativeScalarGetterProtocol {
                 false,
             ));
         }
-        let mut presentation = self.failure_message(Kind::Wide, failure, original)?;
-        if version == TclVersion::V8_4
-            && matches!(failure, Failure::Invalid | Failure::InvalidOctal)
-        {
-            presentation.error_code = NativeScalarGetterErrorCode::Unchanged;
-        }
-        Some(presentation)
+        self.failure_message(Kind::Wide, failure, original)
     }
 
     fn invalid_presentation(
@@ -340,12 +351,10 @@ impl NativeScalarGetterProtocol {
             message.extend_from_slice(b" (looks like invalid octal number)");
         }
         let code = match self.engine {
-            Engine::Jim084 => None,
-            // Tcl_GetLongFromObj's badInteger branch resets the result without
-            // setting errorCode. The later Tcl_Eval callback projection of
-            // other selected getters remains a separate measured boundary.
-            Engine::Tcl(TclVersion::V8_4) if kind == Kind::Long => None,
-            Engine::Tcl(TclVersion::V8_4) => Some(b"NONE".as_slice()),
+            // Original C8.4 invalid-input branches reset/append the result
+            // without setting errorCode. Eval's later NONE publication has its
+            // independent receipt; overflow/domain branches retain their codes.
+            Engine::Jim084 | Engine::Tcl(TclVersion::V8_4) => None,
             Engine::Tcl(_) => Some(b"TCL VALUE NUMBER".as_slice()),
         };
         Some(record(message, code, false))

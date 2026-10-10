@@ -2388,6 +2388,18 @@ pub(crate) fn completion_from_cmd_error(vm: &mut Vm, error: CmdError) -> Complet
         },
         None => None,
     };
+    // This adapter creates an evaluated command completion. Primitive CAPI
+    // callers render through the original-value owner and do not enter here.
+    let update = match details
+        .primitive_getter
+        .as_ref()
+        .map(|getter| getter.eval_error_code_update())
+    {
+        Some(tcl_syntax::scalar_getter::NativeScalarGetterErrorCode::Set(code)) => {
+            tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(code.clone())
+        }
+        _ => update,
+    };
     let code = vm.apply_cmd_error_code(update, explicit_code_store);
     let message = details
         .primitive_getter
@@ -3942,6 +3954,58 @@ pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 mod tests {
     use super::parse_params;
     use tcl_syntax::value::ValueOps;
+
+    #[test]
+    fn c84_primitive_failure_keeps_direct_code_and_eval_completion_supplies_none() {
+        // naming.numeric.original-capi-scalar-publication-width
+        // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+        // naming.numeric.seeded-wide-frontier
+        // docs/design/analysis/name-resolution-proofs/numeric-seeded-wide-frontier.md
+        // Actual VM command-completion projection only; the neutral original
+        // getter and failure renderer retain their independent direct purpose.
+        use tcl_syntax::scalar_getter::NativeScalarGetterKind;
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl8.4").unit_profile();
+        let mut vm = crate::native_fixture::interpreter(profile);
+        let dialect = vm.native_invocation_dialect();
+        for kind in [
+            NativeScalarGetterKind::Int,
+            NativeScalarGetterKind::Long,
+            NativeScalarGetterKind::Wide,
+            NativeScalarGetterKind::Double,
+            NativeScalarGetterKind::Boolean,
+        ] {
+            vm.restore_guest_error_code(super::Value::new_native_string_bytes(b"SEEDED CODE"));
+            let original = super::Value::new_native_string_bytes(b"bad");
+            let failure = original
+                .native_scalar_probe_with_environment(
+                    dialect,
+                    kind,
+                    Some(vm.host().numeric_environment()),
+                )
+                .unwrap()
+                .unwrap_err();
+            let record = original
+                .native_scalar_failure_presentation(dialect, kind, failure)
+                .unwrap();
+            assert_eq!(
+                record.error_code_update(),
+                &tcl_syntax::scalar_getter::NativeScalarGetterErrorCode::Unchanged
+            );
+            let code = vm.native_return_error_code().unwrap().clone();
+            assert_eq!(
+                vm.native_string_bytes(&code).unwrap().as_ref(),
+                b"SEEDED CODE"
+            );
+            let error = tcl_syntax::value::ValueError::NativeScalarGetter(Box::new(record));
+            let completion = super::completion_from_cmd_error(&mut vm, error.into());
+            assert_eq!(completion.code, super::Code::Error);
+            let code = super::opt_get_checked(&mut vm, &completion.options, b"-errorcode")
+                .unwrap()
+                .unwrap();
+            assert_eq!(vm.native_string_bytes(&code).unwrap().as_ref(), b"NONE");
+            assert!(vm.finish_host_execution(completion).is_ok());
+        }
+    }
 
     #[test]
     fn original_command_core_refusal_keeps_typed_first_host_cause() {

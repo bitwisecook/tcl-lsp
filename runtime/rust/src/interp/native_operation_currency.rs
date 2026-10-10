@@ -11,7 +11,7 @@ use super::{Interp, InterpState};
 use std::rc::{Rc, Weak};
 use tcl_platform::Host;
 use tcl_registry::InvocationDialect;
-use tcl_runtime_api::{NativeExecutionError, RuntimeContext, guard::GuardDomain};
+use tcl_runtime_api::{guard::GuardDomain, NativeExecutionError, RuntimeContext};
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
 pub(crate) struct NativeOperationCurrency {

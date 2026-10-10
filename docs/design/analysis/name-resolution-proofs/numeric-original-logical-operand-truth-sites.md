@@ -37,9 +37,13 @@ Successful rows within each exact route are counted below; an exit0 host process
 | 16 — OR x left, object source | 34 / 36 | 31 / 36 | 31 / 36 | 32 / 36 | 32 / 36 | 34 / 36 |
 | 17 — OR x right, object source | 31 / 36 | 31 / 36 | 31 / 36 | 32 / 36 | 32 / 36 | 34 / 36 |
 
+The Runtime C84 operand-stage control preserves the separate WordBoolean and full integer primaries reached by the original left versus final logical instruction purposes for identical fresh source bytes.
+
 ## Scope
 
 Exactly 36 constructors and 18 workers, each in a fresh fully initialized original interpreter, on the measured native LP64 ABI: int=4, long=8, wide=8, double=8, pointer=8, CHAR_BIT=8; C8 Tcl_UniChar=2 and C9=4, current Jim UTF8/ABI 102. The original x value is installed through the public variable API without source serialization. Workers 0/1 are the raw primitive/public expression API controls; worker 2 is TWO NOT operations and a final expression result, not an isolated inner NOT. Workers 2–9 use genuine generic Tcl_EvalEx source; workers 10–17 separately retain the same corresponding original script object and call Tcl_EvalObjEx(flags0). Jim uses Jim_EvalObj independently for both groups without an assumed second engine. Logical y=1/y=0 makes x reached in either operand position; this gives no statement about unexecuted short-circuit operands. Source objects remain host-held across every post-call observer; their primary and native refcount fields are measured before result/error/input String observers. Input and partner cache/residency/equality fields are also recorded at that bounded pre-observer window; input_after_observers is later rendered data, not initial storage. Direct API output starts sentinel 777; failed API output retains it, and script-route out 777 is unused because truth is in result bytes. errno is an ambient return observation, not a pure numeric-stage or freshness witness. C8.5+ errorCode uses public return-options/DictObjGet, while C8.4/Jim use their separately seeded public variable; no private error object identity follows. All 18 provider compile/version/main operations exit 0 with empty stderr, and the separate compiler version operation exits0; successful process closure includes every expected route error. All 504 input associations and whole original streams/receipts are independently verified. The Root partial unsealed 30-row and complete focused 180-row arrays are preserved as derived review only, never closure or eligibility evidence. No wasm32, LLP64, BIG-IP, null-interpreter route, default/application CABI issuer, runtime representation authority, physical frame/SSA/edit permission or Rust assertion is inferred. Bytecode/script primary observations do not certify exact opcodes, a generic-source compilation path, arbitrary source entry, worker or compiled artifact. Pinned source windows explain distinct entry/conversion branches without claiming unrecorded binary build history.
+
+This current software control is unexecuted and uses literal expectations corresponding only to original465 C84 case4 worker6/7 bounded input/cache/truth windows. It does not replay the whole native expression, assert instruction bytes, result-header equality, cache birth on external objects, all logical sites or all providers. Generic versus held-object native route evidence remains independently scoped and unchanged.
 
 ## Provider answers
 
@@ -3254,6 +3258,11 @@ int Jim_EvalObj(Jim_Interp *interp, Jim_Obj *scriptObjPtr)
 No implementation binding is claimed by this observation record.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [runtime/rust/src/typed_value/native_boolean_truth.rs](../../../../runtime/rust/src/typed_value/native_boolean_truth.rs), `native_boolean_for_interp`: Select a direct original operand instruction from actual entered interpreter protocol and explicit source purpose. Refuse result-purpose tags before probing; original object/getter and Host currency stay independent of public expression result production.
+- [runtime/rust/src/typed_value/native_boolean_truth.rs](../../../../runtime/rust/src/typed_value/native_boolean_truth.rs), `typed_value::native_boolean_truth::tests::original_c84_logical_sides_keep_distinct_boolean_and_integer_primary` (linked): Under genuine entered C84 software ingress, two fresh identical4294967296 String operands reach distinct LogicalAnd operand versus final LogicalAndInstruction purposes: false WordBoolean primary versus true Tcl84Long2^32, with exact original bytes retained. Literal expectations correspond the original465 case4 worker6/7 input cache and result-truth windows; this is a bounded operand-stage software control, not a whole expression/native opcode comparator.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

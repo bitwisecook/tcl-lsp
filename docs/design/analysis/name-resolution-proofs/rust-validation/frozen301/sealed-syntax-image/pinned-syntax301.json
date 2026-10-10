@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-syntax301.elf",
+  "sha256": "cb7617f3c2c9b6d31815ab05dd5bbc98c80367a36cbec2bdcb2501f47f278b2c",
+  "build_receipt": "/workspace/.proofs/integration-syntax-own-test-build301.json",
+  "build_receipt_sha256": "b7adcfd51aa457e518dfaf86d1ce19733145f475d7e39efaa8be001bdb1b8b9a",
+  "source_snapshot_sha256": "b604f58e37ce9e3ca04ea77144960ac3da21c7698238bd08d639c3ecd9cdc6db"
+}

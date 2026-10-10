@@ -244,6 +244,7 @@ pub struct ResolvedStatementInvocation {
 /// store, caller identity or outward effect.
 pub(crate) struct LogicalStructuredInvocation {
     invocation: ResolvedStatementInvocation,
+    source_roles: Option<tcl_registry::resolved_invocation::AuthoredLogicalSourceRoleProjection>,
 }
 
 impl LogicalStructuredInvocation {
@@ -269,7 +270,21 @@ impl LogicalStructuredInvocation {
     }
 
     pub(crate) fn written_roles(&self) -> Vec<(usize, tcl_registry::ArgRole)> {
-        self.invocation.written_argument_roles()
+        self.source_roles.as_ref().map_or_else(
+            || self.invocation.written_argument_roles(),
+            |roles| {
+                roles
+                    .argument_roles()
+                    .iter()
+                    .filter_map(|&(argument, role)| {
+                        self.invocation
+                            .effective
+                            .written_argument(argument)
+                            .map(|written| (written, role))
+                    })
+                    .collect()
+            },
+        )
     }
 
     pub(crate) fn traits(&self) -> tcl_registry::Traits {
@@ -338,10 +353,34 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
                     .map(|owned| owned.invocation)
             })
             .or_else(|| original_declared_structured_invocation(registry, context, tokens))?;
+    let source_roles = if context.permits_logical_source_names() {
+        let binding = tokens.source_binding.as_ref()?;
+        if binding.logical_source_name_advice_input() != context.source_analysis_input() {
+            return None;
+        }
+        let realm = binding.invocation_realm().or_else(|| {
+            binding
+                .declaration_operand_layout_advice(tokens)
+                .map(|advice| advice.realm())
+        })?;
+        selected.with_metadata_schema(registry, context, realm, |schema| {
+            schema.authored_logical_source_role_projection()
+        })
+    } else {
+        None
+    };
+    // A possible case body is readonly advice. Unreadable option selection
+    // retains generic IR instead of borrowing a definitive Switch topology.
+    if source_roles
+        .as_ref()
+        .is_some_and(|roles| roles.selection_unknown())
+    {
+        return None;
+    }
     // Source-shape lowering requires each operand to retain its original slot.
     // Alias prefixes, selector rewriting and expanded elements use generic IR
     // until a lowerer explicitly accepts their composed operand projection.
-    if !selected.facts.arg_roles_complete
+    if (!selected.facts.arg_roles_complete && source_roles.is_none())
         || selected.facts.arity_accepts_frozen_arguments() != Some(true)
         || selected.effective.words.len() != tokens.words().len()
         || !selected
@@ -366,6 +405,7 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
     }
     Some(LogicalStructuredInvocation {
         invocation: selected,
+        source_roles,
     })
 }
 
@@ -7365,6 +7405,183 @@ mod tests {
                 .is_none()
         );
         assert!(binding.native_compilation_admission.is_none());
+    }
+
+    #[test]
+    fn original_logical_case_roles_keep_selection_residuals_out_of_structured_ir() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Possible bodies are source advice; the unknown option/error branch
+        // cannot borrow a definitive Switch or complete Native argument roles.
+        let owner =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&owner),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let registry = owner.commands();
+        let metadata = InvocationMetadataContext::for_analysis_input(registry, &input).unwrap();
+        let closed_source = "switch -exact -- $cmd {foo {return FOO} default {return OTHER}}";
+        let closed = logical_source_tokens(closed_source, registry, &input);
+        let shape =
+            logical_structured_invocation_with_metadata_context(registry, metadata, &closed, None)
+                .expect("closed original Logical source-role projection");
+        assert!(
+            shape
+                .written_roles()
+                .contains(&(3, tcl_registry::ArgRole::Body))
+        );
+        assert!(!shape.invocation.facts.arg_roles_complete);
+        let roles = shape.source_roles.as_ref().unwrap();
+        let bodies = roles.case_body_operands().unwrap();
+        assert!(!bodies.selection_unknown && !bodies.no_match_possible);
+        assert_eq!(bodies.bodies[0].argument, 3);
+        assert_eq!(bodies.bodies[0].list_element, Some(1));
+        assert!(
+            closed
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .native_compilation_admission
+                .is_none()
+        );
+        let ambiguous_source = "switch -exact $cmd {foo {return FOO} default {return OTHER}}";
+        let ambiguous = logical_source_tokens(ambiguous_source, registry, &input);
+        assert!(
+            logical_structured_invocation_with_metadata_context(
+                registry, metadata, &ambiguous, None,
+            )
+            .is_none()
+        );
+        let possible = original_logical_operation_invocation_with_metadata_context(
+            registry, metadata, &ambiguous,
+        )
+        .unwrap();
+        let realm = ambiguous
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .invocation_realm()
+            .unwrap();
+        let roles = possible
+            .with_metadata_schema(registry, metadata, realm, |schema| {
+                schema.authored_logical_source_role_projection()
+            })
+            .unwrap();
+        assert!(roles.selection_unknown());
+        assert_eq!(roles.case_body_operands().unwrap().bodies[0].argument, 2);
+        for (source, switch_expected) in [(closed_source, true), (ambiguous_source, false)] {
+            let mut lowerer = crate::lowering::Lowerer::with_config(registry, input.lexer_config())
+                .with_resolved_analysis_input(input.clone());
+            let script = &lowerer.lower(source).top_level;
+            assert_eq!(
+                matches!(
+                    script.statements.last().unwrap(),
+                    crate::ir::Statement::Switch { .. }
+                ),
+                switch_expected
+            );
+        }
+    }
+
+    #[test]
+    fn original_logical_case_roles_refuse_missing_foreign_stale_and_replaced_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let owner =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&owner),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let registry = owner.commands();
+        let tokens =
+            logical_source_tokens("switch -- $cmd {café {return VALUE}}", registry, &input);
+        let current = InvocationMetadataContext::for_analysis_input(registry, &input).unwrap();
+        assert!(
+            logical_structured_invocation_with_metadata_context(registry, current, &tokens, None)
+                .is_some()
+        );
+        let older = tcl_registry::model::ingress::resolve_environment("tcl8.4")
+            .default_context_registry()
+            .with_command_store(registry.snapshot().shared_registry());
+        let mut changed_config = input.lexer_config();
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        let native = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        for changed in [
+            crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::new(older),
+                input.lexer_config(),
+            ),
+            crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                input.context_registry(),
+                changed_config,
+            ),
+            crate::analyser::ResolvedAnalysisInput::new(
+                native,
+                native,
+                input.context_registry(),
+                input.lexer_config(),
+            ),
+        ] {
+            let context =
+                InvocationMetadataContext::for_analysis_input(registry, &changed).unwrap();
+            assert!(
+                logical_structured_invocation_with_metadata_context(
+                    registry, context, &tokens, None
+                )
+                .is_none()
+            );
+        }
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        assert!(
+            InvocationMetadataContext::for_analysis_input(
+                registry,
+                &crate::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    foreign,
+                    input.lexer_config(),
+                )
+            )
+            .is_none()
+        );
+        let mut missing = tokens.clone();
+        missing.source_binding = None;
+        assert!(
+            logical_structured_invocation_with_metadata_context(registry, current, &missing, None)
+                .is_none()
+        );
+        let replaced = logical_source_tokens(
+            "proc switch args {}; switch -- $cmd {café {return VALUE}}",
+            registry,
+            &input,
+        );
+        assert!(
+            logical_structured_invocation_with_metadata_context(registry, current, &replaced, None)
+                .is_none()
+        );
+        let captured = logical_source_tokens(
+            "interp alias {} dispatch {} switch -exact --; dispatch $cmd {café {return VALUE}}",
+            registry,
+            &input,
+        );
+        assert!(
+            logical_structured_invocation_with_metadata_context(registry, current, &captured, None)
+                .is_none(),
+            "captured effective operands are not direct written slots"
+        );
     }
 
     #[test]

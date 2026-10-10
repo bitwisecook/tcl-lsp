@@ -2621,3 +2621,79 @@ The [unchanged original receipt](frozen300/integration-shared-owner-own-test-bui
 Source301 selects Compiler, Registry, Syntax, CmdCore, VM and RuntimeAPI and closes exit 101 after 46.44751959500718s with uniform source. Its CmdCore cache fixture has a Cow/Vec type mismatch. The log records one newly-created Syntax executable event, which remains unsealed; no successful producer, strict 301 executable pin, inventory or assertion is claimed. The subsequent fixture correction supplies no outcome for this invocation.
 
 The [unchanged original301 receipt](frozen301/integration-shared-owner-own-test-build301/receipt.json.gz), [whole301 log](frozen301/integration-shared-owner-own-test-build301/tests.log) and [full301 source companion](frozen301/source-snapshot.json.gz) preserve all 32869 independently verified source associations and exact original timing/path/command. The [independent full300 source companion](frozen300/source-snapshot.json.gz) retains its separate 32821-leaf image. Receipts/source companions use verified lossless gzip; all original bytes and compressed/uncompressed hashes remain restorable. Neither failed command supplies an aggregate gate or Native result.
+
+## Source301 independent Syntax producer and full assertions
+
+The separate Syntax `num-bigint` no-run command succeeds with its own strict image and source companion. Its fresh inventory lists 643 tests. The exact full selection closes 642 passed/1 failed: `scalar_getter::target_tests::original_long64_public_value_cache_and_live_failure_fields_match_captures`. Compilation and listing execute no assertions. The earlier six-crate Source301 command remains independently failed; an unsealed partial Syntax event from that command is not this successful producer. No overall gate or Native primitive/provider PASS is claimed.
+
+| Closed operation | Exact outcome | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-syntax-own-test-build301` | `compile-passed`, exit 0, 7.668721s; compilation only; no assertions | [Original receipt](frozen301/integration-syntax-own-test-build301/receipt.json.gz) | [Whole log](frozen301/integration-syntax-own-test-build301/tests.log) |
+| `integration-syntax-inventory301` | `listed`, exit 0, 0.003427s; 643 listed; no assertions | [Original receipt](frozen301/integration-syntax-inventory301/receipt.json.gz) | [Whole log](frozen301/integration-syntax-inventory301/tests.log) |
+| `integration-syntax-all-tests301` | `failed`, exit 101, 1.416152s; 642 passed/1 failed | [Original receipt](frozen301/integration-syntax-all-tests301/receipt.json.gz) | [Whole log](frozen301/integration-syntax-all-tests301/tests.log) |
+
+The [exact selection](frozen301/selections/syntax-all-selection301.json) and [original request](frozen301/selections/syntax-all-request301.json) retain the authentic 643-test inventory/pin gate. The [unchanged strict pin](frozen301/sealed-syntax-image/pinned-syntax301.json), [lossless storage record](frozen301/sealed-syntax-image/lossless-image-storage.json) and [full source companion](frozen301/sealed-syntax-image/source-snapshot.json.gz) preserve the independently successful image. All 98,607 source associations across three operations are byte-verified; question links attach only when the entire current source leaf equals the frozen producer.
+
+Restore the measured payload with both compressed and original integrity checks:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen301/sealed-syntax-image")
+record = json.loads((base / "lossless-image-storage.json").read_text())
+packed = (base / "pinned-syntax301.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/pinned-syntax301.elf")
+restored.write_bytes(original)
+restored.chmod(0o755)
+```
+
+Restoration proves exact bytes and launches no assertion. Primitive getter/host stages, mathematical expression advice, source geometry and original Native issuer/result purposes remain independent.
+
+## Source301 scoped Compiler, Registry and RuntimeAPI compilation
+
+The separate scoped no-run command selects Compiler, Registry and RuntimeAPI and closes with exit 101 after 73.112772s and `uniform_source: true`. Six VM diagnostics report the missing `NativeStringUnavailable` to `ValueError` conversion at three original getter sites; the Compiler durable-inventory witness also reports an inaccessible field-pattern error. No test executable creation event is recorded. No successful producer, strict pin, inventory or assertion is claimed.
+
+The [unchanged full original receipt](frozen301/integration-compiler-registry-api-own-test-build301/receipt.json.gz) preserves the complete immutable source image and command as lossless gzip. The [whole original log](frozen301/integration-compiler-registry-api-own-test-build301/tests.log) retains all seven compile diagnostics. All 32,869 source leaves are independently byte-verified. The independent Syntax `num-bigint` producer, list and full assertions keep their separate measured executable and outcomes. No Native provider failure, broader PASS or aggregate gate result is inferred.
+
+## Source302 scoped Compiler, Registry and RuntimeAPI compilation
+
+The scoped no-run command selects Compiler, Registry and RuntimeAPI and closes with exit 101 after 119.103976s and `uniform_source: true`. Core reports one E0624 error at `original_invocation.rs:412`: the selected metadata getter `permits_logical_source_names` is private. The original log also records one newly-created RuntimeAPI libtest artifact event. The overall failed operation supplies no successful producer, admitted strict pin, test inventory or assertion outcome for that partial artifact.
+
+The [unchanged full original receipt](frozen302/integration-compiler-registry-api-own-test-build302/receipt.json.gz) preserves the complete immutable source image and command as lossless gzip. The [whole original log](frozen302/integration-compiler-registry-api-own-test-build302/tests.log) retains the visibility diagnostic and partial creation event. All 32,878 source leaves are independently byte-verified. The independent Syntax302 producer and any separately closed list/assertions keep their own source/image scope; no success is transferred to this failed command. No Native provider outcome or aggregate gate result is inferred.
+
+## Source302 independent Syntax producer and full assertions
+
+The separate Syntax `num-bigint` no-run command succeeds with its own strict image and source companion. Its fresh inventory lists 643 tests. The exact full selection closes 642 passed/1 failed: `scalar_getter::target_tests::original_long64_public_value_cache_and_live_failure_fields_match_captures`. Compilation and listing execute no assertions. The separate scoped Compiler/Registry/RuntimeAPI Source302 command remains independently failed; the unsealed RuntimeAPI creation event from that failed command is independent of this successful Syntax producer. No overall gate or Native primitive/provider PASS is claimed.
+
+| Closed operation | Exact outcome | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-syntax-own-test-build302` | `compile-passed`, exit 0, 6.613966s; compilation only; no assertions | [Original receipt](frozen302/integration-syntax-own-test-build302/receipt.json.gz) | [Whole log](frozen302/integration-syntax-own-test-build302/tests.log) |
+| `integration-syntax-inventory302` | `listed`, exit 0, 0.002959s; 643 listed; no assertions | [Original receipt](frozen302/integration-syntax-inventory302/receipt.json.gz) | [Whole log](frozen302/integration-syntax-inventory302/tests.log) |
+| `integration-syntax-all-tests302` | `failed`, exit 101, 0.769700s; 642 passed/1 failed | [Original receipt](frozen302/integration-syntax-all-tests302/receipt.json.gz) | [Whole log](frozen302/integration-syntax-all-tests302/tests.log) |
+
+The [exact selection](frozen302/selections/syntax-all-selection302.json) and [original request](frozen302/selections/syntax-all-request302.json) retain the authentic 643-test inventory/pin gate. The [unchanged strict pin](frozen302/sealed-syntax-image/pinned-syntax302.json), [lossless storage record](frozen302/sealed-syntax-image/lossless-image-storage.json) and [full source companion](frozen302/sealed-syntax-image/source-snapshot.json.gz) preserve the independently successful image. All 98,634 source associations across three operations are byte-verified; question links attach only when the entire current source leaf equals the frozen producer.
+
+Restore the measured payload with both compressed and original integrity checks:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen302/sealed-syntax-image")
+record = json.loads((base / "lossless-image-storage.json").read_text())
+packed = (base / "pinned-syntax302.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/pinned-syntax302.elf")
+restored.write_bytes(original)
+restored.chmod(0o755)
+```
+
+Restoration proves exact bytes and launches no assertion. Primitive getter/host stages, mathematical expression advice, source geometry and original Native issuer/result purposes remain independent.

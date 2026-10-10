@@ -305,6 +305,81 @@ fn original_long64_public_value_cache_and_live_failure_fields_match_captures() {
 }
 
 #[test]
+fn original_c84_primitive_code_and_callback_eval_code_are_separate_observations() {
+    // naming.numeric.original-capi-scalar-publication-width
+    // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+    // naming.numeric.seeded-wide-frontier
+    // docs/design/analysis/name-resolution-proofs/numeric-seeded-wide-frontier.md
+    // naming.numeric.seeded-double-frontier
+    // docs/design/analysis/name-resolution-proofs/numeric-seeded-double-frontier.md
+    // naming.numeric.seeded-boolean-frontier
+    // docs/design/analysis/name-resolution-proofs/numeric-seeded-boolean-frontier.md
+    // Five original public primitive fields and three independent final Eval
+    // fields. The Int/Long Eval recipe is bounded by the shared original C
+    // reset/error-log source, not an additional provider observation here.
+    let eval_fixture =
+        include_str!("../../tests/data/native_scalar_getters/errors/error-state-8.4.20.txt");
+    let protocol = NativeScalarGetterProtocol::for_tcl_version(TclVersion::V8_4);
+    let mut direct_fields = 0;
+    let mut eval_fields = 0;
+    for (kind, getter, callback_getter) in [
+        (NativeScalarGetterKind::Int, 0, None),
+        (NativeScalarGetterKind::Long, 1, None),
+        (NativeScalarGetterKind::Wide, 2, Some("0")),
+        (NativeScalarGetterKind::Double, 3, Some("1")),
+        (NativeScalarGetterKind::Boolean, 4, Some("2")),
+    ] {
+        let direct = row(C_LIVE[0], 0, getter);
+        let error = protocol
+            .failure_presentation(kind, NativeScalarGetterFailure::Invalid, b"")
+            .unwrap();
+        assert_eq!(field(direct, "code"), "1", "{direct}");
+        assert_eq!(hex(error.message_bytes()), field(direct, "result"));
+        assert_eq!(
+            error.error_code_update(),
+            &NativeScalarGetterErrorCode::Unchanged
+        );
+        assert_eq!(hex(b"SEEDED CODE"), field(direct, "error_code"));
+        direct_fields += 1;
+        if let Some(callback_getter) = callback_getter {
+            let propagated = eval_fixture
+                .lines()
+                .find(|line| {
+                    field(line, "getter") == callback_getter
+                        && field(line, "storage") == "0"
+                        && field(line, "case") == "9"
+                })
+                .unwrap();
+            let NativeScalarGetterErrorCode::Set(code) = error.eval_error_code_update() else {
+                panic!("selected actual Eval update")
+            };
+            assert_eq!(hex(code), field(propagated, "errorCode"), "{propagated}");
+            assert_eq!(
+                hex(error.eval_message_bytes()),
+                field(propagated, "message")
+            );
+            eval_fields += 1;
+        }
+    }
+    assert_eq!((direct_fields, eval_fields), (5, 3));
+    let overflow = protocol
+        .failure_presentation(
+            NativeScalarGetterKind::Long,
+            NativeScalarGetterFailure::IntegerOverflow,
+            b"18446744073709551616",
+        )
+        .unwrap();
+    let NativeScalarGetterErrorCode::Set(code) = overflow.error_code_update() else {
+        panic!("selected overflow code")
+    };
+    assert_eq!(hex(code), field(row(C_LIVE[0], 10, 1), "error_code"));
+    assert_eq!(
+        overflow.eval_error_code_update(),
+        &NativeScalarGetterErrorCode::Unchanged
+    );
+}
+
+#[test]
 fn native_long_unsigned_edge_is_independent_of_native_wide_acceptance() {
     // naming.numeric.original-capi-scalar-publication-width
     // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md

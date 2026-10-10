@@ -221,10 +221,13 @@ impl<'a> InvocationMetadataContext<'a> {
         self.actual_input
     }
 
-    /// Positive Logical source naming applicability, independent of metadata
-    /// availability and of every Native execution or contents-presence grant.
+    /// Whether the retained complete input permits conditional Logical source
+    /// naming advice. Availability-only and explicit standalone carriers return
+    /// false. Callers must separately validate their source image and lexer policy.
+    /// This does not establish invocation presence, Native identity, entered
+    /// frames, value contents or executable rewrite authority.
     #[must_use]
-    pub(crate) fn permits_logical_source_names(self) -> bool {
+    pub fn permits_logical_source_names(self) -> bool {
         self.actual_input
             .is_some_and(crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context)
     }

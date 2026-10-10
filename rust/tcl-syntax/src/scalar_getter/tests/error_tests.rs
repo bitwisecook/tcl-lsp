@@ -87,7 +87,13 @@ fn verify_line(index: usize, line: &str, seeded: bool) {
             unhex(field(line, "message")),
             "propagated engine {index}: {line}"
         );
-        let code = match error.error_code_update() {
+        // The probe duplicates only the primitive result. Its errorCode field
+        // is sampled after the callback returns through actual Tcl_Eval.
+        let update = match error.eval_error_code_update() {
+            NativeScalarGetterErrorCode::Unchanged => error.error_code_update(),
+            update => update,
+        };
+        let code = match update {
             NativeScalarGetterErrorCode::Unchanged => {
                 if seeded {
                     b"PROBE BEFORE".as_slice()

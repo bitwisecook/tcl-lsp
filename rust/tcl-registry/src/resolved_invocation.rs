@@ -1350,6 +1350,38 @@ pub struct AuthoredSourceCaseBody {
     pub single_block: bool,
 }
 
+/// Readonly argument roles under a separately retained Logical source model.
+/// Case bodies retain their original effective container/list-element locations
+/// and every option-selection or no-match alternative. This projection is
+/// independent of executable `InvocationFacts` and native handler acceptance.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthoredLogicalSourceRoleProjection {
+    argument_roles: Vec<(usize, ArgRole)>,
+    case_bodies: Option<crate::case_bodies::CaseBodyOperands>,
+}
+
+impl AuthoredLogicalSourceRoleProjection {
+    /// Effective post-head roles; list fields remain on `case_body_operands`.
+    #[must_use]
+    pub fn argument_roles(&self) -> &[(usize, ArgRole)] {
+        &self.argument_roles
+    }
+
+    /// Possible original case fields, with selection and no-match residuals.
+    #[must_use]
+    pub fn case_body_operands(&self) -> Option<&crate::case_bodies::CaseBodyOperands> {
+        self.case_bodies.as_ref()
+    }
+
+    /// Whether a computed subject can change option parsing or raise there.
+    #[must_use]
+    pub fn selection_unknown(&self) -> bool {
+        self.case_bodies
+            .as_ref()
+            .is_some_and(|bodies| bodies.selection_unknown)
+    }
+}
+
 /// Effective authored procedure declaration positions. This layout accepts
 /// no native parameter grammar and proves no publication or entered body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3120,6 +3152,79 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .frame_effect
             .map(|effect| effect.logical_source_layout(self.words.arguments()));
         self.argument_roles_with_frame_layout(false, false, layout)
+    }
+
+    /// Readonly source roles from this already selected descriptor. The caller
+    /// must independently retain a positive complete Logical source input.
+    /// Case option ambiguity remains explicit rather than making Native roles
+    /// complete; byte values require a lossless String-compatible facet here.
+    #[must_use]
+    pub fn authored_logical_source_role_projection(
+        &self,
+    ) -> Option<AuthoredLogicalSourceRoleProjection> {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        if !matches!(
+            self.subcommand,
+            SubcommandResolution::NotApplicable
+                | SubcommandResolution::Exact(_)
+                | SubcommandResolution::UniquePrefix(_)
+        ) {
+            return None;
+        }
+        let arguments = self.words.arguments();
+        let count = arguments.exact_argv_len()?;
+        if let Some(case) = self.semantics.options.case_list {
+            if self.semantics.argument_offset != 0 {
+                return None;
+            }
+            let dialect = arguments.dialect()?;
+            let logical = (0..count)
+                .map(|argument| match arguments.get(argument)? {
+                    InvocationWord::KnownBytes(bytes) => {
+                        (!bytes.contains(&0)).then_some(())?;
+                        Some(InvocationWord::Literal(std::str::from_utf8(bytes).ok()?))
+                    }
+                    word => Some(word),
+                })
+                .collect::<Option<Vec<_>>>()?;
+            let logical = crate::InvocationArguments::structured(&logical).with_dialect(dialect);
+            let options = self.semantics.options.available().collect::<Vec<_>>();
+            let bodies = case.possible_body_operands(logical, &options)?;
+            let mut argument_roles = Vec::new();
+            for body in &bodies.bodies {
+                if !argument_roles.contains(&(body.argument, ArgRole::Body)) {
+                    argument_roles.push((body.argument, ArgRole::Body));
+                }
+            }
+            // Variable-valued option roles require their own closed prefix.
+            // Possible bodies alone cannot infer the width of an unknown option.
+            if !bodies.selection_unknown {
+                argument_roles.extend(self.semantics.options.value_roles(logical)?);
+            }
+            return Some(AuthoredLogicalSourceRoleProjection {
+                argument_roles,
+                case_bodies: Some(bodies),
+            });
+        }
+        let (roles, complete) = self.authored_logical_source_argument_roles();
+        if !complete {
+            return None;
+        }
+        let argument_roles = roles
+            .into_iter()
+            .map(|(argument, role)| {
+                let argument = self
+                    .semantics
+                    .argument_offset
+                    .checked_add(usize::from(argument))?;
+                (argument < count).then_some((argument, role))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(AuthoredLogicalSourceRoleProjection {
+            argument_roles,
+            case_bodies: None,
+        })
     }
 
     /// Timing of an independently selected original script/container ordinal.
@@ -5255,6 +5360,111 @@ mod tests {
                     assert_eq!(invocation.mode, crate::spec::CaseMatchMode::Regexp);
                 }
             }
+        }
+    }
+
+    #[test]
+    fn original_logical_case_role_projection_keeps_selected_options_and_body_residuals() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        use crate::InvocationWord::{Dynamic, Expanded, KnownBytes, Literal};
+        let current =
+            crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let older = crate::model::ingress::resolve_environment("tcl8.4")
+            .default_context_registry()
+            .with_command_store(std::sync::Arc::clone(current.commands()));
+        for (values, expected) in [
+            (
+                vec![
+                    Literal("--"),
+                    Dynamic,
+                    Literal("café {BODY} default {FALLBACK}"),
+                ],
+                Some((false, false, 2)),
+            ),
+            (
+                vec![Literal("-exact"), Dynamic, Literal("café {BODY}")],
+                Some((true, true, 2)),
+            ),
+            (
+                vec![Dynamic, Literal("café {BODY}")],
+                Some((false, true, 1)),
+            ),
+            (vec![Dynamic, Dynamic, Literal("café {BODY}")], None),
+            (vec![Literal("--"), Dynamic, Expanded], None),
+            (
+                vec![
+                    KnownBytes(b"--"),
+                    Dynamic,
+                    KnownBytes("café {BODY}".as_bytes()),
+                ],
+                Some((false, true, 2)),
+            ),
+            (
+                vec![KnownBytes(b"--"), Dynamic, KnownBytes(b"a {BODY}\0")],
+                None,
+            ),
+            (vec![KnownBytes(b"--"), Dynamic, KnownBytes(&[0xff])], None),
+        ] {
+            let selected =
+                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    current.commands(),
+                    Some(current.context()),
+                    crate::InvocationWords::structured(Literal("switch"), &values),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                )
+                .resolved()
+                .unwrap();
+            let native_roles = selected.facts().arg_roles_complete;
+            let projection = selected.authored_logical_source_role_projection();
+            assert_eq!(
+                projection.as_ref().map(|roles| {
+                    let bodies = roles.case_body_operands().unwrap();
+                    (
+                        bodies.selection_unknown,
+                        bodies.no_match_possible,
+                        bodies.bodies[0].argument,
+                    )
+                }),
+                expected,
+                "{values:?}"
+            );
+            assert_eq!(
+                selected.facts().arg_roles_complete,
+                native_roles,
+                "source roles never rewrite executable facts"
+            );
+            if let Some(roles) = projection {
+                let body = roles.case_body_operands().unwrap().bodies[0];
+                assert_eq!(body.list_element, Some(1));
+                assert!(
+                    roles
+                        .argument_roles()
+                        .contains(&(body.argument, crate::ArgRole::Body))
+                );
+            }
+        }
+        let values = [
+            Literal("-matchvar"),
+            Literal("matches"),
+            Literal("--"),
+            Dynamic,
+            Literal("a {BODY}"),
+        ];
+        for (context, available) in [(current.as_ref(), true), (&older, false)] {
+            let selected =
+                crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    context.commands(),
+                    Some(context.context()),
+                    crate::InvocationWords::structured(Literal("switch"), &values),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                )
+                .resolved()
+                .unwrap();
+            assert_eq!(
+                selected.authored_logical_source_role_projection().is_some(),
+                available
+            );
         }
     }
 

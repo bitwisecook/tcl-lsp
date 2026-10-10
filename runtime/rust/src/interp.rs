@@ -4540,16 +4540,16 @@ impl Interp {
             };
             followed_import = true;
             let ensemble = ensemble.as_ref().filter(|token| !token.is_deleted());
-            if purpose == ImportQueryPurpose::Introspection
-                && let Some(ensemble) = ensemble
-            {
-                return Some(ImportQueryTarget {
-                    fqn,
-                    generation,
-                    retained_ensemble: Some(ensemble.clone()),
-                    command,
-                    followed_import,
-                });
+            if purpose == ImportQueryPurpose::Introspection {
+                if let Some(ensemble) = ensemble {
+                    return Some(ImportQueryTarget {
+                        fqn,
+                        generation,
+                        retained_ensemble: Some(ensemble.clone()),
+                        command,
+                        followed_import,
+                    });
+                }
             }
             let source = ensemble.map_or_else(|| source.clone(), |token| token.name());
             (fqn, generation, command) =
@@ -10081,6 +10081,21 @@ impl Interp {
         }
         let primitive = self.exc.borrow_mut().primitive_getter.take();
         if let Some(primitive) = primitive {
+            if let tcl_syntax::scalar_getter::NativeScalarGetterErrorCode::Set(code) =
+                primitive.eval_error_code_update()
+            {
+                if self.uses_c84_global_error_info() {
+                    // Tcl_AddObjErrorInfo's default-code setter is a normal
+                    // global write, not Tcl_SetObjErrorCode's explicit flag.
+                    let original = obj::Owned::fresh(new_string(code));
+                    let _ = self.var_set(b"::errorCode", original.as_ptr());
+                } else {
+                    self.replace_native_error_code(code);
+                }
+                let mut exc = self.exc.borrow_mut();
+                exc.code.clone_from(code);
+                exc.code_explicit = false;
+            }
             let current = self.result_bytes();
             let projected = primitive.eval_result_bytes(&current);
             // An unchanged byte projection preserves the command's original
@@ -15517,6 +15532,62 @@ fn jim_list_bytes(words: impl IntoIterator<Item = Vec<u8>>) -> Vec<u8> {
 mod tests {
     use super::*;
     use crate::counters;
+
+    #[test]
+    fn c84_primitive_invalid_code_is_preserved_until_actual_script_propagation() {
+        // naming.numeric.original-capi-scalar-publication-width
+        // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+        // naming.numeric.seeded-wide-frontier
+        // docs/design/analysis/name-resolution-proofs/numeric-seeded-wide-frontier.md
+        // Software publication at the actual Runtime boundary, independently
+        // of the public primitive fields and the original callback captures.
+        use tcl_syntax::scalar_getter::{
+            NativeScalarGetterFailure, NativeScalarGetterKind, NativeScalarGetterProtocol,
+        };
+        leak_free(|interp| {
+            interp.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            let protocol =
+                NativeScalarGetterProtocol::for_tcl_version(tcl_dialect::TclVersion::V8_4);
+            for kind in [
+                NativeScalarGetterKind::Int,
+                NativeScalarGetterKind::Long,
+                NativeScalarGetterKind::Wide,
+                NativeScalarGetterKind::Double,
+                NativeScalarGetterKind::Boolean,
+            ] {
+                interp.set_error_state(b"SEEDED CODE");
+                let record = protocol
+                    .failure_presentation(kind, NativeScalarGetterFailure::Invalid, b"bad")
+                    .unwrap();
+                let message = record.message_bytes().to_vec();
+                let error = tcl_syntax::value::ValueError::NativeScalarGetter(Box::new(record));
+                assert_eq!(interp.report_cmd_error(error.into()), Code::Error);
+                assert_eq!(interp.error_code(), b"SEEDED CODE", "{kind:?} direct");
+                assert_eq!(interp.result_bytes(), message);
+                interp.log_command_bytes(1, b"original_getter");
+                assert_eq!(interp.error_code(), b"NONE", "{kind:?} Eval");
+                assert!(interp.exc.borrow().primitive_getter.is_none());
+            }
+            interp.set_error_state(b"SEEDED CODE");
+            let record = protocol
+                .failure_presentation(
+                    NativeScalarGetterKind::Long,
+                    NativeScalarGetterFailure::IntegerOverflow,
+                    b"18446744073709551616",
+                )
+                .unwrap();
+            assert_eq!(
+                interp.report_cmd_error(
+                    tcl_syntax::value::ValueError::NativeScalarGetter(Box::new(record)).into(),
+                ),
+                Code::Error
+            );
+            let code = interp.error_code();
+            assert!(code.starts_with(b"ARITH IOVERFLOW"));
+            interp.log_command_bytes(1, b"original_getter");
+            assert_eq!(interp.error_code(), code);
+        });
+    }
 
     #[test]
     fn primitive_getter_preserves_seeded_code_until_script_propagation() {
