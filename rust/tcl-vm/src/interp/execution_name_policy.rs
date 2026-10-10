@@ -120,7 +120,7 @@ impl Vm {
             build,
             context,
             event,
-            profile: self.dialect_profile,
+            profile: self.dialect_profile(),
             engine: self.actual_engine_profile,
         });
         self.observed_frame_storage = None;
@@ -136,7 +136,7 @@ impl Vm {
                 selected.context,
                 selected.event,
             ) == Some(selected.policy)
-                && std::ptr::eq(selected.profile, self.dialect_profile)
+                && std::ptr::eq(selected.profile, self.dialect_profile())
                 && selected.engine.map(std::ptr::from_ref)
                     == self.actual_engine_profile.map(std::ptr::from_ref))
             .then_some(ExecutionNamePolicy::ObservedBigIp(selected.policy));

@@ -1553,11 +1553,40 @@ preserves unknown option layouts.
 Use `invocation_completion_words` when a structural consumer needs the simpler
 fall-through/current-procedure-result classification. Its literal compatibility
 adapter is `invocation_completion`; both delegate return options to the same
-native return parser as the full route. Dynamic option values remain unknown.
+shared decoder as the full route. A required unknown option value remains unresolved.
 A pending successful return with level one can produce this procedure's normal
 result; level two cannot. Consumers retaining catch, namespace, `uplevel` or
 procedure boundaries use the full `ReturnCompletionRoute` and settle it at the
 actual boundary rather than flattening every return into a normal result.
+
+For a direct completion query, use
+`value_transfer::completion::decode_return_words_in` with the selected
+`ReturnInvocationGrammar`, retained `Numbers`, authentic effective
+`InvocationArguments` and an explicit `ReturnInvocationFacet`. The arguments'
+actual dialect supplies the release; that release selects C integer conversion
+width independently of the numeral syntax. For example, a Tcl 8.5 numeral
+overlay can read `010` as eight without supplying C8 conversion width to a
+selected C9 release. Missing grammar, numeric policy or release stays unknown
+where the represented alternatives disagree.
+
+Use `ReturnInvocationFacet::OriginalSource` for original-source advice without
+a selected worker-entry receipt. Choose `EvaluatedArguments` only when a genuine
+selected worker consumes those evaluated arguments. A name policy, scalar
+protocol or known command spelling supplies no worker or compiler entry.
+`ReturnCompletion::result` and `error_code` retain original effective argv
+ordinals. An error code selected inside an options dictionary is instead
+`merged_error_code`; do not invent an operand ordinal for a dictionary member.
+The decoder's accepted or rejected grammar supplies no result-object, frame,
+compiler admission or error-message proof.
+
+The [original-source return question](../analysis/name-resolution-proofs/completion-return-option-pair-grammar.md)
+and the [evaluated-worker question](../analysis/name-resolution-proofs/completion-return-evaluated-argument-worker-grammar.md)
+measure those facets independently. C85 nested options have two measured
+source/worker disagreements; source advice retains `ReturnUnknown::Release`
+without an admitted compiler artifact. Jim levels above `i32::MAX` also remain
+unknown in this completion representation. Preserve these refusals and the
+separate whole public-field controls when changing the grammar. Keep each
+interpretation attached to its measured facet.
 
 Keep each `InvocationFacts` projection coupled to its frozen argument carrier.
 `frozen_argument_count` is the raw cardinality; `arity_argument_count` is the

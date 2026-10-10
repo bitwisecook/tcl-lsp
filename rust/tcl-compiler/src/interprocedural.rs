@@ -4212,35 +4212,7 @@ fn seedless_returns(
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> HashMap<String, Option<ExactValue>> {
-    let policy = crate::tcl_expr_eval::FoldPolicy::for_profile(
-        dialect.and_then(crate::tcl_expr_eval::leading_zero_is_octal),
-        dialect,
-    );
     let module = ModuleProcedures::of_unit(units.unit, registry);
-    let reading = ExitReading {
-        policy,
-        grammar: dialect.map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
-        module: None,
-        folds: crate::sccp::BuiltinFoldInputs {
-            registry,
-            source_metadata_input: None,
-            mutations: units.mutations,
-            dialect,
-            defining_class: None,
-            registry_engine: false,
-            trust: crate::sccp::FoldTrust::WholeModule,
-            proven_pure_parameters: false,
-        },
-    };
-    let trace = crate::sccp::TraceInputs {
-        registry,
-        source_metadata_input: None,
-        traced_variables: &ir_module.traced_variables,
-        has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
-        deferred_writes: &ir_module.deferred_writes,
-        analysis_context: None,
-        existence: None,
-    };
     units
         .procedures
         .iter()
@@ -4251,12 +4223,38 @@ fn seedless_returns(
                 .and_then(
                     crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
                 );
+            if source_metadata_input.is_none() && !fu.cfg.metadata_context.is_standalone() {
+                return (qname.clone(), None);
+            }
+            let dialect = source_metadata_input
+                .map(crate::analyser::ResolvedAnalysisInput::unit_profile)
+                .or_else(|| {
+                    fu.cfg
+                        .metadata_context
+                        .is_standalone()
+                        .then_some(dialect)
+                        .flatten()
+                });
+            let policy = crate::tcl_expr_eval::FoldPolicy::for_profile(
+                dialect.and_then(crate::tcl_expr_eval::leading_zero_is_octal),
+                dialect,
+            );
             let reading = ExitReading {
+                policy,
+                grammar: fu.source_lexer_config().grammar_over(
+                    dialect.map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
+                ),
+                module: None,
                 folds: crate::sccp::BuiltinFoldInputs {
+                    registry,
                     source_metadata_input,
-                    ..reading.folds
+                    mutations: units.mutations,
+                    dialect,
+                    defining_class: None,
+                    registry_engine: false,
+                    trust: crate::sccp::FoldTrust::WholeModule,
+                    proven_pure_parameters: false,
                 },
-                ..reading
             };
             let result = crate::sccp::sccp_in_module(&crate::sccp::SolveInputs {
                 cfg: &fu.cfg,
@@ -4265,8 +4263,13 @@ fn seedless_returns(
                 policy,
                 extra_escaping: &HashSet::new(),
                 trace: crate::sccp::TraceInputs {
+                    registry,
                     source_metadata_input,
-                    ..trace
+                    traced_variables: &ir_module.traced_variables,
+                    has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
+                    deferred_writes: &ir_module.deferred_writes,
+                    analysis_context: None,
+                    existence: None,
                 },
                 folds: Some(reading.folds),
                 module: crate::sccp::ModuleRun {

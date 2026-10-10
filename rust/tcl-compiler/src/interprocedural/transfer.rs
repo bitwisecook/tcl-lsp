@@ -702,6 +702,27 @@ impl<'a> ModuleProcedures<'a> {
         let owned: HashSet<String> = entries.keys().cloned().collect();
         let caller_places = CallerPlaces { entries };
         let trace = self.trace;
+        let source_metadata_input = self.source_metadata_input_for(callee);
+        if source_metadata_input.is_none() && !cfg.metadata_context.is_standalone() {
+            return None;
+        }
+        let config = self.units.and_then(|units| units.get(callee)).map_or(
+            self.config,
+            crate::compilation_unit::FunctionUnit::source_lexer_config,
+        );
+        let callee_folds = BuiltinFoldInputs {
+            source_metadata_input,
+            dialect: source_metadata_input
+                .map(crate::analyser::ResolvedAnalysisInput::unit_profile)
+                .or_else(|| {
+                    cfg.metadata_context
+                        .is_standalone()
+                        .then_some(stance.folds.dialect)
+                        .flatten()
+                }),
+            proven_pure_parameters: false,
+            ..stance.folds
+        };
         let result = crate::sccp::sccp_in_module(&SolveInputs {
             cfg,
             ssa: &ssa,
@@ -709,7 +730,7 @@ impl<'a> ModuleProcedures<'a> {
             policy: stance.policy,
             extra_escaping: &HashSet::new(),
             trace: TraceInputs {
-                source_metadata_input: self.source_metadata_input_for(callee),
+                source_metadata_input,
                 registry: self.registry,
                 traced_variables: trace.traced_variables,
                 has_dynamic_variable_trace: trace.has_dynamic_variable_trace,
@@ -721,15 +742,11 @@ impl<'a> ModuleProcedures<'a> {
                     initial_global: false,
                     connection_scoped: None,
                     dynamic_trace: trace.has_dynamic_variable_trace || trace.deferred_writes.any,
-                    config: self.config,
+                    config,
                     caller_places: Some(&caller_places),
                 }),
             },
-            folds: Some(BuiltinFoldInputs {
-                source_metadata_input: self.source_metadata_input_for(callee),
-                proven_pure_parameters: false,
-                ..stance.folds
-            }),
+            folds: Some(callee_folds),
             module: ModuleRun {
                 procedures: Some(self),
                 owned: Some(&owned),
@@ -746,13 +763,14 @@ impl<'a> ModuleProcedures<'a> {
             });
         let reading = super::ExitReading {
             policy: stance.policy,
-            grammar: stance
-                .folds
-                .dialect
-                .map_or_else(tcl_dialect::LexerGrammar::default, |profile| {
-                    profile.grammar
-                }),
-            folds: stance.folds,
+            grammar: config.grammar_over(
+                callee_folds
+                    .dialect
+                    .map_or_else(tcl_dialect::LexerGrammar::default, |profile| {
+                        profile.grammar
+                    }),
+            ),
+            folds: callee_folds,
             module: Some((self, callee)),
         };
         Some(Rerun {
@@ -776,8 +794,15 @@ impl<'a> ModuleProcedures<'a> {
         callee: &str,
     ) -> Option<&'a crate::analyser::ResolvedAnalysisInput> {
         match self.units {
-            Some(units) => units.get(callee)?.source_metadata_input(),
-            None => self.ir.source_metadata_input.as_ref(),
+            Some(units) => units
+                .get(callee)?
+                .invocation_metadata_context_for_module(self.registry, self.ir)?
+                .source_analysis_input(),
+            None => crate::registry_invocation::InvocationMetadataContext::for_module(
+                self.registry,
+                self.ir,
+            )?
+            .source_analysis_input(),
         }
     }
 
@@ -942,7 +967,7 @@ impl<'a> ModuleProcedures<'a> {
                     inputs.config,
                     &surface,
                 ),
-                Some(Terminator::Goto { .. }) | None => Vec::new(),
+                Some(Terminator::Goto { .. } | Terminator::Complete { .. }) | None => Vec::new(),
             };
             for call in lifted {
                 self.callee(&call.command, qname, inputs, &mut callees)?;

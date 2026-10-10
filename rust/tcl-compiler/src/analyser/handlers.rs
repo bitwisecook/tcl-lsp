@@ -1441,7 +1441,11 @@ impl Analyser {
             args: &'a [String],
         ) -> Option<&'a str> {
             match subject {
-                tcl_registry::TransitionSubject::Literal(name) => Some(name),
+                tcl_registry::TransitionSubject::Literal(name)
+                | tcl_registry::TransitionSubject::LocatedLiteral { value: name, .. } => Some(name),
+                tcl_registry::TransitionSubject::LocatedNativeBytes { value, .. } => {
+                    std::str::from_utf8(value).ok()
+                }
                 tcl_registry::TransitionSubject::Unknown { argument_index, .. } => {
                     args.get(*argument_index).map(String::as_str)
                 }
@@ -3491,16 +3495,17 @@ impl Analyser {
                 // A lambda built word by word: the head is the command whose
                 // result quotes each of its words as one element — the
                 // registry's `BUILDS_COMMAND_PREFIX` reading, not a spelling.
-                let registry = self
-                    .registry
-                    .clone()
-                    .unwrap_or_else(super::commands::fallback_registry);
-                if !cmd.texts.first().is_some_and(|head| {
-                    registry.get(head).is_some_and(|spec| {
-                        spec.traits
-                            .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
-                    })
-                }) {
+                let original =
+                    self.original_diagnostic_call_at(*cmd.argv.first()?, &cmd.argv[1..])?;
+                if !original.with_schema(|schema| {
+                    schema
+                        .semantics
+                        .traits
+                        .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
+                })? || original.words().arguments().len() != cmd.argv.len().checked_sub(1)?
+                    || (0..original.words().arguments().len())
+                        .any(|ordinal| original.written_index(ordinal) != Some(ordinal))
+                {
                     return None;
                 }
                 let mut out = Vec::with_capacity(cmd.texts.len().saturating_sub(1));
@@ -4422,16 +4427,22 @@ impl Analyser {
     /// with the transitions the call states over its source words.
     pub fn handle_interp_create_command(&mut self, transitions: &tcl_registry::StateTransitions) {
         match created_interpreter(transitions) {
-            Some((Some(tcl_registry::TransitionSubject::Literal(path)), safe)) => {
+            Some((Some(subject), safe)) => {
+                let path = subject.literal().or_else(|| {
+                    subject
+                        .native_bytes()
+                        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                });
+                let Some(path) = path else {
+                    self.dynamic_interp_ops = true;
+                    return;
+                };
                 let state = super::state::InterpState {
                     safe,
                     ..Default::default()
                 };
-                let key = self.qualified_interp_key(&path);
+                let key = self.qualified_interp_key(path);
                 self.interpreters.insert(key, state);
-            }
-            Some((Some(tcl_registry::TransitionSubject::Unknown { .. }), _)) => {
-                self.dynamic_interp_ops = true;
             }
             Some((None, _)) | None => {}
         }
@@ -6055,10 +6066,8 @@ impl Analyser {
     /// `namespace upvar nsname otherVar myVar ?otherVar myVar ...?` — `myVar`
     /// lives at indices 3, 5, 7, …
     ///
-    /// Dispatched via
-    /// [`tcl_registry::hooks::AnalyserHookId::NamespaceUpvar`] (stamped
-    /// on `namespace`'s `upvar` subcommand); `args[0]` is still the
-    /// subcommand word.
+    /// The selected Registry alias transition owns the namespace target;
+    /// `args[0]` is still the subcommand word.
     pub fn handle_namespace_upvar_command(
         &mut self,
         args: &[String],
@@ -7637,10 +7646,12 @@ impl Analyser {
             .strip_prefix('{')
             .and_then(|value| value.strip_suffix('}'))
             .unwrap_or(word.trim());
+        let parser = self.original_expression_parser_context()?;
+        let generation = self.analysis_context();
         crate::tcl_expr_eval::evaluate_expr_with_constants(
-            &crate::parse_expr_for_profile(expr, Some(self.profile)),
-            &crate::static_loops::StaticEnv::new(),
-            crate::tcl_expr_eval::FoldPolicy::from_registry(&self.profile_registry()),
+            &crate::expr_parser::parse_expr_with_syntax_context(expr, &parser),
+            &crate::tcl_expr_eval::Env::new(),
+            crate::tcl_expr_eval::FoldPolicy::from_registry(generation.commands()),
         )
         .map(|value| value != 0)
     }
@@ -9733,7 +9744,7 @@ impl Analyser {
             .collect();
         crate::tcl_expr_eval::evaluate_expr_with_constants(
             &crate::parse_expr_for_profile(&expr, Some(self.profile)),
-            &static_env,
+            &constants,
             crate::tcl_expr_eval::FoldPolicy::from_registry(&self.profile_registry()),
         )
         .map(|value| value != 0)
@@ -12303,26 +12314,35 @@ mod tests {
 
     #[test]
     fn dynamic_apply_scanner_uses_irules_brace_boundary_config() {
-        // The handler scanner splits on the dialect's brace rule:
-        // `{set y}{set z}` is two list elements under iRules' `}{` rule, but
-        // one composite element under the default Tcl lexer.
-        let source = "[list {p} {set y}{set z}]";
-        let mut analyser = Analyser::new();
-        analyser.source = source.to_owned();
-        analyser.profile = tcl_dialect::DialectProfile::irules();
-        let token = tcl_lexer::Lexer::with_source_map(
-            tcl_lexer::SourceMap::new(source),
-            tcl_lexer::LexerConfig::for_dialect("f5-irules"),
-        )
-        .tokenise_all()
-        .expect("valid command substitution")
-        .into_iter()
-        .find(|token| token.kind == tcl_lexer::TokenType::Cmd)
-        .expect("command token");
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // An original Logical builder with the supplied lexer overlay, without
+        // any Native/F5 list execution or lambda-frame claim.
+        let source = "set lambda [list {p} {set y}{set z}]";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_dialect("f5-irules");
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let input = super::super::ResolvedAnalysisInput::new(profile, profile, context, config);
+        let mut analyser = Analyser::new().with_resolved_input(input);
+        analyser.result = analyser.analyse(source, "tcl");
+        let token = tcl_lexer::Lexer::with_source_map(tcl_lexer::SourceMap::new(source), config)
+            .tokenise_all()
+            .expect("valid command substitution")
+            .into_iter()
+            .find(|token| token.kind == tcl_lexer::TokenType::Cmd)
+            .expect("command token");
         let elements = analyser
             .resolve_dynamic_apply_lambda(token, &[])
-            .expect("literal list lambda");
+            .expect("original literal list lambda");
         assert_eq!(elements.len(), 3, "iRules list elements: {elements:?}");
+        let mut missing = Analyser::new();
+        missing.source = source.to_owned();
+        missing.profile = tcl_dialect::DialectProfile::irules();
+        assert!(
+            missing.resolve_dynamic_apply_lambda(token, &[]).is_none(),
+            "a profile and authored source do not supply the original builder"
+        );
     }
 
     #[test]

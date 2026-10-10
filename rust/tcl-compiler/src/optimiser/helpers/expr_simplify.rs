@@ -56,12 +56,9 @@ use crate::compilation_unit::FunctionUnit;
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode, ExprOffset, render_expr};
 use crate::expr_parser::parse_expr_for_profile;
-use crate::naming::normalise_var_name;
 use crate::sccp::BuiltinFoldInputs;
 use crate::tcl_expr_eval::FoldPolicy;
-use crate::tcl_expr_eval::{
-    Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value_with_policy, leading_zero_is_octal,
-};
+use crate::tcl_expr_eval::leading_zero_is_octal;
 use crate::types::{TclType, TypeKind, TypeLattice};
 use tcl_registry::value_transfer::ExactValue;
 

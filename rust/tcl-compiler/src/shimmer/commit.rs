@@ -53,11 +53,9 @@ use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
-use crate::naming::normalise_var_name;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
-use crate::value_shapes::is_pure_var_ref;
 
 use super::hints::is_pure_value;
 use super::hints::{inert_effective_args, is_numeric_compatible};
@@ -827,14 +825,7 @@ fn typed_reads_of_statement(
             push_lifted_reads(ctx, &mut out, tokens.as_ref(), stmt.span());
         }
         Statement::Incr { name, amount, .. } => {
-            push_named_target_read(
-                ctx,
-                &mut out,
-                &format!("${name}"),
-                TclType::Int,
-                stmt.span(),
-                uses,
-            );
+            push_literal_target_read(ctx, &mut out, name, TclType::Int, stmt.span(), uses);
             if let Some(amt) = amount.as_deref().map(str::trim)
                 && amt.starts_with('$')
                 && let Some(word) = ctx
@@ -1017,10 +1008,10 @@ fn collect_expr_reads(
     }
 }
 
-/// Push a typed read for a `$var` argument word, resolving its SSA use
-/// version; non-variable words (literals, substitutions) commit nothing here —
-/// their values are not tracked variables.
-fn push_named_target_read(
+/// Push a typed read for an already resolved literal variable operand.
+/// Sigils inside its name are data; array partitioning uses the shared owner.
+/// The positioned SSA symbol and represented use version remain required.
+fn push_literal_target_read(
     ctx: &CommitCtx<'_>,
     out: &mut Vec<TypedRead>,
     word: &str,
@@ -1028,11 +1019,7 @@ fn push_named_target_read(
     span: Span,
     uses: &HashMap<Symbol, u32>,
 ) {
-    let stripped = word.trim();
-    if !is_pure_var_ref(stripped) {
-        return;
-    }
-    let var = normalise_var_name(stripped);
+    let var = tcl_syntax::naming::split_element_ref(word).map_or(word, |(root, _)| root);
     let Some(sym) = ctx.source.symbol(var) else {
         return;
     };
@@ -1192,6 +1179,61 @@ mod tests {
                 .at_captured_representation(None, None, false)
                 .must_pay(TclType::List)
         );
+    }
+
+    #[test]
+    fn retained_increment_reads_use_literal_operand_names_without_reparsing_sigils() {
+        // naming.compiler.retained-representation-metadata
+        // docs/design/analysis/name-resolution-proofs/retained-representation-metadata.md
+        // Exact original SSA read projection, not execution or cache equivalence.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = super::super::byte_array::retained_representation_unit(
+            "proc f {} {set value 7; set {$value} 8; incr {$value}; set é 9; set {é(} 3; incr {é(}}; f",
+            std::sync::Arc::clone(&context),
+        );
+        let function = unit.function("::f").expect("original procedure");
+        let retained = crate::shimmer::ShimmerContext::for_function(function, context.commands())
+            .expect("actual source metadata");
+        let mut found = HashSet::new();
+        for (&block, body) in &function.ssa.blocks {
+            for (index, statement) in body.statements.iter().enumerate() {
+                let Statement::Incr { name, .. } = &statement.statement else {
+                    continue;
+                };
+                if !["$value", "é("].contains(&name.as_str()) {
+                    continue;
+                }
+                let source = crate::ssa::SsaSourceView::at_statement(&function.ssa, block, index);
+                let ctx = CommitCtx {
+                    registry: context.commands(),
+                    context: retained,
+                    ssa: &function.ssa,
+                    source,
+                    types: &function.types,
+                    values: function.diagnostic_value_facts().values(),
+                    folded: &function.sccp.folded_types,
+                };
+                let symbol = source.symbol(name).expect("original literal-name cell");
+                let version = *statement
+                    .uses
+                    .get(&symbol)
+                    .expect("represented original target read");
+                let reads = typed_reads_of_statement(&ctx, &statement.statement, &statement.uses);
+                assert!(
+                    reads.iter().any(|read| read.sym == symbol
+                        && read.ver == version
+                        && read.expected == TclType::Int),
+                    "{name}: {reads:?}"
+                );
+                let stripped = if name == "$value" { "value" } else { "é" };
+                if let Some(other) = source.symbol(stripped) {
+                    assert!(reads.iter().all(|read| read.sym != other));
+                }
+                found.insert(name.clone());
+            }
+        }
+        assert_eq!(found, HashSet::from(["$value".to_owned(), "é(".to_owned()]));
     }
 
     fn facts_for<'a>(

@@ -378,7 +378,12 @@ impl Analyser {
         let Some(var_name) = find_loop_ne_zero(condition) else {
             return;
         };
-        if !body_decrements(body, &var_name, registry, self.lexer_config()) {
+        if !body_decrements(
+            body,
+            &var_name,
+            &self.analysis_context(),
+            self.lexer_config(),
+        ) {
             return;
         }
         self.result
@@ -1149,11 +1154,12 @@ fn match_ne_op(b: &[u8], p: usize) -> Option<usize> {
 fn body_decrements(
     body: &str,
     var_name: &str,
-    registry: &CommandRegistry,
+    registry: &tcl_registry::model::ContextRegistry,
     lexer_config: tcl_lexer::LexerConfig,
 ) -> bool {
-    super::bounds_checks::any_command_recursive(body, Some(registry), lexer_config, &mut |cmd| {
-        super::bounds_checks::command_increment(cmd, var_name, registry, lexer_config)
+    let metadata = super::bounds_checks::BoundsMetadataContext::Retained(registry);
+    super::bounds_checks::any_command_recursive(body, metadata, lexer_config, &mut |cmd| {
+        super::bounds_checks::command_increment(cmd, var_name, metadata, lexer_config)
             .is_some_and(|amount| amount < 0)
     })
 }

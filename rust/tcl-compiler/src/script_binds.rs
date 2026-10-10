@@ -57,11 +57,32 @@ pub(crate) enum Ownership {
     ScopeAliases,
 }
 
+/// Conditional name ownership of one authentic original literal body.
+/// Full supplied availability, grammar and installer lookup remain independent
+/// of entered scripts, variable frames, successful stores or read exclusion.
+pub(crate) fn original_literal_body_ownership(
+    registry: &CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    parent_tokens: &crate::ir::CommandTokens,
+    written_argument: usize,
+    purpose: Ownership,
+) -> Option<crate::ir_helpers::VariableWriteEffects> {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    let metadata = metadata.filter(|metadata| metadata.matches_registry(registry))?;
+    let binding = parent_tokens.source_binding.as_ref()?;
+    let site = binding.invocation_site()?;
+    let source = site.source.source_image().try_text().ok()?;
+    let footprint =
+        binding.original_materialized_footprint(parent_tokens, source, registry, Some(metadata))?;
+    footprint.literal_body_name_ownership(parent_tokens, written_argument, purpose)
+}
+
 /// True when `word`, read as a script, owns `name` under `ownership` — by any
 /// command the registry says takes a variable operand, at any nesting depth
 /// up to [`MAX_DEPTH`].
 ///
-/// `name` is already normalised (`crate::naming::normalise_var_name`).
+/// `name` is a literal variable root, with reference sigils kept separate.
 pub(crate) fn script_binds_name(
     word: &str,
     name: &str,
@@ -157,16 +178,8 @@ fn binds(
             Ownership::ScopeAliases => &[],
         };
         if name_roles.iter().copied().flat_map(&at).any(|index| {
-            if matches!(
-                ownership,
-                Ownership::DecodedBindings | Ownership::ScopeAliases
-            ) {
-                decoded_binding_root(script, &segment, index + 1, config)
-                    .is_some_and(|root| root == name)
-            } else {
-                args.get(index)
-                    .is_some_and(|word| crate::naming::normalise_var_name(word) == name)
-            }
+            decoded_binding_root(script, &segment, index + 1, config)
+                .is_some_and(|root| root == name)
         }) {
             return true;
         }
@@ -184,15 +197,8 @@ fn binds(
                 .filter_map(|list| list_rules.split_list(list).ok())
                 .flatten()
                 .any(|word| {
-                    if ownership == Ownership::DecodedBindings {
-                        tcl_syntax::naming::normalise_var_name_braced_for_style(
-                            &word,
-                            true,
-                            config.braced_var,
-                        ) == name
-                    } else {
-                        crate::naming::normalise_var_name(&word) == name
-                    }
+                    tcl_syntax::naming::split_element_ref(word).map_or(word, |(root, _)| root)
+                        == name
                 })
         {
             return true;

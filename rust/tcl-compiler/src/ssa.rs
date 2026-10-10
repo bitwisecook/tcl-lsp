@@ -86,7 +86,7 @@ impl<'a> SsaInvocationContext<'a> {
         Self {
             registry,
             metadata,
-            standalone: metadata.is_some_and(|context| context.source_analysis_input().is_none()),
+            standalone: metadata.is_some_and(|context| context.is_standalone()),
         }
     }
 
@@ -4426,7 +4426,9 @@ fn scan_command_words(
                 described,
                 word: arg,
                 name: &name,
-                registry,
+                selection,
+                tokens,
+                written_argument: idx,
                 config: scanner.lexer_config(),
             });
             match class {
@@ -4678,9 +4680,11 @@ struct BracedWordSite<'a> {
     word: &'a str,
     /// The name the scan found inside it.
     name: &'a str,
-    /// The registry, asked which words of the word's own commands bind a
-    /// variable — see [`crate::script_binds::script_binds_name`].
-    registry: &'a CommandRegistry,
+    /// Actual availability and the explicit standalone utility boundary.
+    selection: SsaInvocationContext<'a>,
+    /// Original whole invocation, including the body word's written ordinal.
+    tokens: Option<&'a CommandTokens>,
+    written_argument: usize,
     /// The document's lexing configuration — the word is re-segmented as a
     /// script below, and that re-read must draw the same word boundaries the
     /// document's own grammar draws.
@@ -4712,18 +4716,38 @@ fn braced_word_class(site: &BracedWordSite<'_>) -> UseClass {
     if !site.braced || site.evaluated_in_frame {
         return UseClass::Substituted;
     }
-    if site.described
-        || crate::script_binds::script_binds_name(
-            site.word,
-            site.name,
-            crate::script_binds::Ownership::Bindings,
-            site.registry,
-            site.config,
-        )
-    {
+    if site.described || braced_word_owns_name(site) {
         return UseClass::Quoted;
     }
     UseClass::Substituted
+}
+
+/// An ownership exclusion consumes a complete original body query. MAY names
+/// in an opaque residual cannot prove that a read belongs to that body.
+fn braced_word_owns_name(site: &BracedWordSite<'_>) -> bool {
+    if site.selection.standalone {
+        return crate::script_binds::script_binds_name(
+            site.word,
+            site.name,
+            crate::script_binds::Ownership::Bindings,
+            site.selection.registry,
+            site.config,
+        );
+    }
+    let Some(tokens) = site.tokens else {
+        return false;
+    };
+    let Some(ownership) = crate::script_binds::original_literal_body_ownership(
+        site.selection.registry,
+        site.selection.token_metadata(tokens),
+        tokens,
+        site.written_argument,
+        crate::script_binds::Ownership::Bindings,
+    ) else {
+        return false;
+    };
+    let root = tcl_syntax::naming::split_element_ref(site.name).map_or(site.name, |(root, _)| root);
+    !ownership.opaque && ownership.names.iter().any(|name| name == root)
 }
 
 /// Reads of a non-lowered (`-glob`/`-regexp`, or `-exact` with a fall-through
@@ -6839,6 +6863,111 @@ mod tests {
             &input,
         );
         (context, unit)
+    }
+
+    #[test]
+    fn supplied_ssa_availability_without_source_cannot_reopen_standalone_ownership() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Lexical software advice only, independent of Native frames or stores.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let registry = context.commands();
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let static_context = tcl_registry::model::semantic::SemanticContext::for_profile(profile);
+        let standalone = SsaInvocationContext::supplied(registry, Some(static_context.into()));
+        let supplied = SsaInvocationContext::supplied(registry, Some(context.as_ref().into()));
+        assert!(standalone.standalone);
+        assert!(!supplied.standalone);
+        assert!(supplied.metadata.unwrap().matches_registry(registry));
+        assert!(supplied.metadata.unwrap().source_analysis_input().is_none());
+        let owns = |selection| {
+            braced_word_owns_name(&BracedWordSite {
+                braced: true,
+                evaluated_in_frame: false,
+                described: false,
+                word: "set x 1; puts $x",
+                name: "x",
+                selection,
+                tokens: None,
+                written_argument: 0,
+                config,
+            })
+        };
+        assert!(owns(standalone));
+        assert!(!owns(supplied));
+        assert!(!owns(SsaInvocationContext::supplied(registry, None)));
+    }
+
+    #[test]
+    fn original_ssa_body_ownership_exclusion_keeps_literal_roots_and_opaque_residuals() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // The bridge consumes conditional body names, never actual read exclusion.
+        use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+        use crate::registry_invocation::InvocationMetadataContext;
+        use std::sync::Arc;
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let registry = context.commands();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        for (body, expected) in [
+            ("set {$literal} VALUE; puts ${$literal}", true),
+            ("set {$literal} VALUE; operation", false),
+        ] {
+            let source = format!("catch {{{body}}}");
+            let unit = CompilationUnit::build_with_analysis_input(
+                &source,
+                UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            );
+            let script = &unit.ir_module.top_level;
+            let tokens = script
+                .retained_source_tokens_for_statement(
+                    script.statements.last().expect("original installer"),
+                )
+                .expect("original whole installer words");
+            let metadata = InvocationMetadataContext::for_module(registry, &unit.ir_module);
+            let owns = |name, selection| {
+                braced_word_owns_name(&BracedWordSite {
+                    braced: true,
+                    evaluated_in_frame: false,
+                    described: false,
+                    word: body,
+                    name,
+                    selection,
+                    tokens: Some(tokens),
+                    written_argument: 0,
+                    config,
+                })
+            };
+            let selection = SsaInvocationContext::supplied(registry, metadata);
+            assert_eq!(owns("$literal", selection), expected, "{body}");
+            assert!(
+                !owns("literal", selection),
+                "the literal sigil is part of the name"
+            );
+            assert!(!owns(
+                "$literal",
+                SsaInvocationContext::supplied(registry, None)
+            ));
+        }
     }
 
     #[test]

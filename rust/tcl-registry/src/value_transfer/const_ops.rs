@@ -48,7 +48,8 @@ use std::rc::Rc;
 
 use tcl_cmd_core::error::CmdError;
 use tcl_dialect::{
-    ByteStringEncoding, DialectProfile, NumberSyntax, StringCharacterModel, TclVersion,
+    ByteStringEncoding, DialectProfile, LexerGrammar, NumberSyntax, StringCharacterModel,
+    TclVersion,
 };
 use tcl_syntax::number::{Number, ParseFlags, format_double, parse_whole_with};
 use tcl_syntax::raw_string::{NativeValueAccessRefusal, UnicodeAccessError};
@@ -324,6 +325,8 @@ pub struct TargetSemantics {
     pub quotes_leading_hash: Option<bool>,
     /// The profile, when the request names one.
     pub profile: Option<&'static DialectProfile>,
+    /// Actual source grammar retained by the analysis request.
+    pub grammar: LexerGrammar,
 }
 
 impl TargetSemantics {
@@ -355,7 +358,22 @@ impl TargetSemantics {
             source_utf8: release.is_some_and(|v| v >= TclVersion::V9_0),
             quotes_leading_hash: release.map(|v| v >= TclVersion::V8_5),
             profile,
+            grammar: profile.map_or_else(LexerGrammar::default, |profile| profile.grammar),
         }
+    }
+
+    /// The authored value model with this request's actual source grammar.
+    /// A release's numeral model applies only when it agrees with that
+    /// grammar. This selection grants neither executable fold eligibility
+    /// nor an original Native value, representation or observer proof.
+    #[must_use]
+    pub fn for_context(context: &AnalysisContext) -> Self {
+        let mut target = Self::of(context.profile);
+        target.grammar = context.grammar;
+        target.numerals = target
+            .numerals
+            .filter(|numbers| *numbers == context.grammar.numbers);
+        target
     }
 
     /// `elements` rendered as one canonical list under this target, or
@@ -527,7 +545,7 @@ impl<'ctx> ConstOps<'ctx> {
         }
         budget.charge_work(ADMISSION_CHARGE)?;
         Ok(Self {
-            target: TargetSemantics::of(ctx.profile),
+            target: TargetSemantics::for_context(ctx),
             admitted: needs,
             budget,
             fault: None,
@@ -1027,15 +1045,8 @@ impl ValueOps for ConstOps<'_> {
     fn list_elements(&mut self, v: &ConstValue) -> Result<Vec<ConstValue>, ValueError> {
         self.require(Needs::LIST_RENDERING);
         let text = self.try_as_str(v)?;
-        // A bare or quoted element's backslashes collapse under the target
-        // release's escape grammar, as the lexer reads the same bytes in a word.
-        let escapes = self
-            .target
-            .profile
-            .map_or_else(tcl_dialect::EscapeSyntax::default, |profile| {
-                profile.grammar.escapes
-            });
-        let elements = tcl_syntax::list::split_list_in(&text, escapes)
+        // Bare and quoted elements retain the request's actual escape grammar.
+        let elements = tcl_syntax::list::split_list_in(&text, self.target.grammar.escapes)
             .map_err(|e| ValueError::BadList(e.message().to_owned()))?;
         let _ = self.charge(u64::try_from(elements.len()).unwrap_or(u64::MAX));
         Ok(elements
@@ -1537,6 +1548,34 @@ mod tests {
             expect.character_model,
             Some(StringCharacterModel::Utf16CodeUnits)
         );
+    }
+
+    #[test]
+    fn actual_context_grammar_withdraws_mismatched_numerals_and_keeps_escapes() {
+        let mut actual = context(Some("tcl9.0"));
+        actual.grammar.numbers = NumberSyntax::Tcl85;
+        actual.grammar.escapes = tcl_dialect::EscapeSyntax::Tcl84;
+        let target = TargetSemantics::for_context(&actual);
+        assert_eq!(target.release, Some(TclVersion::V9_0));
+        assert_eq!(target.numerals, None);
+        assert_eq!(target.grammar, actual.grammar);
+
+        let mut budget = Budget::evaluation();
+        let mut ops = ConstOps::admit(&actual, &mut budget, Needs::NUMERAL_GRAMMAR).unwrap();
+        assert!(ops.as_int(&ConstValue::text("010")).is_err());
+        assert_eq!(
+            ops.fault(),
+            Some(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar))
+        );
+
+        let mut budget = Budget::evaluation();
+        let mut ops = ConstOps::admit(&actual, &mut budget, Needs::LIST_RENDERING).unwrap();
+        let elements = ops.list_elements(&ConstValue::text(r"a\x41b c")).unwrap();
+        assert_eq!(
+            elements,
+            vec![ConstValue::text("a\u{1b}"), ConstValue::text("c")]
+        );
+        assert!(ops.fault().is_none());
     }
 
     #[test]

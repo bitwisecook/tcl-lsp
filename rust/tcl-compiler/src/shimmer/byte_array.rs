@@ -63,7 +63,6 @@ use tcl_registry::{ByteArrayEffect, BytePayloadSpec, TclType};
 
 use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::{Statement, WordExpr, WordPart};
-use crate::naming::normalise_var_name;
 use crate::registry_invocation::NormalRepresentationInvocation;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
@@ -556,7 +555,7 @@ impl<'a> ByteCorruption<'a> {
         defs: &HashMap<Symbol, u32>,
         ssa: crate::ssa::SsaSourceView<'_>,
     ) {
-        let nm = normalise_var_name(name);
+        let nm = tcl_syntax::naming::split_element_ref(name).map_or(name, |(root, _)| root);
         let Some(sym) = ssa.symbol(nm) else {
             return;
         };
@@ -667,7 +666,7 @@ impl<'a> ByteCorruption<'a> {
         defs: &HashMap<Symbol, u32>,
         ssa: crate::ssa::SsaSourceView<'_>,
     ) {
-        let nm = normalise_var_name(name);
+        let nm = tcl_syntax::naming::split_element_ref(name).map_or(name, |(root, _)| root);
         let Some(sym) = ssa.symbol(nm) else {
             return;
         };
@@ -754,7 +753,10 @@ impl<'a> ByteCorruption<'a> {
             let Some(target) = invocation.argument_literal(var_idx) else {
                 return;
             };
-            let Some(target_sym) = ssa.symbol(normalise_var_name(&target)) else {
+            let Some(target_sym) = ssa.symbol(
+                tcl_syntax::naming::split_element_ref(&target)
+                    .map_or(target.as_str(), |(root, _)| root),
+            ) else {
                 return;
             };
             if let Some(&new_ver) = defs.get(&target_sym) {
@@ -831,7 +833,15 @@ impl<'a> ByteCorruption<'a> {
                     .map_or("", |(spelling, _)| spelling)
                     .trim();
                 let data_var = if data_word.sole_variable_substitution().is_some() {
-                    normalise_var_name(data_arg).to_owned()
+                    tcl_syntax::naming::variable_reference_root_bytes(
+                        data_arg.as_bytes(),
+                        self.context.config(),
+                    )
+                    .ok()
+                    .flatten()
+                    .and_then(|root| std::str::from_utf8(root).ok())
+                    .unwrap_or_default()
+                    .to_owned()
                 } else {
                     String::new()
                 };
@@ -901,6 +911,37 @@ pub(crate) fn find_byte_array_warnings_with_context(
     )
 }
 
+/// Keep the original interpreter owner alive for representation-projection
+/// controls. This fixture supplies entry separately from source availability.
+#[cfg(test)]
+pub(super) fn retained_representation_unit(
+    source: &str,
+    context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+) -> crate::environment_ingress::RetainedNativeUnit {
+    let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+    let (owner, captured) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+    let entry = crate::command_binding::SourceAnalysisEntry {
+        native_entry: Some(std::sync::Arc::new(captured)),
+        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        native_compilation: crate::environment_ingress::authoring_native_compilation(),
+        ..Default::default()
+    };
+    let unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+        source,
+        crate::compilation_unit::UnitBuildOptions {
+            registry: context.commands(),
+            defer_top_level: false,
+            config: tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        Some(&entry),
+        std::sync::Arc::clone(&context),
+    );
+    crate::environment_ingress::RetainedNativeUnit::new(unit, owner)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -925,11 +966,50 @@ mod tests {
         out
     }
 
+    #[test]
+    fn retained_byte_provenance_uses_literal_sigil_and_unicode_store_roots() {
+        // naming.compiler.retained-representation-metadata
+        // docs/design/analysis/name-resolution-proofs/retained-representation-metadata.md
+        // Original SSA/representation projection; no C process/cache identity claim.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        for (name, reference) in [("$value", "${$value}"), ("é(", "${é(}")] {
+            let source = format!(
+                "proc f {{}} {{set value PLAIN; set é PLAIN; set {{{name}}} [binary format c 200]; set damaged [string tolower {reference}]; encoding convertto utf-8 $damaged}}; f"
+            );
+            let unit = retained_representation_unit(&source, std::sync::Arc::clone(&context));
+            let function = unit.function("::f").expect("original procedure");
+            let retained =
+                crate::shimmer::ShimmerContext::for_function(function, context.commands())
+                    .expect("actual source metadata");
+            let warnings = find_byte_array_warnings_with_context(
+                &function.cfg,
+                &function.ssa,
+                &function.sccp,
+                retained,
+                &context.commands().byte_array_payload_layouts(),
+            );
+            assert!(
+                warnings
+                    .iter()
+                    .any(|warning| warning.code == DiagCode::S110),
+                "literal {name}: {warnings:?}"
+            );
+            assert_ne!(
+                function.ssa.var_symbol(name),
+                function
+                    .ssa
+                    .var_symbol(if name == "$value" { "value" } else { "é" })
+            );
+        }
+    }
+
     fn assignment_proof_summary(src: &str, registry: &CommandRegistry) -> Vec<String> {
         let unit = CompilationUnit::build_for(src, registry, false);
         let layouts = registry.byte_array_payload_layouts();
         let tracker = ByteCorruption::new(
             crate::shimmer::ShimmerContext::standalone(registry),
+            &unit.top_level.sccp.folded_types,
             &layouts,
         );
         let mut summary = Vec::new();

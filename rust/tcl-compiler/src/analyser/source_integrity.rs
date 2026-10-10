@@ -11,8 +11,10 @@
 //! producer filters nothing: directives and disabled codes are the policy
 //! step's.
 
+use std::collections::{HashMap, HashSet};
+use std::hash::BuildHasher;
 use tcl_core_types::{DiagCode, Severity};
-use tcl_lexer::Span;
+use tcl_lexer::{LineIndex, Span};
 
 use super::confusables_table::bidi_control_name;
 use super::types::Diagnostic;

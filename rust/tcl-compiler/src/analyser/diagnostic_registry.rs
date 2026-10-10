@@ -345,7 +345,7 @@ impl OriginalDiagnosticInvocation {
             let word = self.word(ordinal)?;
             let original = word.tokens().first().copied()?;
             let value = self.literal(ordinal).map(str::to_owned).or_else(|| {
-                let span = word.content_span();
+                let span = word.content_span().ok()?;
                 std::str::from_utf8(word.image().bytes().get(span.as_range())?)
                     .ok()
                     .map(str::to_owned)

@@ -64,9 +64,6 @@ struct PhiCtx<'a> {
     /// Destructure-foreach blocks excluded from in-loop def anchoring —
     /// see [`destructure_foreach_blocks`].
     destructure: &'a HashSet<String>,
-    /// Array-base symbols excluded from shimmer reporting (FP-SH-13) — a
-    /// conflated `arr(a)`/`arr(b)` phi merges independent elements.
-    array_syms: &'a HashSet<Symbol>,
     /// The existence fact each version is established with — an arm on
     /// which the variable is unbound carries no representation.
     existence: &'a HashMap<ValueKey, Existence>,
@@ -265,7 +262,6 @@ pub(crate) fn find_phi_shimmers(
         loop_body_types: &loop_body_types,
         def_map: &def_map,
         destructure: &destructure,
-        array_syms: &array_syms,
         existence: &sccp.existence,
     };
     let mut out = Vec::new();

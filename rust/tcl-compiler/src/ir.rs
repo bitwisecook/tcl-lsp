@@ -448,6 +448,14 @@ pub enum SyntheticMarker {
     /// tclsh's bytecode has there, so the clause keeps its place in the
     /// instruction stream.
     EmptyClause,
+    /// Caller-side may-definitions for an embedded upvar procedure. The
+    /// original host statement performs the invocation; this node only
+    /// invalidates the reached caller variables.
+    UpvarInvalidate,
+    /// A selected registry invocation can evaluate code or mutate command
+    /// bindings. This separate node widens facts without repeating dispatch
+    /// or claiming an original native invocation or handler.
+    RegistryBarrier,
     /// What the `[…]` substitutions in a statement's words do to the frame —
     /// the names they write, and those they read before writing — as a
     /// definition point of its own: the statement's words read a name before
@@ -2228,13 +2236,19 @@ impl Statement {
     /// Whether this statement represents an invocation that code generation
     /// and command-effect analyses must execute.
     ///
-    /// The marker for code the module cannot see
-    /// ([`SyntheticMarker::UnseenCall`]) widens facts only; the call beside it
-    /// performs the real dispatch. Other synthetic statements retain their
-    /// existing executable semantics.
+    /// Unseen calls, registry barriers and upvar invalidations widen facts
+    /// only; the original invocation beside them performs dispatch. Other
+    /// synthetic statements retain their existing executable semantics.
     #[must_use]
     pub fn is_executable_invocation(&self) -> bool {
-        !matches!(self.synthetic_marker(), Some(SyntheticMarker::UnseenCall))
+        !matches!(
+            self.synthetic_marker(),
+            Some(
+                SyntheticMarker::UnseenCall
+                    | SyntheticMarker::RegistryBarrier
+                    | SyntheticMarker::UpvarInvalidate
+            )
+        )
     }
 
     /// Whether this is the barrier a `return` lowers to when it leaves the

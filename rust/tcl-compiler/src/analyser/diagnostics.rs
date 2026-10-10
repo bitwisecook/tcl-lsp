@@ -66,6 +66,7 @@
 //!   def site; seen-offsets dedup avoids duplicates across SSA
 //!   versions.
 
+use self::helpers::collect_existence_guards;
 use std::collections::HashSet;
 use tcl_core_types::DiagCode;
 
@@ -967,7 +968,6 @@ impl Analyser {
         // [`BodyFrame`]).
         let ir_proc = frame.procedure();
         let initial_global = frame.is_initial_global();
-        let existence_frame = frame.existence_frame();
         self.emit_dead_store_diagnostics(
             function_unit,
             &defined,
@@ -1053,7 +1053,6 @@ impl Analyser {
             &rbs_params,
         );
         self.emit_constant_branch_diagnostics(function_unit);
-        self.emit_existence_constant_branch_diagnostics(function_unit, existence_frame);
         self.emit_selected_arm_diagnostics(function_unit);
         self.resolve_loop_terminations(function_unit);
         self.emit_invalid_ip_diagnostics(function_unit);

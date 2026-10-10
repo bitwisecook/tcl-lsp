@@ -883,13 +883,15 @@ fn condition_retains_original_lookup(
                 if !matches!(reference, Ok(Some(reference)) if reference.index.is_none())
                     || tcl_syntax::naming::is_qualified(name.as_bytes())
                     || super::declaration_layout::local_read_scope_is_excluded(context, name)
-                    || crate::script_binds::script_image_binds_name(
-                        &parent.entry.source().text,
-                        name,
-                        crate::script_binds::Ownership::ScopeAliases,
-                        registry,
-                        parent.config,
-                    )
+                    || parent
+                        .source_body_name_ownership(
+                            registry,
+                            crate::script_binds::Ownership::ScopeAliases,
+                        )
+                        .is_none_or(|effects| {
+                            effects.opaque
+                                || effects.names.iter().any(|candidate| candidate == name)
+                        })
                 {
                     return false;
                 }
@@ -1695,12 +1697,94 @@ mod tests {
     fn nested_layout_visits_process_each_exact_source_world_once() {
         // Implementation contract: naming.source.original-declaration-layout-visits
         // docs/design/analysis/name-resolution-proofs/source-original-declaration-layout-visits.md
-        // Compare seven genuine nested conditionals with the uncached
-        // worklist. Counts describe lexical segmentation, not body execution
-        // or elapsed time; all retained semantic observations must agree.
+        // Derive conditional source layouts from one genuine outer observation.
+        // All descendants keep that unchanged lookup world; reached condition
+        // coercions and their independent snapshots are not substituted here.
+        let source = "if {1} {if {1} {if {1} {if {1} {if {1} {if {1} {if {1} {puts done}}}}}}}";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let (mut cached, outer) = inventory(source, source);
+        let outer_site = outer
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .invocation_site()
+            .unwrap()
+            .clone();
+        let original =
+            original_declaration_layouts(cached.declaration_layouts.get(&outer_site).unwrap())
+                .unwrap()
+                .next()
+                .unwrap()
+                .clone();
+        cached
+            .declaration_layouts
+            .retain(|site, _| site == &outer_site);
+        assert_eq!(cached.declaration_layouts.len(), 1);
+        assert_eq!(cached.retain_nested_declared_layouts(registry), 7);
+        assert!(cached.declaration_layouts.values().all(|rows| {
+            original_declaration_layouts(rows).unwrap().all(|row| {
+                row.snapshot == original.snapshot
+                    && row.entry == original.entry
+                    && row.namespace == original.namespace
+                    && row.config == original.config
+            })
+        }));
+        let mut uncached = cached.clone();
+        let cached_visits = cached.retain_nested_declared_layouts(registry);
+        let uncached_visits = uncached.retain_nested_declared_layouts_with(registry, |_, _| true);
+        assert_eq!(cached_visits, 7);
+        assert_eq!(uncached_visits, 28);
+        assert_eq!(cached, uncached);
+    }
+
+    #[test]
+    fn nested_layout_visits_keep_reached_representation_worlds_distinct() {
+        // Implementation contract: naming.source.original-declaration-layout-visits
+        // docs/design/analysis/name-resolution-proofs/source-original-declaration-layout-visits.md
+        // The same written command table does not make reached variable and
+        // literal representation worlds interchangeable. This software source
+        // control supplies no Native object, body-entry or elapsed-time claim.
         let source = "if {1} {if {1} {if {1} {if {1} {if {1} {if {1} {if {1} {puts done}}}}}}}";
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let (mut cached, _) = inventory(source, "puts done");
+        let worlds = cached
+            .declaration_layouts
+            .values()
+            .flat_map(|rows| original_declaration_layouts(rows).unwrap())
+            .collect::<Vec<_>>();
+        let first = worlds.first().unwrap();
+        assert!(worlds.iter().all(|row| {
+            row.snapshot.state.original_command_world == first.snapshot.state.original_command_world
+                && row.snapshot.state.source_variables.original_contents_epoch
+                    == first
+                        .snapshot
+                        .state
+                        .source_variables
+                        .original_contents_epoch
+        }));
+        let mut distinct = Vec::new();
+        for row in &worlds {
+            if !distinct.contains(&&row.snapshot) {
+                distinct.push(&row.snapshot);
+            }
+        }
+        assert_eq!(distinct.len(), 8);
+        for (index, snapshot) in distinct.iter().enumerate() {
+            for other in &distinct[index + 1..] {
+                assert_ne!(
+                    snapshot.state.source_variables.representation_epoch,
+                    other.state.source_variables.representation_epoch,
+                );
+                assert_ne!(
+                    snapshot.state.source_variables,
+                    other.state.source_variables
+                );
+                assert_ne!(
+                    snapshot.state.ordinary_literal_pool,
+                    other.state.ordinary_literal_pool,
+                );
+            }
+        }
         if std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some() {
             let mut first = None;
             for (site, rows) in cached.declaration_layouts.iter() {
@@ -1729,7 +1813,7 @@ mod tests {
         let mut uncached = cached.clone();
         let cached_visits = cached.retain_nested_declared_layouts(registry);
         let uncached_visits = uncached.retain_nested_declared_layouts_with(registry, |_, _| true);
-        assert_eq!(cached_visits, 7);
+        assert_eq!(cached_visits, 28);
         assert_eq!(uncached_visits, 28);
         assert_eq!(cached, uncached);
     }
@@ -2023,11 +2107,17 @@ mod tests {
 
     #[test]
     fn nested_declared_layout_keeps_original_scope_without_entered_authority() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Alias exclusion requires complete original body ownership, not an
+        // installed alias, entered variable frame or successful read.
         // Implementation binding: naming.source.original-registry-header-advice
         // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
-        // The quiet source world retains conditional grammar, not a Native
-        // entry, executed procedure frame or result-completion receipt.
-        let source = "proc wrap {condition} {if {$condition} {info exists condition}}";
+        // The missing original variable stops argv before the rename and proc.
+        // Their unentered suffix keeps the quiet original lookup world, while
+        // its conditional declaration supplies no installed/entered frame.
+        let source =
+            "rename $old decl\nproc wrap {condition} {if {$condition} {info exists condition}}";
         let (bindings, tokens) = inventory(source, "info exists condition");
         let binding = tokens.source_binding.as_ref().unwrap();
         let layout = binding
@@ -2038,11 +2128,11 @@ mod tests {
         assert!(binding.proved_execution_target().is_none());
         assert!(binding.compiler_lookup_state.is_none());
         let site = binding.invocation_site().unwrap();
-        let lexical_body = bindings
-            .conditional_body_entry_at(&site.source, site.offset)
-            .expect("independent unchanged declaration body recipe");
-        assert!(lexical_body.owns_source(&site.source, site.offset));
-        assert!(lexical_body.matches_parameters(&["condition"]));
+        assert!(
+            bindings
+                .conditional_body_entry_at(&site.source, site.offset)
+                .is_none()
+        );
         assert!(!bindings.has_actual_procedure_entry_at(&site.source, site.offset));
         let originals = original_declaration_layouts(
             binding.declaration_layout_observations.as_deref().unwrap(),
@@ -2051,6 +2141,16 @@ mod tests {
         assert!(originals.clone().all(|observation| {
             !observation.snapshot.state.source_variables.dynamic_traces
                 && observation.snapshot.state.baseline.native_entry.is_none()
+                && matches!(
+                    observation.entry.as_ref(),
+                    OriginalDiagnosticFrameEntry::DeclaredProcedure(_)
+                )
+                && observation
+                    .entry
+                    .parameters()
+                    .iter()
+                    .map(|parameter| parameter.name.as_str())
+                    .eq(["condition"])
                 && observation.entry.owns_source(&site.source, site.offset)
                 && observation
                     .entry
@@ -2064,12 +2164,11 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
         // SourceAnalysisOptions::unknown_entry widens the original variable
         // world through ModuleCommandBindings::mark_opaque_binding_mutation
-        // and ResolveContext::widen. Readonly in_frame keeps that observer
-        // uncertainty; a conditional source frame cannot erase it.
-        let source = "proc wrap {condition} {if {$condition} {info exists condition}}";
+        // and ResolveContext::widen. The genuine root condition remains a
+        // source layout; its unknown read observers cannot donate child lookup.
+        let source = "if {$condition} {info exists condition}";
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        let (bindings, condition) =
-            inventory_in_world(source, "if {$condition} {info exists condition}", true);
+        let (bindings, condition) = inventory_in_world(source, source, true);
         let binding = condition.source_binding.as_ref().unwrap();
         let site = binding.invocation_site().unwrap();
         let parents = original_declaration_layouts(bindings.declaration_layouts.get(site).unwrap())

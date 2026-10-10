@@ -246,26 +246,55 @@ impl crate::InvocationDialect {
     }
 }
 
-/// Native return command grammar. This is independent of host command surfaces.
+/// Selected return-options grammar, independent of command availability and
+/// native entry. The decoder also requires release, numeric policy and the
+/// source or evaluated-argument facet; this selector grants no execution proof.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ReturnInvocationGrammar {
+pub enum ReturnInvocationGrammar {
+    /// C Tcl 8.4's fixed return-option vocabulary.
     LegacyTcl,
+    /// C Tcl 8.5+ extensible options, interpreted under the actual release.
     OptionsTcl,
+    /// Jim's fixed return-option vocabulary and completion rules.
     Jim,
+    /// No grammar is selected; only unanimous answers remain available.
     Unknown,
 }
 
 impl ReturnInvocationGrammar {
+    /// Select return's option vocabulary from the retained engine family and
+    /// release. Numeral and lexer overrides do not select another handler.
+    /// This describes its grammar, without supplying a compiler or entry.
+    #[must_use]
+    pub fn for_dialect(dialect: crate::InvocationDialect) -> Self {
+        Self::for_family_release(dialect.family(), dialect.tcl_version)
+    }
+
+    pub(crate) fn for_family_release(
+        family: Option<tcl_dialect::model::Family>,
+        release: Option<tcl_dialect::TclVersion>,
+    ) -> Self {
+        if family == Some(tcl_dialect::model::Family::Jim) {
+            Self::Jim
+        } else {
+            match release {
+                Some(tcl_dialect::TclVersion::V8_4) => Self::LegacyTcl,
+                Some(_) => Self::OptionsTcl,
+                None => Self::Unknown,
+            }
+        }
+    }
+
     pub(crate) fn completion_code_policy(
         self,
-        numbers: tcl_syntax::number::Numbers,
+        release: Option<tcl_dialect::TclVersion>,
     ) -> crate::completion::CompletionCodePolicy {
         use crate::completion::CompletionCodePolicy as Policy;
         match self {
             Self::Jim => Policy::Jim,
             Self::LegacyTcl => Policy::Tcl8,
-            Self::OptionsTcl => match numbers.syntax() {
-                Some(tcl_dialect::NumberSyntax::Tcl90) => Policy::Tcl9,
+            Self::OptionsTcl => match release {
+                Some(release) if release >= tcl_dialect::TclVersion::V9_0 => Policy::Tcl9,
                 Some(_) => Policy::Tcl8,
                 None => Policy::Unknown,
             },

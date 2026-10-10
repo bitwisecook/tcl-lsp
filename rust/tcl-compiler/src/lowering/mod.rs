@@ -1583,6 +1583,7 @@ impl<'r> Lowerer<'r> {
         }
         self.module.plain_command_dispatch = self.target.is_trace_visible();
         self.module.source_entry = crate::command_binding::SourceAnalysisEntry {
+            metadata_context: self.source_metadata_input().retain(),
             hosted_execution_context: self.hosted_execution_context,
             execution_name_policy: self.execution_name_policy,
             logical_source_input: self.logical_source_input.clone(),
@@ -5342,7 +5343,11 @@ impl<'r> Lowerer<'r> {
                     continue;
                 }
             };
-            let words = statement_words(seg, &[]);
+            let effective = statement_words(&self.cmd_tokens(seg), self.config);
+            let words: Vec<_> = effective
+                .iter()
+                .map(|word| word.as_registry_word())
+                .collect();
             let frame = MemberFrame::of_row(
                 call.grammar,
                 call.grammar
@@ -5397,7 +5402,10 @@ impl<'r> Lowerer<'r> {
                 self.module.oo_evidence.unretained_executable_roots |= member_supplies_body;
                 continue;
             }
-            let words = statement_words(seg, &[InvocationWord::Literal(wrapper)]);
+            let effective = statement_words(&self.cmd_tokens(seg), self.config);
+            let words: Vec<_> = std::iter::once(InvocationWord::Literal(wrapper))
+                .chain(effective.iter().map(|word| word.as_registry_word()))
+                .collect();
             let frame = MemberFrame::of_row(
                 call.grammar,
                 call.grammar
@@ -5743,33 +5751,23 @@ impl MemberFrame {
     }
 }
 
-/// The words of one definition-body statement as the registry reads them,
-/// after `prefix` (a block's wrapper, which the block's own statements do not
-/// repeat): a literal where the source proves the value, and otherwise the
-/// kind of word it is — the boundary callback arity and the literal-argument
-/// checks draw ([`crate::signature_scan::command_prefix::invocation_word`]).
-fn statement_words<'s>(
-    seg: &'s SegmentedCommand,
-    prefix: &[InvocationWord<'s>],
-) -> Vec<InvocationWord<'s>> {
-    let expanded = |index: usize| {
-        seg.expand_word
-            .as_ref()
-            .and_then(|flags| flags.get(index).copied())
-            .unwrap_or(false)
-    };
-    prefix
+/// Value-conservative definition-member words from the original positioned
+/// token owner, under the source's retained lexical axes. Wrapper prefixes
+/// are composed by the caller after this projection.
+fn statement_words(
+    tokens: &CommandTokens,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<crate::registry_invocation::EffectiveInvocationWord> {
+    tokens
+        .words()
         .iter()
-        .copied()
-        .chain(seg.texts.iter().enumerate().map(|(index, text)| {
-            crate::signature_scan::command_prefix::invocation_word(
-                None,
-                text,
-                seg.argv.get(index).copied(),
-                seg.single_token_word.get(index).copied().unwrap_or(false),
-                expanded(index),
+        .map(|word| {
+            crate::registry_invocation::effective_invocation_word(
+                word,
+                config.escapes,
+                WordValueRules::from_config(&config),
             )
-        }))
+        })
         .collect()
 }
 
@@ -6714,12 +6712,16 @@ impl Lowerer<'_> {
         let registry = self.registry;
         let standalone_metadata = self.metadata_origin == LoweringMetadataOrigin::Standalone
             && self.source_entry_origin == SourceEntryOrigin::Authoring;
-        let declared_frame_effects = self
-            .command_surface()
-            .plain_call_frame_effects()
-            .filter(|(name, _)| registry.get(name).is_none())
-            .map(|(name, effect)| (tcl_syntax::naming::normalise_qualified_name(name), effect))
-            .collect();
+        let declared_frame_effects = tcl_registry::model::DocumentCommandSurface::new(
+            registry,
+            self.source_declared_commands
+                .as_ref()
+                .or(self.declared_commands),
+        )
+        .plain_call_frame_effects()
+        .filter(|(name, _)| registry.get(name).is_none())
+        .map(|(name, effect)| (tcl_syntax::naming::normalise_qualified_name(name), effect))
+        .collect();
         let mut module = self.module;
         module.declared_frame_effects = declared_frame_effects;
         module.source = tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
@@ -7678,6 +7680,40 @@ mod tests {
         }
         assert!(m.methods.contains_key("::Toaster::clean"));
         assert!(m.methods.contains_key("::Toaster::<constructor>"));
+    }
+
+    #[test]
+    fn definition_member_words_use_positioned_source_and_retained_grammar() {
+        // Software source projection only: no runtime member or frame grant.
+        use crate::registry_invocation::EffectiveInvocationWord as Word;
+        let source = "method {a\\\n  b} \"$name\" {*}$args";
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        for (config, expected) in [
+            (config, "a b"),
+            (
+                tcl_lexer::LexerConfig {
+                    brace_backslash_newline: tcl_dialect::BraceBackslashNewline::Literal,
+                    ..config
+                },
+                "a\\\n  b",
+            ),
+        ] {
+            let segment =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .pop()
+                    .expect("one original member invocation");
+            let tokens =
+                CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, &segment);
+            assert_eq!(
+                statement_words(&tokens, config),
+                vec![
+                    Word::Literal("method".to_owned()),
+                    Word::Literal(expected.to_owned()),
+                    Word::Dynamic,
+                    Word::Expanded,
+                ]
+            );
+        }
     }
 
     // TP: TclOO wrapper members — `self { method … }` lifts a

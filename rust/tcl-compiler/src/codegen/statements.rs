@@ -1335,6 +1335,9 @@ impl CodegenCtx<'_> {
                     .zip(&parts)
                     .all(|(word, (text, _))| word == text)
         });
+        if source_aware && self.emit_native_original_preparation_invocation(tokens) {
+            return true;
+        }
         if source_aware
             && self
                 .inline_cmd_subst_hook_candidate(&head.0, args)

@@ -475,7 +475,7 @@ impl AdviceInvocationContext<'_> {
                         use tcl_registry::world_effect::{
                             CallbackKinds, EffectAccessMode, WorldStateDomain,
                         };
-                        let effects = schema.effect_footprint();
+                        let effects = schema.effects();
                         effects.callback().kinds == CallbackKinds::NONE
                             && effects.accesses().iter().all(|access| {
                                 access.mode == EffectAccessMode::Read

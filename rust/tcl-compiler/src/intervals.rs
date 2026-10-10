@@ -46,7 +46,7 @@ use tcl_syntax::expr::ast::{BinOp, ExprNode, UnaryOp};
 use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
 
 use crate::analyses::{ConstValue, LatticeValue};
-use crate::cfg::{BlockId, Function as CfgFunction};
+use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::ssa::{SsaFunction, SsaSourceView, Symbol, ValueKey, Version};
 use crate::types::{TypeKind, TypeLattice};

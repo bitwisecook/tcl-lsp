@@ -3472,6 +3472,22 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     pub fn authored_source_expression_arguments(
         &self,
     ) -> Option<AuthoredSourceExpressionArguments> {
+        self.source_expression_arguments(self.authored_source_argument_roles())
+    }
+
+    /// Expression positions under an independently retained positive Logical
+    /// source model. Native frame grammar and execution remain unknown.
+    #[must_use]
+    pub fn authored_logical_source_expression_arguments(
+        &self,
+    ) -> Option<AuthoredSourceExpressionArguments> {
+        self.source_expression_arguments(self.authored_logical_source_argument_roles())
+    }
+
+    fn source_expression_arguments(
+        &self,
+        (roles, complete): (Vec<(u8, ArgRole)>, bool),
+    ) -> Option<AuthoredSourceExpressionArguments> {
         // naming.diagnostic.registry-source-ownership
         // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
         if !matches!(
@@ -3483,7 +3499,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             return None;
         }
         let count = self.words.arguments().exact_argv_len()?;
-        let (roles, complete) = self.authored_source_argument_roles();
         if !complete {
             return None;
         }

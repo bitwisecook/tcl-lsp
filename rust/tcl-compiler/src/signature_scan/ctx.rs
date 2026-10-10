@@ -145,6 +145,107 @@ pub(super) struct ScanCtx<'r> {
 }
 
 impl ScanCtx<'_> {
+    /// One readonly schema for this exact original argv. Supplied source
+    /// ownership is authoritative; only a header-only scan uses catalogue
+    /// compatibility. Positional handlers accept direct written operands only.
+    pub(super) fn with_selected_schema<T>(
+        &self,
+        command: &crate::segmenter::SegmentedCommand,
+        project: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> T,
+    ) -> Option<T> {
+        let registry = self.registry?;
+        if let Some(bindings) = self.original_bindings {
+            let binding = bindings.invocation_at_source("", command.span.start());
+            let (original, mut tokens) = binding.original_recorded_command()?;
+            if original.span != command.span || original.argv != command.argv {
+                return None;
+            }
+            let owner = bindings.source_metadata_owner();
+            let profile = owner
+                .source_analysis_input()
+                .map(crate::analyser::ResolvedAnalysisInput::unit_profile)
+                .or_else(|| registry.profile());
+            let metadata = owner.metadata_context_for_source(registry, self.config, profile)?;
+            tokens.source_binding = Some(binding.clone());
+            if bindings.original_arguments_rejected_before_handler(&tokens) {
+                return None;
+            }
+            let selected =
+                crate::registry_invocation::original_callback_invocation_with_metadata_context(
+                    registry, metadata, &tokens,
+                )?;
+            // Captured prefixes and expansion children have no representative
+            // whole-word token. They cannot borrow the written handler offsets.
+            if selected.effective.words.len() != command.argv.len()
+                || !selected
+                    .effective
+                    .origins
+                    .iter()
+                    .enumerate()
+                    .skip(1)
+                    .all(|(index, origin)| {
+                        *origin == crate::registry_invocation::InvocationWordOrigin::Written(index)
+                    })
+            {
+                return None;
+            }
+            return selected.with_metadata_schema(
+                registry,
+                metadata,
+                binding.invocation_realm()?,
+                |schema| Some(project(schema)),
+            );
+        }
+        let image = self.original_image.as_ref()?;
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::from_image(image),
+            self.config,
+            command,
+        );
+        let dialect = crate::environment_ingress::authoring_invocation_dialect(
+            registry,
+            registry.profile(),
+            self.config,
+        );
+        let values: Vec<_> = tokens
+            .words()
+            .iter()
+            .map(|word| {
+                crate::registry_invocation::effective_invocation_word(
+                    word,
+                    self.config.escapes,
+                    dialect.word_values,
+                )
+            })
+            .collect();
+        let words: Vec<_> = tokens
+            .words()
+            .iter()
+            .zip(&values)
+            .map(|(source, value)| {
+                crate::registry_invocation::invocation_word_with_source(
+                    source,
+                    value,
+                    self.config.escapes,
+                )
+            })
+            .collect();
+        let (head, arguments) = words.split_first()?;
+        // A header cannot supply a positional source operand through argv
+        // expansion, even when a particular string happens to look literal.
+        if words
+            .iter()
+            .any(|word| word.kind() == tcl_registry::InvocationWordKind::Expanded)
+        {
+            return None;
+        }
+        let resolution = registry.resolve_structured_invocation(
+            tcl_registry::InvocationWords::structured(*head, arguments).with_dialect(dialect),
+            registry.own_surface_query(),
+        );
+        Some(project(&resolution.resolved()?))
+    }
+
     pub(super) fn original_callback_prefix(
         &self,
         command: &crate::segmenter::SegmentedCommand,

@@ -1320,7 +1320,10 @@ impl FoldOps<'_> {
     /// over `args` through the shared dispatcher, the one the runtime
     /// evaluates with; `Err` when it declines.
     fn math_call(&self, name: &str, args: &[FoldValue]) -> Result<FoldValue, ()> {
-        use tcl_syntax::expr::mathfunc::{Num, accepts_boolean_operand, dispatch};
+        use tcl_syntax::expr::mathfunc::{
+            IntWidth, NativeMathProtocol, Num, accepts_boolean_operand,
+            try_dispatch_with_backend_protocol,
+        };
         // Map `TclValue` → `Num` → result. Every function except `bool`
         // reads its operand as a strict number — `Tcl_GetBoolean` coercion
         // (`true`→1) would let the folder turn an error (`abs(true)`) into
@@ -1328,8 +1331,6 @@ impl FoldOps<'_> {
         // boolean words (the registry of that fact is the mathfunc module,
         // not a name check here).
         let boolean_ok = accepts_boolean_operand(name);
-        let octal = self.octal;
-        let numbers = self.numbers;
         let nums: Option<Vec<Num>> = args
             .iter()
             .map(|v| {
@@ -1354,7 +1355,7 @@ impl FoldOps<'_> {
             .or_else(|| self.intrinsic_math.then_some(NativeMathProtocol::Tcl))
             .ok_or(())?;
         match try_dispatch_with_backend_protocol(
-            &name,
+            name,
             &nums.ok_or(())?,
             IntWidth::for_native_arithmetic(self.arithmetic),
             protocol,
@@ -2674,6 +2675,11 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
             WordBody::Parts(parts) => parts,
         };
         let mut bytes = Vec::with_capacity(inner.len());
+        let format = self
+            .fold
+            .invocation_dialect
+            .and_then(tcl_registry::InvocationDialect::double_string_policy)
+            .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
         for part in parts {
             match part {
                 Part::Text(text) => bytes.extend_from_slice(&text),
@@ -2681,13 +2687,26 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
                     let name = crate::value_transfer::variable_name(&reference)
                         .map_err(ExprStop::Declined)?;
                     let value = tcl_syntax::expr::ExprOps::var(self, &name)?;
-                    bytes.extend_from_slice(value.to_string_val().as_bytes());
+                    bytes.extend_from_slice(
+                        value
+                            .to_string_val(format)
+                            .ok_or(ExprStop::Declined(DeclineReason::WrongRepresentation))?
+                            .as_bytes(),
+                    );
                 }
                 Part::Command(script) => {
                     let script = std::str::from_utf8(script)
                         .map_err(|_| ExprStop::Declined(DeclineReason::NotText))?;
                     let value = tcl_syntax::expr::ExprOps::command(self, script)?;
-                    bytes.extend_from_slice(value.to_string_val().as_bytes());
+                    bytes.extend_from_slice(
+                        value
+                            .to_string_val(format)
+                            .ok_or(ExprStop::Declined(DeclineReason::WrongRepresentation))?
+                            .as_bytes(),
+                    );
+                }
+                Part::Expression(_) => {
+                    return Err(ExprStop::Declined(DeclineReason::Unsupported));
                 }
                 Part::ParseError(_) => {
                     return Err(ExprStop::Declined(DeclineReason::WrongRepresentation));
@@ -2799,8 +2818,16 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
         self.fold.compare_numeric(left, right)
     }
 
-    fn compare_string(&mut self, left: &FoldValue, right: &FoldValue) -> std::cmp::Ordering {
-        self.fold.compare_string(left, right)
+    fn compare_string(
+        &mut self,
+        left: &FoldValue,
+        right: &FoldValue,
+    ) -> Result<std::cmp::Ordering, ExprStop> {
+        self.fold.compare_string(left, right).map_err(refused)
+    }
+
+    fn equal_string(&mut self, left: &FoldValue, right: &FoldValue) -> Result<bool, ExprStop> {
+        self.fold.equal_string(left, right).map_err(refused)
     }
 
     fn in_list(&mut self, needle: &FoldValue, list: &FoldValue) -> Result<bool, ExprStop> {
@@ -2971,6 +2998,8 @@ pub(crate) struct ConditionReading<'a> {
     /// Whether the module leaves a command head denoting the registry's
     /// command, which a `string is` test asks of `string`.
     pub(crate) trusted: &'a dyn Fn(&str) -> bool,
+    /// Actual CFG metadata and original expression geometry for existence calls.
+    pub(crate) existence: crate::existence_query::QueryReading<'a>,
 }
 
 /// The `Selection` transfer of a branch condition over its tree: per edge,
@@ -3027,12 +3056,10 @@ pub(crate) fn condition_edge_facts(node: &ExprNode, reading: ConditionReading<'_
             EdgeFacts::when_false(on_false)
         }
         ExprNode::Binary { op, left, right } => comparison_facts(*op, left, right, reading),
-        ExprNode::Command { text, .. } => {
-            crate::existence_query::in_text(text, reading.registry, reading.config).map_or_else(
-                || EdgeFacts::when_true(string_is_fact(text, reading).into_iter().collect()),
-                |(name, kind)| query_facts(&name, kind),
-            )
-        }
+        ExprNode::Command { .. } => reading.existence.in_expr(node).map_or_else(
+            || EdgeFacts::when_true(string_is_fact(node, reading).into_iter().collect()),
+            |query| query_facts(&query.var, query.kind),
+        ),
         _ => EdgeFacts::default(),
     }
 }
@@ -3043,10 +3070,10 @@ pub(crate) fn condition_edge_facts(node: &ExprNode, reading: ConditionReading<'_
 /// and an unparsed operand may be anything, so neither is.
 fn changes_no_place(node: &ExprNode, reading: ConditionReading<'_>) -> bool {
     match node {
-        ExprNode::Command { text, .. } => {
-            crate::existence_query::in_text(text, reading.registry, reading.config)
-                .is_some_and(|(name, _)| !name.contains('['))
-        }
+        ExprNode::Command { .. } => reading
+            .existence
+            .in_expr(node)
+            .is_some_and(|query| !query.var.contains('[')),
         ExprNode::Binary { left, right, .. } => {
             changes_no_place(left, reading) && changes_no_place(right, reading)
         }
@@ -3278,7 +3305,59 @@ fn membership_facts(place: &str, list: &str, policy: FoldPolicy) -> Vec<PlaceFac
 /// ([`tcl_registry::commands::tcl::string_is_member_type`]), for the one
 /// variable the test's last word reads. Every other word is literal, and
 /// the head is the registry's command the module has not rebound.
-fn string_is_fact(text: &str, reading: ConditionReading<'_>) -> Option<PlaceFact> {
+fn string_is_fact(node: &ExprNode, reading: ConditionReading<'_>) -> Option<PlaceFact> {
+    if !reading.existence.is_standalone() {
+        let tokens = reading.existence.original_command(node)?;
+        let invocation =
+            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                reading.registry,
+                reading.existence.metadata_context(),
+                &tokens,
+            )?;
+        if invocation.facts.operation
+            != tcl_registry::SemanticOperationId::Intrinsic(tcl_registry::IntrinsicId::StringIs)
+            || invocation.facts.arity_accepts_frozen_arguments() != Some(true)
+        {
+            return None;
+        }
+        let value_index = invocation.arguments.len().checked_sub(1)?;
+        if !matches!(
+            invocation
+                .effective
+                .origins
+                .get(value_index.checked_add(1)?),
+            Some(crate::registry_invocation::InvocationWordOrigin::Written(_))
+        ) {
+            return None;
+        }
+        let value = invocation
+            .effective
+            .words
+            .get(value_index.checked_add(1)?)?;
+        let (spelling, _) = value.sole_variable_substitution()?;
+        let place = variable_name(spelling, reading.config.braced_var)?;
+        let mut values = (invocation.facts.argument_offset..value_index)
+            .map(|index| invocation.argument_literal(index))
+            .collect::<Option<Vec<_>>>()?;
+        // Class selection consumes the final value's shape, not its contents.
+        values.push(String::new());
+        let arguments = values.iter().map(String::as_str).collect::<Vec<_>>();
+        let member = tcl_registry::commands::tcl::string_is_member_type_for_dialect(
+            &arguments,
+            invocation.dialect?,
+        )?;
+        return Some(PlaceFact::domain(
+            place,
+            FactDomain::Type,
+            DomainFact::Type {
+                intrep: Some(member),
+                shape: None,
+            },
+        ));
+    }
+    let ExprNode::Command { text, .. } = node else {
+        return None;
+    };
     let inner = text.strip_prefix('[')?.strip_suffix(']')?;
     let commands = crate::ir_helpers::tokenise_command_words(inner, reading.config);
     let [words] = commands.as_slice() else {

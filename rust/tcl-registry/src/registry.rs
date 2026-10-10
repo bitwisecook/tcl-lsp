@@ -362,11 +362,7 @@ pub(crate) fn native_return_result_selection(
     let Some(dialect) = args.dialect() else {
         return Selection::Unknown;
     };
-    let grammar = match dialect.numbers {
-        tcl_dialect::NumberSyntax::Tcl84 => Grammar::LegacyTcl,
-        tcl_dialect::NumberSyntax::Tcl85 | tcl_dialect::NumberSyntax::Tcl90 => Grammar::OptionsTcl,
-        tcl_dialect::NumberSyntax::Jim | tcl_dialect::NumberSyntax::Jim080 => Grammar::Jim,
-    };
+    let grammar = Grammar::for_dialect(dialect);
     let mut result = Selection::Unknown;
     match exact_return_completion_with_result(
         args,
@@ -419,17 +415,7 @@ pub fn native_return_state_effect(
     if dialect.native_name_protocol().is_none() {
         return Effect::MayMaterialiseError;
     }
-    let grammar = match dialect.family() {
-        Some(tcl_dialect::model::Family::Jim) => Grammar::Jim,
-        Some(tcl_dialect::model::Family::Tcl) => match dialect.numbers {
-            tcl_dialect::NumberSyntax::Tcl84 => Grammar::LegacyTcl,
-            tcl_dialect::NumberSyntax::Tcl85 | tcl_dialect::NumberSyntax::Tcl90 => {
-                Grammar::OptionsTcl
-            }
-            _ => Grammar::Unknown,
-        },
-        _ => Grammar::Unknown,
-    };
+    let grammar = Grammar::for_dialect(dialect);
     if grammar == Grammar::Unknown || args.exact_argv_len().is_none() {
         return Effect::MayMaterialiseError;
     }
@@ -1218,24 +1204,6 @@ fn push_option_value_roles(
         } else {
             i += 1;
         }
-    }
-}
-
-/// Project option-value roles from actual structured operands and ingress options.
-fn push_structured_option_roles(
-    out: &mut Vec<(usize, ArgRole)>,
-    options: crate::resolved_invocation::InvocationOptions<'_, '_>,
-    arguments: InvocationArguments<'_>,
-    offset: usize,
-    wanted: &[ArgRole],
-) {
-    if let Some(roles) = options.value_roles(arguments.slice_from(offset)) {
-        out.extend(
-            roles
-                .into_iter()
-                .filter(|(_, role)| wanted.contains(role))
-                .map(|(index, role)| (offset + index, role)),
-        );
     }
 }
 
@@ -5846,7 +5814,7 @@ impl CommandRegistry {
             args,
             self.control_numbers(dialect),
             self.return_invocation_grammar(crate::InvocationArguments::literals(&[]), dialect)
-                .completion_code_policy(self.control_numbers(dialect)),
+                .completion_code_policy(self.control_release(dialect)),
         )
     }
 
@@ -5872,6 +5840,38 @@ impl CommandRegistry {
             .iter()
             .find_map(|(family, release)| point_number_syntax(family, release))
             .map_or(Numbers::Unknown, Numbers::Target)
+    }
+
+    /// A control handler's release is independent of its source numeral
+    /// grammar. An explicit query with no release cannot borrow the registry
+    /// profile's handler width.
+    fn control_release(
+        &self,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<tcl_dialect::TclVersion> {
+        match dialect {
+            Some(query) => query.core.iter().find_map(|(family, release)| {
+                if family == Family::Tcl
+                    && let Some(release) = release
+                {
+                    return tcl_dialect::TclVersion::from_package_version(release);
+                }
+                let version = tcl_dialect::model::DialectPoint::tcl_version_of_release;
+                match release {
+                    Some(spelling) => family
+                        .releases()
+                        .iter()
+                        .find(|release| release.as_str() == spelling)
+                        .and_then(|&release| version(release)),
+                    None => {
+                        let mut versions = family.releases().iter().copied().map(version);
+                        let first = versions.next()?;
+                        first.filter(|&first| versions.all(|next| next == Some(first)))
+                    }
+                }
+            }),
+            None => self.runtime_version(),
+        }
     }
 
     /// Parse a case-list invocation using only options available in this
@@ -6129,32 +6129,17 @@ impl CommandRegistry {
         query: Option<SurfaceQuery<'_>>,
     ) -> crate::completion_route::ReturnInvocationGrammar {
         use crate::completion_route::ReturnInvocationGrammar as Grammar;
-        use tcl_dialect::{NumberSyntax, model::Family};
-        let family = args
-            .dialect()
-            .and_then(crate::InvocationDialect::family)
-            .or_else(|| {
-                query
-                    .and_then(|query| query.core.nearest())
-                    .map(|(family, _)| family)
-            })
-            .or_else(|| {
-                self.profile()
-                    .map(crate::InvocationDialect::of_profile)
-                    .and_then(crate::InvocationDialect::family)
-            });
-        if family == Some(Family::Jim) {
-            return Grammar::Jim;
+        if let Some(dialect) = args.dialect() {
+            return Grammar::for_dialect(dialect);
         }
-        let numbers = args.dialect().map_or_else(
-            || self.control_numbers(query),
-            |dialect| tcl_syntax::number::Numbers::Target(dialect.numbers),
-        );
-        match numbers.syntax() {
-            Some(NumberSyntax::Tcl84) => Grammar::LegacyTcl,
-            Some(NumberSyntax::Tcl85 | NumberSyntax::Tcl90) => Grammar::OptionsTcl,
-            Some(NumberSyntax::Jim | NumberSyntax::Jim080) => Grammar::Jim,
-            None => Grammar::Unknown,
+        match query {
+            Some(query) => Grammar::for_family_release(
+                query.core.nearest().map(|(family, _)| family),
+                self.control_release(Some(query)),
+            ),
+            None => self.profile().map_or(Grammar::Unknown, |profile| {
+                Grammar::for_dialect(crate::InvocationDialect::of_profile(profile))
+            }),
         }
     }
 

@@ -757,7 +757,7 @@ fn file_route(
     tcl_registry::value_transfer::evaluate_literal(
         schema.semantics.value.semantics()?,
         schema.canonical_command,
-        Some(subcommand.name),
+        Some(subcommand.canonical_name),
         &words[1..],
         registry.runtime_version(),
     )

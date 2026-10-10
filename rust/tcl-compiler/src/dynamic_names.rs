@@ -627,6 +627,7 @@ impl<'a> Commands<'a> {
         self.declared
             .get(&tcl_syntax::naming::normalise_qualified_name(command))
             .copied()
+            .flatten()
     }
 }
 
@@ -1098,13 +1099,13 @@ fn source_argument_words<'a>(
     args.iter()
         .enumerate()
         .map(|(index, word)| {
-            if template_word_is_substituted(
-                word,
-                arg_braced
-                    .and_then(|braced| braced.get(index))
-                    .copied()
-                    .unwrap_or(false),
-            ) {
+            let braced = arg_braced
+                .and_then(|braced| braced.get(index))
+                .copied()
+                .unwrap_or(false);
+            if crate::value_transfer::SourceWord::of(Some(word), braced)
+                == crate::value_transfer::SourceWord::Substituted
+            {
                 tcl_registry::InvocationWord::Dynamic
             } else {
                 tcl_registry::InvocationWord::Literal(word)

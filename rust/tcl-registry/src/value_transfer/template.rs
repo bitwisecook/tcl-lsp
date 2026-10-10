@@ -389,7 +389,7 @@ fn record(
                     frame: FrameLevel::Relative(0),
                 },
             }),
-            Part::ParseError(_) => return false,
+            Part::Expression(_) | Part::ParseError(_) => return false,
         }
     }
     true

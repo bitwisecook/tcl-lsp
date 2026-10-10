@@ -468,7 +468,7 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     Ok(selected) => selected,
                     Err(error) => return error,
                 };
-                if !selected.is_empty() {
+                if !vm.interp_is_current(selected) {
                     return vm.refuse_host_command("foreign loaded-library inventory".into());
                 }
             }

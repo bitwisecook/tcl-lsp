@@ -1,0 +1,10 @@
+error: duplicate key
+  --> rust/tcl-cshim/Cargo.toml:53:1
+   |
+53 | tcl-registry = { path = "../tcl-registry" }
+   | ^^^^^^^^^^^^
+error: failed to load manifest for workspace member `/workspace/.checkpoints/naming-validation/rust/tcl-vm-cli`
+referenced by workspace at `/workspace/.checkpoints/naming-validation/Cargo.toml`
+
+Caused by:
+  failed to load manifest for dependency `tcl-cshim`

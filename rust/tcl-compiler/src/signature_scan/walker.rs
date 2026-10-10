@@ -45,12 +45,11 @@
 use std::collections::HashSet;
 
 use tcl_lexer::{Token, TokenType};
-use tcl_registry::SubCommand;
+use tcl_registry::ClausePlan;
 use tcl_registry::Traits;
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::definer::DefinerFamily;
 use tcl_registry::hooks::{AnalyserHookId, LoweringHookId};
-use tcl_registry::{ClausePlan, CommandSpec, SubCommand};
 
 use super::ctx::ScanCtx;
 use super::handlers;
@@ -92,6 +91,10 @@ pub(super) fn scan(
     known_commands: &HashSet<&str>,
     ctx: &mut ScanCtx,
 ) {
+    let owns_image = body_token.is_none() && ctx.original_image.is_none();
+    if owns_image {
+        ctx.original_image = Some(tcl_lexer::SourceImage::document(source));
+    }
     let commands = match body_token {
         None => segment_commands_with_recovery_and_config(source, known_commands, ctx.config),
         Some(tok) => {
@@ -137,10 +140,15 @@ pub(super) fn scan(
         // feed find-references / call-hierarchy / usage counts / callback
         // arity through the same substrate as ordinary calls.
         record_command_prefix_invocations(&cmd, ctx);
-        let texts = &cmd.texts;
+        let dispatch = resolve_scan_dispatch(&cmd, ctx);
+        let mut selected_texts = cmd.texts.clone();
+        if let Some(dispatch) = &dispatch {
+            selected_texts[0] = dispatch.canonical_command.to_owned();
+        }
+        let texts = &selected_texts;
         let argv = &cmd.argv;
-        let handled = record_selected_alias(&cmd, ns_prefix, ctx)
-            || resolve_scan_dispatch(ctx.registry, head, texts).is_some_and(|dispatch| {
+        let handled = dispatch.as_ref().is_some_and(|dispatch| {
+            record_selected_alias(&cmd, dispatch, ns_prefix, ctx) || {
                 if dispatch.analyser == Some(AnalyserHookId::NamespaceEval)
                     && cmd.single_token_word.get(2) != Some(&true)
                 {
@@ -163,9 +171,20 @@ pub(super) fn scan(
                     known_commands,
                     ctx,
                 )
+            }
+        });
+        let definer = !handled
+            && dispatch.as_ref().is_some_and(|dispatch| {
+                dispatch_definer(
+                    dispatch,
+                    texts,
+                    argv,
+                    &cmd.single_token_word,
+                    ns_prefix,
+                    ctx,
+                )
             });
-        if !handled && !dispatch_definer(head, texts, argv, &cmd.single_token_word, ns_prefix, ctx)
-        {
+        if !handled && !definer {
             if let Some(namespace) = ctx
                 .current_namespace(ns_prefix)
                 .and_then(|scope| scope.source_spelling(ctx.name_policy()))
@@ -182,45 +201,18 @@ pub(super) fn scan(
         }
         ctx.original_words = previous_words;
     }
+    if owns_image {
+        ctx.original_image = None;
+    }
 }
 
-fn record_selected_alias(cmd: &SegmentedCommand, namespace: &str, ctx: &mut ScanCtx<'_>) -> bool {
-    use tcl_registry::{
-        AliasTargetLookup, CommandBindingTransition, InvocationWord, InvocationWords,
-    };
-    let Some(registry) = ctx.registry else {
-        return false;
-    };
-    let words: Vec<_> = cmd
-        .texts
-        .iter()
-        .enumerate()
-        .skip(1)
-        .map(|(index, text)| {
-            if cmd
-                .expand_word
-                .as_ref()
-                .and_then(|expanded| expanded.get(index))
-                .copied()
-                .unwrap_or(false)
-            {
-                InvocationWord::Expanded
-            } else if cmd.single_token_word.get(index) == Some(&true)
-                && cmd
-                    .argv
-                    .get(index)
-                    .is_some_and(|token| matches!(token.kind, TokenType::Str | TokenType::Esc))
-            {
-                InvocationWord::Literal(text)
-            } else {
-                InvocationWord::Dynamic
-            }
-        })
-        .collect();
-    let transitions = crate::alias::command_table_transitions_for_words(
-        registry,
-        InvocationWords::structured(InvocationWord::Literal(cmd.name()), &words),
-    );
+fn record_selected_alias(
+    cmd: &SegmentedCommand,
+    dispatch: &ResolvedScanDispatch,
+    namespace: &str,
+    ctx: &mut ScanCtx<'_>,
+) -> bool {
+    use tcl_registry::{AliasTargetLookup, CommandBindingTransition};
     let Some(CommandBindingTransition::Alias {
         source_interpreter,
         alias,
@@ -228,7 +220,7 @@ fn record_selected_alias(cmd: &SegmentedCommand, namespace: &str, ctx: &mut Scan
         target,
         arguments,
         target_lookup,
-    }) = transitions.command_bindings().next()
+    }) = dispatch.transitions.command_bindings().next()
     else {
         return false;
     };
@@ -286,34 +278,28 @@ fn record_selected_alias(cmd: &SegmentedCommand, namespace: &str, ctx: &mut Scan
     true
 }
 
-#[derive(Clone, Copy)]
-struct ResolvedScanDispatch<'r> {
-    subcommand: Option<&'r SubCommand>,
+/// Readonly source descriptors selected together with this command's original
+/// operands. None of these possible hooks establishes an entered handler.
+#[derive(Clone)]
+struct ResolvedScanDispatch {
+    canonical_command: &'static str,
     analyser: Option<AnalyserHookId>,
     lowering: Option<LoweringHookId>,
+    clause_plan: Option<ClausePlan>,
+    appends_list_elements: bool,
+    writes_value_word: bool,
+    option_end: usize,
+    definition_body: Option<&'static tcl_registry::definer::DefinitionBodyGrammar>,
+    traits: Traits,
+    manufacturer: Option<tcl_registry::definer::ManufacturerMethod>,
+    procedure_words: Option<tcl_registry::ProcedureWords>,
+    transitions: tcl_registry::StateTransitions,
+    dialect: Option<tcl_registry::InvocationDialect>,
 }
 
-impl ResolvedScanDispatch<'_> {
-    /// The clause plan of the scanned call: the resolved descriptor's clause
-    /// grammar walked over `texts` after the head (and after the subcommand
-    /// word), in post-head coordinates. A background scan carries no
-    /// document point, so every row is available, as the dispatch itself is
-    /// dialect-blind.
-    fn clause_plan_for(&self, texts: &[String]) -> Option<ClausePlan> {
-        let args: Vec<&str> = texts.iter().skip(1).map(String::as_str).collect();
-        match self.subcommand {
-            Some(sub) => sub
-                .clause_plan(args.get(1..).unwrap_or_default(), None)
-                .map(|plan| plan.offset_by(1)),
-            None => self.spec.clause_plan(&args, None),
-        }
-    }
-}
-
-/// The script words of a clause-carrying call, in source order and in the
-/// scanned command's own coordinates (the head is word 0): each clause's body
-/// word, except one that is the grammar's fall-through marker — it runs
-/// another clause's body and is no script of its own.
+/// Every body position comes from the selected shared clause walk. Its argument
+/// indices already include a selected member; the direct argv gate makes the
+/// corresponding original written word exactly one index greater.
 fn clause_body_words(plan: &ClausePlan) -> impl Iterator<Item = usize> + '_ {
     plan.clauses
         .iter()
@@ -323,26 +309,59 @@ fn clause_body_words(plan: &ClausePlan) -> impl Iterator<Item = usize> + '_ {
         .map(|word| word + 1)
 }
 
-fn resolve_scan_dispatch<'r>(
-    registry: Option<&'r tcl_registry::CommandRegistry>,
-    head: &str,
-    texts: &[String],
-) -> Option<ResolvedScanDispatch<'r>> {
-    let spec = registry?.get(head)?;
-    let subcommand = texts.get(1).and_then(|word| spec.resolve_subcommand(word));
-    Some(ResolvedScanDispatch {
-        subcommand,
-        analyser: subcommand
-            .and_then(|sub| sub.analyser_hook)
-            .or(spec.analyser_hook),
-        lowering: subcommand
-            .and_then(|sub| sub.lowering_hook)
-            .or(spec.lowering_hook),
+fn resolve_scan_dispatch(
+    command: &SegmentedCommand,
+    ctx: &ScanCtx<'_>,
+) -> Option<ResolvedScanDispatch> {
+    ctx.with_selected_schema(command, |schema| {
+        let descriptors = schema.authored_source_descriptors();
+        let spec = descriptors.command;
+        let manufacturer = schema
+            .words
+            .arguments()
+            .literal_at(0)
+            .and_then(|word| {
+                if spec.manufacturer_methods.is_empty() {
+                    spec.definition_body?.manufacturer(word)
+                } else {
+                    spec.manufacturer_methods
+                        .iter()
+                        .find(|method| method.keyword == word)
+                }
+            })
+            .filter(|method| method.visibility == tcl_registry::definer::MemberVisibility::Exported)
+            .copied();
+        let procedure_words = schema.authored_source_procedure_arguments().map(|words| {
+            tcl_registry::ProcedureWords {
+                name: words.name,
+                params: words.parameters,
+                statics: None,
+                body: words.body,
+            }
+        });
+        ResolvedScanDispatch {
+            canonical_command: schema.canonical_command,
+            analyser: schema.semantics.analyser_hook,
+            lowering: schema.semantics.lowering_hook,
+            clause_plan: schema.clause_plan(),
+            appends_list_elements: matches!(
+                schema.semantics.var_elements_effect,
+                Some(tcl_registry::VarElementsEffect::AppendsListElements { .. })
+            ),
+            writes_value_word: schema.semantics.value.writes_value_word(),
+            option_end: schema.option_effects().option_end + 1,
+            definition_body: schema.authored_source_definition_body_grammar(),
+            traits: schema.semantics.traits,
+            manufacturer,
+            procedure_words,
+            transitions: schema.state_transitions(),
+            dialect: schema.words.dialect(),
+        }
     })
 }
 
 fn dispatch_signature_handler(
-    dispatch: ResolvedScanDispatch<'_>,
+    dispatch: &ResolvedScanDispatch,
     texts: &[String],
     argv: &[Token],
     ns_prefix: &str,
@@ -382,7 +401,7 @@ fn dispatch_signature_handler(
             compatibility_namespace,
             ctx.name_policy(),
             ctx.namespace_scope.as_ref(),
-            dispatch.subcommand,
+            dispatch.option_end,
             &mut ctx.result,
         ),
         Some(AnalyserHookId::NamespaceForget) => handlers::handle_namespace_forget_in_context(
@@ -391,11 +410,11 @@ fn dispatch_signature_handler(
             compatibility_namespace,
             ctx.name_policy(),
             ctx.namespace_scope.as_ref(),
-            dispatch.subcommand,
+            dispatch.option_end,
             &mut ctx.result,
         ),
         Some(AnalyserHookId::PackageRequire) => {
-            record_package_require(texts, argv, conditional, dispatch.subcommand, ctx);
+            record_package_require(texts, argv, conditional, dispatch.option_end, ctx);
         }
         Some(AnalyserHookId::PackageProvide) if texts.len() >= 3 => {
             record_package_provide(texts, argv, conditional, ctx);
@@ -404,21 +423,17 @@ fn dispatch_signature_handler(
             record_package_ifneeded(texts, argv, ctx);
         }
         Some(AnalyserHookId::Source) => {
-            let dialect = ctx
-                .registry
-                .and_then(tcl_registry::CommandRegistry::profile)
-                .map(tcl_registry::InvocationDialect::of_profile);
             handlers::handle_source(
                 texts,
                 argv,
                 compatibility_namespace,
-                dialect,
+                dispatch.dialect,
                 &mut ctx.result,
             );
         }
-        Some(AnalyserHookId::InterpAlias) => {
-            handlers::handle_interp_alias(texts, ctx.name_policy(), &mut ctx.result);
-        }
+        // Alias publication is handled only by the same selected transition.
+        // Queries and invalid/computed layouts cannot borrow positional names.
+        Some(AnalyserHookId::InterpAlias) => {}
         Some(AnalyserHookId::Rename) => {
             record_command_rename(texts, argv, ns_prefix, ctx);
         }
@@ -439,24 +454,14 @@ fn dispatch_signature_handler(
         // appends list elements to its target variable is exactly `lappend`
         // (`append` writes a string, not list elements), the same registry
         // fact the full analyser's own `auto_path` handling reads.
-        _ if matches!(
-            dispatch.spec.var_elements_effect,
-            Some(tcl_registry::VarElementsEffect::AppendsListElements { .. })
-        ) =>
-        {
+        _ if dispatch.appends_list_elements => {
             handlers::handle_auto_path(texts, argv, &mut ctx.result);
         }
         // `set` carries no analyser hook either: a
         // command whose declared semantics stores its value word into the
         // variable it names assigns the search path, the registry fact the
         // full analyser's `bind_value_word_assignment` reads.
-        _ if tcl_registry::value_transfer::resolve_semantics(
-            dispatch.spec,
-            dispatch.subcommand,
-            None,
-        )
-        .writes_value_word() =>
-        {
+        _ if dispatch.writes_value_word => {
             handlers::handle_auto_path(texts, argv, &mut ctx.result);
         }
         _ => return false,
@@ -490,11 +495,17 @@ fn record_package_require(
     texts: &[String],
     argv: &[Token],
     conditional: bool,
-    subcommand: Option<&SubCommand>,
+    option_end: usize,
     ctx: &mut ScanCtx<'_>,
 ) {
     let before = ctx.result.package_requires.len();
-    handlers::handle_package_require(texts, argv, conditional, subcommand, &mut ctx.result);
+    handlers::handle_selected_package_require(
+        texts,
+        argv,
+        conditional,
+        option_end,
+        &mut ctx.result,
+    );
     if let Some(record) = ctx.result.package_requires.get(before) {
         let original = ctx
             .original_name_key(record.range)
@@ -551,31 +562,18 @@ fn record_package_ifneeded(texts: &[String], argv: &[Token], ctx: &mut ScanCtx<'
         });
 }
 
-/// Dispatch `head` to a definer handler when its registry spec marks it as a
-/// class or procedure definer, returning whether it was claimed.
-///
-/// Recognition is registry data, never a name list: a spec carrying a
-/// [`tcl_registry::definer::DefinitionBodyGrammar`] dispatches on the
-/// grammar's [`DefinerFamily`] — mirroring the analyser's OO handlers — and a
-/// spec carrying [`Traits::DEFINES_PROCEDURE`] (with no definition body) is a
-/// `proc`-shaped procedure definer, so a new definer of an existing family is
-/// picked up the moment its spec carries the grammar. A `::`-qualified
-/// spelling resolves through [`tcl_registry::CommandRegistry::get`]'s
-/// canonical leading-`::` fallback to the bare name. A `true` return means
-/// the generic import-wrapper / factory-candidate handlers must not run,
-/// matching the former dedicated match arms.
+/// Dispatch the selected source descriptor's definition grammar. Renamed
+/// implementations share the same layout; replaced or unavailable heads have
+/// no descriptor here. This describes declarations, not successful creation.
 fn dispatch_definer(
-    head: &str,
+    dispatch: &ResolvedScanDispatch,
     texts: &[String],
     argv: &[Token],
     single_token_word: &[bool],
     ns_prefix: &str,
     ctx: &mut ScanCtx,
 ) -> bool {
-    let Some(spec) = ctx.registry.and_then(|r| r.get(head)) else {
-        return false;
-    };
-    if let Some(grammar) = spec.definition_body {
+    if let Some(grammar) = dispatch.definition_body {
         let mut definitions = super::types::SignatureScanResult::default();
         let handled = match grammar.family {
             // Every stock `TclOO` metaclass creates a class via the same
@@ -583,11 +581,8 @@ fn dispatch_definer(
             // (property-bearing), `oo::abstract`, and `oo::singleton`
             // included, so a `[Pin new]` on an `oo::configurable` class is
             // typed as an object like any other.
-            DefinerFamily::TclOo if spec.traits.contains(Traits::IS_OO_METACLASS) => {
-                if let Some(method) = texts
-                    .get(1)
-                    .and_then(|word| ctx.registry?.exported_manufacturer_method(head, word))
-                {
+            DefinerFamily::TclOo if dispatch.traits.contains(Traits::IS_OO_METACLASS) => {
+                if let Some(method) = &dispatch.manufacturer {
                     handlers::handle_oo_class(texts, argv, method, ns_prefix, &mut definitions);
                 }
                 true
@@ -673,12 +668,14 @@ fn dispatch_definer(
     // `handle_proc`'s literal `parse_param_list(&texts[2])`, which would
     // record `optlist`'s own descriptor words as the recorded arity and
     // misreport a cross-file caller's true argument count.
-    if spec.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::OptProc) {
+    if dispatch.analyser == Some(tcl_registry::hooks::AnalyserHookId::OptProc) {
         handlers::handle_opt_proc(texts, argv, ns_prefix, ctx);
         return true;
     }
-    if spec.traits.contains(Traits::DEFINES_PROCEDURE) {
-        handlers::handle_proc(texts, argv, single_token_word, ns_prefix, ctx);
+    if dispatch.traits.contains(Traits::DEFINES_PROCEDURE) {
+        if let Some(words) = dispatch.procedure_words {
+            handlers::handle_proc_with_words(texts, argv, single_token_word, words, ns_prefix, ctx);
+        }
         return true;
     }
     false
@@ -770,17 +767,17 @@ pub(super) fn maybe_recurse_body(
 /// branch-selected or guarded, so nothing it records dominates the code after
 /// the command.
 fn handle_clause_bodies(
-    dispatch: ResolvedScanDispatch<'_>,
+    dispatch: &ResolvedScanDispatch,
     texts: &[String],
     argv: &[Token],
     ns_prefix: &str,
     known_commands: &HashSet<&str>,
     ctx: &mut ScanCtx,
 ) {
-    let Some(plan) = dispatch.clause_plan_for(texts) else {
+    let Some(plan) = dispatch.clause_plan.as_ref() else {
         return;
     };
-    for word in clause_body_words(&plan) {
+    for word in clause_body_words(plan) {
         if let (Some(text), Some(tok)) = (texts.get(word), argv.get(word)) {
             maybe_recurse_body(text, *tok, ns_prefix, true, known_commands, ctx);
         }
@@ -846,14 +843,16 @@ pub(super) fn scan_factory_candidates(
         let previous_words = std::mem::replace(&mut ctx.original_words, original_words);
         let texts = &cmd.texts;
         let argv = &cmd.argv;
-        let structural = resolve_scan_dispatch(ctx.registry, head, texts).is_some_and(|dispatch| {
-            if dispatch.analyser == Some(AnalyserHookId::NamespaceEval)
-                && cmd.single_token_word.get(2) != Some(&true)
-            {
-                return true;
-            }
-            scan_factory_structural(dispatch, texts, argv, ns_prefix, ctx)
-        });
+        let structural = resolve_scan_dispatch(&cmd, ctx)
+            .as_ref()
+            .is_some_and(|dispatch| {
+                if dispatch.analyser == Some(AnalyserHookId::NamespaceEval)
+                    && cmd.single_token_word.get(2) != Some(&true)
+                {
+                    return true;
+                }
+                scan_factory_structural(dispatch, texts, argv, ns_prefix, ctx)
+            });
         if !structural {
             handlers::maybe_record_factory_candidate(head, texts, argv, ns_prefix, ctx);
         }
@@ -869,7 +868,7 @@ pub(super) fn scan_factory_candidates(
 /// walkers, but the recursive call is `scan_factory_candidates`
 /// (not `scan`) so only factory-shaped calls are collected.
 fn scan_factory_structural(
-    dispatch: ResolvedScanDispatch<'_>,
+    dispatch: &ResolvedScanDispatch,
     texts: &[String],
     argv: &[Token],
     ns_prefix: &str,
@@ -891,8 +890,8 @@ fn scan_factory_structural(
     ) {
         // The clause plan's script words — `if`'s bodies, `try`'s protected
         // body, handlers and `finally` — never a keyword walk.
-        if let Some(plan) = dispatch.clause_plan_for(texts) {
-            for word in clause_body_words(&plan) {
+        if let Some(plan) = dispatch.clause_plan.as_ref() {
+            for word in clause_body_words(plan) {
                 if let (Some(text), Some(tok)) = (texts.get(word), argv.get(word))
                     && tok.kind == TokenType::Str
                 {

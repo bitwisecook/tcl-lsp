@@ -996,7 +996,7 @@ pub(crate) fn try_expanded_lappend(
         return false;
     };
     emit_lappend_values(ctx, variable, &arguments[1..]);
-    ctx.require_command_binding(&binding);
+    ctx.require_site_binding(&binding);
     true
 }
 
@@ -1218,7 +1218,7 @@ fn try_value_bytecoded_in_layout(
             .map(|(word, braced)| (word.clone(), *braced, false))
             .collect::<Vec<_>>();
         emit_lappend_values(ctx, variable, &additions);
-        ctx.require_command_binding(&binding);
+        ctx.require_site_binding(&binding);
         ctx.used_inline_cmd_subst = true;
         return true;
     }
@@ -1231,7 +1231,7 @@ fn try_value_bytecoded_in_layout(
         Some(Op::POP)
     );
     ctx.instructions.pop();
-    ctx.require_command_binding(&binding);
+    ctx.require_site_binding(&binding);
     ctx.used_inline_cmd_subst = true;
     true
 }
@@ -1257,7 +1257,7 @@ pub(in crate::codegen) fn try_expanded_tailcall(
     if !emit_tailcall(ctx, &words) {
         return false;
     }
-    ctx.require_command_binding(&binding);
+    ctx.require_site_binding(&binding);
     ctx.used_inline_cmd_subst = true;
     true
 }

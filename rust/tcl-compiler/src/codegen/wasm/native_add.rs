@@ -398,6 +398,14 @@ impl Composition<'_> {
                 note(NativeDeclineReason::ProofComplexityGuarded);
                 return None;
             }
+            NativeIntegerProof::SourceMetadataUnavailable => {
+                note(NativeDeclineReason::ProofSourceMetadataUnavailable);
+                return None;
+            }
+            NativeIntegerProof::MathBindingPrerequisiteRequired => {
+                note(NativeDeclineReason::ProofMathBindingPrerequisiteRequired);
+                return None;
+            }
         };
         let native = match decisions.as_slice() {
             [NativeAddDecision::Proven(native)] => native,

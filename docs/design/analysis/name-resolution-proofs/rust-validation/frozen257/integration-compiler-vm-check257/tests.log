@@ -1,0 +1,22 @@
+   Compiling libc v0.2.190
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+    Checking tcl-host-c-abi v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-host-c-abi)
+    Checking tcl-host-native v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-host-native)
+error[E0308]: mismatched types
+    --> rust/tcl-registry/src/registry.rs:5868:74
+     |
+5868 |                 tcl_dialect::model::DialectPoint::tcl_version_of_release(release)
+     |                 -------------------------------------------------------- ^^^^^^^ expected `Release`, found `Option<&str>`
+     |                 |
+     |                 arguments to this function are incorrect
+     |
+     = note: expected struct `tcl_dialect::model::Release`
+                  found enum `Option<&str>`
+note: associated function defined here
+    --> rust/tcl-dialect/src/model/point.rs:127:12
+     |
+ 127 |     pub fn tcl_version_of_release(release: Release) -> Option<TclVersion> {
+     |            ^^^^^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `tcl-registry` (lib) due to 1 previous error

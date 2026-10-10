@@ -1,0 +1,782 @@
+    Checking tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cmd-core)
+    Checking tcl-regex v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-regex)
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+error[E0252]: the name `RegistryInvocationResolution` is defined multiple times
+  --> rust/tcl-compiler/src/common_aot_plan.rs:31:34
+   |
+28 |     InvocationMetadataContext, RegistryInvocationResolution,
+   |                                ---------------------------- previous import of the type `RegistryInvocationResolution` here
+...
+31 | use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
+   |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^--
+   |                                  |
+   |                                  `RegistryInvocationResolution` reimported here
+   |                                  help: remove unnecessary import
+   |
+   = note: `RegistryInvocationResolution` must be defined only once in the type namespace of this module
+
+error[E0432]: unresolved imports `original_simulation::StaticExpressionObligation`, `original_simulation::StaticIncrementObligation`, `original_simulation::StaticLoopAnalysis`, `original_simulation::StaticLoopSummary`
+  --> rust/tcl-compiler/src/static_loops.rs:48:5
+   |
+48 |     StaticExpressionObligation, StaticIncrementObligation, StaticLoopAnalysis, StaticLoopSummary,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^ no `StaticLoopSummary` in `static_loops::original_simulation`
+   |     |                           |                          |
+   |     |                           |                          no `StaticLoopAnalysis` in `static_loops::original_simulation`
+   |     |                           no `StaticIncrementObligation` in `static_loops::original_simulation`
+   |     no `StaticExpressionObligation` in `static_loops::original_simulation`
+
+error[E0425]: cannot find type `CommandRegistry` in this scope
+   --> rust/tcl-compiler/src/analyser/commands.rs:207:42
+    |
+207 | pub(super) fn fallback_registry() -> Arc<CommandRegistry> {
+    |                                          ^^^^^^^^^^^^^^^ not found in this scope
+    |
+help: you might be missing a type parameter
+    |
+207 | pub(super) fn fallback_registry<CommandRegistry>() -> Arc<CommandRegistry> {
+    |                                +++++++++++++++++
+
+error[E0425]: cannot find type `OnceLock` in this scope
+   --> rust/tcl-compiler/src/analyser/commands.rs:208:22
+    |
+208 |     static FALLBACK: OnceLock<Arc<CommandRegistry>> = OnceLock::new();
+    |                      ^^^^^^^^ not found in this scope
+    |
+    = note: struct `crate::command_binding::origin_inventory::OnceLock` exists but is inaccessible
+help: consider importing this struct
+    |
+ 28 + use std::sync::OnceLock;
+    |
+
+error[E0425]: cannot find type `CommandRegistry` in this scope
+   --> rust/tcl-compiler/src/analyser/commands.rs:208:35
+    |
+208 |     static FALLBACK: OnceLock<Arc<CommandRegistry>> = OnceLock::new();
+    |                                   ^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0433]: cannot find type `OnceLock` in this scope
+   --> rust/tcl-compiler/src/analyser/commands.rs:208:55
+    |
+208 |     static FALLBACK: OnceLock<Arc<CommandRegistry>> = OnceLock::new();
+    |                                                       ^^^^^^^^ use of undeclared type `OnceLock`
+    |
+    = note: struct `crate::command_binding::origin_inventory::OnceLock` exists but is inaccessible
+help: consider importing this struct
+    |
+ 28 + use std::sync::OnceLock;
+    |
+
+error[E0425]: cannot find value `version` in this scope
+   --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:811:61
+    |
+770 |             let (cell_name, _version) = &chain.key;
+    |                             -------- `_version` defined here
+...
+811 |             if fu.ssa.name_is_observed_by_unseen_call(var, *version) {
+    |                                                             ^^^^^^^
+    |
+help: the leading underscore in `_version` marks it as unused, consider renaming it to `version`
+    |
+770 -             let (cell_name, _version) = &chain.key;
+770 +             let (cell_name, version) = &chain.key;
+    |
+
+error[E0425]: cannot find function `collect_existence_guards` in this scope
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:1571:13
+     |
+1571 |             collect_existence_guards(fu, self.analysis_context().commands(), self.lexer_config());
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: consider importing this function
+     |
+  70 + use crate::analyser::diagnostics::helpers::collect_existence_guards;
+     |
+
+error[E0425]: cannot find function `block_dominated_by` in this scope
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:1873:52
+     |
+1873 | ...                   && block_dominated_by(&fu.ssa, block, *dominator)
+     |                          ^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: consider importing this function
+     |
+  70 + use crate::analyser::diagnostics::helpers::block_dominated_by;
+     |
+
+error[E0425]: cannot find function `block_dominated_by` in this scope
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:1947:40
+     |
+1947 | ...                   && block_dominated_by(&fu.ssa, block, *dominator)
+     |                          ^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: consider importing this function
+     |
+  70 + use crate::analyser::diagnostics::helpers::block_dominated_by;
+     |
+
+error[E0425]: cannot find function `block_dominated_by` in this scope
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:2558:24
+     |
+2558 |                     && block_dominated_by(&fu.ssa, bn, *block)
+     |                        ^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: consider importing this function
+     |
+  70 + use crate::analyser::diagnostics::helpers::block_dominated_by;
+     |
+
+error[E0425]: cannot find value `frame` in this scope
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:2948:17
+     |
+2948 |                 frame,
+     |                 ^^^^^ not found in this scope
+
+error[E0425]: cannot find value `arm` in this scope
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:2965:47
+     |
+2965 |                         case_list_command(fu, arm),
+     |                                               ^^^ not found in this scope
+
+error[E0425]: cannot find value `arm` in this scope
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:2966:25
+     |
+2966 |                         arm.condition,
+     |                         ^^^ not found in this scope
+
+error[E0425]: cannot find function `block_dominated_by` in this scope
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:4470:16
+     |
+4470 |             && block_dominated_by(ssa, use_id, *block)
+     |                ^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: consider importing this function
+     |
+  70 + use crate::analyser::diagnostics::helpers::block_dominated_by;
+     |
+
+error[E0425]: cannot find function `block_dominated_by` in this scope
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:4655:13
+     |
+4655 |             block_dominated_by(&fu.ssa, block, self.dominator)
+     |             ^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: consider importing this function
+     |
+  70 + use crate::analyser::diagnostics::helpers::block_dominated_by;
+     |
+
+error[E0425]: cannot find value `binders` in this scope
+    --> rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:2019:31
+     |
+2019 |                 for binder in binders {
+     |                               ^^^^^^^ not found in this scope
+
+error[E0433]: cannot find type `DictBinder` in this scope
+    --> rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:2020:28
+     |
+2020 |                     if let DictBinder::Key { name, value } = binder {
+     |                            ^^^^^^^^^^ use of undeclared type `DictBinder`
+     |
+help: consider importing this enum
+     |
+  35 + use crate::value_transfer::DictBinder;
+     |
+
+error[E0425]: cannot find function `collect_existence_guards` in this scope
+    --> rust/tcl-compiler/src/analyser/diagnostics.rs:1008:29
+     |
+1008 |         let exists_guards = collect_existence_guards(
+     |                             ^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: consider importing this function
+     |
+  69 + use crate::analyser::diagnostics::helpers::collect_existence_guards;
+     |
+
+error[E0425]: cannot find value `static_env` in this scope
+    --> rust/tcl-compiler/src/analyser/handlers.rs:9736:14
+     |
+9736 |             &static_env,
+     |              ^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find type `HashSet` in this scope
+  --> rust/tcl-compiler/src/analyser/source_integrity.rs:58:16
+   |
+58 |     disabled: &HashSet<String>,
+   |                ^^^^^^^ not found in this scope
+   |
+help: consider importing this struct
+   |
+14 + use std::collections::HashSet;
+   |
+
+error[E0425]: cannot find type `HashMap` in this scope
+  --> rust/tcl-compiler/src/analyser/source_integrity.rs:59:24
+   |
+59 |     suppressed_lines: &HashMap<i32, HashSet<String>>,
+   |                        ^^^^^^^ not found in this scope
+   |
+   = note: struct `crate::command_binding::cfg_lookup_context::HashMap` exists but is inaccessible
+help: consider importing this struct
+   |
+14 + use std::collections::HashMap;
+   |
+
+error[E0425]: cannot find type `HashSet` in this scope
+  --> rust/tcl-compiler/src/analyser/source_integrity.rs:59:37
+   |
+59 |     suppressed_lines: &HashMap<i32, HashSet<String>>,
+   |                                     ^^^^^^^ not found in this scope
+   |
+help: consider importing this struct
+   |
+14 + use std::collections::HashSet;
+   |
+
+error[E0405]: cannot find trait `BuildHasher` in this scope
+  --> rust/tcl-compiler/src/analyser/source_integrity.rs:83:45
+   |
+83 | pub fn filtered_bidi_control_diagnostics<S: BuildHasher>(
+   |                                             ^^^^^^^^^^^ not found in this scope
+   |
+help: consider importing this trait
+   |
+14 + use std::hash::BuildHasher;
+   |
+
+error[E0425]: cannot find type `HashSet` in this scope
+  --> rust/tcl-compiler/src/analyser/source_integrity.rs:85:21
+   |
+85 |     user_disabled: &HashSet<String, S>,
+   |                     ^^^^^^^ not found in this scope
+   |
+help: consider importing this struct
+   |
+14 + use std::collections::HashSet;
+   |
+
+error[E0425]: cannot find function `try_handler_code_in` in module `crate::executable_ir`
+    --> rust/tcl-compiler/src/cfg_builder/cfg_lower.rs:1494:31
+     |
+1494 |         crate::executable_ir::try_handler_code_in(
+     |                               ^^^^^^^^^^^^^^^^^^^
+     |
+    ::: rust/tcl-compiler/src/executable_ir.rs:3776:1
+     |
+3776 | fn try_handler_code(handler: &crate::ir::TryHandler) -> Option<CompletionCode> {
+     | ------------------------------------------------------------------------------ similarly named function `try_handler_code` defined here
+     |
+help: a function with a similar name exists
+     |
+1494 -         crate::executable_ir::try_handler_code_in(
+1494 +         crate::executable_ir::try_handler_code(
+     |
+
+error[E0425]: cannot find value `REGISTRY_BARRIER_TRAITS` in this scope
+   --> rust/tcl-compiler/src/cfg_builder/mod.rs:689:66
+    |
+689 |             .any(|invocation| invocation.facts.traits.intersects(REGISTRY_BARRIER_TRAITS))
+    |                                                                  ^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `REGISTRY_BARRIER_TRAITS` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/mod.rs:1744:21
+     |
+1744 |                     REGISTRY_BARRIER_TRAITS,
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `registry_barrier` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/mod.rs:1747:13
+     |
+1747 |             registry_barrier.set(registry_barrier.get() || found);
+     |             ^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `registry_barrier` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/mod.rs:1747:34
+     |
+1747 |             registry_barrier.set(registry_barrier.get() || found);
+     |                                  ^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `try_defs` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/mod.rs:3075:39
+     |
+3075 |             dedup_preserve_order(&mut try_defs);
+     |                                       ^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `try_defs` in this scope
+    --> rust/tcl-compiler/src/cfg_builder/mod.rs:3083:27
+     |
+3083 |                     defs: try_defs,
+     |                           ^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `invocation_word` in module `crate::signature_scan::command_prefix`
+    --> rust/tcl-compiler/src/lowering/mod.rs:5765:52
+     |
+5765 |             crate::signature_scan::command_prefix::invocation_word(
+     |                                                    ^^^^^^^^^^^^^^^ not found in `crate::signature_scan::command_prefix`
+     |
+help: consider importing this function
+     |
+  25 + use crate::registry_invocation::invocation_word;
+     |
+help: if you import `invocation_word`, refer to it directly
+     |
+5765 -             crate::signature_scan::command_prefix::invocation_word(
+5765 +             invocation_word(
+     |
+
+error[E0423]: cannot find value `env` in this scope
+   --> rust/tcl-compiler/src/optimiser/expr_simplify.rs:602:54
+    |
+602 |     if let Some(val) = ctx.eval_expression_at(expr, &env, span)
+    |                                                      ^^^ not found in this scope
+    |
+    = note: a macro named `env` exists in another namespace
+
+error[E0433]: cannot find type `ConstantReturn` in this scope
+    --> rust/tcl-compiler/src/optimiser/propagation.rs:2140:9
+     |
+2140 |         ConstantReturn::Int(i) => i.to_string(),
+     |         ^^^^^^^^^^^^^^ use of undeclared type `ConstantReturn`
+     |
+help: consider importing this enum
+     |
+  63 + use crate::interprocedural::ConstantReturn;
+     |
+
+error[E0433]: cannot find type `ConstantReturn` in this scope
+    --> rust/tcl-compiler/src/optimiser/propagation.rs:2141:9
+     |
+2141 |         ConstantReturn::Float(f) => {
+     |         ^^^^^^^^^^^^^^ use of undeclared type `ConstantReturn`
+     |
+help: consider importing this enum
+     |
+  63 + use crate::interprocedural::ConstantReturn;
+     |
+
+error[E0433]: cannot find type `ConstantReturn` in this scope
+    --> rust/tcl-compiler/src/optimiser/propagation.rs:2150:9
+     |
+2150 |         ConstantReturn::Bool(true) => "1".to_owned(),
+     |         ^^^^^^^^^^^^^^ use of undeclared type `ConstantReturn`
+     |
+help: consider importing this enum
+     |
+  63 + use crate::interprocedural::ConstantReturn;
+     |
+
+error[E0433]: cannot find type `ConstantReturn` in this scope
+    --> rust/tcl-compiler/src/optimiser/propagation.rs:2151:9
+     |
+2151 |         ConstantReturn::Bool(false) => "0".to_owned(),
+     |         ^^^^^^^^^^^^^^ use of undeclared type `ConstantReturn`
+     |
+help: consider importing this enum
+     |
+  63 + use crate::interprocedural::ConstantReturn;
+     |
+
+error[E0433]: cannot find type `ConstantReturn` in this scope
+    --> rust/tcl-compiler/src/optimiser/propagation.rs:2152:9
+     |
+2152 |         ConstantReturn::Str(s) => {
+     |         ^^^^^^^^^^^^^^ use of undeclared type `ConstantReturn`
+     |
+help: consider importing this enum
+     |
+  63 + use crate::interprocedural::ConstantReturn;
+     |
+
+error[E0425]: cannot find function `in_text` in module `crate::existence_query`
+    --> rust/tcl-compiler/src/sccp.rs:2856:52
+     |
+2856 |         .filter_map(|text| crate::existence_query::in_text(text, registry, config))
+     |                                                    ^^^^^^^ not found in `crate::existence_query`
+     |
+note: found an item that was configured out
+    --> rust/tcl-compiler/src/existence_query.rs:395:15
+     |
+ 394 | #[cfg(test)]
+     |       ---- the item is gated here
+ 395 | pub(crate) fn in_text(
+     |               ^^^^^^^
+
+error[E0425]: cannot find type `Symbol` in this scope
+    --> rust/tcl-compiler/src/shimmer/expr.rs:339:14
+     |
+ 339 |         sym: Symbol,
+     |              ^^^^^^ not found in this scope
+     |
+note: enum `crate::world_state_ssa::Symbol` exists but is inaccessible
+    --> rust/tcl-compiler/src/world_state_ssa.rs:1819:1
+     |
+1819 | enum Symbol {
+     | ^^^^^^^^^^^ not accessible
+help: consider importing this struct
+     |
+  35 + use crate::ssa::Symbol;
+     |
+
+error[E0425]: cannot find value `array_syms` in this scope
+   --> rust/tcl-compiler/src/shimmer/phi.rs:268:22
+    |
+268 |         array_syms: &array_syms,
+    |                      ^^^^^^^^^^ not found in this scope
+
+error[E0422]: cannot find struct, variant or union type `StaticSimulation` in this scope
+  --> rust/tcl-compiler/src/static_loops/original_simulation.rs:97:5
+   |
+97 |     StaticSimulation {
+   |     ^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find type `SimulationPurpose` in this scope
+   --> rust/tcl-compiler/src/static_loops/original_simulation.rs:160:14
+    |
+160 |     purpose: SimulationPurpose,
+    |              ^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find type `SimulationPurpose` in this scope
+   --> rust/tcl-compiler/src/static_loops/original_simulation.rs:160:14
+    |
+160 |     purpose: SimulationPurpose,
+    |              ^^^^^^^^^^^^^^^^^ not found in this scope
+    |
+help: you might be missing a type parameter
+    |
+159 | struct StaticForCondition<'a, SimulationPurpose> {
+    |                             +++++++++++++++++++
+
+error[E0425]: cannot find type `StaticLoopAnalysis` in this scope
+   --> rust/tcl-compiler/src/static_loops/original_simulation.rs:173:13
+    |
+173 | ) -> Option<StaticLoopAnalysis> {
+    |             ^^^^^^^^^^^^^^^^^^ not found in this scope
+    |
+help: you might be missing a type parameter
+    |
+165 | fn summarise_static_for_selected<StaticLoopAnalysis>(
+    |                                 ++++++++++++++++++++
+
+error[E0422]: cannot find struct, variant or union type `StaticSimulation` in this scope
+   --> rust/tcl-compiler/src/static_loops/original_simulation.rs:180:22
+    |
+180 |     let simulation = StaticSimulation {
+    |                      ^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0422]: cannot find struct, variant or union type `StaticLoopAnalysis` in this scope
+   --> rust/tcl-compiler/src/static_loops/original_simulation.rs:210:10
+    |
+210 |     Some(StaticLoopAnalysis {
+    |          ^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find type `StaticLoopSummary` in this scope
+   --> rust/tcl-compiler/src/static_loops/original_simulation.rs:267:13
+    |
+267 | ) -> Option<StaticLoopSummary> {
+    |             ^^^^^^^^^^^^^^^^^ not found in this scope
+    |
+help: you might be missing a type parameter
+    |
+261 | pub fn summarise_for_statement_with_dependencies<StaticLoopSummary>(
+    |                                                 +++++++++++++++++++
+
+error[E0422]: cannot find struct, variant or union type `StaticLoopSummary` in this scope
+   --> rust/tcl-compiler/src/static_loops/original_simulation.rs:291:21
+    |
+291 |     .map(|analysis| StaticLoopSummary {
+    |                     ^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find type `StaticLoopAnalysis` in this scope
+   --> rust/tcl-compiler/src/static_loops/original_simulation.rs:307:13
+    |
+307 | ) -> Option<StaticLoopAnalysis> {
+    |             ^^^^^^^^^^^^^^^^^^ not found in this scope
+    |
+help: you might be missing a type parameter
+    |
+301 | pub fn analyse_for_statement_with_dependencies<StaticLoopAnalysis>(
+    |                                               ++++++++++++++++++++
+
+error[E0425]: cannot find function `in_text` in module `crate::existence_query`
+    --> rust/tcl-compiler/src/tcl_expr_eval.rs:3040:37
+     |
+3040 |             crate::existence_query::in_text(text, reading.registry, reading.config).map_or_else(
+     |                                     ^^^^^^^ not found in `crate::existence_query`
+     |
+note: found an item that was configured out
+    --> rust/tcl-compiler/src/existence_query.rs:395:15
+     |
+ 394 | #[cfg(test)]
+     |       ---- the item is gated here
+ 395 | pub(crate) fn in_text(
+     |               ^^^^^^^
+
+error[E0425]: cannot find function `in_text` in module `crate::existence_query`
+    --> rust/tcl-compiler/src/tcl_expr_eval.rs:3056:37
+     |
+3056 |             crate::existence_query::in_text(text, reading.registry, reading.config)
+     |                                     ^^^^^^^ not found in `crate::existence_query`
+     |
+note: found an item that was configured out
+    --> rust/tcl-compiler/src/existence_query.rs:395:15
+     |
+ 394 | #[cfg(test)]
+     |       ---- the item is gated here
+ 395 | pub(crate) fn in_text(
+     |               ^^^^^^^
+
+error[E0603]: module `proven` is private
+    --> rust/tcl-compiler/src/analyser/commands.rs:2306:58
+     |
+2306 |             self.record_proven_site(&super::diagnostics::proven::CallWords {
+     |                                                          ^^^^^^ private module
+     |
+note: the module `proven` is defined here
+    --> rust/tcl-compiler/src/analyser/diagnostics.rs:133:1
+     |
+ 133 | mod proven;
+     | ^^^^^^^^^^^
+help: consider importing this struct through its public re-export instead
+     |
+2306 -             self.record_proven_site(&super::diagnostics::proven::CallWords {
+2306 +             self.record_proven_site(&super::diagnostics::CallWords {
+     |
+
+error[E0603]: function `any_command_recursive` is private
+    --> rust/tcl-compiler/src/analyser/irules_event_checks.rs:1155:27
+     |
+1155 |     super::bounds_checks::any_command_recursive(body, Some(registry), lexer_config, &mut |cmd| {
+     |                           ^^^^^^^^^^^^^^^^^^^^^ private function
+     |
+note: the function `any_command_recursive` is defined here
+    --> rust/tcl-compiler/src/analyser/bounds_checks.rs:1092:1
+     |
+1092 | / fn any_command_recursive(
+1093 | |     script: &str,
+1094 | |     registry: BoundsMetadataContext<'_>,
+1095 | |     lexer_config: tcl_lexer::LexerConfig,
+...    |
+1108 | |     false
+1109 | | }
+     | |_^
+
+warning: unused import: `CallWords`
+   --> rust/tcl-compiler/src/analyser/diagnostics.rs:122:38
+    |
+122 | pub(in crate::analyser) use proven::{CallWords, ProvenSite};
+    |                                      ^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Module`
+  --> rust/tcl-compiler/src/analyser/oo.rs:73:29
+   |
+73 | use crate::ir::{MethodKind, Module, Statement, SwitchMode};
+   |                             ^^^^^^
+
+warning: unused import: `tcl_bytecode::ErrorStackContext`
+  --> rust/tcl-compiler/src/codegen/control_flow.rs:24:5
+   |
+24 | use tcl_bytecode::ErrorStackContext;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `CommandRegistry` and `TryCompletionSelector`
+  --> rust/tcl-compiler/src/codegen/control_flow.rs:28:20
+   |
+28 | use tcl_registry::{CommandRegistry, Traits, TryClauseKind, TryCompletionSelector};
+   |                    ^^^^^^^^^^^^^^^                         ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `RegistryInvocationResolution` and `resolve_command_tokens`
+  --> rust/tcl-compiler/src/common_aot_plan.rs:31:34
+   |
+31 | use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
+   |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::naming::normalise_var_name`
+  --> rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs:59:5
+   |
+59 | use crate::naming::normalise_var_name;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Env`, `eval_tcl_expr_with_octal_and_dialect`, and `format_tcl_value_with_policy`
+  --> rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs:63:5
+   |
+63 |     Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value_with_policy, leading_zero_is_octal,
+   |     ^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `is_uncommitted_first_conversion`
+  --> rust/tcl-compiler/src/shimmer/use_site.rs:52:28
+   |
+52 |     is_numeric_compatible, is_uncommitted_first_conversion,
+   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+  --> rust/tcl-compiler/src/static_loops/original_simulation.rs:27:5
+   |
+27 | use std::collections::HashMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `IfClause`, `SwitchArm`, and `SwitchMode`
+  --> rust/tcl-compiler/src/static_loops/original_simulation.rs:30:17
+   |
+30 | use crate::ir::{IfClause, Script, Statement, SwitchArm, SwitchMode};
+   |                 ^^^^^^^^                     ^^^^^^^^^  ^^^^^^^^^^
+
+warning: unused import: `TclValue`
+  --> rust/tcl-compiler/src/static_loops/original_simulation.rs:31:55
+   |
+31 | use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue};
+   |                                                       ^^^^^^^^
+
+warning: unused imports: `DEFAULT_MAX_STATIC_LOOP_ITERS` and `simple_var_ref`
+  --> rust/tcl-compiler/src/static_loops/original_simulation.rs:33:13
+   |
+33 | use super::{DEFAULT_MAX_STATIC_LOOP_ITERS, StaticEnv, StaticValue, simple_var_ref};
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                          ^^^^^^^^^^^^^^
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+   --> rust/tcl-compiler/src/analyser/commands.rs:209:49
+    |
+209 |     Arc::clone(FALLBACK.get_or_init(|| Arc::new(CommandRegistry::build_default())))
+    |                                                 ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+error[E0433]: cannot find type `LineIndex` in this scope
+  --> rust/tcl-compiler/src/analyser/source_integrity.rs:61:22
+   |
+61 |     let line_index = LineIndex::new(source);
+   |                      ^^^^^^^^^ use of undeclared type `LineIndex`
+
+error[E0433]: cannot find type `SimulationPurpose` in this scope
+  --> rust/tcl-compiler/src/static_loops/original_simulation.rs:98:18
+   |
+98 |         purpose: SimulationPurpose::Execution,
+   |                  ^^^^^^^^^^^^^^^^^ use of undeclared type `SimulationPurpose`
+
+error[E0433]: cannot find type `SimulationPurpose` in this scope
+   --> rust/tcl-compiler/src/static_loops/original_simulation.rs:145:22
+    |
+145 |             purpose: SimulationPurpose::Execution,
+    |                      ^^^^^^^^^^^^^^^^^ use of undeclared type `SimulationPurpose`
+
+error[E0433]: cannot find type `SimulationPurpose` in this scope
+   --> rust/tcl-compiler/src/static_loops/original_simulation.rs:281:22
+    |
+281 |             purpose: SimulationPurpose::Execution,
+    |                      ^^^^^^^^^^^^^^^^^ use of undeclared type `SimulationPurpose`
+
+error[E0433]: cannot find type `SimulationPurpose` in this scope
+   --> rust/tcl-compiler/src/static_loops/original_simulation.rs:321:22
+    |
+321 |             purpose: SimulationPurpose::Analysis,
+    |                      ^^^^^^^^^^^^^^^^^ use of undeclared type `SimulationPurpose`
+
+error[E0425]: cannot find function `parse_step_incr` in this scope
+   --> rust/tcl-compiler/src/analyser/bounds_checks.rs:824:38
+    |
+824 |         if let Some((step_var, _)) = parse_step_incr(step, lexer_config)
+    |                                      ^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `parse_init_var_value` in this scope
+   --> rust/tcl-compiler/src/analyser/bounds_checks.rs:848:26
+    |
+848 |     let (var_i, start) = parse_init_var_value(init, lexer_config)?;
+    |                          ^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `parse_step_incr` in this scope
+   --> rust/tcl-compiler/src/analyser/bounds_checks.rs:849:26
+    |
+849 |     let (var_s, delta) = parse_step_incr(step, lexer_config)?;
+    |                          ^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `existence_exempt` in this scope
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:2208:16
+     |
+2208 |             if existence_exempt(
+     |                ^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `harvest_array_element_set_constants` in this scope
+    --> rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:2126:5
+     |
+1927 | / fn harvest_array_set_constants(
+1928 | |     cu: &crate::compilation_unit::CompilationUnit,
+1929 | |     out: &mut HashMap<String, HashSet<String>>,
+1930 | |     rules: tcl_syntax::word_rules::WordValueRules,
+...    |
+1975 | | }
+     | |_- similarly named function `harvest_array_set_constants` defined here
+...
+2126 |       harvest_array_element_set_constants(cu, &mut all_constsets);
+     |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: a function with a similar name exists
+     |
+2126 -     harvest_array_element_set_constants(cu, &mut all_constsets);
+2126 +     harvest_array_set_constants(cu, &mut all_constsets);
+     |
+
+error[E0423]: cannot find function, tuple struct or tuple variant `CompileError` in this scope
+  --> rust/tcl-compiler/src/compile_service.rs:88:5
+   |
+88 |     CompileError(format!(
+   |     ^^^^^^^^^^^^
+   |
+   = note: an enum named `CompileError` exists in another namespace
+help: try to construct one of the enum's variants
+   |
+88 -     CompileError(format!(
+88 +     compile_service::CompileError::Message(format!(
+   |
+88 -     CompileError(format!(
+88 +     compile_service::CompileError::NativeCompilationAdmission(format!(
+   |
+88 -     CompileError(format!(
+88 +     compile_service::CompileError::Unsupported(format!(
+   |
+
+error[E0425]: cannot find function `template_word_is_substituted` in this scope
+    --> rust/tcl-compiler/src/dynamic_names.rs:1101:16
+     |
+1101 |             if template_word_is_substituted(
+     |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `exec_script` in this scope
+   --> rust/tcl-compiler/src/static_loops/original_simulation.rs:190:9
+    |
+190 |     if !exec_script(init, &mut env, simulation) {
+    |         ^^^^^^^^^^^
+    |
+help: a local variable with a similar name exists
+    |
+190 -     if !exec_script(init, &mut env, simulation) {
+190 +     if !next_script(init, &mut env, simulation) {
+    |
+
+error[E0425]: cannot find function `exec_script` in this scope
+   --> rust/tcl-compiler/src/static_loops/original_simulation.rs:203:13
+    |
+203 |         if !exec_script(body, &mut env, simulation) {
+    |             ^^^^^^^^^^^
+    |
+help: a local variable with a similar name exists
+    |
+203 -         if !exec_script(body, &mut env, simulation) {
+203 +         if !next_script(body, &mut env, simulation) {
+    |
+
+error[E0425]: cannot find function `exec_script` in this scope
+   --> rust/tcl-compiler/src/static_loops/original_simulation.rs:206:13
+    |
+206 |         if !exec_script(next_script, &mut env, simulation) {
+    |             ^^^^^^^^^^^
+    |
+help: a local variable with a similar name exists
+    |
+206 -         if !exec_script(next_script, &mut env, simulation) {
+206 +         if !next_script(next_script, &mut env, simulation) {
+    |
+
+Some errors have detailed explanations: E0252, E0405, E0422, E0423, E0425, E0432, E0433, E0603.
+For more information about an error, try `rustc --explain E0252`.
+warning: `tcl-compiler` (lib) generated 12 warnings
+error: could not compile `tcl-compiler` (lib) due to 71 previous errors; 12 warnings emitted

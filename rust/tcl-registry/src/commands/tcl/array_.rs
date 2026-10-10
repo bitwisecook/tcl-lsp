@@ -508,7 +508,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
             crate::native_compilation::NativeArrayCommand::Unset,
             SemanticOperationId::Invoke,
         )),
-        traits: Traits::FIRE_AND_FORGET_TEARDOWN.union(Traits::DESTROYS_VARIABLE).union(Traits::CONDITIONAL_VARIABLE_WRITE),
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN
+            .union(Traits::DESTROYS_VARIABLE)
+            .union(Traits::CONDITIONAL_VARIABLE_WRITE),
         arity: Arity::new(1, 2),
         detail: "Unsets all of the elements in the array that match pattern.",
         synopsis: "array unset arrayName ?pattern?",

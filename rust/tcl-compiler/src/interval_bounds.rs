@@ -41,6 +41,7 @@ use tcl_dialect::{NumberSyntax, StringCharacterModel};
 use tcl_lexer::Span;
 use tcl_syntax::expr::ast::ExprNode;
 
+use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::intervals::{

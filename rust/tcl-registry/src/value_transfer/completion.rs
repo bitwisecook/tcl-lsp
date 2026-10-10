@@ -247,7 +247,7 @@ pub enum ReturnUnknown {
 
 /// The admitted facet of a return invocation, independently of its values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ReturnInvocationFacet {
+pub enum ReturnInvocationFacet {
     /// Original-source advice without a selected native compiler artifact.
     /// A source/worker disagreement remains unknown.
     OriginalSource,
@@ -311,7 +311,7 @@ impl ReturnTarget {
         Self {
             grammar: dialect.map_or(
                 crate::completion_route::ReturnInvocationGrammar::Unknown,
-                return_grammar,
+                crate::completion_route::ReturnInvocationGrammar::for_dialect,
             ),
             numbers: dialect.map_or(Numbers::Unknown, |dialect| Numbers::Target(dialect.numbers)),
             release: dialect.and_then(|dialect| dialect.tcl_version),
@@ -324,21 +324,6 @@ impl ReturnTarget {
             text.split_once('\0').map_or(text, |(prefix, _)| prefix)
         } else {
             text
-        }
-    }
-}
-
-fn return_grammar(
-    dialect: crate::InvocationDialect,
-) -> crate::completion_route::ReturnInvocationGrammar {
-    use crate::completion_route::ReturnInvocationGrammar as Grammar;
-    if dialect.family() == Some(tcl_dialect::model::Family::Jim) {
-        Grammar::Jim
-    } else {
-        match dialect.tcl_version {
-            Some(TclVersion::V8_4) => Grammar::LegacyTcl,
-            Some(_) => Grammar::OptionsTcl,
-            None => Grammar::Unknown,
         }
     }
 }
@@ -364,7 +349,7 @@ pub fn decode_return_words(
 ) -> ReturnDecoding {
     let mut target = ReturnTarget::for_profile(profile);
     if let Some(dialect) = args.dialect() {
-        target.grammar = return_grammar(dialect);
+        target.grammar = crate::completion_route::ReturnInvocationGrammar::for_dialect(dialect);
         target.numbers = Numbers::Target(dialect.numbers);
         target.release = dialect.tcl_version;
     }
@@ -375,7 +360,7 @@ pub fn decode_return_words(
 /// invocation facet. Source advice cannot establish a worker, compiler entry,
 /// result object or frame. Expansion and opaque operand syntax stay unknown.
 #[must_use]
-pub(crate) fn decode_return_words_in(
+pub fn decode_return_words_in(
     grammar: crate::completion_route::ReturnInvocationGrammar,
     numbers: Numbers,
     args: InvocationArguments<'_>,
@@ -433,22 +418,24 @@ fn decode_return_in<'w>(
         );
     }
     if target.grammar == Grammar::OptionsTcl && target.release.is_none() {
-        return unanimous_return([TclVersion::V8_5, TclVersion::V8_6].map(|release| {
-            decode_return_in(
-                ReturnTarget {
-                    release: Some(release),
-                    ..target
-                },
-                count,
-                word,
-            )
-        }));
+        return unanimous_return([TclVersion::V8_5, TclVersion::V8_6, TclVersion::V9_0].map(
+            |release| {
+                decode_return_in(
+                    ReturnTarget {
+                        release: Some(release),
+                        ..target
+                    },
+                    count,
+                    word,
+                )
+            },
+        ));
     }
     if target.grammar == Grammar::OptionsTcl
         && target.release == Some(TclVersion::V8_5)
         && target.facet == ReturnInvocationFacet::OriginalSource
     {
-        // Native source379/380 and worker382 measure different nested-option
+        // Native source379/380 and worker383 measure different nested-option
         // readings in C85. No selected compiler artifact is present here.
         return unanimous_return(
             [false, true].map(|inline| decode_return_selected(target, count, word, inline)),
@@ -678,7 +665,7 @@ fn read_return_code(text: &str, target: ReturnTarget) -> Result<CompletionCode, 
     match resolve_completion_code_selector(
         target.option_name(text),
         target.numbers,
-        target.grammar.completion_code_policy(target.numbers),
+        target.grammar.completion_code_policy(target.release),
     ) {
         CompletionCodeSelection::Exact(code) => Ok(code),
         CompletionCodeSelection::Invalid => Err(ReturnDecoding::Rejects),
@@ -692,7 +679,7 @@ fn read_return_level(text: &str, target: ReturnTarget) -> Result<u32, ReturnDeco
     let Some(value) = target.numbers.parse_wide(text) else {
         return Err(not_an_integer(text, target.numbers));
     };
-    let policy = target.grammar.completion_code_policy(target.numbers);
+    let policy = target.grammar.completion_code_policy(target.release);
     if policy == Policy::Jim {
         if value < 0 {
             return Err(ReturnDecoding::Rejects);
@@ -1773,7 +1760,7 @@ mod return_decoder_tests {
             Numbers::Target(dialect.numbers)
         };
         decode_return_words_in(
-            return_grammar(dialect),
+            Grammar::for_dialect(dialect),
             numbers,
             InvocationArguments::structured(words).with_dialect(dialect),
             facet,
@@ -1831,6 +1818,15 @@ mod return_decoder_tests {
                 "{context}"
             );
             return false;
+        }
+        if provider.profile != "tcl8.4"
+            && provider.profile != "jim"
+            && label == "options_errorcode_origin"
+        {
+            // An accepted level-zero error also has catch code one. Its
+            // supplied result and errorcode distinguish acceptance from a
+            // grammar rejection; code one alone must not pass this control.
+            assert!(matches!(answer, ReturnDecoding::Completes(_)), "{context}");
         }
         match answer {
             ReturnDecoding::Rejects => assert_eq!(fields[2], "1", "{context}"),
@@ -2087,5 +2083,176 @@ mod return_decoder_tests {
         };
         assert_eq!(worker.code, CompletionCode::Error);
         assert_eq!(worker.result, Some(2));
+    }
+
+    #[test]
+    fn return_conversion_width_keeps_release_independent_of_numeral_overlay() {
+        // naming.completion.return-option-pair-grammar
+        // docs/design/analysis/name-resolution-proofs/completion-return-option-pair-grammar.md
+        // Source379/380 measures the C8/C9 conversion-width distinction.
+        // These mixed carriers separately test the software axis contract;
+        // they do not claim a newly observed mixed Native engine or entry.
+        let numbers = Numbers::Target(NumberSyntax::Tcl85);
+        let c90 = crate::InvocationDialect::for_version(TclVersion::V9_0);
+        let c86 = crate::InvocationDialect::for_version(TclVersion::V8_6);
+        for option in ["-code", "-level"] {
+            let values = [L(option), L("-4294967295"), L("RESULT")];
+            let arguments = InvocationArguments::structured(&values);
+            assert_eq!(
+                decode_return_words_in(
+                    Grammar::OptionsTcl,
+                    numbers,
+                    arguments.with_dialect(c90),
+                    ReturnInvocationFacet::OriginalSource,
+                ),
+                ReturnDecoding::Rejects,
+            );
+            assert!(matches!(
+                decode_return_words_in(
+                    Grammar::OptionsTcl,
+                    numbers,
+                    arguments.with_dialect(c86),
+                    ReturnInvocationFacet::OriginalSource,
+                ),
+                ReturnDecoding::Completes(_),
+            ));
+            assert_eq!(
+                decode_return_words_in(
+                    Grammar::OptionsTcl,
+                    numbers,
+                    arguments,
+                    ReturnInvocationFacet::OriginalSource,
+                ),
+                ReturnDecoding::Unknown(ReturnUnknown::Release),
+            );
+        }
+        let values = [L("-code"), L("010"), L("RESULT")];
+        let ReturnDecoding::Completes(parsed) = decode_return_words_in(
+            Grammar::OptionsTcl,
+            numbers,
+            InvocationArguments::structured(&values).with_dialect(c90),
+            ReturnInvocationFacet::OriginalSource,
+        ) else {
+            panic!("the retained numeral overlay still reads octal");
+        };
+        assert_eq!(parsed.code, CompletionCode::Other(8));
+    }
+
+    #[test]
+    fn registry_return_routes_keep_release_grammar_and_numerals_independent() {
+        use crate::completion_route::{InvocationCompletionRoute as Route, ReturnCompletionRoute};
+
+        // naming.completion.return-option-pair-grammar
+        // docs/design/analysis/name-resolution-proofs/completion-return-option-pair-grammar.md
+        // Actual Registry consumer contracts under explicit mixed carriers.
+        // These source advice queries prove no Native entry or object state.
+        let values = [L("-options"), L("-code ok -level 0"), L("RESULT")];
+        for (name, version, numbers, expected) in [
+            (
+                "tcl9.0",
+                TclVersion::V9_0,
+                NumberSyntax::Tcl84,
+                Route::Tcl(CompletionCode::Ok),
+            ),
+            (
+                "tcl8.4",
+                TclVersion::V8_4,
+                NumberSyntax::Tcl90,
+                Route::Tcl(CompletionCode::Error),
+            ),
+        ] {
+            let registry = crate::model::ingress::static_context_for(name).commands();
+            let mut dialect = crate::InvocationDialect::for_version(version);
+            dialect.numbers = numbers;
+            let arguments = InvocationArguments::structured(&values).with_dialect(dialect);
+            assert_eq!(
+                registry.invocation_completion_route("return", arguments, None),
+                Some(expected),
+            );
+            assert_eq!(
+                matches!(
+                    registry.return_completion(arguments),
+                    ReturnDecoding::Completes(_)
+                ),
+                version != TclVersion::V8_4,
+            );
+        }
+        let values = [L("-code"), L("-4294967295"), L("RESULT")];
+        for (name, version, numbers, expected) in [
+            (
+                "tcl9.0",
+                TclVersion::V9_0,
+                NumberSyntax::Tcl85,
+                Route::Tcl(CompletionCode::Error),
+            ),
+            (
+                "tcl8.6",
+                TclVersion::V8_6,
+                NumberSyntax::Tcl90,
+                Route::Return(ReturnCompletionRoute {
+                    eventual_code: CompletionCode::Error,
+                    remaining_level: 1,
+                }),
+            ),
+        ] {
+            let registry = crate::model::ingress::static_context_for(name).commands();
+            let mut dialect = crate::InvocationDialect::for_version(version);
+            dialect.numbers = numbers;
+            let arguments = InvocationArguments::structured(&values).with_dialect(dialect);
+            assert_eq!(
+                registry.invocation_completion_route("return", arguments, None),
+                Some(expected),
+            );
+        }
+    }
+
+    #[test]
+    fn return_decoder_keeps_unknown_grammar_and_numbers_as_separate_premises() {
+        // naming.completion.return-option-pair-grammar
+        // docs/design/analysis/name-resolution-proofs/completion-return-option-pair-grammar.md
+        // Software consensus contract: provider grammar and numeral knowledge
+        // are independent; agreement supplies no worker or compiler entry.
+        let values = [L("RESULT")];
+        let ReturnDecoding::Completes(common) = decode_return_words_in(
+            Grammar::Unknown,
+            Numbers::Unknown,
+            InvocationArguments::structured(&values),
+            ReturnInvocationFacet::OriginalSource,
+        ) else {
+            panic!("a result-only return needs neither numeric nor option selection");
+        };
+        assert_eq!(common.code, CompletionCode::Ok);
+        assert_eq!(common.level, 1);
+        assert_eq!(common.result, Some(0));
+        let values = [L("-code"), L("return"), L("RESULT")];
+        assert_eq!(
+            decode_return_words_in(
+                Grammar::Unknown,
+                Numbers::Target(NumberSyntax::Tcl85),
+                InvocationArguments::structured(&values),
+                ReturnInvocationFacet::OriginalSource,
+            ),
+            ReturnDecoding::Unknown(ReturnUnknown::Release),
+        );
+        let values = [L("-code"), L("010"), L("RESULT")];
+        assert_eq!(
+            decode_return_words_in(
+                Grammar::OptionsTcl,
+                Numbers::Unknown,
+                InvocationArguments::structured(&values)
+                    .with_dialect(crate::InvocationDialect::for_version(TclVersion::V8_6)),
+                ReturnInvocationFacet::OriginalSource,
+            ),
+            ReturnDecoding::Unknown(ReturnUnknown::Release),
+        );
+        let ReturnDecoding::Completes(common) = decode_return_words_in(
+            Grammar::Unknown,
+            Numbers::Target(NumberSyntax::Tcl85),
+            InvocationArguments::structured(&values),
+            ReturnInvocationFacet::OriginalSource,
+        ) else {
+            panic!("the explicit numeral overlay agrees at this narrow code");
+        };
+        assert_eq!(common.code, CompletionCode::Other(8));
     }
 }

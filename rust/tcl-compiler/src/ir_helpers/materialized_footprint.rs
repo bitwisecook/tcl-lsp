@@ -8,7 +8,7 @@ use super::{CommandWord, ExecutionNamespace, VariableWriteEffects};
 use crate::command_binding::ModuleCommandBindings;
 use crate::registry_invocation::InvocationMetadataContext;
 use tcl_lexer::{LexerConfig, SourceMap};
-use tcl_registry::{ArgRole, BodyInterpreter, BodyKind, CommandRegistry, ScriptTiming, Traits};
+use tcl_registry::{ArgRole, BodyKind, CommandRegistry, ScriptTiming, Traits};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ReadPurpose {
@@ -22,6 +22,7 @@ struct FootprintContext<'a> {
     namespace: &'a ExecutionNamespace,
     config: LexerConfig,
     reads: ReadPurpose,
+    ownership: Option<crate::script_binds::Ownership>,
 }
 
 impl VariableWriteEffects {
@@ -63,6 +64,7 @@ pub(crate) fn script_value_possible_writes_with_metadata_context(
         namespace,
         config,
         reads: ReadPurpose::InterpolationAndNames,
+        ownership: None,
     };
     let mut state = bindings.clone();
     let mut out = VariableWriteEffects::default();
@@ -80,6 +82,7 @@ pub(crate) fn script_value_name_ownership_with_metadata_context(
     namespace: &ExecutionNamespace,
     metadata: InvocationMetadataContext<'_>,
     config: LexerConfig,
+    purpose: crate::script_binds::Ownership,
 ) -> VariableWriteEffects {
     if !metadata.matches_registry(registry) {
         return VariableWriteEffects {
@@ -93,6 +96,7 @@ pub(crate) fn script_value_name_ownership_with_metadata_context(
         namespace,
         config,
         reads: ReadPurpose::NamesOnly,
+        ownership: Some(purpose),
     };
     let mut state = bindings.clone();
     let mut out = VariableWriteEffects::default();
@@ -116,6 +120,7 @@ pub(crate) fn command_possible_footprint_with_metadata_context(
         namespace,
         config,
         reads: ReadPurpose::InterpolationAndNames,
+        ownership: None,
     };
     let mut state = bindings.clone();
     let mut out = VariableWriteEffects::default();
@@ -140,6 +145,7 @@ pub(crate) fn command_possible_reads_with_metadata_context(
         namespace,
         config,
         reads: ReadPurpose::InterpolationAndNames,
+        ownership: None,
     };
     let mut state = bindings.clone();
     let mut out = VariableWriteEffects::default();
@@ -184,6 +190,7 @@ pub(crate) fn expression_possible_writes_with_metadata_context(
         namespace,
         config,
         reads: ReadPurpose::InterpolationAndNames,
+        ownership: None,
     };
     let mut texts = Vec::new();
     let mut unknown = false;
@@ -243,11 +250,16 @@ pub(crate) fn footprint_command_words(
         .collect()
 }
 
-fn value_commands(text: &str, config: LexerConfig) -> Vec<Vec<CommandWord>> {
+fn value_commands(text: &str, config: LexerConfig) -> Vec<(bool, Vec<CommandWord>)> {
     let source = SourceMap::new(text);
     crate::segmenter::segment_commands_with_offset_and_config(text, 0, config)
         .iter()
-        .map(|command| footprint_command_words(&source, config, command))
+        .map(|command| {
+            (
+                command.is_partial,
+                footprint_command_words(&source, config, command),
+            )
+        })
         .collect()
 }
 
@@ -270,7 +282,8 @@ fn script_writes(
         out.read_names
             .extend(scanner.scan_script(text, context.registry));
     }
-    for words in value_commands(text, context.config) {
+    for (partial, words) in value_commands(text, context.config) {
+        out.opaque |= partial;
         for word in words.iter().filter(|word| !word.braced_literal) {
             let lexer = tcl_lexer::Lexer::with_config(&word.raw, context.config);
             let map = SourceMap::new(&word.raw);
@@ -303,28 +316,38 @@ fn command_writes(
         out.opaque = true;
         return;
     };
-    let projection = state.variable_write_projection_for_command_words_with_metadata_context(
-        words,
-        context.registry,
-        Some(context.metadata),
-        holder.as_ref(),
-    );
-    out.include_possible(&VariableWriteEffects {
-        names: projection.literal_names,
-        read_names: projection.read_before_write_names,
-        opaque: projection.opaque_variable_frame,
-    });
-    let reads = state.variable_read_projection_for_command_words_with_metadata_context(
-        words,
-        context.registry,
-        Some(context.metadata),
-        holder.as_ref(),
-    );
-    out.include_possible(&VariableWriteEffects {
-        read_names: reads.literal_names,
-        opaque: reads.opaque_variable_frame,
-        ..VariableWriteEffects::default()
-    });
+    if let Some(purpose) = context.ownership {
+        out.include_possible(&selected_name_ownership(
+            words,
+            context,
+            state,
+            holder.as_ref(),
+            purpose,
+        ));
+    } else {
+        let projection = state.variable_write_projection_for_command_words_with_metadata_context(
+            words,
+            context.registry,
+            Some(context.metadata),
+            holder.as_ref(),
+        );
+        out.include_possible(&VariableWriteEffects {
+            names: projection.literal_names,
+            read_names: projection.read_before_write_names,
+            opaque: projection.opaque_variable_frame,
+        });
+        let reads = state.variable_read_projection_for_command_words_with_metadata_context(
+            words,
+            context.registry,
+            Some(context.metadata),
+            holder.as_ref(),
+        );
+        out.include_possible(&VariableWriteEffects {
+            read_names: reads.literal_names,
+            opaque: reads.opaque_variable_frame,
+            ..VariableWriteEffects::default()
+        });
+    }
     reevaluated_reads(words, context, state, holder.as_ref(), out, depth);
     state.source_order_registry_barrier_for_command_with_metadata_context(
         words,
@@ -334,6 +357,59 @@ fn command_writes(
         Traits::EVALUATES_CODE,
         Some(context.metadata),
     );
+}
+
+/// Conditional named operands under the exact materialized command horizon.
+/// The Registry owns role grammar, local alias names and list/root semantics.
+fn selected_name_ownership(
+    words: &[CommandWord],
+    context: &FootprintContext<'_>,
+    state: &ModuleCommandBindings,
+    holder: &crate::command_binding::SourceNamespaceKey,
+    purpose: crate::script_binds::Ownership,
+) -> VariableWriteEffects {
+    use tcl_registry::source_name_ownership::{SourceNameOwnershipPurpose, SourceRolePurpose};
+    let role_purpose = if context.metadata.permits_logical_source_names() {
+        SourceRolePurpose::Logical
+    } else {
+        SourceRolePurpose::Original
+    };
+    let purpose = match purpose {
+        crate::script_binds::Ownership::Bindings
+        | crate::script_binds::Ownership::DecodedBindings => SourceNameOwnershipPurpose::Bindings,
+        crate::script_binds::Ownership::BindingsOrNameReads => {
+            SourceNameOwnershipPurpose::BindingsOrNameReads
+        }
+        crate::script_binds::Ownership::ScopeAliases => SourceNameOwnershipPurpose::ScopeAliases,
+    };
+    let mut found = false;
+    let mut out = VariableWriteEffects::default();
+    state.for_each_resolved_command_words(words, holder, |target, invocation| {
+        found = true;
+        if !target.registry_backed {
+            out.opaque = true;
+            return;
+        }
+        let resolution =
+            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                context.registry,
+                Some(context.metadata.context()),
+                invocation,
+                state.invocation_realm(),
+            );
+        let Some(schema) = resolution.resolved() else {
+            out.opaque = true;
+            return;
+        };
+        let ownership = schema.authored_source_name_ownership(role_purpose, purpose);
+        out.include_possible(&VariableWriteEffects {
+            names: ownership.bindings,
+            read_names: ownership.by_name_reads,
+            opaque: ownership.opaque,
+        });
+    });
+    out.opaque |= !found;
+    out
 }
 
 fn reevaluated_reads(
@@ -418,7 +494,10 @@ fn immediate_values(
             opaque = true;
             return;
         };
-        bodies.extend(immediate_same_frame_script_values(&schema));
+        bodies.extend(immediate_same_frame_script_values_for_role_purpose(
+            &schema,
+            context.ownership.is_some() && context.metadata.permits_logical_source_names(),
+        ));
         if schema
             .semantics
             .traits
@@ -429,7 +508,17 @@ fn immediate_values(
                 None => opaque = true,
             }
         }
-        let Some(layout) = schema.authored_source_expression_arguments() else {
+        let logical =
+            context.ownership.is_some() && context.metadata.permits_logical_source_names();
+        if context.ownership.is_some() {
+            opaque |= immediate_body_ownership_is_opaque(&schema, logical);
+        }
+        let layout = if logical {
+            schema.authored_logical_source_expression_arguments()
+        } else {
+            schema.authored_source_expression_arguments()
+        };
+        let Some(layout) = layout else {
             opaque = true;
             return;
         };
@@ -500,17 +589,65 @@ fn template_value_plan(
     }
 }
 
+fn immediate_body_ownership_is_opaque(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    logical: bool,
+) -> bool {
+    if schema.semantics.body_kind != BodyKind::Plain
+        || schema
+            .semantics
+            .body_interpreter
+            .resolve(schema.words.arguments())
+            != tcl_registry::InterpreterScope::Current
+    {
+        return false;
+    }
+    let arguments = if logical {
+        schema.authored_logical_source_plain_script_arguments()
+    } else {
+        schema.authored_source_plain_script_arguments()
+    };
+    let Some(arguments) = arguments else {
+        return true;
+    };
+    arguments.into_iter().any(|ordinal| {
+        schema.authored_source_script_timing_at(ordinal) == Some(ScriptTiming::SameInvocation)
+            && (schema.words.arguments().literal_at(ordinal).is_none()
+                || (schema
+                    .semantics
+                    .traits
+                    .contains(Traits::SCRIPT_CONCATENATES_ARGS)
+                    && (ordinal..schema.words.arguments().len())
+                        .any(|index| schema.words.arguments().literal_at(index).is_none())))
+    })
+}
+
 /// Static values in immediate current-frame bodies of an already selected
 /// descriptor. This is possible source evaluation, never entered-script proof.
 pub(crate) fn immediate_same_frame_script_values(
     schema: &tcl_registry::ResolvedInvocation<'_, '_>,
 ) -> Vec<String> {
+    immediate_same_frame_script_values_for_role_purpose(schema, false)
+}
+
+fn immediate_same_frame_script_values_for_role_purpose(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    logical: bool,
+) -> Vec<String> {
     if schema.semantics.body_kind != BodyKind::Plain
-        || schema.semantics.body_interpreter != BodyInterpreter::Current
+        || schema
+            .semantics
+            .body_interpreter
+            .resolve(schema.words.arguments())
+            != tcl_registry::InterpreterScope::Current
     {
         return Vec::new();
     }
-    let (roles, complete) = schema.authored_source_argument_roles();
+    let (roles, complete) = if logical {
+        schema.authored_logical_source_argument_roles()
+    } else {
+        schema.authored_source_argument_roles()
+    };
     if !complete {
         return Vec::new();
     }
@@ -547,6 +684,7 @@ pub(crate) fn immediate_same_frame_script_values(
                     | tcl_dialect::model::Family::F5Tcl
                     | tcl_dialect::model::Family::F5Irules,
                 ) => tcl_syntax::list::concat_values(values),
+                None if logical => tcl_syntax::list::concat_values(values),
                 _ => continue,
             }
         } else {

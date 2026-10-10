@@ -56,6 +56,7 @@ durable_inventory!(
     memory_ssa,
     dynamic_names,
     complexity_guarded,
+    tier,
     base_offset,
     method_facts,
     irules_event_body,
@@ -78,6 +79,7 @@ durable_inventory!(
     connection_scope,
     caller_scope,
     declared_commands,
+    transfers,
 );
 
 /// Read-only exhaustive witness for both durable compiler types.

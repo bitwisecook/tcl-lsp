@@ -257,7 +257,7 @@ fn file_path_op(vm: &mut Vm, canon: &str, rest: &[Value]) -> Option<Completion<V
             path_str(&tcl_cmd_core::path::join(&names))
         }
         "dirname" => match rest {
-            [p] => path_str(tcl_cmd_core::path::dirname(p.to_str().as_bytes())),
+            [p] => path_str(&tcl_cmd_core::path::dirname(p.to_str().as_bytes())),
             _ => crate::command::native_wrong_arguments_message(
                 vm,
                 "wrong # args: should be \"file dirname name\"",

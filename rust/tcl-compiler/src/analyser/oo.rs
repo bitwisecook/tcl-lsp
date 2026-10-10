@@ -70,7 +70,7 @@ use super::types::{
     RenamedMember, Scope, ScopeKind, UnknownProcInfo,
 };
 use super::utils::{param_name_spans_for_token, parse_param_list};
-use crate::ir::{MethodKind, Module, Statement, SwitchMode};
+use crate::ir::{MethodKind, Statement, SwitchMode};
 use crate::signature_scan::types::ParamDef;
 
 /// Original-handler chaining follows the retained implementation identity.

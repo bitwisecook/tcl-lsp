@@ -111,6 +111,7 @@ pub use source_declared_command::{
     OriginalDeclaredCommandWords, OriginalDeclaredLogicalBodyContext,
     OriginalDeclaredSourceBodyFrame, OriginalDeclaredSourceObligation,
 };
+mod declaration_body_ownership;
 mod declaration_layout;
 pub use declaration_layout::SourceOriginalVariableFrame;
 mod declaration_preview;
@@ -5916,6 +5917,14 @@ fn trace_source_lookup(before: Option<(u64, u128)>, stage: &str, source_len: usi
 }
 
 impl SourceCommandBindings {
+    /// Borrow the original analysis availability ingress, including terminal
+    /// supplied-missing ownership. This creates no source or execution entry.
+    pub(crate) fn source_metadata_owner(
+        &self,
+    ) -> &crate::registry_invocation::OwnedInvocationMetadataContext {
+        &self.final_state.baseline.metadata_context
+    }
+
     /// Interpret a fresh authoring entry using the selected registry profile,
     /// or the compiler convenience driver's Tcl 9.0 native target when none
     /// is selected. Use [`Self::analyse_with_options`] for another runtime or
@@ -13224,7 +13233,7 @@ impl ModuleCommandBindings {
         for discarded_module in &discarded.modules {
             procedure_bodies.extend(discarded_module.procedures.keys().cloned());
         }
-        let state = Self {
+        let mut state = Self {
             opaque_domain: opaque_binding_mutation || options.unknown_entry,
             opaque_binding_mutation: opaque_binding_mutation || options.unknown_entry,
             dynamic_proc_binding,

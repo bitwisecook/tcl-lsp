@@ -85,7 +85,7 @@ fn overlaid_registry(
 
 /// The refusal a missing overlay becomes: the compile does not go ahead.
 fn overlay_refusal(miss: &OverlayMiss) -> CompileError {
-    CompileError(format!(
+    CompileError::Unsupported(format!(
         "{miss}: a compile without the workspace's packs would give commands the wrong \
          meaning, so it is declined"
     ))
@@ -555,7 +555,7 @@ impl CompileService for BytecodeCompileService {
         profile: &'static DialectProfile,
         entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
     ) -> Result<Self::Module, CompileError> {
-        let registry = self.registry.registry_for_profile(profile);
+        let registry = self.registry.registry_for_profile(profile)?;
         crate::codegen::native_substitution::compile(target, profile, entry, registry.as_ref())
     }
 
@@ -599,7 +599,7 @@ impl CompileService for BytecodeCompileService {
                 "native compilation entry profile does not match target".to_owned(),
             ));
         }
-        let registry = self.registry.registry_for_profile(profile);
+        let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_target_with(
             target.source,
             target.namespace,
@@ -623,7 +623,7 @@ impl CompileService for BytecodeCompileService {
                 "native compilation entry profile does not match target".to_owned(),
             ));
         }
-        let registry = self.registry.registry_for_profile(profile);
+        let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_procedure_target_with(
             target,
             dispatch == ProcedureDispatch::Plain,
@@ -668,7 +668,7 @@ impl CompileService for BytecodeCompileService {
         target: ScriptCompileTargetBytes<'_>,
         profile: &'static DialectProfile,
     ) -> Result<Self::Module, CompileError> {
-        let registry = self.registry.registry_for_profile(profile);
+        let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_script_bytes_target_with(
             target,
             false,
@@ -684,7 +684,7 @@ impl CompileService for BytecodeCompileService {
         target: ScriptCompileTargetBytes<'_>,
         profile: &'static DialectProfile,
     ) -> Result<Self::Module, CompileError> {
-        let registry = self.registry.registry_for_profile(profile);
+        let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_script_bytes_target_with(
             target,
             true,
@@ -702,7 +702,7 @@ impl CompileService for BytecodeCompileService {
         entry: &tcl_runtime_api::NativeCompilationEntry,
     ) -> Result<Self::Module, CompileError> {
         require_entry_profile(entry, profile)?;
-        let registry = self.registry.registry_for_profile(profile);
+        let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_script_bytes_target_with(
             target,
             false,
@@ -720,7 +720,7 @@ impl CompileService for BytecodeCompileService {
         entry: &tcl_runtime_api::NativeCompilationEntry,
     ) -> Result<Self::Module, CompileError> {
         require_entry_profile(entry, profile)?;
-        let registry = self.registry.registry_for_profile(profile);
+        let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_script_bytes_target_with(
             target,
             true,
@@ -737,7 +737,7 @@ impl CompileService for BytecodeCompileService {
         profile: &'static DialectProfile,
         dispatch: ProcedureDispatch,
     ) -> Result<Self::Module, CompileError> {
-        let registry = self.registry.registry_for_profile(profile);
+        let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_procedure_bytes_target_with(
             target,
             dispatch == ProcedureDispatch::Plain,
@@ -756,7 +756,7 @@ impl CompileService for BytecodeCompileService {
         dispatch: ProcedureDispatch,
     ) -> Result<Self::Module, CompileError> {
         require_entry_profile(entry, profile)?;
-        let registry = self.registry.registry_for_profile(profile);
+        let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_procedure_bytes_target_with(
             target,
             dispatch == ProcedureDispatch::Plain,
@@ -2562,7 +2562,10 @@ mod tests {
             namespace: "",
         };
         let declined = |what: &str, result: Result<tcl_bytecode::ModuleAsm, CompileError>| {
-            let CompileError(message) = result.err().unwrap_or_else(|| panic!("{what} compiled"));
+            let error = result.err().unwrap_or_else(|| panic!("{what} compiled"));
+            let CompileError::Unsupported(message) = error else {
+                panic!("{what}: a missing overlay must be an operational refusal: {error:?}");
+            };
             assert!(
                 message.contains("0xc5e0003") && message.contains("tcl9.0"),
                 "{what}: {message}"
@@ -2649,7 +2652,7 @@ mod tests {
                     ),
                 ),
             ] {
-                let module = module.unwrap_or_else(|e| panic!("{name} {what}: {}", e.0));
+                let module = module.unwrap_or_else(|error| panic!("{name} {what}: {error}"));
                 assert_eq!(module.manifest.as_deref(), Some(&expected), "{name} {what}");
             }
         }

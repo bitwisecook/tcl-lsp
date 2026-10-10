@@ -49,7 +49,7 @@ use crate::types::{TypeKind, TypeLattice};
 
 use super::hints::{
     ShimmerExpectation, invocation_shimmer_expectation, is_free_first_conversion,
-    is_numeric_compatible, is_uncommitted_first_conversion,
+    is_numeric_compatible,
 };
 use super::span::def_range_map;
 use super::{ShimmerWarning, type_name};

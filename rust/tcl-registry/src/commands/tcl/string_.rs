@@ -604,6 +604,22 @@ pub fn string_is_member_type(args: &[&str]) -> Option<TclType> {
     }
 }
 
+/// Conditional C class type under the independently selected invocation
+/// family and release. Lexical numeral grammar supplies no class availability,
+/// and this projection supplies no physical cache, frame or store effects.
+#[must_use]
+pub fn string_is_member_type_for_dialect(
+    args: &[&str],
+    dialect: crate::InvocationDialect,
+) -> Option<TclType> {
+    let point = dialect.execution_point()?;
+    if point.family() != tcl_dialect::model::Family::Tcl {
+        return None;
+    }
+    let class = tcl_cmd_core::string_is::resolve_class(args.first().copied()?).ok()?;
+    class_available(class, point.tcl_version()).then(|| string_is_member_type(args))?
+}
+
 /// Whether `string is class` is a *defined* operation in the target version
 /// (it doesn't *raise*).  `wideinteger` requires 8.5+, `entier` 8.6+, and
 /// `dict` is **9.0-only** (matching the gating below); an unknown version
@@ -2626,6 +2642,51 @@ mod tests {
             fold_is(&["integer", "-failindex", "v", "42"], None),
             None,
             "-failindex writes a var → bail"
+        );
+    }
+
+    #[test]
+    fn original_class_type_projection_requires_its_own_family_and_release() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Software class-policy selection only; no Native cache/frame/store
+        // observation or successful command evaluation is asserted.
+        let c84 = crate::InvocationDialect::for_version(TclVersion::V8_4);
+        let c86 = crate::InvocationDialect::for_version(TclVersion::V8_6);
+        let mut c90 = crate::InvocationDialect::for_version(TclVersion::V9_0);
+        c90.numbers = tcl_dialect::NumberSyntax::Tcl85;
+        assert_eq!(
+            string_is_member_type_for_dialect(&["wideinteger", "-strict", "VALUE"], c84),
+            None
+        );
+        assert_eq!(
+            string_is_member_type_for_dialect(&["wideinteger", "-strict", "VALUE"], c86),
+            Some(TclType::Int)
+        );
+        assert_eq!(
+            string_is_member_type_for_dialect(&["dict", "VALUE"], c86),
+            None
+        );
+        assert_eq!(
+            string_is_member_type_for_dialect(&["dict", "VALUE"], c90),
+            Some(TclType::Dict)
+        );
+        assert_eq!(
+            string_is_member_type_for_dialect(&["integer", "-failindex", "out", "VALUE"], c90),
+            None
+        );
+        let jim = crate::InvocationDialect::of_profile(
+            tcl_dialect::DialectProfile::find("jimtcl").unwrap(),
+        );
+        assert_eq!(
+            string_is_member_type_for_dialect(&["integer", "-strict", "VALUE"], jim),
+            None
+        );
+        let mut foreign = c90;
+        foreign.native_family = Some(tcl_dialect::model::Family::Jim);
+        assert_eq!(
+            string_is_member_type_for_dialect(&["dict", "VALUE"], foreign),
+            None
         );
     }
 

@@ -179,7 +179,7 @@ impl BodySourceProofs {
             }
         }
         for node in cfg.loop_nodes.values_mut() {
-            valid &= self.restore_statement(&mut node.for_stmt);
+            valid &= self.restore_statement(&mut node.statement);
         }
         valid
     }

@@ -482,6 +482,9 @@ pub(crate) struct CatchEndRecord {
 /// explanations the run records for the statement it is evaluating.
 pub(crate) struct LatticeDriver<'a> {
     registry: &'a CommandRegistry,
+    /// Terminal unavailable, explicit standalone, or the actual retained generation.
+    metadata_context: Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>>,
+    source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     folds: Option<BuiltinFoldInputs<'a>>,
     policy: FoldPolicy,
     context: AnalysisContext,
@@ -1279,7 +1282,20 @@ impl<'a> LatticeDriver<'a> {
         escaping: &HashSet<String>,
     ) -> Self {
         let registry = trace.registry;
-        let profile = registry.profile();
+        let profile = trace
+            .source_metadata_input
+            .map(crate::analyser::ResolvedAnalysisInput::unit_profile)
+            .or_else(|| registry.profile());
+        let metadata_context = trace.source_metadata_input.map_or(Some(None), |input| {
+            crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                registry, input,
+            )
+            .map(Some)
+        });
+        let lexer_config = trace.source_metadata_input.map_or_else(
+            || LexerConfig::for_profile(profile),
+            crate::analyser::ResolvedAnalysisInput::lexer_config,
+        );
         let key = trace.analysis_context;
         let context = AnalysisContext {
             registry_generation: key.map_or(0, |k| k.registry_generation),
@@ -1289,7 +1305,9 @@ impl<'a> LatticeDriver<'a> {
                 .unwrap_or_default(),
             namespace: "::".to_owned(),
             profile,
-            grammar: profile.map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
+            grammar: lexer_config.grammar_over(
+                profile.map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
+            ),
             traced_variables: trace.traced_variables.clone(),
             has_dynamic_variable_trace: trace.has_dynamic_variable_trace,
             escaping: escaping.iter().cloned().collect(),
@@ -1306,11 +1324,13 @@ impl<'a> LatticeDriver<'a> {
         });
         Self {
             registry,
+            metadata_context,
+            source_metadata_input: trace.source_metadata_input,
             folds,
             policy,
             context,
-            lexer_config: LexerConfig::for_profile(profile),
-            typed_assignment,
+            lexer_config,
+            typed_assignment: typed_assignment && metadata_context.is_some(),
             nesting: Cell::new(0),
             explaining: Cell::new(None),
             throwing: Cell::new(false),
@@ -1336,6 +1356,45 @@ impl<'a> LatticeDriver<'a> {
             function: "::",
             reads_module: Cell::new(false),
         }
+    }
+
+    /// Retain the CFG's original availability mode. A missing actual input
+    /// cannot acquire detached catalogue compatibility from TraceInputs::None.
+    pub(crate) fn with_cfg_metadata(
+        mut self,
+        owner: &'a crate::registry_invocation::OwnedInvocationMetadataContext,
+    ) -> Self {
+        self.metadata_context = owner.metadata_context(self.registry);
+        if let Some(input) = owner.source_analysis_input() {
+            let agrees = self.source_metadata_input.is_some_and(|trace| {
+                std::ptr::eq(
+                    trace.borrowed_context_registry(),
+                    input.borrowed_context_registry(),
+                ) && trace.unit_profile().cache_key() == input.unit_profile().cache_key()
+                    && trace.analyser_profile().cache_key() == input.analyser_profile().cache_key()
+                    && trace.lexer_config().normalized() == input.lexer_config().normalized()
+                    && trace.vendor_source_policy() == input.vendor_source_policy()
+            });
+            if !agrees {
+                self.metadata_context = None;
+            }
+            self.context.profile = Some(input.unit_profile());
+            self.context.grammar = input
+                .lexer_config()
+                .grammar_over(input.unit_profile().grammar);
+            self.lexer_config = input.lexer_config();
+        } else if owner.is_standalone() {
+            if self.source_metadata_input.is_some() {
+                self.metadata_context = None;
+            }
+        } else {
+            // Availability-only or withdrawn ownership supplies no source
+            // grammar/profile from a nominal registry label.
+            self.context.profile = None;
+            self.context.grammar = tcl_dialect::LexerGrammar::default();
+        }
+        self.typed_assignment &= self.metadata_context.is_some();
+        self
     }
 
     /// Say which function the run analyses and what it reads of the module
@@ -2119,6 +2178,7 @@ impl<'a> LatticeDriver<'a> {
             uses: before.clone(),
             defs: marker.defs.clone(),
             may_defs: marker.may_defs.clone(),
+            destruction_defs: marker.destruction_defs.clone(),
             quoted_uses: HashSet::new(),
             name_only_uses: HashSet::new(),
         };
@@ -2605,8 +2665,8 @@ impl<'a> LatticeDriver<'a> {
         self.folds.is_some_and(|f| f.proven_pure_parameters)
     }
 
-    /// Resolve `head args…` through the invocation resolver under the
-    /// registry's own surface.
+    /// Resolve through the retained availability generation. Only explicitly
+    /// standalone runs use the registry's catalogue surface.
     fn resolve<'w>(
         &self,
         head: &'w str,
@@ -2615,12 +2675,21 @@ impl<'a> LatticeDriver<'a> {
     where
         'a: 'w,
     {
-        self.registry
-            .resolve_structured_invocation(
+        match self.metadata_context? {
+            Some(context) => {
+                tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    self.registry,
+                    Some(context.context()),
+                    InvocationWords::structured(InvocationWord::Literal(head), words),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                )
+            }
+            None => self.registry.resolve_structured_invocation(
                 InvocationWords::structured(InvocationWord::Literal(head), words),
                 self.registry.own_surface_query(),
-            )
-            .resolved()
+            ),
+        }
+        .resolved()
     }
 
     /// The typed `Incr` statement: its node projects to the invocation view
@@ -3815,7 +3884,10 @@ impl<'a> LatticeDriver<'a> {
         let lookup = |name: &str| lattice_const_text(name, uses, values, ssa);
         let folded = crate::const_subst::ConstSubstCtx {
             registry: f.registry,
-            resolution_namespace: "::",
+            resolution_namespace: &self.context.namespace,
+            // This detached value spelling retains no original physical
+            // namespace/token owner for executable dependencies.
+            namespace_context: None,
             version: f
                 .dialect
                 .and_then(tcl_dialect::DialectProfile::const_fold_version),
@@ -5001,7 +5073,7 @@ fn proven_substitution(
                 let (value, _) = read(&variable_name(&reference).ok()?)?;
                 bytes.extend_from_slice(&value.bytes);
             }
-            Part::Command(_) | Part::ParseError(_) => return None,
+            Part::Command(_) | Part::Expression(_) | Part::ParseError(_) => return None,
         }
     }
     Some((exact_of_bytes(bytes), None))
@@ -5764,6 +5836,7 @@ impl<'t> ArgWord<'t> {
     fn word(&self) -> InvocationWord<'_> {
         match self.kind {
             InvocationWordKind::Literal => InvocationWord::Literal(&self.text),
+            InvocationWordKind::KnownBytes => InvocationWord::KnownBytes(self.text.as_bytes()),
             InvocationWordKind::Dynamic => InvocationWord::Dynamic,
             InvocationWordKind::Expanded => InvocationWord::Expanded,
             InvocationWordKind::Opaque => InvocationWord::Opaque,
@@ -6286,6 +6359,9 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
             InvocationWordKind::Literal => {
                 FactView::Exact(ExactValue::from_literal(operand.text), None)
             }
+            // OperandView is a text-only compatibility projection. It cannot
+            // recover an independently retained non-Unicode byte payload.
+            InvocationWordKind::KnownBytes => FactView::Top(DeclineReason::NotText),
             InvocationWordKind::Dynamic => match self.sources.get(id.0) {
                 Some(OperandSource::Substituted) => match &self.words {
                     Words::Independent => self.substituted(operand.text),
@@ -6559,6 +6635,7 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
                     },
                     Err(_) => return FactView::Top(DeclineReason::NotText),
                 },
+                Part::Expression(_) => return FactView::Top(DeclineReason::Unsupported),
                 Part::ParseError(_) => return FactView::Top(DeclineReason::WrongRepresentation),
             };
             match value {
@@ -6640,6 +6717,7 @@ fn word_parts(text: &str, config: LexerConfig) -> Result<Vec<WordPart>, DeclineR
                         .map_err(|_| DeclineReason::NotText)?
                         .to_owned(),
                 }),
+                Part::Expression(_) => Err(DeclineReason::Unsupported),
                 Part::ParseError(_) => Err(DeclineReason::WrongRepresentation),
             }
         })
@@ -6998,6 +7076,7 @@ impl StateInputs<'_> {
                         EvalAnswer::Declined(reason) => return Err(reason),
                     }
                 }
+                Part::Expression(_) => return Err(DeclineReason::Unsupported),
                 Part::ParseError(_) => return Err(DeclineReason::WrongRepresentation),
             };
             bytes.extend_from_slice(&value.bytes);
@@ -7622,6 +7701,7 @@ pub(crate) enum DictBinder {
 /// writes them back (`dict with`, `dict update`, under whichever spelling
 /// the registry resolves), asked over `prior`. The key path is the exact
 /// words the plan read on its way to the dictionary's keys.
+#[cfg(test)]
 fn dict_body_plan(
     registry: &CommandRegistry,
     head: &str,
@@ -7667,6 +7747,7 @@ fn dict_body_plan(
 /// args…` declares binds a dictionary's keys into its body and writes them
 /// back — whatever the dictionary holds, so a call whose keys the analysis
 /// cannot name is still found.
+#[cfg(test)]
 pub(crate) fn dict_body_operand(
     registry: &CommandRegistry,
     head: &str,
@@ -7681,6 +7762,7 @@ pub(crate) fn dict_body_operand(
 /// the dictionary holds its key. `None` when the call is no dictionary
 /// body, or its dictionary does not hold the key path (the command's
 /// error).
+#[cfg(test)]
 pub(crate) fn dict_body(
     registry: &CommandRegistry,
     head: &str,
@@ -7714,6 +7796,133 @@ pub(crate) fn dict_body(
     )
 }
 
+/// A dictionary body's lexical binders under the exact retained source
+/// invocation. These are conditional diagnostic hints, not executed stores.
+fn dict_body_plan_with_metadata_context(
+    registry: &CommandRegistry,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+    prior: Prior<'_>,
+) -> Option<(
+    OperandId,
+    Vec<tcl_registry::value_transfer::Binder>,
+    Vec<String>,
+)> {
+    let input = metadata.source_analysis_input()?;
+    let binding = tokens.source_binding.as_ref()?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    if config.normalized() != input.lexer_config().normalized() {
+        return None;
+    }
+    let invocation =
+        crate::registry_invocation::original_callback_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )?;
+    let realm = binding.invocation_realm().or_else(|| {
+        binding
+            .declaration_operand_layout_advice(tokens)
+            .map(|advice| advice.realm())
+    })?;
+    let mut context = AnalysisContext::detached(Some(input.unit_profile()));
+    context.grammar = config.grammar_over(input.unit_profile().grammar);
+    context.registry_generation = registry.generation();
+    context.overlay_generation = registry.overlay_generation();
+    invocation.with_metadata_schema(registry, metadata, realm, |resolved| {
+        let semantics = resolved.semantics.value.semantics()?;
+        let values: Vec<_> = (0..invocation.arguments.len())
+            .map(|index| invocation.argument_word(index))
+            .collect();
+        let words: Vec<_> = values
+            .iter()
+            .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
+            .collect();
+        let texts: Vec<_> = (0..invocation.arguments.len())
+            .map(|index| invocation.argument_literal(index).unwrap_or_default())
+            .collect();
+        let borrowed: Vec<_> = texts.iter().map(String::as_str).collect();
+        let mut inputs = StructureInputs::new(
+            view_of(resolved, &borrowed, &words, InvocationLayout::Source),
+            &context,
+        );
+        inputs.prior = prior;
+        let PlanAnswer::Body {
+            binders,
+            reconcile: tcl_registry::value_transfer::Reconcile::WriteBackKeys(dict),
+            ..
+        } = semantics.structure(&inputs)
+        else {
+            return None;
+        };
+        Some((
+            dict,
+            binders,
+            inputs
+                .exact_read_texts()
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+        ))
+    })
+}
+
+/// Select the effective dictionary operand through original lookup and supplied
+/// availability. Captured aliases retain their effective operand coordinates.
+pub(crate) fn dict_body_operand_with_metadata_context(
+    registry: &CommandRegistry,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+) -> Option<(usize, String)> {
+    let (dict, ..) =
+        dict_body_plan_with_metadata_context(registry, metadata, tokens, Prior::KeyPath)?;
+    let invocation =
+        crate::registry_invocation::original_callback_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )?;
+    Some((dict.0, invocation.argument_literal(dict.0)?))
+}
+
+/// Conditional dictionary-body binder values, with the original selected
+/// grammar and effective alias operands. This does not prove body entry.
+pub(crate) fn dict_body_with_metadata_context(
+    registry: &CommandRegistry,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+    dictionary: &str,
+) -> Option<Vec<DictBinder>> {
+    let (_, binders, path) =
+        dict_body_plan_with_metadata_context(registry, metadata, tokens, Prior::Known(dictionary))?;
+    let invocation =
+        crate::registry_invocation::original_callback_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )?;
+    let rules = WordValueRules::from_config(
+        &tokens
+            .source_binding
+            .as_ref()?
+            .original_lexer_config_for_tokens(tokens)?,
+    );
+    let level = path.iter().try_fold(dictionary.to_owned(), |level, key| {
+        dict_value_at(rules, &level, key)
+    })?;
+    Some(
+        binders
+            .into_iter()
+            .filter_map(|binder| match binder.name {
+                BinderName::Declared(name) => Some(DictBinder::Key {
+                    value: dict_value_at(rules, &level, &name)?,
+                    name,
+                }),
+                BinderName::Operand(id) => id.0.checked_sub(1).map(|key| DictBinder::Variable {
+                    variable: id.0,
+                    bound: invocation
+                        .argument_literal(key)
+                        .is_some_and(|key| dict_value_at(rules, &level, &key).is_some()),
+                }),
+            })
+            .collect(),
+    )
+}
+
 /// The value `key` maps to in the dictionary `text`, split as the
 /// dialect's `rules` split a list: the last pair's, as `dict get` reads a
 /// list with a repeated key.
@@ -7729,56 +7938,6 @@ fn dict_value_at(rules: WordValueRules, text: &str, key: &str) -> Option<String>
         .rev()
         .find(|[held, _]| held.as_ref() == key)
         .map(|[_, value]| value.to_string())
-}
-
-/// The element writes the call `head args…` states over its literal words:
-/// each `(array, key, value)` its registry route's outcome writes by key
-/// (`array set arr {k v …}`). The lattice holds the same writes in a
-/// function without a barrier, and loses them in one with a barrier, which
-/// widens every value the function holds; a flow-insensitive reader takes
-/// the statement's own. Only a call with a declared store target is run.
-pub(crate) fn literal_element_writes(
-    registry: &CommandRegistry,
-    head: &str,
-    args: &[String],
-) -> Vec<(String, String, String)> {
-    let texts: Vec<&str> = args.iter().map(String::as_str).collect();
-    let words: Vec<InvocationWord<'_>> = texts.iter().copied().map(word_of).collect();
-    let Some(resolved) = registry
-        .resolve_structured_invocation(
-            InvocationWords::structured(InvocationWord::Literal(head), &words),
-            registry.own_surface_query(),
-        )
-        .resolved()
-    else {
-        return Vec::new();
-    };
-    let Some(semantics) = resolved.semantics.value.semantics() else {
-        return Vec::new();
-    };
-    let context = AnalysisContext::detached(registry.profile());
-    let inputs = StructureInputs::new(
-        view_of(&resolved, &texts, &words, InvocationLayout::Source),
-        &context,
-    );
-    if semantics.store_targets(&inputs).is_empty() {
-        return Vec::new();
-    }
-    let EvalAnswer::Evaluated(outcome) = semantics.evaluate(&inputs, &mut Budget::evaluation())
-    else {
-        return Vec::new();
-    };
-    outcome
-        .ordered_stores
-        .into_iter()
-        .filter_map(|store| match store {
-            StoreOutcome::WriteElement { target, key, value } => {
-                let array = inputs.place(target.0).ok()?.name;
-                Some((array, key, String::from_utf8(value.bytes).ok()?))
-            }
-            _ => None,
-        })
-        .collect()
 }
 
 /// How one word of a call reads in its source, for a template plan asked
@@ -8116,6 +8275,86 @@ pub(crate) fn evaluate_over_x(text: &str, nested: NestedPolicy) -> LiftedAnswer 
 mod tests {
     use super::*;
 
+    #[test]
+    fn lattice_driver_retains_actual_cfg_availability_and_source_grammar() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        use crate::registry_invocation::OwnedInvocationMetadataContext as Owner;
+        use std::sync::Arc;
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = LexerConfig {
+            expand_syntax: false,
+            ..LexerConfig::for_file_grammar(profile.grammar)
+        };
+        assert!(profile.grammar.expand_syntax);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let older_context = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(context.commands())),
+        );
+        let older =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, older_context, config);
+        let policy = FoldPolicy::for_profile(None, Some(profile));
+        let driver = |input| {
+            LatticeDriver::new(
+                TraceInputs {
+                    source_metadata_input: input,
+                    registry: context.commands(),
+                    traced_variables: &EMPTY_NAMES,
+                    has_dynamic_variable_trace: false,
+                    deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
+                    analysis_context: None,
+                    existence: None,
+                },
+                None,
+                policy,
+                &HashSet::new(),
+            )
+        };
+        let throw_arguments = [
+            InvocationWord::Literal("CODE"),
+            InvocationWord::Literal("MESSAGE"),
+        ];
+        let string_arguments = [
+            InvocationWord::Literal("length"),
+            InvocationWord::Literal("abc"),
+        ];
+        let owner = Owner::for_source_input(Some(&input));
+        let entry_driver = driver(Some(&input));
+        assert!(!entry_driver.context.grammar.expand_syntax);
+        let selected = entry_driver.with_cfg_metadata(&owner);
+        assert_eq!(selected.lexer_config, config);
+        assert!(!selected.context.grammar.expand_syntax);
+        assert_eq!(
+            selected
+                .context
+                .profile
+                .map(tcl_dialect::DialectProfile::cache_key),
+            Some(profile.cache_key())
+        );
+        assert!(selected.resolve("throw", &throw_arguments).is_some());
+        let older_owner = Owner::for_source_input(Some(&older));
+        let older_selected = driver(Some(&older)).with_cfg_metadata(&older_owner);
+        assert_eq!(older_selected.lexer_config, config);
+        assert!(older_selected.resolve("throw", &throw_arguments).is_none());
+        let mismatched = driver(Some(&input)).with_cfg_metadata(&older_owner);
+        assert!(mismatched.resolve("string", &string_arguments).is_none());
+        let unavailable_owner = Owner::Unavailable;
+        let unavailable = driver(None).with_cfg_metadata(&unavailable_owner);
+        assert!(!unavailable.typed_assignment);
+        assert!(unavailable.resolve("string", &string_arguments).is_none());
+        let standalone_owner = Owner::Standalone;
+        let standalone = driver(None).with_cfg_metadata(&standalone_owner);
+        assert!(standalone.resolve("string", &string_arguments).is_some());
+    }
+
     thread_local! {
         /// The request size the next driver on this thread opens, when set.
         pub(super) static REQUEST_WORK: Cell<Option<u64>> = const { Cell::new(None) };
@@ -8394,6 +8633,121 @@ mod tests {
             holds("c", &set_of(&["y", "w"])),
             "{:?}",
             function.sccp.values
+        );
+    }
+
+    #[test]
+    fn original_dictionary_body_plan_keeps_aliases_literal_names_and_availability() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Original lexical binder plan only; the supplied dictionary is a
+        // separate premise, with no successful body entry or store claim.
+        use std::sync::Arc;
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, &input,
+        )
+        .unwrap();
+        let source = "interp alias {} unpack {} dict with {$dictionary}; unpack {}";
+        let mut lowerer =
+            crate::lowering::Lowerer::new(registry).with_resolved_analysis_input(input.clone());
+        let module = lowerer.lower(source);
+        let statement = module
+            .top_level
+            .statements
+            .last()
+            .expect("original alias call");
+        let tokens = module
+            .top_level
+            .retained_source_tokens_for_statement(statement)
+            .expect("original source argv");
+        assert_eq!(
+            dict_body_operand_with_metadata_context(registry, metadata, tokens),
+            Some((1, "$dictionary".to_owned()))
+        );
+        assert_eq!(
+            dict_body_with_metadata_context(registry, metadata, tokens, "$output ONE é( TWO"),
+            Some(vec![
+                DictBinder::Key {
+                    name: "$output".to_owned(),
+                    value: "ONE".to_owned()
+                },
+                DictBinder::Key {
+                    name: "é(".to_owned(),
+                    value: "TWO".to_owned()
+                },
+            ])
+        );
+        let older_context = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(registry)),
+        );
+        let older =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, older_context, config);
+        let older_metadata =
+            crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                registry, &older,
+            )
+            .unwrap();
+        assert!(
+            dict_body_operand_with_metadata_context(registry, older_metadata, tokens).is_none()
+        );
+        assert!(
+            dict_body_with_metadata_context(registry, (&*context).into(), tokens, "$output ONE")
+                .is_none(),
+            "availability-only input cannot invent source context"
+        );
+        let foreign_context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let foreign =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, foreign_context, config);
+        assert!(
+            crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                registry, &foreign
+            )
+            .is_none()
+        );
+        let stale = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            LexerConfig {
+                expand_syntax: !config.expand_syntax,
+                ..config
+            },
+        );
+        let stale_metadata =
+            crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                registry, &stale,
+            )
+            .unwrap();
+        assert!(
+            dict_body_operand_with_metadata_context(registry, stale_metadata, tokens).is_none()
+        );
+        let mut replaced =
+            crate::lowering::Lowerer::new(registry).with_resolved_analysis_input(input.clone());
+        let changed = replaced.lower("proc dict args {return CUSTOM}; dict with {$dictionary} {}");
+        let changed_call = changed
+            .top_level
+            .statements
+            .last()
+            .expect("original replacement call");
+        let changed_tokens = changed
+            .top_level
+            .retained_source_tokens_for_statement(changed_call)
+            .expect("original replacement argv");
+        assert!(
+            dict_body_operand_with_metadata_context(registry, metadata, changed_tokens).is_none()
         );
     }
 

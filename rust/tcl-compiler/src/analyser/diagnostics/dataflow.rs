@@ -75,8 +75,9 @@ use tcl_registry::value_transfer::{DomainFact, Existence, FactView};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::helpers::{
-    PhiUndefMemo, UndefSuppression, build_phi_undef_index, find_dotted_quads, is_ident_continue,
-    is_word_byte, phi_can_undef, source_slice,
+    PhiUndefMemo, UndefSuppression, block_dominated_by, build_phi_undef_index,
+    collect_existence_guards, find_dotted_quads, is_ident_continue, is_word_byte, phi_can_undef,
+    source_slice,
 };
 use crate::analyser::bounds_checks::HeaderFact;
 use crate::analyser::state::Analyser;
@@ -767,7 +768,7 @@ file; this call falls through to the 'unknown' handler."
             if chain.definition.kind != DefKind::Statement {
                 continue;
             }
-            let (cell_name, _version) = &chain.key;
+            let (cell_name, version) = &chain.key;
             let Some(symbol) = fu.ssa.cell_symbol(cell_name) else {
                 continue;
             };
@@ -1130,7 +1131,7 @@ file; this call falls through to the 'unknown' handler."
             {
                 continue;
             }
-            if observed_by_unseen_calls.contains(var.as_str()) {
+            if observed_by_unseen_calls.contains(var) {
                 continue;
             }
             // A synthetic may-def (base refresh / element fan) is not a
@@ -1998,7 +1999,6 @@ file; this call falls through to the 'unknown' handler."
         use std::fmt::Write as _;
         let mut entries: Vec<(String, tcl_lexer::Span)> = spans.into_iter().collect();
         entries.sort_by_key(|(_, s)| s.start());
-        let reported = entries.iter().map(|(var, _)| var.clone()).collect();
         for (var, span) in entries {
             let mut message = format!("Variable '{var}' is read before it is set");
             if let Some(similar) = undefined_var_suggestion(&var, ctx.defined_vars) {
@@ -2013,7 +2013,6 @@ file; this call falls through to the 'unknown' handler."
                     Severity::Warning,
                 ));
         }
-        reported
     }
 
     /// Record the earliest read-before-set span for one undef def-use chain
@@ -2205,7 +2204,7 @@ file; this call falls through to the 'unknown' handler."
             }
             // Skip the existence-query word itself and
             // reads narrowed by an enclosing `[info exists X]` guard.
-            if existence_exempt(
+            if is_existence_query_word(
                 stmt_opt,
                 cell_name,
                 ctx.exists_guards,
@@ -2495,7 +2494,7 @@ file; this call falls through to the 'unknown' handler."
             return false;
         }
         let undef_ctx = super::helpers::PhiUndefCtx {
-            registry: ctx.registry,
+            registry: &ctx.registry,
             phi_def: phi_idx.phi_def,
             phi_block: phi_idx.phi_block,
             killed: phi_idx.killed,
@@ -2933,42 +2932,9 @@ file; this call falls through to the 'unknown' handler."
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) {
-        // The fold consults the registry's scope-alias roles to skip
-        // out-of-frame-linked locals; a registry-less analyser falls back to
-        // the cached default registry (the same convention as
-        // `command_takes_regex_pattern` — direct handler calls in unit
-        // tests), so the alias skip stays sound there too.
-        let branches = {
-            // Scoped borrow: `self.registry.as_deref()` must release before the
-            // `&mut self` diagnostic pushes below.
-            let generation = self.analysis_context();
-            let registry = self.registry.as_deref().unwrap_or(generation.commands());
-            crate::sccp::existence_constant_branches_with_ssa(
-                &fu.cfg,
-                frame,
-                registry,
-                self.lexer_config(),
-                &fu.ssa,
-            )
-        };
-        for cb in branches {
-            let Some(span) = cb.span.map(|s| fu.abs_span(s)) else {
-                continue;
-            };
-            self.result
-                .diagnostics
-                .push(crate::analyser::types::Diagnostic::new(
-                    DiagCode::I231,
-                    fu.abs_span(span),
-                    format!(
-                        "{} arm '{}' is never selected; this arm is unreachable",
-                        case_list_command(fu, arm),
-                        arm.condition,
-                    ),
-                    // I230/I231 are observational (LSP `Information`).
-                    Severity::Info,
-                ));
-        }
+        self.emit_constant_branch_diagnostics(fu);
+        self.emit_selected_arm_diagnostics(fu);
+        self.resolve_loop_terminations(fu);
     }
 
     /// W126 — channel-argument validation.
@@ -4025,8 +3991,12 @@ fn names_observed_by_unseen_calls(fu: &crate::compilation_unit::FunctionUnit) ->
     fu.def_use
         .chains
         .keys()
-        .filter(|(name, held)| fu.ssa.name_is_observed_by_unseen_call(name, *held))
-        .map(|(name, _)| name.as_str())
+        .filter_map(|(cell, held)| {
+            let symbol = fu.ssa.cell_symbol(cell)?;
+            fu.ssa
+                .is_observed_by_unseen_call(symbol, *held)
+                .then(|| fu.ssa.var_name(symbol))
+        })
         .collect()
 }
 

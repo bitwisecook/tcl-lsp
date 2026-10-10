@@ -85,3 +85,62 @@ impl CodegenCtx<'_> {
         true
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use tcl_runtime_api::CompileService;
+
+    #[test]
+    fn original_comparison_preparation_reaches_nested_words_without_an_inline_hook() {
+        // naming.mathop-procedure-source-controls
+        // docs/design/analysis/name-resolution-proofs/mathop-procedure-source-controls.md
+        // Emission keeps the actual compiler recipe; the unchanged native
+        // control separately checks public completion and operand effects.
+        let operands = "[::tcl::mathop::<] [::tcl::mathop::< [tick]] [::tcl::mathop::eq [tick]]";
+        for engine in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
+            let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
+            let (_owner, entry) =
+                crate::environment_ingress::captured_native_entry_with_owner(profile);
+            for source in [
+                format!("list {operands}"),
+                format!("return [list {operands}]"),
+            ] {
+                let module = service
+                    .compile_procedure_with_entry(
+                        tcl_runtime_api::ProcedureCompileTarget {
+                            source: &source,
+                            namespace: "::",
+                            parameters: &[],
+                        },
+                        profile,
+                        &entry,
+                        tcl_runtime_api::ProcedureDispatch::Optimised,
+                    )
+                    .unwrap();
+                for original in [
+                    b"::tcl::mathop::<".as_slice(),
+                    b"::tcl::mathop::< [tick]".as_slice(),
+                    b"::tcl::mathop::eq [tick]".as_slice(),
+                ] {
+                    assert!(
+                        module.top_level.instructions.iter().any(|instruction| {
+                            instruction.native_compiler_selection.is_some()
+                                && instruction.source_cmd_text.bytes() == original
+                        }),
+                        "{engine}/{source}: original compiler selection for {original:?}",
+                    );
+                }
+                assert!(
+                    module
+                        .top_level
+                        .literals
+                        .entries()
+                        .iter()
+                        .all(|literal| literal.bytes() != b"tick"),
+                    "{engine}/{source}: the selected comparison recipe has no operand invocation",
+                );
+            }
+        }
+    }
+}

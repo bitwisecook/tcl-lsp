@@ -157,6 +157,7 @@ impl CompiledUnit {
             interpreter,
             compiler: CompilerProvenance::NativeScript,
             fatal_tail: None,
+            manifest: None,
         }
     }
     pub(crate) fn new(

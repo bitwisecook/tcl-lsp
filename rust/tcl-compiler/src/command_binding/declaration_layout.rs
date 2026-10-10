@@ -1805,13 +1805,15 @@ impl super::SourceInvocationBinding {
                             .iter()
                             .any(|read| context.activation != read.activation)
                         || local_read_scope_is_excluded(context, name)
-                        || crate::script_binds::script_image_binds_name(
-                            &observation.entry.source().text,
-                            name,
-                            crate::script_binds::Ownership::ScopeAliases,
-                            registry,
-                            config,
-                        )
+                        || observation
+                            .source_body_name_ownership(
+                                registry,
+                                crate::script_binds::Ownership::ScopeAliases,
+                            )
+                            .is_none_or(|effects| {
+                                effects.opaque
+                                    || effects.names.iter().any(|candidate| candidate == name)
+                            })
                 })
             {
                 continue;
@@ -1888,7 +1890,6 @@ impl super::SourceInvocationBinding {
         {
             return None;
         }
-        let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
         let observations =
             original_declaration_layouts(self.declaration_layout_observations.as_deref()?)?;
         if observations.clone().any(|observation| {
@@ -1899,13 +1900,12 @@ impl super::SourceInvocationBinding {
                 .iter()
                 .any(|formal| formal.name == name)
                 || local_read_scope_is_excluded(context, &name)
-                || crate::script_binds::script_image_binds_name(
-                    &observation.entry.source().text,
-                    &name,
-                    crate::script_binds::Ownership::ScopeAliases,
-                    registry,
-                    config,
-                )
+                || observation
+                    .source_body_name_ownership(
+                        registry,
+                        crate::script_binds::Ownership::ScopeAliases,
+                    )
+                    .is_none_or(|effects| effects.opaque || effects.names.contains(&name))
         }) {
             return None;
         }
@@ -2398,6 +2398,10 @@ mod tests {
 
     #[test]
     fn declaration_variable_operands_preserve_decoded_name_and_decline_aliases() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Alias exclusion requires complete original body ownership, not an
+        // installed alias, entered variable frame or successful read.
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         for (source, body, expected) in [
             (
@@ -2471,6 +2475,10 @@ mod tests {
 
     #[test]
     fn declaration_read_occurrences_keep_missing_reads_without_physical_ssa() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Alias exclusion requires complete original body ownership, not an
+        // installed alias, entered variable frame or successful read.
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let source = "proc p {} {namespace upvar ::ns a alias; return $missing}";
         let (_, tokens) =

@@ -32,6 +32,147 @@ pub(crate) struct ExistenceQuery {
     pub(crate) kind: ExistenceKind,
 }
 
+/// An existence consumer's actual CFG availability and original source site.
+/// Only explicitly standalone CFGs permit recognition from detached text.
+#[derive(Clone, Copy)]
+pub(crate) struct QueryReading<'a> {
+    registry: &'a tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    standalone: bool,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    parent: Option<&'a crate::ir::CommandTokens>,
+    expression_base: Option<u32>,
+}
+
+impl<'a> QueryReading<'a> {
+    pub(crate) fn for_cfg(
+        cfg: &'a crate::cfg::Function,
+        registry: &'a tcl_registry::CommandRegistry,
+        config: tcl_lexer::LexerConfig,
+        parent: Option<&'a crate::ir::CommandTokens>,
+        expression_base: Option<u32>,
+    ) -> Self {
+        let owner = &cfg.metadata_context;
+        let metadata = owner
+            .source_analysis_input()
+            .filter(|input| {
+                input.lexer_config().nested().normalized() == config.nested().normalized()
+            })
+            .and_then(|_| owner.metadata_context(registry).flatten());
+        Self {
+            registry,
+            config,
+            standalone: owner.is_standalone(),
+            metadata,
+            parent,
+            expression_base,
+        }
+    }
+
+    pub(crate) fn in_expr(self, node: &ExprNode) -> Option<ExistenceQuery> {
+        if self.standalone {
+            return match node {
+                ExprNode::Command { text, .. } => self.in_text(text),
+                _ => None,
+            };
+        }
+        let parent = self.parent?;
+        if parent
+            .source_binding
+            .as_ref()?
+            .original_lexer_config_for_tokens(parent)?
+            .nested()
+            .normalized()
+            != self.config.nested().normalized()
+        {
+            return None;
+        }
+        let (query, _) = in_expr_at_with_metadata_context(
+            node,
+            self.expression_base?,
+            parent,
+            self.registry,
+            self.config,
+            self.metadata,
+        )?;
+        Some(query)
+    }
+
+    /// The unchanged nested command under its own original lookup horizon.
+    /// Missing supplied ownership cannot become a standalone source parser.
+    pub(crate) fn original_command(self, node: &ExprNode) -> Option<crate::ir::CommandTokens> {
+        self.metadata?;
+        let parent = self.parent?;
+        if parent
+            .source_binding
+            .as_ref()?
+            .original_lexer_config_for_tokens(parent)?
+            .nested()
+            .normalized()
+            != self.config.nested().normalized()
+        {
+            return None;
+        }
+        let ExprNode::Command { text, start, end } = node else {
+            return None;
+        };
+        let base = self.expression_base?;
+        let source = crate::ir::SourceSite::source(tcl_lexer::Span::new(
+            base.checked_add(*start)?,
+            base.checked_add(*end)?,
+        ));
+        let mut nested =
+            crate::word_subst::nested_command_words(text, &source, self.config).ok()?;
+        nested.inherit_nested_bindings(parent);
+        Some(nested)
+    }
+
+    pub(crate) const fn metadata_context(
+        self,
+    ) -> Option<crate::registry_invocation::InvocationMetadataContext<'a>> {
+        self.metadata
+    }
+
+    pub(crate) const fn is_standalone(self) -> bool {
+        self.standalone
+    }
+
+    pub(crate) fn in_tokens(self, tokens: &crate::ir::CommandTokens) -> Option<ExistenceQuery> {
+        if !self.standalone
+            && tokens
+                .source_binding
+                .as_ref()?
+                .original_lexer_config_for_tokens(tokens)?
+                .nested()
+                .normalized()
+                != self.config.nested().normalized()
+        {
+            return None;
+        }
+        let metadata = if self.standalone {
+            self.registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                .map(Into::into)
+        } else {
+            Some(self.metadata?)
+        };
+        in_tokens_inner(tokens, self.registry, metadata).map(|(query, _)| query)
+    }
+
+    pub(crate) fn in_text(self, text: &str) -> Option<ExistenceQuery> {
+        if !self.standalone {
+            return None;
+        }
+        let (var, kind) = standalone_in_text(text, self.registry, self.config)?;
+        Some(ExistenceQuery {
+            var,
+            negated: false,
+            kind,
+        })
+    }
+}
+
 /// Recognise an existence query at its exact retained nested dispatch point.
 /// Explicit unknown or absent implementations never recover facts from spelling.
 #[must_use]
@@ -393,6 +534,15 @@ fn standalone_context(
 #[must_use]
 #[cfg(test)]
 pub(crate) fn in_text(
+    text: &str,
+    registry: &tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(String, ExistenceKind)> {
+    standalone_in_text(text, registry, config)
+}
+
+/// Detached syntax recognition for an explicitly requested standalone model.
+fn standalone_in_text(
     text: &str,
     registry: &tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
@@ -763,6 +913,34 @@ mod tests {
             .expect("positive Logical source query");
         assert_eq!(query.var, "x");
         assert!(query.negated);
+        let command =
+            crate::expr_parser::parse_expr_for_profile("[::info exists {x}]", Some(profile));
+        let mut cfg = crate::cfg::Function::new("condition", "entry");
+        assert_eq!(
+            super::QueryReading::for_cfg(&cfg, registry, config, None, None)
+                .in_expr(&command)
+                .expect("explicit standalone syntax model")
+                .var,
+            "x"
+        );
+        cfg.metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                &input,
+            ));
+        assert!(
+            super::QueryReading::for_cfg(&cfg, registry, config, None, None)
+                .in_expr(&command)
+                .is_none(),
+            "supplied Logical source syntax does not manufacture positioned query geometry"
+        );
+        cfg.metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+        assert!(
+            super::QueryReading::for_cfg(&cfg, registry, config, None, None)
+                .in_expr(&command)
+                .is_none(),
+            "missing supplied context never reopens standalone recognition"
+        );
         assert!(super::in_expr_with_metadata_context(&node, registry, config, None).is_none());
         let availability_only =
             crate::registry_invocation::InvocationMetadataContext::from(context.as_ref());

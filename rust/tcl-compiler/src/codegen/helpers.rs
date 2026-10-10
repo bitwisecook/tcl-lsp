@@ -21,6 +21,8 @@
 //! These are standalone helpers with no emitter state — used by every
 //! other codegen submodule.
 
+use super::statements::has_unescaped_subst;
+
 /// Tcl 9.0 default trim characters — pushed when `string trim` is
 /// called without an explicit chars argument.  Includes ASCII
 /// whitespace, NUL, and all Unicode category Zs space separators.

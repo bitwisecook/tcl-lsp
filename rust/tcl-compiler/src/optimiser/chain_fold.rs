@@ -371,6 +371,67 @@ fn write_var(write: &Write) -> &str {
     }
 }
 
+#[derive(Clone, Copy)]
+enum WriteKind {
+    Set,
+    Append,
+    Lappend,
+}
+
+struct WriteLayout {
+    kind: WriteKind,
+    variable: usize,
+    values: std::ops::Range<usize>,
+}
+
+/// The selected schema owns effective ordinals, including compound selectors
+/// and captured alias operands. This layout is not an erasure or cell proof.
+fn source_write_layout(
+    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
+    semantics: ChainSourceContext<'_>,
+    realm: tcl_dialect::model::InvocationRealm,
+) -> Option<WriteLayout> {
+    use tcl_registry::SemanticOperationId::StructuredLowering;
+    use tcl_registry::hooks::LoweringHookId;
+
+    invocation.with_metadata_schema(semantics.registry, semantics.metadata, realm, |schema| {
+        match invocation.facts.operation {
+            StructuredLowering(LoweringHookId::Set) => {
+                let assignments = schema.authored_source_assignment_arguments()?;
+                let [(variable, Some(value))] = assignments.as_slice() else {
+                    return None;
+                };
+                // The emitted setter has no compound-prefix recipe. A source
+                // assignment layout cannot invent that independent edit input.
+                if *variable != 0 || *value != 1 || invocation.arguments.len() != 2 {
+                    return None;
+                }
+                Some(WriteLayout {
+                    kind: WriteKind::Set,
+                    variable: *variable,
+                    values: *value..value.checked_add(1)?,
+                })
+            }
+            StructuredLowering(LoweringHookId::AppendOrLappend) => {
+                let (kind, layout) = schema.authored_source_append_arguments().map_or_else(
+                    || {
+                        schema
+                            .authored_source_list_append_arguments()
+                            .map(|layout| (WriteKind::Lappend, layout))
+                    },
+                    |layout| Some((WriteKind::Append, layout)),
+                )?;
+                (!layout.values.is_empty()).then_some(WriteLayout {
+                    kind,
+                    variable: layout.variable,
+                    values: layout.values,
+                })
+            }
+            _ => None,
+        }
+    })
+}
+
 /// Typed source recipe only. Frozen values of substitutions cannot stand in
 /// for static operands because removing a read could remove an observer.
 fn classify_write(
@@ -378,8 +439,6 @@ fn classify_write(
     semantics: ChainSourceContext<'_>,
     span: tcl_lexer::Span,
 ) -> Option<Write> {
-    use tcl_registry::SemanticOperationId::StructuredLowering;
-    use tcl_registry::hooks::{AnalyserHookId, LoweringHookId};
     let binding = tokens.source_binding.as_ref()?;
     if binding
         .original_lexer_config_for_tokens(tokens)?
@@ -403,12 +462,22 @@ fn classify_write(
     };
     if !invocation.facts.arg_roles_complete
         || invocation.facts.arity_accepts_frozen_arguments() != Some(true)
-        || invocation.facts.argument_offset != 0
     {
         return None;
     }
+    let layout = source_write_layout(&invocation, semantics, binding.invocation_realm()?)?;
     let rules = tcl_syntax::word_rules::WordValueRules::from_config(&semantics.config);
-    let mut arguments = (0..invocation.arguments.len())
+    let var =
+        invocation
+            .effective
+            .argument_literal(layout.variable, semantics.config.escapes, rules)?;
+    // Complete array operands need their own index/cell proof. A malformed
+    // final parenthesis is an unchanged scalar, including any literal '$'.
+    if tcl_syntax::naming::split_element_ref(&var).is_some() {
+        return None;
+    }
+    let values = layout
+        .values
         .map(|index| {
             invocation
                 .effective
@@ -423,42 +492,21 @@ fn classify_write(
                         .constant_at(span, invocation.effective.words.get(index + 1)?)
                 })
         })
-        .collect::<Option<Vec<_>>>()?
-        .into_iter();
-    let var = arguments.next()?;
-    // Complete array operands need their own index/cell proof. A malformed
-    // final parenthesis is an unchanged scalar, including any literal '$'.
-    if tcl_syntax::naming::split_element_ref(&var).is_some() {
-        return None;
-    }
-    let values: Vec<_> = arguments.collect();
-    match (invocation.facts.operation, invocation.facts.analyser_hook) {
-        (StructuredLowering(LoweringHookId::Set), Some(AnalyserHookId::Set))
-            if values.len() == 1 =>
-        {
-            Some(Write::Set {
-                var,
-                value: values.into_iter().next()?,
-                setter: invocation.facts.canonical_command.clone(),
-            })
-        }
-        (StructuredLowering(LoweringHookId::AppendOrLappend), Some(AnalyserHookId::Append))
-            if !values.is_empty() =>
-        {
-            Some(Write::Append {
-                var,
-                pieces: values,
-            })
-        }
-        (StructuredLowering(LoweringHookId::AppendOrLappend), Some(AnalyserHookId::Lappend))
-            if !values.is_empty() =>
-        {
-            Some(Write::Lappend {
-                var,
-                elements: values,
-            })
-        }
-        _ => None,
+        .collect::<Option<Vec<_>>>()?;
+    match layout.kind {
+        WriteKind::Set => Some(Write::Set {
+            var,
+            value: values.into_iter().next()?,
+            setter: invocation.facts.canonical_command.clone(),
+        }),
+        WriteKind::Append => Some(Write::Append {
+            var,
+            pieces: values,
+        }),
+        WriteKind::Lappend => Some(Write::Lappend {
+            var,
+            elements: values,
+        }),
     }
 }
 
@@ -748,21 +796,27 @@ mod tests {
     fn chain_uses_authentic_alias_captures_and_moved_append() {
         // naming.optimiser.original-chain-write-metadata
         // docs/design/analysis/name-resolution-proofs/optimiser-original-chain-write-metadata.md
-        for (source, expected) in [
+        for (source, code, expected) in [
             (
                 "interp alias {} extend {} append s PRE; set s {}; extend A; extend B",
+                DiagCode::O104,
                 "::set s PREAPREB",
             ),
             (
                 "rename append moved; set s {}; moved s A; moved s B",
+                DiagCode::O104,
                 "::set s AB",
+            ),
+            (
+                "interp alias {} extend {} lappend l {PRE VALUE}; set l {}; extend A; extend B",
+                DiagCode::O130,
+                "::set l {{PRE VALUE} A {PRE VALUE} B}",
             ),
         ] {
             let opts = run_pass(source);
             assert!(
-                opts.iter().any(|opt| opt.code == DiagCode::O104
-                    && opt.replacement == expected
-                    && !opt.hint_only),
+                opts.iter()
+                    .any(|opt| opt.code == code && opt.replacement == expected && !opt.hint_only),
                 "{source}: {opts:?}"
             );
         }
@@ -803,6 +857,9 @@ mod tests {
             "set {a(k)} {}; append {a(k)} A; append {a(k)} B",
             "set {$s} {}; append s A; append s B",
             "set {scalar(open} {}; append scalar A; append scalar B",
+            // A known value of the receiver's variable is not an erasure
+            // receipt for its original read while forming that receiver.
+            "set receiver s; set $receiver {}; append $receiver A; append $receiver B",
         ] {
             assert!(
                 run_pass(source)
@@ -967,6 +1024,8 @@ mod tests {
                     .has_logical_source_name_context()
             );
             if dialect == "tcl8.6" {
+                let function = &unit.top_level;
+                let statement = &unit.ir_module.top_level.statements[0];
                 let lattice = FunctionLattice::of(function);
                 let semantics = ChainSourceContext {
                     registry,
@@ -976,16 +1035,16 @@ mod tests {
                         .unwrap(),
                     config: unit.top_level.source_lexer_config(),
                     mutations: &unit.command_mutations,
+                    lattice: &lattice,
                 };
                 assert!(
                     classify_write(
                         unit.ir_module
                             .top_level
-                            .retained_source_tokens_for_statement(
-                                &unit.ir_module.top_level.statements[0]
-                            )
+                            .retained_source_tokens_for_statement(statement)
                             .unwrap(),
                         semantics,
+                        statement.span(),
                     )
                     .is_some(),
                     "the positive Native API layout remains distinct from erasure admission"

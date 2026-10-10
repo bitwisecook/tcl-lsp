@@ -106431,6 +106431,517 @@
       ],
       "limits": "Only these ten exact closed Main245 operations and independently successful Compiler/VM executable/build/source associations apply. Core and other consumer-library no-run compilation fails from ENOSPC and supplies no Core pin or assertion. Inventories execute no assertions. Compiler focus and five isolated traces retain complete failures and repeated events; the VM 343-name selection is inventory-only and has no finite batch receipt. Current edited definitions, incoming rust integration, other images, native provider outcomes, Clippy, Python and full suites remain independent. No aggregate pass or unique coverage count follows.",
       "framework": "rust-libtest"
+    },
+    {
+      "id": "rust.frozen246.integration-registry-check246",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen246/integration-registry-check246/receipt.json.gz",
+        "sha256": "6125207d9a0c83622568d14837ccd075831fbbfe2cb4d456d2367af11bf2d575",
+        "compression": "gzip",
+        "uncompressed_sha256": "7766284be396fad1d01a502d71f7a3e3077bf60f9ebb01db62cc82629461d6c3"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen246/integration-registry-check246/tests.log",
+        "sha256": "88e2dddcf4a1537a88979c228b6022e650a1e7480d65416ff949aebb9d957f09"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "check",
+        "--locked",
+        "--offline",
+        "-p",
+        "tcl-registry",
+        "--lib"
+      ],
+      "exit": 101,
+      "seconds": 0.07493242100463249,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains its own complete immutable source inventory, compile-source root, immutable archive path and actual command association. Every retained archived leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Only this exact --locked --offline Registry library check and its immutable source archive apply. Exit101 is a manifest, locked-resolution or Rust compilation refusal, not a libtest result or a Native provider failure. These commands execute no assertions and supply no test executable pin. Other commands, source images, runtime/native outcomes and full validation gates retain independent scopes."
+    },
+    {
+      "id": "rust.frozen247.integration-registry-check247",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen247/integration-registry-check247/receipt.json.gz",
+        "sha256": "f96934781abeec3668f6ef78710785decf1878b2c36c12147bd5c1a38ea79c26",
+        "compression": "gzip",
+        "uncompressed_sha256": "8871a4ee2306e835a0acad4adddfea28a6045031e09c6175da2c7151d9d5551f"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen247/integration-registry-check247/tests.log",
+        "sha256": "a2228b06e039191013cb0fb35ebd636cc34e8c7e3c1f7a5c83cd05d004e27b1b"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "check",
+        "--locked",
+        "--offline",
+        "-p",
+        "tcl-registry",
+        "--lib"
+      ],
+      "exit": 101,
+      "seconds": 0.26285263802856207,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains its own complete immutable source inventory, compile-source root, immutable archive path and actual command association. Every retained archived leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Only this exact --locked --offline Registry library check and its immutable source archive apply. Exit101 is a manifest, locked-resolution or Rust compilation refusal, not a libtest result or a Native provider failure. These commands execute no assertions and supply no test executable pin. Other commands, source images, runtime/native outcomes and full validation gates retain independent scopes."
+    },
+    {
+      "id": "rust.frozen248.integration-registry-check248",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen248/integration-registry-check248/receipt.json.gz",
+        "sha256": "9abef6360c4e9a3a0172be18602bd49f40bc7f1eff0a730feda47893fe5633db",
+        "compression": "gzip",
+        "uncompressed_sha256": "1aa699ba4a0a663ce4ff59896ecf78a05f995b2dfc9901710dfb3daf4916da04"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen248/integration-registry-check248/tests.log",
+        "sha256": "a78127c8383949582dfc16b99a3ecbb44f5c7154dc96bfb0ee36e47e95ab9e04"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "check",
+        "--locked",
+        "--offline",
+        "-p",
+        "tcl-registry",
+        "--lib"
+      ],
+      "exit": 101,
+      "seconds": 4.177035847998923,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains its own complete immutable source inventory, compile-source root, immutable archive path and actual command association. Every retained archived leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Only this exact --locked --offline Registry library check and its immutable source archive apply. Exit101 is a manifest, locked-resolution or Rust compilation refusal, not a libtest result or a Native provider failure. These commands execute no assertions and supply no test executable pin. Other commands, source images, runtime/native outcomes and full validation gates retain independent scopes."
+    },
+    {
+      "id": "rust.frozen249.integration-registry-check249",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen249/integration-registry-check249/receipt.json.gz",
+        "sha256": "71fff6f50ea059b769ceac97bbf775652fe1ce51c5fd4c30af63252b3cb3e9fe",
+        "compression": "gzip",
+        "uncompressed_sha256": "64e1d5c99f11e33583d5c6d5ab67adf6b533b7e479fdba45988ce0974ab4507c"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen249/integration-registry-check249/tests.log",
+        "sha256": "06384d795c10e59aba283f61203fdc19c7d2d2965833e630dd8551eaa8c0ca02"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "check",
+        "--locked",
+        "--offline",
+        "-p",
+        "tcl-registry",
+        "--lib"
+      ],
+      "exit": 101,
+      "seconds": 0.9857964369875845,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains its own complete immutable source inventory, compile-source root, immutable archive path and actual command association. Every retained archived leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Only this exact --locked --offline Registry library check and its immutable source archive apply. Exit101 is a manifest, locked-resolution or Rust compilation refusal, not a libtest result or a Native provider failure. These commands execute no assertions and supply no test executable pin. Other commands, source images, runtime/native outcomes and full validation gates retain independent scopes."
+    },
+    {
+      "id": "rust.frozen250.integration-registry-check250",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen250/integration-registry-check250/receipt.json.gz",
+        "sha256": "b45a4b2b6d178dda07c3890926b7edcb491dd63859072f003de3b15cc0c6115a",
+        "compression": "gzip",
+        "uncompressed_sha256": "0f32a670f077c32609a45b001f33fd872e2a487c75b53afc6332e2fe100d0375"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen250/integration-registry-check250/tests.log",
+        "sha256": "343cb21edb5ba912ed7f7af0d6493cf005de3da215236e7533addacc30e6ec0b"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "check",
+        "--locked",
+        "--offline",
+        "-p",
+        "tcl-registry",
+        "--lib"
+      ],
+      "exit": 101,
+      "seconds": 6.07515954299015,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains its own complete immutable source inventory, compile-source root, immutable archive path and actual command association. Every retained archived leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Only this exact --locked --offline Registry library check and its immutable source archive apply. Exit101 is a manifest, locked-resolution or Rust compilation refusal, not a libtest result or a Native provider failure. These commands execute no assertions and supply no test executable pin. Other commands, source images, runtime/native outcomes and full validation gates retain independent scopes."
+    },
+    {
+      "id": "rust.frozen251.integration-registry-check251",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen251/integration-registry-check251/receipt.json.gz",
+        "sha256": "7d101b12c6ff8c6803eb9102a4f59a76906be33c33a858e59d9b1bc9bb2b20e4",
+        "compression": "gzip",
+        "uncompressed_sha256": "5b6c210ddb75a9e4f5e345e533154b912ba6ea1ec94bdc68dcd5f68fbad711ba"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen251/integration-registry-check251/tests.log",
+        "sha256": "12891f0a50be8cfdd6dd32ee93b1164dec1e5b894acd148ea89f05dfa4d43d97"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "check",
+        "--locked",
+        "--offline",
+        "-p",
+        "tcl-registry",
+        "--lib"
+      ],
+      "exit": 101,
+      "seconds": 4.935033066023607,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains its own complete immutable source inventory, compile-source root, immutable archive path and actual command association. Every retained archived leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Only this exact --locked --offline Registry library check and its immutable source archive apply. Exit101 is a manifest, locked-resolution or Rust compilation refusal, not a libtest result or a Native provider failure. These commands execute no assertions and supply no test executable pin. Other commands, source images, runtime/native outcomes and full validation gates retain independent scopes."
+    },
+    {
+      "id": "rust.frozen252.integration-registry-check252",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen252/integration-registry-check252/receipt.json.gz",
+        "sha256": "fe0f67cb5b4945b046e11c82794b88a02de76c223b22dd1b67f01ac1caf3db2d",
+        "compression": "gzip",
+        "uncompressed_sha256": "b7dad46449ea40a3d03eeea02f1d534da695cf243c780e570aaa95317549c9a7"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen252/integration-registry-check252/tests.log",
+        "sha256": "1bba9f5092e5c29ca9acdd34c4ece424e8647b0cc6144252c0aaa99f1b7bf5a0"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "check",
+        "--locked",
+        "--offline",
+        "-p",
+        "tcl-registry",
+        "--lib"
+      ],
+      "exit": 101,
+      "seconds": 21.496689251012867,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains its own complete immutable source inventory, compile-source root, immutable archive path and actual command association. Every retained archived leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Only this exact --locked --offline Registry library check and its immutable source archive apply. Exit101 is a manifest, locked-resolution or Rust compilation refusal, not a libtest result or a Native provider failure. These commands execute no assertions and supply no test executable pin. Other commands, source images, runtime/native outcomes and full validation gates retain independent scopes."
+    },
+    {
+      "id": "rust.frozen253.integration-registry-check253",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen253/integration-registry-check253/receipt.json.gz",
+        "sha256": "d7d1084872d342c2a19beaa3b358aa14c31558a6c729e2e93d6c6edc241ba981",
+        "compression": "gzip",
+        "uncompressed_sha256": "60d8f01c693602ca4533613205671d2c207999cdac887e3525a57f624e7b5dff"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen253/integration-registry-check253/tests.log",
+        "sha256": "d4d39892ca7605987add6bd429ed3d8bb46b6dbafc76490de07d7f23d64a8b9e"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "check",
+        "--locked",
+        "--offline",
+        "-p",
+        "tcl-registry",
+        "--lib"
+      ],
+      "exit": 101,
+      "seconds": 33.230325740005355,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains its own complete immutable source inventory, compile-source root, immutable archive path and actual command association. Every retained archived leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Only this exact --locked --offline Registry library check and its immutable source archive apply. Exit101 is a manifest, locked-resolution or Rust compilation refusal, not a libtest result or a Native provider failure. These commands execute no assertions and supply no test executable pin. Other commands, source images, runtime/native outcomes and full validation gates retain independent scopes."
+    },
+    {
+      "id": "rust.frozen254.integration-registry-check254",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen254/integration-registry-check254/receipt.json.gz",
+        "sha256": "5917d8deaa4d49634fb3fcbfdcb9d7218474edcb460d696b48355298341d4632",
+        "compression": "gzip",
+        "uncompressed_sha256": "6327ce43dcb49d3ddda6992a8cadd9235af963f8dd521f50c9ebc676c9517db0"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen254/integration-registry-check254/tests.log",
+        "sha256": "f444deef6cdb86cfd3a13883f5467aebf87f9fefa795bc7054ae4fa5aa387e2c"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "check",
+        "--locked",
+        "--offline",
+        "-p",
+        "tcl-registry",
+        "--lib"
+      ],
+      "exit": 101,
+      "seconds": 18.352783626003657,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains its own complete immutable source inventory, compile-source root, immutable archive path and actual command association. Every retained archived leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Only this exact --locked --offline Registry library check and its immutable source archive apply. Exit101 is a manifest, locked-resolution or Rust compilation refusal, not a libtest result or a Native provider failure. These commands execute no assertions and supply no test executable pin. Other commands, source images, runtime/native outcomes and full validation gates retain independent scopes."
+    },
+    {
+      "id": "rust.frozen255.integration-compiler-check255",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen255/integration-compiler-check255/receipt.json.gz",
+        "sha256": "84e02ecf9508e0741fb35db4f46e2cbccf2bae972630e5d1d28415f2c52b6047",
+        "compression": "gzip",
+        "uncompressed_sha256": "71f19a07c46a48ba2d7e564640a34d6a26bb27f9389c5b90ddbad3fa28deeca9"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen255/integration-compiler-check255/tests.log",
+        "sha256": "fba9a839df9f0548f632cbb78ec498072e0ff3d0c3e5d45d9ede180f3e049fa6"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "check",
+        "--locked",
+        "--offline",
+        "-p",
+        "tcl-compiler",
+        "--lib"
+      ],
+      "exit": 101,
+      "seconds": 29.333715214015683,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "This exact locked, offline Compiler library check closes at Rust compilation with 82 errors and 14 warnings. It executes no test assertions and supplies no test executable pin. Registry dependency compilation supplies no separate registry assertion result, aggregate pass or Native observation. Other source images, commands, providers and full validation gates retain independent scopes."
+    },
+    {
+      "id": "rust.frozen256.integration-compiler-check256",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen256/integration-compiler-check256/receipt.json.gz",
+        "sha256": "5d4db0e0b196e600adec6deb0caa715e9dca4a66eb8f4254bed0e198ddf98eb0",
+        "compression": "gzip",
+        "uncompressed_sha256": "49b5317c4ba1c953685a3695991fe5341556a05134da918c18970e904e5a53d1"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen256/integration-compiler-check256/tests.log",
+        "sha256": "4e095b3ce29499fb3cc86be79d3d2e70bd4ee2e06aa633c5b5610fa4e5720c14"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "check",
+        "--locked",
+        "--offline",
+        "-p",
+        "tcl-compiler",
+        "--lib"
+      ],
+      "exit": 101,
+      "seconds": 31.101200664998032,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "This exact locked, offline Compiler library check closes at Rust compilation with 71 errors and 12 warnings. It executes no test assertions and supplies no test executable pin. Registry dependency compilation supplies no separate registry assertion result, aggregate pass or Native observation. Other source images, commands, providers and full validation gates retain independent scopes."
+    },
+    {
+      "id": "rust.frozen257.integration-compiler-check257",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen257/integration-compiler-check257/receipt.json.gz",
+        "sha256": "916485b5b3bb5780cd215b258e5c5fd7b2e5c59f6479525648212293e8254150",
+        "compression": "gzip",
+        "uncompressed_sha256": "ef223e75dd33682a640a8103ccf5eddbefadd7ef3349f73623befa069d3d0adc"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen257/integration-compiler-check257/tests.log",
+        "sha256": "a4a3583230142f9c87068b5cb21dc30fff23ecceca792dcf0f792a0fd7510f25"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "check",
+        "--locked",
+        "--offline",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "-p",
+        "tcl-vm",
+        "--lib"
+      ],
+      "exit": 1,
+      "seconds": 0.039263081998797134,
+      "uniform_source": true,
+      "status": "command-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Cargo rejects the duplicate --lib argument before compilation. This command executes no compiler check or test assertions and supplies no executable pin, aggregate pass or Native observation."
+    },
+    {
+      "id": "rust.frozen257.integration-compiler-vm-check257",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen257/integration-compiler-vm-check257/receipt.json.gz",
+        "sha256": "95eb5cfebc45aefbc94bb762f9f733709105e2d94b28f5f9082da4d37e57b0a5",
+        "compression": "gzip",
+        "uncompressed_sha256": "1915f1e0d16e9d39117dd468d1ac82380132388e9848c66dbdb6d7a6a858cda3"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen257/integration-compiler-vm-check257/tests.log",
+        "sha256": "0afbb5fc51c4768b42e26869b58ab32de03341f5edbbb21128de2e5320e89d2c"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "check",
+        "--locked",
+        "--offline",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-vm",
+        "--lib"
+      ],
+      "exit": 101,
+      "seconds": 15.280501578003168,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "This valid locked, offline Compiler and VM library check closes at a Registry dependency type error. It executes no test assertions and supplies no Compiler or VM executable pin, aggregate pass or Native observation."
+    },
+    {
+      "id": "rust.frozen258.integration-compiler-vm-check258",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen258/integration-compiler-vm-check258/receipt.json.gz",
+        "sha256": "583de411baa46b0ee3f6f7cbf4ff2905edf9cfbf997567027b851c99510912a9",
+        "compression": "gzip",
+        "uncompressed_sha256": "44162cd519972b48a44bf942873448843a2b79ba3155e91ebdebe55dafad6da7"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen258/integration-compiler-vm-check258/tests.log",
+        "sha256": "bce92792e61a9bfeba01d3f465fad8a950096c2ab906b2a70f4a167b9878fde3"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "check",
+        "--locked",
+        "--offline",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-vm",
+        "--lib"
+      ],
+      "exit": 101,
+      "seconds": 42.642274370999075,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "This locked, offline Compiler and VM library check closes with 100 Compiler errors and 12 warnings and 29 VM errors and 4 warnings. It executes no test assertions and supplies no executable pin, aggregate pass or Native observation."
     }
   ]
 }

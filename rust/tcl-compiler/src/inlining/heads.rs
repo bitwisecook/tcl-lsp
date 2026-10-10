@@ -221,7 +221,9 @@ fn runs_a_command_by_name(statement: &Statement, heads: bool, depth: u32) -> boo
                     .is_some_and(|body| script_substitutes(body, heads, next))
         }
         // Neither is read by the inliner's eligibility; a body with one is not spelled.
-        Statement::UpFrame { .. } | Statement::Barrier { .. } => true,
+        Statement::UpFrame { .. } | Statement::Barrier { .. } | Statement::NativeCall { .. } => {
+            true
+        }
     }
 }
 

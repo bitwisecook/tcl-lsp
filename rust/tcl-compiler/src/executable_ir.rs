@@ -3391,12 +3391,25 @@ impl FunctionBuilder {
         finally_entry: ExecutableBlockId,
         control: ControlContext,
     ) -> Result<Vec<CompletionCase>, SourceCompatibilityDecline> {
+        let numbers = context
+            .and_then(InvocationMetadataContext::source_analysis_input)
+            .map_or(tcl_syntax::number::Numbers::Unknown, |input| {
+                tcl_syntax::number::Numbers::Target(
+                    input
+                        .lexer_config()
+                        .grammar_over(input.unit_profile().grammar)
+                        .numbers,
+                )
+            });
         let mut reachable: Vec<(usize, CompletionCode, bool)> = Vec::new();
         let mut settled: BTreeSet<i64> = BTreeSet::new();
         for (index, handler) in handlers.iter().enumerate() {
-            let Some(code) = try_handler_code(handler) else {
-                continue;
-            };
+            let code = try_handler_code_in(handler, numbers).ok_or(
+                SourceCompatibilityDecline::UnsupportedStatement {
+                    statement_index: node.path().last().copied().unwrap_or(0) as usize,
+                    kind: "try handler selector without exact source grammar",
+                },
+            )?;
             if settled.contains(&code.as_int()) {
                 continue;
             }
@@ -3773,12 +3786,11 @@ fn structured_region_projection(
 /// completion code (`on`) names a code directly. The registry's handler chain
 /// decodes the selector ([`HandlerChain::selected`]), never a local keyword
 /// match.
-fn try_handler_code(handler: &crate::ir::TryHandler) -> Option<CompletionCode> {
-    HandlerChain::selected(
-        handler.kind,
-        &handler.match_arg,
-        tcl_syntax::number::Numbers::of_profile(None),
-    )
+pub(crate) fn try_handler_code_in(
+    handler: &crate::ir::TryHandler,
+    numbers: tcl_syntax::number::Numbers,
+) -> Option<CompletionCode> {
+    HandlerChain::selected(handler.kind, &handler.match_arg, numbers)
 }
 
 /// Project the exact cell and completion footprint of an already-lowered

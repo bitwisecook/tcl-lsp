@@ -325,17 +325,21 @@ pub struct SemanticValueProjection {
 #[derive(Debug, Clone, PartialEq)]
 struct OwnedValueFactInputs {
     source_metadata_input: Option<crate::analyser::ResolvedAnalysisInput>,
+    fold_source_metadata_input: Option<crate::analyser::ResolvedAnalysisInput>,
     registry: tcl_registry::RegistrySnapshot,
+    fold_registry: Option<tcl_registry::RegistrySnapshot>,
     policy: FoldPolicy,
     param_constants: Option<HashMap<(String, crate::ssa::Version), LatticeValue>>,
     extra_escaping: HashSet<String>,
     traced_variables: BTreeSet<String>,
     has_dynamic_variable_trace: bool,
+    deferred_writes: crate::ir::DeferredWrites,
     mutations: Option<crate::command_binding::ModuleCommandMutations>,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     defining_class: Option<String>,
     registry_engine: bool,
     trust: FoldTrust,
+    proven_pure_parameters: bool,
 }
 
 impl PartialEq for SemanticValueProjection {
@@ -358,17 +362,22 @@ impl SemanticValueProjection {
         Self {
             inputs: Some(OwnedValueFactInputs {
                 source_metadata_input: inputs.trace.source_metadata_input.cloned(),
+                fold_source_metadata_input: folds
+                    .and_then(|folds| folds.source_metadata_input.cloned()),
                 registry: inputs.trace.registry.snapshot(),
+                fold_registry: folds.map(|folds| folds.registry.snapshot()),
                 policy: inputs.policy,
                 param_constants: inputs.param_constants.cloned(),
                 extra_escaping: inputs.extra_escaping.clone(),
                 traced_variables: inputs.trace.traced_variables.clone(),
                 has_dynamic_variable_trace: inputs.trace.has_dynamic_variable_trace,
+                deferred_writes: inputs.trace.deferred_writes.clone(),
                 mutations: folds.map(|folds| folds.mutations.clone()),
                 dialect: folds.and_then(|folds| folds.dialect),
                 defining_class: folds.and_then(|folds| folds.defining_class.map(str::to_owned)),
                 registry_engine: folds.is_some_and(|folds| folds.registry_engine),
                 trust: folds.map_or(FoldTrust::ObservedBindings, |folds| folds.trust),
+                proven_pure_parameters: folds.is_some_and(|folds| folds.proven_pure_parameters),
             }),
             cached: std::sync::OnceLock::new(),
         }
@@ -388,7 +397,7 @@ impl SemanticValueProjection {
                     policy: input.policy,
                     extra_escaping: &input.extra_escaping,
                     trace: TraceInputs {
-                        deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
+                        deferred_writes: &input.deferred_writes,
                         analysis_context: None,
                         existence: None,
                         source_metadata_input: input.source_metadata_input.as_ref(),
@@ -396,16 +405,20 @@ impl SemanticValueProjection {
                         traced_variables: &input.traced_variables,
                         has_dynamic_variable_trace: input.has_dynamic_variable_trace,
                     },
-                    folds: input.mutations.as_ref().map(|mutations| BuiltinFoldInputs {
-                        source_metadata_input: input.source_metadata_input.as_ref(),
-                        registry,
-                        mutations,
-                        dialect: input.dialect,
-                        defining_class: input.defining_class.as_deref(),
-                        registry_engine: input.registry_engine,
-                        trust: input.trust,
-                        proven_pure_parameters: false,
-                    }),
+                    folds: input
+                        .mutations
+                        .as_ref()
+                        .zip(input.fold_registry.as_ref())
+                        .map(|(mutations, fold_registry)| BuiltinFoldInputs {
+                            source_metadata_input: input.fold_source_metadata_input.as_ref(),
+                            registry: fold_registry.registry(),
+                            mutations,
+                            dialect: input.dialect,
+                            defining_class: input.defining_class.as_deref(),
+                            registry_engine: input.registry_engine,
+                            trust: input.trust,
+                            proven_pure_parameters: input.proven_pure_parameters,
+                        }),
                 },
             )
         }))
@@ -639,8 +652,7 @@ fn solve_value_facts(
         cfg: Some(cfg),
         escaping: &escaping,
         policy,
-        has_dynamic_variable_trace: trace.has_dynamic_variable_trace
-            && ssa.point_contexts.is_none(),
+        has_dynamic_variable_trace: trace.writes_any_variable() && ssa.point_contexts.is_none(),
         folds,
         registry: trace.registry,
     };
@@ -780,7 +792,7 @@ fn compatibility_escaping(
     )
     .escaping_var_names();
     names.extend(extra.iter().cloned());
-    names.extend(trace.traced_variables.iter().cloned());
+    trace.extend_module_escaping(&mut names);
     names
 }
 
@@ -2914,7 +2926,7 @@ fn loop_summary_decision(
             }
         }
     }
-    let condition_base = match &node.for_stmt {
+    let condition_base = match &node.statement {
         crate::ir::Statement::For { condition_base, .. } => *condition_base,
         _ => None,
     };
@@ -2932,14 +2944,14 @@ fn loop_summary_decision(
             cfg,
             bn,
             condition,
-            &node.for_stmt,
+            &node.statement,
             &start_env,
             loop_math,
             fold,
         );
     }
     let summarised = crate::static_loops::summarise_for_statement_with_dependencies(
-        &node.for_stmt,
+        &node.statement,
         &start_env,
         crate::static_loops::DEFAULT_MAX_STATIC_LOOP_ITERS,
         policy,
@@ -3654,6 +3666,182 @@ pub fn parse_literal_value(text: &str) -> ConstValue {
 mod tests {
     use super::*;
 
+    fn logical_callback_unit(
+        source: &str,
+    ) -> (
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        crate::compilation_unit::CompilationUnit,
+    ) {
+        use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+        use std::sync::Arc;
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        (context, unit)
+    }
+
+    #[test]
+    fn lazy_semantic_projection_retains_original_callback_inventory_and_carrierless_refusal() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Callback names are conditional module exposure, never an executed callback or store.
+        for (source, named, any) in [
+            (
+                "after 0 {set callback_only CALLBACK}; set local VALUE",
+                true,
+                false,
+            ),
+            (
+                "after 0 {set $computed CALLBACK}; set local VALUE",
+                false,
+                true,
+            ),
+        ] {
+            let (context, unit) = logical_callback_unit(source);
+            let registry = context.commands();
+            let module = &unit.ir_module;
+            assert_eq!(
+                module.deferred_writes.names.contains("callback_only"),
+                named,
+                "{source}"
+            );
+            assert_eq!(module.deferred_writes.any, any, "{source}");
+            let extra = HashSet::new();
+            let inputs = ValueFactInputs {
+                param_constants: None,
+                policy: FoldPolicy::from_registry(registry),
+                extra_escaping: &extra,
+                trace: TraceInputs {
+                    source_metadata_input: module.source_metadata_input.as_ref(),
+                    registry,
+                    traced_variables: &module.traced_variables,
+                    has_dynamic_variable_trace: module.has_dynamic_variable_trace,
+                    deferred_writes: &module.deferred_writes,
+                    analysis_context: None,
+                    existence: None,
+                },
+                folds: None,
+            };
+            let projection = SemanticValueProjection::new(inputs);
+            let clear = SemanticValueProjection::new(ValueFactInputs {
+                trace: TraceInputs {
+                    deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
+                    ..inputs.trace
+                },
+                ..inputs
+            });
+            assert_ne!(
+                projection, clear,
+                "the retained callback inventory rekeys the lazy projection"
+            );
+            let detached = projection.uncached();
+            assert_eq!(projection, detached);
+            let function = &unit.top_level;
+            let mut carrierless = function.ssa.clone();
+            carrierless.point_contexts = None;
+            let escaping =
+                compatibility_escaping(&function.cfg, &carrierless, inputs.trace, &extra);
+            assert_eq!(escaping.contains("callback_only"), named, "{source}");
+            assert_eq!(inputs.trace.writes_any_variable(), any);
+            assert_eq!(
+                detached.get(&function.cfg, &carrierless),
+                Some(&semantic_value_facts(&function.cfg, &carrierless, inputs)),
+            );
+            assert!(
+                compatibility_escaping(&function.cfg, &function.ssa, inputs.trace, &extra)
+                    .is_empty(),
+                "positioned source worlds retain their temporal rules"
+            );
+        }
+    }
+
+    #[test]
+    fn lazy_semantic_projection_preserves_independent_fold_owner_and_purity() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Cache replay retains conditional value inputs, never a native result/handler.
+        let (context, unit) = logical_callback_unit("set result [string length abc]");
+        let registry = context.commands();
+        let module = &unit.ir_module;
+        let input = module.source_metadata_input.as_ref().unwrap();
+        let foreign_context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let foreign = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            foreign_context,
+            input.lexer_config(),
+        );
+        let extra = HashSet::new();
+        let trace = TraceInputs {
+            source_metadata_input: Some(input),
+            registry,
+            traced_variables: &module.traced_variables,
+            has_dynamic_variable_trace: module.has_dynamic_variable_trace,
+            deferred_writes: &module.deferred_writes,
+            analysis_context: None,
+            existence: None,
+        };
+        let mut previous = Vec::new();
+        for fold_input in [Some(input), None, Some(&foreign)] {
+            for proven_pure_parameters in [false, true] {
+                let inputs = ValueFactInputs {
+                    param_constants: None,
+                    policy: FoldPolicy::from_registry(registry),
+                    extra_escaping: &extra,
+                    trace,
+                    folds: Some(BuiltinFoldInputs {
+                        source_metadata_input: fold_input,
+                        registry,
+                        mutations: &unit.command_mutations,
+                        dialect: registry.profile(),
+                        defining_class: None,
+                        registry_engine: false,
+                        trust: FoldTrust::ObservedBindings,
+                        proven_pure_parameters,
+                    }),
+                };
+                let projection = SemanticValueProjection::new(inputs);
+                let retained = projection.inputs.as_ref().unwrap();
+                assert_eq!(retained.source_metadata_input.as_ref(), Some(input));
+                assert_eq!(retained.fold_source_metadata_input.as_ref(), fold_input);
+                assert_eq!(retained.proven_pure_parameters, proven_pure_parameters);
+                assert_eq!(
+                    projection.get(&unit.top_level.cfg, &unit.top_level.ssa),
+                    Some(&semantic_value_facts(
+                        &unit.top_level.cfg,
+                        &unit.top_level.ssa,
+                        inputs
+                    )),
+                );
+                for other in &previous {
+                    assert_ne!(&projection, other);
+                }
+                previous.push(projection);
+            }
+        }
+    }
+
     #[test]
     fn semantic_math_dependencies_survive_only_successful_reached_evaluations() {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
@@ -3796,7 +3984,7 @@ mod tests {
                 policy: FoldPolicy::from_registry(registry),
                 extra_escaping: &HashSet::new(),
                 trace: TraceInputs {
-                    deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
+                    deferred_writes: &unit.ir_module.deferred_writes,
                     analysis_context: None,
                     existence: None,
                     source_metadata_input: unit.ir_module.source_metadata_input.as_ref(),

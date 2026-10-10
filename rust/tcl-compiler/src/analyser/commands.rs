@@ -148,65 +148,10 @@ struct WordFacts<'a> {
     expanded: &'a [bool],
 }
 
-/// The words of `text` when it is exactly one `[…]` command substitution,
-/// each with whether it was braced, read as a Tcl list: a braced word is its
-/// source text, so `[interp create {parent child}]` has the one path word
-/// `parent child`, never the fragments `{parent` and `child}`. `None` when
-/// `text` is not bracketed or its content is not a well-formed list — a
-/// malformed tail (`[interp create good {child]`) is not rescued by a valid
-/// prefix, which would read an incomplete edit as some other call.
-pub(super) fn substitution_elements(text: &str) -> Option<Vec<(&str, bool)>> {
-    let inner = text.strip_prefix('[')?.strip_suffix(']')?;
-    let mut words = Vec::new();
-    let mut pos = 0usize;
-    loop {
-        match tcl_syntax::list::find_element(inner, pos) {
-            Ok(Some(element)) => {
-                words.push((inner.get(element.value.clone())?, element.braced));
-                pos = element.next;
-            }
-            Ok(None) => return Some(words),
-            Err(_) => return None,
-        }
-    }
-}
-
-/// One resolved analyser-hook dispatch: the hook the head resolved to, plus
-/// the composed traits (`spec.traits | sub.traits`) and the clause plan of the
-/// concrete spec / subcommand it resolved to.
-///
-/// Carrying them alongside the hook is what lets a handler ask a registry
-/// question about *its own invocation* without re-fetching a spec by literal
-/// name — see [`Analyser::resolve_analyser_hook_call`].
+/// Hook and traits from one retained authoring-context resolution.
 pub(super) struct ResolvedAnalyserHook {
     pub(super) hook: tcl_registry::hooks::AnalyserHookId,
     pub(super) traits: tcl_registry::Traits,
-}
-
-/// Parent command for a control-flow keyword that is only valid as an
-/// argument *within* a parent command, or `None` for any other name.
-fn orphaned_keyword_parent(cmd_name: &str) -> Option<&'static str> {
-    match cmd_name {
-        "else" | "elseif" | "then" => Some("if"),
-        "on" | "trap" | "finally" => Some("try"),
-        _ => None,
-    }
-}
-
-/// Shared core registry standing in for [`Analyser::registry`] when a
-/// handler runs outside an `analyse*` entry point (unit harnesses drive
-/// handlers on a bare `Analyser::new()`, which never populates the
-/// dialect-aware registry).  Built once; the core `tcl` pack carries
-/// every stamped [`tcl_registry::hooks::AnalyserHookId`], so hook
-/// resolution behaves identically to an analyse-time run.
-///
-/// Handed back as a handle so it composes with [`Analyser::registry`], which
-/// is one: the two are alternatives at the same call site, so they need one
-/// type. This one is never retired — the `OnceLock` holds it for the process,
-/// which is right for a fixed core build with no pack content in it.
-pub(super) fn fallback_registry() -> Arc<CommandRegistry> {
-    static FALLBACK: OnceLock<Arc<CommandRegistry>> = OnceLock::new();
-    Arc::clone(FALLBACK.get_or_init(|| Arc::new(CommandRegistry::build_default())))
 }
 
 /// Which depths a body word raises while it is walked: `conditional_depth`
@@ -2303,14 +2248,12 @@ impl Analyser {
         self.record_dsl_format_sites(cmd_name, &format_templates);
         self.emit_source_signature_advice(site, original.as_ref());
         if !presubstituted_args && original.is_some() {
-            self.record_proven_site(&super::diagnostics::proven::CallWords {
-                cmd_name,
+            self.record_proven_site(&super::diagnostics::CallWords {
                 cmd_tok,
                 args,
                 arg_tokens,
                 arg_single,
                 arg_expand_in,
-                scope_path,
             });
         }
     }
@@ -4582,19 +4525,35 @@ impl Analyser {
             }
             segs
         };
-        let registry = self.registry.clone().unwrap_or_else(fallback_registry);
+        let Some(input) = self
+            .resolved_input
+            .as_ref()
+            .or(self.result.resolved_input.as_ref())
+            .cloned()
+        else {
+            return;
+        };
+        let context = input.context_registry();
         for seg in &segs {
             // `list HEAD word …` quotes the command it builds — the
             // registry's `BUILDS_COMMAND_PREFIX` reading — and that command
             // installs the handler when it resolves to the hook `namespace
             // unknown` is stamped with: no spelling is compared here.
-            let Some(quoted) = crate::script_arg::list_build_effective_command(&registry, seg)
+            let Some(words) = crate::registry_invocation::source_structure::source_produced_command_prefix_words_in(
+                &self.source,
+                &input,
+                &self.head_identities,
+                seg,
+            ) else {
+                continue;
+            };
+            let Some(quoted) = crate::script_arg::original_list_built_script_command(&words, seg)
             else {
                 continue;
             };
             if !(2..=3).contains(&quoted.texts.len())
-                || self.resolve_analyser_hook(quoted.name(), quoted.args())
-                    != Some(tcl_registry::hooks::AnalyserHookId::NamespaceUnknown)
+                || words.with_source_schema(&context, |schema| schema.semantics.analyser_hook)
+                    != Some(Some(tcl_registry::hooks::AnalyserHookId::NamespaceUnknown))
             {
                 continue;
             }
@@ -4865,7 +4824,7 @@ impl Analyser {
         // no other handler family.
         match self.resolve_analyser_hook(&cmd_name, args) {
             Some(tcl_registry::hooks::AnalyserHookId::PackageRequire) => {
-                self.handle_package_require(cmd_name, cmd_tok, args, arg_tokens);
+                self.handle_package_require(&cmd_name, cmd_tok, args, arg_tokens);
             }
             Some(tcl_registry::hooks::AnalyserHookId::PackageProvide) => {
                 self.handle_package_provide(cmd_tok, args, arg_tokens);

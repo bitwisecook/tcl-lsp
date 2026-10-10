@@ -558,6 +558,8 @@ pub fn compile_wasm(
             plan: WasmCodegenPlan::General {
                 semantic_decline,
                 region_plan,
+                // Body admission prevented the native selector from running.
+                native_declines: Vec::new(),
             },
             native,
         };

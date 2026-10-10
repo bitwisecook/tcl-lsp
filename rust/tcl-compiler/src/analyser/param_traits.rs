@@ -1053,8 +1053,26 @@ fn selected_alias_layout(
     selected: &crate::registry_invocation::ResolvedStatementInvocation,
 ) -> Option<(tcl_registry::frame_effect::FrameLevel, usize)> {
     use tcl_registry::frame_effect::{FrameArgLayout, FrameArgumentResolution, FrameLevel};
-    if selected.facts.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::NamespaceUpvar) {
-        return Some((FrameLevel::Dynamic, selected.facts.argument_offset + 1));
+    let namespace_alias = selected
+        .facts
+        .state_transitions
+        .declared()
+        .into_iter()
+        .flat_map(tcl_registry::StateTransitions::facts)
+        .filter_map(|fact| match &fact.transition {
+            tcl_registry::StateTransition::VariableCellAlias(alias)
+                if matches!(
+                    alias.target,
+                    tcl_registry::VariableAliasTarget::Namespace { .. }
+                ) =>
+            {
+                Some(alias.words.target)
+            }
+            _ => None,
+        })
+        .min();
+    if let Some(first) = namespace_alias {
+        return Some((FrameLevel::Dynamic, first));
     }
     let effect = selected.facts.frame_effect?;
     if effect.layout != FrameArgLayout::AliasPairs {

@@ -477,7 +477,6 @@ fn replace_range(first: i64, last: i64, len: usize) -> (usize, usize) {
 }
 
 /// The ASCII whitespace Tcl trims/splits on (space, tab, newline, CR, VT, FF).
-const TCL_WS: &[char] = &[' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}'];
 
 /// `concat ?arg ...?` — trim each argument and join with single spaces, dropping
 /// the args that are empty after trimming.
@@ -528,7 +527,7 @@ pub fn join<O: ValueOps>(
 
 /// The characters `split` splits on by default: space, newline, tab and
 /// carriage return, `Tcl_SplitObjCmd`'s `" \n\t\r"` — not the vertical tab or
-/// the form feed, which [`TCL_WS`] holds for `concat` (tclsh 8.4.20 to 9.1.0
+/// the form feed, both of which `concat` trims (tclsh 8.4.20 to 9.1.0
 /// split `"a\vb\fc d"` into two elements).
 const SPLIT_WS: &[char] = &[' ', '\n', '\t', '\r'];
 

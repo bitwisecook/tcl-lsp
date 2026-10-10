@@ -286,15 +286,36 @@ pub(crate) fn detect_global_write_procs_with_bindings(
 /// calls (`procedures`, the map [`detect_global_write_procs_with_bindings`]
 /// builds), a called procedure the map does not hold making it opaque, as a
 /// procedure's transitive closure does.
-pub(crate) fn own_frame_global_writes(
+pub(crate) fn own_frame_global_writes_with_metadata_context<'a>(
     body: &Script,
-    registry: &tcl_registry::CommandRegistry,
-    aliases: &ModuleCommandBindings,
+    registry: &'a tcl_registry::CommandRegistry,
+    aliases: &'a ModuleCommandBindings,
     namespace: &str,
     procedures: &HashMap<String, GlobalWriteInfo>,
+    metadata: Option<InvocationMetadataContext<'a>>,
+    config: tcl_lexer::LexerConfig,
 ) -> GlobalWriteInfo {
-    let mut info = own_body_global_writes(body, registry, aliases, namespace);
-    let (calls, calls_opaque) = direct_call_targets(body, registry, aliases, namespace);
+    let Some(metadata) = metadata.filter(|metadata| {
+        metadata.matches_registry(registry)
+            && metadata.source_analysis_input().map_or_else(
+                || metadata.is_standalone(),
+                |input| input.lexer_config().nested().normalized() == config.nested().normalized(),
+            )
+    }) else {
+        return GlobalWriteInfo {
+            opaque_global_frame: true,
+            ..GlobalWriteInfo::default()
+        };
+    };
+    let semantics = GlobalWriteSemantics {
+        registry,
+        aliases,
+        metadata,
+        config,
+        input: metadata.source_analysis_input(),
+    };
+    let mut info = own_body_global_writes(body, &semantics, namespace);
+    let (calls, calls_opaque) = direct_call_targets(body, &semantics, namespace);
     info.opaque_global_frame |= calls_opaque;
     for callee in calls {
         match procedures.get(&callee) {

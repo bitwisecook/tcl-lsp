@@ -79,7 +79,7 @@ impl Analyser {
     /// Parser topology from the actual source input, independently of handler
     /// success. Complete availability validates the owner without choosing its
     /// expression or variable-reference grammar.
-    fn original_expression_parser_context(
+    pub(in crate::analyser) fn original_expression_parser_context(
         &self,
     ) -> Option<tcl_syntax::expr::parser::ExprParseContext> {
         let input = self.result.resolved_input.as_ref()?;

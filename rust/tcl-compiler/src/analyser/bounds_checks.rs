@@ -630,7 +630,7 @@ fn loop_counter(
     grammar: &tcl_dialect::LexerGrammar,
 ) -> Option<LoopCounter> {
     let (var, op, bound) = parse_simple_for_cond(words.condition, grammar)?;
-    if body_may_exit(words.body, Some(registry), lexer_config) {
+    if body_may_exit(words.body, registry, lexer_config) {
         return None;
     }
     let step = match words.next {
@@ -812,90 +812,6 @@ fn is_word_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
-/// True when the step expression or the body provably updates `var`.
-fn loop_modifies_var(
-    var: &str,
-    step: &str,
-    body: &str,
-    registry: BoundsMetadataContext<'_>,
-    lexer_config: tcl_lexer::LexerConfig,
-) -> bool {
-    if !step.is_empty() {
-        if let Some((step_var, _)) = parse_step_incr(step, lexer_config)
-            && step_var == var
-        {
-            return true;
-        }
-        if body_writes_var(strip_braces(step), var, registry, lexer_config) {
-            return true;
-        }
-    }
-    body_writes_var(body, var, registry, lexer_config)
-}
-
-/// Prove that a `for {set v INT} {$v OP INT} {incr v INT} body` loop
-/// never terminates (no write to `v` elsewhere); returns the reason.
-fn for_is_provably_infinite(
-    init: &str,
-    cond: &str,
-    step: &str,
-    body: &str,
-    registry: BoundsMetadataContext<'_>,
-    lexer_config: tcl_lexer::LexerConfig,
-    grammar: &tcl_dialect::LexerGrammar,
-) -> Option<String> {
-    let (var_c, op, bound) = parse_simple_for_cond(cond, grammar)?;
-    let (var_i, start) = parse_init_var_value(init, lexer_config)?;
-    let (var_s, delta) = parse_step_incr(step, lexer_config)?;
-    if var_c != var_i || var_c != var_s {
-        return None;
-    }
-    if body_writes_var(body, &var_c, registry, lexer_config)
-        || body_may_exit(body, registry, lexer_config)
-    {
-        return None;
-    }
-    let counter = format!("${var_c}");
-    // Step of zero with the condition initially true → infinite.
-    if delta == 0 && cond_true_at(&op, start, bound) {
-        return Some("step is zero ('incr' with 0) and condition holds on entry".to_string());
-    }
-    // Wrong-direction step: moving away from the bound.
-    if matches!(op.as_str(), "<" | "<=") && cond_true_at(&op, start, bound) && delta < 0 {
-        return Some(format!(
-            "counter {counter} starts at {start}, moves by {delta} per step, and compares {op} \
-             {bound} (never reached)"
-        ));
-    }
-    if matches!(op.as_str(), ">" | ">=") && cond_true_at(&op, start, bound) && delta > 0 {
-        return Some(format!(
-            "counter {counter} starts at {start}, moves by {delta} per step, and compares {op} \
-             {bound} (never reached)"
-        ));
-    }
-    if matches!(op.as_str(), "!=" | "ne") {
-        if delta == 0 && start != bound {
-            return Some(format!("counter {counter} never changes and !={bound}"));
-        }
-        if delta != 0 && start != bound {
-            let diff = bound - start;
-            if diff * delta < 0 {
-                return Some(format!(
-                    "counter {counter} starts at {start}, moves by {delta} per step, never \
-                     reaches {bound}"
-                ));
-            }
-            if diff % delta != 0 {
-                return Some(format!(
-                    "counter {counter} starts at {start}, moves by {delta} per step, never \
-                     exactly equals {bound}"
-                ));
-            }
-        }
-    }
-    None
-}
-
 /// Evaluate a simple comparison at a concrete value.
 fn cond_true_at(op: &str, value: i64, bound: i64) -> bool {
     match op {
@@ -1059,6 +975,7 @@ fn parse_signed_decimal(word: &str) -> Option<i64> {
 /// would also match `set var(i)` array writes and matches inside
 /// strings), which keeps W241/W242 counts accurate — full-fidelity
 /// parsing rather than text matching.
+#[cfg(test)]
 fn body_writes_var(
     body: &str,
     var: &str,
@@ -1076,6 +993,7 @@ fn body_writes_var(
 /// `writes_first_arg_variable` query, with the cached default registry as
 /// an independently selected standalone catalogue. Retained callers use
 /// only their actual available schema.
+#[cfg(test)]
 fn writes_first_arg(name: &str, registry: BoundsMetadataContext<'_>) -> bool {
     registry.spec(name).is_some_and(|spec| {
         spec.traits
@@ -1089,7 +1007,7 @@ fn writes_first_arg(name: &str, registry: BoundsMetadataContext<'_>) -> bool {
 /// Walk every command in `script`, recursing into braced / quoted word
 /// arguments (which may be nested scripts), and return `true` as soon as
 /// `pred` matches.  A shallow-but-structural body scan.
-fn any_command_recursive(
+pub(super) fn any_command_recursive(
     script: &str,
     registry: BoundsMetadataContext<'_>,
     lexer_config: tcl_lexer::LexerConfig,

@@ -1,0 +1,1830 @@
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+warning: unused import: `ScriptCompileTarget`
+  --> rust/tcl-vm/src/embed.rs:59:41
+   |
+59 | use tcl_runtime_api::{Code, Completion, ScriptCompileTarget};
+   |                                         ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::sync::Arc`
+  --> rust/tcl-vm/src/interp.rs:35:5
+   |
+35 | use std::sync::Arc;
+   |     ^^^^^^^^^^^^^^
+
+warning: unused imports: `AtomicU64` and `Ordering`
+  --> rust/tcl-vm/src/interp.rs:36:25
+   |
+36 | use std::sync::atomic::{AtomicU64, Ordering};
+   |                         ^^^^^^^^^  ^^^^^^^^
+
+warning: unused import: `ProcedureCompileTarget`
+  --> rust/tcl-vm/src/interp.rs:58:5
+   |
+58 |     ProcedureCompileTarget, ProcedureDispatch, Procs, ROOT_NS, RegisteredBacking, Rung,
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0609]: no field `error_code` on type `TclError`
+   --> rust/tcl-vm/src/embed.rs:506:15
+    |
+506 |         error.error_code = crate::command::opt_get(&completion.options, "-errorcode")
+    |               ^^^^^^^^^^ unknown field
+
+error[E0308]: mismatched types
+   --> rust/tcl-vm/src/cmd_file.rs:260:29
+    |
+260 |             [p] => path_str(tcl_cmd_core::path::dirname(p.to_str().as_bytes())),
+    |                    -------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `&[u8]`, found `Cow<'_, [u8]>`
+    |                    |
+    |                    arguments to this function are incorrect
+    |
+    = note: expected reference `&[u8]`
+                    found enum `Cow<'_, [u8]>`
+note: function defined here
+   --> rust/tcl-vm/src/cmd_file.rs:180:4
+    |
+180 | fn path_str(bytes: &[u8]) -> Completion<Value> {
+    |    ^^^^^^^^ ------------
+help: consider borrowing here
+    |
+260 |             [p] => path_str(&tcl_cmd_core::path::dirname(p.to_str().as_bytes())),
+    |                             +
+
+error[E0599]: no method named `is_empty` found for struct `InterpId` in the current scope
+   --> rust/tcl-vm/src/cmd_info.rs:471:30
+    |
+471 |                 if !selected.is_empty() {
+    |                              ^^^^^^^^ method not found in `InterpId`
+    |
+   ::: rust/tcl-vm/src/interp.rs:462:1
+    |
+462 | pub struct InterpId(usize);
+    | ------------------- method `is_empty` not found for this struct
+    |
+    = help: items from traits can only be used if the trait is implemented and in scope
+    = note: the following traits define an item `is_empty`, perhaps you need to implement one of them:
+            candidate #1: `ExactSizeIterator`
+            candidate #2: `RangeBounds`
+            candidate #3: `bitflags::traits::Flags`
+
+error[E0063]: missing field `manifest` in initializer of `CompiledUnit`
+   --> rust/tcl-vm/src/compiled.rs:144:9
+    |
+144 |         Self {
+    |         ^^^^ missing `manifest`
+
+error[E0615]: attempted to take value of method `dialect_profile` on type `&mut Vm`
+   --> rust/tcl-vm/src/interp/execution_name_policy.rs:123:27
+    |
+123 |             profile: self.dialect_profile,
+    |                           ^^^^^^^^^^^^^^^ method, not a field
+    |
+help: use parentheses to call the method
+    |
+123 |             profile: self.dialect_profile(),
+    |                                          ++
+
+error[E0615]: attempted to take value of method `dialect_profile` on type `&Vm`
+   --> rust/tcl-vm/src/interp/execution_name_policy.rs:139:56
+    |
+139 |                 && std::ptr::eq(selected.profile, self.dialect_profile)
+    |                                                        ^^^^^^^^^^^^^^^ method, not a field
+    |
+help: use parentheses to call the method
+    |
+139 |                 && std::ptr::eq(selected.profile, self.dialect_profile())
+    |                                                                       ++
+
+error[E0615]: attempted to take value of method `dialect_profile` on type `&mut Vm`
+    --> rust/tcl-vm/src/interp.rs:2197:65
+     |
+2197 |             || tcl_registry::InvocationDialect::of_profile(self.dialect_profile)
+     |                                                                 ^^^^^^^^^^^^^^^ method, not a field
+     |
+help: use parentheses to call the method
+     |
+2197 |             || tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+     |                                                                                ++
+
+error[E0615]: attempted to take value of method `dialect_profile` on type `&mut Vm`
+    --> rust/tcl-vm/src/interp.rs:2256:65
+     |
+2256 |             || tcl_registry::InvocationDialect::of_profile(self.dialect_profile)
+     |                                                                 ^^^^^^^^^^^^^^^ method, not a field
+     |
+help: use parentheses to call the method
+     |
+2256 |             || tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+     |                                                                                ++
+
+error[E0615]: attempted to take value of method `dialect_profile` on type `&mut Vm`
+    --> rust/tcl-vm/src/interp.rs:2257:64
+     |
+2257 |                 .logical_source_string_protocol(provider, self.dialect_profile)
+     |                                                                ^^^^^^^^^^^^^^^ method, not a field
+     |
+help: use parentheses to call the method
+     |
+2257 |                 .logical_source_string_protocol(provider, self.dialect_profile())
+     |                                                                               ++
+
+error[E0615]: attempted to take value of method `dialect_profile` on type `&mut Vm`
+    --> rust/tcl-vm/src/interp.rs:2299:65
+     |
+2299 |             || tcl_registry::InvocationDialect::of_profile(self.dialect_profile)
+     |                                                                 ^^^^^^^^^^^^^^^ method, not a field
+     |
+help: use parentheses to call the method
+     |
+2299 |             || tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+     |                                                                                ++
+
+error[E0615]: attempted to take value of method `dialect_profile` on type `&mut Vm`
+    --> rust/tcl-vm/src/interp.rs:2300:66
+     |
+2300 |                 .logical_expression_parse_context(provider, self.dialect_profile)
+     |                                                                  ^^^^^^^^^^^^^^^ method, not a field
+     |
+help: use parentheses to call the method
+     |
+2300 |                 .logical_expression_parse_context(provider, self.dialect_profile())
+     |                                                                                 ++
+
+error[E0615]: attempted to take value of method `dialect_profile` on type `&Vm`
+    --> rust/tcl-vm/src/interp.rs:2324:79
+     |
+2324 |                     dialect.logical_expression_template_policy(provider, self.dialect_profile)
+     |                                                                               ^^^^^^^^^^^^^^^ method, not a field
+     |
+help: use parentheses to call the method
+     |
+2324 |                     dialect.logical_expression_template_policy(provider, self.dialect_profile())
+     |                                                                                              ++
+
+error[E0615]: attempted to take value of method `dialect_profile` on type `&mut Vm`
+    --> rust/tcl-vm/src/interp.rs:2337:65
+     |
+2337 |             || tcl_registry::InvocationDialect::of_profile(self.dialect_profile)
+     |                                                                 ^^^^^^^^^^^^^^^ method, not a field
+     |
+help: use parentheses to call the method
+     |
+2337 |             || tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+     |                                                                                ++
+
+error[E0609]: no field `dialect_profile` on type `Box<interp::InterpState>`
+    --> rust/tcl-vm/src/interp.rs:2707:19
+     |
+2707 |             state.dialect_profile = *profile;
+     |                   ^^^^^^^^^^^^^^^ unknown field
+     |
+     = note: available fields are: `runtime_version`, `command_surface_profile`, `framework_builtins`, `active_native_profile`, `actual_engine_profile` ... and 92 others
+
+error[E0609]: no field `dialect_profile` on type `&interp::InterpState`
+    --> rust/tcl-vm/src/interp.rs:2764:51
+     |
+2764 |         self.active_native_profile.unwrap_or(self.dialect_profile)
+     |                                                   ^^^^^^^^^^^^^^^ unknown field
+     |
+     = note: available fields are: `runtime_version`, `command_surface_profile`, `framework_builtins`, `active_native_profile`, `actual_engine_profile` ... and 92 others
+
+error[E0609]: no field `dialect_profile` on type `&interp::InterpState`
+    --> rust/tcl-vm/src/interp.rs:2770:65
+     |
+2770 |         let profile = self.active_native_profile.unwrap_or(self.dialect_profile);
+     |                                                                 ^^^^^^^^^^^^^^^ unknown field
+     |
+     = note: available fields are: `runtime_version`, `command_surface_profile`, `framework_builtins`, `active_native_profile`, `actual_engine_profile` ... and 92 others
+
+error[E0560]: struct `interp::InterpState` has no field named `dialect_profile`
+    --> rust/tcl-vm/src/interp.rs:3211:13
+     |
+3211 |             dialect_profile: environment.profile,
+     |             ^^^^^^^^^^^^^^^ `interp::InterpState` does not have this field
+     |
+     = note: all struct fields are already assigned
+
+error[E0308]: mismatched types
+    --> rust/tcl-vm/src/interp.rs:4137:9
+     |
+4137 |         self.register_command(canonical, Command::Builtin(f))
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `()`, found `String`
+     |
+help: consider using a semicolon here
+     |
+4137 |         self.register_command(canonical, Command::Builtin(f));
+     |                                                              +
+help: try adding a return type
+     |
+4124 |     pub fn register(&mut self, name: &str, f: BuiltinFn) -> std::string::String {
+     |                                                          ++++++++++++++++++++++
+
+error[E0599]: no method named `copied` found for enum `std::option::Option<u64>` in the current scope
+    --> rust/tcl-vm/src/interp.rs:4350:78
+     |
+4350 |         if let Some(generation) = self.visible_command_generation(canonical).copied() {
+     |                                                                             -^^^^^^--
+     |                                                                             ||
+     |                                                                             |this method is only available on `Option<&_>`
+     |                                                                             help: consider removing the `.copied()` call
+
+error[E0599]: no method named `copied` found for enum `std::option::Option<u64>` in the current scope
+    --> rust/tcl-vm/src/interp.rs:4373:14
+     |
+4371 |            if let Some(generation) = self
+     |  ____________________________________-
+4372 | |              .visible_command_generation(spec.name.strip_prefix("::").unwrap_or(spec.name))
+     | | ___________________________________________________________________________________________-
+4373 | ||             .copied()
+     | ||_____________-^^^^^^_- help: consider removing the `.copied()` call
+     | |              ||
+     | |______________|this method is only available on `Option<&_>`
+     |
+
+error[E0599]: no method named `copied` found for enum `std::option::Option<u64>` in the current scope
+    --> rust/tcl-vm/src/interp.rs:4398:72
+     |
+4398 |         let displaced = self.visible_command_generation(displaced_key).copied();
+     |                                                                       -^^^^^^--
+     |                                                                       ||
+     |                                                                       |this method is only available on `Option<&_>`
+     |                                                                       help: consider removing the `.copied()` call
+
+error[E0599]: no method named `copied` found for enum `std::option::Option<u64>` in the current scope
+    --> rust/tcl-vm/src/interp.rs:4403:73
+     |
+4403 |         if let Some(generation) = self.visible_command_generation(&key).copied() {
+     |                                                                        -^^^^^^--
+     |                                                                        ||
+     |                                                                        |this method is only available on `Option<&_>`
+     |                                                                        help: consider removing the `.copied()` call
+
+error[E0599]: no method named `copied` found for enum `std::option::Option<u64>` in the current scope
+    --> rust/tcl-vm/src/interp.rs:4471:73
+     |
+4471 |             let Some(generation) = self.visible_command_generation(key).copied() else {
+     |                                                                        -^^^^^^--
+     |                                                                        ||
+     |                                                                        |this method is only available on `Option<&_>`
+     |                                                                        help: consider removing the `.copied()` call
+
+error[E0614]: type `u64` cannot be dereferenced
+    --> rust/tcl-vm/src/interp.rs:4514:26
+     |
+4514 |         let generation = *self.visible_command_generation(&key)?;
+     |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ can't be dereferenced
+
+error[E0308]: mismatched types
+    --> rust/tcl-vm/src/interp.rs:4594:26
+     |
+4594 |                     .get(generation)
+     |                      --- ^^^^^^^^^^ expected `&u64`, found `u64`
+     |                      |
+     |                      arguments to this method are incorrect
+     |
+note: method defined here
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/collections/hash/map.rs:1034:11
+help: consider using `as_ref` instead
+     |
+4590 |             .as_ref().and_then(|generation| {
+     |              +++++++++
+
+error[E0609]: no field `dialect_profile` on type `interp::InterpState`
+    --> rust/tcl-vm/src/interp.rs:6660:15
+     |
+6660 |         child.dialect_profile = self.dialect_profile;
+     |               ^^^^^^^^^^^^^^^ unknown field
+     |
+     = note: available fields are: `runtime_version`, `command_surface_profile`, `framework_builtins`, `active_native_profile`, `actual_engine_profile` ... and 92 others
+
+error[E0615]: attempted to take value of method `dialect_profile` on type `&Vm`
+    --> rust/tcl-vm/src/interp.rs:6660:38
+     |
+6660 |         child.dialect_profile = self.dialect_profile;
+     |                                      ^^^^^^^^^^^^^^^ method, not a field
+     |
+help: use parentheses to call the method
+     |
+6660 |         child.dialect_profile = self.dialect_profile();
+     |                                                     ++
+
+error[E0308]: mismatched types
+    --> rust/tcl-vm/src/interp.rs:7472:75
+     |
+7472 |             .is_some_and(|generation| self.guarded_commands.host.contains(generation))
+     |                                                                  -------- ^^^^^^^^^^ expected `&u64`, found `u64`
+     |                                                                  |
+     |                                                                  arguments to this method are incorrect
+     |
+note: method defined here
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/collections/hash/set.rs:806:11
+help: consider borrowing here
+     |
+7472 |             .is_some_and(|generation| self.guarded_commands.host.contains(&generation))
+     |                                                                           +
+
+error[E0425]: cannot find type `ResolvedAnalyserHook` in this scope
+    --> rust/tcl-compiler/src/analyser/commands.rs:1693:17
+     |
+1693 |     ) -> Option<ResolvedAnalyserHook> {
+     |                 ^^^^^^^^^^^^^^^^^^^^ not found in this scope
+     |
+help: you might be missing a type parameter
+     |
+ 205 | impl<ResolvedAnalyserHook> Analyser {
+     |     ++++++++++++++++++++++
+
+error[E0422]: cannot find struct, variant or union type `ResolvedAnalyserHook` in this scope
+    --> rust/tcl-compiler/src/analyser/commands.rs:1704:14
+     |
+1704 |         Some(ResolvedAnalyserHook {
+     |              ^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0422]: cannot find struct, variant or union type `ResolvedAnalyserHook` in this scope
+    --> rust/tcl-compiler/src/analyser/commands.rs:1779:18
+     |
+1779 |         let Some(ResolvedAnalyserHook { hook, traits }) =
+     |                  ^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `fallback_registry` in this scope
+    --> rust/tcl-compiler/src/analyser/commands.rs:4523:61
+     |
+4523 |         let registry = self.registry.clone().unwrap_or_else(fallback_registry);
+     |                                                             ^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `fallback_registry` in module `super::commands`
+    --> rust/tcl-compiler/src/analyser/handlers.rs:3497:54
+     |
+3497 |                     .unwrap_or_else(super::commands::fallback_registry);
+     |                                                      ^^^^^^^^^^^^^^^^^ not found in `super::commands`
+
+warning: unused import: `crate::registry_invocation::resolve_command_tokens`
+  --> rust/tcl-compiler/src/common_aot_plan.rs:27:5
+   |
+27 | use crate::registry_invocation::resolve_command_tokens;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::collections::HashMap`
+  --> rust/tcl-compiler/src/static_loops/original_simulation.rs:27:5
+   |
+27 | use std::collections::HashMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `DEFAULT_MAX_STATIC_LOOP_ITERS`
+  --> rust/tcl-compiler/src/static_loops/original_simulation.rs:33:13
+   |
+33 | use super::{DEFAULT_MAX_STATIC_LOOP_ITERS, StaticEnv, StaticValue, simple_var_ref};
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0615]: attempted to take value of method `dialect_profile` on type `&Vm`
+     --> rust/tcl-vm/src/interp.rs:21943:70
+      |
+21943 |                     tcl_registry::InvocationDialect::of_profile(self.dialect_profile)
+      |                                                                      ^^^^^^^^^^^^^^^ method, not a field
+      |
+help: use parentheses to call the method
+      |
+21943 |                     tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+      |                                                                                     ++
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/analyser/bounds_checks.rs:633:34
+     |
+ 633 |     if body_may_exit(words.body, Some(registry), lexer_config) {
+     |        -------------             ^^^^^^^^^^^^^^ expected `BoundsMetadataContext<'_>`, found `Option<BoundsMetadataContext<'_>>`
+     |        |
+     |        arguments to this function are incorrect
+     |
+     = note: expected enum `BoundsMetadataContext<'_>`
+                found enum `std::option::Option<BoundsMetadataContext<'_>>`
+note: function defined here
+    --> rust/tcl-compiler/src/analyser/bounds_checks.rs:1760:4
+     |
+1760 | fn body_may_exit(
+     |    ^^^^^^^^^^^^^
+1761 |     body: &str,
+1762 |     registry: BoundsMetadataContext<'_>,
+     |     -----------------------------------
+
+error[E0560]: struct `CallWords<'_>` has no field named `cmd_name`
+    --> rust/tcl-compiler/src/analyser/commands.rs:2245:17
+     |
+2245 |                 cmd_name,
+     |                 ^^^^^^^^ `CallWords<'_>` does not have this field
+     |
+     = note: all struct fields are already assigned
+
+error[E0560]: struct `CallWords<'_>` has no field named `scope_path`
+    --> rust/tcl-compiler/src/analyser/commands.rs:2251:17
+     |
+2251 |                 scope_path,
+     |                 ^^^^^^^^^^ `CallWords<'_>` does not have this field
+     |
+     = note: all struct fields are already assigned
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/analyser/commands.rs:4806:45
+     |
+4806 |                 self.handle_package_require(cmd_name, cmd_tok, args, arg_tokens);
+     |                      ---------------------- ^^^^^^^^ expected `&str`, found `String`
+     |                      |
+     |                      arguments to this method are incorrect
+     |
+note: method defined here
+    --> rust/tcl-compiler/src/analyser/handlers.rs:7100:12
+     |
+7100 |     pub fn handle_package_require(
+     |            ^^^^^^^^^^^^^^^^^^^^^^
+7101 |         &mut self,
+7102 |         _cmd_name: &str,
+     |         ---------------
+help: consider borrowing here
+     |
+4806 |                 self.handle_package_require(&cmd_name, cmd_tok, args, arg_tokens);
+     |                                             +
+
+Some errors have detailed explanations: E0063, E0308, E0560, E0599, E0609, E0614, E0615.
+For more information about an error, try `rustc --explain E0063`.
+warning: `tcl-vm` (lib) generated 4 warnings
+error: could not compile `tcl-vm` (lib) due to 29 previous errors; 4 warnings emitted
+warning: build failed, waiting for other jobs to finish...
+error[E0599]: no method named `as_range` found for enum `std::result::Result<T, E>` in the current scope
+   --> rust/tcl-compiler/src/analyser/diagnostic_registry.rs:349:67
+    |
+349 |                 std::str::from_utf8(word.image().bytes().get(span.as_range())?)
+    |                                                                   ^^^^^^^^ method not found in `std::result::Result<tcl_lexer::Span, NativeWordError>`
+    |
+note: the method `as_range` exists on the type `tcl_lexer::Span`
+   --> rust/tcl-lexer/src/span.rs:93:5
+    |
+ 93 |     pub const fn as_range(self) -> std::ops::Range<usize> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: consider using `Result::expect` to unwrap the `tcl_lexer::Span` value, panicking if the value is a `Result::Err`
+    |
+349 |                 std::str::from_utf8(word.image().bytes().get(span.expect("REASON").as_range())?)
+    |                                                                  +++++++++++++++++
+
+error[E0658]: use of unstable library feature `str_as_str`
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:1134:54
+     |
+1134 |             if observed_by_unseen_calls.contains(var.as_str()) {
+     |                                                      ^^^^^^
+     |
+     = note: see issue #130366 <https://github.com/rust-lang/rust/issues/130366> for more information
+
+error[E0277]: a value of type `()` cannot be built from an iterator over elements of type `std::string::String`
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:2002:67
+     |
+2002 |         let reported = entries.iter().map(|(var, _)| var.clone()).collect();
+     |                                                                   ^^^^^^^ value of type `()` cannot be built from `std::iter::Iterator<Item=std::string::String>`
+     |
+help: the trait `FromIterator<std::string::String>` is not implemented for `()`
+      but trait `FromIterator<()>` is implemented for it
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/unit.rs:17:0
+     = help: for that trait implementation, expected `()`, found `std::string::String`
+note: the method call chain might not have had the expected associated types
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:2002:39
+     |
+2000 |         let mut entries: Vec<(String, tcl_lexer::Span)> = spans.into_iter().collect();
+     |                                                           ----- ----------- `Iterator::Item` is `(String, Span)` here
+     |                                                           |
+     |                                                           this expression has type `HashMap<String, Span>`
+2001 |         entries.sort_by_key(|(_, s)| s.start());
+2002 |         let reported = entries.iter().map(|(var, _)| var.clone()).collect();
+     |                                ------ ^^^^^^^^^^^^^^^^^^^^^^^^^^^ `Iterator::Item` changed to `String` here
+     |                                |
+     |                                `Iterator::Item` is `&(String, Span)` here
+note: required by a bound in `std::iter::Iterator::collect`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/iter/traits/iterator.rs:2073:4
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:2499:23
+     |
+2499 |             registry: ctx.registry,
+     |                       ^^^^^^^^^^^^ expected `&CommandRegistry`, found `Arc<CommandRegistry>`
+     |
+     = note: expected reference `&CommandRegistry`
+                   found struct `Arc<CommandRegistry>`
+help: consider borrowing here
+     |
+2499 |             registry: &ctx.registry,
+     |                       +
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:3996:71
+     |
+3996 |         .filter(|(name, held)| fu.ssa.name_is_observed_by_unseen_call(name, *held))
+     |                                       ------------------------------- ^^^^ expected `&str`, found `&VariableCellKey`
+     |                                       |
+     |                                       arguments to this method are incorrect
+     |
+     = note: expected reference `&str`
+                found reference `&VariableCellKey`
+note: method defined here
+    --> rust/tcl-compiler/src/ssa.rs:2011:12
+     |
+2011 |     pub fn name_is_observed_by_unseen_call(&self, name: &str, version: Version) -> bool {
+     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^        ----------
+
+error[E0599]: no method named `as_str` found for reference `&VariableCellKey` in the current scope
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:3997:31
+     |
+3997 |         .map(|(name, _)| name.as_str())
+     |                               ^^^^^^ method not found in `&VariableCellKey`
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/analyser/diagnostics/helpers.rs:629:51
+     |
+ 629 |             let Some(symbol) = ctx.ssa.var_symbol(&key.0) else {
+     |                                        ---------- ^^^^^^ expected `&str`, found `&VariableCellKey`
+     |                                        |
+     |                                        arguments to this method are incorrect
+     |
+     = note: expected reference `&str`
+                found reference `&VariableCellKey`
+note: method defined here
+    --> rust/tcl-compiler/src/ssa.rs:2178:12
+     |
+2178 |     pub fn var_symbol(&self, name: &str) -> Option<Symbol> {
+     |            ^^^^^^^^^^        ----------
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/analyser/diagnostics/helpers.rs:1759:25
+     |
+1759 |         cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered, semantics),
+     |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `HashMap<String, Vec<(_, usize)>, _>`, found `HashSet<String, FxBuildHasher>`
+     |
+     = note: expected struct `HashMap<std::string::String, Vec<(BlockId, usize)>, FxBuildHasher>`
+                found struct `HashSet<std::string::String, FxBuildHasher>`
+
+error[E0599]: no method named `existence_frame` found for enum `BodyFrame<'a>` in the current scope
+   --> rust/tcl-compiler/src/analyser/diagnostics.rs:971:37
+    |
+251 | pub enum BodyFrame<'a> {
+    | ---------------------- method `existence_frame` not found for this enum
+...
+971 |         let existence_frame = frame.existence_frame();
+    |                                     ^^^^^^^^^^^^^^^ method not found in `BodyFrame<'_>`
+
+error[E0599]: no method named `emit_existence_constant_branch_diagnostics` found for mutable reference `&mut Analyser` in the current scope
+    --> rust/tcl-compiler/src/analyser/diagnostics.rs:1057:14
+     |
+1057 |         self.emit_existence_constant_branch_diagnostics(function_unit, existence_frame);
+     |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: there is a method `emit_constant_branch_diagnostics` with a similar name, but with different arguments
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:2813:5
+     |
+2813 | /     pub(super) fn emit_constant_branch_diagnostics(
+2814 | |         &mut self,
+2815 | |         fu: &crate::compilation_unit::FunctionUnit,
+2816 | |     ) {
+     | |_____^
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/analyser/handlers.rs:7642:13
+     |
+7640 |         crate::tcl_expr_eval::evaluate_expr_with_constants(
+     |         -------------------------------------------------- arguments to this function are incorrect
+7641 |             &crate::parse_expr_for_profile(expr, Some(self.profile)),
+7642 |             &crate::static_loops::StaticEnv::new(),
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `&HashMap<String, EnvValue>`, found `&HashMap<String, StaticValue>`
+     |
+     = note: expected reference `&HashMap<_, EnvValue>`
+                found reference `&HashMap<_, StaticValue>`
+note: function defined here
+    --> rust/tcl-compiler/src/tcl_expr_eval.rs:552:8
+     |
+ 552 | pub fn evaluate_expr_with_constants(expr: &ExprNode, env: &Env, policy: FoldPolicy) -> Option<i64> {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^                  ---------
+
+error[E0599]: no variant, associated function, or constant named `NamespaceUpvar` found for enum `AnalyserHookId` in the current scope
+    --> rust/tcl-compiler/src/analyser/param_traits.rs:1056:82
+     |
+1056 |     if selected.facts.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::NamespaceUpvar) {
+     |                                                                                  ^^^^^^^^^^^^^^ variant, associated function, or constant not found in `AnalyserHookId`
+     |
+help: there is a variant with a similar name
+     |
+1056 -     if selected.facts.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::NamespaceUpvar) {
+1056 +     if selected.facts.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::NamespaceEval) {
+     |
+
+error[E0609]: no field `name` on type `ResolvedSubcommand<'_>`
+   --> rust/tcl-compiler/src/auto_path_eval.rs:760:25
+    |
+760 |         Some(subcommand.name),
+    |                         ^^^^ unknown field
+    |
+    = note: available fields are: `spelling`, `canonical_name`
+
+error[E0063]: missing field `executed_source` in initializer of `LoopNode`
+   --> rust/tcl-compiler/src/cfg_builder/cfg_lower.rs:608:13
+    |
+608 |             LoopNode {
+    |             ^^^^^^^^ missing `executed_source`
+
+error[E0061]: this function takes 3 arguments but 4 arguments were supplied
+   --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:296:20
+    |
+296 |     let mut info = own_body_global_writes(body, registry, aliases, namespace);
+    |                    ^^^^^^^^^^^^^^^^^^^^^^       --------  ------- unexpected argument #3 of type `&ModuleCommandBindings`
+    |                                                 |
+    |                                                 expected `&GlobalWriteSemantics<'_>`, found `&CommandRegistry`
+    |
+    = note: expected reference `&GlobalWriteSemantics<'_>`
+               found reference `&CommandRegistry`
+note: function defined here
+   --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:328:4
+    |
+328 | fn own_body_global_writes(
+    |    ^^^^^^^^^^^^^^^^^^^^^^
+329 |     body: &Script,
+330 |     semantics: &GlobalWriteSemantics<'_>,
+    |     ------------------------------------
+help: remove the extra argument
+    |
+296 -     let mut info = own_body_global_writes(body, registry, aliases, namespace);
+296 +     let mut info = own_body_global_writes(body, /* &GlobalWriteSemantics<'_> */, namespace);
+    |
+
+error[E0061]: this function takes 3 arguments but 4 arguments were supplied
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:297:33
+     |
+ 297 |     let (calls, calls_opaque) = direct_call_targets(body, registry, aliases, namespace);
+     |                                 ^^^^^^^^^^^^^^^^^^^       --------  ------- unexpected argument #3 of type `&ModuleCommandBindings`
+     |                                                           |
+     |                                                           expected `&GlobalWriteSemantics<'_>`, found `&CommandRegistry`
+     |
+     = note: expected reference `&GlobalWriteSemantics<'_>`
+                found reference `&CommandRegistry`
+note: function defined here
+    --> rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1061:4
+     |
+1061 | fn direct_call_targets(
+     |    ^^^^^^^^^^^^^^^^^^^
+1062 |     body: &Script,
+1063 |     semantics: &GlobalWriteSemantics<'_>,
+     |     ------------------------------------
+help: remove the extra argument
+     |
+ 297 -     let (calls, calls_opaque) = direct_call_targets(body, registry, aliases, namespace);
+ 297 +     let (calls, calls_opaque) = direct_call_targets(body, /* &GlobalWriteSemantics<'_> */, namespace);
+     |
+
+error[E0599]: no variant, associated function, or constant named `RegistryBarrier` found for enum `SyntheticMarker` in the current scope
+   --> rust/tcl-compiler/src/cfg_builder/mod.rs:754:45
+    |
+754 |                 crate::ir::SyntheticMarker::RegistryBarrier,
+    |                                             ^^^^^^^^^^^^^^^ variant, associated function, or constant not found in `SyntheticMarker`
+    |
+   ::: rust/tcl-compiler/src/ir.rs:423:1
+    |
+423 | pub enum SyntheticMarker {
+    | ------------------------ variant, associated function, or constant `RegistryBarrier` not found for this enum
+
+error[E0631]: type mismatch in function arguments
+    --> rust/tcl-compiler/src/cfg_builder/mod.rs:1255:22
+     |
+1255 |                 .map(String::as_str)
+     |                  --- ^^^^^^^^^^^^^^
+     |                  |   |
+     |                  |   expected due to this
+     |                  |   found signature defined here
+     |                  required by a bound introduced by this call
+     |
+     = note: expected function signature `fn(&EffectiveInvocationWord) -> _`
+                found function signature `fn(&std::string::String) -> _`
+note: required by a bound in `std::iter::Iterator::map`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/iter/traits/iterator.rs:831:4
+help: consider wrapping the function in a closure
+     |
+1255 |                 .map(|arg0: &EffectiveInvocationWord| String::as_str(/* &std::string::String */))
+     |                      ++++++++++++++++++++++++++++++++               ++++++++++++++++++++++++++++
+
+error[E0599]: the method `chain` exists for struct `Map<Iter<'_, EffectiveInvocationWord>, fn(_) -> _ {String::as_str}>`, but its trait bounds were not satisfied
+    --> rust/tcl-compiler/src/cfg_builder/mod.rs:1256:18
+     |
+1252 |               let words: Vec<&str> = target
+     |  ____________________________________-
+1253 | |                 .prepended
+1254 | |                 .iter()
+1255 | |                 .map(String::as_str)
+1256 | |                 .chain(args.iter().copied())
+     | |                 -^^^^^ method cannot be called due to unsatisfied trait bounds
+     | |_________________|
+     |
+     |
+     = note: the following trait bounds were not satisfied:
+             `<for<'a> fn(&'a std::string::String) -> &'a str {std::string::String::as_str} as FnOnce<(&EffectiveInvocationWord,)>>::Output = _`
+             which is required by `std::iter::Map<std::slice::Iter<'_, EffectiveInvocationWord>, for<'a> fn(&'a std::string::String) -> &'a str {std::string::String::as_str}>: Iterator`
+             `for<'a> fn(&'a std::string::String) -> &'a str {std::string::String::as_str}: FnMut<(&EffectiveInvocationWord,)>`
+             which is required by `std::iter::Map<std::slice::Iter<'_, EffectiveInvocationWord>, for<'a> fn(&'a std::string::String) -> &'a str {std::string::String::as_str}>: Iterator`
+             `std::iter::Map<std::slice::Iter<'_, EffectiveInvocationWord>, for<'a> fn(&'a std::string::String) -> &'a str {std::string::String::as_str}>: Iterator`
+             which is required by `&mut std::iter::Map<std::slice::Iter<'_, EffectiveInvocationWord>, for<'a> fn(&'a std::string::String) -> &'a str {std::string::String::as_str}>: Iterator`
+     = note: the full name for the type has been written to '/workspace/.targets/naming-upstream-clean/debug/deps/tcl_compiler-788f06e119a4bf05.long-type-14328806632912500235.txt'
+     = note: consider using `--verbose` to print the full type name to the console
+
+error[E0599]: no variant, associated function, or constant named `UpvarInvalidate` found for enum `SyntheticMarker` in the current scope
+    --> rust/tcl-compiler/src/cfg_builder/mod.rs:2551:53
+     |
+2551 |                         crate::ir::SyntheticMarker::UpvarInvalidate,
+     |                                                     ^^^^^^^^^^^^^^^ variant, associated function, or constant not found in `SyntheticMarker`
+     |
+    ::: rust/tcl-compiler/src/ir.rs:423:1
+     |
+ 423 | pub enum SyntheticMarker {
+     | ------------------------ variant, associated function, or constant `UpvarInvalidate` not found for this enum
+
+error[E0599]: no method named `lower_return_options_barrier` found for mutable reference `&mut CfgBuilder<'a>` in the current scope
+    --> rust/tcl-compiler/src/cfg_builder/mod.rs:2634:22
+     |
+2634 |                 self.lower_return_options_barrier(stmt, *span, current);
+     |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ method not found in `&mut CfgBuilder<'a>`
+
+error[E0063]: missing field `profile` in initializer of `CfgCommandClasses`
+    --> rust/tcl-compiler/src/cfg_builder/mod.rs:3999:9
+     |
+3999 |         Self {
+     |         ^^^^ missing `profile`
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/codegen/cmd_subst.rs:1858:38
+     |
+1858 |         self.require_command_binding(&binding);
+     |              ----------------------- ^^^^^^^^ expected `&CommandBindingIdentity`, found `&SiteBinding`
+     |              |
+     |              arguments to this method are incorrect
+     |
+     = note: expected reference `&CommandBindingIdentity`
+                found reference `&SiteBinding`
+note: method defined here
+    --> rust/tcl-compiler/src/codegen/mod.rs:945:12
+     |
+ 945 |     pub fn require_command_binding(&mut self, binding: &tcl_runtime_api::CommandBindingIdentity) {
+     |            ^^^^^^^^^^^^^^^^^^^^^^^            -------------------------------------------------
+
+error[E0308]: mismatched types
+   --> rust/tcl-compiler/src/codegen/control_flow.rs:293:45
+    |
+293 |         if clause.kind != TryClauseKind::On(CompletionCode::Error)
+    |                           ----------------- ^^^^^^^^^^^^^^^^^^^^^ expected `TryCompletionSelector`, found `CompletionCode`
+    |                           |
+    |                           arguments to this enum variant are incorrect
+    |
+note: tuple variant defined here
+   --> rust/tcl-registry/src/registry.rs:160:5
+    |
+160 |     On(TryCompletionSelector),
+    |     ^^
+
+error[E0308]: mismatched types
+   --> rust/tcl-compiler/src/codegen/emitter/bytecoded.rs:999:33
+    |
+999 |     ctx.require_command_binding(&binding);
+    |         ----------------------- ^^^^^^^^ expected `&CommandBindingIdentity`, found `&SiteBinding`
+    |         |
+    |         arguments to this method are incorrect
+    |
+    = note: expected reference `&CommandBindingIdentity`
+               found reference `&SiteBinding`
+note: method defined here
+   --> rust/tcl-compiler/src/codegen/mod.rs:945:12
+    |
+945 |     pub fn require_command_binding(&mut self, binding: &tcl_runtime_api::CommandBindingIdentity) {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^            -------------------------------------------------
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/codegen/emitter/bytecoded.rs:1221:37
+     |
+1221 |         ctx.require_command_binding(&binding);
+     |             ----------------------- ^^^^^^^^ expected `&CommandBindingIdentity`, found `&SiteBinding`
+     |             |
+     |             arguments to this method are incorrect
+     |
+     = note: expected reference `&CommandBindingIdentity`
+                found reference `&SiteBinding`
+note: method defined here
+    --> rust/tcl-compiler/src/codegen/mod.rs:945:12
+     |
+ 945 |     pub fn require_command_binding(&mut self, binding: &tcl_runtime_api::CommandBindingIdentity) {
+     |            ^^^^^^^^^^^^^^^^^^^^^^^            -------------------------------------------------
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/codegen/emitter/bytecoded.rs:1234:33
+     |
+1234 |     ctx.require_command_binding(&binding);
+     |         ----------------------- ^^^^^^^^ expected `&CommandBindingIdentity`, found `&SiteBinding`
+     |         |
+     |         arguments to this method are incorrect
+     |
+     = note: expected reference `&CommandBindingIdentity`
+                found reference `&SiteBinding`
+note: method defined here
+    --> rust/tcl-compiler/src/codegen/mod.rs:945:12
+     |
+ 945 |     pub fn require_command_binding(&mut self, binding: &tcl_runtime_api::CommandBindingIdentity) {
+     |            ^^^^^^^^^^^^^^^^^^^^^^^            -------------------------------------------------
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/codegen/emitter/bytecoded.rs:1260:33
+     |
+1260 |     ctx.require_command_binding(&binding);
+     |         ----------------------- ^^^^^^^^ expected `&CommandBindingIdentity`, found `&SiteBinding`
+     |         |
+     |         arguments to this method are incorrect
+     |
+     = note: expected reference `&CommandBindingIdentity`
+                found reference `&SiteBinding`
+note: method defined here
+    --> rust/tcl-compiler/src/codegen/mod.rs:945:12
+     |
+ 945 |     pub fn require_command_binding(&mut self, binding: &tcl_runtime_api::CommandBindingIdentity) {
+     |            ^^^^^^^^^^^^^^^^^^^^^^^            -------------------------------------------------
+
+error[E0063]: missing field `manifest` in initializer of `tcl_bytecode::ModuleAsm`
+  --> rust/tcl-compiler/src/codegen/native_substitution.rs:90:8
+   |
+90 |     Ok(tcl_bytecode::ModuleAsm {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^ missing `manifest`
+
+error[E0063]: missing field `native_declines` in initializer of `WasmCodegenPlan`
+   --> rust/tcl-compiler/src/codegen/wasm/pipeline.rs:558:19
+    |
+558 |             plan: WasmCodegenPlan::General {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^ missing `native_declines`
+
+error[E0599]: no method named `effect_footprint` found for reference `&ResolvedInvocation<'_, '_>` in the current scope
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs:526:30
+    |
+526 |         let effects = schema.effect_footprint();
+    |                              ^^^^^^^^^^^^^^^^ method not found in `&ResolvedInvocation<'_, '_>`
+
+error[E0599]: no method named `effect_footprint` found for reference `&ResolvedInvocation<'_, '_>` in the current scope
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice/registered_instance.rs:478:46
+    |
+478 |                         let effects = schema.effect_footprint();
+    |                                              ^^^^^^^^^^^^^^^^ method not found in `&ResolvedInvocation<'_, '_>`
+
+error[E0609]: no field `for_stmt` on type `&mut LoopNode`
+   --> rust/tcl-compiler/src/command_binding/body_template.rs:182:55
+    |
+182 |             valid &= self.restore_statement(&mut node.for_stmt);
+    |                                                       ^^^^^^^^ unknown field
+    |
+    = note: available fields are: `executed_source`, `entry_block`, `start`, `span`, `statement`
+
+error[E0609]: no field `for_stmt` on type `&mut LoopNode`
+   --> rust/tcl-compiler/src/compilation_unit.rs:910:58
+    |
+910 |             relocate_statement_variable_proofs(&mut node.for_stmt, relocation);
+    |                                                          ^^^^^^^^ unknown field
+    |
+    = note: available fields are: `executed_source`, `entry_block`, `start`, `span`, `statement`
+
+error[E0308]: mismatched types
+   --> rust/tcl-compiler/src/compile_service.rs:559:78
+    |
+559 |         crate::codegen::native_substitution::compile(target, profile, entry, registry.as_ref())
+    |         --------------------------------------------                         ^^^^^^^^^^^^^^^^^ expected `&CommandRegistry`, found `Result<&ProfileRegistry<'_>, &_>`
+    |         |
+    |         arguments to this function are incorrect
+    |
+    = note: expected reference `&CommandRegistry`
+                    found enum `std::result::Result<&compile_service::ProfileRegistry<'_>, &tcl_runtime_api::CompileError>`
+note: function defined here
+   --> rust/tcl-compiler/src/codegen/native_substitution.rs:11:15
+    |
+ 11 | pub(crate) fn compile(
+    |               ^^^^^^^
+...
+ 15 |     registry: &tcl_registry::CommandRegistry,
+    |     ----------------------------------------
+
+error[E0308]: mismatched types
+   --> rust/tcl-compiler/src/compile_service.rs:607:13
+    |
+603 |         Self::compile_target_with(
+    |         ------------------------- arguments to this function are incorrect
+...
+607 |             registry.as_ref(),
+    |             ^^^^^^^^^^^^^^^^^ expected `&CommandRegistry`, found `Result<&ProfileRegistry<'_>, &_>`
+    |
+    = note: expected reference `&CommandRegistry`
+                    found enum `std::result::Result<&compile_service::ProfileRegistry<'_>, &tcl_runtime_api::CompileError>`
+note: associated function defined here
+   --> rust/tcl-compiler/src/compile_service.rs:282:8
+    |
+282 |     fn compile_target_with(
+    |        ^^^^^^^^^^^^^^^^^^^
+...
+286 |         registry: &CommandRegistry,
+    |         --------------------------
+
+error[E0308]: mismatched types
+   --> rust/tcl-compiler/src/compile_service.rs:630:13
+    |
+627 |         Self::compile_procedure_target_with(
+    |         ----------------------------------- arguments to this function are incorrect
+...
+630 |             registry.as_ref(),
+    |             ^^^^^^^^^^^^^^^^^ expected `&CommandRegistry`, found `Result<&ProfileRegistry<'_>, &_>`
+    |
+    = note: expected reference `&CommandRegistry`
+                    found enum `std::result::Result<&compile_service::ProfileRegistry<'_>, &tcl_runtime_api::CompileError>`
+note: associated function defined here
+   --> rust/tcl-compiler/src/compile_service.rs:397:8
+    |
+397 |     fn compile_procedure_target_with(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+400 |         registry: &CommandRegistry,
+    |         --------------------------
+
+error[E0308]: mismatched types
+   --> rust/tcl-compiler/src/compile_service.rs:675:13
+    |
+672 |         Self::compile_script_bytes_target_with(
+    |         -------------------------------------- arguments to this function are incorrect
+...
+675 |             registry.as_ref(),
+    |             ^^^^^^^^^^^^^^^^^ expected `&CommandRegistry`, found `Result<&ProfileRegistry<'_>, &_>`
+    |
+    = note: expected reference `&CommandRegistry`
+                    found enum `std::result::Result<&compile_service::ProfileRegistry<'_>, &tcl_runtime_api::CompileError>`
+note: associated function defined here
+   --> rust/tcl-compiler/src/compile_service.rs:453:8
+    |
+453 |     fn compile_script_bytes_target_with(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+456 |         registry: &CommandRegistry,
+    |         --------------------------
+
+error[E0308]: mismatched types
+   --> rust/tcl-compiler/src/compile_service.rs:691:13
+    |
+688 |         Self::compile_script_bytes_target_with(
+    |         -------------------------------------- arguments to this function are incorrect
+...
+691 |             registry.as_ref(),
+    |             ^^^^^^^^^^^^^^^^^ expected `&CommandRegistry`, found `Result<&ProfileRegistry<'_>, &_>`
+    |
+    = note: expected reference `&CommandRegistry`
+                    found enum `std::result::Result<&compile_service::ProfileRegistry<'_>, &tcl_runtime_api::CompileError>`
+note: associated function defined here
+   --> rust/tcl-compiler/src/compile_service.rs:453:8
+    |
+453 |     fn compile_script_bytes_target_with(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+456 |         registry: &CommandRegistry,
+    |         --------------------------
+
+error[E0308]: mismatched types
+   --> rust/tcl-compiler/src/compile_service.rs:709:13
+    |
+706 |         Self::compile_script_bytes_target_with(
+    |         -------------------------------------- arguments to this function are incorrect
+...
+709 |             registry.as_ref(),
+    |             ^^^^^^^^^^^^^^^^^ expected `&CommandRegistry`, found `Result<&ProfileRegistry<'_>, &_>`
+    |
+    = note: expected reference `&CommandRegistry`
+                    found enum `std::result::Result<&compile_service::ProfileRegistry<'_>, &tcl_runtime_api::CompileError>`
+note: associated function defined here
+   --> rust/tcl-compiler/src/compile_service.rs:453:8
+    |
+453 |     fn compile_script_bytes_target_with(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+456 |         registry: &CommandRegistry,
+    |         --------------------------
+
+error[E0308]: mismatched types
+   --> rust/tcl-compiler/src/compile_service.rs:727:13
+    |
+724 |         Self::compile_script_bytes_target_with(
+    |         -------------------------------------- arguments to this function are incorrect
+...
+727 |             registry.as_ref(),
+    |             ^^^^^^^^^^^^^^^^^ expected `&CommandRegistry`, found `Result<&ProfileRegistry<'_>, &_>`
+    |
+    = note: expected reference `&CommandRegistry`
+                    found enum `std::result::Result<&compile_service::ProfileRegistry<'_>, &tcl_runtime_api::CompileError>`
+note: associated function defined here
+   --> rust/tcl-compiler/src/compile_service.rs:453:8
+    |
+453 |     fn compile_script_bytes_target_with(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+456 |         registry: &CommandRegistry,
+    |         --------------------------
+
+error[E0308]: mismatched types
+   --> rust/tcl-compiler/src/compile_service.rs:744:13
+    |
+741 |         Self::compile_procedure_bytes_target_with(
+    |         ----------------------------------------- arguments to this function are incorrect
+...
+744 |             registry.as_ref(),
+    |             ^^^^^^^^^^^^^^^^^ expected `&CommandRegistry`, found `Result<&ProfileRegistry<'_>, &_>`
+    |
+    = note: expected reference `&CommandRegistry`
+                    found enum `std::result::Result<&compile_service::ProfileRegistry<'_>, &tcl_runtime_api::CompileError>`
+note: associated function defined here
+   --> rust/tcl-compiler/src/compile_service.rs:497:8
+    |
+497 |     fn compile_procedure_bytes_target_with(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+500 |         registry: &CommandRegistry,
+    |         --------------------------
+
+error[E0308]: mismatched types
+   --> rust/tcl-compiler/src/compile_service.rs:763:13
+    |
+760 |         Self::compile_procedure_bytes_target_with(
+    |         ----------------------------------------- arguments to this function are incorrect
+...
+763 |             registry.as_ref(),
+    |             ^^^^^^^^^^^^^^^^^ expected `&CommandRegistry`, found `Result<&ProfileRegistry<'_>, &_>`
+    |
+    = note: expected reference `&CommandRegistry`
+                    found enum `std::result::Result<&compile_service::ProfileRegistry<'_>, &tcl_runtime_api::CompileError>`
+note: associated function defined here
+   --> rust/tcl-compiler/src/compile_service.rs:497:8
+    |
+497 |     fn compile_procedure_bytes_target_with(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+500 |         registry: &CommandRegistry,
+    |         --------------------------
+
+error: pattern requires `..` due to inaccessible fields
+  --> rust/tcl-compiler/src/durable_inventory.rs:35:17
+   |
+35 |               let $ty { $($field: _),+ } = value;
+   |                   ^^^^^^^^^^^^^^^^^^^^^^
+...
+40 | / durable_inventory!(
+41 | |     witness_function_unit,
+42 | |     FUNCTION_UNIT_FIELDS,
+43 | |     FunctionUnit,
+...  |
+62 | |     semantic_facts,
+63 | | );
+   | |_- in this macro invocation
+   |
+   = note: this error originates in the macro `durable_inventory` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: ignore the inaccessible and unused fields
+   |
+35 |             let $ty { $($field: _, ..),+ } = value;
+   |                                  ++++
+
+error: pattern requires `..` due to inaccessible fields
+  --> rust/tcl-compiler/src/durable_inventory.rs:35:17
+   |
+35 |               let $ty { $($field: _),+ } = value;
+   |                   ^^^^^^^^^^^^^^^^^^^^^^
+...
+65 | / durable_inventory!(
+66 | |     witness_compilation_unit,
+67 | |     COMPILATION_UNIT_FIELDS,
+68 | |     CompilationUnit,
+...  |
+80 | |     declared_commands,
+81 | | );
+   | |_- in this macro invocation
+   |
+   = note: this error originates in the macro `durable_inventory` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: ignore the inaccessible and unused fields
+   |
+35 |             let $ty { $($field: _, ..),+ } = value;
+   |                                  ++++
+
+error[E0308]: mismatched types
+   --> rust/tcl-compiler/src/dynamic_names.rs:627:9
+    |
+626 |       fn declared_frame_effect(self, command: &str) -> Option<FrameEffectSpec> {
+    |                                                        ----------------------- expected `std::option::Option<FrameEffectSpec>` because of return type
+627 | /         self.declared
+628 | |             .get(&tcl_syntax::naming::normalise_qualified_name(command))
+629 | |             .copied()
+    | |_____________________^ expected `Option<FrameEffectSpec>`, found `Option<Option<FrameEffectSpec>>`
+    |
+    = note: expected enum `Option<FrameEffectSpec>`
+               found enum `Option<std::option::Option<FrameEffectSpec>>`
+help: use the `?` operator to extract the `std::option::Option<std::option::Option<FrameEffectSpec>>` value, propagating an `Option::None` value to the caller
+    |
+629 |             .copied()?
+    |                      +
+
+error[E0599]: no method named `push` found for struct `SourceImage` in the current scope
+   --> rust/tcl-compiler/src/inlining/reference.rs:159:19
+    |
+159 |     module.source.push('\n');
+    |                   ^^^^ method not found in `SourceImage`
+
+error[E0599]: no method named `push_str` found for struct `SourceImage` in the current scope
+   --> rust/tcl-compiler/src/inlining/reference.rs:160:19
+    |
+160 |     module.source.push_str(text);
+    |                   ^^^^^^^^ method not found in `SourceImage`
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/ir_helpers.rs:1988:38
+     |
+1988 |         walk_text(text, &context, 0, false, &mut out);
+     |         ---------                    ^^^^^ expected `Reach`, found `bool`
+     |         |
+     |         arguments to this function are incorrect
+     |
+note: function defined here
+    --> rust/tcl-compiler/src/ir_helpers.rs:1524:4
+     |
+1524 | fn walk_text(
+     |    ^^^^^^^^^
+...
+1528 |     reach: Reach,
+     |     ------------
+
+error[E0063]: missing field `metadata_context` in initializer of `SourceAnalysisEntry`
+    --> rust/tcl-compiler/src/lowering/mod.rs:1585:36
+     |
+1585 |         self.module.source_entry = crate::command_binding::SourceAnalysisEntry {
+     |                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing `metadata_context`
+
+error[E0599]: no method named `command_surface` found for struct `lowering::Lowerer<'r>` in the current scope
+    --> rust/tcl-compiler/src/lowering/mod.rs:6715:14
+     |
+ 981 |   pub struct Lowerer<'r> {
+     |   ---------------------- method `command_surface` not found for this struct
+...
+6714 |           let declared_frame_effects = self
+     |  ______________________________________-
+6715 | |             .command_surface()
+     | |             -^^^^^^^^^^^^^^^ method not found in `lowering::Lowerer<'_>`
+     | |_____________|
+     |
+
+error[E0599]: no variant, associated function, or constant named `Set` found for enum `AnalyserHookId` in the current scope
+   --> rust/tcl-compiler/src/optimiser/chain_fold.rs:436:72
+    |
+436 |         (StructuredLowering(LoweringHookId::Set), Some(AnalyserHookId::Set))
+    |                                                                        ^^^ variant, associated function, or constant not found in `AnalyserHookId`
+
+error[E0599]: no variant, associated function, or constant named `Append` found for enum `AnalyserHookId` in the current scope
+   --> rust/tcl-compiler/src/optimiser/chain_fold.rs:445:84
+    |
+445 |         (StructuredLowering(LoweringHookId::AppendOrLappend), Some(AnalyserHookId::Append))
+    |                                                                                    ^^^^^^ variant, associated function, or constant not found in `AnalyserHookId`
+
+error[E0599]: no variant, associated function, or constant named `Lappend` found for enum `AnalyserHookId` in the current scope
+   --> rust/tcl-compiler/src/optimiser/chain_fold.rs:453:84
+    |
+453 |         (StructuredLowering(LoweringHookId::AppendOrLappend), Some(AnalyserHookId::Lappend))
+    |                                                                                    ^^^^^^^ variant, associated function, or constant not found in `AnalyserHookId`
+
+error[E0599]: no variant, associated function, or constant named `RegistryBarrier` found for enum `SyntheticMarker` in the current scope
+    --> rust/tcl-compiler/src/sccp/original_value_facts.rs:1092:49
+     |
+1092 |             == Some(crate::ir::SyntheticMarker::RegistryBarrier);
+     |                                                 ^^^^^^^^^^^^^^^ variant, associated function, or constant not found in `SyntheticMarker`
+     |
+    ::: rust/tcl-compiler/src/ir.rs:423:1
+     |
+ 423 | pub enum SyntheticMarker {
+     | ------------------------ variant, associated function, or constant `RegistryBarrier` not found for this enum
+
+error[E0609]: no field `for_stmt` on type `&LoopNode`
+    --> rust/tcl-compiler/src/sccp/original_value_facts.rs:2918:38
+     |
+2918 |     let condition_base = match &node.for_stmt {
+     |                                      ^^^^^^^^ unknown field
+     |
+     = note: available fields are: `executed_source`, `entry_block`, `start`, `span`, `statement`
+
+error[E0614]: type `std::option::Option<u32>` cannot be dereferenced
+    --> rust/tcl-compiler/src/sccp/original_value_facts.rs:2919:61
+     |
+2919 |         crate::ir::Statement::For { condition_base, .. } => *condition_base,
+     |                                                             ^^^^^^^^^^^^^^^ can't be dereferenced
+
+error[E0609]: no field `for_stmt` on type `&LoopNode`
+    --> rust/tcl-compiler/src/sccp/original_value_facts.rs:2936:19
+     |
+2936 |             &node.for_stmt,
+     |                   ^^^^^^^^ unknown field
+     |
+     = note: available fields are: `executed_source`, `entry_block`, `start`, `span`, `statement`
+
+error[E0609]: no field `for_stmt` on type `&LoopNode`
+    --> rust/tcl-compiler/src/sccp/original_value_facts.rs:2943:15
+     |
+2943 |         &node.for_stmt,
+     |               ^^^^^^^^ unknown field
+     |
+     = note: available fields are: `executed_source`, `entry_block`, `start`, `span`, `statement`
+
+error[E0658]: use of unstable library feature `str_as_str`
+   --> rust/tcl-compiler/src/script_binds.rs:201:38
+    |
+201 |                         .map_or(word.as_str(), |(root, _)| root)
+    |                                      ^^^^^^
+    |
+    = note: see issue #130366 <https://github.com/rust-lang/rust/issues/130366> for more information
+
+error[E0609]: no field `spec` on type `&ResolvedScanDispatch<'_>`
+   --> rust/tcl-compiler/src/signature_scan/walker.rs:307:26
+    |
+307 |             None => self.spec.clause_plan(&args, None),
+    |                          ^^^^ unknown field
+    |
+    = note: available fields are: `subcommand`, `analyser`, `lowering`
+
+error[E0609]: no field `spec` on type `ResolvedScanDispatch<'_>`
+   --> rust/tcl-compiler/src/signature_scan/walker.rs:442:22
+    |
+442 |             dispatch.spec.var_elements_effect,
+    |                      ^^^^ unknown field
+    |
+    = note: available fields are: `subcommand`, `analyser`, `lowering`
+
+error[E0609]: no field `spec` on type `ResolvedScanDispatch<'_>`
+   --> rust/tcl-compiler/src/signature_scan/walker.rs:453:22
+    |
+453 |             dispatch.spec,
+    |                      ^^^^ unknown field
+    |
+    = note: available fields are: `subcommand`, `analyser`, `lowering`
+
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+    --> rust/tcl-compiler/src/tcl_expr_eval.rs:2685:51
+     |
+2685 |                     bytes.extend_from_slice(value.to_string_val().as_bytes());
+     |                                                   ^^^^^^^^^^^^^-- argument #1 of type `std::option::Option<DoubleFormat>` is missing
+     |
+note: method defined here
+    --> rust/tcl-compiler/src/tcl_expr_eval.rs:1059:8
+     |
+1059 |     fn to_string_val(&self, format: Option<tcl_dialect::DoubleFormat>) -> Option<String> {
+     |        ^^^^^^^^^^^^^        -----------------------------------------
+help: provide the argument
+     |
+2685 |                     bytes.extend_from_slice(value.to_string_val(/* Option<DoubleFormat> */).as_bytes());
+     |                                                                 ++++++++++++++++++++++++++
+
+error[E0599]: no method named `as_bytes` found for enum `std::option::Option<T>` in the current scope
+    --> rust/tcl-compiler/src/tcl_expr_eval.rs:2685:67
+     |
+2685 |                     bytes.extend_from_slice(value.to_string_val().as_bytes());
+     |                                                                   ^^^^^^^^ method not found in `std::option::Option<std::string::String>`
+     |
+note: the method `as_bytes` exists on the type `std::string::String`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/alloc/src/string.rs:1461:4
+help: consider using `Option::expect` to unwrap the `std::string::String` value, panicking if the value is an `Option::None`
+     |
+2685 |                     bytes.extend_from_slice(value.to_string_val().expect("REASON").as_bytes());
+     |                                                                  +++++++++++++++++
+
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+    --> rust/tcl-compiler/src/tcl_expr_eval.rs:2691:51
+     |
+2691 |                     bytes.extend_from_slice(value.to_string_val().as_bytes());
+     |                                                   ^^^^^^^^^^^^^-- argument #1 of type `std::option::Option<DoubleFormat>` is missing
+     |
+note: method defined here
+    --> rust/tcl-compiler/src/tcl_expr_eval.rs:1059:8
+     |
+1059 |     fn to_string_val(&self, format: Option<tcl_dialect::DoubleFormat>) -> Option<String> {
+     |        ^^^^^^^^^^^^^        -----------------------------------------
+help: provide the argument
+     |
+2691 |                     bytes.extend_from_slice(value.to_string_val(/* Option<DoubleFormat> */).as_bytes());
+     |                                                                 ++++++++++++++++++++++++++
+
+error[E0599]: no method named `as_bytes` found for enum `std::option::Option<T>` in the current scope
+    --> rust/tcl-compiler/src/tcl_expr_eval.rs:2691:67
+     |
+2691 |                     bytes.extend_from_slice(value.to_string_val().as_bytes());
+     |                                                                   ^^^^^^^^ method not found in `std::option::Option<std::string::String>`
+     |
+note: the method `as_bytes` exists on the type `std::string::String`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/alloc/src/string.rs:1461:4
+help: consider using `Option::expect` to unwrap the `std::string::String` value, panicking if the value is an `Option::None`
+     |
+2691 |                     bytes.extend_from_slice(value.to_string_val().expect("REASON").as_bytes());
+     |                                                                  +++++++++++++++++
+
+error[E0063]: missing field `destruction_defs` in initializer of `SsaStatement`
+    --> rust/tcl-compiler/src/value_transfer.rs:2176:22
+     |
+2176 |         let shadow = SsaStatement {
+     |                      ^^^^^^^^^^^^ missing `destruction_defs`
+
+error[E0063]: missing field `namespace_context` in initializer of `ConstSubstCtx<'_>`
+    --> rust/tcl-compiler/src/value_transfer.rs:3884:22
+     |
+3884 |         let folded = crate::const_subst::ConstSubstCtx {
+     |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing `namespace_context`
+
+error[E0063]: missing field `words` in initializer of `VariableCellAliasTransition`
+    --> rust/tcl-compiler/src/variable_bindings.rs:1142:10
+     |
+1142 |         &VariableCellAliasTransition {
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing `words`
+
+error[E0027]: pattern does not mention field `rejected`
+   --> rust/tcl-compiler/src/word_subst.rs:757:9
+    |
+757 |         WordExpr::Template { parts, source } => {
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing field `rejected`
+    |
+help: include the missing field in the pattern
+    |
+757 |         WordExpr::Template { parts, source, rejected } => {
+    |                                           ++++++++++
+help: if you don't care about this missing field, you can explicitly ignore it
+    |
+757 |         WordExpr::Template { parts, source, rejected: _ } => {
+    |                                           +++++++++++++
+help: or always ignore missing fields here
+    |
+757 |         WordExpr::Template { parts, source, .. } => {
+    |                                           ++++
+
+warning: unused variable: `lexer_config`
+    --> rust/tcl-compiler/src/analyser/bounds_checks.rs:1462:5
+     |
+1462 |     lexer_config: tcl_lexer::LexerConfig,
+     |     ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_lexer_config`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `pending`
+    --> rust/tcl-compiler/src/analyser/commands.rs:5440:21
+     |
+5440 |         if let Some(pending) = self.pending_instances.as_mut() {
+     |                     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_pending`
+
+error[E0004]: non-exhaustive patterns: `&TransitionSubject::LocatedLiteral { .. }` and `&TransitionSubject::LocatedNativeBytes { .. }` not covered
+    --> rust/tcl-compiler/src/analyser/handlers.rs:1443:19
+     |
+1443 |             match subject {
+     |                   ^^^^^^^ patterns `&TransitionSubject::LocatedLiteral { .. }` and `&TransitionSubject::LocatedNativeBytes { .. }` not covered
+     |
+note: `TransitionSubject` defined here
+    --> rust/tcl-registry/src/state_transition.rs:98:1
+     |
+  98 | pub enum TransitionSubject {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+ 102 |     LocatedLiteral {
+     |     -------------- not covered
+...
+ 110 |     LocatedNativeBytes {
+     |     ------------------ not covered
+     = note: the matched value is of type `&TransitionSubject`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern, a match arm with multiple or-patterns as shown, or multiple match arms
+     |
+1447 ~                 },
+1448 +                 &TransitionSubject::LocatedLiteral { .. } | &TransitionSubject::LocatedNativeBytes { .. } => todo!()
+     |
+
+error[E0004]: non-exhaustive patterns: `Some((Some(TransitionSubject::LocatedLiteral { .. }), _))` and `Some((Some(TransitionSubject::LocatedNativeBytes { .. }), _))` not covered
+    --> rust/tcl-compiler/src/analyser/handlers.rs:4424:15
+     |
+4424 |         match created_interpreter(transitions) {
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ patterns `Some((Some(TransitionSubject::LocatedLiteral { .. }), _))` and `Some((Some(TransitionSubject::LocatedNativeBytes { .. }), _))` not covered
+     |
+note: `std::option::Option<(std::option::Option<TransitionSubject>, bool)>` defined here
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/option.rs:598:0
+    ::: /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/option.rs:606:4
+     |
+     = note: not covered
+     |
+     = note: not covered
+     = note: the matched value is of type `std::option::Option<(std::option::Option<TransitionSubject>, bool)>`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern, a match arm with multiple or-patterns as shown, or multiple match arms
+     |
+4436 ~             Some((None, _)) | None => {},
+4437 +             Some((Some(TransitionSubject::LocatedLiteral { .. }), _)) | Some((Some(TransitionSubject::LocatedNativeBytes { .. }), _)) => todo!()
+     |
+
+warning: unused variable: `command`
+    --> rust/tcl-compiler/src/cfg_builder/mod.rs:2001:17
+     |
+2001 |                 command,
+     |                 ^^^^^^^ help: try ignoring the field: `command: _`
+
+warning: unused variable: `canonical_command`
+    --> rust/tcl-compiler/src/cfg_builder/mod.rs:2002:17
+     |
+2002 |                 canonical_command,
+     |                 ^^^^^^^^^^^^^^^^^ help: try ignoring the field: `canonical_command: _`
+
+warning: unused variable: `command`
+   --> rust/tcl-compiler/src/codegen/statements.rs:829:17
+    |
+829 |                 command,
+    |                 ^^^^^^^ help: try ignoring the field: `command: _`
+
+error[E0004]: non-exhaustive patterns: `&mut NativeIntegerProof::SourceMetadataUnavailable` and `&mut NativeIntegerProof::MathBindingPrerequisiteRequired` not covered
+   --> rust/tcl-compiler/src/codegen/wasm/native_add.rs:387:31
+    |
+387 |         let decisions = match proof {
+    |                               ^^^^^ patterns `&mut NativeIntegerProof::SourceMetadataUnavailable` and `&mut NativeIntegerProof::MathBindingPrerequisiteRequired` not covered
+    |
+note: `NativeIntegerProof` defined here
+   --> rust/tcl-compiler/src/native_integer_proof.rs:267:10
+    |
+267 | pub enum NativeIntegerProof {
+    |          ^^^^^^^^^^^^^^^^^^
+...
+273 |     SourceMetadataUnavailable,
+    |     ------------------------- not covered
+...
+278 |     MathBindingPrerequisiteRequired,
+    |     ------------------------------- not covered
+    = note: the matched value is of type `&mut NativeIntegerProof`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern, a match arm with multiple or-patterns as shown, or multiple match arms
+    |
+400 ~             },
+401 +             &mut NativeIntegerProof::SourceMetadataUnavailable | &mut NativeIntegerProof::MathBindingPrerequisiteRequired => todo!()
+    |
+
+error: lifetime may not live long enough
+   --> rust/tcl-compiler/src/codegen/mod.rs:844:21
+    |
+403 | impl<'r> CodegenCtx<'r> {
+    |      -- lifetime `'r` defined here
+...
+844 |             None => self.registry.own_surface_query(),
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ returning this value requires that `'r` must outlive `'static`
+
+error[E0596]: cannot borrow `state.baseline` as mutable, as `state` is not declared as mutable
+     --> rust/tcl-compiler/src/command_binding.rs:13241:38
+      |
+13241 |         let baseline = Arc::make_mut(&mut state.baseline);
+      |                                      ^^^^^^^^^^^^^^^^^^^ cannot borrow as mutable
+      |
+help: consider changing this to be mutable
+      |
+13228 |         let mut state = Self {
+      |             +++
+
+error[E0596]: cannot borrow `procedures` as mutable, as it is not declared as mutable
+    --> rust/tcl-compiler/src/compilation_unit.rs:2872:13
+     |
+2872 |             &mut procedures,
+     |             ^^^^^^^^^^^^^^^ cannot borrow as mutable
+     |
+help: consider changing this to be mutable
+     |
+2859 |         let mut procedures = built.procedures;
+     |             +++
+
+warning: unused variable: `external_call_sites`
+    --> rust/tcl-compiler/src/compilation_unit.rs:2766:13
+     |
+2766 |             external_call_sites,
+     |             ^^^^^^^^^^^^^^^^^^^ help: try ignoring the field: `external_call_sites: _`
+
+warning: unused variable: `sub`
+   --> rust/tcl-compiler/src/const_subst.rs:410:17
+    |
+410 |             let sub = resolved.sub?;
+    |                 ^^^ help: if this is intentional, prefix it with an underscore: `_sub`
+
+error[E0004]: non-exhaustive patterns: `EffectiveInvocationWord::ByteLiteral(_)`, `EffectiveInvocationWord::ArrayElementName { .. }`, `EffectiveInvocationWord::KnownExpansion(_)` and 1 more not covered
+    --> rust/tcl-compiler/src/deferred_writes.rs:230:15
+     |
+ 230 |           match crate::registry_invocation::effective_invocation_word(
+     |  _______________^
+ 231 | |             word,
+ 232 | |             self.config.escapes,
+ 233 | |             WordValueRules::from_config(&self.config),
+ 234 | |         ) {
+     | |_________^ patterns `EffectiveInvocationWord::ByteLiteral(_)`, `EffectiveInvocationWord::ArrayElementName { .. }`, `EffectiveInvocationWord::KnownExpansion(_)` and 1 more not covered
+     |
+note: `EffectiveInvocationWord` defined here
+    --> rust/tcl-compiler/src/registry_invocation.rs:5954:10
+     |
+5954 | pub enum EffectiveInvocationWord {
+     |          ^^^^^^^^^^^^^^^^^^^^^^^
+...
+5959 |     ByteLiteral(std::sync::Arc<[u8]>),
+     |     ----------- not covered
+...
+5963 |     ArrayElementName {
+     |     ---------------- not covered
+...
+5971 |     KnownExpansion(Vec<String>),
+     |     -------------- not covered
+...
+5974 |     KnownByteExpansion(Vec<std::sync::Arc<[u8]>>),
+     |     ------------------ not covered
+     = note: the matched value is of type `EffectiveInvocationWord`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern as shown, or multiple match arms
+     |
+ 237 ~             EffectiveInvocationWord::Expanded | EffectiveInvocationWord::Opaque => None,
+ 238 ~             _ => todo!(),
+     |
+
+error[E0004]: non-exhaustive patterns: `&TransitionSubject::LocatedLiteral { .. }` and `&TransitionSubject::LocatedNativeBytes { .. }` not covered
+   --> rust/tcl-compiler/src/deferred_writes.rs:738:15
+    |
+738 |         match subject {
+    |               ^^^^^^^ patterns `&TransitionSubject::LocatedLiteral { .. }` and `&TransitionSubject::LocatedNativeBytes { .. }` not covered
+    |
+note: `TransitionSubject` defined here
+   --> rust/tcl-registry/src/state_transition.rs:98:1
+    |
+ 98 | pub enum TransitionSubject {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+102 |     LocatedLiteral {
+    |     -------------- not covered
+...
+110 |     LocatedNativeBytes {
+    |     ------------------ not covered
+    = note: the matched value is of type `&TransitionSubject`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern, a match arm with multiple or-patterns as shown, or multiple match arms
+    |
+740 ~             TransitionSubject::Unknown { .. } => self.out.any = true,
+741 ~             &TransitionSubject::LocatedLiteral { .. } | &TransitionSubject::LocatedNativeBytes { .. } => todo!(),
+    |
+
+error[E0004]: non-exhaustive patterns: `&Statement::NativeCall { .. }` not covered
+    --> rust/tcl-compiler/src/inlining/frame.rs:168:15
+     |
+ 168 |         match statement {
+     |               ^^^^^^^^^ pattern `&Statement::NativeCall { .. }` not covered
+     |
+note: `Statement` defined here
+    --> rust/tcl-compiler/src/ir.rs:1517:10
+     |
+1517 | pub enum Statement {
+     |          ^^^^^^^^^
+...
+1520 |     NativeCall {
+     |     ---------- not covered
+     = note: the matched value is of type `&Statement`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+     |
+ 232 ~             | Statement::Call { .. } => self.command(statement, bound).map(|()| Exit::Falls),
+ 233 ~             &Statement::NativeCall { .. } => todo!(),
+     |
+
+error[E0004]: non-exhaustive patterns: `&Statement::NativeCall { .. }` not covered
+    --> rust/tcl-compiler/src/inlining/heads.rs:128:11
+     |
+ 128 |     match statement {
+     |           ^^^^^^^^^ pattern `&Statement::NativeCall { .. }` not covered
+     |
+note: `Statement` defined here
+    --> rust/tcl-compiler/src/ir.rs:1517:10
+     |
+1517 | pub enum Statement {
+     |          ^^^^^^^^^
+...
+1520 |     NativeCall {
+     |     ---------- not covered
+     = note: the matched value is of type `&Statement`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+     |
+ 224 ~         Statement::UpFrame { .. } | Statement::Barrier { .. } => true,
+ 225 ~         &Statement::NativeCall { .. } => todo!(),
+     |
+
+error[E0004]: non-exhaustive patterns: `&Some(cfg::Terminator::Complete { .. })` not covered
+   --> rust/tcl-compiler/src/interprocedural/transfer.rs:941:32
+    |
+941 |             let lifted = match &block.terminator {
+    |                                ^^^^^^^^^^^^^^^^^ pattern `&Some(cfg::Terminator::Complete { .. })` not covered
+    |
+note: `std::option::Option<cfg::Terminator>` defined here
+   --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/option.rs:598:0
+   ::: /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/option.rs:606:4
+    |
+    = note: not covered
+    = note: the matched value is of type `&std::option::Option<cfg::Terminator>`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+    |
+970 ~                 Some(Terminator::Goto { .. }) | None => Vec::new(),
+971 ~                 &Some(cfg::Terminator::Complete { .. }) => todo!(),
+    |
+
+warning: value assigned to `pairs` is never read
+    --> rust/tcl-compiler/src/lowering/structured.rs:1313:42
+     |
+1313 |         let mut pairs: Vec<SwitchPair> = Vec::new();
+     |                                          ^^^^^^^^^^ this value is reassigned later and never used
+...
+1332 |                 Ok(inline) => pairs = inline,
+     |                               ----- `pairs` is overwritten here before the previous value is read
+     |
+     = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+error[E0004]: non-exhaustive patterns: `&cfg::Terminator::Complete { .. }` not covered
+    --> rust/tcl-compiler/src/sccp.rs:3084:11
+     |
+3084 |     match terminator {
+     |           ^^^^^^^^^^ pattern `&cfg::Terminator::Complete { .. }` not covered
+     |
+note: `cfg::Terminator` defined here
+    --> rust/tcl-compiler/src/cfg.rs:69:10
+     |
+  69 | pub enum Terminator {
+     |          ^^^^^^^^^^
+...
+  99 |     Complete {
+     |     -------- not covered
+     = note: the matched value is of type `&cfg::Terminator`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+     |
+3094 ~         Terminator::Goto { .. } => {},
+3095 +         &cfg::Terminator::Complete { .. } => todo!()
+     |
+
+error[E0004]: non-exhaustive patterns: `&cfg::Terminator::Complete { .. }` not covered
+    --> rust/tcl-compiler/src/sccp.rs:4199:11
+     |
+4199 |     match term {
+     |           ^^^^ pattern `&cfg::Terminator::Complete { .. }` not covered
+     |
+note: `cfg::Terminator` defined here
+    --> rust/tcl-compiler/src/cfg.rs:69:10
+     |
+  69 | pub enum Terminator {
+     |          ^^^^^^^^^^
+...
+  99 |     Complete {
+     |     -------- not covered
+     = note: the matched value is of type `&cfg::Terminator`
+     = note: match arms with guards don't count towards exhaustivity
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+     |
+4258 ~         Terminator::Return { .. } => {},
+4259 +         &cfg::Terminator::Complete { .. } => todo!()
+     |
+
+warning: unused variable: `registry`
+  --> rust/tcl-compiler/src/shimmer/expr.rs:73:9
+   |
+73 |         registry,
+   |         ^^^^^^^^ help: try ignoring the field: `registry: _`
+
+error[E0004]: non-exhaustive patterns: `tcl_lexer::WordPart::Expression(_)` not covered
+    --> rust/tcl-compiler/src/value_transfer.rs:5066:15
+     |
+5066 |         match part {
+     |               ^^^^ pattern `tcl_lexer::WordPart::Expression(_)` not covered
+     |
+note: `tcl_lexer::WordPart<'_>` defined here
+    --> rust/tcl-lexer/src/word_parts.rs:184:1
+     |
+ 184 | pub enum WordPart<'s> {
+     | ^^^^^^^^^^^^^^^^^^^^^
+...
+ 196 |     Expression(&'s [u8]),
+     |     ---------- not covered
+     = note: the matched value is of type `tcl_lexer::WordPart<'_>`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+     |
+5072 ~             Part::Command(_) | Part::ParseError(_) => return None,
+5073 ~             tcl_lexer::WordPart::Expression(_) => todo!(),
+     |
+
+error[E0004]: non-exhaustive patterns: `InvocationWordKind::KnownBytes` not covered
+    --> rust/tcl-compiler/src/value_transfer.rs:5833:15
+     |
+5833 |         match self.kind {
+     |               ^^^^^^^^^ pattern `InvocationWordKind::KnownBytes` not covered
+     |
+note: `InvocationWordKind` defined here
+    --> rust/tcl-registry/src/invocation_words.rs:118:1
+     |
+ 118 | pub enum InvocationWordKind {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+ 122 |     KnownBytes,
+     |     ---------- not covered
+     = note: the matched value is of type `InvocationWordKind`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+     |
+5837 ~             InvocationWordKind::Opaque => InvocationWord::Opaque,
+5838 ~             InvocationWordKind::KnownBytes => todo!(),
+     |
+
+error[E0004]: non-exhaustive patterns: `InvocationWordKind::KnownBytes` not covered
+    --> rust/tcl-compiler/src/value_transfer.rs:6350:15
+     |
+6350 |         match operand.kind {
+     |               ^^^^^^^^^^^^ pattern `InvocationWordKind::KnownBytes` not covered
+     |
+note: `InvocationWordKind` defined here
+    --> rust/tcl-registry/src/invocation_words.rs:118:1
+     |
+ 118 | pub enum InvocationWordKind {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+ 122 |     KnownBytes,
+     |     ---------- not covered
+     = note: the matched value is of type `InvocationWordKind`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+     |
+6369 ~             },
+6370 +             InvocationWordKind::KnownBytes => todo!()
+     |
+
+error[E0004]: non-exhaustive patterns: `tcl_lexer::WordPart::Expression(_)` not covered
+    --> rust/tcl-compiler/src/value_transfer.rs:6598:31
+     |
+6598 |             let value = match part {
+     |                               ^^^^ pattern `tcl_lexer::WordPart::Expression(_)` not covered
+     |
+note: `tcl_lexer::WordPart<'_>` defined here
+    --> rust/tcl-lexer/src/word_parts.rs:184:1
+     |
+ 184 | pub enum WordPart<'s> {
+     | ^^^^^^^^^^^^^^^^^^^^^
+...
+ 196 |     Expression(&'s [u8]),
+     |     ---------- not covered
+     = note: the matched value is of type `tcl_lexer::WordPart<'_>`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+     |
+6630 ~                 Part::ParseError(_) => return FactView::Top(DeclineReason::WrongRepresentation),
+6631 ~                 tcl_lexer::WordPart::Expression(_) => todo!(),
+     |
+
+error[E0004]: non-exhaustive patterns: `tcl_lexer::WordPart::Expression(_)` not covered
+    --> rust/tcl-compiler/src/value_transfer.rs:6685:19
+     |
+6685 |             match spanned.part {
+     |                   ^^^^^^^^^^^^ pattern `tcl_lexer::WordPart::Expression(_)` not covered
+     |
+note: `tcl_lexer::WordPart<'_>` defined here
+    --> rust/tcl-lexer/src/word_parts.rs:184:1
+     |
+ 184 | pub enum WordPart<'s> {
+     | ^^^^^^^^^^^^^^^^^^^^^
+...
+ 196 |     Expression(&'s [u8]),
+     |     ---------- not covered
+     = note: the matched value is of type `tcl_lexer::WordPart<'_>`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+     |
+6711 ~                 Part::ParseError(_) => Err(DeclineReason::WrongRepresentation),
+6712 ~                 tcl_lexer::WordPart::Expression(_) => todo!(),
+     |
+
+error[E0004]: non-exhaustive patterns: `tcl_lexer::WordPart::Expression(_)` not covered
+    --> rust/tcl-compiler/src/value_transfer.rs:7036:31
+     |
+7036 |             let value = match part {
+     |                               ^^^^ pattern `tcl_lexer::WordPart::Expression(_)` not covered
+     |
+note: `tcl_lexer::WordPart<'_>` defined here
+    --> rust/tcl-lexer/src/word_parts.rs:184:1
+     |
+ 184 | pub enum WordPart<'s> {
+     | ^^^^^^^^^^^^^^^^^^^^^
+...
+ 196 |     Expression(&'s [u8]),
+     |     ---------- not covered
+     = note: the matched value is of type `tcl_lexer::WordPart<'_>`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+     |
+7069 ~                 Part::ParseError(_) => return Err(DeclineReason::WrongRepresentation),
+7070 ~                 tcl_lexer::WordPart::Expression(_) => todo!(),
+     |
+
+error[E0382]: use of moved value: `nested`
+   --> rust/tcl-compiler/src/word_subst.rs:675:16
+    |
+647 |     let nested = nested_command_words(spelling, source, config).ok();
+    |         ------ move occurs because `nested` has type `std::option::Option<CommandTokens>`, which does not implement the `Copy` trait
+...
+671 |         tokens: nested,
+    |                 ------ value moved here
+...
+675 |         words: nested,
+    |                ^^^^^^ value used here after move
+    |
+help: consider cloning the value if the performance cost is acceptable
+    |
+671 |         tokens: nested.clone(),
+    |                       ++++++++
+
+Some errors have detailed explanations: E0004, E0027, E0061, E0063, E0277, E0308, E0382, E0422, E0425...
+For more information about an error, try `rustc --explain E0004`.
+warning: `tcl-compiler` (lib) generated 12 warnings
+error: could not compile `tcl-compiler` (lib) due to 100 previous errors; 12 warnings emitted

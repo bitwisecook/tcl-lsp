@@ -152,10 +152,10 @@ fn catch_region_outputs(
             .then(|| statement.tokens())
             .flatten()
     })?;
-    let context = registry
-        .profile()
-        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-    let normal = crate::registry_invocation::normal_transfer_invocation(registry, context, tokens)?;
+    let context = cfg.metadata_context.metadata_context(registry)?;
+    let normal = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        registry, context, tokens,
+    )?;
     normal.variable_output_arguments()?;
     let result = if normal.argument_count() > 1 {
         Some(normal.argument_literal(1)?)
@@ -258,5 +258,15 @@ mod tests {
                 .as_ref()
                 .is_some_and(|tokens| tokens.synthetic.is_none())
         );
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        for owner in [
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable,
+            crate::registry_invocation::OwnedInvocationMetadataContext::Supplied(foreign),
+        ] {
+            let mut withheld = cfg.clone();
+            withheld.metadata_context = owner;
+            assert!(detect_catch_regions(&withheld, &order, registry).is_empty());
+        }
     }
 }

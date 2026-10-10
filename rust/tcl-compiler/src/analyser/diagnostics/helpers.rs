@@ -626,7 +626,7 @@ impl PhiUndefIndex {
         // operand: the version the statement read, which it holds when no arm
         // runs.
         for (key, &(block, prior)) in ctx.may_defs {
-            let Some(symbol) = ctx.ssa.var_symbol(&key.0) else {
+            let Some(symbol) = ctx.ssa.cell_symbol(&key.0) else {
                 continue;
             };
             let node = (symbol, key.1);
@@ -1159,8 +1159,8 @@ fn collect_expr_cmd_sub_writes(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
     semantics: UndefSuppressionSemantics<'_>,
-) -> FxHashSet<String> {
-    let mut out = FxHashSet::default();
+) -> FxHashMap<String, Vec<(BlockId, usize)>> {
+    let mut out = FxHashMap::<String, Vec<(BlockId, usize)>>::default();
     let registry = semantics.context.commands();
     let Some(metadata) = fu.invocation_metadata_context(registry) else {
         return out;
@@ -1190,7 +1190,11 @@ fn collect_expr_cmd_sub_writes(
             else {
                 continue;
             };
-            collect_original_expression_writes(tokens, *base, semantics, metadata, &mut out);
+            let mut names = FxHashSet::default();
+            collect_original_expression_writes(tokens, *base, semantics, metadata, &mut names);
+            for name in names {
+                out.entry(name).or_default().push((block_id, index));
+            }
         }
         if let Some(crate::cfg::Terminator::Branch {
             condition_base: Some(base),
@@ -1205,7 +1209,11 @@ fn collect_expr_cmd_sub_writes(
                 crate::ssa::SsaSourceView::at_statement(&fu.ssa, block_id, usize::MAX)
                     .source_tokens()
             {
-                collect_original_expression_writes(tokens, *base, semantics, metadata, &mut out);
+                let mut names = FxHashSet::default();
+                collect_original_expression_writes(tokens, *base, semantics, metadata, &mut names);
+                for name in names {
+                    out.entry(name).or_default().push((block_id, usize::MAX));
+                }
             }
         }
     }
@@ -2579,7 +2587,7 @@ mod exact_cell_diagnostic_tests {
                 footprint_semantics(source, &analysis, &input),
             );
             if let Some(expected) = expected {
-                assert!(names.contains(expected), "{source}: {names:?}");
+                assert!(names.contains_key(expected), "{source}: {names:?}");
             } else {
                 assert!(!names.contains("hidden"), "known replacement: {names:?}");
             }
@@ -2628,7 +2636,7 @@ mod exact_cell_diagnostic_tests {
                 assert!(names.contains(expected), "{source}: {names:?}");
             } else {
                 assert!(
-                    !names.contains("hidden") && !names.contains("status"),
+                    !names.contains_key("hidden") && !names.contains_key("status"),
                     "known child replacement: {names:?}"
                 );
             }

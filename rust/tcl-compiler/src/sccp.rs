@@ -1039,6 +1039,7 @@ impl<'a> SolveInputs<'a> {
     /// run reads of the module.
     fn driver(&self, trace: TraceInputs<'a>, escaping: &HashSet<String>) -> LatticeDriver<'a> {
         LatticeDriver::new(trace, self.folds, self.policy, escaping)
+            .with_cfg_metadata(&self.cfg.metadata_context)
             .in_module(&self.cfg.name, self.module)
     }
 }
@@ -2162,18 +2163,13 @@ fn branch_facts(
     driver: &LatticeDriver<'_>,
 ) -> Vec<BranchFact> {
     let trusted = |head: &str| driver.trusted(head);
-    let reading = crate::tcl_expr_eval::ConditionReading {
-        registry,
-        config,
-        policy,
-        trusted: &trusted,
-    };
     let mut out = Vec::new();
     for (&block_id, block) in &cfg.blocks {
         let Some(Terminator::Branch {
             condition,
             true_target,
             false_target,
+            condition_base,
             ..
         }) = &block.terminator
         else {
@@ -2182,6 +2178,19 @@ fn branch_facts(
         if true_target == false_target {
             continue;
         }
+        let reading = crate::tcl_expr_eval::ConditionReading {
+            registry,
+            config,
+            policy,
+            trusted: &trusted,
+            existence: crate::existence_query::QueryReading::for_cfg(
+                cfg,
+                registry,
+                config,
+                cfg.source_tokens_at(block_id, usize::MAX),
+                *condition_base,
+            ),
+        };
         let facts = crate::tcl_expr_eval::condition_edge_facts(condition, reading);
         for (target, facts) in [
             (*true_target, facts.on_true),
@@ -2835,30 +2844,100 @@ fn query_only_places(
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Vec<String> {
-    let mut texts: Vec<String> = Vec::new();
-    for block in cfg.blocks.values() {
-        for statement in &block.statements {
+    let mut names = Vec::new();
+    for (&block_id, block) in &cfg.blocks {
+        for (index, statement) in block.statements.iter().enumerate() {
+            let parent = cfg.source_tokens_at(block_id, index);
             match statement {
-                Statement::AssignExpr { expr, .. } => {
-                    crate::ir_helpers::collect_expr_commands(expr, &mut texts);
+                Statement::AssignExpr {
+                    expr, expr_base, ..
+                } => {
+                    collect_query_names(
+                        expr,
+                        crate::existence_query::QueryReading::for_cfg(
+                            cfg, registry, config, parent, *expr_base,
+                        ),
+                        &mut names,
+                    );
                 }
-                Statement::AssignValue { value, .. } => texts.push(value.clone()),
+                Statement::AssignValue { value, .. } => {
+                    let reading = crate::existence_query::QueryReading::for_cfg(
+                        cfg, registry, config, parent, None,
+                    );
+                    if cfg.metadata_context.is_standalone() {
+                        names.extend(reading.in_text(value).map(|query| query.var));
+                    } else if let Some(calls) = parent
+                        .and_then(|parent| crate::word_subst::checked_lifted_calls(parent, config))
+                    {
+                        for call in calls {
+                            names.extend(
+                                call.tokens
+                                    .as_ref()
+                                    .or(call.words.as_ref())
+                                    .and_then(|tokens| reading.in_tokens(tokens))
+                                    .map(|query| query.var),
+                            );
+                        }
+                    }
+                }
                 _ => {}
             }
         }
-        if let Some(Terminator::Branch { condition, .. }) = &block.terminator {
-            crate::ir_helpers::collect_expr_commands(condition, &mut texts);
+        if let Some(Terminator::Branch {
+            condition,
+            condition_base,
+            ..
+        }) = &block.terminator
+        {
+            collect_query_names(
+                condition,
+                crate::existence_query::QueryReading::for_cfg(
+                    cfg,
+                    registry,
+                    config,
+                    cfg.source_tokens_at(block_id, usize::MAX),
+                    *condition_base,
+                ),
+                &mut names,
+            );
         }
     }
-    let mut places: Vec<String> = texts
+    let mut places: Vec<String> = names
         .iter()
-        .filter_map(|text| crate::existence_query::in_text(text, registry, config))
-        .map(|(name, _)| place_base(&name).to_owned())
+        .map(|name| place_base(name).to_owned())
         .filter(|place| ssa.var_symbol(place).is_none())
         .collect();
     places.sort_unstable();
     places.dedup();
     places
+}
+
+/// Keep command leaves attached to the same original expression site while
+/// walking its tree. The explicit stack avoids native recursion depth limits.
+fn collect_query_names(
+    expression: &ExprNode,
+    reading: crate::existence_query::QueryReading<'_>,
+    names: &mut Vec<String>,
+) {
+    let mut pending = vec![expression];
+    while let Some(node) = pending.pop() {
+        match node {
+            ExprNode::Command { .. } => {
+                names.extend(reading.in_expr(node).map(|query| query.var));
+            }
+            ExprNode::Binary { left, right, .. } => pending.extend([&**left, &**right]),
+            ExprNode::Unary { operand, .. } => pending.push(operand),
+            ExprNode::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => {
+                pending.extend([&**condition, &**true_branch, &**false_branch]);
+            }
+            ExprNode::Call { args, .. } => pending.extend(args.iter()),
+            _ => {}
+        }
+    }
 }
 
 /// The fact a place named `name` enters an unaliased frame with: a
@@ -3012,7 +3091,9 @@ fn terminator_clobber(
                 touch.expr(expr, registry, config, 0);
             }
         }
-        Terminator::Goto { .. } => {}
+        // Complete records an already observed invocation in this block;
+        // its operands and effects are accounted for by the original statement.
+        Terminator::Goto { .. } | Terminator::Complete { .. } => {}
     }
     clobber.all |= touch.all;
     clobber.touched = touched_symbols(&touch.names, ssa);
@@ -4176,7 +4257,9 @@ fn sccp_process_terminator(
                 }
             }
         }
-        Terminator::Return { .. } => {}
+        // Observed completion has no normal successor and performs no second
+        // operand evaluation. Original block exception edges remain below.
+        Terminator::Return { .. } | Terminator::Complete { .. } => {}
     }
     // `try` exception edges sourced at `bn`: when `bn` is executable the
     // handler is reachable (a throw can occur in the body).

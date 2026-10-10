@@ -2194,7 +2194,7 @@ impl Vm {
         provider: tcl_registry::invocation_words::LogicalExpressionQuoteProvider,
     ) -> bool {
         if self.actual_engine_profile.is_none()
-            || tcl_registry::InvocationDialect::of_profile(self.dialect_profile)
+            || tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
                 .logical_expression_quote_control(provider)
                 .is_none()
         {
@@ -2253,8 +2253,8 @@ impl Vm {
         provider: tcl_registry::invocation_words::LogicalSourceWordProvider,
     ) -> bool {
         if self.actual_engine_profile.is_none()
-            || tcl_registry::InvocationDialect::of_profile(self.dialect_profile)
-                .logical_source_string_protocol(provider, self.dialect_profile)
+            || tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+                .logical_source_string_protocol(provider, self.dialect_profile())
                 .is_none()
         {
             return false;
@@ -2296,8 +2296,8 @@ impl Vm {
         provider: tcl_registry::invocation_words::LogicalExpressionParseProvider,
     ) -> bool {
         if self.actual_engine_profile.is_none()
-            || tcl_registry::InvocationDialect::of_profile(self.dialect_profile)
-                .logical_expression_parse_context(provider, self.dialect_profile)
+            || tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+                .logical_expression_parse_context(provider, self.dialect_profile())
                 .is_none()
         {
             return false;
@@ -2321,7 +2321,7 @@ impl Vm {
             self.logical_providers
                 .expression_parse
                 .and_then(|provider| {
-                    dialect.logical_expression_template_policy(provider, self.dialect_profile)
+                    dialect.logical_expression_template_policy(provider, self.dialect_profile())
                 })
         })
     }
@@ -2334,7 +2334,7 @@ impl Vm {
         provider: tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation,
     ) -> bool {
         if self.actual_engine_profile.is_none()
-            || tcl_registry::InvocationDialect::of_profile(self.dialect_profile)
+            || tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
                 .authored_logical_numeric_simulation(provider)
                 .is_none()
         {
@@ -2704,7 +2704,7 @@ impl Vm {
             state.bootstrap = NativeBootstrapPurpose::Core;
             state.host = Rc::clone(host);
             state.runtime_version = profile.vm_runtime_version;
-            state.dialect_profile = *profile;
+            state.pin = tcl_registry::model::PinnedContext::for_profile(*profile);
             state.command_surface_profile = *profile;
             state.actual_engine_profile = Some(*profile);
             state.command_surface_point = Some(crate::environment::surface_point(profile));
@@ -2761,13 +2761,13 @@ impl InterpState {
     /// The configured user dialect remains independent of the physical engine.
     #[must_use]
     pub(crate) fn source_profile(&self) -> &'static tcl_dialect::DialectProfile {
-        self.active_native_profile.unwrap_or(self.dialect_profile)
+        self.active_native_profile.unwrap_or(self.pin.profile)
     }
 
     /// Invocation policy selected by a native token. Host aliases override only
     /// the explicit host activation; ordinary user activations retain their dialect.
     pub(crate) fn native_execution_profile(&self) -> &'static tcl_dialect::DialectProfile {
-        let profile = self.active_native_profile.unwrap_or(self.dialect_profile);
+        let profile = self.active_native_profile.unwrap_or(self.pin.profile);
         if profile.is_fallback() {
             crate::environment::profile_for_dialect(self.runtime_version.dialect_name())
         } else {
@@ -3208,7 +3208,6 @@ impl InterpState {
     ) -> Self {
         Self {
             runtime_version: tcl_dialect::TclVersion::V9_0,
-            dialect_profile: environment.profile,
             command_surface_profile: environment.profile,
             framework_builtins: Vec::new(),
             active_native_profile: None,
@@ -3469,6 +3468,11 @@ impl Vm {
         } else {
             self.interps.get(id.0)?.parked.as_deref()
         }
+    }
+
+    /// Compare the actual arena identity with this activation's interpreter.
+    pub(crate) fn interp_is_current(&self, id: InterpId) -> bool {
+        id == self.cur
     }
 
     /// Whether `id` is still addressable (created and not deleted).
@@ -4347,7 +4351,7 @@ impl Vm {
         let canonical = name.strip_prefix("::").unwrap_or(name);
         self.register(canonical, f);
         self.builtin_identities.remove(canonical);
-        if let Some(generation) = self.visible_command_generation(canonical).copied() {
+        if let Some(generation) = self.visible_command_generation(canonical) {
             self.guarded_commands.host.insert(generation);
             self.attest(generation, None, BTreeSet::from([identity]));
         }
@@ -4368,9 +4372,8 @@ impl Vm {
                 })
             })
             .collect();
-        if let Some(generation) = self
-            .visible_command_generation(spec.name.strip_prefix("::").unwrap_or(spec.name))
-            .copied()
+        if let Some(generation) =
+            self.visible_command_generation(spec.name.strip_prefix("::").unwrap_or(spec.name))
         {
             self.attest(generation, None, identities);
         }
@@ -4395,12 +4398,12 @@ impl Vm {
         f: BuiltinFn,
         identities: BTreeSet<GuardIdentity>,
     ) {
-        let displaced = self.visible_command_generation(displaced_key).copied();
+        let displaced = self.visible_command_generation(displaced_key);
         self.register(name, f);
         let Some(key) = self.resolve_command_fqn("", name) else {
             return;
         };
-        if let Some(generation) = self.visible_command_generation(&key).copied() {
+        if let Some(generation) = self.visible_command_generation(&key) {
             self.attest(generation, displaced, identities);
         } else if let Some(displaced) = displaced {
             self.guarded_commands
@@ -4468,7 +4471,7 @@ impl Vm {
             {
                 continue;
             }
-            let Some(generation) = self.visible_command_generation(key).copied() else {
+            let Some(generation) = self.visible_command_generation(key) else {
                 continue;
             };
             self.attest(generation, None, identities);
@@ -4511,7 +4514,7 @@ impl Vm {
     /// what it did before.
     fn attested_identities(&self, name: &str) -> Option<BTreeSet<GuardIdentity>> {
         let key = self.resolve_command_fqn(self.current_ns(), name)?;
-        let generation = *self.visible_command_generation(&key)?;
+        let generation = self.visible_command_generation(&key)?;
         self.guarded_commands
             .attested
             .borrow()
@@ -4591,7 +4594,7 @@ impl Vm {
                 self.guarded_commands
                     .attested
                     .borrow()
-                    .get(generation)
+                    .get(&generation)
                     .cloned()
             })
             .unwrap_or_default();
@@ -6657,7 +6660,6 @@ impl Vm {
         child.compiler.clone_from(&self.compiler);
         child.host = Rc::clone(&self.host);
         child.runtime_version = self.runtime_version;
-        child.dialect_profile = self.dialect_profile;
         child.actual_engine_profile = self.actual_engine_profile;
         child.logical_providers.quote = self.logical_providers.quote;
         child.logical_providers.expression_parse = self.logical_providers.expression_parse;
@@ -7469,7 +7471,7 @@ impl Vm {
     /// ([`Self::register_guarded_builtin`]) and not one this VM registered.
     fn is_host_builtin(&self, key: &str) -> bool {
         self.visible_command_generation(key)
-            .is_some_and(|generation| self.guarded_commands.host.contains(generation))
+            .is_some_and(|generation| self.guarded_commands.host.contains(&generation))
     }
 
     /// Whether every executable namespace recorded by a bare function agrees
@@ -21940,7 +21942,7 @@ impl Vm {
                 .logical_providers
                 .expression_parse
                 .and_then(|provider| {
-                    tcl_registry::InvocationDialect::of_profile(self.dialect_profile)
+                    tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
                         .logical_expression_parse_context(
                             provider,
                             self.expression_source_profile(),

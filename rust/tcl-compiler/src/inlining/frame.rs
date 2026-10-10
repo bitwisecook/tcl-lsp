@@ -223,7 +223,9 @@ impl Frame<'_> {
             }
             // An `uplevel` body runs in another frame, and a barrier is a command
             // the IR did not read: neither says what it binds.
-            Statement::UpFrame { .. } | Statement::Barrier { .. } => None,
+            Statement::UpFrame { .. }
+            | Statement::Barrier { .. }
+            | Statement::NativeCall { .. } => None,
             Statement::AssignConst { .. }
             | Statement::AssignValue { .. }
             | Statement::AssignExpr { .. }
@@ -540,6 +542,24 @@ mod tests {
 
     fn beyond_values(text: &str) -> bool {
         substitutes_a_command_beyond_values(text, &CommandRegistry::build_default(), 0)
+    }
+
+    #[test]
+    fn native_dispatch_is_not_spliced_without_frame_or_head_rewrite_evidence() {
+        let statement = crate::ir::native_call_for_test(b"helper $x");
+        let registry = CommandRegistry::build_default();
+        let mut bound = HashSet::from(["x".to_owned()]);
+        assert!(
+            Frame {
+                registry: &registry
+            }
+            .statement(&statement, &mut bound, 0)
+            .is_none()
+        );
+        assert!(super::super::heads::names_a_command(std::slice::from_ref(
+            &statement
+        )));
+        assert!(super::super::heads::root(vec![statement]).is_none());
     }
 
     #[test]

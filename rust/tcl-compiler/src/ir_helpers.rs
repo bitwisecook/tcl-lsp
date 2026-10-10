@@ -1985,7 +1985,7 @@ fn recover_substitution_surfaces(
         ..EvaluatedCommandSubstitutions::default()
     };
     for text in surfaces {
-        walk_text(text, &context, 0, false, &mut out);
+        walk_text(text, &context, 0, Reach::Statement, &mut out);
     }
     out
 }

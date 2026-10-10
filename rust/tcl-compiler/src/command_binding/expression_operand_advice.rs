@@ -121,7 +121,7 @@ impl SourceInvocationBinding {
                         .get(span.start() as usize..span.end() as usize)
                         != Some(text.as_bytes())
                     || !declared_local_expression_scope_matches(
-                        self, parent, access, name, registry, config,
+                        self, parent, access, name, registry,
                     )
                 {
                     return None;
@@ -151,7 +151,6 @@ fn declared_local_expression_scope_matches(
     access: &super::SourceVariableAccess,
     name: &str,
     registry: &tcl_registry::CommandRegistry,
-    config: tcl_lexer::LexerConfig,
 ) -> bool {
     let Some(observations) = binding.declaration_layout_observations.as_deref() else {
         return false;
@@ -182,13 +181,11 @@ fn declared_local_expression_scope_matches(
                 .any(|formal| formal.name == name)
             && context.frame_kind == crate::var_resolve::VariableFrameKind::Local
             && !super::declaration_layout::local_read_scope_is_excluded(context, name)
-            && !crate::script_binds::script_image_binds_name(
-                &observation.entry.source().text,
-                name,
-                crate::script_binds::Ownership::ScopeAliases,
-                registry,
-                config,
-            )
+            && observation
+                .source_body_name_ownership(registry, crate::script_binds::Ownership::ScopeAliases)
+                .is_some_and(|effects| {
+                    !effects.opaque && !effects.names.iter().any(|candidate| candidate == name)
+                })
     })
 }
 
@@ -274,6 +271,10 @@ mod tests {
 
     #[test]
     fn sole_expression_child_retains_original_local_read_and_withdrawals() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Alias exclusion requires complete original body ownership, not an
+        // installed alias, entered variable frame or successful read.
         let statement = "set y [expr {$x + 0}]";
         let source = format!("proc p {{}} {{set x 0; {statement}}}");
         let receipt = reads(&source, statement).expect("original declaration-local expression");

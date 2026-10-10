@@ -523,7 +523,7 @@ impl BodyWalk<'_, '_> {
         {
             graph.widen(invocation.native);
         }
-        let effects = schema.effect_footprint();
+        let effects = schema.effects();
         // Transition effect coverage removes an already represented trace
         // write from the generic footprint. Source observer state still
         // requires its own owner; a covered registration is not a quiet read.

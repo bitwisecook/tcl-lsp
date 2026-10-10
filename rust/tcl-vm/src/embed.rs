@@ -502,10 +502,7 @@ impl Vm {
         if completion.code.is_ok() {
             return Ok(());
         }
-        let mut error = TclError::new(completion.result.to_str().to_string());
-        error.error_code = crate::command::opt_get(&completion.options, "-errorcode")
-            .map(|code| code.to_str().to_string());
-        Err(error)
+        Err(TclError::from_completion(completion))
     }
 
     /// Record that the library `prefix` has been loaded into the interpreter,

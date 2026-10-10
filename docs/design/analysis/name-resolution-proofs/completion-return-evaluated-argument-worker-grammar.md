@@ -142,9 +142,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+`value_transfer::completion::decode_return_words_in(grammar, numbers, args, facet)` requires an explicit `ReturnInvocationFacet`. Typed source metadata uses `OriginalSource`; `EvaluatedArguments` requires an independently retained evaluated-worker entry. The argument dialect supplies the release, while `Numbers` supplies lexical numeral interpretation. Neither purpose tag nor type metadata creates worker, compiler, frame, object or header authority. Original result/direct errorcode operands retain argv ordinals; an options-dictionary errorcode is `merged_error_code`, not a fabricated operand position.
 
-A named test is a coverage binding, not a claim that it executed.
+The public-field control reads the corrected383 worker roster of76 rows per provider. It compares immediate completion, accepted result and available code/level/errorcode fields; a grammar rejection compares code1 only. All C rows are checked; three Jim wider-level rows remain explicit Unknown. Whole options, errorInfo and rejection messages are retained evidence but are not decoder equality assertions.
+
+- `value_transfer::completion::return_decoder_tests::evaluated_return_decoder_matches_original_worker_public_fields`: Reads the unchanged76 corrected worker383 rows per provider; compares immediate code, accepted result and available eventual-code/level/errorcode fields, with rejection code only. All C rows are checked; Jim three wider-level rows explicitly remain Unknown. No compiler instruction, private object/header/table or frame equivalence is asserted.
+
+These tests are linked to their current source bodies. No executed Rust assertion or backend pass is claimed by this binding. Their finite fields do not expand the Native question or provider scope.
 
 ## Replay
 

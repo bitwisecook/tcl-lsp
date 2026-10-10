@@ -87,7 +87,7 @@ pub(crate) fn compile(
     function
         .validate_native_compilation_entry()
         .map_err(CompileError::NativeCompilationAdmission)?;
-    Ok(tcl_bytecode::ModuleAsm {
+    let mut asm = tcl_bytecode::ModuleAsm {
         profile,
         source: target.source.clone(),
         source_namespace: target.namespace.clone(),
@@ -96,7 +96,10 @@ pub(crate) fn compile(
         top_level: function,
         procedures: HashMap::new(),
         procedure_provenance: HashMap::new(),
-    })
+        manifest: None,
+    };
+    asm.manifest = Some(std::sync::Arc::new(super::emitter::module_manifest(&asm)));
+    Ok(asm)
 }
 
 impl CodegenCtx<'_> {

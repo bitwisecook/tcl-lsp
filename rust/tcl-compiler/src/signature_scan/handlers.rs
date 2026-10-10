@@ -72,6 +72,7 @@ pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
 /// subcommands involved (`namespace import` / `namespace forget`) declare no
 /// dialect-gated options, so profile filtering could only ever return the same
 /// set.
+#[cfg(test)]
 fn leading_flag_words(sub_spec: Option<&tcl_registry::SubCommand>, args: &[String]) -> usize {
     let Some(sub_spec) = sub_spec else {
         return 0;
@@ -90,6 +91,7 @@ fn leading_flag_words(sub_spec: Option<&tcl_registry::SubCommand>, args: &[Strin
         .count()
 }
 
+#[cfg(test)]
 fn leading_option_words(options: &[tcl_registry::hover::OptionSpec], args: &[String]) -> usize {
     let mut consumed = 0;
     while consumed < args.len() {
@@ -154,10 +156,11 @@ pub(super) fn emit_class(
 /// The literalness rule is the shared
 /// [`super::params::param_word_is_literal`], so this tier and the analyser
 /// tier cannot disagree.
-pub(super) fn handle_proc(
+pub(super) fn handle_proc_with_words(
     texts: &[String],
     argv: &[Token],
     single_token_word: &[bool],
+    words: tcl_registry::ProcedureWords,
     ns_prefix: &str,
     ctx: &mut ScanCtx,
 ) {
@@ -165,14 +168,6 @@ pub(super) fn handle_proc(
     // data (a definer that takes a static-variable list puts the body one
     // word later). `texts` and `argv` carry the head at 0, so each index is
     // one past the role's index over the words after the head.
-    let words = texts
-        .first()
-        .zip(ctx.registry)
-        .and_then(|(head, registry)| {
-            let arg_words: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
-            registry.procedure_definition_words(head, &arg_words)
-        })
-        .unwrap_or(tcl_registry::ProcedureWords::TCL_PROC);
     let (name_at, params_at, body_at) = (words.name + 1, words.params + 1, words.body + 1);
     if texts.len() <= name_at.max(params_at).max(body_at) {
         return;
@@ -242,6 +237,24 @@ pub(super) fn handle_proc(
             ctx,
         );
     }
+}
+
+#[cfg(test)]
+fn handle_proc(
+    texts: &[String],
+    argv: &[Token],
+    single_token_word: &[bool],
+    ns_prefix: &str,
+    ctx: &mut ScanCtx,
+) {
+    handle_proc_with_words(
+        texts,
+        argv,
+        single_token_word,
+        tcl_registry::ProcedureWords::TCL_PROC,
+        ns_prefix,
+        ctx,
+    );
 }
 
 /// Handler for `tcl::OptProc NAME OPTLIST BODY`.
@@ -361,11 +374,11 @@ pub(super) fn handle_namespace_forget_in_context(
     ns_prefix: &str,
     policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
     namespace: Option<&super::scope::SignatureNamespaceScope>,
-    sub_spec: Option<&tcl_registry::SubCommand>,
+    option_end: usize,
     result: &mut SignatureScanResult,
 ) {
     let forgetting_ns = crate::naming::qualify_namespace(ns_prefix, "");
-    let mut i = 2 + leading_flag_words(sub_spec, &texts[2..]);
+    let mut i = option_end;
     while i < texts.len() && i < argv.len() {
         let raw = &texts[i];
         if raw.contains('$') || raw.contains('[') {
@@ -412,7 +425,7 @@ pub(super) fn handle_namespace_import_in_context(
     ns_prefix: &str,
     policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
     namespace: Option<&super::scope::SignatureNamespaceScope>,
-    sub_spec: Option<&tcl_registry::SubCommand>,
+    option_end: usize,
     result: &mut SignatureScanResult,
 ) {
     let importing_ns = crate::naming::qualify_namespace(ns_prefix, "");
@@ -421,7 +434,7 @@ pub(super) fn handle_namespace_import_in_context(
     // option word *was* consumed is exactly "`-force` was given", since
     // `IMPORT_OPTIONS` declares one option and `max_leading_option_words`
     // caps it at one.
-    let flag_words = leading_flag_words(sub_spec, &texts[2..]);
+    let flag_words = option_end.saturating_sub(2);
     let forced = flag_words > 0;
     let mut i = 2 + flag_words;
     while i < texts.len() {
@@ -492,7 +505,7 @@ fn handle_namespace_import(
             tcl_dialect::TclVersion::V8_6,
         )),
         None,
-        sub_spec,
+        2 + leading_flag_words(sub_spec, &texts[2..]),
         result,
     );
 }
@@ -513,7 +526,7 @@ fn handle_namespace_forget(
             tcl_dialect::TclVersion::V8_6,
         )),
         None,
-        sub_spec,
+        2 + leading_flag_words(sub_spec, &texts[2..]),
         result,
     );
 }
@@ -527,19 +540,18 @@ fn handle_namespace_forget(
 /// The subcommand word resolves through the registry's ensemble rule,
 /// so C Tcl's accepted abbreviation (`package req Tcl`) records the
 /// requirement too.
-pub(super) fn handle_package_require(
+pub(super) fn handle_selected_package_require(
     texts: &[String],
     argv: &[Token],
     conditional: bool,
-    sub_spec: Option<&tcl_registry::SubCommand>,
+    option_end: usize,
     result: &mut SignatureScanResult,
 ) {
     if texts.len() < 3 {
         return;
     }
-    let option_words = sub_spec.map_or(0, |sub| leading_option_words(sub.options, &texts[2..]));
-    let idx = 2 + option_words;
-    let exact = option_words > 0;
+    let idx = option_end;
+    let exact = option_end > 2;
     if idx >= texts.len() {
         return;
     }
@@ -558,6 +570,18 @@ pub(super) fn handle_package_require(
         control_flow: conditional,
         origin: crate::signature_scan::types::PackageRequireOrigin::Source,
     });
+}
+
+#[cfg(test)]
+fn handle_package_require(
+    texts: &[String],
+    argv: &[Token],
+    conditional: bool,
+    sub_spec: Option<&tcl_registry::SubCommand>,
+    result: &mut SignatureScanResult,
+) {
+    let consumed = sub_spec.map_or(0, |sub| leading_option_words(sub.options, &texts[2..]));
+    handle_selected_package_require(texts, argv, conditional, 2 + consumed, result);
 }
 
 /// Handler for `source ?-encoding ENC? PATH`.

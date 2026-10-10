@@ -156,8 +156,10 @@ fn append(module: &mut Module, text: &str, mut proc: Procedure) -> Option<Proced
         .reference_bodies
         .appendix_start
         .get_or_insert(module.source.len());
-    module.source.push('\n');
-    module.source.push_str(text);
+    let mut source = module.source.bytes().to_vec();
+    source.push(b'\n');
+    source.extend_from_slice(text.as_bytes());
+    module.source = tcl_lexer::SourceImage::from_bytes(source, module.source.channel());
     Some(proc)
 }
 

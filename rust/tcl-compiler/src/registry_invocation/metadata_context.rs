@@ -232,6 +232,13 @@ impl<'a> InvocationMetadataContext<'a> {
     pub(super) const fn is_actual(self) -> bool {
         self.actual_commands.is_some()
     }
+    /// Whether this carrier was issued from the explicit static semantic
+    /// context adapter. Supplied availability without source input retains
+    /// its actual command owner and cannot become standalone compatibility.
+    #[must_use]
+    pub(crate) const fn is_standalone(self) -> bool {
+        self.actual_commands.is_none() && self.actual_input.is_none()
+    }
     pub(crate) fn matches_registry(self, commands: &CommandRegistry) -> bool {
         self.actual_commands.is_none_or(|actual| {
             actual.snapshot().semantic_key() == commands.snapshot().semantic_key()

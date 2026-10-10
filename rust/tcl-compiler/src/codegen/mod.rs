@@ -838,7 +838,7 @@ impl<'r> CodegenCtx<'r> {
 
     /// Select backend metadata under the actual reached native dialect. A
     /// permissive or assisting catalogue cannot replace this engine snapshot.
-    fn invocation_surface_query(&self) -> Option<tcl_dialect::model::SurfaceQuery<'static>> {
+    fn invocation_surface_query(&self) -> Option<tcl_dialect::model::SurfaceQuery<'r>> {
         match self.native_hook_dialect() {
             Some(dialect) => dialect.authoring_query(),
             None => self.registry.own_surface_query(),

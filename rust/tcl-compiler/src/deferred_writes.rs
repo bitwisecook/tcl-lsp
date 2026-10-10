@@ -175,6 +175,12 @@ impl Scan<'_> {
     }
 
     fn statement(&mut self, stmt: &Statement) {
+        if matches!(stmt, Statement::NativeCall { .. }) {
+            // Ordinary dispatch may register an unmodelled future write.
+            // Original words do not select a catalogue callback descriptor.
+            self.out.any = true;
+            return;
+        }
         if let Statement::Call {
             command,
             canonical_command,
@@ -233,8 +239,13 @@ impl Scan<'_> {
             WordValueRules::from_config(&self.config),
         ) {
             EffectiveInvocationWord::Literal(text) => Some(Arg::Literal(text)),
-            EffectiveInvocationWord::Dynamic => Some(Arg::Dynamic),
-            EffectiveInvocationWord::Expanded | EffectiveInvocationWord::Opaque => None,
+            EffectiveInvocationWord::Dynamic
+            | EffectiveInvocationWord::ArrayElementName { .. }
+            | EffectiveInvocationWord::ByteLiteral(_) => Some(Arg::Dynamic),
+            EffectiveInvocationWord::Expanded
+            | EffectiveInvocationWord::KnownExpansion(_)
+            | EffectiveInvocationWord::KnownByteExpansion(_)
+            | EffectiveInvocationWord::Opaque => None,
         }
     }
 
@@ -736,8 +747,11 @@ impl Scan<'_> {
 
     fn subject(&mut self, subject: &TransitionSubject) {
         match subject {
-            TransitionSubject::Literal(name) => self.note(name),
-            TransitionSubject::Unknown { .. } => self.out.any = true,
+            TransitionSubject::Literal(name)
+            | TransitionSubject::LocatedLiteral { value: name, .. } => self.note(name),
+            TransitionSubject::LocatedNativeBytes { .. } | TransitionSubject::Unknown { .. } => {
+                self.out.any = true
+            }
         }
     }
 
@@ -758,6 +772,22 @@ impl Scan<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ordinary_native_dispatch_keeps_deferred_effects_unknown() {
+        let module = Module {
+            top_level: Script::from_statements(vec![crate::ir::native_call_for_test(
+                b"after 1 {set future VALUE}",
+            )]),
+            ..Module::default()
+        };
+        let writes = scan_module(&module, &CommandRegistry::build_default());
+        assert!(writes.any);
+        assert!(
+            writes.names.is_empty(),
+            "native words alone do not select callback metadata"
+        );
+    }
 
     fn writes(source: &str) -> DeferredWrites {
         let registry = CommandRegistry::build_default();

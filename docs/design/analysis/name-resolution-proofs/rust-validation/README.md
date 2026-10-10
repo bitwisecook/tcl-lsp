@@ -1922,3 +1922,45 @@ All ten operations record uniform_source: true under the same immutable source s
 | [compiler-cfg-replay-trace245](frozen245/compiler-cfg-replay-trace245/receipt.json.gz) · [log](frozen245/compiler-cfg-replay-trace245/tests.log) | Exact 1-name command 0P/1F/8593filtered after 2.60s; complete failing summary |
 
 [Compiler pin](frozen245/pinned-compiler245.json): SHA `445956a54f2a27d1e0ab65c6a44d737459f8381ffdd906dfd47b3e1a851da622`, artifact fresh: `false`. [VM pin](frozen245/pinned-vm245.json): SHA `66c9668ecf0d1dfac418ece49da8e917fcbe5aa7fb0ad19843a29e75f7f4440b`, artifact fresh: `false`. Both belong solely to the independent successful Compiler/VM build.
+
+## Registry library checks246–254
+
+Nine exact `cargo check --locked --offline -p tcl-registry --lib` commands retain their own immutable source inventories and full logs. Each closes with exit101 and `uniform_source: true`. The recorded failures are manifest loading, locked dependency resolution or Rust compilation refusals. These library checks execute no test assertions and supply no test executable pin; they are neither Native provider failures nor a successful validation gate.
+
+Every original receipt is retained as a lossless gzip payload with both compressed and uncompressed SHA256. Each immutable archive leaf is independently checked against that receipt's source map. Command paths, original source roots, timings and complete diagnostics remain unchanged. Ledger entries retain no invented test result, successful binary or aggregate pass.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [integration-registry-check246](frozen246/integration-registry-check246/receipt.json.gz) · [log](frozen246/integration-registry-check246/tests.log) | Exit101 after 0.074932s; Duplicate workspace manifest key; manifest loading refused. No assertions or executable pin. |
+| [integration-registry-check247](frozen247/integration-registry-check247/receipt.json.gz) · [log](frozen247/integration-registry-check247/tests.log) | Exit101 after 0.262853s; Locked dependency resolution refuses the required lockfile update. No assertions or executable pin. |
+| [integration-registry-check248](frozen248/integration-registry-check248/receipt.json.gz) · [log](frozen248/integration-registry-check248/tests.log) | Exit101 after 4.177036s; Four tcl-dialect compile errors. No assertions or executable pin. |
+| [integration-registry-check249](frozen249/integration-registry-check249/receipt.json.gz) · [log](frozen249/integration-registry-check249/tests.log) | Exit101 after 0.985796s; PackageFloor lacks the required Hash implementation. No assertions or executable pin. |
+| [integration-registry-check250](frozen250/integration-registry-check250/receipt.json.gz) · [log](frozen250/integration-registry-check250/tests.log) | Exit101 after 6.075160s; Eleven tcl-cmd-core compile errors. No assertions or executable pin. |
+| [integration-registry-check251](frozen251/integration-registry-check251/receipt.json.gz) · [log](frozen251/integration-registry-check251/tests.log) | Exit101 after 4.935033s; Two tcl-regex NO_MATCH symbol errors. No assertions or executable pin. |
+| [integration-registry-check252](frozen252/integration-registry-check252/receipt.json.gz) · [log](frozen252/integration-registry-check252/tests.log) | Exit101 after 21.496689s; Sixty-five tcl-registry compile errors. No assertions or executable pin. |
+| [integration-registry-check253](frozen253/integration-registry-check253/receipt.json.gz) · [log](frozen253/integration-registry-check253/tests.log) | Exit101 after 33.230326s; Eleven tcl-registry compile errors. No assertions or executable pin. |
+| [integration-registry-check254](frozen254/integration-registry-check254/receipt.json.gz) · [log](frozen254/integration-registry-check254/tests.log) | Exit101 after 18.352784s; One non-exhaustive TemplateWordPlan source match for WordPart::Expression. No assertions or executable pin. |
+
+## Compiler library check255
+
+The exact `cargo check --locked --offline -p tcl-compiler --lib` command closes with exit101 after 29.333715s and `uniform_source: true`. The full log records 82 Compiler compilation errors and 14 warnings. Dependency compilation provides no separate assertion result. This library check executes no test assertions and supplies no test executable pin or aggregate pass; it is not a Native provider failure.
+
+The [original receipt](frozen255/integration-compiler-check255/receipt.json.gz) is retained as a lossless gzip payload with compressed and uncompressed SHA256. The [complete log](frozen255/integration-compiler-check255/tests.log) preserves all diagnostics. Every immutable source archive leaf is independently checked against the original receipt map. Original command, paths, source association and timing remain unchanged.
+
+## Compiler library check256
+
+The exact `cargo check --locked --offline -p tcl-compiler --lib` command closes with exit101 after 31.101201s and `uniform_source: true`. The full log records 71 Compiler compilation errors and 12 warnings. Dependency compilation provides no separate assertion result. This library check executes no test assertions and supplies no test executable pin or aggregate pass; it is not a Native provider failure.
+
+The [original receipt](frozen256/integration-compiler-check256/receipt.json.gz) is retained as a lossless gzip payload with compressed and uncompressed SHA256. The [complete log](frozen256/integration-compiler-check256/tests.log) preserves all diagnostics. Every immutable source archive leaf is independently checked against the original receipt map. Original command, paths, source association and timing remain unchanged.
+
+## Compiler and VM library checks257 and258
+
+These three closed commands retain separate outcomes with `uniform_source: true`. The first257 command repeats `--lib`; Cargo rejects it with exit1 after 0.039263s before compilation. The corrected257 command closes with exit101 after 15.280502s at one Registry dependency type error. Check258 closes with exit101 after 42.642274s, recording 100 Compiler errors and 12 warnings and 29 VM errors and 4 warnings. None executes test assertions, supplies a test executable pin or establishes an aggregate pass or Native provider failure.
+
+| Exact closed command | Original receipt | Complete log | Outcome |
+| --- | --- | --- | --- |
+| Rejected257 argument vector | [receipt](frozen257/integration-compiler-check257/receipt.json.gz) | [log](frozen257/integration-compiler-check257/tests.log) | Command blocked before compilation |
+| Compiler and VM check257 | [receipt](frozen257/integration-compiler-vm-check257/receipt.json.gz) | [log](frozen257/integration-compiler-vm-check257/tests.log) | Registry dependency compilation blocked |
+| Compiler and VM check258 | [receipt](frozen258/integration-compiler-vm-check258/receipt.json.gz) | [log](frozen258/integration-compiler-vm-check258/tests.log) | Compiler and VM compilation blocked |
+
+Each exact receipt is retained as a lossless gzip payload with compressed and uncompressed SHA256. Every immutable source archive leaf is independently checked against the original receipt map. Original commands, paths, source associations, diagnostic streams and timings remain unchanged.

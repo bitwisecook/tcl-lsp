@@ -62,6 +62,7 @@
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
+use crate::interprocedural::ConstantReturn;
 use crate::ir::{CommandTokens, Script, Statement};
 use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::FoldPolicy;
@@ -159,9 +160,15 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             analysis_context: None,
             existence: None,
         };
-        run_load_forwarding(ctx, &cu.top_level, top_level_extra_escaping, trace);
+        run_load_forwarding(
+            ctx,
+            &cu.ir_module,
+            &cu.top_level,
+            top_level_extra_escaping,
+            trace,
+        );
         for fu in cu.procedures.values() {
-            run_load_forwarding(ctx, fu, &no_extra_escaping, trace);
+            run_load_forwarding(ctx, &cu.ir_module, fu, &no_extra_escaping, trace);
         }
     }
     // O127 store-to-load forwarding for *computed* single-use
@@ -301,6 +308,7 @@ fn compatibility_def_is_external(
 ///   (precisely) and cross-block (conservatively).
 fn run_load_forwarding(
     ctx: &mut PassContext<'_>,
+    module: &crate::ir::Module,
     fu: &crate::compilation_unit::FunctionUnit,
     extra_escaping: &std::collections::HashSet<String>,
     trace: crate::sccp::TraceInputs<'_>,
@@ -322,11 +330,17 @@ fn run_load_forwarding(
     // `upvar`/`trace`-aliased name's "sole reaching def" is not actually
     // sole: some other call frame can reassign it between the def and a
     // later use.
-    let metadata = fu.invocation_metadata_context(trace.registry);
+    let Some(metadata) = fu.invocation_metadata_context_for_module(trace.registry, module) else {
+        return;
+    };
+    let trace = crate::sccp::TraceInputs {
+        source_metadata_input: metadata.source_analysis_input(),
+        ..trace
+    };
     let mut escaping = crate::var_observability::analyse_var_observability_with_metadata_context(
         &fu.cfg,
         trace.registry,
-        metadata,
+        Some(metadata),
     )
     .escaping_var_names();
     escaping.extend(extra_escaping.iter().cloned());
@@ -1912,10 +1926,8 @@ fn walk_statement(
 /// registry + whole-module trace facts the original build did — otherwise
 /// this specific re-run path would be independently trace-blind (the same
 /// silent-miscompile class `run_function`/`run_load_forwarding` guard
-/// against). `ctx.registry` / `ctx.ir_module` are `None` only in a bare
-/// hand-built `PassContext` (some pass-level unit tests); default to an
-/// empty/false fact then, matching `run_function`'s own
-/// `ctx.ir_module`-absent fallback.
+/// against). The callee and unit must retain the same supplied owner;
+/// unavailable callee metadata cannot borrow the caller's grammar or folds.
 fn evaluate_proc_with_constants(
     (ctx, cu): (&PassContext<'_>, &CompilationUnit),
     callee: &FunctionUnit,
@@ -1926,18 +1938,13 @@ fn evaluate_proc_with_constants(
 ) -> Option<tcl_registry::value_transfer::ExactValue> {
     let seed = seed_params_from_args(params, args, grammar, policy)?;
     let registry = ctx.registry?;
-    let metadata = match ctx.ir_module {
-        Some(module) => callee.invocation_metadata_context_for_module(registry, module),
-        None => callee.invocation_metadata_context(registry),
-    }?;
-    let empty_traced = std::collections::BTreeSet::new();
-    let (traced_variables, has_dynamic_variable_trace, deferred_writes) = match ctx.ir_module {
-        Some(m) => (
-            &m.traced_variables,
-            m.has_dynamic_variable_trace,
-            &m.deferred_writes,
-        ),
-        None => (&empty_traced, false, &crate::ir::NO_DEFERRED_WRITES),
+    let metadata = callee.invocation_metadata_context_for_module(registry, &cu.ir_module)?;
+    let source_metadata_input = metadata.source_analysis_input()?;
+    let folds = crate::sccp::BuiltinFoldInputs {
+        source_metadata_input: Some(source_metadata_input),
+        dialect: Some(source_metadata_input.unit_profile()),
+        proven_pure_parameters: true,
+        ..ctx.rewrite_folds()
     };
     // A call the callee makes to another procedure of the module is applied
     // as that procedure's transfer summary says, its result too: the
@@ -1952,10 +1959,10 @@ fn evaluate_proc_with_constants(
         extra_escaping: &no_escaping,
         trace: crate::sccp::TraceInputs {
             registry,
-            source_metadata_input: metadata.source_analysis_input(),
-            traced_variables,
-            has_dynamic_variable_trace,
-            deferred_writes,
+            source_metadata_input: Some(source_metadata_input),
+            traced_variables: &cu.ir_module.traced_variables,
+            has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+            deferred_writes: &cu.ir_module.deferred_writes,
             analysis_context: None,
             existence: None,
         },
@@ -1964,11 +1971,7 @@ fn evaluate_proc_with_constants(
         // `[llength …]` with builtin semantics even where the module shadows
         // `llength`, handing O103 a value the rest of the pipeline disagrees
         // with (#2164).
-        folds: Some(crate::sccp::BuiltinFoldInputs {
-            source_metadata_input: metadata.source_analysis_input(),
-            proven_pure_parameters: true,
-            ..ctx.rewrite_folds()
-        }),
+        folds: Some(folds),
         module: crate::sccp::ModuleRun {
             procedures: Some(&module),
             owned: None,
@@ -1981,10 +1984,10 @@ fn evaluate_proc_with_constants(
         &result,
         crate::interprocedural::ExitReading {
             policy,
-            grammar: ctx
-                .dialect
-                .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
-            folds: ctx.rewrite_folds(),
+            grammar: callee
+                .source_lexer_config()
+                .grammar_over(source_metadata_input.unit_profile().grammar),
+            folds,
             module: Some((&module, callee.name.as_str())),
         },
     )
@@ -2668,7 +2671,6 @@ fn render_proc_constant_return(
     ctx: &PassContext<'_>,
     constant: &crate::interprocedural::ConstantReturn,
 ) -> Option<String> {
-    use crate::interprocedural::ConstantReturn;
     Some(match constant {
         ConstantReturn::Int(value) => value.to_string(),
         ConstantReturn::Float(value) => crate::tcl_expr_eval::format_tcl_value_with_policy(

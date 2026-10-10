@@ -599,6 +599,7 @@ fn try_rewrite_expr(ctx: &mut PassContext<'_>, span: Span, expr: &ExprNode) {
     if matches!(expr, ExprNode::Raw { .. }) {
         return;
     }
+    let env = Env::new();
     if let Some(val) = ctx.eval_expression_at(expr, &env, span)
         && let Some(folded) = format_tcl_value_with_policy(&val, ctx.fold_policy())
     {

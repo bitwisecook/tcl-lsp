@@ -132,6 +132,7 @@ fn regexp_layout_roles(
 
 /// The operands the layout reserves after the switches when it matches:
 /// `exp string`.
+#[cfg(test)]
 const SUBJECT_LAYOUT: usize = 2;
 
 /// The family of the switches that reshape the operand layout rather than

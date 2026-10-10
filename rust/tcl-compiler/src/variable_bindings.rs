@@ -1137,22 +1137,42 @@ pub fn bind_caller_reference(
         }
         crate::var_resolve::ContentsPresence::Defined => {}
     }
-    bind_alias(
+    let local = tcl_registry::TransitionSubject::Literal(local.to_owned());
+    let target = VariableAliasTarget::CallerSelectedFrame {
+        frame: CallerFrameSelection::Explicit(tcl_registry::TransitionSubject::Literal(
+            "1".to_owned(),
+        )),
+        variable: tcl_registry::TransitionSubject::Literal(actual.to_owned()),
+    };
+    bind_authored_alias_values(
         state,
-        &VariableCellAliasTransition {
+        AliasBindingValues {
             destination: tcl_registry::VariableAliasDestination::ProcedureLocal,
-            local: tcl_registry::TransitionSubject::Literal(local.to_owned()),
-            target: VariableAliasTarget::CallerSelectedFrame {
-                frame: CallerFrameSelection::Explicit(tcl_registry::TransitionSubject::Literal(
-                    "1".to_owned(),
-                )),
-                variable: tcl_registry::TransitionSubject::Literal(actual.to_owned()),
-            },
-            writes_value: false,
+            local: &local,
+            target: &target,
         },
         registry,
     );
     CallerReferenceBinding::Bound
+}
+
+/// Values used to bind a cell link. A formal-reference link has no written
+/// invocation, so this view deliberately carries no source-word ordinals.
+#[derive(Clone, Copy)]
+struct AliasBindingValues<'a> {
+    destination: tcl_registry::VariableAliasDestination,
+    local: &'a tcl_registry::TransitionSubject,
+    target: &'a VariableAliasTarget,
+}
+
+impl<'a> From<&'a VariableCellAliasTransition> for AliasBindingValues<'a> {
+    fn from(alias: &'a VariableCellAliasTransition) -> Self {
+        Self {
+            destination: alias.destination,
+            local: &alias.local,
+            target: &alias.target,
+        }
+    }
 }
 
 /// Whether a proved alias operation can install its destination on normal completion.
@@ -1426,6 +1446,14 @@ pub fn alias_binding_validity(
     alias: &VariableCellAliasTransition,
     registry: &CommandRegistry,
 ) -> AliasBindingValidity {
+    alias_value_binding_validity(state, alias.into(), registry)
+}
+
+fn alias_value_binding_validity(
+    state: &ResolveContext,
+    alias: AliasBindingValues<'_>,
+    registry: &CommandRegistry,
+) -> AliasBindingValidity {
     let Some(local) = alias.local.literal() else {
         return AliasBindingValidity::Unknown;
     };
@@ -1463,7 +1491,7 @@ pub fn alias_binding_validity(
         return AliasBindingValidity::Valid;
     }
     let slot = crate::var_resolve::resolve_alias_destination_slot(local, state, registry);
-    let target = alias_target(state, &alias.target, registry);
+    let target = alias_target(state, alias.target, registry);
     if slot.kind == PlaceKind::Unknown || target.kind == PlaceKind::Unknown {
         return AliasBindingValidity::Unknown;
     }
@@ -1500,9 +1528,29 @@ fn bind_alias(
     bind_alias_with_compiled_local(state, alias, registry, None, None);
 }
 
+fn bind_authored_alias_values(
+    state: &mut ResolveContext,
+    alias: AliasBindingValues<'_>,
+    registry: &CommandRegistry,
+) {
+    bind_alias_values_with_compiled_local(state, alias, registry, None, None);
+}
+
 fn bind_alias_with_compiled_local(
     state: &mut ResolveContext,
     alias: &VariableCellAliasTransition,
+    registry: &CommandRegistry,
+    compiled_local: Option<
+        &crate::command_binding::original_variable_compilation::OriginalCompiledNamespaceLocal,
+    >,
+    operands: Option<&OriginalVariableInvocation>,
+) {
+    bind_alias_values_with_compiled_local(state, alias.into(), registry, compiled_local, operands);
+}
+
+fn bind_alias_values_with_compiled_local(
+    state: &mut ResolveContext,
+    alias: AliasBindingValues<'_>,
     registry: &CommandRegistry,
     compiled_local: Option<
         &crate::command_binding::original_variable_compilation::OriginalCompiledNamespaceLocal,
@@ -1548,7 +1596,7 @@ fn bind_alias_with_compiled_local(
                 "ORIGINAL_VARIABLE_ALIAS_BIND unknown_destination frame={frame:?} local_ordinal={:?} original_input={} dynamic={}",
                 alias.local.argument_index(),
                 operands
-                    .and_then(|operands| operands.subject_input(&alias.local, state))
+                    .and_then(|operands| operands.subject_input(alias.local, state))
                     .is_some(),
                 state.dynamic_bindings
             );
@@ -1571,8 +1619,8 @@ fn bind_alias_with_compiled_local(
         return;
     }
     let target = operands.map_or_else(
-        || alias_target(state, &alias.target, registry),
-        |operands| original_alias_target(state, &alias.target, operands, registry, false),
+        || alias_target(state, alias.target, registry),
+        |operands| original_alias_target(state, alias.target, operands, registry, false),
     );
     #[cfg(test)]
     if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
@@ -1613,14 +1661,14 @@ fn bind_alias_with_compiled_local(
 
 fn selected_alias_binding_validity(
     state: &ResolveContext,
-    alias: &VariableCellAliasTransition,
+    alias: AliasBindingValues<'_>,
     registry: &CommandRegistry,
     original_slot: Option<&Place>,
     key: &crate::var_resolve::VariableCellKey,
     target: &Place,
 ) -> AliasBindingValidity {
     original_slot.map_or_else(
-        || alias_binding_validity(state, alias, registry),
+        || alias_value_binding_validity(state, alias, registry),
         |slot| {
             let direct = !state.alias_bindings.contains_key(key)
                 && !state.name_alias_bindings.contains_key(key)
@@ -1646,7 +1694,7 @@ fn selected_alias_binding_validity(
 
 fn install_alias_binding(
     state: &mut ResolveContext,
-    alias: &VariableCellAliasTransition,
+    alias: AliasBindingValues<'_>,
     registry: &CommandRegistry,
     original_slot: Option<&Place>,
     key: crate::var_resolve::VariableCellKey,
@@ -1665,8 +1713,8 @@ fn install_alias_binding(
         == Some(tcl_dialect::VariableLinkBinding::SelectedFrameName);
     let named_target = name_link.then(|| {
         operands.map_or_else(
-            || alias_name_target(state, &alias.target, registry),
-            |operands| original_alias_target(state, &alias.target, operands, registry, true),
+            || alias_name_target(state, alias.target, registry),
+            |operands| original_alias_target(state, alias.target, operands, registry, true),
         )
     });
     if let Some(target) = &named_target {
@@ -1725,11 +1773,11 @@ fn install_alias_binding(
 
 fn original_alias_destination(
     state: &ResolveContext,
-    alias: &VariableCellAliasTransition,
+    alias: AliasBindingValues<'_>,
     operands: &OriginalVariableInvocation,
     registry: &CommandRegistry,
 ) -> Place {
-    let Some(input) = operands.subject_input(&alias.local, state) else {
+    let Some(input) = operands.subject_input(alias.local, state) else {
         return place::unknown_top();
     };
     let bytes = match alias.target {
@@ -4518,6 +4566,7 @@ mod tests {
                     local: subject.clone(),
                     target: VariableAliasTarget::Global { variable: subject },
                     writes_value: false,
+                    words: tcl_registry::AliasWords::same(0),
                 };
                 let operands = OriginalVariableInvocation::from_original_inputs(
                     vec![Some(input.clone())],
@@ -4560,6 +4609,7 @@ mod tests {
                 local: subject.clone(),
                 target: VariableAliasTarget::Global { variable: subject },
                 writes_value: false,
+                words: tcl_registry::AliasWords::same(0),
             };
             let missing = OriginalVariableInvocation::from_original_inputs(vec![None], vec![]);
             bind_alias_with_compiled_local(&mut state, &alias, registry, None, Some(&missing));
@@ -5006,18 +5056,17 @@ mod tests {
     }
 
     fn link(state: &mut ResolveContext, target: &str, local: &str) {
-        bind_alias(
+        bind_authored_alias_values(
             state,
-            &VariableCellAliasTransition {
+            AliasBindingValues {
                 destination: tcl_registry::VariableAliasDestination::CurrentNamespaceOrLocal,
-                local: TransitionSubject::Literal(local.to_owned()),
-                target: VariableAliasTarget::CallerSelectedFrame {
+                local: &TransitionSubject::Literal(local.to_owned()),
+                target: &VariableAliasTarget::CallerSelectedFrame {
                     frame: CallerFrameSelection::Explicit(TransitionSubject::Literal(
                         "0".to_owned(),
                     )),
                     variable: TransitionSubject::Literal(target.to_owned()),
                 },
-                writes_value: false,
             },
             &CommandRegistry::build_default(),
         );
@@ -5052,18 +5101,17 @@ mod tests {
                 namespace: "::".to_owned(),
                 identity: "bump@1".to_owned(),
             });
-        bind_alias(
+        bind_authored_alias_values(
             &mut child,
-            &VariableCellAliasTransition {
+            AliasBindingValues {
                 destination: tcl_registry::VariableAliasDestination::CurrentNamespaceOrLocal,
-                local: TransitionSubject::Literal("v".to_owned()),
-                target: VariableAliasTarget::CallerSelectedFrame {
+                local: &TransitionSubject::Literal("v".to_owned()),
+                target: &VariableAliasTarget::CallerSelectedFrame {
                     frame: CallerFrameSelection::Explicit(TransitionSubject::Literal(
                         "1".to_owned(),
                     )),
                     variable: TransitionSubject::Literal("n".to_owned()),
                 },
-                writes_value: false,
             },
             registry,
         );
@@ -5123,20 +5171,19 @@ mod tests {
         let mut state = ResolveContext::for_function("::p");
         state.known_namespaces.insert("::N".to_owned());
         state.namespace_cells.closed = true;
-        let alias = VariableCellAliasTransition {
+        let alias = AliasBindingValues {
             destination: tcl_registry::VariableAliasDestination::CurrentNamespaceOrLocal,
-            local: TransitionSubject::Literal("::N::y".to_owned()),
-            target: VariableAliasTarget::CallerSelectedFrame {
+            local: &TransitionSubject::Literal("::N::y".to_owned()),
+            target: &VariableAliasTarget::CallerSelectedFrame {
                 frame: CallerFrameSelection::Explicit(TransitionSubject::Literal("0".to_owned())),
                 variable: TransitionSubject::Literal("x".to_owned()),
             },
-            writes_value: false,
         };
         assert_eq!(
-            alias_binding_validity(&state, &alias, registry),
+            alias_value_binding_validity(&state, alias, registry),
             AliasBindingValidity::NamespaceToLocal
         );
-        bind_alias(&mut state, &alias, registry);
+        bind_authored_alias_values(&mut state, alias, registry);
         assert!(!state.namespace_cells.present.contains("::N::y"));
         assert!(!state.namespace_alias_bindings.contains_key("::N::y"));
     }
@@ -5379,15 +5426,14 @@ mod tests {
             resolve_literal_place("element", &state, false, registry).cell,
             resolve_literal_place("a(k)", &state, false, registry).cell
         );
-        bind_alias(
+        bind_authored_alias_values(
             &mut state,
-            &VariableCellAliasTransition {
+            AliasBindingValues {
                 destination: tcl_registry::VariableAliasDestination::CurrentNamespaceOrLocal,
-                local: TransitionSubject::Literal("global_alias".to_owned()),
-                target: VariableAliasTarget::Global {
+                local: &TransitionSubject::Literal("global_alias".to_owned()),
+                target: &VariableAliasTarget::Global {
                     variable: TransitionSubject::Literal("::N::x".to_owned()),
                 },
-                writes_value: false,
             },
             registry,
         );
@@ -5423,16 +5469,15 @@ mod tests {
                 identity: "child_frame@1".to_owned(),
             },
         );
-        bind_alias(
+        bind_authored_alias_values(
             &mut child_frame,
-            &VariableCellAliasTransition {
+            AliasBindingValues {
                 destination: tcl_registry::VariableAliasDestination::CurrentNamespaceOrLocal,
-                local: TransitionSubject::Literal("alias".to_owned()),
-                target: VariableAliasTarget::CallerSelectedFrame {
+                local: &TransitionSubject::Literal("alias".to_owned()),
+                target: &VariableAliasTarget::CallerSelectedFrame {
                     frame: CallerFrameSelection::DefaultCaller,
                     variable: TransitionSubject::Literal("seed".to_owned()),
                 },
-                writes_value: false,
             },
             &registry,
         );
@@ -5482,15 +5527,14 @@ mod tests {
                 identity: "namespace-eval@1".to_owned(),
             },
         );
-        bind_alias(
+        bind_authored_alias_values(
             &mut child,
-            &VariableCellAliasTransition {
+            AliasBindingValues {
                 destination: tcl_registry::VariableAliasDestination::CurrentNamespaceOrLocal,
-                local: TransitionSubject::Literal("link".to_owned()),
-                target: VariableAliasTarget::Global {
+                local: &TransitionSubject::Literal("link".to_owned()),
+                target: &VariableAliasTarget::Global {
                     variable: TransitionSubject::Literal("::Target::x".to_owned()),
                 },
-                writes_value: false,
             },
             registry,
         );
@@ -5633,15 +5677,14 @@ mod tests {
                 .namespace_cells
                 .present
                 .extend(["::x".to_owned(), "::N::x".to_owned()]);
-            bind_alias(
+            bind_authored_alias_values(
                 &mut state,
-                &VariableCellAliasTransition {
+                AliasBindingValues {
                     destination: tcl_registry::VariableAliasDestination::ProcedureLocal,
-                    local: TransitionSubject::Literal("x".to_owned()),
-                    target: VariableAliasTarget::Global {
+                    local: &TransitionSubject::Literal("x".to_owned()),
+                    target: &VariableAliasTarget::Global {
                         variable: TransitionSubject::Literal("x".to_owned()),
                     },
-                    writes_value: false,
                 },
                 &registry,
             );
@@ -5662,15 +5705,14 @@ mod tests {
         ));
         state.namespace_cells.closed = true;
         state.namespace_cells.present.insert("::link".to_owned());
-        bind_alias(
+        bind_authored_alias_values(
             &mut state,
-            &VariableCellAliasTransition {
+            AliasBindingValues {
                 destination: tcl_registry::VariableAliasDestination::CurrentNamespaceOrLocal,
-                local: TransitionSubject::Literal("link".to_owned()),
-                target: VariableAliasTarget::Global {
+                local: &TransitionSubject::Literal("link".to_owned()),
+                target: &VariableAliasTarget::Global {
                     variable: TransitionSubject::Literal("::Target::x".to_owned()),
                 },
-                writes_value: false,
             },
             &registry,
         );

@@ -668,7 +668,7 @@ fn push_substitution(
     }
     out.calls.push(LiftedCall {
         command,
-        tokens: nested,
+        tokens: nested.clone(),
         args,
         arg_spans,
         arg_words,
@@ -754,7 +754,7 @@ pub fn nested_command_words(
 
 fn retain_nested_provenance(word: &mut WordExpr, provenance: &Provenance) {
     let source = match word {
-        WordExpr::Template { parts, source } => {
+        WordExpr::Template { parts, source, .. } => {
             for part in parts {
                 let site = match part {
                     WordPart::Text { source, .. }
@@ -973,15 +973,24 @@ pub(crate) fn lifted_source_expressions_with_metadata_context(
     let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
         return Vec::new();
     };
-    lifted_calls(tokens, config).into_iter().filter_map(|lifted| {
-        let tokens = lifted.tokens.as_ref()?;
-        let invocation = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
-            registry, Some(context), tokens,
-        )?;
-        source_expression_from_invocation_with_syntax_context(
-            &invocation, parser, lifted.span, expression_parent(tokens),
-        )
-    }).collect()
+    lifted_calls(tokens, config)
+        .into_iter()
+        .filter_map(|lifted| {
+            let tokens = lifted.tokens.as_ref()?;
+            let invocation =
+                crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                    registry,
+                    Some(context),
+                    tokens,
+                )?;
+            source_expression_from_invocation_with_syntax_context(
+                &invocation,
+                parser,
+                lifted.span,
+                expression_parent(tokens),
+            )
+        })
+        .collect()
 }
 
 fn selected_lifted_expressions(

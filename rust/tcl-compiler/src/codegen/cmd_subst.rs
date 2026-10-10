@@ -1855,7 +1855,7 @@ impl CodegenCtx<'_> {
                 .iter()
                 .map(|(word, braced, expanded)| (word.as_str(), *braced, *expanded)),
         );
-        self.require_command_binding(&binding);
+        self.require_site_binding(&binding);
         true
     }
 

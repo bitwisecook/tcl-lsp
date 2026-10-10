@@ -24,11 +24,11 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::intervals::{Interval, compute_intervals_with};
 use crate::ir::{CommandTokens, Procedure, Statement};
 use crate::native_integer_proof::NativeIntegerDeclineReason;
+use crate::registry_invocation::resolve_command_tokens;
 use crate::registry_invocation::{
     InvocationMetadataContext, RegistryInvocationResolution,
     resolve_command_tokens_with_metadata_context,
 };
-use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
 use crate::representation_plan::{SharingState, VarStorage};
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use crate::ssa::{SsaBlock, SsaStatement, Symbol, ValueKey};
@@ -721,6 +721,10 @@ pub enum NativeDeclineReason {
     ProofFunctionUnavailable,
     /// The complexity guard disabled the integer analysis.
     ProofComplexityGuarded,
+    /// The actual source metadata needed by the integer proof is unavailable.
+    ProofSourceMetadataUnavailable,
+    /// The integer proof lacks the selected math command binding premise.
+    ProofMathBindingPrerequisiteRequired,
     /// The callee holds no addition of two variables.
     NoAddCandidate,
     /// The callee holds more than one candidate addition.
@@ -762,6 +766,10 @@ impl NativeDeclineReason {
             Self::NoSelectedBoundary => "no-selected-boundary",
             Self::ProofFunctionUnavailable => "function-unavailable",
             Self::ProofComplexityGuarded => "complexity-guarded",
+            Self::ProofSourceMetadataUnavailable => "proof-source-metadata-unavailable",
+            Self::ProofMathBindingPrerequisiteRequired => {
+                "proof-math-binding-prerequisite-required"
+            }
             Self::NoAddCandidate => "no-add-candidate",
             Self::AmbiguousAdd => "ambiguous-add",
             Self::Integer(reason) => reason.as_str(),

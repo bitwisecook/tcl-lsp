@@ -61,10 +61,10 @@ pub mod byte_array_effect;
 pub(crate) mod cache;
 pub mod case_bodies;
 pub mod catch_invocation;
-pub mod clause_shape;
-pub mod command_lookup;
 pub mod clause_grammar;
+pub mod clause_shape;
 pub mod codegen_stamp;
+pub mod command_lookup;
 pub mod command_prefix_target;
 pub mod command_snapshot;
 pub mod command_table;
@@ -211,8 +211,8 @@ pub mod representation;
 pub mod resolved_invocation;
 pub mod result_stability;
 pub mod return_type;
-pub mod runtime_expr_validation;
 pub mod runtime_backing;
+pub mod runtime_expr_validation;
 pub mod scoped;
 pub mod script_body_flow;
 pub mod security_floor;
@@ -220,6 +220,7 @@ pub mod semantic_operation;
 pub mod side_effects;
 pub mod snapshot;
 pub mod source_file;
+pub mod source_name_ownership;
 pub mod source_navigation;
 pub mod source_path;
 pub mod spec;
@@ -232,8 +233,8 @@ pub mod taint;
 pub mod tk_geometry;
 pub mod traits;
 pub mod types;
-pub mod variable_output;
 pub mod value_transfer;
+pub mod variable_output;
 pub mod version;
 pub mod version_range;
 pub mod world_effect;
@@ -255,12 +256,12 @@ pub mod prelude {
         BpfVerdictKind,
     };
     pub use crate::byte_array_effect::ByteArrayEffect;
-    pub use crate::clause_shape::{
-        ClauseShapeChecker, ClauseShapeError, ClauseShapeIssue, ClauseShapeRepair,
-    };
     pub use crate::clause_grammar::{
         ClauseGrammarSpec, ClauseRow, ClauseRowShape, ClauseSelection, ClauseSlot, ClauseTiming,
         DefaultClause, LoopPhase,
+    };
+    pub use crate::clause_shape::{
+        ClauseShapeChecker, ClauseShapeError, ClauseShapeIssue, ClauseShapeRepair,
     };
     pub use crate::command_table::CommandTableEffect;
     pub use crate::completion::{
@@ -386,12 +387,12 @@ pub use cache::{
     core_surface_generation, default_registry, overlay_epoch, register_core_surface_specs,
     registry_for_profile_with_overlay, safe_interp_hidden_commands,
 };
-pub use clause_shape::{ClauseShapeChecker, ClauseShapeError, ClauseShapeIssue, ClauseShapeRepair};
 pub use clause_grammar::{
     ClauseAbstention, ClauseGrammarSpec, ClauseKeyword, ClausePlan, ClauseRow, ClauseRowId,
     ClauseRowShape, ClauseSelection, ClauseSlot, ClauseTiming, DefaultClause, LoopPhase,
     ResolvedClause,
 };
+pub use clause_shape::{ClauseShapeChecker, ClauseShapeError, ClauseShapeIssue, ClauseShapeRepair};
 pub use command_prefix_target::CommandPrefixTarget;
 pub use command_table::CommandTableEffect;
 pub use completion::{
@@ -478,17 +479,17 @@ pub use special_vars::{
     special_var_write_effect, special_vars_for_dialect,
 };
 pub use state_transition::{
-    AbruptTransitionTransfer, AliasTargetLookup, AliasWords, CallerFrameSelection, ChildInterpreterSafety,
-    CommandBindingDefinitionKind, CommandBindingTransition, CommandResolutionImpact,
-    InterpreterTransition, NamespaceTransition, NamespaceTransitionTarget, ObjectDispatchKind,
-    ObjectDispatchLayer, ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace,
-    ResolvedStateTransitions, StateTransition, StateTransitionArgumentShape, StateTransitionCommit,
-    StateTransitionComposition, StateTransitionDescriptor, StateTransitionDomain,
-    StateTransitionFact, StateTransitionKnowledge, StateTransitionOperandLayout,
-    StateTransitionResolver, StateTransitionWidening, StateTransitionWideningRule,
-    StateTransitions, TraceOperation, TraceOperationSet, TraceTarget, TraceTransition,
-    TransitionSubject, VariableAliasDestination, VariableAliasFrame, VariableAliasTarget,
-    VariableCellAliasTransition,
+    AbruptTransitionTransfer, AliasTargetLookup, AliasWords, CallerFrameSelection,
+    ChildInterpreterSafety, CommandBindingDefinitionKind, CommandBindingTransition,
+    CommandResolutionImpact, InterpreterTransition, NamespaceTransition, NamespaceTransitionTarget,
+    ObjectDispatchKind, ObjectDispatchLayer, ObjectDispatchTarget, ObjectDispatchTransition,
+    ObjectPrivateNamespace, ResolvedStateTransitions, StateTransition,
+    StateTransitionArgumentShape, StateTransitionCommit, StateTransitionComposition,
+    StateTransitionDescriptor, StateTransitionDomain, StateTransitionFact,
+    StateTransitionKnowledge, StateTransitionOperandLayout, StateTransitionResolver,
+    StateTransitionWidening, StateTransitionWideningRule, StateTransitions, TraceOperation,
+    TraceOperationSet, TraceTarget, TraceTransition, TransitionSubject, VariableAliasDestination,
+    VariableAliasFrame, VariableAliasTarget, VariableCellAliasTransition,
 };
 pub use symbol_def::{DefinedSymbolKind, SymbolDef};
 pub use taint::{SetterConstraint, TaintColour, TaintColourAtom};

@@ -907,7 +907,7 @@ impl FunctionUnit {
             }
         }
         for node in unit.cfg.loop_nodes.values_mut() {
-            relocate_statement_variable_proofs(&mut node.for_stmt, relocation);
+            relocate_statement_variable_proofs(&mut node.statement, relocation);
         }
         for block in unit.ssa.blocks.values_mut() {
             for statement in &mut block.statements {
@@ -2761,10 +2761,7 @@ impl CompilationUnit {
         input: Option<&crate::analyser::ResolvedAnalysisInput>,
     ) -> Self {
         let UnitBuildOptions {
-            registry,
-            dialect,
-            external_call_sites,
-            ..
+            registry, dialect, ..
         } = options;
         let (ir_module, cfg_module, tainted_global_writes, prepared_cfg_context) =
             lower_and_build_cfg(source, options, body_cache, entry, context, input);
@@ -2856,7 +2853,7 @@ impl CompilationUnit {
             cache,
             options.config,
         );
-        let procedures = built.procedures;
+        let mut procedures = built.procedures;
         let transfers = module_procedures.into_summaries();
         let body_unit_context = BodyUnitContext {
             registry,

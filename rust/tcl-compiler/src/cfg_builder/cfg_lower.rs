@@ -606,6 +606,7 @@ impl CfgBuilder<'_> {
         self.loop_nodes.insert(
             end_block.to_owned(),
             LoopNode {
+                executed_source: self.current_source.clone(),
                 entry_block,
                 start: entry_block,
                 span: stmt.span(),

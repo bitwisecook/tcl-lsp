@@ -55,6 +55,8 @@ use self::upvar_info::{FrameReach, UpvarInfo};
 /// ([`CfgBuilder::head_is_unseen`]). The command binding lattice resolves
 /// aliases and unresolved-command handlers to terminal registry targets before
 /// this set is consulted, so it does not name `unknown` directly.
+const REGISTRY_BARRIER_TRAITS: Traits = CODE_RUNNING_TRAITS;
+
 const CODE_RUNNING_TRAITS: Traits = Traits::EVALUATES_CODE
     .union(Traits::CREATES_BARRIER)
     .union(Traits::CREATES_DYNAMIC_BARRIER);
@@ -187,6 +189,8 @@ struct ConditionEffects {
     opaque_global: bool,
     /// An embedded command is one the module cannot see.
     unseen: bool,
+    /// A source-order invocation reaches a registry evaluation barrier.
+    registry_barrier: bool,
 }
 
 /// The caller-frame effects a statement's `[…]` substitutions contribute.
@@ -689,6 +693,69 @@ impl<'a> CfgBuilder<'a> {
             .any(|invocation| invocation.facts.traits.intersects(REGISTRY_BARRIER_TRAITS))
     }
 
+    /// Whether any recovered command substitution reaches a registry operation
+    /// with a barrier/evaluation trait. Substitutions execute before their
+    /// host statement, so callers place the synthetic barrier before that
+    /// host in the CFG.
+    fn embedded_registry_barrier(&self, stmt: &Statement) -> bool {
+        let bindings = self
+            .source_binding_timeline
+            .as_ref()
+            .and_then(|timeline| timeline.before_substitutions(stmt.span()))
+            .cloned()
+            .unwrap_or_else(|| self.command_bindings.clone());
+        let Some(metadata) = self.command_classes.metadata_context() else {
+            return true;
+        };
+        let state = std::cell::RefCell::new(bindings);
+        let barrier = std::cell::Cell::new(false);
+        let resolve = |head: &str| {
+            state
+                .borrow()
+                .resolved_embedded_head(head, &self.invocation_namespace)
+        };
+        let observe = |words: &[crate::ir_helpers::CommandWord], conditional: bool| {
+            let found = state
+                .borrow_mut()
+                .source_order_registry_barrier_for_command_with_metadata_context(
+                    words,
+                    conditional,
+                    self.registry,
+                    &self.invocation_namespace,
+                    REGISTRY_BARRIER_TRAITS,
+                    metadata,
+                );
+            barrier.set(barrier.get() || found);
+        };
+        let embedded =
+            crate::ir_helpers::evaluated_command_substitutions_with_replay_and_metadata_context(
+                stmt,
+                self.registry,
+                Some(&resolve),
+                Some(&observe),
+                metadata,
+                self.config,
+            );
+        embedded.opaque || barrier.get()
+    }
+
+    fn registry_barrier_statement(stmt: &Statement, reason: &str) -> Statement {
+        Self::registry_barrier_statement_at(stmt.span(), reason)
+    }
+
+    fn registry_barrier_statement_at(span: Span, reason: &str) -> Statement {
+        Statement::Barrier {
+            span,
+            reason: reason.to_owned(),
+            command: "<registry-barrier>".to_owned(),
+            canonical_command: None,
+            args: Vec::new(),
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::RegistryBarrier,
+            )),
+        }
+    }
+
     /// The command bindings in force where the call at `span` dispatches: the
     /// source-order state the timeline recorded before it, or the module's
     /// closed state where the timeline holds none.
@@ -1182,12 +1249,20 @@ impl<'a> CfgBuilder<'a> {
             {
                 return false;
             }
-            let words: Vec<&str> = target
+            let Some(mut words) = target
                 .prepended
                 .iter()
-                .map(String::as_str)
-                .chain(args.iter().copied())
-                .collect();
+                .map(|word| match word {
+                    crate::registry_invocation::EffectiveInvocationWord::Literal(value) => {
+                        Some(value.as_str())
+                    }
+                    _ => None,
+                })
+                .collect::<Option<Vec<_>>>()
+            else {
+                return true;
+            };
+            words.extend(args.iter().copied());
             self.registry
                 .invocation_traits(&target.command, &words, self.registry.own_surface_query())
                 .intersects(CODE_RUNNING_TRAITS)
@@ -1728,6 +1803,7 @@ impl<'a> CfgBuilder<'a> {
         let mut defs = writes.names;
         let state = std::cell::RefCell::new(bindings);
         let unseen = std::cell::Cell::new(false);
+        let registry_barrier = std::cell::Cell::new(false);
         let resolve = |head: &str| {
             state
                 .borrow()
@@ -1808,6 +1884,7 @@ impl<'a> CfgBuilder<'a> {
             reads,
             opaque_global,
             unseen: unseen.get(),
+            registry_barrier: embedded.opaque || registry_barrier.get(),
         }
     }
 
@@ -1818,6 +1895,7 @@ impl<'a> CfgBuilder<'a> {
             reads,
             opaque_global,
             unseen,
+            registry_barrier,
         } = self.condition_out_vars(condition, span);
         if unseen {
             self.block_mut(block)
@@ -1857,6 +1935,14 @@ impl<'a> CfgBuilder<'a> {
                     )),
                 },
             );
+        }
+        if registry_barrier {
+            self.block_mut(block)
+                .statements
+                .push(Self::registry_barrier_statement_at(
+                    span,
+                    "condition reaches a registry-declared evaluation barrier",
+                ));
         }
     }
 
@@ -2350,6 +2436,22 @@ impl<'a> CfgBuilder<'a> {
         }
     }
 
+    /// Retain the original return-with-options invocation and project its
+    /// established abrupt route without evaluating a second return.
+    fn lower_return_options_barrier(&mut self, stmt: &Statement, span: Span, current: &str) {
+        let Some(route) = self.command_classes.completion_route(stmt) else {
+            return;
+        };
+        self.push_plain_statement(current, stmt);
+        self.set_terminator(
+            current,
+            Terminator::Complete {
+                route,
+                span: Some(span),
+            },
+        );
+    }
+
     fn lower_return_statement(&mut self, stmt: &Statement, current: &str) {
         let Statement::Return {
             span,
@@ -2456,25 +2558,6 @@ impl<'a> CfgBuilder<'a> {
                     (extras, extra_reads),
                     crate::ir::WordEffectsHost::Dispatch,
                 ));
-        }
-        if !extras.is_empty() || !extra_reads.is_empty() {
-            self.push_statement(
-                current,
-                Statement::Call {
-                    span: stmt.span(),
-                    command: "<upvar-invalidate>".to_string(),
-                    canonical_command: None,
-                    args: Vec::new(),
-                    defs: extras,
-                    reads: extra_reads,
-                    reads_own_defs: false,
-                    safe_on_uninit: false,
-                    tokens: Some(crate::ir::CommandTokens::marker(
-                        crate::ir::SyntheticMarker::UpvarInvalidate,
-                    )),
-                    foreach_groups: None,
-                },
-            );
         }
     }
 
@@ -3063,6 +3146,7 @@ impl<'a> CfgBuilder<'a> {
             for script in &scripts {
                 crate::ssa::nested_writes(script, self.registry, &mut written);
             }
+            let mut try_defs: Vec<_> = written.iter().cloned().collect();
             for effect in self.opaque_script_effects(
                 *span,
                 &scripts,
@@ -3889,22 +3973,6 @@ struct CfgCommandClasses {
     /// complete name sets for every compilation unit.
     #[cfg(test)]
     semantics: Arc<EffectiveRegistrySemantics>,
-    /// The profile the registry serves, whose release reads `return`'s
-    /// options ([`Self::return_at_own_level`]).
-    profile: Option<&'static tcl_dialect::DialectProfile>,
-}
-
-/// What a call to `return` that completes at its own level does to the flow
-/// around it ([`CfgCommandClasses::return_at_own_level`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum OwnLevelReturn {
-    /// It raises, as `error` does: `-code error`, or options the release
-    /// rejects (8.4 has no `-level`).
-    Raises,
-    /// It leaves the loop around it, as `break` does.
-    Breaks,
-    /// It starts the loop's next iteration, as `continue` does.
-    Continues,
 }
 
 impl CfgCommandClasses {
@@ -3975,7 +4043,7 @@ impl CfgCommandClasses {
                 if input.lexer_config().normalized() == config.normalized()
                     && self.metadata_context().is_some() =>
             {
-                Numbers::Target(input.unit_profile().grammar.numbers)
+                Numbers::Target(config.grammar_over(input.unit_profile().grammar).numbers)
             }
             CfgMetadataContext::Standalone => {
                 Numbers::of_profile(self.registry.registry().profile())
