@@ -60,6 +60,12 @@ The CLI takes the same selection as `tcl explore --codegen-passes PASS[,PASS...]
 
 This is a different axis from the optimiser lens below: the lens shows what the **source-rewrite** optimiser (the `O1xx` codes) would change, while a codegen pass changes what the compiler emits for unchanged source.
 
+### AOT plan
+
+The **AOT Plan** tab shows why the compiler emitted what it did: the plan it chose, the specialisations each command invocation was considered for and why each was declined, and, for the sealed native integer addition, every condition that ruled it out. The addition needs its five passes, a compiled program that owns the whole interpreter, and a program of exactly four statements, so a near miss usually fails several conditions at once; the tab lists all of them, each with the call it concerns, instead of stopping at the first. Until one of the five passes is ticked the addition has not been asked for, and the tab lists only the passes that are off and the hosted environment.
+
+`tcl explore --show aot --text` prints the same tree, and `--json` carries it as `aot`.
+
 ### Optimiser lens (off / on / diff)
 
 The IR, CFG, SSA, bytecode, and WASM tabs each carry an optimiser lens with three modes:

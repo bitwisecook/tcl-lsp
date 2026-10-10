@@ -32,6 +32,11 @@
 //! - `tclvm` on a TTY — an interactive REPL (`info complete`-aware line
 //!   accumulation via `tcl_lexer::script_is_complete`).
 //!
+//! `--static-extensions` opts the VM into a `load` command over the C Tcl
+//! extensions the build links in (`tcl-cshim`; the `static-extensions`
+//! feature), the way a `tclsh` test build links `Tcltest`: without the flag
+//! there is no `load`, and no script can ask for one.
+//!
 //! Like the `run_test` example, work runs on a large-stack worker thread so deep
 //! recursion surfaces as a catchable Tcl error rather than a native stack
 //! overflow.
@@ -78,6 +83,7 @@ fn main() {
 }
 
 /// What the parsed command line asks the driver to do.
+#[derive(Debug, PartialEq, Eq)]
 enum Mode {
     /// Run a script file with the given trailing `argv`.
     File { path: String, argv: Vec<String> },
@@ -91,20 +97,38 @@ enum Mode {
     Usage(i32),
 }
 
-/// Parse `std::env::args` into a [`Mode`] plus an optional Tcl runtime
-/// version. Recognises `--tcl-version <x.y>` (select 8.4–9.1 variable /
-/// resolution semantics, like picking a `tclsh<x.y>` binary), `-c <script>`,
-/// `-i` (force REPL), `-h` / `--help`, and otherwise treats the first
-/// non-flag argument as a script file (everything after it is the script's
-/// `argv`, `tclsh`-style).
-fn parse_args() -> (Mode, Option<TclVersion>) {
-    let mut version = None;
-    let mut args = std::env::args().skip(1);
+/// What the command line asks for besides the mode.
+#[derive(Debug, Default)]
+struct Options {
+    /// The Tcl release to emulate (`--tcl-version`); `None` keeps the default.
+    version: Option<TclVersion>,
+    /// Give the VM a `load` over the linked-in extensions
+    /// (`--static-extensions`).
+    static_extensions: bool,
+}
+
+/// Parse `std::env::args` into a [`Mode`] plus the [`Options`]. Recognises
+/// `--tcl-version <x.y>` (select 8.4–9.1 variable / resolution semantics, like
+/// picking a `tclsh<x.y>` binary), `--static-extensions`, `-c <script>`, `-i`
+/// (force REPL), `-h` / `--help`, and otherwise treats the first non-flag
+/// argument as a script file (everything after it is the script's `argv`,
+/// `tclsh`-style).
+fn parse_args() -> (Mode, Options) {
+    parse_args_from(std::env::args().skip(1))
+}
+
+/// [`parse_args`] over an explicit argument list (without the program name).
+fn parse_args_from(mut args: impl Iterator<Item = String>) -> (Mode, Options) {
+    let mut options = Options::default();
     loop {
         return match args.next() {
-            None => (Mode::Stdin, version),
-            Some(flag) if flag == "-h" || flag == "--help" => (Mode::Usage(0), version),
-            Some(flag) if flag == "-i" => (Mode::Repl, version),
+            None => (Mode::Stdin, options),
+            Some(flag) if flag == "-h" || flag == "--help" => (Mode::Usage(0), options),
+            Some(flag) if flag == "-i" => (Mode::Repl, options),
+            Some(flag) if flag == "--static-extensions" => {
+                options.static_extensions = true;
+                continue;
+            }
             Some(flag) if flag == "--tcl-version" => {
                 match args
                     .next()
@@ -112,22 +136,22 @@ fn parse_args() -> (Mode, Option<TclVersion>) {
                     .and_then(TclVersion::from_package_version)
                 {
                     Some(v) => {
-                        version = Some(v);
+                        options.version = Some(v);
                         continue;
                     }
-                    None => (Mode::Usage(2), version),
+                    None => (Mode::Usage(2), options),
                 }
             }
             Some(flag) if flag == "-c" => match args.next() {
-                Some(script) => (Mode::Command(script), version),
-                None => (Mode::Usage(2), version),
+                Some(script) => (Mode::Command(script), options),
+                None => (Mode::Usage(2), options),
             },
             Some(path) => (
                 Mode::File {
                     path,
                     argv: args.collect(),
                 },
-                version,
+                options,
             ),
         };
     }
@@ -142,15 +166,43 @@ fn usage() {
          tclvm                     REPL (TTY) or run piped stdin\n\n\
          options:\n  \
          --tcl-version <x.y>       select 8.4|8.5|8.6|9.0|9.1 runtime\n  \
-                                   semantics (default 9.0)"
+                                   semantics (default 9.0)\n  \
+         --static-extensions       give scripts a `load` over the extensions\n  \
+                                   linked into this build (the\n  \
+                                   `static-extensions` feature)"
     );
 }
 
 /// Build a VM with the compiler-backed `CompileService` and stdout host
-/// output, at the requested runtime version (`None` keeps the VM default).
-fn new_vm(version: Option<TclVersion>) -> Vm {
-    configure_vm(Vm::with_output(Box::new(Stdout)), version)
+/// output, as `options` ask.
+fn new_vm(options: &Options) -> Vm {
+    build_vm(Box::new(Stdout), options)
 }
+
+/// [`configure_vm`] over a fresh VM writing to `output`, with the `load` the
+/// options ask for.
+fn build_vm(output: Box<dyn Write>, options: &Options) -> Vm {
+    let mut vm = configure_vm(Vm::with_output(output), options.version);
+    if options.static_extensions {
+        link_static_extensions(&mut vm);
+    }
+    vm
+}
+
+/// Give `vm` a `load` over the extensions the build links in: the host's
+/// opt-in, which is why nothing else registers it.
+#[cfg(feature = "static-extensions")]
+fn link_static_extensions(vm: &mut Vm) {
+    tcl_engine_tclvm::register_host_command(
+        vm,
+        "load",
+        std::rc::Rc::new(tcl_cshim::StaticExtensions::bundled()),
+    );
+}
+
+/// A build without the feature links nothing, and `run` has refused the flag.
+#[cfg(not(feature = "static-extensions"))]
+fn link_static_extensions(_vm: &mut Vm) {}
 
 /// Attach the compiler/runtime services to an already-created VM. Tests pass
 /// a byte capture here so Tcl-originated REPL results still travel through the
@@ -234,20 +286,25 @@ fn report_eval_error(vm: &mut Vm, error: &tcl_vm::TclError) {
 }
 
 fn run() -> i32 {
-    let (mode, version) = parse_args();
+    let (mode, options) = parse_args();
+    #[cfg(not(feature = "static-extensions"))]
+    if options.static_extensions && !matches!(mode, Mode::Usage(_)) {
+        eprintln!("tclvm: --static-extensions needs a build with the `static-extensions` feature");
+        return 2;
+    }
     match mode {
         Mode::Usage(code) => {
             usage();
             code
         }
         Mode::Command(script) => {
-            let mut vm = new_vm(version);
+            let mut vm = new_vm(&options);
             run_script(&mut vm, &script)
         }
         Mode::Repl => {
             let stdin = std::io::stdin();
             let mut out = std::io::stdout();
-            repl_loop(&mut new_vm(version), &mut stdin.lock(), &mut out)
+            repl_loop(&mut new_vm(&options), &mut stdin.lock(), &mut out)
         }
         Mode::File { path, argv } => {
             let src = match std::fs::read_to_string(&path) {
@@ -257,7 +314,7 @@ fn run() -> i32 {
                     return 1;
                 }
             };
-            let mut vm = new_vm(version);
+            let mut vm = new_vm(&options);
             set_argv(&mut vm, &path, &argv);
             run_script(&mut vm, &src)
         }
@@ -265,14 +322,14 @@ fn run() -> i32 {
             if std::io::stdin().is_terminal() {
                 let stdin = std::io::stdin();
                 let mut out = std::io::stdout();
-                repl_loop(&mut new_vm(version), &mut stdin.lock(), &mut out)
+                repl_loop(&mut new_vm(&options), &mut stdin.lock(), &mut out)
             } else {
                 let mut src = String::new();
                 if let Err(e) = std::io::stdin().read_to_string(&mut src) {
                     eprintln!("tclvm: cannot read stdin: {e}");
                     return 1;
                 }
-                let mut vm = new_vm(version);
+                let mut vm = new_vm(&options);
                 run_script(&mut vm, &src)
             }
         }
@@ -371,9 +428,20 @@ mod tests {
 
     /// [`drive`] at an explicit runtime version (the `--tcl-version` path).
     fn drive_at(input: &str, version: Option<TclVersion>) -> String {
+        drive_with(
+            input,
+            &Options {
+                version,
+                ..Options::default()
+            },
+        )
+    }
+
+    /// [`drive`] under the options a command line would have set.
+    fn drive_with(input: &str, options: &Options) -> String {
         let bytes = Rc::new(RefCell::new(Vec::new()));
         let capture = Capture(Rc::clone(&bytes));
-        let mut vm = configure_vm(Vm::with_output(Box::new(capture.clone())), version);
+        let mut vm = build_vm(Box::new(capture.clone()), options);
         let mut reader = std::io::Cursor::new(input.as_bytes().to_vec());
         let mut out = capture;
         repl_loop(&mut vm, &mut reader, &mut out);
@@ -450,5 +518,88 @@ mod tests {
         );
         let out90 = drive_at(lassign, Some(TclVersion::V9_0));
         assert!(out90.contains("% b"), "9.0 has lassign: {out90:?}");
+    }
+
+    #[test]
+    fn without_the_flag_a_script_has_no_load() {
+        let out = drive("catch {load {} Pkga} m\nset m\n");
+        assert!(
+            out.contains("invalid command name \"load\""),
+            "a script cannot ask for a load: {out:?}"
+        );
+    }
+
+    #[cfg(feature = "static-extensions")]
+    fn with_extensions() -> Options {
+        Options {
+            static_extensions: true,
+            ..Options::default()
+        }
+    }
+
+    #[cfg(all(feature = "static-extensions", not(windows)))]
+    #[test]
+    fn with_the_flag_a_script_loads_the_extension_the_build_links() {
+        let out = drive_with(
+            "load {} Pkga\npkga_eq abc abc\npkga_quote {a b c}\n",
+            &with_extensions(),
+        );
+        assert!(out.contains("% 1"), "pkga_eq answered: {out:?}");
+        assert!(out.contains("% a b c"), "pkga_quote answered: {out:?}");
+        let out = drive_with(
+            "load ./libpkga.so\ncatch {pkga_eq a} m\nset m\n",
+            &with_extensions(),
+        );
+        assert!(
+            out.contains("wrong # args: should be \"pkga_eq string1 string2\""),
+            "the file name stood for the prefix: {out:?}"
+        );
+    }
+
+    #[cfg(feature = "static-extensions")]
+    #[test]
+    fn with_the_flag_a_library_the_build_does_not_link_is_still_refused() {
+        let out = drive_with(
+            "catch {load libnosuch.so} m\nset m\ncatch {load {} Nosuch} m\nset m\n",
+            &with_extensions(),
+        );
+        assert!(
+            out.contains("couldn't load file \"libnosuch.so\""),
+            "{out:?}"
+        );
+        assert!(
+            out.contains("no library with prefix \"Nosuch\" is loaded statically"),
+            "{out:?}"
+        );
+    }
+
+    fn parse(args: &[&str]) -> (Mode, Options) {
+        parse_args_from(args.iter().map(|arg| (*arg).to_owned()))
+    }
+
+    #[test]
+    fn the_static_extensions_flag_is_an_option_and_not_a_script_argument() {
+        let (mode, options) = parse(&["--static-extensions", "-c", "puts hi"]);
+        assert_eq!(mode, Mode::Command("puts hi".to_owned()));
+        assert!(options.static_extensions);
+
+        // `tclsh`-style: after the script file, everything is the script's argv.
+        let (mode, options) = parse(&["script.tcl", "--static-extensions"]);
+        assert_eq!(
+            mode,
+            Mode::File {
+                path: "script.tcl".to_owned(),
+                argv: vec!["--static-extensions".to_owned()],
+            }
+        );
+        assert!(!options.static_extensions);
+
+        let (mode, options) = parse(&["--tcl-version", "8.6", "--static-extensions", "-i"]);
+        assert_eq!(mode, Mode::Repl);
+        assert!(options.static_extensions);
+        assert_eq!(options.version, Some(TclVersion::V8_6));
+
+        let (_, options) = parse(&["-c", "puts hi"]);
+        assert!(!options.static_extensions, "no flag, no load");
     }
 }

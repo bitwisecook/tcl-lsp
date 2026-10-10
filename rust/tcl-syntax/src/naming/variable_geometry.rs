@@ -24,6 +24,76 @@ pub enum NativeVariableRootGeometry {
     JimAbsolute(NameBytes),
 }
 
+/// A combined-name bridge cannot preserve the selected input form.
+/// This is a spelling limitation, not a variable lookup or storage result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeVariableBridgeUnavailable {
+    /// A first operand already denotes an element and also has a second index.
+    Part1IsElement,
+    /// Combining or rooting the operands changes a selected root or element.
+    Unrepresentable,
+}
+
+impl NativeNameProtocol {
+    /// Spell original variable operands for a bridge that accepts one combined
+    /// name. The native selector validates the resulting root and element;
+    /// rooting must not clip a counted root or reinterpret a literal array name.
+    /// This supplies no cell, namespace token, observer or lookup authority.
+    ///
+    /// # Errors
+    /// Refuses a first operand already parsed as an element beside a second
+    /// index, or a spelling whose re-projection changes the selected operands.
+    pub fn variable_combined_bridge_input(
+        self,
+        original: super::NativeVariableInputForm<'_>,
+        global_only: bool,
+    ) -> Result<Vec<u8>, NativeVariableBridgeUnavailable> {
+        let (selected, mut combined) = match original {
+            super::NativeVariableInputForm::Combined(bytes)
+            | super::NativeVariableInputForm::Separate {
+                root: bytes,
+                element: None,
+            } => (self.combined_variable_input(bytes), bytes.to_vec()),
+            super::NativeVariableInputForm::Separate {
+                root,
+                element: Some(element),
+            } => {
+                if self.combined_variable_input(root).element().is_some() {
+                    return Err(NativeVariableBridgeUnavailable::Part1IsElement);
+                }
+                let mut combined = root.to_vec();
+                combined.push(b'(');
+                combined.extend_from_slice(element);
+                combined.push(b')');
+                (self.separate_variable_input(root, Some(element)), combined)
+            }
+        };
+        let add_root =
+            global_only && selected.root().qualification() != NativeNameQualification::Absolute;
+        if add_root {
+            combined.splice(..0, b"::".iter().copied());
+        }
+        let reproduced = self.combined_variable_input(&combined);
+        let reproduced_root = if add_root {
+            reproduced.root().selected().get(2..)
+        } else {
+            Some(reproduced.root().selected())
+        };
+        if reproduced_root != Some(selected.root().selected())
+            || reproduced
+                .element()
+                .map(super::NativeNameProjection::selected)
+                != selected
+                    .element()
+                    .map(super::NativeNameProjection::selected)
+            || global_only && reproduced.root().qualification() != NativeNameQualification::Absolute
+        {
+            return Err(NativeVariableBridgeUnavailable::Unrepresentable);
+        }
+        Ok(combined)
+    }
+}
+
 impl NativeNameProtocol {
     /// Select the runtime root's qualification before resolving a cell.
     /// A separator after a raw NUL is governed by the root input policy and
@@ -133,6 +203,80 @@ impl NativeNameProtocol {
 mod tests {
     use super::*;
     use tcl_dialect::TclVersion;
+
+    #[test]
+    fn combined_bridge_preserves_selected_parts_and_refuses_lost_counted_roots() {
+        // Software bridge contract over the shared selectors. Native variable
+        // input extents are recorded independently in variable-table-actual-abi-inputs.md.
+        // No cell, host API execution or physical variable identity is asserted.
+        use super::super::NativeVariableInputForm::{Combined, Separate};
+        let protocol = NativeNameProtocol::C(TclVersion::V9_0);
+        for (input, global, expected) in [
+            (Combined(b"x"), false, b"x".as_slice()),
+            (Combined(b"ns::v"), true, b"::ns::v".as_slice()),
+            (Combined(b"::::v(k)"), true, b"::::v(k)".as_slice()),
+            (Combined(b"x\0tail"), false, b"x\0tail".as_slice()),
+            (
+                Separate {
+                    root: b"a)",
+                    element: Some(b"k\0tail"),
+                },
+                false,
+                b"a)(k\0tail)".as_slice(),
+            ),
+            (
+                Separate {
+                    root: "café".as_bytes(),
+                    element: Some(b""),
+                },
+                true,
+                "::café()".as_bytes(),
+            ),
+        ] {
+            assert_eq!(
+                protocol.variable_combined_bridge_input(input, global),
+                Ok(expected.to_vec())
+            );
+        }
+        assert_eq!(
+            protocol.variable_combined_bridge_input(
+                Separate {
+                    root: b"a(k)",
+                    element: Some(b"j")
+                },
+                false
+            ),
+            Err(NativeVariableBridgeUnavailable::Part1IsElement)
+        );
+        for (input, global) in [
+            (Combined(b"x\0tail"), true),
+            (
+                Separate {
+                    root: b"a(",
+                    element: Some(b"j"),
+                },
+                false,
+            ),
+            (
+                Separate {
+                    root: b"a\0tail",
+                    element: Some(b"j"),
+                },
+                false,
+            ),
+        ] {
+            assert_eq!(
+                protocol.variable_combined_bridge_input(input, global),
+                Err(NativeVariableBridgeUnavailable::Unrepresentable)
+            );
+        }
+        // The selected C8.4 scalar extent is independently different from C9.
+        assert_eq!(
+            NativeNameProtocol::C(TclVersion::V8_4)
+                .variable_combined_bridge_input(Combined(b"x\0tail"), true),
+            Ok(b"::x\0tail".to_vec())
+        );
+    }
 
     #[test]
     fn original_variable_tail_replacement_preserves_qualifiers_and_selected_index_form() {

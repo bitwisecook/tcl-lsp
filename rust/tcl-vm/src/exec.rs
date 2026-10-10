@@ -191,6 +191,8 @@ pub(crate) struct Frame {
     /// Native Script activations have no compiler generation, including after
     /// their deferred preparation fails or their active backing is retired.
     compiler_generation: Option<u64>,
+    /// The manifest of the module this activation's unit came from.
+    manifest: Option<std::sync::Arc<tcl_runtime_api::ArtefactIdentityManifest>>,
     off2idx: Rc<HashMap<i32, usize>>,
     /// `FOREACH_START` index → paired `FOREACH_STEP` index (the implicit jump).
     foreach_pairs: Rc<HashMap<usize, usize>>,
@@ -552,6 +554,7 @@ impl Frame {
             compiler,
             fatal_tail,
             native_local_names: _,
+            manifest,
         } = unit;
         let off2idx = Rc::new(build_off2idx(&asm));
         let foreach_pairs = Rc::new(pair_foreach(&asm));
@@ -583,6 +586,7 @@ impl Frame {
             native_policy: native_cache.map(|stamp| stamp.policy),
             command_epoch,
             compiler_generation,
+            manifest,
             off2idx,
             foreach_pairs,
             pc: 0,
@@ -1442,8 +1446,10 @@ impl Vm {
         let namespace_mismatch = module.source_namespace != namespace;
         let replacement = if self.step_trace_active()
             || namespace_mismatch
-            || !self.function_command_bindings_match(&module.top_level)
-        {
+            || !self.function_command_bindings_match_with_manifest(
+                &module.top_level,
+                module.manifest.as_deref(),
+            ) {
             if module.source.is_empty() {
                 return err("stale bytecode module has no source for plain dispatch");
             }
@@ -1464,10 +1470,12 @@ impl Vm {
         // top level as supplied; mark reusable procedures foreign so their
         // source is lazily recompiled through the current service on entry.
         self.merge_foreign_procs(module);
-        let unit = self.admitted_foreign_unit(
-            Rc::new(module.top_level.clone()),
-            module.source_namespace.clone(),
-        );
+        let unit = self
+            .admitted_foreign_unit(
+                Rc::new(module.top_level.clone()),
+                module.source_namespace.clone(),
+            )
+            .with_manifest(module.manifest.clone());
         self.run_compiled_unit(unit)
     }
 
@@ -1491,10 +1499,12 @@ impl Vm {
         }
         self.claim_number_grammar();
         self.merge_procs(module);
-        let unit = self.compiled_unit(
-            Rc::new(module.top_level.clone()),
-            module.source_namespace.clone(),
-        );
+        let unit = self
+            .compiled_unit(
+                Rc::new(module.top_level.clone()),
+                module.source_namespace.clone(),
+            )
+            .with_manifest(module.manifest.clone());
         let unit = if location.is_some() {
             unit.with_source_location(location)
         } else {
@@ -1564,7 +1574,7 @@ impl Vm {
         let namespace = self.source_namespace_path();
         if self.step_trace_active()
             || !Self::function_resolution_namespace_matches(asm, &namespace)
-            || !self.function_command_bindings_match(asm)
+            || !self.function_command_bindings_match_with_manifest(asm, None)
         {
             return err("stale profile-less bytecode has no source for plain dispatch");
         }
@@ -6700,15 +6710,18 @@ impl Vm {
                 let list = pop(f);
                 let value = pop(f);
                 let index_list = pop(f);
-                let path = match index_list.as_list() {
-                    Ok(p) => (*p).clone(),
-                    Err(e) => {
-                        return Tick::Return(crate::command::completion_from_tcl_error(self, e));
-                    }
-                };
-                match lset_descend(self, &list, &path, value) {
+                let release = self.runtime_version();
+                match tcl_cmd_core::list::lset(
+                    self,
+                    &list,
+                    std::slice::from_ref(&index_list),
+                    value,
+                    release,
+                ) {
                     Ok(r) => f.stack.push(r),
-                    Err(c) => return Tick::Return(c),
+                    Err(e) => {
+                        return Tick::Return(crate::command::completion_from_cmd_error(self, e));
+                    }
                 }
             }
             // `lset var i1 i2 ?…? value` (≥ 2 flat indices) — C Tcl
@@ -6722,9 +6735,12 @@ impl Vm {
                     return Tick::Return(err("lsetFlat: stack underflow"));
                 }
                 let path = f.stack.split_off(f.stack.len() - num_indices);
-                match lset_descend(self, &list, &path, value) {
+                let release = self.runtime_version();
+                match tcl_cmd_core::list::lset(self, &list, &path, value, release) {
                     Ok(r) => f.stack.push(r),
-                    Err(c) => return Tick::Return(c),
+                    Err(e) => {
+                        return Tick::Return(crate::command::completion_from_cmd_error(self, e));
+                    }
                 }
             }
             // `[regexp $pat $str]` in value position — operand [Imm(cflags)];
@@ -9225,7 +9241,7 @@ impl Vm {
 
 #[cfg(test)]
 mod tests {
-    use super::{char_find, imm_index, lset_descend};
+    use super::{brace_safe, char_find, imm_index, lset_descend, quote_for_script};
     use crate::interp::Vm;
     use crate::value::Value;
     use tcl_bytecode::INDEX_END;
@@ -9625,7 +9641,7 @@ mod tests {
         assert_eq!(top_pairs(&nested), [("a".into(), "c 2".into())]);
     }
 
-    /// `lset_descend` backs the compiled `INST_LSET_LIST`/`INST_LSET_FLAT`
+    /// The shared `lset` core backs the compiled `INST_LSET_LIST`/`INST_LSET_FLAT`
     /// opcodes; a naive implementation recursing once per index in `lset`'s
     /// (possibly nested) index path has no depth cap, so a flat index path is
     /// trivially inflated via `lset listVar {*}[lrepeat 100000 0] v`,
@@ -9643,8 +9659,8 @@ mod tests {
     /// (empirically, SIGABRT between depth 3500 and 4000 on a 2 MiB thread
     /// for construction+drop alone, independent of any operation performed
     /// on the value). That is a separate, genuinely unbounded-depth concern
-    /// in `Value`'s representation itself, not in `lset_descend`'s
-    /// iterative logic, and this test does not cover it.
+    /// in `Value`'s representation itself, not in the core's iterative
+    /// logic, and this test does not cover it.
     #[test]
     fn deeply_nested_lset_survives_and_is_correct() {
         const DEPTH: usize = 2_000;
@@ -9653,13 +9669,15 @@ mod tests {
             v = Value::list(vec![v]);
         }
         let path: Vec<Value> = (0..DEPTH).map(|_| Value::int(0)).collect();
-        let result = lset_descend(
-            &mut crate::interp::Vm::new(),
+        let mut vm = Vm::new();
+        let result = tcl_cmd_core::list::lset(
+            &mut vm,
             &v,
             &path,
             Value::string("new"),
+            tcl_dialect::TclVersion::V9_0,
         )
-        .expect("lset_descend survives");
+        .expect("the lset core survives");
         let mut cur = result;
         for _ in 0..DEPTH {
             let items = cur.as_list().expect("valid list at every level");
@@ -9674,41 +9692,30 @@ mod tests {
     #[test]
     fn moderately_nested_lset_matches_previous_behavior() {
         let n = Value::int;
+        let mut vm = Vm::new();
+        let mut lset = |list: &Value, path: &[Value], value: Value| {
+            tcl_cmd_core::list::lset(&mut vm, list, path, value, tcl_dialect::TclVersion::V9_0)
+        };
         // Set an existing element two levels deep.
         let list = Value::list(vec![
             Value::list(vec![n(1), n(2)]),
             Value::list(vec![n(3), n(4)]),
         ]);
-        let updated =
-            lset_descend(&mut crate::interp::Vm::new(), &list, &[n(1), n(0)], n(99)).unwrap();
+        let updated = lset(&list, &[n(1), n(0)], n(99)).unwrap();
         assert_eq!(&*updated.to_str(), "{1 2} {99 4}");
 
         // An empty path replaces the whole value (`lset x {} v` == `set x v`).
-        let replaced = lset_descend(
-            &mut crate::interp::Vm::new(),
-            &list,
-            &[],
-            Value::string("whole"),
-        )
-        .unwrap();
+        let replaced = lset(&list, &[], Value::string("whole")).unwrap();
         assert_eq!(&*replaced.to_str(), "whole");
 
         // `idx == len` appends a fresh slot.
         let flat = Value::list(vec![n(1), n(2)]);
-        let appended = lset_descend(&mut crate::interp::Vm::new(), &flat, &[n(2)], n(3)).unwrap();
+        let appended = lset(&flat, &[n(2)], n(3)).unwrap();
         assert_eq!(&*appended.to_str(), "1 2 3");
 
         // Out-of-range and non-numeric indices still error.
-        assert!(lset_descend(&mut crate::interp::Vm::new(), &flat, &[n(5)], n(0),).is_err());
-        assert!(
-            lset_descend(
-                &mut crate::interp::Vm::new(),
-                &flat,
-                &[Value::string("bogus")],
-                n(0),
-            )
-            .is_err()
-        );
+        assert!(lset(&flat, &[n(5)], n(0)).is_err());
+        assert!(lset(&flat, &[Value::string("bogus")], n(0)).is_err());
     }
 }
 

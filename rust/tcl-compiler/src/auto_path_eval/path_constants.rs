@@ -922,6 +922,10 @@ pub fn fold_constant_assignments_with_imports<I: PathConstantImports + ?Sized>(
                             .map_or_else(tcl_dialect::BracedVarStyle::default, |config| {
                                 config.braced_var
                             }),
+                        assignments
+                            .source_input
+                            .as_ref()
+                            .map(crate::analyser::ResolvedAnalysisInput::unit_profile),
                     )
                 } else {
                     Some(text.clone())

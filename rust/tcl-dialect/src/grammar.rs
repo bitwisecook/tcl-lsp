@@ -1026,7 +1026,7 @@ mod grammar_of_dialect_name_tests {
     fn an_environment_without_a_profile_still_resolves() {
         assert!(
             crate::DialectProfile::find("jim").is_none(),
-            "jim is deliberately not a catalogue profile (P6)"
+            "jim is not a catalogue profile"
         );
         let jim = grammar_of_dialect_name(Some("jim"));
         // The default release is 0.84, which sits on the `Jim080` rung —

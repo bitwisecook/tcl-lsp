@@ -354,3 +354,63 @@ mod source_words_tests {
         );
     }
 }
+
+/// Conditional value assistance under the document's complete retained input.
+pub(crate) fn source_compilation_unit(
+    source: &str,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<tcl_compiler::compilation_unit::CompilationUnit> {
+    let (input, config) = tcl_compiler::source_graph::current_analysis(source, analysis)?;
+    if registry.snapshot().semantic_key()
+        != input
+            .context_registry()
+            .commands()
+            .snapshot()
+            .semantic_key()
+    {
+        return None;
+    }
+    let declared = tcl_compiler::analyser::utils::document_declared_surface(
+        source,
+        None,
+        input.unit_profile().name,
+    );
+    let entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_supplied_source(
+        registry,
+        input,
+        config,
+        Some(input.unit_profile()),
+    );
+    Some(
+        tcl_compiler::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            tcl_compiler::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(input.unit_profile()),
+                external_call_sites: None,
+                declared_commands: Some(&declared),
+            },
+            Some(&entry),
+            input,
+        ),
+    )
+}
+
+/// Known source contents at a retained word; no erasure or execution licence.
+pub(crate) fn known_word_contents(
+    unit: &tcl_compiler::compilation_unit::CompilationUnit,
+    registry: &tcl_registry::CommandRegistry,
+    span: tcl_lexer::Span,
+) -> Option<String> {
+    unit.functions().find_map(|function| {
+        function.invocation_metadata_context_for_module(registry, &unit.ir_module)?;
+        let config = function.source_metadata_input()?.lexer_config();
+        let (statement, word) = function.word_at(span)?;
+        let (value, _) =
+            tcl_compiler::value_transfer::proven_word_value(function, statement, word, config)?;
+        value.as_str().ok().map(str::to_owned)
+    })
+}

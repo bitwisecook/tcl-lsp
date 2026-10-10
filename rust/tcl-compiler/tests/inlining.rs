@@ -296,8 +296,9 @@ fn classify_missing_summary_is_never() {
 
 #[test]
 fn empty_body_call_is_dropped() {
-    // Both `noop` calls vanish; the proc definition stays.
-    let module = module_for("proc noop {} {}\nnoop\nnoop\n");
+    // Both `noop` calls vanish — neither is the script's last command, whose
+    // value would be the script's — and the proc definition stays.
+    let module = module_for("proc noop {} {}\nnoop\nnoop\nset done 1\n");
     assert_eq!(top_calls_to(&module, "noop"), 2);
     let out = inline_module(module, &reg());
     assert_eq!(top_calls_to(&out, "noop"), 0);
@@ -651,7 +652,7 @@ fn implicit_trailing_return_with_early_return_captured() {
         unreachable!()
     };
     let captured = body.statements.iter().any(|s| {
-        matches!(s, Statement::AssignValue { name, value, .. }
+        matches!(s, Statement::AssignConst { name, value, .. }
             if name.ends_with("__RESULT") && value == "2")
     });
     assert!(

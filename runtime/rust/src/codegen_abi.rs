@@ -470,6 +470,40 @@ pub extern "C" fn tcl_runtime_init_library() -> i32 {
     i32::from(code == crate::interp::Code::Error)
 }
 
+/// `tcl_runtime_identity(out, capacity) -> i32` — what this runtime states of
+/// itself, in the shape a compiled artefact states its own: the current
+/// interp's pinned environment, release, build and package floors, this
+/// build's ABI version, intrinsic-table hash and embedded library revision,
+/// and no pack facts, encoded as `ArtefactIdentityManifest::to_bytes` does. A
+/// host that holds a module's own manifest
+/// (`ArtefactIdentityManifest::from_wasm`) compares the two before it links
+/// them, and refuses one built for another ABI or intrinsic table.
+///
+/// Returns the encoding's byte length, and writes it to `out` only when
+/// `capacity` holds it, so a host asks once with a null buffer for the size.
+/// Returns `0` when no interp is current.
+///
+/// # Safety
+/// `out` must be null or reference `capacity` writable bytes; `capacity` must
+/// be non-negative.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_runtime_identity(out: *mut u8, capacity: i32) -> i32 {
+    let interp = current_interp();
+    if interp.is_null() {
+        return 0;
+    }
+    // SAFETY: `interp` is the live current interp set by the bootstrap.
+    let bytes = unsafe { (*interp).held_identity() }.to_bytes();
+    let Ok(len) = i32::try_from(bytes.len()) else {
+        return 0;
+    };
+    if !out.is_null() && capacity >= len {
+        // SAFETY: `out` references `capacity >= len` writable bytes.
+        unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), out, bytes.len()) };
+    }
+    len
+}
+
 /// `tcl_obj_new_string(ptr, len) -> obj` — box `len` bytes of (shared linear)
 /// memory as a fresh `TclObj` (`rc 0`). The consumer ([`tcl_eval`] /
 /// [`tcl_expr_bool`]) adopts and frees it.
@@ -2139,8 +2173,8 @@ unsafe fn expr_bool_impl(interp: *mut Interp, expr: *mut TclObj) -> i32 {
 }
 
 /// Without the numeric tower there is no `expr` evaluator (the `expr` module is
-/// `have_tommath`-gated), so conditions evaluate false. This branch now only
-/// applies to a build that deliberately omits the tower (e.g. a wasm build where
+/// `have_tommath`-gated), so conditions evaluate false. This fallback only
+/// applies to a build that omits the tower (e.g. a wasm build where
 /// `clang`/libtommath was unavailable and `build.rs` degraded the backend off).
 /// The export still exists so emitted modules link.
 ///
@@ -2701,6 +2735,57 @@ mod tests {
                 prepare_intrinsic_guard(IntrinsicId::StringLength, &words, trace_domains),
                 0
             );
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// A guard is bound to `string`'s command token: defining, renaming or
+    /// aliasing another command leaves the exact check an emitted module makes
+    /// answering one, and rebinding `string` itself answers zero.
+    #[test]
+    fn guarded_intrinsic_guards_survive_unrelated_command_mutation() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            let words = [
+                owned_word(b"string"),
+                owned_word(b"length"),
+                owned_word(b"abc"),
+            ];
+            let base_domains = i32::from(
+                GuardDomains::one(GuardDomain::CommandEnvironment)
+                    .with(GuardDomain::Namespace)
+                    .with(GuardDomain::CommandTrace)
+                    .with(GuardDomain::Interpreter)
+                    .bits(),
+            );
+            let token = prepare_intrinsic_guard(IntrinsicId::StringLength, &words, base_domains);
+            assert_ne!(token, 0);
+            let check = || {
+                tcl_codegen_guard_check(
+                    token,
+                    IntrinsicId::StringLength.stable_id(),
+                    words.as_ptr(),
+                    i32::try_from(words.len()).unwrap(),
+                )
+            };
+            assert_eq!(check(), 1);
+            for script in [
+                &b"proc unrelated {} {return 1}"[..],
+                b"rename unrelated other",
+                b"interp alias {} alias_of_other {} other",
+            ] {
+                assert_eq!(tcl_eval_code(box_str(script)), 0);
+                assert_eq!(check(), 1, "{}", String::from_utf8_lossy(script));
+            }
+            assert_eq!(
+                tcl_eval_code(box_str(b"proc string args {return shadow}")),
+                0
+            );
+            assert_eq!(check(), 0);
+            tcl_codegen_guard_release(token);
             release_words(&words);
             tcl_runtime_set_current_interp(ptr::null_mut());
             tcl_runtime_delete_interp(interp);
@@ -4787,5 +4872,52 @@ mod tests {
     fn the_dispatch_counter_reports_a_missing_interpreter_distinctly() {
         tcl_runtime_set_current_interp(ptr::null_mut());
         assert_eq!(tcl_codegen_native_proc_dispatches(), -1);
+    }
+
+    #[test]
+    fn the_runtime_states_its_identity_to_a_host() {
+        use tcl_runtime_api::codegen_abi::CODEGEN_ABI_VERSION;
+        use tcl_runtime_api::manifest::EMBEDDED_STDLIB_REVISION;
+        use tcl_runtime_api::ArtefactIdentityManifest;
+
+        // SAFETY: every buffer is as long as the capacity it is passed with.
+        unsafe {
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            assert_eq!(
+                tcl_runtime_identity(ptr::null_mut(), 0),
+                0,
+                "no interp is current, so there is nothing to state"
+            );
+
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            (*interp).set_runtime_version(TclVersion::V8_6);
+            let needed = tcl_runtime_identity(ptr::null_mut(), 0);
+            assert!(needed > 0);
+
+            let mut short = vec![0xAA_u8; usize::try_from(needed).unwrap() - 1];
+            assert_eq!(tcl_runtime_identity(short.as_mut_ptr(), needed - 1), needed);
+            assert!(
+                short.iter().all(|byte| *byte == 0xAA),
+                "a short buffer is not written"
+            );
+
+            let mut buffer = vec![0_u8; usize::try_from(needed).unwrap()];
+            assert_eq!(tcl_runtime_identity(buffer.as_mut_ptr(), needed), needed);
+            let manifest = ArtefactIdentityManifest::from_bytes(&buffer).expect("it decodes");
+            assert_eq!(manifest, (*interp).held_identity());
+            assert_eq!(manifest.environment, "tcl8.6");
+            assert_eq!(manifest.release, "8.6");
+            assert_eq!(manifest.abi_version, CODEGEN_ABI_VERSION);
+            assert_eq!(
+                manifest.intrinsic_table_hash,
+                tcl_registry::intrinsic_table_hash()
+            );
+            assert_eq!(manifest.embedded_stdlib_revision, EMBEDDED_STDLIB_REVISION);
+            assert!(manifest.packs.is_empty());
+
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        }
     }
 }

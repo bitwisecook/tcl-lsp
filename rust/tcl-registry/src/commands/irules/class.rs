@@ -38,6 +38,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-value",
@@ -47,6 +48,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -56,6 +58,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-index",
@@ -65,6 +68,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-element",
@@ -74,6 +78,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-nocase",
@@ -83,6 +88,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -92,9 +98,11 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -113,6 +121,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-value",
@@ -122,6 +131,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -131,6 +141,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-index",
@@ -140,6 +151,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-element",
@@ -149,6 +161,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-nocase",
@@ -158,6 +171,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -167,9 +181,11 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -178,6 +194,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return the value paired with a name.",
         synopsis: "class lookup <name> <class>",
         pure: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -196,6 +213,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -205,6 +223,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -214,9 +233,11 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -225,6 +246,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return the data type of a data group.",
         synopsis: "class type <class>",
         pure: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -233,6 +255,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Check if a data group exists.",
         synopsis: "class exists <class>",
         pure: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -241,6 +264,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return the number of elements.",
         synopsis: "class size <class>",
         pure: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -259,6 +283,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-list",
@@ -268,6 +293,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -277,9 +303,11 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -298,6 +326,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-list",
@@ -307,6 +336,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -316,9 +346,11 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -343,6 +375,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-value",
@@ -352,6 +385,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-element",
@@ -361,6 +395,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-list",
@@ -370,6 +405,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-name",
@@ -379,6 +415,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -388,6 +425,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -399,6 +437,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Check if more elements remain.",
         synopsis: "class anymore <class> <search_id>",
         pure: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -438,64 +477,43 @@ pub const fn spec() -> CommandSpec {
                     name: "-all",
                     value: OptionValue::flag(),
                     detail: "Return all matches.",
-                    surface: None,
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
+                    ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
                     name: "-value",
                     value: OptionValue::flag(),
                     detail: "Return value instead of name.",
-                    surface: None,
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
+                    ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
                     name: "-name",
                     value: OptionValue::flag(),
                     detail: "Return name.",
-                    surface: None,
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
+                    ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
                     name: "-index",
                     value: OptionValue::flag(),
                     detail: "Return index.",
-                    surface: None,
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
+                    ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
                     name: "-element",
                     value: OptionValue::flag(),
                     detail: "Return full element.",
-                    surface: None,
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
+                    ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
                     name: "-nocase",
                     value: OptionValue::flag(),
                     detail: "Case-insensitive comparison.",
-                    surface: None,
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
+                    ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
                     name: "-list",
                     value: OptionValue::flag(),
                     detail: "Return value always as a list.",
-                    surface: None,
-                    aliases: &[],
-                    lifecycle: Lifecycle::UNSPECIFIED,
-                    min_abbrev: None,
+                    ..OptionSpec::DEFAULT
                 },
             ]
         },

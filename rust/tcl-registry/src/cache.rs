@@ -35,6 +35,7 @@
 //! tool — the CLI, the compiler explorer, future MCP/AI surfaces — shares
 //! one cache rather than each rebuilding its own.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, RwLock};
 
 use rustc_hash::FxHashMap;
@@ -54,6 +55,27 @@ type RegistryTable = FxHashMap<(DialectProfileKey, u64), Arc<CommandRegistry>>;
 /// [`registry_for_profile_with_overlay`], which builds a missing entry, and
 /// [`registry_for_profile_if_built`], which deliberately does not.
 static REGISTRIES: OnceLock<Mutex<RegistryTable>> = OnceLock::new();
+
+/// How many times the overlaid generations the table indexes have changed:
+/// one for each overlay generation installed and one for each sweep that
+/// retires any. See [`overlay_epoch`].
+static OVERLAY_EPOCH: AtomicU64 = AtomicU64::new(0);
+
+/// A number that moves whenever an overlay generation is installed in, or
+/// retired from, the `(profile, overlay)` table.
+///
+/// The table is process-wide, unsynchronised state a memoised store cannot see
+/// change: a query that found no generation for an overlay has no input to
+/// tell it one has been installed since. A host that keeps such a store takes
+/// this as one of its inputs — the way the language server's database takes the
+/// evaluator epoch — and moves it when it installs the packs an overlay names,
+/// so what was memoised against the old answer is asked again. Un-overlaid
+/// entries are a closed set that are built lazily and never retired, and do not
+/// move it.
+#[must_use]
+pub fn overlay_epoch() -> u64 {
+    OVERLAY_EPOCH.load(Ordering::Acquire)
+}
 
 /// The process-wide **plain default** registry — exactly what
 /// [`CommandRegistry::build_default`] produces, built once.
@@ -150,10 +172,11 @@ pub(crate) fn registry_for_profile(profile: &'static DialectProfile) -> &'static
 /// the pack's key.
 ///
 /// This is the read-only half of that door. A consumer passes the key it was
-/// given and falls back to [`registry_for_profile`] on `None`, which is
-/// exactly right: the miss means the packs have not been installed for this
-/// profile yet, and a registry without them is what the process had a moment
-/// ago anyway.
+/// given and answers a `None` for itself: the miss means the packs are not
+/// installed for this profile, yet or any more. The analyser, which only
+/// advises and runs again once they are, reads [`registry_for_profile`]
+/// meanwhile; anything that compiles reports the miss
+/// ([`crate::model::OverlayMiss`]) and does not go on without the packs.
 ///
 /// It exists because the **analyser** needs it. Because the EDA vendor libraries
 /// are bundled loadables (`docs/design/registry/spec-packs.md`), "which commands
@@ -236,10 +259,14 @@ pub fn registry_for_profile_with_overlay(
     }
     extend(&mut registry);
     registry.set_profile(profile);
+    registry.set_overlay(overlay);
     let handle = Arc::new(registry);
 
     prune_overlays(&mut guard, overlay);
     guard.insert(key, Arc::clone(&handle));
+    if overlay != 0 {
+        OVERLAY_EPOCH.fetch_add(1, Ordering::AcqRel);
+    }
     handle
 }
 
@@ -256,12 +283,16 @@ pub fn registry_for_profile_with_overlay(
 /// dialect profiles for one pack key in a loop, so a sweep that dropped every
 /// overlay could fire partway through and evict the profiles this very key had
 /// already built. Those lookups then miss, [`registry_for_profile_if_built`]
-/// returns `None`, and the analyser falls back to the plain registry — every
-/// pack and EDA command unknown until something happened to rebuild that
-/// profile.
+/// returns `None`, and the analyser reads the plain registry — every pack and
+/// EDA command unknown until something happened to rebuild that profile — while
+/// a compile reports the miss.
 fn prune_overlays(map: &mut RegistryTable, current: u64) {
     if map.len() >= OVERLAY_LIMIT {
+        let before = map.len();
         map.retain(|(_, overlay), _| *overlay == 0 || *overlay == current);
+        if map.len() != before {
+            OVERLAY_EPOCH.fetch_add(1, Ordering::AcqRel);
+        }
     }
 }
 
@@ -733,6 +764,36 @@ mod tests {
         assert!(
             Arc::ptr_eq(still, &plain),
             "the un-overlaid entry was replaced rather than retained"
+        );
+    }
+
+    /// The epoch moves when an overlay generation is installed and when a
+    /// sweep retires any. Other tests in this process install overlays too,
+    /// so only moves are asserted, never that it stood still.
+    #[test]
+    fn installing_and_retiring_an_overlay_moves_the_epoch() {
+        const INSTALLED: u64 = 0x0E90_0001;
+        let profile = crate::model::ingress::resolve_environment("tcl8.5").analyser_profile();
+
+        let before = overlay_epoch();
+        let _ = registry_for_profile_with_overlay(profile, INSTALLED, |_| {});
+        assert_ne!(
+            overlay_epoch(),
+            before,
+            "an overlay installed moves the epoch"
+        );
+
+        let mut map = RegistryTable::default();
+        let one = Arc::new(CommandRegistry::build_default());
+        for stale in 0..OVERLAY_LIMIT as u64 {
+            map.insert((profile.name, 0x0E91_0000 + stale), Arc::clone(&one));
+        }
+        let before_sweep = overlay_epoch();
+        prune_overlays(&mut map, 0x0E92_0000);
+        assert_ne!(
+            overlay_epoch(),
+            before_sweep,
+            "a sweep that retired overlays moves the epoch"
         );
     }
 }

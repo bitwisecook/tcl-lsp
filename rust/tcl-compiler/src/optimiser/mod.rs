@@ -486,6 +486,32 @@ impl<'a> PassContext<'a> {
         self.optimisations.push(opt);
     }
 
+    /// The fold inputs a rewrite evaluates under: this context's registry
+    /// (the process default without one), its dialect, and the whole-module
+    /// trust stance every rewrite re-proves under.
+    #[must_use]
+    pub(crate) fn rewrite_folds(&self) -> crate::sccp::BuiltinFoldInputs<'_> {
+        let registry = self
+            .registry
+            .unwrap_or_else(|| tcl_registry::default_registry());
+        let source_metadata_input = self
+            .ir_module
+            .and_then(|module| {
+                crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+            })
+            .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input);
+        crate::sccp::BuiltinFoldInputs {
+            source_metadata_input,
+            registry,
+            mutations: &self.command_mutations,
+            dialect: self.dialect,
+            defining_class: None,
+            registry_engine: false,
+            trust: crate::sccp::FoldTrust::WholeModule,
+            proven_pure_parameters: false,
+        }
+    }
+
     /// Allocate and return the next group identifier.
     ///
     /// Group IDs are assigned to the `group` field of related

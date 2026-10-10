@@ -41,6 +41,7 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::VarWrite), (2, ArgRole::Expr)],
         tcllib_package: Some("math::statistics"),
         required_package: Some("math::statistics"),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::tcllib::LOOP_CALLBACK),
         ..CommandSpec::DEFAULT
     }
 }

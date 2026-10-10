@@ -20,14 +20,15 @@
 //!
 //! Walks a proc body to determine how each parameter is used:
 //!
-//! - `Eval` — passed to ``eval`` / ``uplevel`` / ``subst``
+//! - `Eval` — run as a script: a `Body` word of a call the registry says
+//!   evaluates code or defers its script (``eval``, ``uplevel``, ``after``),
+//!   or any word of one that substitutes its operand (``subst``)
 //! - `Body` — used as a loop / control body
-//! - `VarWrite` — names a variable the proc writes (upvar +
-//!   ``set`` / ``incr`` / ``append`` / ``lappend``, or a
-//!   registry-marked variable-write site)
+//! - `VarWrite` — names a variable the proc writes through an alias
+//!   (``upvar`` and then any registry `VarWrite` of the alias)
 //! - `VarRead` — names a variable the proc reads via ``upvar``
 //! - `Expr` — evaluated as an expression
-//! - `LoopList` — used as the list arg in ``foreach`` / ``lmap``
+//! - `LoopList` — the list a list loop iterates (``foreach`` / ``lmap``)
 //! - `DynamicNameLocal` — the param's *value* names a
 //!   **callee-local** variable (``set $p 1`` / ``scan … $p`` /
 //!   ``lassign … $p`` / ``regsub … $p``, or a registry
@@ -392,7 +393,7 @@ pub struct TraitScanEnv<'a> {
     /// The one command surface this document analyses against
     /// ([`DocumentCommandSurface`]): the caller's already-built,
     /// dialect-aware registry generation plus whatever the document
-    /// declares for itself with `# tcl-lsp: stub` (gap ruling R1). Building
+    /// declares for itself with `# tcl-lsp: stub`. Building
     /// a fresh `CommandRegistry::build_default()` per proc would both be
     /// expensive and miss the dialect-specific `arg_role_resolver` /
     /// `arg_roles` the caller's generation has loaded; a stub like
@@ -933,18 +934,43 @@ fn apply_possible_evaluation_traits<'p>(
     values: &ArgumentValues<'p>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
 ) {
-    use tcl_registry::{SemanticOperationId, Traits, hooks::LoweringHookId};
+    use tcl_registry::Traits;
     for candidate in advice.candidates() {
         for (index, role) in candidate.written_argument_roles() {
             if role == ArgRole::Body
                 && !braced.get(index).copied().unwrap_or(false)
-                && candidate
-                    .possible_traits
-                    .intersects(Traits::DYNAMIC_EVAL_BODY | Traits::DEFERS_BODY)
+                && candidate.possible_traits.intersects(
+                    Traits::EVALUATES_CODE | Traits::DYNAMIC_EVAL_BODY | Traits::DEFERS_BODY,
+                )
                 && let Some(param) = values.argument(index)
                 && let Some(set) = traits.get_mut(param)
             {
                 set.insert(ProcArgTrait::Eval);
+            }
+        }
+        if candidate
+            .possible_traits
+            .contains(Traits::SCRIPT_CONCATENATES_ARGS)
+            && candidate
+                .possible_traits
+                .intersects(Traits::EVALUATES_CODE | Traits::DEFERS_BODY)
+            && let Some(first) = candidate
+                .roles
+                .iter()
+                .filter_map(|&(index, role)| {
+                    (role == ArgRole::Body)
+                        .then_some(candidate.argument_offset + usize::from(index))
+                })
+                .min()
+        {
+            for effective in first..candidate.effective.words.len() {
+                if let Some(index) = candidate.effective.written_argument(effective)
+                    && !braced.get(index).copied().unwrap_or(false)
+                    && let Some(param) = values.argument(index)
+                    && let Some(set) = traits.get_mut(param)
+                {
+                    set.insert(ProcArgTrait::Eval);
+                }
             }
         }
         if candidate
@@ -962,16 +988,17 @@ fn apply_possible_evaluation_traits<'p>(
                 }
             }
         }
-        if !matches!(
-            candidate.operation,
-            SemanticOperationId::StructuredLowering(LoweringHookId::Foreach | LoweringHookId::Lmap)
-        ) {
+        if !candidate.possible_traits.contains(Traits::LOOP_LIST_HEADER) {
             continue;
         }
-        let effective = &candidate.effective;
-        for index in (1..effective.words.len().saturating_sub(2)).step_by(2) {
-            if let Some(param) = effective
-                .written_argument(index)
+        for &(index, role) in &candidate.roles {
+            if role != ArgRole::LoopVarList {
+                continue;
+            }
+            let effective = candidate.argument_offset + usize::from(index) + 1;
+            if let Some(param) = candidate
+                .effective
+                .written_argument(effective)
                 .and_then(|original| values.argument(original))
                 && let Some(set) = traits.get_mut(param)
             {
@@ -1381,7 +1408,7 @@ pub fn caller_frame_upvar_params(
 ///   different frame entirely, see [`caller_frame_upvar_params`]'s table;
 /// * a `::`-qualified source (`upvar 1 ::ns::x local`) — a fixed global/
 ///   namespace cell, level-independent, already linked by the analyser's
-///   `handle_upvar_command` `otherVar` link;
+///   alias consumer (`apply_state_transitions`) `otherVar` link;
 /// * an array element or any substituted/computed source — not a plain
 ///   caller-frame scalar name this scan can claim;
 /// * a dynamic **local** side — with no alias name, the write-through scan
@@ -1742,6 +1769,37 @@ mod tests {
                 .get("lvl")
                 .is_some_and(|s| s.contains(&ProcArgTrait::Eval))
         );
+    }
+
+    /// Eval follows the registry's evaluation traits: every word of a script
+    /// that concatenates its arguments (`uplevel 1 $a $b` runs `$a $b`), a
+    /// script word of any evaluating command, and a `::`-rooted spelling.
+    #[test]
+    fn eval_reads_the_registry_evaluation_traits() {
+        let traits = infer(&["a", "b"], "uplevel 1 $a $b");
+        assert_trait(&traits, "a", ProcArgTrait::Eval);
+        assert_trait(&traits, "b", ProcArgTrait::Eval);
+        assert_trait(
+            &infer(&["s"], "namespace eval ::ns $s"),
+            "s",
+            ProcArgTrait::Eval,
+        );
+        assert_trait(&infer(&["s"], "::eval $s"), "s", ProcArgTrait::Eval);
+    }
+
+    /// Both trackers read the `VarWrite` role: any write of an `upvar` alias
+    /// writes the caller's variable, a read through it does not, and any write
+    /// of a local ends the parameter value it carried.
+    #[test]
+    fn the_copy_trackers_read_the_var_write_role() {
+        assert_trait(
+            &infer(&["v"], "upvar 1 $v arr\narray set arr {k 1}"),
+            "v",
+            ProcArgTrait::VarWrite,
+        );
+        let traits = infer(&["v"], "upvar 1 $v local\nreturn [set local]");
+        assert!(!traits["v"].contains(&ProcArgTrait::VarWrite), "{traits:?}");
+        assert!(!infer(&["v"], "set n $v\nlassign {x} n\nset $n 1").contains_key("v"));
     }
 
     #[test]

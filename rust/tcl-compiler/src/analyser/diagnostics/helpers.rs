@@ -328,12 +328,16 @@ pub(super) fn block_dominated_by(
 /// the dominating existence guards, the registry-owned startup binding, and
 /// the SSA function itself.
 pub(super) struct PhiUndefCtx<'a> {
+    /// The registry whose special-variable faces answer the startup facts,
+    /// pack rows included.
+    pub registry: &'a tcl_registry::CommandRegistry,
     pub phi_def: &'a PhiDefMap,
     pub phi_block: &'a PhiBlockMap,
     pub killed: &'a FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)>,
     pub considered: &'a HashSet<BlockId>,
     pub executable_edges: &'a HashSet<(BlockId, BlockId)>,
     pub exists_guards: &'a [ExistenceGuard],
+    pub may_defs: &'a MayDefMap,
     /// Startup bindings exist only in the document's initial global frame.
     pub initial_global: bool,
     /// Locals that registry metadata says alias the interpreter's global
@@ -341,6 +345,48 @@ pub(super) struct PhiUndefCtx<'a> {
     pub global_aliases: &'a HashSet<String>,
     pub dialect: Option<SurfaceQuery<'a>>,
     pub ssa: &'a crate::ssa::SsaFunction,
+    /// The definitions a route's outcome preserved, each with the version
+    /// it read ([`crate::sccp::SccpResult::preserved`]).
+    pub preserved: &'a std::collections::HashMap<crate::ssa::ValueKey, crate::ssa::Version>,
+}
+
+/// The version whose binding a read of `version` reads: through the
+/// definitions a route preserved ([`through_preserved`]) and the fresh
+/// versions a call to code the module cannot see gave the names live after
+/// it ([`crate::ssa::SsaFunction::binding_version`]), followed until neither
+/// moves it. Each step reads an earlier version, so the walk ends.
+fn binding_origin(
+    ssa: &crate::ssa::SsaFunction,
+    preserved: &std::collections::HashMap<crate::ssa::ValueKey, crate::ssa::Version>,
+    symbol: crate::ssa::Symbol,
+    mut version: crate::ssa::Version,
+) -> crate::ssa::Version {
+    loop {
+        let origin = ssa.binding_version(symbol, through_preserved(preserved, symbol, version));
+        if origin == version {
+            return version;
+        }
+        version = origin;
+    }
+}
+
+/// The version a read of `version` reads through the definitions a route
+/// preserved: a preserved definition is its prior version's value and
+/// existence, followed until a version no outcome preserved.
+fn through_preserved(
+    preserved: &std::collections::HashMap<crate::ssa::ValueKey, crate::ssa::Version>,
+    symbol: crate::ssa::Symbol,
+    mut version: crate::ssa::Version,
+) -> crate::ssa::Version {
+    // A preserved definition reads an earlier version, so the chain ends;
+    // the bound keeps a malformed map from looping.
+    for _ in 0..=preserved.len() {
+        match preserved.get(&(symbol, version)) {
+            Some(&prior) if prior != version => version = prior,
+            _ => break,
+        }
+    }
+    version
 }
 
 /// Return the registry spelling for a resolved potential startup variable, removing
@@ -434,9 +480,11 @@ impl StartupFacts {
             startup_cell_binding(name, ctx.initial_global, ctx.global_aliases);
         Self {
             readable_at_startup: global_binding
-                && tcl_registry::special_vars::is_readable_at_startup(startup_name, ctx.dialect),
+                && ctx
+                    .registry
+                    .is_readable_at_startup(startup_name, ctx.dialect),
             rematerialises_after_unset: global_binding
-                && tcl_registry::special_vars::is_lazily_readable(startup_name, ctx.dialect),
+                && ctx.registry.is_lazily_readable(startup_name, ctx.dialect),
         }
     }
 }
@@ -519,11 +567,7 @@ impl PhiUndefIndex {
             killed.insert((symbol, *version), !name_facts.rematerialises_after_unset);
         }
 
-        let mut undef: FxHashSet<VersionKey> = FxHashSet::default();
-        let mut worklist: Vec<VersionKey> = Vec::new();
-        // Reverse operand edges: an undef version makes every phi that takes
-        // it as an incoming undef too.
-        let mut users: FxHashMap<VersionKey, Vec<crate::ssa::Version>> = FxHashMap::default();
+        let mut walk = UndefWalk::default();
         for (key, phi) in ctx.phi_def {
             let (name, version) = (&key.0, key.1);
             let symbol = phi.name;
@@ -566,49 +610,111 @@ impl PhiUndefIndex {
                 {
                     continue;
                 }
-                let incoming = ctx.ssa.binding_version(symbol, incoming);
-                let operand = (symbol, incoming);
-                let origin = if let Some(&answer) = killed.get(&operand) {
-                    answer
-                } else if incoming == 0 {
-                    // A version-zero incoming normally is the undef origin.
-                    // The default Tcl host, however, binds a
-                    // registry-declared subset before user code, and a
-                    // conditional write would otherwise make a merge with the
-                    // startup version look undefined. Procedure-local frames
-                    // never set `initial_global`.
-                    !name_facts.readable_at_startup
-                } else {
-                    // Another phi (or a concrete definition, which is never
-                    // undef and so never enters `undef`).
-                    if undef.contains(&operand) {
-                        true
-                    } else {
-                        users.entry(operand).or_default().push(version);
-                        continue;
-                    }
-                };
-                if origin && undef.insert(node) {
-                    worklist.push(node);
-                }
+                // A definition a route preserved, and the fresh version a call
+                // to code the module cannot see leaves, read the binding of an
+                // earlier version.
+                let incoming = binding_origin(ctx.ssa, ctx.preserved, symbol, incoming);
+                walk.take(
+                    node,
+                    (symbol, incoming),
+                    &killed,
+                    name_facts.readable_at_startup,
+                );
             }
         }
-        while let Some(node) = worklist.pop() {
-            let Some(users) = users.get(&node) else {
+        // A name an opaque `switch`'s arm may write is a phi with one
+        // operand: the version the statement read, which it holds when no arm
+        // runs.
+        for (key, &(block, prior)) in ctx.may_defs {
+            let Some(symbol) = ctx.ssa.var_symbol(&key.0) else {
                 continue;
             };
-            for &user in users {
-                let up = (node.0, user);
-                if undef.insert(up) {
-                    worklist.push(up);
-                }
+            let node = (symbol, key.1);
+            if killed.contains_key(&node)
+                || ctx.exists_guards.iter().any(|(cell, guard)| {
+                    cell == &key.0 && block_dominated_by(ctx.ssa, block, *guard)
+                })
+            {
+                continue;
             }
+            let name_facts = *facts
+                .entry(symbol)
+                .or_insert_with(|| StartupFacts::for_name(&key.0, ctx));
+            let prior = through_preserved(ctx.preserved, symbol, prior);
+            walk.take(
+                node,
+                (symbol, prior),
+                &killed,
+                name_facts.readable_at_startup,
+            );
         }
+        let undef = walk.finish();
         Self {
             undef,
             killed,
             facts,
         }
+    }
+}
+
+/// The reachability walk behind [`PhiUndefIndex::build`]: which versions can
+/// reach an undef origin, over the operand edges of the phis and of the
+/// opaque `switch` may-definitions.
+#[derive(Default)]
+struct UndefWalk {
+    undef: FxHashSet<VersionKey>,
+    worklist: Vec<VersionKey>,
+    /// Reverse operand edges: an undef version makes every version that takes
+    /// it as an operand undef too.
+    users: FxHashMap<VersionKey, Vec<crate::ssa::Version>>,
+}
+
+impl UndefWalk {
+    /// `node` takes `operand`: undef when the operand is an undef origin or
+    /// already known undef, and recorded as a user of it otherwise.
+    fn take(
+        &mut self,
+        node: VersionKey,
+        operand: VersionKey,
+        killed: &FxHashMap<VersionKey, bool>,
+        readable_at_startup: bool,
+    ) {
+        let origin = if let Some(&answer) = killed.get(&operand) {
+            answer
+        } else if operand.1 == 0 {
+            // A version-zero incoming normally is the undef origin. The
+            // default Tcl host, however, binds a registry-declared subset
+            // before user code, and a conditional write would otherwise make
+            // a merge with the startup version look undefined.
+            // Procedure-local frames never set `initial_global`.
+            !readable_at_startup
+        } else if self.undef.contains(&operand) {
+            true
+        } else {
+            // Another phi (or a concrete definition, which is never undef
+            // and so never enters `undef`).
+            self.users.entry(operand).or_default().push(node.1);
+            return;
+        };
+        if origin && self.undef.insert(node) {
+            self.worklist.push(node);
+        }
+    }
+
+    /// Follow every undef version to the versions that take it.
+    fn finish(mut self) -> FxHashSet<VersionKey> {
+        while let Some(node) = self.worklist.pop() {
+            let Some(users) = self.users.get(&node) else {
+                continue;
+            };
+            for &user in users {
+                let up = (node.0, user);
+                if self.undef.insert(up) {
+                    self.worklist.push(up);
+                }
+            }
+        }
+        self.undef
     }
 }
 
@@ -638,7 +744,7 @@ pub(super) fn phi_can_undef(
         // neither a phi nor a kill: only the startup answer can apply.
         return version == 0 && !StartupFacts::for_name(name, ctx).readable_at_startup;
     };
-    let version = ctx.ssa.binding_version(symbol, version);
+    let version = binding_origin(ctx.ssa, ctx.preserved, symbol, version);
     let index = memo.index(ctx);
     if let Some(&answer) = index.killed.get(&(symbol, version)) {
         return answer;
@@ -663,22 +769,98 @@ pub(super) type PhiDefMap =
 pub(super) type PhiBlockMap =
     FxHashMap<(crate::var_resolve::VariableCellKey, crate::ssa::Version), BlockId>;
 
+/// The versions an opaque `switch` may define — a name one of its arms
+/// writes — each with the version the statement read and the block it sits
+/// in. Such a version holds its prior one when no arm runs, so it is
+/// undefined exactly when that one can be: a phi with one operand.
+pub(super) type MayDefMap = FxHashMap<
+    (crate::var_resolve::VariableCellKey, crate::ssa::Version),
+    (BlockId, crate::ssa::Version),
+>;
+
+/// The step each definition of a call to a procedure of the module takes
+/// from the callee's transfer summary, by `(name, version)`, with the block
+/// the call sits in and the version it found
+/// ([`crate::value_transfer::summary_steps`]).
+pub(super) type CallStepMap = FxHashMap<
+    (crate::var_resolve::VariableCellKey, crate::ssa::Version),
+    (
+        crate::value_transfer::ExistenceStep,
+        BlockId,
+        crate::ssa::Version,
+    ),
+>;
+
+/// The [`CallStepMap`] of `fu`'s calls in `considered` blocks: empty where
+/// no module's procedures are in hand.
+pub(super) fn call_steps(
+    fu: &crate::compilation_unit::FunctionUnit,
+    considered: &HashSet<BlockId>,
+    module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
+    registry: &tcl_registry::CommandRegistry,
+) -> CallStepMap {
+    let mut steps = CallStepMap::default();
+    let Some(module) = module else {
+        return steps;
+    };
+    let Some(metadata) = fu.invocation_metadata_context(registry) else {
+        return steps;
+    };
+    if !metadata.permits_logical_source_names() {
+        return steps;
+    }
+    let config = fu.source_lexer_config();
+    for &bn in considered {
+        let Some(block) = fu.ssa.blocks.get(&bn) else {
+            continue;
+        };
+        for (index, statement) in block.statements.iter().enumerate() {
+            for (place, step) in crate::value_transfer::summary_steps(
+                module,
+                &fu.name,
+                &statement.statement,
+                &config,
+            ) {
+                let Some(symbol) = fu.ssa.var_symbol(&place) else {
+                    continue;
+                };
+                if let Some(&version) = statement.defs.get(&symbol) {
+                    let prior = crate::sccp::prior_version(block, index, symbol);
+                    steps.insert(
+                        (fu.ssa.cell_key(symbol).clone(), version),
+                        (step, bn, prior),
+                    );
+                }
+            }
+        }
+    }
+    steps
+}
+
+/// The indices [`phi_can_undef`] answers from: phi operands, the block each
+/// phi sits in, the `unset`-killed versions, and the may-definitions of the
+/// opaque `switch` statements.
+pub(super) struct UndefIndexMaps {
+    pub phi_def: PhiDefMap,
+    pub phi_block: PhiBlockMap,
+    pub killed: FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)>,
+    pub may_defs: MayDefMap,
+}
+
 /// Build the `(name, version) → Phi` index, the `(name, version) → block`
 /// index, and the set of `unset`-killed versions for [`phi_can_undef`],
 /// restricted to `considered` (executable) blocks.
 pub(super) fn build_phi_undef_index(
     ssa: &crate::ssa::SsaFunction,
     considered: &HashSet<BlockId>,
-    _registry: &tcl_registry::CommandRegistry,
-) -> (
-    PhiDefMap,
-    PhiBlockMap,
-    FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)>,
-) {
+    registry: &tcl_registry::CommandRegistry,
+    steps: &CallStepMap,
+) -> UndefIndexMaps {
+    use tcl_registry::value_transfer::{BindingKind, Existence};
     let mut phi_def: PhiDefMap = FxHashMap::default();
     let mut phi_block: PhiBlockMap = FxHashMap::default();
-    let mut killed: FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)> =
-        FxHashSet::default();
+    let mut killed = FxHashSet::default();
+    let mut may_defs = MayDefMap::default();
     for &bn in considered {
         let Some(sblock) = ssa.blocks.get(&bn) else {
             continue;
@@ -689,11 +871,39 @@ pub(super) fn build_phi_undef_index(
             phi_block.insert((phi_name, phi.version), bn);
         }
         for statement in &sblock.statements {
+            if crate::ssa::has_arm_may_defs(&statement.statement) {
+                let refreshed = crate::ssa::refreshed_bases(&statement.statement, registry);
+                for symbol in &statement.may_defs {
+                    if refreshed.iter().any(|base| base == ssa.var_name(*symbol)) {
+                        continue;
+                    }
+                    if let (Some(&version), Some(&prior)) =
+                        (statement.defs.get(symbol), statement.uses.get(symbol))
+                    {
+                        may_defs.insert((ssa.cell_key(*symbol).clone(), version), (bn, prior));
+                    }
+                }
+            }
             for (&symbol, &version) in &statement.defs {
                 if statement.destruction_defs.contains(&symbol) {
                     killed.insert((ssa.cell_key(symbol).clone(), version));
                 }
             }
+        }
+    }
+    // A call to a procedure of the module is the assignment its summary
+    // states for each place it names: a step that leaves the place unset
+    // whatever it held kills it, one that sets it is a definition, and any
+    // other — a may-bind, a preserve, or a may-unset, which a summary also
+    // states out of its own caution — leaves the place unset where it was
+    // before the call, so it reads the version before the call.
+    for (key, &(step, block, prior)) in steps {
+        let after_bound = step.apply(Existence::Bound(BindingKind::Either));
+        let after_unbound = step.apply(Existence::Unbound);
+        if after_bound == Existence::Unbound && after_unbound == Existence::Unbound {
+            killed.insert(key.clone());
+        } else if matches!(after_unbound, Existence::Unbound | Existence::MayBound) {
+            may_defs.insert(key.clone(), (block, prior));
         }
     }
     for (block, markers) in &ssa.value_clobbers {
@@ -710,8 +920,12 @@ pub(super) fn build_phi_undef_index(
             }
         }
     }
-
-    (phi_def, phi_block, killed)
+    UndefIndexMaps {
+        phi_def,
+        phi_block,
+        killed,
+        may_defs,
+    }
 }
 
 /// Name-level suppression context for the `return`-value phi-from-undef W210
@@ -731,12 +945,18 @@ pub(super) struct UndefSuppression {
     explicitly_defined: HashSet<String>,
     /// Local-alias tails declared by a qualified `variable ns::tail`.
     alias_tails: FxHashSet<String>,
-    /// Names written by a command substitution buried inside an `expr`
-    /// argument (`set e [expr {[catch {…} tmp] || $tmp}]` writes `tmp` during
-    /// expr evaluation).  The `[…]` is opaque to SSA def tracking, so a later
-    /// `$tmp` read in the same expression looks read-before-set.  Name-level,
-    /// suppress-only.
-    cmd_sub_writes: FxHashSet<String>,
+    /// Where a command substitution buried inside an `expr` argument writes
+    /// a name (`set e [expr {[catch {…} tmp] || $tmp}]` writes `tmp` during
+    /// expr evaluation): per name, each `(block, statement)` that writes it.
+    /// The `[…]` is opaque to SSA def tracking, so a `$tmp` read in the same
+    /// expression or after it looks read-before-set; a read before it is
+    /// still one. Suppress-only.
+    cmd_sub_writes: FxHashMap<String, Vec<(BlockId, usize)>>,
+    /// Where code the module cannot see runs: each `(block, statement)` of a
+    /// marker for it ([`crate::ssa::is_unseen_call_marker`]). A name nothing in
+    /// the function assigns may be one that code set, so a read of it that
+    /// follows a marker is no read before it is set. Suppress-only.
+    unseen_call_sites: Vec<(BlockId, usize)>,
     /// Names written by a `Traits::SCRIPT_CONCATENATES_ARGS` call whose
     /// script the lowering left as an opaque barrier — `eval set l2 hello`
     /// really does set `l2` in the caller's own frame, but its words reach
@@ -747,11 +967,14 @@ pub(super) struct UndefSuppression {
     /// so a direct read of one is read-before-set just like a version-0
     /// origin.
     pub(super) killed: FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)>,
+    pub(super) call_steps: CallStepMap,
     /// Phi versions that can be undefined on some executable path
     /// (a one-branch `set y 1` merge, or a try-handler merge). A statement
     /// read of one is read-before-set; the def-use pass can't express this
     /// because the read targets the *phi* version, not a version-0 origin.
     pub(super) can_undef: FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)>,
+    pub(super) preserved_undef:
+        FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)>,
     /// Loop-header phi versions whose *only* undef source is the loop's entry
     /// (zero-trip) edge — the loop body assigns the variable on every back
     /// edge, so the value is defined whenever the loop ran ≥1 time. Maps each
@@ -776,10 +999,27 @@ impl UndefSuppression {
     /// "might-have-the-key" stance, used where no truth source can confirm
     /// the dict is empty — e.g. a `return` after a `dict with` on a param).
     pub(super) fn suppresses(&self, name: &str) -> bool {
-        self.suppresses_strict(name)
-            || (self.has_dict_with
-                && self.dict_with_any_unknown
-                && !self.explicitly_defined.contains(name))
+        self.suppresses_strict(name) || self.dict_with_blanket(name)
+    }
+
+    /// [`Self::suppresses`] for a read of the version `key`. A version in
+    /// [`Self::preserved_undef`] was written by no substitution, so the
+    /// condition-write suppression does not speak for it; every other one
+    /// still does.
+    pub(super) fn suppresses_read(
+        &self,
+        name: &str,
+        key: &(crate::var_resolve::VariableCellKey, crate::ssa::Version),
+    ) -> bool {
+        if self.preserved_undef.contains(key) {
+            return self.suppresses_unsubstituted(name) || self.dict_with_blanket(name);
+        }
+        self.suppresses(name)
+    }
+
+    /// The unknown-shape `dict with` blanket of [`Self::suppresses`].
+    fn dict_with_blanket(&self, name: &str) -> bool {
+        self.has_dict_with && self.dict_with_any_unknown && !self.explicitly_defined.contains(name)
     }
 
     /// True when reading `key` at `block` is a safe *after-loop* read of a
@@ -804,9 +1044,54 @@ impl UndefSuppression {
     /// SCCP cannot yet resolve) must still fire so a genuine missing-key read
     /// is not hidden.
     pub(super) fn suppresses_strict(&self, name: &str) -> bool {
+        self.suppresses_unsubstituted(name)
+    }
+
+    /// Whether an `expr` argument's command substitution writes `name` at
+    /// or before the read at `index` of `block` — earlier in the block, or
+    /// in a block that dominates it; `index` -1 is the block's terminator.
+    pub(super) fn written_by_substitution_before(
+        &self,
+        name: &str,
+        ssa: &crate::ssa::SsaFunction,
+        block: BlockId,
+        index: i32,
+    ) -> bool {
+        self.cmd_sub_writes.get(name).is_some_and(|sites| {
+            sites.iter().any(|&(site, at)| {
+                if site == block {
+                    usize::try_from(index).map_or(true, |index| at <= index)
+                } else {
+                    crate::loops::dominates(ssa, site, block)
+                }
+            })
+        })
+    }
+
+    /// Whether code the module cannot see runs before the read at `index` of
+    /// `block` — earlier in the block, or in a block that dominates it; `index`
+    /// -1 is the block's terminator. A read in the statement a marker stands
+    /// ahead of is after it, as the marker for a substitution's command stands
+    /// ahead of its host.
+    pub(super) fn unseen_call_before(
+        &self,
+        ssa: &crate::ssa::SsaFunction,
+        block: BlockId,
+        index: i32,
+    ) -> bool {
+        self.unseen_call_sites.iter().any(|&(site, at)| {
+            if site == block {
+                usize::try_from(index).map_or(true, |index| at < index)
+            } else {
+                crate::loops::dominates(ssa, site, block)
+            }
+        })
+    }
+
+    /// The name-level suppressions, none of them a substitution's write.
+    fn suppresses_unsubstituted(&self, name: &str) -> bool {
         if self.alias_tails.contains(name)
             || self.dict_vars.contains(name)
-            || self.cmd_sub_writes.contains(name)
             || self.script_concat_writes.contains(name)
         {
             return true;
@@ -817,12 +1102,59 @@ impl UndefSuppression {
     }
 }
 
-/// Build the [`UndefSuppression`] context over `considered` blocks.
-/// Names written by a command substitution buried inside an `expr` argument.
-/// `set e [expr {[catch {…} tmp] || $tmp}]` writes `tmp` during expr
-/// evaluation; the `set x [expr {E}]` form lowers to `AssignExpr`, so the
-/// condition-out-var extractor over its expr recovers those writes.
-/// Name-level, suppress-only.
+/// Each `(block, statement)` in the blocks `considered` where code the module
+/// cannot see runs that may set any name the function reads: at the top level
+/// any such code, which can set a global by name; in a procedure a sourced
+/// file, which runs in the procedure's own frame. A callee the module cannot
+/// see sets a procedure's local through `upvar 1` under a name it is handed,
+/// which the per-name abstention answers
+/// ([`crate::interprocedural::collect_opaque_callee_name_args`]), so its marker
+/// is no site here.
+fn collect_unseen_call_sites(
+    fu: &crate::compilation_unit::FunctionUnit,
+    considered: &HashSet<BlockId>,
+    initial_global: bool,
+    semantics: UndefSuppressionSemantics<'_>,
+) -> Vec<(BlockId, usize)> {
+    let registry = semantics.context.commands();
+    let Some(metadata) = fu.invocation_metadata_context(registry) else {
+        return Vec::new();
+    };
+    let sources = |statement: &crate::ir::Statement| {
+        crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
+            registry,
+            Some(metadata),
+            statement,
+        )
+        .is_some_and(|call| {
+            call.facts
+                .traits
+                .contains(tcl_registry::Traits::SOURCES_FILE)
+        })
+    };
+    let mut out = Vec::new();
+    for &block_id in considered {
+        let Some(block) = fu.cfg.blocks.get(&block_id) else {
+            continue;
+        };
+        for (index, statement) in block.statements.iter().enumerate() {
+            if crate::ssa::is_unseen_call_marker(statement)
+                && (initial_global
+                    || block
+                        .statements
+                        .iter()
+                        .filter(|other| {
+                            other.span() == statement.span() && other.synthetic_marker().is_none()
+                        })
+                        .any(sources))
+            {
+                out.push((block_id, index));
+            }
+        }
+    }
+    out
+}
+
 fn collect_expr_cmd_sub_writes(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
@@ -1154,7 +1486,9 @@ fn collect_script_concat_writes(
 
 /// `dict with` / `dict update` key-aware suppression: record the dict-var
 /// names and, when the dict value is a same-block literal (or an
-/// interprocedurally-propagated SCCP const), its keys.  A value that resolves
+/// interprocedurally-propagated SCCP const), the variables the registry's
+/// plan binds from it on entry — each key `dict with` finds, each `dict
+/// update` variable whose key the dictionary holds.  A value that resolves
 /// to neither marks the dict shape unknown.
 fn harvest_dict_with_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
@@ -1334,6 +1668,9 @@ pub(super) struct UndefSuppressionSemantics<'a> {
     pub source: &'a str,
     pub analysis: &'a crate::analyser::AnalysisResult,
     pub context: &'a tcl_registry::model::ContextRegistry,
+    /// The module's procedures, whose transfer summaries say what a call to
+    /// one does to the places it names.
+    pub module: Option<&'a crate::interprocedural::ModuleProcedures<'a>>,
 }
 
 pub(super) fn build_undef_suppression(
@@ -1347,18 +1684,28 @@ pub(super) fn build_undef_suppression(
         dialect,
         rules,
         lexer_config,
+        module,
         ..
     } = semantics;
     let registry = semantics.context.commands();
-    let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered, registry);
+    let commands = registry;
+    let call_steps = call_steps(fu, considered, module, commands);
+    let UndefIndexMaps {
+        phi_def,
+        phi_block,
+        killed,
+        may_defs,
+    } = build_phi_undef_index(&fu.ssa, considered, registry, &call_steps);
+    let exists_guards = collect_existence_guards(fu, registry, lexer_config);
     // Phi versions that can reach an undef origin on some executable path —
     // a statement read of one is read-before-set. The per-use existence
     // guard + suppression set still apply in the emitter loop.
-    let exists_guards = collect_existence_guards(fu, registry, lexer_config);
     let undef_ctx = PhiUndefCtx {
+        registry: commands,
         phi_def: &phi_def,
         phi_block: &phi_block,
         killed: &killed,
+        may_defs: &may_defs,
         considered,
         executable_edges: fu.diagnostic_value_facts().executable_edges(),
         exists_guards: &exists_guards,
@@ -1366,6 +1713,7 @@ pub(super) fn build_undef_suppression(
         global_aliases,
         dialect,
         ssa: &fu.ssa,
+        preserved: &fu.sccp.preserved,
     };
     let mut can_undef: FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)> =
         FxHashSet::default();
@@ -1374,9 +1722,22 @@ pub(super) fn build_undef_suppression(
     // every other query (issue #2021 — without it the sweep re-walks every
     // path through the phi graph).
     let mut memo = PhiUndefMemo::default();
-    for key in phi_def.keys() {
+    for key in phi_def.keys().chain(may_defs.keys()) {
         if phi_can_undef(&key.0, key.1, &undef_ctx, &mut memo) {
             can_undef.insert(key.clone());
+        }
+    }
+    // A definition its statement left untouched — a `regexp` that did not
+    // match, a `scan` whose input ran out, any declared `Preserve` — holds
+    // its prior version, so it is undefined exactly when that version can
+    // be: a read of it is then a read before set.
+    let mut preserved_undef: FxHashSet<(crate::var_resolve::VariableCellKey, crate::ssa::Version)> =
+        FxHashSet::default();
+    for &(symbol, version) in fu.sccp.preserved.keys() {
+        let name = fu.ssa.cell_key(symbol);
+        if phi_can_undef(name, version, &undef_ctx, &mut memo) {
+            can_undef.insert((name.to_owned(), version));
+            preserved_undef.insert((name.to_owned(), version));
         }
     }
     for (block, markers) in &fu.ssa.value_clobbers {
@@ -1397,8 +1758,11 @@ pub(super) fn build_undef_suppression(
     let mut s = UndefSuppression {
         cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered, semantics),
         script_concat_writes: collect_script_concat_writes(fu, considered, semantics),
+        unseen_call_sites: collect_unseen_call_sites(fu, considered, initial_global, semantics),
         killed,
+        call_steps,
         can_undef,
+        preserved_undef,
         loop_entry_only_undef,
         ..Default::default()
     };
@@ -1516,7 +1880,8 @@ fn build_loop_entry_only_undef(
             break;
         }
     }
-    // Registry barriers change value facts without introducing a new binding.
+    // A call to code the module cannot see changes value facts without
+    // introducing a new binding.
     // Carry the established after-loop binding proof through their fresh value
     // versions, just as `phi_can_undef` follows that same binding lineage.
     for (block, markers) in &fu.ssa.value_clobbers {

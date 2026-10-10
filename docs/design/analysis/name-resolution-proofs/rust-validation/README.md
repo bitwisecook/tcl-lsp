@@ -1899,3 +1899,26 @@ The exact locked14-package all-targets check fails101 after86.95 seconds with un
 | Receipt and log | Actual result |
 | --- | --- |
 | [consumer-check244](frozen244/consumer-check244/receipt.json.gz) · [log](frozen244/consumer-check244/tests.log) | Failed101; three distinct Compiler type/import errors; four diagnostic events; no assertions or successful check |
+
+## Main245 commands
+
+The independent locked Compiler/VM build passes after 193.46 seconds and supplies two copied sealed executable/build/source associations. Their inventories list 8594 and 710 tests without assertions. The separately requested Core/consumer-library no-run build fails with exit 101 after 112.19 seconds with ENOSPC while creating compiler temporary directories; it supplies no Core pin, assertion or aggregate successful build.
+
+The exact 63-name Compiler focus batch completes 21P/42F after 139.72 seconds. Five independent one-name diagnostic commands also complete with failures: original declaration-world traversal, original CFG binding replay, VM mathop codegen, dictionary writeback and dictionary publication each record 0P/1F. Whole logs preserve every actual event and the complete failing summaries. The declaration trace's old 7-count assertion fails with both retained traversals reporting 28; distinct original world observations are retained as software diagnostics, without a passing replacement assertion or elapsed-performance conclusion.
+
+All ten operations record uniform_source: true under the same immutable source snapshot. The Compiler 63-name and VM 343-name selections retain exact zero-missing inventory associations; the VM 343-name selection has no finite batch execution receipt or coverage outcome. Repeated focus/trace selectors stay repeated events. Builds and inventories do not promote failures, current edited definitions or incoming integration to a pass. Native provider observations, other images, Clippy, Python and full suites keep their independent scopes.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [compiler-vm-build245](frozen245/compiler-vm-build245/receipt.json.gz) · [log](frozen245/compiler-vm-build245/tests.log) | Independent Compiler/VM build PASS0 after 193.46s; no assertions |
+| [compiler-list245](frozen245/compiler-list245/receipt.json.gz) · [log](frozen245/compiler-list245/tests.log) | 8594 tests listed; no assertions |
+| [vm-list245](frozen245/vm-list245/receipt.json.gz) · [log](frozen245/vm-list245/tests.log) | 710 tests listed; no assertions |
+| [compiler-focus245](frozen245/compiler-focus245/receipt.json.gz) · [log](frozen245/compiler-focus245/tests.log) | Exact 63-name command 21P/42F/8531filtered after 139.72s; complete failing summary |
+| [compiler-declaration-world-trace245](frozen245/compiler-declaration-world-trace245/receipt.json.gz) · [log](frozen245/compiler-declaration-world-trace245/tests.log) | Exact 1-name command 0P/1F/8593filtered after 3.54s; complete failing summary |
+| [vm-mathop-codegen245](frozen245/vm-mathop-codegen245/receipt.json.gz) · [log](frozen245/vm-mathop-codegen245/tests.log) | Exact 1-name command 0P/1F/709filtered after 8.05s; complete failing summary |
+| [vm-dict-writeback-progress245](frozen245/vm-dict-writeback-progress245/receipt.json.gz) · [log](frozen245/vm-dict-writeback-progress245/tests.log) | Exact 1-name command 0P/1F/709filtered after 28.94s; complete failing summary |
+| [vm-dict-publication-progress245](frozen245/vm-dict-publication-progress245/receipt.json.gz) · [log](frozen245/vm-dict-publication-progress245/tests.log) | Exact 1-name command 0P/1F/709filtered after 73.12s; complete failing summary |
+| [consumer-libs-build245](frozen245/consumer-libs-build245/receipt.json.gz) · [log](frozen245/consumer-libs-build245/tests.log) | Core/consumer-library no-run build FAIL101 after 112.19s; ENOSPC; no assertions or Core pin |
+| [compiler-cfg-replay-trace245](frozen245/compiler-cfg-replay-trace245/receipt.json.gz) · [log](frozen245/compiler-cfg-replay-trace245/tests.log) | Exact 1-name command 0P/1F/8593filtered after 2.60s; complete failing summary |
+
+[Compiler pin](frozen245/pinned-compiler245.json): SHA `445956a54f2a27d1e0ab65c6a44d737459f8381ffdd906dfd47b3e1a851da622`, artifact fresh: `false`. [VM pin](frozen245/pinned-vm245.json): SHA `66c9668ecf0d1dfac418ece49da8e917fcbe5aa7fb0ad19843a29e75f7f4440b`, artifact fresh: `false`. Both belong solely to the independent successful Compiler/VM build.

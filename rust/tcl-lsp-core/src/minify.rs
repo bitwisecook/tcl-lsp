@@ -62,11 +62,13 @@
 //! returns a [`SymbolMap`].  It relies on the analyser tracking
 //! `$var` references inside `[…]` command substitutions and braced
 //! `expr` bodies so a rename never rewrites a declaration without
-//! its body references.  Renaming is fenced by registry-declared
-//! observability facts:
+//! its body references.  Renaming is fenced by the observability facts
+//! of the document's command surface — the catalogue's, and the ones a
+//! `# tcl-lsp: stub` declaration's flags state:
 //!
 //! * Scopes containing a dynamic-barrier command (`upvar`, `eval`,
-//!   `trace`, … — [`Traits::CREATES_DYNAMIC_BARRIER`]) or a
+//!   `trace`, a `-barrier` stub, … —
+//!   [`Traits::CREATES_DYNAMIC_BARRIER`]) or a
 //!   variable-name introspection ([`Traits::INTROSPECTS_BY_NAME`],
 //!   e.g. `info locals` / `info vars` / `info exists`) are left
 //!   untouched.
@@ -292,6 +294,12 @@ impl SymbolMap {
                 continue;
             };
             let (short, original) = (short.trim().to_owned(), original.trim().to_owned());
+            // registry-axis-ok: irreducible — `section` is this parser's own
+            // section tag, set a few lines up from *this format's own*
+            // `# Procs` / `# Variables in …` headers (the `Self::format`
+            // writer's own vocabulary for its symbol-map file), not a
+            // dispatch on `info procs` / `info variables`; the spelling
+            // coincides with `info`'s subcommand names only; until never
             match section {
                 "procs" => {
                     sm.procs.insert(original, short);
@@ -1624,8 +1632,8 @@ fn rmw_target_var_names(
 /// keywords (`else` / `elseif` / `on` / `trap` / `finally`) plus the
 /// non-highlighted clause noise word (`then`).
 fn is_clause_keyword(word: &str) -> bool {
-    tcl_registry::traits::CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC.contains(&word)
-        || tcl_registry::traits::CLAUSE_NOISE_KEYWORDS.contains(&word)
+    tcl_registry::traits::clause_keywords_without_command_spec().contains(&word)
+        || tcl_registry::traits::clause_noise_keywords().contains(&word)
 }
 
 /// Every compacted short name across the symbol map, so aggressive
@@ -3104,7 +3112,11 @@ fn minify_case_list(
             };
             parts.push(case_element_text(inner, flag).to_owned());
             i += 1;
-            if canonical_flag == "--" {
+            // Read off `cl`'s own descriptor, like `CaseListSpec::inline_clauses`
+            // does for the compiler — a future case-list command's own
+            // end-of-clause-options flag (if it even has one) is whatever its
+            // pack declares, not necessarily "--".
+            if cl.clause_end_options_flag == Some(canonical_flag) {
                 options_ended = true;
             } else if shape.flag_takes_value(canonical_flag) && i < elements.len() {
                 parts.push(case_element_text(inner, &elements[i]).to_owned());
@@ -4229,9 +4241,14 @@ mod tests {
             min_dialect("string length $x\n", tcl_dialect::DialectProfile::irules()),
             "string le $x"
         );
+        // `info e` would also prefix `info errorstack` (Tcl 8.6+) — reading
+        // the abbreviation from `info`'s own registry table (rather than a
+        // hand-kept copy that only knew of `exists`) surfaces that and picks
+        // the shortest spelling actually safe against the whole table:
+        // `ex`, not the old table's `e`.
         assert_eq!(
             min_dialect("info exists $x\n", tcl_dialect::DialectProfile::irules()),
-            "info e $x"
+            "info ex $x"
         );
     }
 

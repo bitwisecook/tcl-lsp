@@ -23,23 +23,37 @@ loop terminates?
 W242 is the counterpart to [W241](kcs-diagnostic-w241-loop-provably-infinite.md).
 W241 fires when the analyser can **prove** the loop runs forever.
 W242 fires when the analyser can prove neither termination nor
-non-termination: the counter variable in the condition is never
-visibly assigned by the step or body.
+non-termination and nothing in the loop may assign the variable in the
+condition. It reads what may assign it from the dataflow it builds for the
+code around the loop: a write in the step or the body, in a braced, bare or
+quoted word alike (`if {$c} "incr n"` assigns `n`), in a `[…]` word, by a
+`foreach` binder or by a procedure that sets the caller's variable with
+`upvar` or `uplevel`; a call it cannot see into — a command the file does
+not define, a computed command, a `source` — and a callback the file stores,
+either of which may assign it. Any of them keeps the hint away, and so does a
+loop whose code the analyser does not follow, such as one inside a `catch`
+body.
 
 It is reported at hint severity. Turn it on when you want every loop
 whose termination is not obvious from the surrounding source flagged.
+
+A loop whose condition the analyser can decide is reported as W240 (the
+condition is false when the loop is reached) or W241 (it is true at every
+test and nothing leaves the loop) instead, so W242 is for the conditions it
+cannot decide — a parameter, a value read from elsewhere.
 
 ## Example that triggers it
 
 ```tcl
 while {$running < 10} {
-    process_event
+    puts "waiting"
 }
 ```
 
-`$running` appears in the condition but nothing in the body visibly
-updates it. Either `process_event` has a side effect the analyser
-cannot see (then suppress the hint) or the loop is buggy.
+`$running` appears in the condition but nothing in the loop updates it:
+`puts` assigns no variable. Had the body called a command the file does not
+define, such as `process_event`, the analyser could not rule out that it sets
+`running`, and would not hint.
 
 ## Fix
 
@@ -48,7 +62,7 @@ Either modify the counter in the loop or add a `break` guard.
 ```tcl
 while {$running < 10} {
     incr running
-    process_event
+    puts "waiting"
 }
 ```
 

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! WASM emission from NLIR — the native tier's emitter (plan §7 row P3).
+//! WASM emission from NLIR — the native tier's emitter (see `wasm-native-lowering-plan.md` §3.3).
 //!
 //! The emitter consumes a [`NativeFunction`] and nothing else: no command
 //! name, no source span, no compatibility text. It structurises the NLIR
@@ -990,9 +990,8 @@ impl Emitter<'_, '_> {
         // already took one for this body, and taking a second would halve the
         // recursion depth Tcl allows.
         if self.proc_entry() {
-            // The parameters are the reserved seam for P5's native formal
-            // binder; a P5-lite body reads its formals as named cells, which
-            // `run_proc` bound before the call.
+            // The body reads its formals from named cells bound by `run_proc`.
+            // The argument parameters remain unused.
             let _ = (PARAM_ARGV, PARAM_ARGC);
         } else {
             self.call(self.imports.activation_enter);

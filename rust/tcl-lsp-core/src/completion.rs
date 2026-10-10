@@ -824,7 +824,7 @@ pub fn completions(
         // offered as package advice from ambient placement — the `tk` dialect (a
         // `wish` document) or a `package require Tk` in this file.  Without
         // that, a plain `.tcl` script must not be offered `button`/`pack`/… .
-        // P3 (ledger F4): both halves are placement facts now — the
+        // Both halves are placement facts — the
         // environment ships Tk ambient (`wish`), or this document required
         // it. No `SpecSurface` bit and no environment *name* is consulted.
         let tk_advice =
@@ -2101,7 +2101,7 @@ fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
     let reg = tcl_registry::events::EventRegistry::build();
     // Lifecycle rule: completion omits *retired* events and keeps
     // deprecated ones, labelled with their deprecating release. The target is
-    // the axis default (the D5 oldest-supported release) since this entry
+    // the axis default (the oldest-supported release) since this entry
     // point carries no resolved BIG-IP version.
     let target = tcl_dialect::VersionKey::BigipVersion.default_version();
     let mut names: Vec<&str> = reg
@@ -2581,10 +2581,10 @@ fn builtin_completions(
         // never inside a vendor shell: an F5 / EDA / bpf profile is a closed
         // world where a desktop library cannot be `package require`d, even if
         // the source says so. An environment can host Tk iff it declares a Tk
-        // placement (redesign §3.2's placement claims, ledger F4); the EDA
+        // placement (redesign §3.2's placement claims); the EDA
         // shells are packaged vendors with no vendor_surface, so this keys off
-        // the placement, not the bit (eda-library-packages.md). P3 moved the
-        // query onto the resolved context, where hosting is one predicate
+        // the placement (eda-library-packages.md). The resolved context
+        // answers hosting as one predicate
         // over the environment's own placements.
         .filter(|n| {
             (tk_advice && context.can_host_package("Tk"))
@@ -2697,11 +2697,6 @@ fn command_detail(
 ) -> String {
     if let Some(pkg) = spec.tcllib_package {
         format!("tcllib ({pkg})")
-    // Ledger C1/F1 (post-P1-G): `ResolvedContext::ambient_package` is the
-    // context-keyed twin of this registry query, and answers identically
-    // here because the store *is* this document's generation. Threading a
-    // context through the detail formatter waits for the profile stamp's
-    // retirement.
     } else if let Some(pkg) = spec.required_package
         && !registry.is_ambient_package(pkg)
     {
@@ -3007,7 +3002,7 @@ fn fuzzy_command_fallback(
     }
     universe.extend(proc_completions(analysis, "", &usage));
     if let Some(registry) = registry {
-        // P3 (ledger F4): both halves are placement facts now — the
+        // Both halves are placement facts — the
         // environment ships Tk ambient (`wish`), or this document required
         // it. No `SpecSurface` bit and no environment *name* is consulted.
         let tk_advice =
@@ -4789,8 +4784,7 @@ mod tests {
         );
     }
 
-    /// **P3.** The completion gate is now two placement queries, not an
-    /// environment name plus a hosting table: Tk names are offered where
+    /// The completion gate reads two placement queries: Tk names are offered where
     /// Tk is in the world (ambient, or required here) **and** the
     /// environment declares a Tk placement at all. The `wish` alias must
     /// answer identically to `tk` — it is the same environment row — and a

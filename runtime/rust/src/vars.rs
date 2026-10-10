@@ -471,6 +471,40 @@ fn resolve_trace_registration(
     }
 }
 
+/// Whether a store to `name` resolved from the current context lands in the
+/// running procedure's own frame: a local of it, reached by name or through a
+/// link that stays within it. A name at the global level, a qualified or
+/// namespace name, and a local linked to a variable outside the frame all land
+/// elsewhere.
+pub(crate) fn lands_in_own_frame(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+) -> bool {
+    frames.in_proc()
+        && matches!(
+            resolve(frames, ns, current_ns, name),
+            Resolved::Place(place) if place.home == VarHome::Frame(frames.current_level())
+        )
+}
+
+/// [`lands_in_own_frame`] for a store resolved as if `level` were active: only
+/// the running procedure's own level can be its frame.
+pub(crate) fn lands_in_own_frame_at(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    name: &[u8],
+    level: usize,
+) -> bool {
+    level == frames.current_level()
+        && frames.is_proc_at(level)
+        && matches!(
+            resolve_at(frames, ns, name, level),
+            Resolved::Place(place) if place.home == VarHome::Frame(level)
+        )
+}
+
 /// The var home an unqualified name lives in when resolving against frame
 /// `level` — the frame-addressed analogue of [`current_home`]: a proc frame's
 /// own table, else that frame's namespace table (the global level → the global

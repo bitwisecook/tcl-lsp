@@ -206,10 +206,11 @@ fn cmd_lreplace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     adapt(vm, |vm| list_core::lreplace(vm, list, from, to, rest))
 }
 
-/// `ledit listVar first last ?element ...?` — the in-place `lreplace` (Tcl 9):
-/// replace the `first..last` range of the list held in `listVar` with the given
-/// elements, store the result back into the variable, and return it. The write
-/// goes through `var_set`, so it fires the variable's write traces.
+/// `ledit listVar first last ?element ...?` — the in-place `lreplace` (Tcl 9)
+/// over the shared [`list_core::ledit`] core: replace the `first..last` range of
+/// the list held in `listVar` with the given elements, store the result back
+/// into the variable, and return it. The write goes through `var_set`, so it
+/// fires the variable's write traces.
 fn cmd_ledit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [name, from, to, rest @ ..] = args else {
         return err_wrong_args(vm, "ledit listVar first last ?element ...?");
@@ -218,7 +219,8 @@ fn cmd_ledit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(cur) = vm.var_get(&n) else {
         return err(vm.read_miss_msg(&n));
     };
-    let result = match list_core::lreplace(vm, &cur, from, to, rest) {
+    let release = vm.runtime_version();
+    let result = match list_core::ledit(vm, &cur, from, to, rest, release) {
         Ok(v) => v,
         Err(e) => return completion_from_cmd_error(vm, e),
     };
@@ -230,10 +232,10 @@ fn cmd_ledit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// `lset listVar ?index ...? newValue` — the runtime form of `lset` (the
 /// compiler inlines the common compiled cases via `LSET_LIST`/`LSET_FLAT`; this
-/// builtin is the fallback for the dynamic / wrong-arg / non-proc paths). It
+/// builtin is the fallback for the dynamic / wrong-arg / non-proc paths) over
+/// the shared [`list_core::lset`] core, as the emulated release computes it. It
 /// always reads the variable first (so a no-index `lset x v` on an undefined
-/// `x` still reports `can't read`), then descends the index path: a single
-/// index argument is itself an index *list*, several arguments are a flat path.
+/// `x` still reports `can't read`).
 fn cmd_lset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if args.len() < 2 {
         return err_wrong_args(vm, "lset listVar ?index? ?index ...? value");
@@ -244,19 +246,10 @@ fn cmd_lset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(cur) = vm.var_get(&n) else {
         return err(vm.read_miss_msg(&n));
     };
-    let path: Vec<Value> = if indices.is_empty() {
-        Vec::new()
-    } else if let [single] = indices {
-        match single.as_list() {
-            Ok(p) => (*p).clone(),
-            Err(e) => return crate::command::completion_from_tcl_error(vm, e),
-        }
-    } else {
-        indices.to_vec()
-    };
-    let new = match crate::exec::lset_descend(vm, &cur, &path, value.clone()) {
+    let release = vm.runtime_version();
+    let new = match list_core::lset(vm, &cur, indices, value.clone(), release) {
         Ok(r) => r,
-        Err(c) => return c,
+        Err(e) => return completion_from_cmd_error(vm, e),
     };
     match vm.store_var_result(&n, new) {
         Ok(stored) => ok(stored),
@@ -265,9 +258,10 @@ fn cmd_lset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `lpop listVar ?index ...?` — remove and return an element of the list held
-/// in `listVar` (Tcl 9), defaulting to the last element. With several indices it
-/// descends into nested sublists and removes the deepest element. The trimmed
-/// list is stored back (firing write traces).
+/// in `listVar` (Tcl 9) over the shared [`list_core::lpop`] core, defaulting to
+/// the last element. With several indices it descends into nested sublists and
+/// removes the deepest element. The trimmed list is stored back (firing write
+/// traces).
 fn cmd_lpop(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((name, indices)) = args.split_first() else {
         return err_wrong_args(vm, "lpop listvar ?index?");
@@ -276,77 +270,15 @@ fn cmd_lpop(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(cur) = vm.var_get(&n) else {
         return err(vm.read_miss_msg(&n));
     };
-    let items = match as_list(vm, &cur) {
-        Ok(i) => (*i).clone(),
-        Err(c) => return c,
-    };
-    // No index means the last element (`end`).
-    let default_end = [Value::string("end")];
-    let path: &[Value] = if indices.is_empty() {
-        &default_end
-    } else {
-        indices
-    };
-    let (removed, new_items) = match lpop_remove(vm, &items, path) {
+    let release = vm.runtime_version();
+    let (removed, rest) = match list_core::lpop(vm, &cur, indices, release) {
         Ok(r) => r,
-        Err(c) => return c,
+        Err(e) => return completion_from_cmd_error(vm, e),
     };
-    if let Err(e) = vm.var_set(&n, Value::list(new_items)) {
+    if let Err(e) = vm.var_set(&n, rest) {
         return e;
     }
     ok(removed)
-}
-
-/// Resolve `spec` against a length-`len` list for `lpop`/`lset`-style index
-/// descent: a non-integer index is a "bad index" error; an in-form but
-/// out-of-bounds index is "index … out of range" — matching C's
-/// `Tcl_LpopObjCmd`.
-fn resolve_bounded_index(vm: &mut Vm, spec: &str, len: usize) -> Result<usize, Completion<Value>> {
-    let Some(idx) = crate::command::resolve_index(vm, spec, len) else {
-        return Err(crate::command::bad_index(vm, spec));
-    };
-    if idx < 0 || usize::try_from(idx).is_ok_and(|i| i >= len) {
-        return Err(err(format!("index \"{spec}\" out of range")));
-    }
-    Ok(usize::try_from(idx).expect("idx >= 0 checked above"))
-}
-
-/// Remove the element at the (possibly nested) `indices` path from `items`,
-/// returning `(removed_element, rebuilt_list)`.
-///
-/// Recursing once per index natively has no depth cap and is trivially
-/// inflated via `lpop v {*}[lrepeat 100000 0]`. This walks with an explicit
-/// work-stack instead of one native call per index, which eliminates the
-/// native-stack risk entirely: walk down every index but the last, recording
-/// each level's element vector and the index it descends through, remove
-/// the final element, then rebuild bottom-up — the same index resolution, in
-/// the same order, as a naive recursive version, so error precedence is
-/// unaffected.
-fn lpop_remove(
-    vm: &mut Vm,
-    items: &[Value],
-    indices: &[Value],
-) -> Result<(Value, Vec<Value>), Completion<Value>> {
-    let (last, front) = indices.split_last().expect("lpop has at least one index");
-    let mut frames: Vec<(Vec<Value>, usize)> = Vec::with_capacity(front.len());
-    let mut cur: Vec<Value> = items.to_vec();
-    for spec_val in front {
-        let i = resolve_bounded_index(vm, &spec_val.to_str(), cur.len())?;
-        let sub = match cur[i].as_list() {
-            Ok(s) => (*s).clone(),
-            Err(e) => return Err(crate::command::completion_from_tcl_error(vm, e)),
-        };
-        frames.push((cur, i));
-        cur = sub;
-    }
-    let i = resolve_bounded_index(vm, &last.to_str(), cur.len())?;
-    let removed = cur.remove(i);
-    let mut rebuilt = cur;
-    for (mut outer, i) in frames.into_iter().rev() {
-        outer[i] = Value::list(rebuilt);
-        rebuilt = outer;
-    }
-    Ok((removed, rebuilt))
 }
 
 /// `lsearch ?-option value ...? list pattern` — a thin adapter over the shared
@@ -612,6 +544,7 @@ fn cmd_split(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_dialect::TclVersion;
 
     type CallbackObservations = std::rc::Rc<std::cell::RefCell<Vec<Vec<(String, usize)>>>>;
 
@@ -904,67 +837,53 @@ mod tests {
         }
     }
 
+    /// The shared `lpop` core under the VM's default release.
+    fn lpop(list: &Value, indices: &[Value]) -> Result<(Value, Value), tcl_cmd_core::CmdError> {
+        let mut vm = Vm::new();
+        list_core::lpop(&mut vm, list, indices, TclVersion::V9_0)
+    }
+
     /// A fixed deep index path exercises iterative descent, reconstruction
     /// and original native header retirement on the ordinary test thread.
     /// The leaf and rebuilt outer shape must retain their exact values.
     #[test]
     fn deeply_nested_lpop_survives_and_is_correct() {
         const DEPTH: usize = 2_000;
-        // `whole` = `DEPTH` levels of `[list $v]` around a scalar leaf;
-        // `items` is `whole` with one layer already stripped off (mirroring
-        // what `cmd_lpop` passes in: the already-`as_list()`-ed variable).
+        // `DEPTH + 1` levels of `[list $v]` around a scalar leaf, so the path
+        // of `DEPTH + 1` zeros bottoms out at the leaf.
         let mut whole = Value::string("leaf");
-        for _ in 0..DEPTH {
+        for _ in 0..=DEPTH {
             whole = Value::list(vec![whole]);
         }
-        let items: Vec<Value> = (*whole.as_list().expect("built as a list")).clone();
-        let indices: Vec<Value> = (0..DEPTH).map(|_| Value::string("0")).collect();
-        let (removed, rest) = lpop_remove(&mut crate::interp::Vm::new(), &items, &indices)
-            .expect("lpop_remove survives and succeeds");
+        let indices: Vec<Value> = (0..=DEPTH).map(|_| Value::string("0")).collect();
+        let (removed, rest) = lpop(&whole, &indices).expect("the lpop core survives and succeeds");
         assert_eq!(&*removed.to_str(), "leaf");
         // The outermost shape (one element) is preserved; only the
         // innermost slot the path bottomed out at was actually emptied.
-        assert_eq!(rest.len(), 1);
+        assert_eq!(rest.as_list().expect("a list").len(), 1);
     }
 
     /// A moderately nested `lpop` index path (well within realistic use) is
-    /// byte-for-byte unaffected by the iterative rewrite.
+    /// byte-for-byte unaffected by the shared core.
     #[test]
     fn moderately_nested_lpop_matches_previous_behavior() {
-        let items = vec![
+        let items = Value::list(vec![
             Value::list(vec![Value::int(1), Value::int(2)]),
             Value::list(vec![Value::int(3), Value::int(4)]),
-        ];
-        let (removed, rest) = lpop_remove(
-            &mut crate::interp::Vm::new(),
-            &items,
-            &[Value::string("1"), Value::string("0")],
-        )
-        .unwrap();
+        ]);
+        let (removed, rest) = lpop(&items, &[Value::string("1"), Value::string("0")]).unwrap();
         assert_eq!(&*removed.to_str(), "3");
-        assert_eq!(rest.len(), 2);
-        assert_eq!(&*rest[0].to_str(), "1 2");
-        assert_eq!(&*rest[1].to_str(), "4");
+        assert_eq!(&*rest.to_str(), "{1 2} 4");
 
         // Single-level removal.
-        let flat = vec![Value::int(1), Value::int(2), Value::int(3)];
-        let (removed, rest) =
-            lpop_remove(&mut crate::interp::Vm::new(), &flat, &[Value::string("1")]).unwrap();
+        let flat = Value::list(vec![Value::int(1), Value::int(2), Value::int(3)]);
+        let (removed, rest) = lpop(&flat, &[Value::string("1")]).unwrap();
         assert_eq!(&*removed.to_str(), "2");
-        assert_eq!(rest.len(), 2);
-        assert_eq!(&*rest[0].to_str(), "1");
-        assert_eq!(&*rest[1].to_str(), "3");
+        assert_eq!(&*rest.to_str(), "1 3");
 
         // A non-integer index is still a "bad index" error.
-        assert!(
-            lpop_remove(
-                &mut crate::interp::Vm::new(),
-                &flat,
-                &[Value::string("bogus")]
-            )
-            .is_err()
-        );
+        assert!(lpop(&flat, &[Value::string("bogus")]).is_err());
         // An in-form but out-of-bounds index is still "out of range".
-        assert!(lpop_remove(&mut crate::interp::Vm::new(), &flat, &[Value::string("10")]).is_err());
+        assert!(lpop(&flat, &[Value::string("10")]).is_err());
     }
 }

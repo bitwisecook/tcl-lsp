@@ -88,6 +88,7 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::strided(ArgRole::Va
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "classvariable",
+        runtime_backing: RuntimeBacking::shipped("classvariable"),
         traits: TRAITS,
         surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(1),

@@ -38,7 +38,7 @@
 //! import, a copy-pasted call — anywhere in the Rust tree, so the retired
 //! spelling cannot come back under a fresh definition either.
 //!
-//! It also holds the `one-vocabulary` lane's two retirements: the
+//! It also holds the `one-vocabulary` retirements: the
 //! `StubOverlay` per-document command overlay (gap ruling R1 — stubs are
 //! provenance-tagged `SurfaceDeclaration`s now) and the second command-table
 //! transition vocabulary (`CommandRegistry::command_table_effect`
@@ -53,7 +53,7 @@
 //! waiver on the flagged line or one of the four lines above it, and must
 //! be recorded in the centralisation ledger.
 //!
-//! # The one-oracle gate (gap ruling R10)
+//! # The one-oracle gate
 //!
 //! The second family this file carries is not about *deleted* spellings but
 //! about **owned** ones: does
@@ -260,7 +260,7 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "OptionConstraint",
         outside_registry_only: false,
     },
-    // The `one-loader` lane: `SpecTcl` had two
+    // The `one-loader` retirements: `SpecTcl` had two
     // live implementations of "load a pack" — design E's evaluation loader
     // and the CST front end it was proved byte-identical to. The CST front
     // end is deleted; `tcl_spectcl::loader::evaluate_pack` (uncached) and
@@ -291,7 +291,7 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "eval_snapshot_memoised",
         outside_registry_only: false,
     },
-    // The `one-vocabulary` lane, gap ruling R1: the
+    // The `one-vocabulary` retirements, gap ruling R1: the
     // per-document `# tcl-lsp: stub` overlay and its parallel vocabulary.
     // Stubs ingest as provenance-tagged `SurfaceDeclaration`s now
     // (`tcl_registry::model::declaration`), read through the one
@@ -320,7 +320,7 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "to_stub_sig",
         outside_registry_only: false,
     },
-    // The `one-vocabulary` lane: the second command-table transition
+    // The `one-vocabulary` retirements: the second command-table transition
     // vocabulary. `CommandTableEffect` survives as
     // the pack-authoring **selector** — `CommandSpec::command_table_effect`
     // is still a field a `SpecTcl` pack writes — but the consumer-facing
@@ -446,6 +446,11 @@ const OWNED: &[OwnedPattern] = &[
     // contracts; binding and invocation consumers still query only the surface.
     // `optimiser/branch_folding.rs` is on the list for a test fixture that
     // hand-builds a `CompilationUnit` and so has to name the field's type.
+    // `tcl-lsp-core`'s `minify.rs` is a carrier too (its rename-barrier walk
+    // hands `build_declared_surface`'s set to `DocumentCommandSurface`), but
+    // it never spells `DeclaredSurface` itself, so it is not listed as an
+    // owner: an inert entry would silence a future hand-built
+    // `DeclaredSurface::new()` there instead of catching it.
     OwnedPattern {
         needle: "DeclaredSurface",
         owners: &[
@@ -532,7 +537,7 @@ pub fn run(_check: bool) -> ExitCode {
 
     if hits > 0 {
         eprintln!(
-            "retired-api-gate: {hits} use(s) of retired P1-G API spellings — resolve \
+            "retired-api-gate: {hits} use(s) of retired API spellings — resolve \
              through `tcl_registry::model::ingress` (the one dialect-name seam) or \
              `ResolvedContext`'s queries instead, or mark a reviewed exception with \
              `// {RETIRED_WAIVER} <reason>` and a ledger entry \
@@ -746,7 +751,7 @@ mod tests {
             ("requires.init_only = parse_flag(stmt.tail());", 1),
             ("if let Some(want) = requires.capability { }", 1),
             ("let c: &[OptionConstraint] = &[];", 1),
-            // The `one-vocabulary` lane — gap ruling R1.
+            // The `one-vocabulary` retirements — gap ruling R1.
             ("use tcl_registry::stub_overlay::StubOverlay;", 2),
             ("let mut o = StubOverlay::new();", 1),
             ("let s: StubSig = def.to_stub_sig();", 2),

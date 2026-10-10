@@ -31,7 +31,7 @@
 //!   the commands a *document* declares for itself (`# tcl-lsp: stub`
 //!   blocks and `.tcl.stubs` sidecars) ingested as provenance-tagged
 //!   [`SurfaceDeclaration`]s, and the one door a consumer asks about the
-//!   catalogue **and** those declarations (gap ruling R1).
+//!   catalogue **and** those declarations.
 //! - [`context`] — [`ResolvedContext`] (environment + per-axis floor map)
 //!   and the [`ContextQueries`] **assistance view** (§1.2 R-c/R-d split):
 //!   `is_available`, `available_at_targets`.
@@ -59,6 +59,9 @@
 //!   realm scan produces these values, and the [`assembly`] selection
 //!   primitives enforce the binding-proof rule (I4) over the carried
 //!   context.
+//! - [`capability`] — [`CodegenCapability`]: what the packs of a package at
+//!   each [`DependencyTier`] may declare, the capability gate the pack
+//!   loader applies beside its provenance gate.
 //!
 //! Everything here lands **alongside** the old `SpecSurface`-mask registry:
 //! nothing existing is wrapped or shimmed, and the equivalence sweeps in
@@ -67,10 +70,12 @@
 
 pub mod assembly;
 pub mod binding;
+pub mod capability;
 pub mod context;
 pub mod declaration;
 pub mod ingress;
 pub mod registration;
+pub mod runtime_context;
 pub mod semantic;
 mod source_unavailability;
 pub use source_unavailability::{CommandSourceUnavailability, CommandSourceUnavailabilityKind};
@@ -78,19 +83,21 @@ pub mod surface;
 pub mod tcllib;
 
 pub use assembly::{
-    ContextRegistry, registry_for_environment, registry_for_environment_if_built,
-    resolve_call_in_context, resolve_invocation_in_context, side_effect_hints_in_context,
+    ContextRegistry, OverlayMiss, registry_for_environment, registry_for_environment_if_built,
+    resolve_call_in_context, resolve_invocation_in_context, resolve_invocation_words_in_context,
+    side_effect_hints_in_context, store_profiles,
 };
 pub use binding::{
     BindingKnowledge, BindingTarget, PackageState, PackageStateMap, PackageTransition, SpecKey,
 };
+pub use capability::{CodegenCapability, DependencyTier, ReferenceBodies};
 pub use context::{
     AuthoringScope, ContextQueries, FloorMap, KeyedVersions, ResolvedContext, core_tcl_floor,
     ladder_releases_in, requirement_spelling, specificity_breadth, targets_from_clauses,
 };
 pub use declaration::{
-    DeclaredArgument, DeclaredCommand, DeclaredSurface, DocumentCommandSurface, role_for_word,
-    role_for_word_checked,
+    DeclaredArgument, DeclaredCommand, DeclaredFrameEffect, DeclaredSurface,
+    DocumentCommandSurface, role_for_word, role_for_word_checked,
 };
 pub use ingress::{
     DocumentEnvironment, context_for_profile, environments, irules_context,
@@ -98,13 +105,16 @@ pub use ingress::{
     selectable_environments, static_context_for, static_context_for_profile,
     static_document_context_for, static_document_context_for_profile,
 };
+pub use runtime_context::{
+    PinError, PinnedContext, pin, runtime_context_for_profile, runtime_context_of,
+};
 pub use semantic::{SemanticContext, resolve_structured_invocation_in_context};
 pub use tcllib::{TCLLIB_MODULES, TcllibModule, module_version_set, tcllib_module};
 
 pub use registration::{
     EnvironmentExtension, EnvironmentRegistrationError, EnvironmentSource, RejectedSource,
     SyncOutcome, live_environments, provenance_label, register_environments,
-    sync_environment_sources,
+    sync_environment_sources, untrusted,
 };
 pub use surface::{
     BuildCapability, CapabilityPredicate, PackageId, Provider, SurfaceDeclaration,

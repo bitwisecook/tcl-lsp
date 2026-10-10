@@ -1086,7 +1086,7 @@ fn switch_exact_return_arms_jump_table() {
     // A `switch -exact` whose arms all `return` compiles to a jump table for the
     // dispatch (exact string equality), with each arm body emitted.
     let fa = proc_via_backend(
-        "proc dispatch {cmd} { switch -exact $cmd { add { return 1 } sub { return 2 } mul { return 3 } default { return 0 } } }",
+        "proc dispatch {cmd} { switch -exact -- $cmd { add { return 1 } sub { return 2 } mul { return 3 } default { return 0 } } }",
         "::dispatch",
     );
     let ops = opcodes(&fa);

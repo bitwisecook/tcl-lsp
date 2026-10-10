@@ -100,6 +100,7 @@ impl Asm {
             plain_command_dispatch: false,
             command_bindings: Vec::new(),
             procedure_bindings: Vec::new(),
+            site_claims: Vec::new(),
         }
     }
 }

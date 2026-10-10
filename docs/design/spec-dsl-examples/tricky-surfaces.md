@@ -49,7 +49,7 @@ ported examples rather than against intent.
 - Options that change other arguments: `-regexp`/`-glob` selecting the
   pattern language of a *later* word; `-command` implying a callback
   with appended arity; `-index` changing index interpretation; mutual
-  exclusion sets (`option_constraints`); options whose *value* carries a
+  exclusion sets (`option_relations`); options whose *value* carries a
   role (`-textvariable` reads and writes) or a closed/integer domain;
   fixed multi-word values; per-option dialect and lifecycle gates;
   abbreviation rules (`min_abbrev`, strict tables, aliases like `-bg`);

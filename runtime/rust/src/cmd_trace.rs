@@ -48,7 +48,7 @@ use tcl_runtime_api::Namespaces;
 use tcl_syntax::value::ValueOps;
 
 use crate::frame::VarError;
-use crate::interp::{new_string, obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, new_string, obj_bytes};
 use crate::namespace::NsId;
 use crate::obj::TclObj;
 
@@ -84,9 +84,9 @@ pub struct VarTrace {
         tcl_runtime_api::native_variable_trace::NativeVariableTraceToken,
         std::rc::Rc<
             dyn tcl_runtime_api::native_variable_trace::NativeVariableObserver<
-                Interp,
-                Error = tcl_cmd_core::CmdError,
-            >,
+                    Interp,
+                    Error = tcl_cmd_core::CmdError,
+                >,
         >,
     )>,
     /// For a trace on a **proc-local** variable, the call-frame level it lives
@@ -374,6 +374,7 @@ pub(crate) fn trace_var_error(interp: &mut Interp, name: &[u8], error: VarError)
         VarError::DeletedArray => b"upvar refers to element in deleted array".as_slice(),
         VarError::IsConstant => b"variable is a constant".as_slice(),
         VarError::TraceError => b"trace callback failed".as_slice(),
+        VarError::Confined => b"stores are confined to the activation".as_slice(),
     };
     let mut message = b"can't trace \"".to_vec();
     message.extend_from_slice(name);
@@ -2311,5 +2312,52 @@ mod tests {
                 b"bad option \"zzz\": must be add, info, or remove"
             );
         });
+    }
+
+    /// The `trace` option table is the pinned profile's, not the plain release
+    /// its runtime version names: an iRules interpreter emulates 8.4 but the
+    /// TMM's Tcl has only the three legacy forms, so `trace add` — which
+    /// `tcl8.4` has — is a bad option there and `trace variable` is not. The
+    /// permissive fallback states no table of its own, so an interpreter pinned
+    /// to nothing keeps answering for the release it emulates, Tcl 9, which has
+    /// lost the legacy forms.
+    #[test]
+    fn the_trace_gate_reads_the_pinned_profile_not_the_release_name() {
+        let probe = |profile: Option<&'static tcl_dialect::DialectProfile>, form: &str| {
+            let mut answer = Vec::new();
+            leak_free(|i| {
+                if let Some(profile) = profile {
+                    i.set_dialect_profile(profile);
+                }
+                ok(
+                    i,
+                    format!("set r \"[catch {{trace {form}}} m]:$m\"").as_bytes(),
+                );
+                answer = i.result_bytes();
+            });
+            String::from_utf8(answer).expect("utf-8")
+        };
+        let resolve =
+            |name: &str| tcl_registry::model::resolve_environment(name).analyser_profile();
+        let add = "add variable x write cb";
+        let legacy = "variable x w cb";
+
+        assert_eq!(
+            probe(Some(tcl_dialect::DialectProfile::irules()), add),
+            "1:bad option \"add\": must be variable, vdelete, or vinfo"
+        );
+        assert_eq!(
+            probe(Some(tcl_dialect::DialectProfile::irules()), legacy),
+            "0:"
+        );
+        assert_eq!(probe(Some(resolve("tcl8.4")), add), "0:");
+        assert_eq!(probe(Some(resolve("tcl8.4")), legacy), "0:");
+        for profile in [Some(resolve("tcl9.0")), None] {
+            assert_eq!(probe(profile, add), "0:");
+            assert_eq!(
+                probe(profile, legacy),
+                "1:bad option \"variable\": must be add, info, or remove"
+            );
+        }
     }
 }

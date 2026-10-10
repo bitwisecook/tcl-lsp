@@ -31,7 +31,7 @@
 //! [`CoreProfile::expr`](crate::model::family::CoreProfile).
 //!
 //! Seeded: the Tcl family per release, iRules (the ten word operators on
-//! an 8.4 base), and — since P6 — the Jim ladder read out of the
+//! an 8.4 base), and the Jim ladder read out of the
 //! upstream `jim.c` at every tag from 0.76 to 0.84: the full `OPRINIT`
 //! binding-power tables, the release at which each word and symbolic
 //! operator arrives, the twenty-six mathfuncs with the seven that
@@ -40,7 +40,7 @@
 //! model needed nine profiles.
 //!
 //! **The Jim rows are transcripts, not readings.** Five `jimsh` binaries
-//! were built from the upstream tags for P6 — 0.76 `--full`, 0.79
+//! were built from the upstream tags — 0.76 `--full`, 0.79
 //! `--full`, 0.81 default, 0.84 default, 0.84 `--minimal` — and each
 //! divergence below was run:
 //!
@@ -443,7 +443,7 @@ const F5_TCL_PRECEDENCE_ROWS: &[(&str, u16, u16)] = &[
 /// `OP_RIGHT_ASSOC`). 0.77 lowered it to 120 *and* made it
 /// right-associative, with the comment "Precedence is higher than * and
 /// / but lower than ! and ~". Both halves are measurable on a built
-/// `jimsh`, and both were measured for P6: `expr {-2 ** 2}` is **-4** at
+/// `jimsh`, and both were measured: `expr {-2 ** 2}` is **-4** at
 /// 0.76 and **4** at 0.79 (the unary minus overtakes `**`), and
 /// `expr {2 ** 3 ** 2}` is **64** at 0.76 and **512** at 0.79. This is
 /// the one row Jim ever moved, and it is why the table is release-keyed
@@ -616,8 +616,7 @@ const JIM_SYMBOLIC: &[(&str, Release)] = &[
 // which names are expr functions and when each appeared): the 8.4 fixed C
 // table, TIP 232's 8.5 additions, TIP 521's 9.0 classifications, and TIP
 // 745's 9.1 C99 batch. `tcl-syntax` sits above this crate, so equality is
-// pinned by count/spot tests here and by the P6+ migration that makes
-// `mathfunc.rs` read this table instead.
+// checked by the count and spot tests here.
 const TCL_MATHFUNCS: &[MathFunc] = &[
     func("abs", Release::TCL_8_4),
     func("acos", Release::TCL_8_4),
@@ -861,7 +860,7 @@ const EXPR_JIM_0_80: ExprGrammar = ExprGrammar {
 /// concatenates. `--compat` is off unless asked for (a plain `opt-bool
 /// compat` in `auto.def`), so the ladder value is the default build's;
 /// expressing the other column needs a `BuildProfileId::JimCompat` and a
-/// build-keyed `expr` resolution, which is P6's recorded next probe.
+/// build-keyed `expr` resolution. The model does not expose `--compat`.
 const EXPR_JIM_0_81: ExprGrammar = ExprGrammar {
     comments: ExprCommentStyle::Hash,
     arity: ExprArity::ExactlyOne,
@@ -1005,9 +1004,7 @@ mod tests {
     }
 
     /// Every Jim binding power is twice its `OPRINIT` precedence, and the
-    /// whole table — not just the comparison block — is now present, so
-    /// `lookup` no longer answers `None` for the arithmetic and bitwise
-    /// scaffold the design left for P6.
+    /// whole table covers comparison, arithmetic and bitwise operators.
     #[test]
     fn the_jim_table_is_the_whole_oprinit_table() {
         let g = expr(Family::Jim, Release::JIM_0_84);
@@ -1330,7 +1327,7 @@ mod tests {
                 // the table must bind it exactly from that release on —
                 // and must *not* bind it before (a `=~` binding power
                 // under `jim 0.80` would be an operator the core has no
-                // lexeme for). P6's full `OPRINIT` transcription is what
+                // lexeme for). The full `OPRINIT` transcription is what
                 // lets this be an equality rather than an exemption
                 // list.
                 for &(spelling, since) in g.symbolic_operators {

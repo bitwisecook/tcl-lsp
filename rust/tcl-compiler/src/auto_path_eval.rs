@@ -31,7 +31,11 @@
 //!
 //! The supported subset is `[info script]`, `[file dirname …]`,
 //! `[file join …]`, `[file normalize …]` (anchored arguments only — see
-//! [`eval_file_normalize`]), literal words, and `~`-prefixed paths.
+//! [`eval_file_normalize`]), the other `file` name operations the registry
+//! routes (`tail`, `extension`, `rootname`, `split`) over names every
+//! platform reads alike, literal words, and `~`-prefixed paths. A name
+//! operation reads the registry's route where it answers, and the
+//! host's slash-form reading below for the rest.
 //! Variable references (`$dir`, `${dir}`, `pre_$dir`) are resolved through
 //! whatever resolver the **caller** supplies — this module owns what a path
 //! expression *means*, the caller owns what a variable *is worth*, and the
@@ -167,7 +171,7 @@ pub fn evaluate_auto_path_entry_with_constants<C: PathConstantLookup + ?Sized>(
     let raw = entry.raw_path.as_str();
     if raw.contains('$') || raw.contains('[') {
         // Computed: fold it as an expression, as one directory.
-        return evaluate_auto_path_expr_with_constants(raw, info_script, constants)
+        return evaluate_auto_path_expr_with_constants(raw, info_script, constants, profile)
             .into_iter()
             .collect();
     }
@@ -182,6 +186,17 @@ pub fn evaluate_auto_path_entry_with_constants<C: PathConstantLookup + ?Sized>(
         .iter()
         .filter_map(|el| fold_path_value(el))
         .collect()
+}
+
+/// The commands a document of `dialect` reads, or of no named dialect
+/// ([`tcl_dialect::DialectProfile::plain_tcl`]).
+fn commands_of(
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> &'static tcl_registry::CommandRegistry {
+    tcl_registry::model::static_context_for_profile(
+        dialect.unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
+    )
+    .commands()
 }
 
 /// Fold one already-substituted path *value* (a `~` expansion plus lexical
@@ -215,10 +230,11 @@ fn fold_path_value(value: &str) -> Option<String> {
 /// result stays relative").
 ///
 /// Returns `None` when any part of the expression is outside the
-/// supported subset.
+/// supported subset. It reads the commands of a document of no named dialect
+/// ([`tcl_dialect::DialectProfile::plain_tcl`]).
 #[must_use]
 pub fn evaluate_auto_path_expr(raw: &str, info_script: Option<&str>) -> Option<String> {
-    evaluate_auto_path_expr_with_constants(raw, info_script, &HashMap::new())
+    evaluate_auto_path_expr_with_constants(raw, info_script, &HashMap::new(), None)
 }
 
 /// Whether `text` still carries an unevaluated substitution — a `$` variable
@@ -250,8 +266,14 @@ pub fn evaluate_auto_path_expr_with_constants<C: PathConstantLookup + ?Sized>(
     raw: &str,
     info_script: Option<&str>,
     constants: &C,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<String> {
-    evaluate_auto_path_expr_with_resolver(raw, info_script, &|name| constants.path_constant(name))
+    evaluate_auto_path_expr_with_resolver(
+        raw,
+        info_script,
+        &|name| constants.path_constant(name),
+        dialect,
+    )
 }
 
 /// The full evaluator: fold `raw` with variable references answered by
@@ -282,12 +304,16 @@ pub fn evaluate_auto_path_expr_with_resolver(
     raw: &str,
     info_script: Option<&str>,
     resolve_var: &dyn Fn(&str) -> Option<String>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<String> {
     evaluate_auto_path_expr_with_resolver_and_braced_vars(
         raw,
         info_script,
         resolve_var,
-        tcl_dialect::BracedVarStyle::default(),
+        dialect.map_or_else(tcl_dialect::BracedVarStyle::default, |profile| {
+            profile.grammar.braced_var
+        }),
+        dialect,
     )
 }
 
@@ -300,6 +326,7 @@ pub fn evaluate_auto_path_expr_with_resolver_and_braced_vars(
     info_script: Option<&str>,
     resolve_var: &dyn Fn(&str) -> Option<String>,
     braced_vars: tcl_dialect::BracedVarStyle,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<String> {
     let raw = raw.trim();
     if raw.is_empty() {
@@ -318,7 +345,14 @@ pub fn evaluate_auto_path_expr_with_resolver_and_braced_vars(
     let info_script = info_script
         .map(to_tcl_slash_form)
         .filter(|p| !is_drive_relative(p));
-    let result = eval(&node, info_script.as_deref(), resolve_var, braced_vars)?;
+    let registry = commands_of(dialect);
+    let result = eval(
+        &node,
+        info_script.as_deref(),
+        resolve_var,
+        braced_vars,
+        registry,
+    )?;
     // Expand `~` and normalise (collapsing `..`) so the parent-dir idiom
     // resolves to a real directory.  A rootless result is left for the
     // caller to anchor.
@@ -647,6 +681,7 @@ fn eval(
     info_script: Option<&str>,
     resolve_var: &dyn Fn(&str) -> Option<String>,
     braced_vars: tcl_dialect::BracedVarStyle,
+    registry: &tcl_registry::CommandRegistry,
 ) -> Option<String> {
     match node {
         Node::Lit(value) => {
@@ -673,43 +708,59 @@ fn eval(
         }
         Node::Cmd(name, args) => {
             if name == "info" && args.len() == 1 {
-                return match eval(&args[0], info_script, resolve_var, braced_vars).as_deref() {
+                return match eval(&args[0], info_script, resolve_var, braced_vars, registry)
+                    .as_deref()
+                {
                     Some("script") => info_script.map(str::to_owned),
                     _ => None,
                 };
             }
             if name == "file" && args.len() >= 2 {
-                let sub = eval(&args[0], info_script, resolve_var, braced_vars)?;
-                if sub == "dirname" && args.len() == 2 {
-                    return Some(path_dirname(&eval(
-                        &args[1],
-                        info_script,
-                        resolve_var,
-                        braced_vars,
-                    )?));
+                let sub = eval(&args[0], info_script, resolve_var, braced_vars, registry)?;
+                let names = args[1..]
+                    .iter()
+                    .map(|node| eval(node, info_script, resolve_var, braced_vars, registry))
+                    .collect::<Option<Vec<_>>>()?;
+                if let Some(value) = file_route(&sub, &names, registry) {
+                    return Some(value);
                 }
-                if sub == "normalize" && args.len() == 2 {
-                    return eval_file_normalize(&eval(
-                        &args[1],
-                        info_script,
-                        resolve_var,
-                        braced_vars,
-                    )?);
+                // value-transfer-ok: explicit host path algebra when the portable route declines platform-relative names.
+                if sub == "dirname" && names.len() == 1 {
+                    return Some(path_dirname(&names[0]));
                 }
-                if sub == "join" && args.len() >= 2 {
-                    let mut parts: Vec<String> = Vec::new();
-                    for a in &args[1..] {
-                        parts.push(eval(a, info_script, resolve_var, braced_vars)?);
-                    }
-                    if parts.is_empty() {
-                        return None;
-                    }
-                    return Some(path_join(&parts));
+                if sub == "normalize" && names.len() == 1 {
+                    return eval_file_normalize(&names[0]);
+                }
+                if sub == "join" {
+                    return Some(path_join(&names));
                 }
             }
             None
         }
     }
+}
+
+/// `file SUB names…` on the path route the call resolves to in the document's
+/// dialect, as every analysis resolves it, which answers only names
+/// every platform and release reads alike: the value the lattice gives
+/// the same call.
+fn file_route(
+    sub: &str,
+    names: &[String],
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<String> {
+    let mut words: Vec<&str> = vec![sub];
+    words.extend(names.iter().map(String::as_str));
+    let schema =
+        tcl_registry::model::resolve_invocation_in_context(registry, None, "file", &words)?;
+    let subcommand = schema.subcommand.resolved()?;
+    tcl_registry::value_transfer::evaluate_literal(
+        schema.semantics.value.semantics()?,
+        schema.canonical_command,
+        Some(subcommand.name),
+        &words[1..],
+        registry.runtime_version(),
+    )
 }
 
 /// `file normalize` in slash form, or `None` when the argument is not already
@@ -904,6 +955,24 @@ mod tests {
     // Absolute `info_script` keeps the fold rooted; a rootless fold result
     // is returned relative (see the module docs), never anchored on the
     // analysing process's working directory.
+
+    /// `file` resolves in the document's dialect: iRules has no `file`,
+    /// so `file tail`, which only the route answers, folds in a plain Tcl
+    /// document and not in an iRule.
+    #[test]
+    fn a_file_route_is_the_documents_dialects() {
+        let irules = tcl_dialect::DialectProfile::find("f5-irules").expect("f5-irules");
+        let fold = |dialect| {
+            evaluate_auto_path_expr_with_constants(
+                "[file tail /a/b]",
+                None,
+                &HashMap::new(),
+                dialect,
+            )
+        };
+        assert_eq!(fold(None).as_deref(), Some("b"));
+        assert_eq!(fold(Some(irules)), None);
+    }
 
     #[test]
     fn dirname_of_info_script() {
@@ -1113,6 +1182,7 @@ mod tests {
                 "[file join $sourceDir ngspice x.tcl]",
                 Some("/proj/SpiceGenTcl.tcl"),
                 &constants,
+                None,
             )
             .as_deref(),
             Some("/proj/src/ngspice/x.tcl"),
@@ -1174,7 +1244,7 @@ mod tests {
         assert_eq!(constants.get("d").map(String::as_str), Some("my dir"));
         assert_eq!(constants.get("sub").map(String::as_str), Some("my dir/x"));
         assert_eq!(
-            evaluate_auto_path_expr_with_constants("[file join $d y.tcl]", None, &constants)
+            evaluate_auto_path_expr_with_constants("[file join $d y.tcl]", None, &constants, None)
                 .as_deref(),
             Some("my dir/y.tcl"),
         );
@@ -1188,11 +1258,13 @@ mod tests {
             .into_iter()
             .collect();
         assert_eq!(
-            evaluate_auto_path_expr_with_constants("$base/lib/x.tcl", None, &constants).as_deref(),
+            evaluate_auto_path_expr_with_constants("$base/lib/x.tcl", None, &constants, None)
+                .as_deref(),
             Some("/opt/lib/x.tcl"),
         );
         assert_eq!(
-            evaluate_auto_path_expr_with_constants("${base}2/x.tcl", None, &constants).as_deref(),
+            evaluate_auto_path_expr_with_constants("${base}2/x.tcl", None, &constants, None)
+                .as_deref(),
             Some("/opt2/x.tcl"),
         );
     }
@@ -1205,7 +1277,7 @@ mod tests {
         let constants: HashMap<String, String> =
             [("d".to_owned(), "/opt".to_owned())].into_iter().collect();
         assert_eq!(
-            evaluate_auto_path_expr_with_constants("[file join {$d} x]", None, &constants),
+            evaluate_auto_path_expr_with_constants("[file join {$d} x]", None, &constants, None),
             None,
         );
     }
@@ -1215,14 +1287,16 @@ mod tests {
     /// SCCP value table — plugs in here without this module knowing it.
     #[test]
     fn a_custom_resolver_supplies_variable_provenance() {
-        let folded =
-            evaluate_auto_path_expr_with_resolver("[file join $root pkg]", None, &|name| {
-                (name == "root").then(|| "/from/lattice".to_owned())
-            });
+        let folded = evaluate_auto_path_expr_with_resolver(
+            "[file join $root pkg]",
+            None,
+            &|name| (name == "root").then(|| "/from/lattice".to_owned()),
+            None,
+        );
         assert_eq!(folded.as_deref(), Some("/from/lattice/pkg"));
         // An unresolved name abstains the whole fold — never a guess.
         assert_eq!(
-            evaluate_auto_path_expr_with_resolver("[file join $other pkg]", None, &|_| None),
+            evaluate_auto_path_expr_with_resolver("[file join $other pkg]", None, &|_| None, None),
             None,
         );
     }
@@ -1265,6 +1339,7 @@ mod tests {
                 "[file join $::snit::library main1.tcl]",
                 Some("/lib/snit/snit.tcl"),
                 &constants,
+                None,
             )
             .as_deref(),
             Some("/lib/snit/main1.tcl"),
@@ -1328,6 +1403,7 @@ mod tests {
                 "[file join $::alited::HLDIR hl_c.tcl]",
                 Some("/app/src/alited.tcl"),
                 &constants,
+                None,
             )
             .as_deref(),
             Some("/app/src/lib/hl_tcl/hl_c.tcl"),
@@ -1378,6 +1454,7 @@ mod tests {
                 "${::osvvm::OsvvmScriptDirectory}/OsvvmScriptsCore.tcl",
                 Some("/scripts/StartUpShared.tcl"),
                 &merged,
+                None,
             )
             .as_deref(),
             Some("/scripts/OsvvmScriptsCore.tcl"),
@@ -1500,8 +1577,13 @@ mod tests {
         );
         assert_eq!(constants.get("dir").map(String::as_str), Some("$root"));
         assert_eq!(
-            evaluate_auto_path_expr_with_constants("[file join $dir x.tcl]", None, &constants,)
-                .as_deref(),
+            evaluate_auto_path_expr_with_constants(
+                "[file join $dir x.tcl]",
+                None,
+                &constants,
+                None,
+            )
+            .as_deref(),
             Some("$root/x.tcl"),
             "the folded target is the literal directory Tcl would use",
         );
@@ -1529,6 +1611,7 @@ mod tests {
                 "[file join $demo::dir config.tcl]",
                 Some("/ex/config.tcl"),
                 &constants,
+                None,
             )
             .as_deref(),
             Some("/ex/config.tcl"),
@@ -1558,6 +1641,7 @@ mod tests {
                 "[file join $::ttk::library fonts.tcl]",
                 Some("/tk/ttk/ttk.tcl"),
                 &constants,
+                None,
             ),
             None,
         );
@@ -1816,7 +1900,7 @@ mod tests {
         assert_eq!(to_tcl_slash_form("/proj/lib"), "/proj/lib");
     }
 
-    /// The P1 itself: `Uri::to_file_path` hands back a native Windows path, and
+    /// Path conversion: `Uri::to_file_path` hands back a native Windows path, and
     /// the `[file dirname [info script]]` idiom must resolve against *it*, not
     /// silently fall through to the process working directory.
     #[test]

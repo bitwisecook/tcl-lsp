@@ -50,6 +50,10 @@ tcl-syntax = { path = "../tcl-syntax" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-platform = { path = "../tcl-platform" }
 tcl-runtime-api = { path = "../tcl-runtime-api" }
+# The iRules digest functions (`irules::digest`): RFC 1321 and FIPS 180-4.
+md-5 = "0.11"
+sha1 = "0.11"
+sha2 = "0.11"
 
 [lints]
 workspace = true

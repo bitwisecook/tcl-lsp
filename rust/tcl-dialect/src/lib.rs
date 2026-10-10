@@ -69,7 +69,7 @@ pub use grammar::{
     is_expr_word_operator,
 };
 pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
-pub use profile::{DialectFileExtension, DialectProfile, DialectProfileKey};
+pub use profile::{DialectFileExtension, DialectProfile, DialectProfileKey, EvaluationEvidence};
 pub use version::{
     ByteStringEncoding, ConcatPolicy, CorePackage, DirectPackageFile, DirectPackageFileBytes,
     DirectPackageFileKind, FrameLevelPresence, IndexGrammar, IndexIntegerWidth, IndexSyntax,

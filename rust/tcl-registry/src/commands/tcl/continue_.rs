@@ -38,6 +38,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("continue"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
@@ -57,6 +58,7 @@ pub fn spec() -> CommandSpec {
             return_value: "None in normal use — control transfers to the next iteration of the innermost enclosing loop. Trapped with catch, the caught value is an empty string.",
         }),
         inline_codegen_hook: Some(InlineCodegenHookId::Continue),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::completion::CONTINUE),
         native_lowering: Some(NativeLowering::Completion(CompletionCode::Continue)),
         // The command's whole effect is its completion code, which the exact
         // completion descriptor above already carries: it changes no

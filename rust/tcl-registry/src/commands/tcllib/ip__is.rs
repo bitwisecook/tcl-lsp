@@ -41,6 +41,9 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         tcllib_package: Some("ip"),
         required_package: Some("ip"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

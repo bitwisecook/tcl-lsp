@@ -528,10 +528,16 @@ fn auto_path_info_non_script_arg_declines() {
 
 #[test]
 fn auto_path_file_unknown_subcommand_and_arity_decline() {
-    // `file` with an unknown subcommand → None.
+    // A `file` name operation the registry routes answers through the route,
+    // as tclsh 8.4.20 to 9.1.0 do...
     assert_eq!(
-        evaluate_auto_path_expr("[file rootname /a/b.tcl]", None),
-        None,
+        evaluate_auto_path_expr("[file rootname /a/b.tcl]", None).as_deref(),
+        Some("/a/b"),
+    );
+    // ...and `file` with a subcommand outside the subset → None.
+    assert_eq!(
+        evaluate_auto_path_expr("[file exists /a/b.tcl]", None),
+        None
     );
     // `file dirname` with the wrong arity (two path args) → None.
     assert_eq!(evaluate_auto_path_expr("[file dirname /a /b]", None), None,);
@@ -916,23 +922,44 @@ fn assert_span_carrying_eq(got: &FunctionUnit, want: &FunctionUnit, ctx: &str) {
     );
 }
 
+/// The registry and profile every rebase build runs under: `D`'s, on the
+/// memoised and the fresh path alike, so the lattice evaluates under a
+/// target — the routes that fold and a case list's selection need one.
+fn rebase_target() -> (
+    &'static CommandRegistry,
+    &'static tcl_dialect::DialectProfile,
+) {
+    (
+        static_context_for(D).commands(),
+        tcl_registry::model::ingress::resolve_environment(D).analyser_profile(),
+    )
+}
+
+/// A fresh whole-file build of `source` under the rebase target: the ground
+/// truth a rebased unit is compared against.
+fn fresh_unit(source: &str) -> CompilationUnit {
+    let (registry, profile) = rebase_target();
+    CompilationUnit::build_for_profile(source, registry, false, profile)
+}
+
 /// Build a `FunctionUnit` for every proc via a position-independent memo whose
 /// cache is seeded on `base` and reused on `shifted`, so the shifted procs hit
-/// and the builder rebases their offset-0 units to the new positions.
+/// and the builder rebases their offset-0 units to the new positions. Each
+/// memoised unit is built as the language server's memo builds one: under the
+/// request's analysis context and the command trust its snapshot records.
 fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit) {
-    use std::collections::HashMap;
-    let registry = reg();
+    use std::collections::{BTreeSet, HashMap, HashSet};
+    let (registry, profile) = rebase_target();
+    let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
     let mut cache: HashMap<String, FunctionUnit> = HashMap::new();
     let build = |s: &str, cache: &mut HashMap<String, FunctionUnit>| -> CompilationUnit {
         CompilationUnit::build_for_memoized(
             s,
             tcl_compiler::compilation_unit::UnitBuildOptions {
-                registry: &registry,
+                registry,
                 defer_top_level: false,
-                config: tcl_lexer::LexerConfig::default(),
-                dialect: Some(
-                    tcl_registry::model::ingress::resolve_environment(D).analyser_profile(),
-                ),
+                config,
+                dialect: Some(profile),
                 external_call_sites: None,
                 declared_commands: None,
             },
@@ -948,7 +975,7 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
                     req.qname,
                     req.body,
                     true,
-                    &registry,
+                    registry,
                     req.plain_command_dispatch,
                     (
                         req.upvar_procs.clone(),
@@ -956,17 +983,33 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
                         req.global_write_procs.clone(),
                         req.command_bindings.clone(),
                     ),
-                    tcl_lexer::LexerConfig::default(),
+                    req.lexer_config,
                 );
                 let pc =
                     tcl_compiler::compilation_unit::decode_param_constants(req.param_constants);
-                let fu = FunctionUnit::build_with_param_constants(
+                let known_classes: HashSet<String> = req.known_classes.iter().cloned().collect();
+                let traced_variables: BTreeSet<String> =
+                    req.traced_variables.iter().cloned().collect();
+                let command_trust = req.analysis_context.bindings.to_mutations();
+                let fu = FunctionUnit::build_with_param_constants_and_classes_under(
                     req.qname,
                     cfg,
                     req.params,
-                    &registry,
+                    tcl_compiler::compilation_unit::UnitDialect {
+                        registry,
+                        config: req.lexer_config,
+                    },
                     pc.as_ref(),
-                    tcl_lexer::LexerConfig::default(),
+                    &known_classes,
+                    tcl_compiler::compilation_unit::ModuleAnalysisFacts {
+                        trace: tcl_compiler::compilation_unit::ModuleTraceFacts {
+                            traced_variables: &traced_variables,
+                            has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+                            deferred_writes: &req.analysis_context.deferred_writes,
+                        },
+                        analysis_context: req.analysis_context,
+                        command_trust: &command_trust,
+                    },
                 );
                 cache.insert(key, fu.clone());
                 fu
@@ -987,9 +1030,16 @@ fn rebase_shifted_unit_spans_match_fresh() {
     //   * incr / expr (Incr + ExprEval spans)
     //   * a `for` loop populates cfg.loop_nodes (LoopNode span + for_stmt)
     //   * `if {1}` folds an SCCP constant branch (sccp.constant_branches span)
+    //   * `subst` records a template-word plan (sccp.template_plans span)
+    //   * an opaque `switch` over a constant subject records its selection
+    //     (sccp.selections: the statement span and each arm's pattern span);
+    //     a literal subject, since the `try` body's unknown `risky` may reach
+    //     every local through `upvar`, so no local of `p` stays constant
     let body = "\
 proc p {items} {
     set total 0
+    subst -nocommands {total $total}
+    switch -glob -- abc { a* { set zero 1 } default { set zero 0 } }
     foreach it $items { incr total }
     for {set i 0} {$i < 2} {incr i} { set acc [expr {$i * 2}] }
     if {1} { set always 1 } else { set never 0 }
@@ -1007,11 +1057,20 @@ proc p {items} {
     let shifted = format!("set a 0\nset b 1\n# comment\nset c 2\n{body}");
     let (_cu_base, cu_shifted) = rebased_units(body, &shifted);
     // A fresh whole-file build at the shifted position is the ground truth.
-    let cu_fresh = CompilationUnit::build_for(&shifted, &reg(), false);
+    let cu_fresh = fresh_unit(&shifted);
 
     let got = cu_shifted.function("::p").expect("rebased proc");
     let want = cu_fresh.function("::p").expect("fresh proc");
-    assert_span_carrying_eq(got, want, "shifted foreach/try/finally/uplevel/for/if");
+    assert_eq!(
+        want.sccp.selections.len(),
+        1,
+        "the opaque switch records its selection"
+    );
+    assert_span_carrying_eq(
+        got,
+        want,
+        "shifted foreach/try/finally/uplevel/for/if/switch",
+    );
 }
 
 #[test]
@@ -1031,7 +1090,7 @@ proc q {n} {
 ";
     let shifted = format!("# pad\n# pad2\nset top 9\n{body}");
     let (_b, cu_shifted) = rebased_units(body, &shifted);
-    let cu_fresh = CompilationUnit::build_for(&shifted, &reg(), false);
+    let cu_fresh = fresh_unit(&shifted);
     assert_span_carrying_eq(
         cu_shifted.function("::q").expect("rebased"),
         cu_fresh.function("::q").expect("fresh"),
@@ -1047,7 +1106,7 @@ fn rebase_zero_delta_is_noop() {
     // arms in both `rebase_function_unit` and `rebase_script`.)
     let body = "proc z {} { set x 1\n set y [expr {$x + 1}]\n return $y }\n";
     let (cu_base, _shifted) = rebased_units(body, body);
-    let cu_fresh = CompilationUnit::build_for(body, &reg(), false);
+    let cu_fresh = fresh_unit(body);
     assert_span_carrying_eq(
         cu_base.function("::z").expect("memoised"),
         cu_fresh.function("::z").expect("fresh"),
@@ -1343,9 +1402,12 @@ fn rch_code_after_continue_in_loop_is_dead() {
 #[test]
 fn rch_conditional_break_keeps_loop_tail_reachable() {
     // Control: a CONDITIONAL break leaves the loop-body tail reachable.
-    // tclsh (8.6, 9.0): `foreach x {1 2} { if {$x > 5} break; puts inner }`
-    // prints `inner` for both elements.  O107 must NOT fire.
-    let src = "proc f {} { foreach x {1 2} { if {$x > 5} break\n puts inner } }";
+    // tclsh (8.4 to 9.1): `foreach x {1 2} { if {$x > 1} break; puts inner }`
+    // prints `inner` once — the break runs for the second element only, so
+    // the condition decides nothing and O107 must NOT fire. (Over `$x > 5`
+    // every member of `{1, 2}` is false, the break never runs — tclsh prints
+    // `inner` twice — and O107 removing it is right.)
+    let src = "proc f {} { foreach x {1 2} { if {$x > 1} break\n puts inner } }";
     assert!(
         !o107_fires(src, D),
         "a conditional break keeps the loop tail reachable; emitted {:?}",
@@ -1418,12 +1480,20 @@ fn rch_while1_with_break_post_loop_is_reachable() {
 }
 
 /// Build `src` through the per-procedure lattice memo, exactly the way
-/// `tcl-lsp-db`'s `function_lattice` does: a single-CFG rebuild with no
-/// whole-module command view. Returns the unit and how many times the memo
-/// callback was reached.
-fn memoised_unit(src: &str) -> (CompilationUnit, usize) {
+/// `tcl-lsp-db`'s `function_lattice` does: a single-CFG rebuild under the
+/// request's analysis context, whose command-trust snapshot is the module's
+/// whole-module view. Returns the unit, how many times the memo callback was
+/// reached, and the analysis context each request carried.
+fn memoised_unit(
+    src: &str,
+) -> (
+    CompilationUnit,
+    usize,
+    Vec<tcl_compiler::value_transfer::AnalysisContextKey>,
+) {
     let registry = reg();
     let mut hits = 0usize;
+    let mut contexts = Vec::new();
     let cu = CompilationUnit::build_for_memoized(
         src,
         tcl_compiler::compilation_unit::UnitBuildOptions {
@@ -1436,6 +1506,7 @@ fn memoised_unit(src: &str) -> (CompilationUnit, usize) {
         },
         &mut |req: &tcl_compiler::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
             hits += 1;
+            contexts.push(req.analysis_context.clone());
             let cfg = tcl_compiler::cfg_builder::build_cfg_function_with_upvars_and_config(
                 req.qname,
                 req.body,
@@ -1451,17 +1522,32 @@ fn memoised_unit(src: &str) -> (CompilationUnit, usize) {
                 tcl_lexer::LexerConfig::default(),
             );
             let pc = tcl_compiler::compilation_unit::decode_param_constants(req.param_constants);
-            FunctionUnit::build_with_param_constants(
+            let traced: std::collections::BTreeSet<String> =
+                req.traced_variables.iter().cloned().collect();
+            let command_trust = req.analysis_context.bindings.to_mutations();
+            FunctionUnit::build_with_param_constants_and_classes_under(
                 req.qname,
                 cfg,
                 req.params,
-                &registry,
+                tcl_compiler::compilation_unit::UnitDialect {
+                    registry: &registry,
+                    config: tcl_lexer::LexerConfig::default(),
+                },
                 pc.as_ref(),
-                tcl_lexer::LexerConfig::default(),
+                &req.known_classes.iter().cloned().collect(),
+                tcl_compiler::compilation_unit::ModuleAnalysisFacts {
+                    trace: tcl_compiler::compilation_unit::ModuleTraceFacts {
+                        traced_variables: &traced,
+                        has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+                        deferred_writes: &req.analysis_context.deferred_writes,
+                    },
+                    analysis_context: req.analysis_context,
+                    command_trust: &command_trust,
+                },
             )
         },
     );
-    (cu, hits)
+    (cu, hits, contexts)
 }
 
 /// Whether `::g`'s lattice proves its local `v` is the integer 3.
@@ -1581,7 +1667,7 @@ fn try_header_handler_barrier_blocks_scalar_constant_branch() {
             function.blocks.values().any(|block| {
                 block.statements.iter().any(|statement| {
                     statement.synthetic_marker()
-                        == Some(tcl_compiler::ir::SyntheticMarker::RegistryBarrier)
+                        == Some(tcl_compiler::ir::SyntheticMarker::UnseenCall)
                 })
             }),
             "both inlined and deferred try paths must retain header effects"
@@ -1618,7 +1704,7 @@ fn known_safe_registry_handler_preserves_scalar_constant_branch() {
 }
 
 #[test]
-fn embedded_shadowed_builtin_does_not_borrow_registry_barrier_traits() {
+fn embedded_shadowed_builtin_does_not_borrow_code_running_traits() {
     let cu = CompilationUnit::build_for(
         "proc eval args {return 0}; proc p {} {set x 5; set ignored [eval {set x 6}]; if {$x == 5} {return kept} else {return changed}}",
         &reg(),
@@ -1627,12 +1713,12 @@ fn embedded_shadowed_builtin_does_not_borrow_registry_barrier_traits() {
     let fu = cu.function("::p").expect("procedure");
     assert!(
         !fu.sccp.constant_branches.is_empty(),
-        "a user procedure named eval must not inherit eval's registry barrier",
+        "a user procedure named eval must not inherit eval's code-running traits",
     );
 }
 
 #[test]
-fn embedded_alias_to_user_proc_does_not_borrow_registry_barrier_traits() {
+fn embedded_alias_to_user_proc_does_not_borrow_code_running_traits() {
     let cu = CompilationUnit::build_for(
         "proc fake args {return 0}; interp alias {} eval {} fake; proc p {} {set x 5; set ignored [eval {set x 6}]; if {$x == 5} {return kept} else {return changed}}",
         &reg(),
@@ -1904,37 +1990,43 @@ fn alias_to_unresolved_handler_keeps_terminal_barrier_effect() {
     );
 }
 
-/// The per-procedure lattice memo keys on the procedure body and the closed
-/// binding lattice, neither of which can see a `proc llength …` shadow
-/// declared elsewhere in the module — so a memoised unit is built as if every
-/// builtin still meant what it spells. A module that shadows one must not be
-/// served such a unit (#2164).
+/// A `proc llength …` shadow declared elsewhere in the module is visible only
+/// to the whole-module command-mutation scan, so the per-procedure lattice
+/// memo must carry that scan in its key and fold under it: a module that
+/// shadows a builtin is never served a unit built as if every builtin still
+/// meant what it spells (#2164). The key's analysis context carries the
+/// module's command-trust snapshot, so the memo stays on and answers under
+/// the module's own trust.
 ///
 /// tclsh 8.4.20 – 9.1b0 (unanimous): with the shadow, `[llength {a b c}]` is
 /// 99, so a lattice claiming `v == 3` is wrong.
 #[test]
-fn a_shadowing_module_refuses_the_memoised_lattice() {
-    let (shadowed, hits) = memoised_unit(
+fn a_shadowing_module_is_served_a_lattice_keyed_by_its_trust() {
+    let (shadowed, hits, shadowed_contexts) = memoised_unit(
         "proc llength {l} { return 99 }\nproc g {} { set v [llength {a b c}]; return $v }\n",
     );
-    assert_eq!(
-        hits, 0,
-        "a module that shadows a builtin must not consult the memo at all"
-    );
+    assert!(hits > 0, "the memo stays on, keyed by the module's trust");
     assert!(
         !g_proves_v_is_three(&shadowed),
-        "the freshly built lattice must not answer with the builtin's 3"
+        "the memoised lattice must not answer with the builtin's 3"
     );
 
-    // Positive control: the same shape with nothing shadowed does reach the
-    // memo, and the unit it returns does prove `v == 3` — so the two
-    // assertions above measure the refusal, not an unreachable memo or a
-    // lattice that never had the fact.
-    let (control, hits) = memoised_unit("proc g {} { set v [llength {a b c}]; return $v }\n");
+    // Positive control: the same shape with nothing shadowed reaches the
+    // memo under a different key, and the unit it returns does prove
+    // `v == 3` — so the assertions above measure the trust in the key, not
+    // an unreachable memo or a lattice that never had the fact.
+    let (control, hits, control_contexts) =
+        memoised_unit("proc g {} { set v [llength {a b c}]; return $v }\n");
     assert!(hits > 0, "the control must reach the memo");
     assert!(
         g_proves_v_is_three(&control),
         "the control's memoised lattice does prove v == 3"
+    );
+    assert!(
+        shadowed_contexts
+            .iter()
+            .all(|context| !control_contexts.contains(context)),
+        "a shadowing module's requests must not share the control's key"
     );
 }
 
@@ -1954,6 +2046,9 @@ fn seeded_parameter_result(source: &str) -> tcl_compiler::sccp::SccpResult {
             registry: &registry,
             traced_variables: &BTreeSet::new(),
             has_dynamic_variable_trace: false,
+            deferred_writes: &tcl_compiler::ir::NO_DEFERRED_WRITES,
+            analysis_context: None,
+            existence: None,
         },
     )
 }
@@ -1985,7 +2080,7 @@ fn safe_registry_call_keeps_seeded_parameter_constant() {
 }
 
 #[test]
-fn registry_barrier_preserves_dead_prior_and_future_definitions() {
+fn an_unseen_call_preserves_dead_prior_and_future_definitions() {
     let registry = reg();
     let cu = CompilationUnit::build_for(
         "proc p {} { set first 5; set before [expr {$first + 1}]; missing_command; set after 7; return $after }",
@@ -2287,7 +2382,7 @@ fn conditional_expression_binding_replay_keeps_skipped_paths() {
 }
 
 #[test]
-fn global_script_and_registry_barriers_both_widen_seeded_parameter() {
+fn global_script_and_unseen_call_both_widen_seeded_parameter() {
     for middle in [
         "set y [setter $::script][missing_command]",
         "list [setter $::script] [missing_command]",
@@ -2310,14 +2405,14 @@ fn global_script_and_registry_barriers_both_widen_seeded_parameter() {
         let fu = cu.function("::p").unwrap();
         for marker in [
             tcl_compiler::ir::SyntheticMarker::GlobalFrameScript,
-            tcl_compiler::ir::SyntheticMarker::RegistryBarrier,
+            tcl_compiler::ir::SyntheticMarker::UnseenCall,
         ] {
             assert!(
                 fu.cfg
                     .blocks
                     .values()
                     .flat_map(|block| &block.statements)
-                    .any(|stmt| matches!(stmt, tcl_compiler::ir::Statement::Barrier { tokens: Some(tokens), .. } if tokens.synthetic == Some(marker))),
+                    .any(|stmt| stmt.synthetic_marker() == Some(marker)),
                 "{middle}: {marker:?}"
             );
         }
@@ -2353,7 +2448,7 @@ fn catch_header_handler_widens_seeded_parameter_on_both_dispatch_paths() {
                     .values()
                     .flat_map(|block| &block.statements)
                     .any(|stmt| stmt.synthetic_marker()
-                        == Some(tcl_compiler::ir::SyntheticMarker::RegistryBarrier))
+                        == Some(tcl_compiler::ir::SyntheticMarker::UnseenCall))
             );
         }
     }

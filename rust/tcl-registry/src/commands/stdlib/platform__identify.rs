@@ -40,6 +40,9 @@ pub fn spec() -> CommandSpec {
         }),
         required_package: Some("platform"),
         side_effects: SIDE_EFFECTS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

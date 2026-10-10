@@ -27,6 +27,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Get header name by index.",
         synopsis: "HTTP::header at <index>",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -34,6 +35,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Count headers.",
         synopsis: "HTTP::header count ?<name>?",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -41,6 +43,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Check if header exists.",
         synopsis: "HTTP::header exists <name>",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -57,6 +60,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             "x-auth-token",
             "x-secret",
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -65,6 +69,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Insert mod_ssl-compatible client IP/port headers.",
         synopsis: "HTTP::header insert_modssl_fields <addr port | addr addr addr | port port port>",
         mutator: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -72,6 +77,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Check if connection is keep-alive.",
         synopsis: "HTTP::header is_keepalive",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -79,6 +85,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Check if response is a redirect.",
         synopsis: "HTTP::header is_redirect",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -86,6 +93,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Returns 1 if a header with linear white space was encountered.",
         synopsis: "HTTP::header lws",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -93,6 +101,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "List all header names.",
         synopsis: "HTTP::header names",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -101,6 +110,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Remove named header.",
         synopsis: "HTTP::header remove <name>",
         mutator: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -117,6 +127,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             "x-auth-token",
             "x-secret",
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -125,6 +136,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Remove headers not in the allow list.",
         synopsis: "HTTP::header sanitize <name-list>",
         mutator: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -134,6 +146,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Get first header value.",
         synopsis: "HTTP::header value <name>",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -143,6 +156,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Get all values for header.",
         synopsis: "HTTP::header values <name>",
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
 ];
@@ -164,6 +178,7 @@ pub const fn spec() -> CommandSpec {
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
+                effect: None,
             }]
         },
         hover: Some(HoverSnippet {
@@ -201,6 +216,7 @@ pub const fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         taint_source: Some(TaintColour::TAINTED),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..CommandSpec::DEFAULT
     }
 }

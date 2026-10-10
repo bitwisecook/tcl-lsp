@@ -65,7 +65,12 @@ The language server reads a `tclpkg.tcl` as a manifest, not as ordinary Tcl:
 the `package`, `version`, `license`, `tcl`, `require`, and `dev-require`
 directives resolve, and anything else in the file is reported as an unknown
 command (W123). A `.tclspec` pack placed beside the manifest is discovered
-without configuration.
+without configuration. A manifest that ships packs can name them with a `spec`
+directive, `spec { packs {rules.tclspec vendor/more.tclspec} }`: it is data,
+each pack a relative path inside the package, and the packs beside that
+manifest are then exactly those. The lockfile records a hash of each pack a
+locked package names (`spec_integrity`), so a changed pack in an unchanged
+release shows as a lockfile change.
 
 ## Options
 

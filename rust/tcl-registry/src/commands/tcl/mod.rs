@@ -72,6 +72,7 @@ mod for_;
 mod foreach_;
 mod foreachline;
 mod format_;
+pub(crate) use format_::fold_format;
 mod fpclassify;
 mod gets_;
 mod glob_;
@@ -118,6 +119,7 @@ mod mathop;
 mod mathop_generated;
 mod memory;
 mod namespace_;
+pub(crate) use namespace_::{fold_qualifiers, fold_tail};
 mod nextto;
 mod oo_abstract;
 mod oo_callback;
@@ -157,16 +159,28 @@ mod regexp_;
 mod regexp_quote;
 mod registry_;
 mod regsub_;
+pub(crate) use regsub_::{
+    fold_regsub, fold_regsub_versioned, names_a_callback as regsub_names_a_callback,
+};
 mod rename_;
 mod return_;
 pub(crate) mod scan_;
+pub(crate) use scan_::fold_scan;
 mod seek_;
 mod set_;
 mod socket_;
 mod source_;
 mod split_;
 mod string_;
+pub use string_::string_is_member_type;
+pub(crate) use string_::{
+    fold_cat, fold_compare, fold_equal, fold_first, fold_index, fold_is, fold_last, fold_length,
+    fold_match, fold_range, fold_range_unanimous, fold_repeat, fold_replace, fold_reverse,
+    fold_string_map, fold_tolower, fold_totitle, fold_toupper, fold_trim, fold_trimleft,
+    fold_trimright,
+};
 pub(crate) mod subst_;
+pub(crate) use subst_::fold_subst;
 mod switch_;
 mod tailcall_;
 mod tcl__build_info;
@@ -186,7 +200,7 @@ mod timer;
 mod timerate;
 mod trace;
 mod try_;
-pub(crate) use try_::is_dash_fallthrough as try_body_is_fallthrough;
+pub(crate) use try_::GRAMMAR as NATIVE_TRY_GRAMMAR;
 mod unicode_;
 mod unknown;
 mod unload;

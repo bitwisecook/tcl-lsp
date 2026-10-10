@@ -2,7 +2,7 @@
 
 The semantic model both Rust interpreters implement for variable access: how a
 name reaches a *cell*, what a frame is, and how `upvar` / `global` / `variable`
-aliasing, arrays, and traces interact. The as-built mechanics live in
+aliasing, arrays, and traces interact. The runtime mechanics live in
 [runtime/memory-management.md](../runtime/memory-management.md),
 [runtime/refcount-contract.md](../runtime/refcount-contract.md), and
 [runtime/namespace-tree.md](../runtime/namespace-tree.md); trace firing is
@@ -230,4 +230,4 @@ frame target is canonicalised to the global namespace at the link site.
 - [parser-and-aot-interpret-boundary.md](parser-and-aot-interpret-boundary.md)
   — where `uplevel`/`eval` hand off to the interpreter.
 - [runtime/trace-implementation.md](../runtime/trace-implementation.md) —
-  as-built trace dispatch.
+  runtime trace dispatch.

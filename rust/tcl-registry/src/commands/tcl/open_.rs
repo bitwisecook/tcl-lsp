@@ -185,6 +185,7 @@ pub fn spec() -> CommandSpec {
             resolver: Some(discovery_file_open),
             ..StateTransitionDescriptor::EMPTY
         }),
+        runtime_backing: RuntimeBacking::shipped("open"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             | Traits::OPENS_CHANNEL

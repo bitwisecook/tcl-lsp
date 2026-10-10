@@ -487,10 +487,14 @@ fn variable_hover(
             // count.
             let (type_info, taint_info) =
                 var_type_annotations(source, analysis, var_byte_offset, &var_name, registry);
+            let format_info = registry.and_then(|registry| {
+                registry_pattern_format_hover(source, line, character, analysis, registry)
+            });
             return Some(Hover::markdown(var_hover_text(
                 var_def,
                 type_info.as_deref(),
                 taint_info.as_deref(),
+                format_info.as_ref().map(|h| h.value.as_str()),
             )));
         }
         // No user definition: an interpreter-provided special variable
@@ -533,6 +537,7 @@ fn variable_hover(
         var_def,
         type_info.as_deref(),
         taint_info.as_deref(),
+        None,
     )))
 }
 
@@ -623,6 +628,7 @@ fn original_pattern_format_hover(
         .min_by_key(|(command, _)| command.span.end() - command.span.start())?;
     // naming.core.original-pattern-retained-context
     // docs/design/analysis/name-resolution-proofs/original-pattern-retained-context.md
+    let mut proven_unit = None;
     let patterns = words
         .with_source_schema(&context, |schema| {
             schema.authored_source_pattern_arguments()
@@ -630,12 +636,24 @@ fn original_pattern_format_hover(
         .flatten()?;
     for pattern in patterns {
         let Some(text) = original_embedded_operand(&words, usize::from(pattern.index), cursor)
+            .map(str::to_owned)
+            .or_else(|| {
+                proven_embedded_operand(
+                    source,
+                    analysis,
+                    registry,
+                    &words,
+                    usize::from(pattern.index),
+                    cursor,
+                    &mut proven_unit,
+                )
+            })
         else {
             continue;
         };
         let text = match pattern.kind {
-            tcl_registry::patterns::PatternType::Glob => glob_hover_text(text),
-            tcl_registry::patterns::PatternType::Regex => regex_hover_text(text),
+            tcl_registry::patterns::PatternType::Glob => glob_hover_text(&text),
+            tcl_registry::patterns::PatternType::Regex => regex_hover_text(&text),
         };
         return Some(Hover::markdown(text));
     }
@@ -643,15 +661,28 @@ fn original_pattern_format_hover(
         .with_source_schema(&context, |schema| schema.authored_source_format_arguments())
         .flatten()?;
     for format in formats {
-        let Some(text) = original_embedded_operand(&words, format.index, cursor) else {
+        let Some(text) = original_embedded_operand(&words, format.index, cursor)
+            .map(str::to_owned)
+            .or_else(|| {
+                proven_embedded_operand(
+                    source,
+                    analysis,
+                    registry,
+                    &words,
+                    format.index,
+                    cursor,
+                    &mut proven_unit,
+                )
+            })
+        else {
             continue;
         };
         let text = match format.kind {
             tcl_registry::patterns::FormatType::Sprintf if text.contains('%') => {
-                sprintf_format_hover_text(text)
+                sprintf_format_hover_text(&text)
             }
             tcl_registry::patterns::FormatType::Clock if text.contains('%') => {
-                clock_format_hover_text(text)
+                clock_format_hover_text(&text)
             }
             tcl_registry::patterns::FormatType::Binary => {
                 let arguments = words
@@ -674,15 +705,35 @@ fn original_pattern_format_hover(
                 })
             }
             tcl_registry::patterns::FormatType::Regsub
-                if !scan_regsub_backrefs(text).is_empty() =>
+                if !scan_regsub_backrefs(&text).is_empty() =>
             {
-                regsub_hover_text(text)
+                regsub_hover_text(&text)
             }
             _ => continue,
         };
         return Some(Hover::markdown(text));
     }
     None
+}
+
+/// Known contents at a genuine original operand, retaining its source owner.
+/// The computed value supplies a mini-language card, never source coordinates.
+fn proven_embedded_operand(
+    source: &str,
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    words: &crate::original_invocation::OriginalRegistryWords,
+    argument: usize,
+    cursor: u32,
+    unit: &mut Option<CompilationUnit>,
+) -> Option<String> {
+    let word = words.operands.get(argument)?.as_ref()?.word.as_ref()?;
+    let span = word.span();
+    (span.start() <= cursor && cursor <= span.end()).then_some(())?;
+    if unit.is_none() {
+        *unit = crate::original_invocation::source_compilation_unit(source, analysis, registry);
+    }
+    crate::original_invocation::known_word_contents(unit.as_ref()?, registry, span)
 }
 
 fn original_embedded_operand(
@@ -1051,10 +1102,6 @@ fn builtin_command_hover_text(
     // command must exist — e.g. iRules bans it), and never shown for a
     // package the profile ships ambiently (an F5 surface is part of the
     // runtime, §7.1 axis C — there is nothing to require).
-    // Ledger C1/F1 (post-P1-G): as in `completion::command_detail` — the
-    // context-keyed twin (`ResolvedContext::ambient_package`) answers
-    // identically over this document's own generation; the swap waits for
-    // the profile stamp.
     if let Some(pkg) = spec.required_package
         && !registry.is_ambient_package(pkg)
     {
@@ -3028,7 +3075,18 @@ fn caller_frame_hover_text(
     crate::caller_frame::caller_frame_hover_text(name, binding)
 }
 
-fn var_hover_text(var_def: &VarDef, type_info: Option<&str>, taint_info: Option<&str>) -> String {
+/// `format_info` is the same embedded-language table
+/// [`registry_pattern_format_hover`] renders for a literal argument; the hover
+/// appends it here too, at *this* read's own occurrence, when the lattice
+/// proves the variable is used as a registry pattern or format-string
+/// argument right where the cursor sits (`set fmt "%-20s %d"; format $fmt a
+/// 1` hovering `$fmt`). `None` leaves the card exactly as before.
+fn var_hover_text(
+    var_def: &VarDef,
+    type_info: Option<&str>,
+    taint_info: Option<&str>,
+    format_info: Option<&str>,
+) -> String {
     use std::fmt::Write as _;
     let ref_count = var_def.references.len();
     let mut text = format!(
@@ -3040,6 +3098,9 @@ fn var_hover_text(var_def: &VarDef, type_info: Option<&str>, taint_info: Option<
     }
     if let Some(t) = taint_info {
         let _ = write!(text, "\n\n**Taint**: {t}");
+    }
+    if let Some(f) = format_info {
+        let _ = write!(text, "\n\n{f}");
     }
     text
 }
@@ -3113,34 +3174,11 @@ fn infer_var_type_and_taint(
     var_name: &str,
     analysis: &AnalysisResult,
 ) -> (Option<String>, Option<String>) {
-    let Some(input) = analysis.resolved_input.as_ref() else {
+    let Some(unit) =
+        crate::original_invocation::source_compilation_unit(source, analysis, registry)
+    else {
         return (None, None);
     };
-    let Some(actual_registry) = analysis.resolved_registry() else {
-        return (None, None);
-    };
-    let config = input.lexer_config();
-    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
-        || registry.snapshot().semantic_key() != actual_registry.snapshot().semantic_key()
-    {
-        return (None, None);
-    }
-    let profile = input.unit_profile();
-    let declared =
-        tcl_compiler::analyser::utils::document_declared_surface(source, None, profile.name);
-    let unit = CompilationUnit::build_with_context_registry(
-        source,
-        tcl_compiler::compilation_unit::UnitBuildOptions {
-            registry,
-            defer_top_level: false,
-            config,
-            dialect: Some(profile),
-            external_call_sites: None,
-            declared_commands: Some(&declared),
-        },
-        None,
-        input.context_registry(),
-    );
     let first_use = tcl_compiler::shimmer::first_use_commitments_for_cu(&unit, registry);
     (
         infer_var_type(&unit, var_name, &first_use),
@@ -3369,12 +3407,25 @@ fn class_member_hover_text(
             ));
         }
     }
-    if word == "constructor" && !class_def.constructors.is_empty() {
-        let nparam = class_def.constructors.first().map_or(0, |c| c.params.len());
-        return Some(format!("**constructor** of `{qname}` ({nparam} param(s))"));
+    // A constructor or destructor keyword: the member it declared says what
+    // it is.
+    if let Some(ctor) = class_def
+        .constructors
+        .first()
+        .filter(|c| c.is_declared_by_keyword(word))
+    {
+        let nparam = ctor.params.len();
+        return Some(format!(
+            "**{}** of `{qname}` ({nparam} param(s))",
+            ctor.kind
+        ));
     }
-    if word == "destructor" && class_def.destructor.is_some() {
-        return Some(format!("**destructor** of `{qname}`"));
+    if let Some(dtor) = class_def
+        .destructor
+        .as_ref()
+        .filter(|d| d.is_declared_by_keyword(word))
+    {
+        return Some(format!("**{}** of `{qname}`", dtor.kind));
     }
     None
 }
@@ -4343,7 +4394,7 @@ mod tests {
             .variables
             .get("x")
             .expect("x recorded");
-        let text = var_hover_text(var_def, None, None);
+        let text = var_hover_text(var_def, None, None, None);
         assert!(text.contains("**Variable** `x`"), "{}", text);
         assert!(text.contains("reference"), "{}", text);
     }
@@ -4359,9 +4410,25 @@ mod tests {
             link_target: None,
             link_target_span: None,
         };
-        let text = var_hover_text(&var_def, Some("int"), Some("tainted (from I/O)"));
+        let text = var_hover_text(&var_def, Some("int"), Some("tainted (from I/O)"), None);
         assert!(text.contains("**Inferred intrep**: int"), "{text}");
         assert!(text.contains("**Taint**: tainted (from I/O)"), "{text}");
+    }
+
+    #[test]
+    fn var_hover_text_appends_proven_format_info() {
+        let var_def = VarDef {
+            name: "fmt".to_owned(),
+            definition_span: tcl_lexer::Span::new(0, 1),
+            references: Vec::new(),
+            warn_if_unused: false,
+            array_indices: std::collections::BTreeSet::new(),
+            link_target: None,
+            link_target_span: None,
+        };
+        let text = var_hover_text(&var_def, None, None, Some("**Format string**"));
+        assert!(text.contains("**Variable** `fmt`"), "{text}");
+        assert!(text.contains("**Format string**"), "{text}");
     }
 
     #[test]
@@ -4937,6 +5004,47 @@ mod tests {
         assert!(
             found.value.contains("Substitution spec"),
             "a declared -start value has a fixed width: {}",
+            found.value
+        );
+    }
+
+    #[test]
+    fn hover_explains_a_computed_format_string() {
+        // A literal `format "%-20s %d" a 1` already explains its
+        // specifiers; the lattice proves the same text when it reaches the
+        // word through a variable, so the computed spelling must not go
+        // blind.
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let src = "set fmt \"%-20s %d\"\nformat $fmt a 1\n";
+        let analysis = analyse(src);
+        let (line, character) = position_of(src, "$fmt");
+        let found = hover(src, line, character, &analysis, Some(&registry)).expect("hover");
+        assert!(
+            found.value.contains("**Format string** (sprintf-style)"),
+            "{}",
+            found.value
+        );
+        assert!(
+            found.value.contains("| `%d` | Signed decimal integer |"),
+            "{}",
+            found.value
+        );
+
+        // Negative: an unknown `$fmt` (a bare parameter, never assigned a
+        // literal) proves nothing, so the plain variable card shows with no
+        // format-string section appended.
+        let src = "proc p {fmt} {\n    format $fmt a 1\n}\n";
+        let analysis = analyse(src);
+        let (line, character) = position_of(src, "$fmt");
+        let found = hover(src, line, character, &analysis, Some(&registry)).expect("hover");
+        assert!(
+            found.value.contains("**Variable** `fmt`"),
+            "{}",
+            found.value
+        );
+        assert!(
+            !found.value.contains("Format string"),
+            "an unproven $fmt must not draw a format-string hover: {}",
             found.value
         );
     }

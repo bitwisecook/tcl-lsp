@@ -62,7 +62,9 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::ir::MethodKind;
 use tcl_lexer::LineIndex;
+use tcl_registry::definer::DeclaredMemberVisibility;
 
 use crate::definition::LspRange;
 use crate::hover::find_word_span_at_position;
@@ -1032,23 +1034,24 @@ fn constructor_or_destructor_references(ctx: &RefCtx<'_>, word: &str) -> Option<
         include_declaration,
         ..
     } = *ctx;
-    if word != "constructor" && word != "destructor" {
-        return None;
-    }
     let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     let class_def = analysis
         .all_classes
         .values()
         .find(|cd| cd.body_span.start() < cursor_offset && cursor_offset < cd.body_span.end())?;
-    let name_span = if word == "constructor" {
-        class_def.constructors.last().map(|c| c.name_span)
-    } else {
-        class_def.destructor.as_ref().map(|d| d.name_span)
-    }?;
-    if !(name_span.start() <= cursor_offset && cursor_offset <= name_span.end()) {
-        return None;
-    }
-    let (decl_span, call_spans) = if word == "constructor" {
+    // The effective constructor or the destructor whose declaring keyword the
+    // cursor is on — the recorded member says which it is, not the word.
+    let member = class_def
+        .constructors
+        .last()
+        .into_iter()
+        .chain(class_def.destructor.as_ref())
+        .find(|md| {
+            md.is_declared_by_keyword(word)
+                && md.name_span.start() <= cursor_offset
+                && cursor_offset <= md.name_span.end()
+        })?;
+    let (decl_span, call_spans) = if member.kind == MethodKind::Constructor.as_str() {
         constructor_next_chain_references(source, dialect, analysis, &class_def.qualified_name)
     } else {
         destructor_next_chain_references(source, dialect, analysis, &class_def.qualified_name)
@@ -2317,7 +2320,7 @@ fn collect_stored_callback_writes(
             matches!(
                 call.lowering_hook,
                 Some(LoweringHookId::Global | LoweringHookId::Variable | LoweringHookId::Upvar)
-            ) || call.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::NamespaceUpvar)
+            ) || call.sub.is_some_and(|sub| sub.creates_scope_alias)
         });
         let is_scalar_assignment =
             resolved_call.is_some_and(|call| call.lowering_hook == Some(LoweringHookId::Set));
@@ -4794,7 +4797,7 @@ mod tests {
     fn references_unify_global_alias_and_canonical_set_when_the_set_is_unqualified() {
         // A second repro: an *unqualified* `set tolComp
         // 0.05` at global scope reproduces the identical split, ruling out
-        // the `::`-prefix as the sole cause — `handle_set_command` never
+        // the `::`-prefix as the sole cause — `set`'s binding never
         // calls `set_var_link_target` regardless of how the name is spelled,
         // so the shape is the same either way.
         let src =

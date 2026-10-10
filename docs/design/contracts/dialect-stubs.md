@@ -80,19 +80,139 @@ Wrap in `?...?` to mark as optional: `?-filter?`, `?count:value?`.
 ### Flags
 
 The trailing flag set is parsed into the analyser-side `StubFlags` bitflags
-(`analyser/types.rs`). It is recorded and never read: no consumer asks a
-stub for a flag, so ingestion deliberately does not carry the set onto the
-declaration — a fact comes back with the consumer that needs it. The
-recognised words are:
+(`analyser/types.rs`). Each flag is a declared behavioural fact about the
+command, and it lands on the field its catalogue counterpart uses:
+`StubCommandDef::declared_traits` and `declared_side_effects` put it on
+`DeclaredCommand::traits` and `DeclaredCommand::side_effects`, and
+`DocumentCommandSurface::traits`, `invocation_traits` and `side_effects`
+answer it, so a stubbed command reads the way a catalogued one does to every
+consumer that asks the surface. The recognised words are:
 
-| Flag | Meaning |
-|---|---|
-| `-barrier` | creates a dynamic barrier |
-| `-loop` | has a loop body |
-| `-pure` | no side effects |
-| `-mutator` | mutates its target |
-| `-unsafe` | unsafe in a safe interpreter |
-| `-scope_alias` | creates a scope alias |
+| Flag | Meaning | Catalogue field | What reads it |
+|---|---|---|---|
+| `-barrier` | creates a dynamic barrier | `Traits::CREATES_DYNAMIC_BARRIER` | the minifier's rename barriers (`find_rename_barriers`): the scope the command runs in keeps its local names, as around `vwait` |
+| `-loop` | has a loop body | `Traits::HAS_LOOP_BODY` | the loop-termination checks (`bounds_checks::loop_shape`): with an `expr` condition and a `body` word, a constant-false condition is `W240` and a constant-true one whose body never leaves the loop is `W241`, as for `while` |
+| `-pure` | no side effects | `Traits::PURE` | side-effect classification (`side_effects::classify_side_effects_in`): the call is pure, so a procedure that only calls it is pure in the interprocedural summary and the unused result of calling that procedure can go (`O126`) |
+| `-mutator` | reads and rewrites its target | `Traits::READS_BEFORE_WRITE`, and a declared `SideEffect` reading and writing `SideEffectTarget::Variable` | lowering reads the target before the write, as it does for `lset` and `lappend`, so the store feeding it stays live (no `O109`); side-effect classification states the variable effect instead of the unknown write |
+| `-unsafe` | unsafe in a safe interpreter | `Traits::UNSAFE` with `Traits::SAFE_INTERP_HIDDEN` | the safe-interpreter gate: a call inside a safe interpreter's evaluation body is `W129`, as `exec` is |
+| `-scope_alias` | creates a scope alias | `Traits::CREATES_SCOPE_ALIAS` | the call-site scan (`unit_scope::note_surface_var_writes`): every name the command takes is bound to a cell another body may write, so a later `$name` dispatch is not read as a known literal and the parameter fold is withheld (`I230`), as for `upvar`; the minifier leaves global names alone |
+| `-extension` | a native extension registers the command | the conservative default of `tcl_registry::extension_default`: `EVALUATES_CODE`, `CREATES_BARRIER`, `CREATES_DYNAMIC_BARRIER`, `ESTABLISHES_VARIABLE_TRACE`, `TAINT_SINK`, `TAINT_SOURCE`, `UNSAFE` and `SAFE_INTERP_HIDDEN`, and an unknown read and write | everything that reads the flags above: the call is a dynamic barrier (`classify_side_effects_in`, the minifier's rename barriers), is hidden in a safe interpreter (`W129`) and is never pure; the other flags narrow it, as below |
+
+A stub with no flags states no behaviour, and side-effect classification
+treats it exactly as an undeclared command: an unknown read and write, never
+pure.
+
+### Frame effect
+
+`-frame WORD` states what the command does to the frame that calls it, in the
+registry's own frame-effect vocabulary: the value a catalogue command carries
+on `CommandSpec::frame_effect` (a `tcl_registry::frame_effect::FrameEffectSpec`,
+`None` for a command that crosses no frame).
+`DeclaredFrameEffect::from_stub_flags` reads the flag run and
+`DeclaredFrameEffect::from_stub_word` the word; `StubCommandDef::frame` holds
+the effect, and it lands on `DeclaredCommand::frame_effect`, beside the traits
+and side effects the flags state:
+
+| Word | Frame effect | Meaning |
+|---|---|---|
+| `own` | `None` | the command's code runs in a frame of its own, as a procedure's does |
+| `none` | `None` | the command runs no code that reaches a frame |
+| `caller` | `FrameArgLayout::OpaqueCallerVars` (`DeclaredFrameEffect::CALLER`) | the command reaches variables of the frame that calls it under names nothing states, as `argparse` does |
+
+The last `-frame` written wins. A word the grammar does not know states
+nothing, as an unrecognised flag does; `-frame` sets no `StubFlags` bit.
+
+`own` and `none` state what a catalogue command with no frame effect and no
+variable argument states: the call sets, unsets and reads no variable the
+frame that calls it can name, a global or a namespace variable included. A
+command that reads its caller's variables, or touches a global or namespace
+variable by name (`global`, `upvar #0`, a `::`-qualified name), states
+neither: it leaves `-frame` unstated, or states `caller` when all it does is
+set variables of the frame that calls it, as `argparse` does.
+
+**Unstated is the default, and it widens.** A stub without `-frame`
+(`DeclaredFrameEffect::Unstated`) says nothing of the frame that calls the
+command, so nothing bounds it: like code the module cannot see, the command
+may reach that frame through `upvar 1` or `uplevel 1`. A call to it is a call
+to code the module cannot see: in a procedure every local the
+procedure holds at the call takes a fresh, unknown version, and at the top
+level every global does, so a constant held across the call is not folded
+(`I230`, `O112`), a store the call may read is kept (`W211`, `W220`, `O109`),
+and `[info exists]` after it decides nothing. That is what leaving the frame
+effect unstated costs, and the conservative default it buys: a stub never
+claims a frame effect its author did not state. `W123` ends with a sentence
+that says so wherever the call widens — where the flow graph marks it as a call
+to code the module cannot see (`SyntheticMarker::UnseenCall`), the one fact
+the widening reads (`Analyser::settle_w123_widening`) — and names the
+declaration that keeps the variables. `tcl opt` does not read stub declarations
+yet (#2366): `optimise_source_multipass` builds its unit without the
+document's declared surface, so there a stubbed command is a call to code the
+module cannot see, whatever the stub states.
+
+**A plain call is a named head.** A declaration names its command to the flow
+graph when it states its frame effect and states nothing else the flow graph
+would have to read from it (`DeclaredCommand::plain_call_frame_effect`): every
+argument is data — `value`, `name`, `pattern` or `channel` — and no flag but
+`-pure` or `-unsafe` is written. The flow graph reads roles and traits off the
+catalogue, which answers a name it does not hold as a command of plain values
+that does nothing it models, and that answer is the declaration's own only for
+such a stub. The lowering puts these commands on `Module::declared_frame_effects`
+(`DocumentCommandSurface::plain_call_frame_effects`), by normalised qualified
+name, leaving out a name the catalogue holds, which keeps the catalogue's
+answer. The module's command table (`ModuleCommandBindings`) binds them beside
+the registry's names, so `CfgBuilder::head_is_unseen` answers for a call to one
+by its one rule, as for a catalogue command reached by its own spelling, and
+the call brings its stated effect as a catalogue command's call brings
+`CommandSpec::frame_effect`: under `own` or `none` nothing widens, and under
+`caller` the computed-name walk (`dynamic_names`) reads
+`CfgFunction::declared_frame_effects` and raises the barrier it raises for
+`argparse`, for the function and from the statement on.
+
+A declaration with a code or variable word (`body`, `expr`, `command_prefix`,
+`var`, `var_read`) or another flag stays a call to code the module cannot see,
+whatever its `-frame`: the lowering reads its roles, but the flow graph reads
+roles and traits off the catalogue alone, so it would miss the body a
+substitution such as `set n [db_eval $sql {set g 6}]` runs, or the variable a
+computed name writes. A `body` or `command_prefix` word still answers as the
+catalogue's rule answers for one written directly: a script whose timing is
+not known makes the call the barrier `time {…}` lowers to (`unsupported body
+command`), which widens every value, whatever the frame effect.
+
+### Extension commands
+
+`-extension` is for a command C code registers (`Tcl_CreateObjCommand`), of
+which nothing can be known from where the analyser stands. The declaration
+starts at the top of every axis the registry has a fact for — it may run any
+argument as a script or name a variable at any level, read and write any
+state, establish a variable trace, and complete with any code; it is a taint
+sink and source, unsafe and hidden in a safe interpreter, and never pure — and
+the facts the other flags state narrow it, each on its own axis and on no
+other:
+
+- A statement of *effects* replaces the effect axes (code evaluation, traces
+  and the unknown read and write) by what it states. `-pure` states none, and
+  `-mutator` states the variable read and write of its target, because a
+  command that is pure, or that only rewrites its target, evaluates no code.
+- `-barrier` beside either states the evaluation axis back, so a stated
+  barrier survives a stated effect.
+- `-loop`, `-scope_alias` and `-unsafe` state facts of their own and narrow
+  nothing.
+- No flag states the taint axis or the safety axis away: a pure extension
+  command is still a taint source and still hidden in a safe interpreter.
+
+A stub without `-extension` starts from nothing, as it always has. The
+registry's own default for the same command (`CommandSpec::extension_default`)
+declares no transition descriptor on purpose: a command with none is a wildcard
+over every state domain, which a closed statement could only narrow.
+
+Four consumers still read these facts off the catalogue alone, so a stub's
+flags do not reach them yet: the optimiser's own elimination gate and GVN (a
+`-pure` call's unused result goes only through the interprocedural summary,
+so `set a [mypure $x]` written directly is kept), SSA's barrier-def walk
+(which reads no declared role either), memory SSA's clobber verdict
+(which treats every command the catalogue lacks as clobbering, flags or
+not — the conservative answer), and the taint analysis, so an `-extension` stub
+is not yet a taint source or sink to it.
 
 ## Expression stubs
 
@@ -116,7 +236,8 @@ stub expr-op starts_with 2
 `StubCommandDef` / `StubArgDef` / `StubExprDef`
 (`rust/tcl-compiler/src/analyser/types.rs`) are the analyser-side records:
 name, parsed argument list, the span of the declaring comment line, a
-`StubFlags` bitflag set, and the `from_sidecar` marker. They are collected onto
+`StubFlags` bitflag set, the frame effect the `-frame` word states, and the
+`from_sidecar` marker. They are collected onto
 `AnalysisResult` and keep their spans so diagnostics can point at the
 declaration.
 
@@ -136,7 +257,8 @@ parallel one:
   `VersionAxisId::document()` axis, and whose predicate is `None`.
 - The declaration carries its **provenance**: `Provenance::Document` for an
   inline block, `Provenance::WorkspaceUntrusted` for a `.tcl.stubs` sidecar —
-  the two lowest trust classes.
+  a label for explanation, binding selection, and invalidation, not a
+  precision class.
 - `build_declared_surface` collects them into the document's
   `DeclaredSurface`, rebuilt on each `analyse()` call and held on the
   (single-threaded) analyser.
@@ -156,10 +278,22 @@ Two properties are load-bearing:
   takes the number of words the call supplies and fills optional slots left
   to right: `{?table? row:var}` invoked as `fetch out` writes index 0, and a
   call with fewer words than the declaration requires maps to nothing.
-- **A declaration widens, never narrows.** `DocumentCommandSurface`'s role
-  lookup unions the catalogue's answer with the document's — the
-  untrusted-tier rule read literally: a declaration may improve assistance and
-  can never weaken a shipped analysis fact.
+- **A declaration answers where it speaks — nearest-wins.** A stub is a
+  workspace-authored fact, so it is an input to analysis on the same footing
+  as a shipped spec
+  ([value-transfers.md](../compiler/value-transfers.md) § *Rulings*,
+  ruling 3): the document's own declaration answers for the command it
+  declares, and the catalogue answers everywhere else. `security_floor`'s
+  monotone merge (invariant I6) still holds over it, because that floor is a
+  security contract rather than a precision cap.
+  `DocumentCommandSurface` answers nearest-wins: `arg_indices_for_role`,
+  `command_prefixes`, `traits`, `invocation_traits` and `side_effects` read
+  the declaration alone for a name the document declares, so a stub that
+  redeclares `after {ms script}` states that its second word is a value and
+  the catalogue's `Body` role is not assigned. `traits` and `side_effects`
+  keep a redeclared shipped command's security traits and side effects
+  beneath the declaration's own — the floor `SecurityFloor::apply` holds a
+  pack override to — so a stub cannot take `exec`'s `UNSAFE` away.
 
 The declared surface is what feeds parameter-trait inference, role lookup, and
 command-resolution for stubbed commands. Cache invalidation rides the ordinary
@@ -190,8 +324,9 @@ lowering asked.
   `DECLARES_NAMESPACE`, or an absolutely-spelled name word) belongs to the
   body unit that owns it; walking it here would invent an edge to a
   same-named proc in the caller's namespace (issues #977 / #980).
-  `DocumentCommandSurface::command_prefixes` widens the callback positions
-  the same scan reads, so a declared `command_prefix` word names an edge too
+  `DocumentCommandSurface::command_prefixes` carries the declared callback
+  positions into the same scan, so a declared `command_prefix` word names an
+  edge too
   — at `AppendedArity::Unknown`, since a declaration states a position and
   no count.
 - **The call-site scan** (`unit_scope`) resolves a call's `CommandPrefix`,
@@ -245,7 +380,12 @@ draft declared.
 | `rust/tcl-compiler/src/interprocedural.rs` | `ScanCtx::surface`, `scan_role_code_arguments` |
 | `rust/tcl-compiler/src/unit_scope.rs` | `CallSiteScanCtx::surface`, `note_surface_var_writes` |
 | `rust/tcl-compiler/src/analyser/state.rs` | `Analyser::command_surface` |
-| `rust/tcl-compiler/src/analyser/types.rs` | `StubCommandDef`, `StubArgDef`, `StubExprDef`, `StubFlags` |
-| `rust/tcl-registry/src/model/declaration.rs` | `DeclaredCommand`, `DeclaredArgument`, `DeclaredSurface`, `DocumentCommandSurface`, `role_for_word` |
+| `rust/tcl-compiler/src/analyser/types.rs` | `StubCommandDef`, `StubArgDef`, `StubExprDef`, `StubFlags`, `declared_traits`, `declared_side_effects` |
+| `rust/tcl-compiler/src/command_binding.rs` | the module's command table, which binds a declared plain call beside the registry's names |
+| `rust/tcl-compiler/src/dynamic_names.rs` | the computed-name walk, which reads a declared plain call's frame effect |
+| `rust/tcl-compiler/src/side_effects.rs` | `classify_side_effects_in` |
+| `rust/tcl-compiler/src/analyser/bounds_checks.rs` | `loop_shape` |
+| `rust/tcl-lsp-core/src/minify.rs` | `find_rename_barriers` |
+| `rust/tcl-registry/src/model/declaration.rs` | `DeclaredCommand`, `DeclaredArgument`, `DeclaredFrameEffect`, `DeclaredSurface`, `DocumentCommandSurface`, `role_for_word` |
 | `rust/tcl-spec-studio/src/render_stub.rs` | stub rendering |
 | `samples/` | example sidecar and inline stub files |

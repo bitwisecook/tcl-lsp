@@ -68,6 +68,7 @@ pub fn spec() -> CommandSpec {
             ),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("append"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
@@ -125,7 +126,6 @@ pub fn spec() -> CommandSpec {
         native_lowering: Some(NativeLowering::CellReadModifyWrite(CellUpdate::Append)),
         codegen_hook: Some(CodegenHookId::Append),
         forms: FORMS,
-        analyser_hook: Some(crate::hooks::AnalyserHookId::Append),
         ..CommandSpec::DEFAULT
     }
 }

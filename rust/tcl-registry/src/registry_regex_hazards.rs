@@ -77,7 +77,7 @@ impl CommandRegistry {
 
 fn possible_prefixes(
     arguments: InvocationArguments<'_>,
-    options: crate::resolved_invocation::InvocationOptions<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_, '_>,
     grammar: ReturnTypeHookId,
 ) -> Option<Vec<usize>> {
     let count = arguments.exact_argv_len()?;

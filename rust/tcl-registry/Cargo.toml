@@ -41,6 +41,9 @@ smallvec = "1"
 rustc-hash = { workspace = true }
 
 [dev-dependencies]
+# The shared reference-interpreter lookup the output witnesses compare
+# under (`witness_tclsh`), which fails a test whose release
+# `TCL_LSP_REQUIRE_TCLSH` requires and reports any other it skips.
 tcl-test-support = { path = "../tcl-test-support" }
 # A dev-dependency cycle (`tcl-spectcl` depends on this crate), which Cargo
 # permits: the EDA vendor libraries are bundled `.tclspec` loadables, so the

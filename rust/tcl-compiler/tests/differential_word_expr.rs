@@ -143,6 +143,10 @@ fn oracle(seg: &SegmentedCommand) -> Vec<WordExpr> {
 ///    parts; the owner reports C's parse error and the word is `Opaque`.
 ///    The oracle side is rewritten to the same `Opaque` from the message
 ///    the owner names, so a *wrong* message still fails.
+/// 6. **A weld after a close-brace or close-quote.** The oracle never
+///    recorded C's message on the word; the production's is taken here and
+///    held to the parse-cut owner by
+///    [`a_welded_word_carries_the_parse_cut_owners_message`].
 fn canonical(word: WordExpr, source: &str, production: &WordExpr) -> WordExpr {
     if let WordExpr::Opaque {
         reason: WordOpacity::ParseError(_),
@@ -165,7 +169,22 @@ fn canonical(word: WordExpr, source: &str, production: &WordExpr) -> WordExpr {
         WordExpr::Template {
             parts,
             source: site,
-        } => canonical_template(parts, site, source),
+            ..
+        } => match (canonical_template(parts, site, source), production) {
+            (
+                WordExpr::Template {
+                    parts,
+                    source: site,
+                    ..
+                },
+                WordExpr::Template { rejected, .. },
+            ) => WordExpr::Template {
+                parts,
+                source: site,
+                rejected: *rejected,
+            },
+            (word, _) => word,
+        },
         other => other,
     }
 }
@@ -256,6 +275,7 @@ fn canonical_template(parts: Vec<WordPart>, site: SourceSite, source: &str) -> W
     WordExpr::Template {
         parts: out,
         source: site,
+        rejected: None,
     }
 }
 
@@ -456,6 +476,62 @@ fn owner_matches_oracle_over_tcllib() {
     sweep(&files, "tcllib-2.0");
 }
 
+/// A word welded to a closing brace or quote records C's message on the
+/// word, as the parse-cut owner reports it for the command, and no other
+/// word records one: `{a}b`, `{a}{b}`, `{a}$b`, `"a"b`, `""b`, `"a"$b`,
+/// `"a"[b]` and `"a"{b}` under every grammar, `{*}$x` under 8.4, where
+/// `{*}` is a braced word; neither `JimTcl`'s concatenating quote nor a word
+/// that closes cleanly. The completion proof reads it.
+#[test]
+fn a_welded_word_carries_the_parse_cut_owners_message() {
+    let words = [
+        "{a}b",
+        "{a}{b}",
+        "{a}$b",
+        "\"a\"b",
+        "\"\"b",
+        "\"a\"$b",
+        "\"a\"[b]",
+        "\"a\"{b}",
+        "{*}$x",
+        "{a}",
+        "\"a\"",
+        "a{b}",
+        "a\"b\"",
+        "{*}{a b}",
+        "[set x {a}]",
+        "\"[b]\"",
+    ];
+    for (config, grammar) in [(nine(), "9.0"), (eight(), "8.4"), (jim(), "jim")] {
+        for word in words {
+            let src = format!("puts {word}");
+            let segs = segments(&src, config);
+            let Some(produced) = production(&src, config, &segs[0]).into_iter().nth(1) else {
+                continue;
+            };
+            let rejected = match &produced {
+                WordExpr::Template { rejected, .. } => *rejected,
+                WordExpr::Expand { word, .. } => match word.as_ref() {
+                    WordExpr::Template { rejected, .. } => *rejected,
+                    _ => None,
+                },
+                _ => None,
+            };
+            let owner = tcl_lexer::first_parse_cut(&src, config)
+                .map(|cut| cut.message)
+                .filter(|message| {
+                    [
+                        tcl_lexer::EXTRA_AFTER_CLOSE_BRACE,
+                        tcl_lexer::EXTRA_AFTER_CLOSE_QUOTE,
+                    ]
+                    .contains(message)
+                });
+            let owner = owner.filter(|_| grammar != "jim" || !src.contains('"'));
+            assert_eq!(rejected, owner, "{grammar} {src:?}: {produced:#?}");
+        }
+    }
+}
+
 /// A parse error the owner names reaches the word as a typed opaque word
 /// carrying C's message, and the oracle side cannot fake that.
 #[test]
@@ -591,6 +667,7 @@ mod frozen_oracle {
             _ => WordExpr::Template {
                 parts: fragments.iter().map(from_fragment).collect(),
                 source: SourceSite::source(fallback_span),
+                rejected: None,
             },
         };
         if expanded {

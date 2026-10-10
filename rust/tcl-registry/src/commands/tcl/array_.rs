@@ -27,6 +27,28 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+/// `{keyVariable valueVariable} arrayName`: the one binder list and the array
+/// it iterates.
+const ARRAY_FOR_HEAD: &[ClauseSlot] = &[
+    ClauseSlot::of(ArgRole::LoopVarList),
+    ClauseSlot::of(ArgRole::Value),
+];
+/// The body script.
+const SCRIPT: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Body)];
+
+/// `array for {keyVariable valueVariable} arrayName body` — `dict for`'s shape
+/// over an array, Tcl 9.0 only. `array for`'s own `arg_roles` carries the
+/// binder's `LoopVarList` and the array's `VarRead`.
+pub const ARRAY_FOR_GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
+    head: ClauseRow::head(ARRAY_FOR_HEAD, ClauseTiming::PerIteration),
+    rows: &[],
+    tail: Some(ClauseRow::once(None, SCRIPT, ClauseTiming::PerIteration)),
+    fallthrough_body: None,
+    default_clause: None,
+    selection: ClauseSelection::All,
+    surface: Some(SpecSurface::TCL90_PLUS),
+};
+
 /// `array default`'s sub-verb (position 0 after the `default` word) — TIP
 /// 508, landed as Tcl 9.0 (the TIP's target "8.7" became the 9.0 release).
 /// Unlike `array names`' `mode` word (see [`NAMES_MODE_VALUES`]), this
@@ -241,6 +263,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "array default subcommand arrayName args...",
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::ARRAY_DEFAULT),
         // `default set` (create-on-demand) and `default unset` mutate; `get`
         // /`exists` only read. The single flat entry covers all four verbs,
         // so this declares the union per the read/write field docs.
@@ -325,6 +348,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             (1, ArgRole::VarRead),
             (2, ArgRole::Body),
         ],
+        clause_grammar: Some(&ARRAY_FOR_GRAMMAR),
         lowering_hook: Some(crate::hooks::LoweringHookId::ArrayFor),
         loop_list_header: true,
         surface: Some(SpecSurface::TCL90_PLUS),
@@ -423,6 +447,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             writes: true,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::destructure::ARRAY_SET),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -483,12 +508,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
             crate::native_compilation::NativeArrayCommand::Unset,
             SemanticOperationId::Invoke,
         )),
-        traits: Traits::FIRE_AND_FORGET_TEARDOWN.union(Traits::DESTROYS_VARIABLE),
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN.union(Traits::DESTROYS_VARIABLE).union(Traits::CONDITIONAL_VARIABLE_WRITE),
         arity: Arity::new(1, 2),
         detail: "Unsets all of the elements in the array that match pattern.",
         synopsis: "array unset arrayName ?pattern?",
         return_type: Some(TclType::String),
         arg_roles: &[(0, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::unbind::ARRAY_UNSET),
         mutator: true,
         // `Tcl_ArrayObjCmd` (tclVar.c, `ArrayUnsetCmd`) destroys matching
         // elements — or the whole array in the pattern-less form — via the
@@ -519,6 +545,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("array"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // The `unset` subform destroys elements or the whole array
         // (`ArrayUnsetCmd`, tclVar.c) — `FIRE_AND_FORGET_TEARDOWN` and the

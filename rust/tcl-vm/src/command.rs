@@ -34,11 +34,11 @@ use crate::error::TclError;
 use crate::interp::{Vm, err, err_wrong_args, ok};
 use crate::value::Value;
 
+#[cfg(test)]
+mod native_encoding_tests;
 mod native_procedure;
 #[cfg(test)]
 mod native_procedure_name_tests;
-#[cfg(test)]
-mod native_encoding_tests;
 pub use native_procedure::NativeProcedureCommand;
 pub(crate) use native_procedure::{NativeProcedureReference, NativeProcedureResources};
 
@@ -365,9 +365,11 @@ pub(crate) fn register_builtins_with_native_core(
     crate::cmd_coro::register(vm);
     crate::cmd_event::register(vm);
     crate::cmd_thread::register(vm);
-    // Last so the spec-derived intrinsic identities remain live after the
-    // startup registration sweep's conservative command-epoch invalidations.
+    // `string` last, as the registration order has always had it.
     crate::cmd_string::register(vm);
+    // With the command table complete, attach the registry's identities to the
+    // builtins in it.
+    vm.attach_identities();
 }
 
 /// `exit ?returnCode?` — request process termination with `returnCode`
@@ -494,6 +496,29 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
     };
     let path = tcl_core_types::c_string_extent(&path);
+    let encoding = match selected.encoding_at {
+        Some(index) => {
+            let name = match vm.native_name_operand_bytes(&args[index]) {
+                Ok(name) => name,
+                Err(error) => return vm.refuse_host_command(error.to_string()),
+            };
+            let name = match std::str::from_utf8(tcl_core_types::c_string_extent(&name)) {
+                Ok(name) => name,
+                Err(error) => return vm.refuse_host_command(error.to_string()),
+            };
+            match tcl_cmd_core::channel::resolve_system_encoding(name) {
+                Ok(encoding) => encoding,
+                Err(error) => return completion_from_cmd_error(vm, error),
+            }
+        }
+        None if dialect
+            .tcl_version
+            .is_some_and(|release| release >= tcl_dialect::TclVersion::V9_0) =>
+        {
+            tcl_platform::SystemEncoding::Utf8
+        }
+        None => vm.system_encoding(),
+    };
     let contents = match vm
         .host()
         .filesystem()
@@ -513,6 +538,22 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 b"NONE",
             );
         }
+    };
+    let decoded = tcl_cmd_core::channel::decode_text(&contents, encoding);
+    let contents = if let Some(version) = dialect.tcl_version {
+        let units: Vec<u32> = if version < tcl_dialect::TclVersion::V9_0 {
+            decoded.encode_utf16().map(u32::from).collect()
+        } else {
+            decoded.chars().map(u32::from).collect()
+        };
+        let Some(bytes) =
+            tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version).encode_units(&units)
+        else {
+            return vm.refuse_host_command("source text conversion is unavailable".into());
+        };
+        bytes
+    } else {
+        decoded.into_bytes()
     };
     let scope = selected.no_package.then(|| vm.take_package_file_scope());
     if let Err(error) = vm.record_package_source_file(path) {
@@ -2684,12 +2725,23 @@ fn cmd_encoding(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                         Err(error) => return vm.refuse_host_command(error.to_string()),
                     };
                     if encoding.as_ref() != b"utf-8" {
-                        return vm.refuse_host_command("external encoding target is unavailable".to_owned());
+                        return vm.refuse_host_command(
+                            "external encoding target is unavailable".to_owned(),
+                        );
                     }
                     data
                 }
-                [_, _] => return vm.refuse_host_command("external system encoding target is unavailable".to_owned()),
-                _ => return native_wrong_arguments_message(vm, "wrong # args: should be \"encoding convertto ?encoding? data\""),
+                [_, _] => {
+                    return vm.refuse_host_command(
+                        "external system encoding target is unavailable".to_owned(),
+                    );
+                }
+                _ => {
+                    return native_wrong_arguments_message(
+                        vm,
+                        "wrong # args: should be \"encoding convertto ?encoding? data\"",
+                    );
+                }
             };
             match tcl_cmd_core::encoding::convert_to_utf8(vm, data) {
                 Ok(result) => ok(result),
@@ -2699,7 +2751,10 @@ fn cmd_encoding(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // External decoding retains the current bootstrap pass-through.
         _ => {
             if args.len() < 2 {
-                return native_wrong_arguments_message(vm, "wrong # args: should be \"encoding convertfrom ?encoding? data\"");
+                return native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"encoding convertfrom ?encoding? data\"",
+                );
             }
             ok(args.last().expect("len >= 2").clone())
         }

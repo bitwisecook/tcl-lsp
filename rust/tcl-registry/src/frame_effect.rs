@@ -911,6 +911,26 @@ impl FrameEffectSpec {
         };
         (level, &args[taken..])
     }
+
+    /// [`Self::resolve_for_version`] under `registry`'s release, the level
+    /// value read by [`FrameLevel::parse_in`]: what a consumer inside the
+    /// compiler asks of the invocation it holds.
+    #[must_use]
+    pub fn resolve_in<'a, T: AsRef<str>>(
+        &self,
+        args: &'a [T],
+        registry: &crate::registry::CommandRegistry,
+    ) -> (FrameLevel, &'a [T]) {
+        let words: Vec<&str> = args.iter().map(AsRef::as_ref).collect();
+        let taken = self.level_word_len_for_version(&words, registry.runtime_version());
+        let level = match words.first() {
+            Some(word) if taken > 0 => {
+                FrameLevel::parse_in(word, registry).unwrap_or(FrameLevel::Dynamic)
+            }
+            _ => FrameLevel::DEFAULT,
+        };
+        (level, &args[taken..])
+    }
 }
 
 #[cfg(test)]

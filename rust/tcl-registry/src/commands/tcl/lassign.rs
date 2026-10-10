@@ -56,6 +56,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::ListAssign),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("lassign"),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::FRAME_HASH_BUILTIN
             | Traits::BYTE_COMPILED
@@ -80,6 +81,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The empty string when every list element was assigned to a variable; otherwise a list of the elements left over after the last variable was assigned.",
         }),
         codegen_hook: Some(CodegenHookId::Lassign),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::destructure::LASSIGN),
         forms: FORMS,
         world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_WRITE),
         side_effects: SIDE_EFFECTS,

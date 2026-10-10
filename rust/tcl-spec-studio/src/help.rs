@@ -115,7 +115,28 @@ pairs\" — and a maintainer writes the few lines.",
 ever return. This is declarative even though the resolver itself is code. \
 Consumers use it when substitutions or expansions hide the exact argument \
 values, so omitting a possible role can suppress analysis while adding an \
-impossible role makes analysis needlessly conservative.",
+impossible role makes analysis needlessly conservative. A command whose \
+clause grammar replaced its resolver keeps this as the closed set the \
+grammar's walk emits.",
+    ),
+    (
+        "clause_grammar",
+        "The word grammar of a clause chain, as data: `if`'s `elseif`/`else` \
+chain, `try`'s handlers, a loop's fixtures and body. The registry walks every \
+call against it once, and that one walk answers where each keyword, condition \
+and script sits (the argument roles), which clause runs when (each row's \
+timing), and the chain's first structural defect (what `if`'s E004 \
+reports).\n\nA keyword is compared only where a clause could start and at a \
+`?noise?` slot; every other slot is filled positionally, so `if else {a}` is \
+a well-formed `if` whose condition is the bareword `else`. `try` in the DSL:\n\n\
+```\nclause_grammar {\n    head {Body} -timing protected\n    repeated on   \
+{Pattern LoopVarList Body} -timing selected -pattern completion-code\n    \
+repeated trap {Pattern LoopVarList Body} -timing selected -pattern \
+error-code-prefix\n    tail finally  {Body} -timing always\n    \
+fallthrough_body -\n    selection first-match\n}\n```\n\nA slot is a role \
+name, `?word?` for a noise word, or `{ROLE optional}`; `group N` cites the \
+`repeat` layout a loop's binder groups follow. The form shows the rows \
+read-only.",
     ),
     (
         "arg_presentation",
@@ -149,11 +170,11 @@ the frame behaviour in your issue notes if your command has one \
     (
         "clause_shape_check",
         "A validator for commands whose legal shapes cannot be captured by a \
-single min–max argument count — `if`'s `elseif`/`else` chain is the \
-canonical case: any length is fine, but only in the right rhythm. This is \
-code, so in the studio it is a reference; if your command has a clause \
-grammar, write the rhythm out in the issue notes (\"`cond body` pairs, \
-optionally ending `else body`\").",
+single min–max argument count. The escape hatch, not the mechanism: a chain \
+a clause grammar can spell — `if`'s `elseif`/`else` rhythm is the canonical \
+case — derives its defect from the grammar instead. This is code, so in the \
+studio it is a reference; write the grammar as a `clause_grammar` block \
+wherever the rows can say it.",
     ),
     (
         "command_prefixes",
@@ -180,16 +201,6 @@ another, as with `send -async`. It emits an exact index plus \
 `LambdaLiteral`, or `CommandPrefix`. Silence leaves the option timing or \
 command-level compatibility fallback in force. In SpecTcl the body calls \
 `timing IDX SameInvocation|Deferred|ReferenceOnly`.",
-    ),
-    (
-        "substitution_resolver",
-        "The per-call sibling of the `PERFORMS_SUBSTITUTION` trait: use it \
-when switches decide *which* of backslash, command and variable substitution \
-the call runs over its own argument, as with `subst -novariables`. The trait \
-alone tells a consumer only that some substitution happens, which is not \
-enough to answer \"does this argument read a variable?\". Silence means every \
-kind on every call, and a call the resolver cannot read must answer every \
-kind — assuming a substitution does not happen is what loses a real read.",
     ),
     (
         "callback_taint_inputs",
@@ -358,8 +369,23 @@ thinned. Use plain `forms` only when the difference is documentation-only.",
         "semantic_operation",
         "Names the abstract operation the command performs (\"list length\", \
 \"dict get\") so the compiler backends can share one implementation across \
-spellings. Only meaningful for commands the compiler executes; user \
-packages leave it unset.",
+spellings. A closed vocabulary: `invoke` (the generic call every command \
+falls back to), one of the registry's intrinsics, or one of its structured \
+lowerings — SpecTcl writes it `semantic_operation Invoke`, `{Intrinsic ID}` \
+or `{StructuredLowering ID}`. Only meaningful for commands the compiler \
+executes; user packages leave it unset.",
+    ),
+    (
+        "semantic_operation_windows",
+        "Per-release semantic operations, for the rare command or subcommand \
+whose operation differs between Tcl releases. SpecTcl writes one \
+`semantic_operation SPELLING -introduced V ?-deprecated V? ?-retired V?` row \
+per window, beside the plain row, which stays the operation for every release \
+no window covers. Windows must not overlap. A point that does not settle the \
+release — none pinned, or the whole ladder across a window's edge — selects \
+nothing and the call is dispatched plain, never by a guess between windows. \
+Bundled packs only: the stamp rejection rule treats a windowed stamp as it \
+treats the plain one.",
     ),
     (
         "completion",
@@ -416,10 +442,28 @@ mirroring the commands C Tcl byte-compiles specially. Leave unset; the \
 generic \"invoke the command\" path is always correct.",
     ),
     (
+        "codegen_hook_windows",
+        "Compiler internals: per-release bytecode emitters, for the rare command \
+or subcommand whose Tcl VM emitter differs between Tcl releases. SpecTcl \
+writes one `codegen_hook -native ID -introduced V ?-deprecated V? ?-retired V?` \
+row per window, beside the plain row, which stays the emitter for every \
+release no window covers. Windows must not overlap. A point that does not \
+settle the release — none pinned, or the whole ladder across a window's edge — \
+selects nothing and the call is dispatched plain, never by a guess between \
+windows. Bundled packs only: the stamp rejection rule treats a windowed stamp \
+as it treats the plain one.",
+    ),
+    (
         "inline_codegen_hook",
         "Compiler internals: the bytecode emitter used when the command sits \
 in value position (`set x [llength $l]`) or in a catch body. Leave unset \
 for user packages.",
+    ),
+    (
+        "inline_codegen_hook_windows",
+        "Compiler internals: per-release value-position emitters, written as \
+`inline_codegen_hook -native ID -introduced V ?-deprecated V? ?-retired V?` \
+rows with the contract of the bytecode codegen hook windows.",
     ),
     (
         "bpf_op",
@@ -433,6 +477,47 @@ gives this command — a structural hook, a cell read-modify-write, an \
 intrinsic, a fixed completion, a scope link, or a definition. It is stamped \
 beside the lowering hook or intrinsic it mirrors; unset means the generic \
 argv invocation through runtime dispatch.",
+    ),
+    (
+        "native_lowering_windows",
+        "Compiler internals: per-release native lowering shapes, with the \
+contract of the bytecode codegen hook windows. Like the plain shape it has no \
+SpecTcl spelling — a pack has nothing to say about the compiler's own native \
+tier. A windowed shape is not a basis for a derived value-transfer \
+specialisation, which reads the plain shape only.",
+    ),
+    (
+        "semantics",
+        "Compiler internals: the value-transfer specialisation the analyser \
+asks about an invocation — what it computes, which variables it writes, and \
+the evaluator route that computes it — or an explicit abstention. Unset \
+inherits the enclosing scope's declaration, or derives one from a descriptor \
+that states the same operation (a cell read-modify-write, a destroyed \
+variable). A pack states it with three statements at command, subcommand, \
+or per-form scope: `semantics { effects …; result -semantic T; stores …; \
+iterate … }` for the structure this field holds, `evaluate …` for the route \
+below, and `facts …` for the abstract transfer a pack may state but nothing \
+reads yet (checked at load time, not carried here or anywhere else). Most \
+commands leave all three unset.",
+    ),
+    (
+        "route",
+        "How the declared specialisation computes its answer: no evaluator \
+(`evaluate none`), a shipped direct evaluator over the registry's own cores \
+(`-direct ID`), the shared expression engine under a named language profile \
+(`-expression tcl.expr` / `bpf.expr`), or a declared implementation \
+(`-implementation ID -host bounded_tcl { … }`, or `-host wasm_extension { \
+extension FILE PREFIX … }` for a compiled C extension's command, run on the \
+thread's extension host and named by the artefact's content hash) — see the \
+body box below for the bounded host's Tcl.",
+    ),
+    (
+        "body",
+        "A declared implementation's Tcl body: the whitelisted commands of \
+`docs/design/registry/spec-packs.md`'s sandboxed host, taking the \
+declaration's inputs as parameters and answering with `fold VALUE`, \
+`write TARGET VALUE`, or `preserve TARGET` — silence declines the whole \
+answer. Only meaningful when the route above is a declared implementation.",
     ),
     (
         "analyser_hook",
@@ -698,6 +783,20 @@ end-of-options marker — that is what enables the \"put `--` before a \
 dynamic value\" safety warning.\n\nDeclared options get completion, spelling \
 checks, and correct highlighting of flag-versus-value; undeclared ones are \
 reported as unknown.",
+    ),
+    (
+        "option_effect_families",
+        "Where an option axis starts, and how two options over it combine. An \
+option row may declare what its presence does to the call — turn a \
+substitution kind or a pattern language on or off, fold case, pick a match \
+mode, suppress a role, change the trailing-operand reservation, or end the \
+option run — and every such effect names a family declared here. A family's \
+base is where its axis values start (all on, all off, or one named value on) \
+and its combine rule says whether its options accumulate (`subst`'s switches) \
+or the last one decides (`lsearch`'s match styles). Two families over the same \
+axis value are alternatives: a call using both cannot be read, and the error \
+itself is an option relation. The pack spelling arrives with the option-row \
+`-effect` flag.",
     ),
     (
         "option_relations",
@@ -990,6 +1089,35 @@ helper.",
 points at the replacement and leaves the arguments to the author.",
     ),
     (
+        "alias_of",
+        "The shipped builtin this pack command *is* — `lassign` for a \
+`vendor::unpack` that behaves exactly like it. The only admissible source \
+of a builtin identity for a pack command: a codegen stamp \
+(`codegen_hook`, `inline_codegen_hook`, an intrinsic \
+`semantic_operation`) survives only as the builtin this names carries it, \
+and only in a bundled pack — anywhere else the load drops it with a \
+warning. A site specialised on such a stamp records the builtin's \
+identity, so the compiled code runs where the pack name is an alias of \
+that builtin. Unset for a shipped command, or a pack command that claims \
+no builtin identity.",
+    ),
+    (
+        "runtime_backing",
+        "How the command's behaviour reaches the runtime, from which code \
+generation chooses the identity a compiled site records — never from the \
+command's name. `shipped-builtin ID` is a builtin the runtime registers, \
+known by its registry identity; `tcl-body {-package-source PATH}` is a Tcl \
+body the package's own installed source supplies, and `tcl-body {-pack-text \
+{TEXT}}` one carried in the pack (reported at load, because a library \
+upgrade then diverges from it silently); `-evaluate` after either source is \
+the author's assertion that the analyser may run the body to fold a call under \
+the release it analyses for, and nothing is run whose author did not say so; \
+`host-native` is a command the host registered natively, attested by a guard \
+identity and never by a procedure definition; `none`, the default, says \
+nothing executes it in the target runtime. A shipped command keeps its \
+backing through any override.",
+    ),
+    (
         "byte_array_payload",
         "F5 only: describes a `<proto>::payload`-style command's layout so \
 the binary-data corruption check (string operations applied to raw \
@@ -1008,12 +1136,17 @@ gotcha where `string tolower` quietly destroys bytes.",
         "For commands that *define a class or type* with a body of member \
 declarations — `oo::class create`, `snit::type`, `itcl::class`. The \
 grammar lists the member keywords (`method`, `constructor`, `variable`, \
-…) and which words of each are the name, the parameter list, and the \
-body, so navigation, folding, and highlighting work inside the class \
-body with no code written.\n\nGrammars are shared, named descriptors: if \
-your package has its own definer, the studio cannot author the grammar \
-inline — describe the member keywords and their shapes in the issue \
-notes.",
+…), which words of each are the name, the parameter list, and the \
+body, and what each member *declares* — its effect: a callable (a method, \
+constructor or option handler, on the instances or the type, or a \
+procedure in the definition's own namespace), a forward, state, a class \
+relation, a visibility change, a retraction, a definition-time script, or \
+configuration. Navigation, folding, \
+highlighting and the class model all read it, with no code written.\n\n\
+A shipped grammar is picked by name (`tcloo`, `snit`, `itcl`, …). A \
+package with its own definer spells the grammar out in its pack's \
+`definition_body { … }` block — one `member` row per keyword, each with \
+its `-effect` — and the form shows those rows.",
     ),
     (
         "manufacturer_methods",
@@ -1615,6 +1748,24 @@ means a delay rather than an unknown subcommand.",
 appends when it invokes the callback — exactly N, at least N, or \
 unknown. The callback checker verifies the target procedure accepts \
 them.",
+    ),
+    (
+        "semanticOperation",
+        "Semantic operation",
+        "The target-neutral operation a command performs, as a closed \
+vocabulary: `invoke` — the generic call every command falls back to — an \
+intrinsic (`intrinsic list-length`, `intrinsic dict-get`, …), or a \
+structured lowering (`structured-lowering expr`, …). The compiler \
+backends share one implementation per operation across its spellings.",
+    ),
+    (
+        "definitionBody",
+        "Shipped definer grammar",
+        "The definition-body grammars the registry ships and a pack may name: \
+`TclOO`'s class body (and its configurable variant), snit's type and widget \
+bodies, and [incr Tcl]'s class body. Each lists its member keywords, where \
+each member's name, parameter list and body sit, and what each member \
+declares.",
     ),
     (
         "optionArity",

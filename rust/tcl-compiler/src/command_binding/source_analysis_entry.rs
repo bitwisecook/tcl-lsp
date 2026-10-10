@@ -80,6 +80,9 @@ impl SourceDeclaredCommandContracts {
 /// catalogue availability or a package require spelling.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SourceAnalysisOptions<'a> {
+    /// Actual metadata ingress, independent of naming/frame/handler entry.
+    /// Supplied missing ownership must retain its explicit tag.
+    pub metadata_context: crate::registry_invocation::InvocationMetadataInput<'a>,
     /// Host storage policy supplied independently of source naming and catalogue.
     /// This selects no actual worker, publication, variable lifetime or value.
     pub hosted_execution_context: Option<tcl_registry::f5::BigIpExecutionContext>,
@@ -154,6 +157,9 @@ impl<'a> SourceAnalysisOptions<'a> {
     pub fn for_logical_source(input: &'a crate::analyser::ResolvedAnalysisInput) -> Option<Self> {
         input.has_logical_source_name_context().then(|| Self {
             logical_source_input: Some(input),
+            metadata_context: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
+                Some(input),
+            ),
             invocation_dialect: Some(source_input_dialect(input)),
             ..Self::default()
         })
@@ -165,6 +171,9 @@ impl<'a> SourceAnalysisOptions<'a> {
     pub fn for_hosted_source(input: &'a crate::analyser::ResolvedAnalysisInput) -> Option<Self> {
         input.has_hosted_source_name_context().then(|| Self {
             vendor_source_input: Some(input),
+            metadata_context: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
+                Some(input),
+            ),
             invocation_dialect: Some(source_input_dialect(input)),
             unknown_entry: true,
             ..Self::default()
@@ -173,6 +182,23 @@ impl<'a> SourceAnalysisOptions<'a> {
 }
 
 impl SourceAnalysisOptions<'_> {
+    /// Retain supplied metadata independently of naming and frame facts. An
+    /// explicit missing tag remains terminal even when name advice is retained.
+    pub(crate) fn retained_metadata_context(
+        &self,
+    ) -> crate::registry_invocation::OwnedInvocationMetadataContext {
+        let owner = self.metadata_context.retain();
+        if owner.is_standalone()
+            && let Some(input) = self.logical_source_input.or(self.vendor_source_input)
+        {
+            crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                input,
+            ))
+        } else {
+            owner
+        }
+    }
+
     pub(super) fn retained_declared_command_contracts(
         &self,
     ) -> Option<Arc<SourceDeclaredCommandContracts>> {
@@ -332,6 +358,8 @@ impl SourceAnalysisOptions<'_> {
 /// Owned entry proof carried from source lowering into every later consumer.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct SourceAnalysisEntry {
+    /// Complete actual availability/source ownership, independently of entry.
+    pub metadata_context: crate::registry_invocation::OwnedInvocationMetadataContext,
     /// Host storage policy supplied independently of source naming and catalogue.
     /// This selects no actual worker, publication, variable lifetime or value.
     pub hosted_execution_context: Option<tcl_registry::f5::BigIpExecutionContext>,
@@ -377,6 +405,7 @@ impl SourceAnalysisEntry {
         let options = SourceAnalysisOptions::for_logical_source(input)?;
         Some(Self {
             logical_source_input: options.logical_source_input.cloned(),
+            metadata_context: options.metadata_context.retain(),
             invocation_dialect: options.invocation_dialect,
             ..Self::default()
         })
@@ -389,6 +418,7 @@ impl SourceAnalysisEntry {
         let options = SourceAnalysisOptions::for_hosted_source(input)?;
         Some(Self {
             vendor_source_input: options.vendor_source_input.cloned(),
+            metadata_context: options.metadata_context.retain(),
             invocation_dialect: options.invocation_dialect,
             unknown_entry: options.unknown_entry,
             ..Self::default()
@@ -410,6 +440,10 @@ impl SourceAnalysisEntry {
         )
         .and_then(|_| Self::for_logical_source(input).or_else(|| Self::for_hosted_source(input)))
         .unwrap_or_else(|| Self {
+            metadata_context:
+                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                    input,
+                )),
             unknown_entry: true,
             ..Self::default()
         })
@@ -419,6 +453,9 @@ impl SourceAnalysisEntry {
     #[must_use]
     pub fn options(&self) -> SourceAnalysisOptions<'_> {
         SourceAnalysisOptions {
+            metadata_context: crate::registry_invocation::InvocationMetadataInput::Retained(
+                &self.metadata_context,
+            ),
             hosted_execution_context: self.hosted_execution_context,
             execution_name_policy: self.execution_name_policy,
             logical_source_input: self.logical_source_input.as_ref(),
@@ -441,6 +478,55 @@ impl SourceAnalysisEntry {
 #[cfg(test)]
 mod source_entry_tests {
     use super::*;
+
+    #[test]
+    fn owned_source_entry_retains_metadata_without_naming_or_native_entry_donation() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let entry = SourceAnalysisEntry::for_supplied_source(
+            context.commands(),
+            &input,
+            input.lexer_config(),
+            Some(profile),
+        );
+        assert_eq!(entry.metadata_context.source_analysis_input(), Some(&input));
+        assert!(entry.native_entry.is_none());
+        assert!(entry.execution_name_policy.is_none());
+        assert!(entry.logical_source_input.is_none());
+        assert!(entry.unknown_entry);
+        assert_eq!(
+            entry.options().retained_metadata_context(),
+            entry.metadata_context
+        );
+        let missing = SourceAnalysisOptions {
+            metadata_context: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
+                None,
+            ),
+            logical_source_input: Some(&input),
+            ..SourceAnalysisOptions::default()
+        };
+        assert!(matches!(
+            missing.retained_metadata_context(),
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
+        ));
+        let retained = SourceAnalysisEntry {
+            metadata_context: missing.retained_metadata_context(),
+            ..SourceAnalysisEntry::default()
+        };
+        assert!(matches!(
+            retained.options().retained_metadata_context(),
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable
+        ));
+    }
 
     #[test]
     fn owned_hosted_entry_keeps_source_policy_and_unknown_runtime_history() {

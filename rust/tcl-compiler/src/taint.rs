@@ -2144,7 +2144,14 @@ pub(crate) fn propagate_taints(
     };
 
     let mut taints: HashMap<ValueKey, TaintLattice> = HashMap::new();
-    seed_entry_taints(&mut taints, ssa, cfg, interproc, param_taints, dialect);
+    seed_entry_taints(
+        &mut taints,
+        ssa,
+        cfg,
+        interproc,
+        param_taints,
+        (registry, dialect),
+    );
 
     let mut changed = true;
     while changed {
@@ -2215,7 +2222,10 @@ fn seed_entry_taints(
     cfg: &CfgFunction,
     interproc: Option<&InterproceduralAnalysis>,
     param_taints: Option<&HashMap<String, TaintLattice>>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    (registry, dialect): (
+        &CommandRegistry,
+        Option<&'static tcl_dialect::DialectProfile>,
+    ),
 ) {
     // Seed entry taints for tainted parameters (interprocedural solve).
     // Only tainted params seed a slot; clean params leave the version-0
@@ -2257,11 +2267,11 @@ fn seed_entry_taints(
     // Interpreter-provided external-input globals (`env`, `argv`, `argv0`) are
     // taint sources: their version-0 (external) read is attacker-influenced.
     // The set is dialect-aware — the restricted iRules interpreter provides
-    // none of them — and sourced from the special-variable registry. A later
-    // local `set env …` writes a higher SSA version, so a read that resolves
-    // to the local (version > 0) is unaffected; shadowing falls out of the SSA
-    // versioning, not a check here.
-    for spec in tcl_registry::special_vars::special_vars_for_dialect(Some(
+    // none of them — and sourced from the registry's special variables, a
+    // pack-declared one included. A later local `set env …` writes a higher
+    // SSA version, so a read that resolves to the local (version > 0) is
+    // unaffected; shadowing falls out of the SSA versioning, not a check here.
+    for spec in registry.special_vars_for_dialect(Some(
         tcl_registry::special_vars::surface_query_for_profile(dialect),
     )) {
         let Some(colour) = spec.read_taint else {
@@ -2379,6 +2389,17 @@ fn propagate_statement_taints(
             } else {
                 evaluate_taint_def(stmt, var, &ssa_stmt.uses, &*taints, ctx, ssa)
             };
+            // A name an opaque `switch`'s arms may write keeps the taint it had
+            // when no arm runs.
+            if crate::ssa::has_arm_may_defs(stmt)
+                && ssa_stmt.may_defs.contains(&var)
+                && let Some(before) = ssa_stmt
+                    .uses
+                    .get(&var)
+                    .and_then(|&prior| taints.get(&(var, prior)))
+            {
+                inferred = inferred.join(*before);
+            }
             // Enrich the inferred taint with rendered-property
             // colours when available.
             if !destruction
@@ -3209,6 +3230,7 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
     let module_traces = crate::compilation_unit::ModuleTraceFacts {
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+        deferred_writes: &cu.ir_module.deferred_writes,
     };
     let identities = crate::realm::document_realm_bindings_with_source_entry(
         &cu.source,
@@ -3239,7 +3261,13 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
             &identities,
         ));
         out.extend(find_setter_constraint_warnings(
-            registry, &fu.cfg, &fu.ssa, &taints, exec, dialect,
+            registry,
+            &fu.cfg,
+            &fu.ssa,
+            &taints,
+            Some(&fu.sccp.values),
+            exec,
+            dialect,
         ));
         out.extend(crate::uri_split::find_uri_split_suggestions(
             &fu.cfg,
@@ -7432,15 +7460,22 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
 /// Three cases per constraint:
 ///
 /// 1. **Literal** (not `$`-prefixed, no `[`) — check the prefix directly.
-/// 2. **Pure var-ref** — look up the SSA-resolved taint colour; suppress
+/// 2. **Pure var-ref** — a value the lattice proves at the call (`values`)
+///    is checked as a literal is (#2055: `set p /a; HTTP::path $p` is
+///    clean); otherwise look up the SSA-resolved taint colour and suppress
 ///    when `PATH_PREFIXED | PATH_NORMALISED | PATH_BOUNDED` is set.
 /// 3. **Dynamic expression** (interpolation, command sub) — always warn.
 #[must_use]
-pub fn find_setter_constraint_warnings<S: std::hash::BuildHasher, E: std::hash::BuildHasher>(
+pub fn find_setter_constraint_warnings<
+    S: std::hash::BuildHasher,
+    V: std::hash::BuildHasher,
+    E: std::hash::BuildHasher,
+>(
     registry: &CommandRegistry,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice, S>,
+    values: Option<&HashMap<ValueKey, crate::analyses::LatticeValue, V>>,
     executable_blocks: &HashSet<BlockId, E>,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<TaintWarning> {
@@ -7499,6 +7534,20 @@ pub fn find_setter_constraint_warnings<S: std::hash::BuildHasher, E: std::hash::
                         .and_then(|s| ssa_stmt.uses.get(&s))
                         .copied()
                         .unwrap_or(0);
+                    let proven =
+                        sym.and_then(|s| values?.get(&(s, ver)))
+                            .and_then(|value| match value {
+                                crate::analyses::LatticeValue::Const(c) => {
+                                    crate::value_transfer::const_text(c)
+                                }
+                                _ => None,
+                            });
+                    if let Some(proven) = proven {
+                        if !proven.starts_with(constraint.required_prefix) {
+                            out.push(warn(var_name.to_owned()));
+                        }
+                        continue;
+                    }
                     let t = sym
                         .and_then(|s| taints.get(&(s, ver)))
                         .copied()
@@ -8067,6 +8116,7 @@ mod tests {
                     module_traces: crate::compilation_unit::ModuleTraceFacts {
                         traced_variables: &unit.ir_module.traced_variables,
                         has_dynamic_variable_trace: unit.ir_module.has_dynamic_variable_trace,
+                        deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
                     },
                     identities: crate::realm::CommandBindingRealm::none(),
                 }),
@@ -8266,6 +8316,7 @@ mod tests {
             let traces = crate::compilation_unit::ModuleTraceFacts {
                 traced_variables: &unit.ir_module.traced_variables,
                 has_dynamic_variable_trace: unit.ir_module.has_dynamic_variable_trace,
+                deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
             };
             find_taint_warnings_for_module_function(
                 &unit.top_level,
@@ -8412,6 +8463,25 @@ mod tests {
         SccpResult {
             required_math_invocations: Vec::new(),
             required_expression_preparations: Vec::new(),
+            explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
+            folded_types: HashMap::new(),
+            preserved: HashMap::new(),
+            raised: HashSet::default(),
+            template_plans: Vec::new(),
+            selections: Vec::new(),
+            existence: HashMap::new(),
+            existence_reads: HashMap::new(),
+            existence_exits: HashMap::new(),
+            existence_entries: HashMap::new(),
+            refinements: Vec::new(),
+            refinements_at: HashMap::new(),
+            value_entries: HashMap::new(),
+            query_places: Vec::new(),
+            existence_guards: Vec::new(),
+            loop_enumerations: Vec::new(),
+            reads_module: false,
+            completion: crate::sccp::RunCompletion::default(),
             values: HashMap::new(),
             executable_blocks: blocks.iter().copied().collect(),
             executable_edges: HashSet::new(),
@@ -10423,6 +10493,7 @@ mod tests {
                 &fu.cfg,
                 &fu.ssa,
                 &fu.taints,
+                Some(&fu.sccp.values),
                 &fu.sccp.executable_blocks,
                 dialect,
             ));
@@ -10467,15 +10538,23 @@ mod tests {
     #[test]
     fn irule3101_pure_var_ref_always_warns_without_safe_colour() {
         // A plain `$p` setter value (no taint + no provable path colour)
-        // cannot be proved `/`-prefixed by the static analyser, so
-        // IRULE3101 fires. Latent suppression paths
-        // via tainted-with-PATH_PREFIXED / _NORMALISED / _BOUNDED colours
-        // will light up once iRules source `taint_hints` reach the
-        // lattice.
-        let w = setter_warnings_for("set p /safe\nHTTP::uri $p");
+        // that the lattice cannot pin — two arms set two values — cannot be
+        // proved `/`-prefixed by the static analyser, so IRULE3101 fires.
+        // Latent suppression paths via tainted-with-PATH_PREFIXED /
+        // _NORMALISED / _BOUNDED colours will light up once iRules source
+        // `taint_hints` reach the lattice. A value the lattice proves is
+        // checked as a literal is (#2055): `set p /safe` is clean.
+        let w = setter_warnings_for(
+            "if {[HTTP::has_responded]} { set p /safe } else { set p safe }\nHTTP::uri $p",
+        );
         assert!(
             w.iter().any(|x| x.code == DiagCode::Irule3101),
             "pure var-ref setter value must warn without tainted-safe-colour, got {w:?}"
+        );
+        let w = setter_warnings_for("set p /safe\nHTTP::uri $p");
+        assert!(
+            !w.iter().any(|x| x.code == DiagCode::Irule3101),
+            "a proven `/` path is clean, got {w:?}"
         );
     }
 
@@ -12036,6 +12115,7 @@ mod tests {
             let traces = ModuleTraceFacts {
                 traced_variables: &cu.ir_module.traced_variables,
                 has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+                deferred_writes: &cu.ir_module.deferred_writes,
             };
 
             let fu = cu.function("::p").unwrap();
@@ -12069,6 +12149,7 @@ mod tests {
             let traces = ModuleTraceFacts {
                 traced_variables: &cu.ir_module.traced_variables,
                 has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+                deferred_writes: &cu.ir_module.deferred_writes,
             };
             let fu = cu.function("::p").unwrap();
             let patched = apply_module_variable_traces((*fu.taints).clone(), &fu.ssa, traces);
@@ -12161,6 +12242,22 @@ mod tests {
             warnings
                 .iter()
                 .any(|warning| warning.code == DiagCode::Irule3001)
+        );
+    }
+
+    /// A name an opaque `switch`'s arm may overwrite keeps the taint it held
+    /// when no arm runs: the arm need not run, so `puts $u` still sees data
+    /// read from the channel.
+    #[test]
+    fn a_tainted_name_an_opaque_switch_arm_may_overwrite_stays_tainted() {
+        let registry = CommandRegistry::build_default();
+        let source = "proc p {s} {\n set u [gets stdin]\n switch -glob -- $s { q* { set u clean } }\n puts $u\n}\n";
+        let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let found = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            found.iter().any(|w| w.code == DiagCode::T101),
+            "expected T101 for the sink after the switch, got {found:?}"
         );
     }
 }

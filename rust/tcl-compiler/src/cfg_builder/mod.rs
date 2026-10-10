@@ -41,17 +41,21 @@ use crate::cfg::{Block, BlockId, CfgModule, Function, LoopNode, Terminator};
 use crate::command_binding::ModuleCommandBindings;
 use crate::expr_ast::ExprNode;
 use crate::ir::{CommandBindingSite, CommandTokens, Module, Script, Statement};
-use crate::ir_helpers::defs_from_ir_script;
 use crate::naming::normalise_var_name;
+use crate::var_refs::{VarReferenceScanner, VarScanOptions};
 
 use self::global_write_info::GlobalWriteInfo;
 use self::upvar_info::{FrameReach, UpvarInfo};
 
-/// Registry traits whose terminal invocation can execute code or otherwise
-/// invalidate scalar facts. The command binding lattice resolves aliases and
-/// unresolved-command handlers to terminal registry targets before this set is
-/// consulted, so this remains generic and does not name `unknown` directly.
-const REGISTRY_BARRIER_TRAITS: Traits = Traits::EVALUATES_CODE
+/// Registry traits by which a command declares that it runs code, or raises a
+/// barrier, where it is invoked. A head that reaches such a command through a
+/// binding other than its own spelling — an `interp alias`, a `rename`, the
+/// registry's unresolved-command handler — runs code the graph never lowers,
+/// so it is a call to code the module cannot see
+/// ([`CfgBuilder::head_is_unseen`]). The command binding lattice resolves
+/// aliases and unresolved-command handlers to terminal registry targets before
+/// this set is consulted, so it does not name `unknown` directly.
+const CODE_RUNNING_TRAITS: Traits = Traits::EVALUATES_CODE
     .union(Traits::CREATES_BARRIER)
     .union(Traits::CREATES_DYNAMIC_BARRIER);
 
@@ -127,6 +131,29 @@ fn all_str_tokens(cmd: &str, args: &[String]) -> CommandTokens {
     )
 }
 
+/// Whether a `switch` lowers to a dispatch chain of `StrEq` branches, one
+/// per arm, rather than to one opaque statement: only an exact,
+/// case-sensitive one with no fall-through arm, whose subject no option scan
+/// may read, does — the registry's release and whether the arms are one list
+/// word or pattern and body words decide that. Its selection is then the
+/// chain's decided branches; the opaque forms' is the selection record.
+pub(crate) fn switch_is_flattened(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    config: &tcl_lexer::LexerConfig,
+) -> bool {
+    let Statement::Switch {
+        mode, nocase, arms, ..
+    } = stmt
+    else {
+        return false;
+    };
+    *mode == crate::ir::SwitchMode::Exact
+        && !*nocase
+        && !arms.iter().any(|arm| arm.fallthrough)
+        && !cfg_lower::subject_may_scan_as_option(stmt, registry, config)
+}
+
 mod cfg_lower;
 mod execution_regions;
 pub mod global_write_info;
@@ -153,12 +180,13 @@ struct ResolvedUpvarEffects {
 struct ConditionEffects {
     /// Variables the condition's substitutions write.
     defs: Vec<String>,
-    /// The subset of [`Self::defs`] read before being written.
+    /// What the condition reads of [`Self::defs`] ahead of their writes, as
+    /// [`EmbeddedSubstExtras::reads`] states it.
     reads: Vec<String>,
     /// An embedded callee runs an unreadable script at the global frame.
     opaque_global: bool,
-    /// A timeline-resolved embedded invocation reaches a registry barrier.
-    registry_barrier: bool,
+    /// An embedded command is one the module cannot see.
+    unseen: bool,
 }
 
 /// The caller-frame effects a statement's `[…]` substitutions contribute.
@@ -166,11 +194,15 @@ struct ConditionEffects {
 struct EmbeddedSubstExtras {
     /// Variables an embedded substitution writes.
     defs: Vec<String>,
-    /// The subset of [`Self::defs`] the embedded command reads before
-    /// writing (`[incr n]`, `[append s x]`).
-    read_before_write: Vec<String>,
+    /// What the statement reads of [`Self::defs`] ahead of their writes: the
+    /// names an embedded command reads before it writes (`[incr n]`,
+    /// `[append s x]`), and those the statement's words read beside a write
+    /// ([`CfgBuilder::read_beside_writes`]).
+    reads: Vec<String>,
     /// An embedded callee runs an unreadable script at the global frame.
     opaque_global: bool,
+    /// An embedded command is one the module cannot see.
+    unseen: bool,
 }
 
 /// Whether a call-shaped IR statement has one statically literal command
@@ -214,6 +246,9 @@ pub(crate) struct CfgBuilder<'a> {
     /// frozen [`Function`]'s interner reflects that order.
     block_ids: FxHashMap<String, BlockId>,
     loop_nodes: HashMap<String, LoopNode>,
+    /// The bodies of the opaque `catch` calls, by span
+    /// ([`Function::opaque_catch_bodies`]).
+    opaque_catch_bodies: HashMap<Span, Script>,
     inline_loops: bool,
     /// Whether the function being built is a procedure body rather than the
     /// top-level script. Only a procedure has a local variable table, so only
@@ -240,6 +275,10 @@ pub(crate) struct CfgBuilder<'a> {
     /// so SCCP treats a global/namespace name as overdefined across an
     /// opaque call that writes it, not as an ordinary untouched local.
     global_write_procs: HashMap<String, GlobalWriteInfo>,
+    /// Whether any procedure's [`Self::global_write_procs`] summary names
+    /// an outer-scope write, so a module with none skips the per-statement
+    /// scan [`Self::record_alias_observed`] makes for them.
+    global_writers: bool,
     /// Closed module command state used to resolve direct and parsed embedded
     /// spellings to effective user-procedure targets, including alias chains.
     command_bindings: ModuleCommandBindings,
@@ -261,6 +300,26 @@ pub(crate) struct CfgBuilder<'a> {
     /// `try` body→handler exception edges (analysis builds only).
     exception_edges: Vec<(String, String)>,
     analysis_edges: Vec<(String, String)>,
+    /// The exception edges that run from the block before a flattened body,
+    /// with the block of the body's first command
+    /// ([`crate::cfg::Function::region_entries`]).
+    region_entries: Vec<(String, String, String)>,
+    /// The flattened `catch` regions, each as the block before its body, the
+    /// block that ends it and the `catch` written as a call
+    /// ([`crate::cfg::Function::catch_ends`]).
+    catch_ends: Vec<(String, String, Statement)>,
+    /// The protected region being lowered in an analysis build — a flattened
+    /// `catch` body or a `try` body — whose scripts give each statement a
+    /// block of its own, so every point at which the body can fail ends a
+    /// block an exception edge leaves from; the region's inner blocks are
+    /// collected in [`Self::split_blocks`].
+    split_region: Option<SplitRegion>,
+    /// The points a throw may leave the region from: the blocks its scripts
+    /// end a statement in other than their last.
+    split_points: Vec<SplitPoint>,
+    /// For each block a split began, the block the statement before it ended
+    /// in: a region's first statements are the run from its first block.
+    split_parent: FxHashMap<String, String>,
     /// The subset of [`Self::exception_edges`] that resume a `break` /
     /// `continue` after a `finally` clause: `(the clause's last block, jump
     /// target)`. An enclosing `try … finally` reroutes them through its own
@@ -434,6 +493,9 @@ impl<'a> CfgBuilder<'a> {
         registry: &'a CommandRegistry,
         command_classes: CfgCommandClasses,
     ) -> Self {
+        let global_writers = global_write_procs
+            .values()
+            .any(|info| !info.names.is_empty());
         Self {
             counter: 0,
             blocks: HashMap::new(),
@@ -444,12 +506,14 @@ impl<'a> CfgBuilder<'a> {
             terminator_sources: HashMap::new(),
             block_ids: FxHashMap::default(),
             loop_nodes: HashMap::new(),
+            opaque_catch_bodies: HashMap::new(),
             inline_loops,
             is_proc_body: false,
             top_level_is_proc_body: false,
             upvar_procs,
             proc_params,
             global_write_procs,
+            global_writers,
             command_bindings,
             source_binding_timeline: None,
             invocation_namespace: crate::ir::ExecutionNamespace::exact("::"),
@@ -457,6 +521,11 @@ impl<'a> CfgBuilder<'a> {
             loop_stack: Vec::new(),
             exception_edges: Vec::new(),
             analysis_edges: Vec::new(),
+            region_entries: Vec::new(),
+            catch_ends: Vec::new(),
+            split_region: None,
+            split_points: Vec::new(),
+            split_parent: FxHashMap::default(),
             finally_jump_edges: Vec::new(),
             plain_return_blocks: FxHashSet::default(),
             total_interceptors: FxHashSet::default(),
@@ -605,17 +674,40 @@ impl<'a> CfgBuilder<'a> {
         if bindings.target_may_be_unknown(command, namespace.as_ref()) {
             return true;
         }
-        let resolved = bindings.resolve_statement(stmt, self.registry, namespace.as_ref());
+        let resolved = match self.command_classes.metadata_context() {
+            Some(Some(metadata)) => bindings.resolve_statement_with_metadata_context(
+                stmt,
+                self.registry,
+                Some(metadata),
+                namespace.as_ref(),
+            ),
+            Some(None) => bindings.resolve_statement(stmt, self.registry, namespace.as_ref()),
+            None => return true,
+        };
         resolved
             .iter()
             .any(|invocation| invocation.facts.traits.intersects(REGISTRY_BARRIER_TRAITS))
     }
 
-    /// Whether any recovered command substitution reaches a registry operation
-    /// with a barrier/evaluation trait. Substitutions execute before their
-    /// host statement, so callers place the synthetic barrier before that
-    /// host in the CFG.
-    fn embedded_registry_barrier(&self, stmt: &Statement) -> bool {
+    /// The command bindings in force where the call at `span` dispatches: the
+    /// source-order state the timeline recorded before it, or the module's
+    /// closed state where the timeline holds none.
+    fn bindings_before_call(&self, span: Span) -> &ModuleCommandBindings {
+        self.source_binding_timeline
+            .as_ref()
+            .and_then(|timeline| timeline.before_direct_call(span))
+            .unwrap_or(&self.command_bindings)
+    }
+
+    /// Whether a command a `[…]` substitution of `stmt` runs is one the module
+    /// cannot see ([`Self::command_reaches_unseen`]). The substitutions run in
+    /// Tcl's evaluation order before the statement does, and each is asked
+    /// under the command bindings the ones before it leave: a `[rename …]`
+    /// earlier in the statement decides what a later head reaches.
+    fn embedded_reaches_unseen(&self, stmt: &Statement) -> bool {
+        if !self.command_bindings.holds_a_command_table() {
+            return false;
+        }
         let bindings = self
             .source_binding_timeline
             .as_ref()
@@ -623,48 +715,47 @@ impl<'a> CfgBuilder<'a> {
             .cloned()
             .unwrap_or_else(|| self.command_bindings.clone());
         let state = std::cell::RefCell::new(bindings);
-        let barrier = std::cell::Cell::new(false);
+        let unseen = std::cell::Cell::new(false);
         let resolve = |head: &str| {
             state
                 .borrow()
                 .resolved_embedded_head(head, &self.invocation_namespace)
         };
         let observe = |words: &[crate::ir_helpers::CommandWord], conditional: bool| {
-            let found = state
-                .borrow_mut()
-                .source_order_registry_barrier_for_command(
-                    words,
-                    conditional,
-                    self.registry,
-                    &self.invocation_namespace,
-                    REGISTRY_BARRIER_TRAITS,
-                );
-            barrier.set(barrier.get() || found);
+            self.observe_in_source_order(&state, &unseen, words, conditional);
         };
-        let embedded = crate::ir_helpers::evaluated_command_substitutions_with_replay(
+        let _ = crate::ir_helpers::evaluated_command_substitutions_with_replay(
             stmt,
             self.registry,
             Some(&resolve),
             Some(&observe),
         );
-        embedded.opaque || barrier.get()
+        unseen.get()
     }
 
-    fn registry_barrier_statement(stmt: &Statement, reason: &str) -> Statement {
-        Self::registry_barrier_statement_at(stmt.span(), reason)
-    }
-
-    fn registry_barrier_statement_at(span: Span, reason: &str) -> Statement {
-        Statement::Barrier {
-            span,
-            reason: reason.to_owned(),
-            command: "<registry-barrier>".to_owned(),
-            canonical_command: None,
-            args: Vec::new(),
-            tokens: Some(crate::ir::CommandTokens::marker(
-                crate::ir::SyntheticMarker::RegistryBarrier,
-            )),
+    /// One step of a source-order replay over the commands a statement's
+    /// substitutions run: whether `words` reaches code the module cannot see
+    /// under the bindings in `state`, then the binding transition the command
+    /// makes, which the next command is resolved after.
+    fn observe_in_source_order(
+        &self,
+        state: &std::cell::RefCell<ModuleCommandBindings>,
+        unseen: &std::cell::Cell<bool>,
+        words: &[crate::ir_helpers::CommandWord],
+        conditional: bool,
+    ) {
+        if !unseen.get()
+            && self.command_bindings.holds_a_command_table()
+            && self.command_reaches_unseen(&state.borrow(), words, 0)
+        {
+            unseen.set(true);
         }
+        state.borrow_mut().advance_source_order_for_command(
+            words,
+            conditional,
+            self.registry,
+            &self.invocation_namespace,
+        );
     }
 
     /// Fold one binding-resolved terminal user procedure into a caller-frame
@@ -731,11 +822,11 @@ impl<'a> CfgBuilder<'a> {
     /// Augment a statement's effective `defs` with caller-side
     /// variable names that any callee proc will modify via `upvar`.
     /// Returns a list of statements — the original (possibly with
-    /// merged `defs` for the direct-call form) plus an optional
-    /// synthetic `<upvar-invalidate>` `Statement::Call` prepended
-    /// when the embedded-substitution form contributes defs that
-    /// can't be merged into the host statement (e.g. an
-    /// `AssignValue` whose `value` text contains `[upvar_proc arg]`).
+    /// merged `defs` for the direct-call form) plus, ahead of it, the
+    /// statement's word effects ([`Statement::word_effects`]) when the
+    /// embedded-substitution form contributes defs that can't be merged
+    /// into the host statement (e.g. an `AssignValue` whose `value` text
+    /// contains `[upvar_proc arg]`).
     ///
     /// Direct-call form: resolves the statement through the module command
     /// state, then maps the effective user-procedure target and its
@@ -745,8 +836,8 @@ impl<'a> CfgBuilder<'a> {
     /// Embedded-substitution form: scans the call's args / the
     /// `AssignValue`'s value text for `[command_substitution]`
     /// tokens whose head is a known upvar proc; merges those defs
-    /// into the host Call when possible, or emits a synthetic
-    /// `<upvar-invalidate>` Call before a non-Call host.
+    /// into the host Call when possible, or puts the statement's word
+    /// effects, paired with it, ahead of a non-Call host.
     ///
     /// The same two forms also widen `defs` with `global_write_procs`
     /// (a callee that writes an outer-scope name via `global`/`variable`/
@@ -768,14 +859,357 @@ impl<'a> CfgBuilder<'a> {
     /// *reads* on the call statement instead would fabricate
     /// read-before-set uses (a false W210) for the pure out-param shape.
     fn record_alias_observed(&mut self, stmt: &Statement) {
+        if self.upvar_procs.is_empty() && !self.global_writers {
+            return;
+        }
+        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, self.registry);
+        if self.global_writers {
+            // A callee that writes an outer-scope name may read it first —
+            // `incr ::hits`, `global g; incr g 5` — so a store the caller
+            // made to it is observed, not dead: O109 deleted `set hits 0`
+            // ahead of a `bump` whose body is `set y [incr ::hits]`
+            // (#2214). The summary records writes, not reads, so every
+            // name it holds counts as observed.
+            let observed: Vec<String> = self
+                .direct_global_writes(stmt)
+                .into_iter()
+                .chain(self.global_write_defs_from_commands(&embedded.commands).0)
+                .collect();
+            self.alias_observed_vars.extend(observed);
+        }
         if self.upvar_procs.is_empty() {
             return;
         }
         self.alias_observed_vars
             .extend(self.direct_upvar_effects(stmt).defs);
-        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, self.registry);
         self.alias_observed_vars
             .extend(self.upvar_effects_from_commands(&embedded.commands).defs);
+    }
+
+    /// Whether the call statement `stmt` itself runs code the module cannot
+    /// see: its head is computed, or is a literal the module cannot name
+    /// ([`Self::head_is_unseen`]) under the command bindings in force where it
+    /// dispatches, or it sources a file ([`Traits::SOURCES_FILE`]).
+    ///
+    /// The code such a call reaches can write, unset or read any name of the
+    /// frame it runs from with nothing in this function's text to show it: a
+    /// plain name at the top level is the global `::name`, and a procedure's
+    /// local is in the reach of a callee that runs `upvar 1` or `uplevel 1`.
+    /// An autoloaded or unknown-handled callee can do either on every release,
+    /// so the CFG marks the call ([`Statement::unseen_call_marker`]) in a procedure
+    /// body as at the top level. A head the module can name brings its frame
+    /// effect from the registry or from the procedure summary instead. A
+    /// builder that holds no module's command table names no head, so it marks
+    /// nothing.
+    fn call_is_unseen(&self, stmt: &Statement) -> bool {
+        let Statement::Call {
+            command,
+            canonical_command,
+            args,
+            tokens,
+            ..
+        } = stmt
+        else {
+            return false;
+        };
+        if !self.command_bindings.holds_a_command_table()
+            || tokens
+                .as_ref()
+                .is_some_and(|tokens| tokens.synthetic.is_some())
+        {
+            return false;
+        }
+        if !statement_has_literal_head(stmt) {
+            return true;
+        }
+        let spellings: Vec<&str> = args.iter().map(String::as_str).collect();
+        let lookup = canonical_command.as_deref().unwrap_or(command.as_str());
+        self.sources_a_file(lookup, &spellings)
+            || self.head_is_unseen(self.bindings_before_call(stmt.span()), command, &spellings)
+    }
+
+    /// Whether the command `head args…` sources a file, which runs in the
+    /// frame of the call ([`Traits::SOURCES_FILE`]).
+    fn sources_a_file(&self, head: &str, args: &[&str]) -> bool {
+        self.registry
+            .invocation_traits(head, args, self.registry.own_surface_query())
+            .contains(Traits::SOURCES_FILE)
+    }
+
+    /// Whether the command `words`, or code it runs, runs code the module cannot
+    /// see under `bindings`: a computed head, a literal one that sources a file
+    /// or that the module cannot name ([`Self::head_is_unseen`]). Every word the
+    /// command runs as code is read, whichever frame it runs in: a body of this
+    /// frame (the script of a `catch`), a body that runs in another (`uplevel`,
+    /// `namespace eval`), a lambda's body (`apply`), the commands in the text a
+    /// `subst` substitutes and those in an expression word; a computed one is
+    /// code the module cannot see. Whether such code runs is all this answers:
+    /// the names the commands of a substitution write are not stated.
+    fn command_reaches_unseen(
+        &self,
+        bindings: &ModuleCommandBindings,
+        words: &[crate::ir_helpers::CommandWord],
+        depth: u32,
+    ) -> bool {
+        let Some(head) = words
+            .first()
+            .and_then(crate::ir_helpers::CommandWord::literal)
+        else {
+            return true;
+        };
+        let spellings: Vec<&str> = words
+            .iter()
+            .skip(1)
+            .map(|word| word.literal().unwrap_or_default())
+            .collect();
+        if self.sources_a_file(head, &spellings) || self.head_is_unseen(bindings, head, &spellings)
+        {
+            return true;
+        }
+        // Past the cap the text is not read, so it is taken to run anything.
+        if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+            return true;
+        }
+        let reaches = |text: &str| {
+            crate::ir_helpers::tokenise_command_words(text, self.config)
+                .iter()
+                .any(|inner| self.command_reaches_unseen(bindings, inner, depth + 1))
+        };
+        // A script's own substitutions are not among the commands recovered
+        // from the statement, whose words are the only ones scanned for them.
+        if depth > 0
+            && words.iter().filter(|word| word.substituted).any(|word| {
+                crate::var_refs::command_subst_texts_with_config(&word.raw, self.config)
+                    .iter()
+                    .any(|inner| reaches(inner))
+            })
+        {
+            return true;
+        }
+        let runs = |index: usize, text_runs: &dyn Fn(&str) -> bool| match words.get(index + 1) {
+            Some(word) if !word.substituted => text_runs(&word.text),
+            Some(_) => true,
+            None => false,
+        };
+        let role_indices = |role| self.registry.arg_indices_for_role(head, &spellings, role);
+        if role_indices(tcl_registry::ArgRole::Body)
+            .into_iter()
+            .any(|index| runs(index, &reaches))
+        {
+            return true;
+        }
+        // A lambda literal is a list of its parameters, its body and a namespace.
+        let lambda_runs =
+            |text: &str| match tcl_syntax::list::split_list_in(text, self.config.escapes) {
+                Ok(elements) => elements.get(1).is_some_and(|body| reaches(body)),
+                Err(_) => true,
+            };
+        if role_indices(tcl_registry::ArgRole::LambdaLiteral)
+            .into_iter()
+            .any(|index| runs(index, &lambda_runs))
+        {
+            return true;
+        }
+        let substitutes = self
+            .registry
+            .substitutions_performed(head, &spellings)
+            .is_some_and(|kinds| kinds.commands);
+        let concatenates = self
+            .registry
+            .get(head)
+            .is_some_and(|spec| spec.traits.contains(Traits::EXPR_CONCATENATES_ARGS));
+        let expressions = role_indices(tcl_registry::ArgRole::Expr);
+        (0..spellings.len())
+            .filter(|index| substitutes || concatenates || expressions.contains(index))
+            .any(|index| match words.get(index + 1) {
+                Some(word) if !word.substituted => {
+                    crate::var_refs::command_subst_texts_with_config(&word.text, self.config)
+                        .iter()
+                        .any(|inner| reaches(inner))
+                }
+                _ => false,
+            })
+    }
+
+    /// What the commands the arms of the opaque `switch` `stmt` run do to this
+    /// frame, beyond the writes the SSA reads off the statement itself
+    /// ([`crate::ssa::switch_may_defs`]), as the statements that follow it
+    /// ([`Self::opaque_script_effects`]).
+    fn opaque_arm_effects(&mut self, stmt: &Statement) -> Vec<Statement> {
+        let Statement::Switch {
+            arms, default_body, ..
+        } = stmt
+        else {
+            return Vec::new();
+        };
+        let bodies: Vec<&Script> = arms
+            .iter()
+            .filter_map(|arm| arm.body.as_ref())
+            .chain(default_body.as_ref())
+            .collect();
+        self.opaque_script_effects(
+            stmt.span(),
+            &bodies,
+            BTreeSet::new(),
+            true,
+            "a command an arm of the switch runs may write any name",
+        )
+    }
+
+    /// What the commands of the scripts a statement keeps inside itself do to
+    /// this frame, as the statements to put beside it.
+    ///
+    /// The scripts stay inside the statement, so the scans of the statements the
+    /// graph lowers never reach a command in one. Each is asked what the graph
+    /// would have put beside it had it lowered the script
+    /// ([`Self::apply_upvar_invalidation`], whose function-level facts this
+    /// records too): the names a callee writes into this frame, which join
+    /// `written` as the statement's may-definitions
+    /// ([`crate::ir::SyntheticMarker::ArmWrites`]); a barrier for a command that
+    /// may write any name (`namespace eval`, `dict with`, `eval $script`, a
+    /// callee that aliases a computed name), unless the command leaves the
+    /// procedure and `leaves_the_procedure` says that leaving is no resumption
+    /// after the statement (an error inside a `catch` or a `try` resumes
+    /// there); and a marker where code the module cannot see runs.
+    fn opaque_script_effects(
+        &mut self,
+        span: Span,
+        scripts: &[&Script],
+        mut written: BTreeSet<String>,
+        leaves_the_procedure: bool,
+        barrier_reason: &str,
+    ) -> Vec<Statement> {
+        let (mut barrier, mut unseen) = (false, false);
+        for script in scripts {
+            crate::ir::for_each_statement(script, &mut |inner| {
+                let own: &[String] = match inner {
+                    Statement::Call { defs, .. } => defs,
+                    _ => &[],
+                };
+                // A command that leaves the procedure (`exit`, `error`) writes
+                // nothing the code after the statement can read.
+                let exits = leaves_the_procedure
+                    && flow_facts_stmt_with_classes(inner, &self.command_classes).1
+                        == Completion::ProcExit;
+                for produced in self.apply_upvar_invalidation(inner.clone()) {
+                    match &produced {
+                        _ if crate::ssa::is_unseen_call_marker(&produced) => unseen = true,
+                        Statement::Barrier { .. } | Statement::UpFrame { .. } => {
+                            barrier |= !exits;
+                        }
+                        Statement::Call { defs, .. } => {
+                            written.extend(defs.iter().filter(|name| !own.contains(name)).cloned());
+                        }
+                        _ => {}
+                    }
+                }
+            });
+        }
+        let mut effects = Vec::new();
+        if !written.is_empty() {
+            effects.push(Self::arm_writes_marker(span, written));
+        }
+        if barrier {
+            effects.push(Self::caller_frame_opaque(span, barrier_reason.to_owned()));
+        }
+        if unseen {
+            effects.push(Statement::unseen_call_marker(span));
+        }
+        effects
+    }
+
+    /// The statement that states the names a statement keeps its scripts in
+    /// may write ([`crate::ir::SyntheticMarker::ArmWrites`]).
+    fn arm_writes_marker(span: Span, names: BTreeSet<String>) -> Statement {
+        Statement::Call {
+            span,
+            command: "<arm-writes>".to_owned(),
+            canonical_command: None,
+            args: Vec::new(),
+            defs: names.into_iter().collect(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::ArmWrites,
+            )),
+            foreach_groups: None,
+        }
+    }
+
+    /// A widening *effect*, not a command to run: every tracked value is
+    /// widened where it stands ([`crate::ir::SyntheticMarker::CallerFrameOpaque`]).
+    fn caller_frame_opaque(span: Span, reason: String) -> Statement {
+        Statement::Barrier {
+            span,
+            reason,
+            command: "<caller-frame-opaque>".to_owned(),
+            canonical_command: None,
+            args: Vec::new(),
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::CallerFrameOpaque,
+            )),
+        }
+    }
+
+    /// Whether the literal head `head`, called with `args` in this function's
+    /// namespace under `bindings`, may reach code the module cannot name: a
+    /// spelling neither the registry ships for the dialect nor the module binds,
+    /// which Tcl dispatches to the unresolved-command handler
+    /// ([`ModuleCommandBindings::may_dispatch_unresolved`]); a binding the
+    /// source-order timeline cannot name — one a `rename` or an alias of a
+    /// computed name may have replaced, or any spelling once a `rename` or an
+    /// alias moved a name the timeline cannot name; and a registry command the
+    /// head reaches through another binding — an alias, a rename, the
+    /// unresolved-command handler — that declares it runs code
+    /// ([`CODE_RUNNING_TRAITS`]), which the graph never lowers. A head whose
+    /// namespace the builder does not know is taken to.
+    fn head_is_unseen(&self, bindings: &ModuleCommandBindings, head: &str, args: &[&str]) -> bool {
+        let Some(namespace) = self.invocation_namespace.for_head(head) else {
+            return true;
+        };
+        if bindings.has_unnameable_rebinding_subject()
+            || bindings.may_dispatch_unresolved(head, namespace)
+            || bindings.target_resolution_may_be_unknown(head, namespace)
+        {
+            return true;
+        }
+        let own = tcl_syntax::naming::normalise_qualified_name(head);
+        bindings.targets(head, namespace).iter().any(|target| {
+            if !target.registry_backed
+                || (target.prepended.is_empty()
+                    && tcl_syntax::naming::normalise_qualified_name(&target.command) == own)
+            {
+                return false;
+            }
+            let words: Vec<&str> = target
+                .prepended
+                .iter()
+                .map(String::as_str)
+                .chain(args.iter().copied())
+                .collect();
+            self.registry
+                .invocation_traits(&target.command, &words, self.registry.own_surface_query())
+                .intersects(CODE_RUNNING_TRAITS)
+        })
+    }
+
+    /// The outer-scope names the procedure a direct call statement reaches
+    /// writes ([`GlobalWriteInfo::names`]).
+    fn direct_global_writes(&self, stmt: &Statement) -> Vec<String> {
+        let Statement::Call {
+            command,
+            canonical_command,
+            ..
+        } = stmt
+        else {
+            return Vec::new();
+        };
+        let target = canonical_command.as_deref().unwrap_or(command.as_str());
+        self.global_write_procs
+            .get(target)
+            .map(|info| info.names.iter().cloned().collect())
+            .unwrap_or_default()
     }
 
     /// Whole-frame blindness the statement's calls impose on *this*
@@ -815,7 +1249,29 @@ impl<'a> CfgBuilder<'a> {
     /// no side effect on the function-level barrier — so a speculative query
     /// ([`Self::init_written_names`]) can ask what a statement writes without
     /// recording the statement twice.
-    fn upvar_invalidated(&self, mut stmt: Statement) -> Vec<Statement> {
+    fn upvar_invalidated(&self, stmt: Statement) -> Vec<Statement> {
+        let call_unseen = self.call_is_unseen(&stmt);
+        let span = stmt.span();
+        let (mut out, substitution_unseen) = self.upvar_effect_statements(stmt);
+        // An embedded command runs while the host's words are still being
+        // evaluated, so its marker goes ahead of the host's own reads; the
+        // call's own head runs after its words are, so its marker follows:
+        // the words read the versions before it, and a read after the call
+        // finds the fresh one the marker leaves
+        // ([`crate::ssa::SsaFunction::value_clobbers`]).
+        if substitution_unseen {
+            out.insert(0, Statement::unseen_call_marker(span));
+        }
+        if call_unseen {
+            out.push(Statement::unseen_call_marker(span));
+        }
+        out
+    }
+
+    /// The statements [`Self::upvar_invalidated`] puts for `stmt` before its
+    /// call is marked, and whether a command a `[…]` substitution of it runs is
+    /// one the module cannot see.
+    fn upvar_effect_statements(&self, mut stmt: Statement) -> (Vec<Statement>, bool) {
         // 1. Direct-call extras: command is a known upvar proc / a proc
         //    that writes outer-scope names.
         let direct_extras = self.direct_call_extras(&stmt);
@@ -827,54 +1283,46 @@ impl<'a> CfgBuilder<'a> {
         //    summary may contain both precise caller-side defs and an opaque
         //    remainder, and dropping the known defs loses useful facts such
         //    as `uplevel 1 [list set $parameter value]`.
-        let direct_opaque_barriers = self.opaque_call_barriers(&stmt);
+        let direct_opaque_barrier = self.opaque_call_barrier(&stmt);
 
         // 3. Embedded-substitution extras: walk text for
         //    `[upvar_proc arg]` / `[global_write_proc arg]` substitutions.
         let EmbeddedSubstExtras {
             defs: embedded_extras,
-            read_before_write: embedded_reads,
+            reads: embedded_reads,
             opaque_global: embedded_opaque_global,
+            unseen: substitution_unseen,
         } = self.embedded_subst_extras(&stmt);
-        let embedded_registry_barrier = self.embedded_registry_barrier(&stmt);
 
         if direct_extras.is_empty()
             && embedded_extras.is_empty()
             && embedded_reads.is_empty()
             && !embedded_opaque_global
-            && !embedded_registry_barrier
         {
-            let mut out = vec![stmt];
-            out.extend(direct_opaque_barriers);
-            return out;
+            let out = match direct_opaque_barrier {
+                Some(barrier) => vec![stmt, barrier],
+                None => vec![stmt],
+            };
+            return (out, substitution_unseen);
         }
 
         // 2b. An embedded call to a proc that runs an unreadable script at
         //     the global frame (`set y [setter]` where `setter` does
         //     `uplevel #0 $body`): no def list can enumerate
         //     what it clobbers, so prepend an opaque barrier — the same
-        //     program-order position the synthetic `<upvar-invalidate>`
-        //     uses, so the host statement's own reads already see the
-        //     widened state.
-        let mut embedded_barriers = Vec::new();
-        if embedded_opaque_global {
-            embedded_barriers.push(Statement::Barrier {
-                span: stmt.span(),
-                reason: "embedded call runs an unreadable script at the global frame".to_owned(),
-                command: "<global-frame-script>".to_owned(),
-                canonical_command: None,
-                args: Vec::new(),
-                tokens: Some(crate::ir::CommandTokens::marker(
-                    crate::ir::SyntheticMarker::GlobalFrameScript,
-                )),
-            });
-        }
-        if embedded_registry_barrier {
-            embedded_barriers.push(Self::registry_barrier_statement(
-                &stmt,
-                "embedded call reaches a registry-declared evaluation barrier",
-            ));
-        }
+        //     program-order position the statement's word effects take,
+        //     so the host statement's own reads already see the widened
+        //     state.
+        let opaque_barrier = embedded_opaque_global.then(|| Statement::Barrier {
+            span: stmt.span(),
+            reason: "embedded call runs an unreadable script at the global frame".to_owned(),
+            command: "<global-frame-script>".to_owned(),
+            canonical_command: None,
+            args: Vec::new(),
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::GlobalFrameScript,
+            )),
+        });
 
         // 3. Merge into the host statement when it's a Call.
         if let Statement::Call { defs, reads, .. } = &mut stmt {
@@ -896,64 +1344,54 @@ impl<'a> CfgBuilder<'a> {
                     reads.push(r);
                 }
             }
-            let mut out = embedded_barriers;
+            let mut out = Vec::new();
+            if let Some(barrier) = opaque_barrier {
+                out.push(barrier);
+            }
             out.push(stmt);
-            out.extend(direct_opaque_barriers);
-            return out;
+            if let Some(barrier) = direct_opaque_barrier {
+                out.push(barrier);
+            }
+            return (out, substitution_unseen);
         }
 
-        // 4. Non-Call host (e.g. AssignValue) with embedded extras —
-        //    emit a synthetic `<upvar-invalidate>` Call before the
-        //    host so the affected vars are invalidated in
-        //    program order.
-        let mut out = embedded_barriers;
+        // 4. Non-Call host (e.g. AssignValue) with embedded extras — its
+        //    word effects go right ahead of it as a definition point paired
+        //    with it, so the affected vars are written in program order.
+        let mut out = Vec::new();
+        if let Some(barrier) = opaque_barrier {
+            out.push(barrier);
+        }
         if !embedded_extras.is_empty() || !embedded_reads.is_empty() {
-            out.push(Statement::Call {
-                span: stmt.span(),
-                command: "<upvar-invalidate>".to_string(),
-                canonical_command: None,
-                args: Vec::new(),
-                defs: embedded_extras,
-                reads: embedded_reads,
-                reads_own_defs: false,
-                safe_on_uninit: false,
-                tokens: Some(crate::ir::CommandTokens::marker(
-                    crate::ir::SyntheticMarker::UpvarInvalidate,
-                )),
-                foreach_groups: None,
-            });
-        }
-        out.push(stmt);
-        out.extend(direct_opaque_barriers);
-        out
-    }
-
-    fn opaque_call_barriers(&self, stmt: &Statement) -> Vec<Statement> {
-        let mut barriers: Vec<_> = self.opaque_call_barrier(stmt).into_iter().collect();
-        if self.direct_opaque_global_effect(stmt)
-            && self.direct_registry_barrier(stmt)
-            && barriers.iter().all(|barrier| {
-                !matches!(barrier, Statement::Barrier { tokens: Some(tokens), .. }
-                    if tokens.synthetic == Some(crate::ir::SyntheticMarker::RegistryBarrier))
-            })
-        {
-            barriers.push(Self::registry_barrier_statement(
-                stmt,
-                "direct call also reaches a registry-declared evaluation barrier",
+            out.push(Statement::word_effects(
+                stmt.span(),
+                (embedded_extras, embedded_reads),
+                crate::ir::WordEffectsHost::Statement,
             ));
         }
-        barriers
+        out.push(stmt);
+        if let Some(barrier) = direct_opaque_barrier {
+            out.push(barrier);
+        }
+        (out, substitution_unseen)
     }
 
-    fn direct_opaque_global_effect(&self, stmt: &Statement) -> bool {
+    /// The opaque widening barrier for a direct call whose callee's
+    /// caller-frame effect has no sound per-name def list: a callee whose
+    /// `upvar` caller-side name is unresolvable (`upvar 1 $computed x`) can
+    /// write ANY caller variable, and a callee that runs an unreadable
+    /// script at the global frame (`uplevel #0 $body`) can write or read ANY
+    /// global/namespace name.
+    fn opaque_call_barrier(&self, stmt: &Statement) -> Option<Statement> {
         let Statement::Call {
             command,
             canonical_command,
+            span,
             tokens,
             ..
         } = stmt
         else {
-            return false;
+            return None;
         };
         let literal_head = tokens.as_ref().is_none_or(|tokens| {
             tokens.synthetic.is_none()
@@ -964,73 +1402,33 @@ impl<'a> CfgBuilder<'a> {
                 })
         });
         let target = canonical_command.as_deref().unwrap_or(command.as_str());
-        self.global_write_procs
-            .get(target)
-            .is_some_and(|info| literal_head && info.opaque_global_frame)
-    }
-
-    /// The opaque widening barrier for a direct call whose callee's
-    /// caller-frame effect has no sound per-name def list: a callee whose
-    /// `upvar` caller-side name is unresolvable (`upvar 1 $computed x`) can
-    /// write ANY caller variable, and a callee that runs an unreadable
-    /// script at the global frame (`uplevel #0 $body`) can write or read ANY
-    /// global/namespace name.
-    fn opaque_call_barrier(&self, stmt: &Statement) -> Option<Statement> {
-        let Statement::Call { command, span, .. } = stmt else {
-            return None;
-        };
         let direct_upvar = self.direct_upvar_effects(stmt);
         let unresolvable_upvar = direct_upvar.has_unresolvable_target;
-        let opaque_global = self.direct_opaque_global_effect(stmt);
+        let opaque_global = self
+            .global_write_procs
+            .get(target)
+            .is_some_and(|info| literal_head && info.opaque_global_frame);
         let source_opaque_upvar = direct_upvar.opaque_arguments;
         let opaque_variable_write = self.variable_write_projection(stmt).opaque_variable_frame;
-        let registry_barrier = self.direct_registry_barrier(stmt);
-        if !unresolvable_upvar
-            && !source_opaque_upvar
-            && !opaque_global
-            && !opaque_variable_write
-            && !registry_barrier
-        {
+        if !unresolvable_upvar && !source_opaque_upvar && !opaque_global && !opaque_variable_write {
             return None;
         }
         let reason = if unresolvable_upvar || source_opaque_upvar {
             format!("{command} upvar-aliases a dynamic caller variable")
         } else if opaque_global {
             format!("{command} runs an unreadable script at the global frame")
-        } else if registry_barrier {
-            format!("{command} reaches a registry-declared evaluation barrier")
         } else {
             format!("{command} writes a source-opaque variable name")
         };
-        if registry_barrier
-            && !unresolvable_upvar
-            && !source_opaque_upvar
-            && !opaque_global
-            && !opaque_variable_write
-        {
-            return Some(Self::registry_barrier_statement(stmt, &reason));
-        }
-        Some(Statement::Barrier {
-            span: *span,
-            // A widening *effect*, not a command to run: the call itself is
-            // already in the statement stream immediately beside this barrier,
-            // so naming the callee here would make codegen invoke it a second
-            // time: `proc p {} { upvar 1 {a b} v ; puts "u=$v" }; p` would print
-            // `u=…` twice on the VM where tclsh 8.6.14 / 9.0.4 print it
-            // once; `proc setter {body} { uplevel #0 $body }; setter {set q 1}`
-            // failed with `wrong # args` from the re-invoke). The typed
-            // `SyntheticMarker` on the tokens is what stops codegen
-            // dispatching it; the `command` spelling below is a label for the
-            // disassembly and the explorer, and `reason` keeps the callee's
-            // name.
-            reason,
-            command: "<caller-frame-opaque>".to_owned(),
-            canonical_command: None,
-            args: Vec::new(),
-            tokens: Some(crate::ir::CommandTokens::marker(
-                crate::ir::SyntheticMarker::CallerFrameOpaque,
-            )),
-        })
+        // Not a command to run: the call itself is already in the statement
+        // stream immediately beside this barrier, so naming the callee here
+        // would make codegen invoke it a second time: `proc p {} { upvar 1 {a
+        // b} v ; puts "u=$v" }; p` would print `u=…` twice on the VM where
+        // tclsh 8.6.14 / 9.0.4 print it once; `proc setter {body} { uplevel #0
+        // $body }; setter {set q 1}` failed with `wrong # args` from the
+        // re-invoke. The typed `SyntheticMarker` on the tokens is what stops
+        // codegen dispatching it, and `reason` keeps the callee's name.
+        Some(Self::caller_frame_opaque(*span, reason))
     }
 
     /// The direct-call half of [`Self::upvar_invalidated`]: the caller-side
@@ -1041,26 +1439,18 @@ impl<'a> CfgBuilder<'a> {
     /// [`Self::record_alias_observed`] (a read here would fabricate
     /// read-before-set uses — a false W210 — for the pure out-param shape).
     fn direct_call_extras(&self, stmt: &Statement) -> Vec<String> {
-        let Statement::Call {
-            command,
-            canonical_command,
-            ..
-        } = stmt
-        else {
+        if !matches!(stmt, Statement::Call { .. }) {
             return Vec::new();
-        };
-        let target = canonical_command.as_deref().unwrap_or(command.as_str());
+        }
         let mut extras = self.direct_upvar_effects(stmt).defs;
         for name in self.variable_write_projection(stmt).literal_names {
             if !extras.contains(&name) {
                 extras.push(name);
             }
         }
-        if let Some(info) = self.global_write_procs.get(target) {
-            for name in &info.names {
-                if !extras.contains(name) {
-                    extras.push(name.clone());
-                }
+        for name in self.direct_global_writes(stmt) {
+            if !extras.contains(&name) {
+                extras.push(name);
             }
         }
         extras
@@ -1122,10 +1512,11 @@ impl<'a> CfgBuilder<'a> {
         // target variable as a side effect; record it so copy / constant
         // propagation (O100) does not propagate a stale value past the
         // mutation (FP-OPT-06).
-        // The variable-effect view takes the in-frame expression words too: a
-        // `[incr x]` inside `[expr {…}]` writes `x` whatever word carried it.
+        // The variable-effect view takes the in-frame words too: a `[incr x]`
+        // inside `[expr {…}]`, or the `incr x` of `[catch {incr x}]`, writes
+        // `x` whatever word carried it.
         // The call-graph consumers above deliberately do not — see
-        // `EvaluatedCommandSubstitutions::in_frame_expression_commands`.
+        // `EvaluatedCommandSubstitutions::in_frame_commands`.
         let writes = crate::ir_helpers::variable_write_effects_from_commands(
             embedded.all_commands(),
             self.registry,
@@ -1157,11 +1548,81 @@ impl<'a> CfgBuilder<'a> {
                 reads.push(r);
             }
         }
+        let beside = self.read_beside_writes(&embedded_extras, |scanner| {
+            crate::ir_helpers::statement_substituted_reads(stmt, &embedded, scanner, self.registry)
+        });
+        for name in beside.into_iter().chain(self.protected_writes(&embedded)) {
+            if !reads.contains(&name) {
+                reads.push(name);
+            }
+        }
         EmbeddedSubstExtras {
             defs: embedded_extras,
-            read_before_write: reads,
+            reads,
             opaque_global: embedded_opaque_global,
+            unseen: self.embedded_reaches_unseen(stmt),
         }
+    }
+
+    /// The places a protected script among `embedded` writes — a `catch` or
+    /// `try` body inside a substitution — each of which the statement reads
+    /// as well as defines. The script stops at its first error and the
+    /// `catch` or `try` absorbs it, so a place written only after a command
+    /// that may fail keeps what it held, and the store before the statement
+    /// is what a later read sees there: `set c old; set r [catch {lassign {x
+    /// y z} a b c} m]` leaves `c` old where `b` is an array (tclsh 8.5 to
+    /// 9.1). Read by name, like a read beside a write, of the version before
+    /// it.
+    fn protected_writes(
+        &self,
+        embedded: &crate::ir_helpers::EvaluatedCommandSubstitutions,
+    ) -> Vec<String> {
+        crate::ir_helpers::variable_write_effects_from_commands(
+            embedded.protected_commands.iter(),
+            self.registry,
+        )
+        .names
+    }
+
+    /// The places among `written`, which a statement's `[…]` substitutions
+    /// write, that `host_reads` — every variable the statement reads by
+    /// substitution — also holds.
+    ///
+    /// The words of one statement run before, between and after such a write,
+    /// and the SSA gives a statement one version of a name. The effect call
+    /// that carries the write is placed first and reads the version before
+    /// it, so the store feeding a word that runs ahead of the write stays
+    /// live. Which word runs where is not modelled: a read after the write is
+    /// counted too, and a place no word reads is not, so a store the
+    /// statement overwrites unread (`puts [set x 2]`, `[gets $fd line]`)
+    /// stays dead.
+    fn read_beside_writes(
+        &self,
+        written: &[String],
+        host_reads: impl FnOnce(&mut VarReferenceScanner) -> BTreeSet<String>,
+    ) -> Vec<String> {
+        if written.is_empty() {
+            return Vec::new();
+        }
+        let mut scanner = VarReferenceScanner::with_config(
+            VarScanOptions {
+                include_var_read_roles: true,
+                recurse_cmd_substitutions: true,
+                include_reads_before_write: false,
+                element_qualified: true,
+            },
+            self.config,
+        );
+        let base = |name: &str| normalise_var_name(name).trim_start_matches("::").to_owned();
+        let read: BTreeSet<String> = host_reads(&mut scanner)
+            .iter()
+            .map(|name| base(name))
+            .collect();
+        written
+            .iter()
+            .filter(|name| read.contains(&base(name)))
+            .cloned()
+            .collect()
     }
 
     fn upvar_effects_from_commands(
@@ -1246,7 +1707,8 @@ impl<'a> CfgBuilder<'a> {
     }
 
     /// Condition-position effects combine registry variable roles, resolved
-    /// procedure summaries, and timeline-resolved handler barriers.
+    /// procedure summaries, and whether a command the condition's
+    /// substitutions run, in source order, is one the module cannot see.
     fn condition_out_vars(&self, condition: &ExprNode, span: Span) -> ConditionEffects {
         let bindings = self
             .source_binding_timeline
@@ -1265,7 +1727,7 @@ impl<'a> CfgBuilder<'a> {
         );
         let mut defs = writes.names;
         let state = std::cell::RefCell::new(bindings);
-        let registry_barrier = std::cell::Cell::new(false);
+        let unseen = std::cell::Cell::new(false);
         let resolve = |head: &str| {
             state
                 .borrow()
@@ -1283,6 +1745,7 @@ impl<'a> CfgBuilder<'a> {
                     metadata,
                 );
             registry_barrier.set(registry_barrier.get() || found);
+            self.observe_in_source_order(&state, &unseen, words, conditional);
         };
         let embedded =
             crate::ir_helpers::expression_command_substitutions_with_replay_and_metadata_context(
@@ -1309,12 +1772,42 @@ impl<'a> CfgBuilder<'a> {
                 defs.push(name);
             }
         }
-        let reads = writes.read_names;
+        // A condition's `[incr n]` observes `n` before overwriting it, exactly
+        // as the same substitution does in an argument word. Recording only
+        // the write made the store feeding the condition look
+        // overwritten-before-read, and O109 deleted it: tclsh 9.0.4 prints `6`
+        // for `proc p {} {set n 5; if {[incr n]} {puts $n}}` and the optimised
+        // program printed `1` (#2132).
+        // An `[info exists n]` / `[array size a]` in the condition reads its
+        // target without writing it at all, so the read never appears among
+        // the write effects above. `proc p {} {set x 1; if {[info exists x]}
+        // {puts yes}}` prints `yes` on tclsh 9.0.4; without this the store was
+        // removed as unused and the program printed nothing.
+        //
+        // Deliberately *not* folded into `opaque_global`: an unnameable
+        // **read** (`[info exists $p]`) observes a cell we cannot name, which
+        // is a precision loss, not a claim that anything is written. A
+        // dynamic read's effect on dead-store elimination is already owned by
+        // `dynamic_names.reads`, which abstains for the whole function.
+        let mut reads = writes.read_names;
+        let beside = self.read_beside_writes(&defs, |scanner| {
+            crate::ir_helpers::condition_substituted_reads(
+                condition,
+                &embedded,
+                scanner,
+                self.registry,
+            )
+        });
+        for name in beside.into_iter().chain(self.protected_writes(&embedded)) {
+            if !reads.contains(&name) {
+                reads.push(name);
+            }
+        }
         ConditionEffects {
             defs,
             reads,
             opaque_global,
-            registry_barrier: embedded.opaque || registry_barrier.get(),
+            unseen: unseen.get(),
         }
     }
 
@@ -1324,8 +1817,13 @@ impl<'a> CfgBuilder<'a> {
             defs,
             reads,
             opaque_global,
-            registry_barrier,
+            unseen,
         } = self.condition_out_vars(condition, span);
+        if unseen {
+            self.block_mut(block)
+                .statements
+                .push(Statement::unseen_call_marker(span));
+        }
         if !defs.is_empty() || !reads.is_empty() {
             self.push_statement(
                 block,
@@ -1359,14 +1857,6 @@ impl<'a> CfgBuilder<'a> {
                     )),
                 },
             );
-        }
-        if registry_barrier {
-            self.block_mut(block)
-                .statements
-                .push(Self::registry_barrier_statement_at(
-                    span,
-                    "condition reaches a registry-declared evaluation barrier",
-                ));
         }
     }
 
@@ -1406,8 +1896,75 @@ impl<'a> CfgBuilder<'a> {
         true
     }
 
-    /// Retain a plain statement and, in analysis graphs, attach its proved
-    /// non-normal completion. Execution graphs retain runtime continuations.
+    /// Whether `stmt` ends the block it is lowered into and leaves from the
+    /// state before it: a `return`, a `break` or `continue` a loop takes, or a
+    /// command that terminates the block (`error`, `throw`, `exit`, and in an
+    /// analysis build `tailcall`), each with words that substitute nothing, so
+    /// it stores nothing and cannot fail before it completes with its code. A
+    /// split region keeps such a statement in the block before it: the block's
+    /// exit is the state the statement leaves from, and the block's statements
+    /// are the run whose exact completion a handler is matched against
+    /// (`set z 0; error boom` completes with an error whichever command raises).
+    fn leaves_from_the_state_before(&self, stmt: &Statement) -> bool {
+        let literal = |word: &crate::ir::WordExpr| {
+            matches!(
+                word,
+                crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+            )
+        };
+        match stmt {
+            Statement::Return {
+                value,
+                value_word,
+                braced,
+                ..
+            } => value.is_none() || *braced || value_word.as_ref().is_some_and(literal),
+            Statement::Call {
+                command,
+                canonical_command,
+                tokens,
+                ..
+            } => {
+                if self.plain_command_dispatch
+                    || !tokens
+                        .as_ref()
+                        .is_some_and(|tokens| tokens.word_exprs.iter().all(literal))
+                {
+                    return false;
+                }
+                match self.command_classes.completion_route(stmt) {
+                    Some(tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                        tcl_registry::CompletionCode::Break
+                        | tcl_registry::CompletionCode::Continue,
+                    )) => !self.loop_stack.is_empty(),
+                    Some(route) => !route.normal_possible(),
+                    None => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// The point a split ends at `ended`, where `next` is the statement after
+    /// it: a statement of `ended` may leave after its own stores, unless each
+    /// is a literal assignment, which raises before it stores if it raises at
+    /// all — a block with no statement joins paths that may — and `next` may
+    /// fail before it stores ([`NextFailure::of`]).
+    fn split_point(&self, ended: String, next: &Statement) -> SplitPoint {
+        let after_stores = self.blocks.get(&ended).is_none_or(|block| {
+            block.statements.is_empty() || !block.statements.iter().all(is_literal_assignment)
+        });
+        SplitPoint {
+            block: ended,
+            after_stores,
+            next: NextFailure::of(next),
+        }
+    }
+
+    /// Push a non-control-flow statement into `current` (after upvar
+    /// invalidation), promoting `error` / `throw` / `exit` (and, in analysis
+    /// builds, `tailcall`) to a `Return` terminator so any following statements
+    /// become dead code (mirrors the `TERMINATES_BLOCK` registry trait).
     fn push_plain_statement(&mut self, current: &str, stmt: &Statement) {
         for s in self.apply_upvar_invalidation(stmt.clone()) {
             self.push_statement(current, s);
@@ -1562,8 +2119,10 @@ impl<'a> CfgBuilder<'a> {
             .into_iter()
             .map(|(k, ln)| (self.bid(&k), ln))
             .collect();
+        func.opaque_catch_bodies = std::mem::take(&mut self.opaque_catch_bodies);
         self.finally_jump_edges.clear();
         self.plain_return_blocks.clear();
+        self.split_parent.clear();
         self.total_interceptors.clear();
         self.handler_caught.clear();
         self.unwinding_tails.clear();
@@ -1574,6 +2133,22 @@ impl<'a> CfgBuilder<'a> {
         func.analysis_edges = std::mem::take(&mut self.analysis_edges)
             .into_iter()
             .map(|(from, to)| (self.bid(&from), self.bid(&to)))
+            .collect();
+        func.region_entries = std::mem::take(&mut self.region_entries)
+            .into_iter()
+            .map(|(source, handler, first)| crate::cfg::RegionEntry {
+                source: self.bid(&source),
+                handler: self.bid(&handler),
+                first: self.bid(&first),
+            })
+            .collect();
+        func.catch_ends = std::mem::take(&mut self.catch_ends)
+            .into_iter()
+            .map(|(entry, end, call)| crate::cfg::CatchEnd {
+                entry: self.bid(&entry),
+                end: self.bid(&end),
+                call,
+            })
             .collect();
         func.inline_body_error_sites = std::mem::take(&mut self.inline_body_error_sites);
         func.command_binding_sites = std::mem::take(&mut self.command_binding_sites);
@@ -1593,6 +2168,7 @@ impl<'a> CfgBuilder<'a> {
                 .map(|(entry, continuation)| (self.bid(&entry), self.bid(&continuation)))
                 .collect();
         func.caller_frame_barrier = self.caller_frame_barrier;
+        func.declared_frame_effects = self.command_bindings.declared_frame_effects();
         func.alias_observed_vars = std::mem::take(&mut self.alias_observed_vars);
         func
     }
@@ -1847,10 +2423,16 @@ impl<'a> CfgBuilder<'a> {
         self.record_alias_observed(stmt);
         let EmbeddedSubstExtras {
             defs: extras,
-            read_before_write: extra_reads,
+            reads: extra_reads,
             opaque_global: opaque,
+            unseen,
         } = self.embedded_subst_extras(stmt);
-        let registry_barrier = self.embedded_registry_barrier(stmt);
+
+        if unseen {
+            self.block_mut(current)
+                .statements
+                .push(Statement::unseen_call_marker(stmt.span()));
+        }
         if opaque {
             self.push_statement(
                 current,
@@ -1866,12 +2448,13 @@ impl<'a> CfgBuilder<'a> {
                 },
             );
         }
-        if registry_barrier {
+        if !extras.is_empty() || !extra_reads.is_empty() {
             self.block_mut(current)
                 .statements
-                .push(Self::registry_barrier_statement(
-                    stmt,
-                    "embedded call reaches a registry-declared evaluation barrier",
+                .push(Statement::word_effects(
+                    stmt.span(),
+                    (extras, extra_reads),
+                    crate::ir::WordEffectsHost::Dispatch,
                 ));
         }
         if !extras.is_empty() || !extra_reads.is_empty() {
@@ -1959,6 +2542,20 @@ impl<'a> CfgBuilder<'a> {
                     self.lower_script(body, current)
                 }
             }
+            // `return -options …` / `return {*}…args` lower to a
+            // Statement::Barrier, but still unconditionally exit the proc
+            // in analysis builds.
+            Statement::Barrier { span, .. }
+                if self.faithful_exceptions
+                    && stmt.is_return_barrier()
+                    && self
+                        .command_classes
+                        .completion_route(stmt)
+                        .is_some_and(|route| !route.normal_possible()) =>
+            {
+                self.lower_return_options_barrier(stmt, *span, current);
+                Some(current.to_owned())
+            }
             other => {
                 self.push_plain_statement(current, other);
                 Some(current.to_owned())
@@ -2004,18 +2601,43 @@ impl<'a> CfgBuilder<'a> {
 
     fn lower_script_inner(&mut self, script: &Script, block_name: &str) -> Option<String> {
         let mut current = block_name.to_owned();
-        // True once the *main* (reachable) path has hit an unconditional
-        // terminator — everything after is dead code captured in orphan
-        // blocks, and the script does not fall through to its caller.
-        let mut main_terminated = false;
+        // The block the *main* (reachable) path ends in once it hits an
+        // unconditional terminator — everything after is dead code captured
+        // in orphan blocks, and the script does not fall through to its
+        // caller — with the number of throw points recorded by then.
+        let mut main_terminal: Option<(String, usize)> = None;
+        // A `catch` body's request is for this script alone, not for those it
+        // holds; a `try` body's holds for every script inside it.
+        let split = match self.split_region {
+            Some(region) if region.nested() => Some(region),
+            _ => self.split_region.take(),
+        };
 
-        for stmt in &script.statements {
+        for (index, stmt) in script.statements.iter().enumerate() {
+            if let Some(region) = split
+                && index > 0
+                && self.block_mut(&current).terminator.is_none()
+                && !(region.selective() && self.leaves_from_the_state_before(stmt))
+            {
+                let next = self.new_block(region.step());
+                self.copy_command_boundary(block_name, &next);
+                self.ensure_goto(&current, &next, Some(stmt.span()));
+                self.split_parent.insert(next.clone(), current.clone());
+                let ended = std::mem::replace(&mut current, next);
+                let point = self.split_point(ended, stmt);
+                if !region.selective() || point.may_leave() {
+                    self.split_points.push(point);
+                }
+            }
             // If the current block is already terminated, subsequent
             // statements are dead code.  Route them into a fresh orphan
             // block with no incoming edge (rather than dropping them) so
             // SCCP marks it unreachable and O107 can flag the dead code.
             if self.block_mut(&current).terminator.is_some() {
-                main_terminated = true;
+                if main_terminal.is_none() {
+                    let throws = self.throw_blocks.as_ref().map_or(0, Vec::len);
+                    main_terminal = Some((current.clone(), throws));
+                }
                 current = self.new_block("unreachable");
             }
 
@@ -2038,11 +2660,23 @@ impl<'a> CfgBuilder<'a> {
         // `error`/`throw`.  Nested control-flow lowerings still signal "no
         // continuation" by returning `None` (propagated through this loop's
         // `?` / explicit-`None` arms).
-        let terminated = main_terminated || self.block_mut(&current).terminator.is_some();
-        self.last_terminal_block = if terminated {
-            Some(current.clone())
-        } else {
-            None
+        // The script leaves where its main path ends, not in the dead code
+        // after it, and the dead code holds no throw point: a `try` handler is
+        // thrown to from there, so in `try {return r3; set y 1} on return {}
+        // {…}` the handler's source is the block of `return r3`, never the
+        // orphan block of `set y 1`, which no path reaches.
+        self.last_terminal_block = match main_terminal {
+            Some((block, throws)) => {
+                if let Some(blocks) = self.throw_blocks.as_mut() {
+                    blocks.truncate(throws);
+                }
+                Some(block)
+            }
+            None => self
+                .block_mut(&current)
+                .terminator
+                .is_some()
+                .then(|| current.clone()),
         };
         Some(current)
     }
@@ -2050,7 +2684,11 @@ impl<'a> CfgBuilder<'a> {
     /// List operands run before loop-variable binding or any body entry.
     /// Preserve the original global-frame and registry-barrier order here.
     fn record_foreach_operand_barriers(&mut self, stmt: &Statement, current: &str) {
-        if self.embedded_subst_extras(stmt).opaque_global {
+        let list_effects = self.embedded_subst_extras(stmt);
+        if list_effects.unseen {
+            self.push_statement(current, Statement::unseen_call_marker(stmt.span()));
+        }
+        if list_effects.opaque_global {
             self.block_mut(current).statements.push(Statement::Barrier {
                 span: stmt.span(),
                 reason: "foreach list runs an unreadable script at the global frame".to_owned(),
@@ -2326,7 +2964,12 @@ impl<'a> CfgBuilder<'a> {
             })
     }
 
-    /// Emit an opaque `catch` call with defs for modified variables.
+    /// Emit an opaque `catch` call, with the effects of its body ahead of it.
+    ///
+    /// The body runs inside the statement and stops at its first error, so every
+    /// name it writes is a may-definition, and what its commands do to the frame
+    /// ([`Self::opaque_script_effects`]) goes ahead of the call, which assigns
+    /// its result and options variables once the body has finished.
     fn emit_opaque_catch(&mut self, stmt: &Statement, current: &str) {
         let Statement::Catch {
             body,
@@ -2341,13 +2984,18 @@ impl<'a> CfgBuilder<'a> {
             unreachable!();
         };
 
-        let mut catch_defs = defs_from_ir_script(body);
-        if let Some(rv) = result_var {
-            catch_defs.push(rv.clone());
+        let mut written = BTreeSet::new();
+        crate::ssa::nested_writes(body, self.registry, &mut written);
+        for effect in self.opaque_script_effects(
+            *span,
+            &[body],
+            written,
+            false,
+            "a command the catch body runs may write any name",
+        ) {
+            self.block_mut(current).statements.push(effect);
         }
-        if let Some(ov) = options_var {
-            catch_defs.push(ov.clone());
-        }
+        let mut catch_defs: Vec<String> = result_var.iter().chain(options_var).cloned().collect();
         dedup_preserve_order(&mut catch_defs);
         // Preserve ``tokens`` on the synthetic ``Statement::Call``
         // so the codegen's eval-fallback can detect the braced
@@ -2371,6 +3019,7 @@ impl<'a> CfgBuilder<'a> {
                 foreach_groups: None,
             },
         );
+        self.opaque_catch_bodies.insert(*span, body.clone());
     }
 
     /// Dispatch `Try` — deferred opaque or inlined.
@@ -2399,18 +3048,29 @@ impl<'a> CfgBuilder<'a> {
             && (!handlers.is_empty() || finally_body.is_none());
 
         if defer {
-            let mut try_defs = defs_from_ir_script(body);
+            // As an opaque `catch`: what the body, the handlers and the
+            // `finally` script write is a may-definition, since each stops at
+            // its first error, and a handler's variables are set only when it
+            // runs.
+            let mut written = BTreeSet::new();
+            let mut scripts: Vec<&Script> = vec![body];
             for handler in handlers {
-                if let Some(vn) = &handler.var_name {
-                    try_defs.push(vn.clone());
-                }
-                if let Some(ov) = &handler.options_var {
-                    try_defs.push(ov.clone());
-                }
-                try_defs.extend(defs_from_ir_script(&handler.body));
+                written.extend(handler.var_name.iter().cloned());
+                written.extend(handler.options_var.iter().cloned());
+                scripts.push(&handler.body);
             }
-            if let Some(fb) = finally_body {
-                try_defs.extend(defs_from_ir_script(fb));
+            scripts.extend(finally_body.as_ref());
+            for script in &scripts {
+                crate::ssa::nested_writes(script, self.registry, &mut written);
+            }
+            for effect in self.opaque_script_effects(
+                *span,
+                &scripts,
+                written,
+                false,
+                "a command the try body or its handlers run may write any name",
+            ) {
+                self.block_mut(current).statements.push(effect);
             }
             dedup_preserve_order(&mut try_defs);
             self.push_statement(
@@ -2511,22 +3171,24 @@ fn detect_upvar_procs_with_bindings(
     // by luck of the process start.
     let mut entries: Vec<(&String, &crate::ir::Procedure)> = module.procedures.iter().collect();
     entries.sort_by(|a, b| a.0.cmp(b.0));
+    let rules = tcl_syntax::word_rules::WordValueRules::of_dialect_name(module.dialect.as_deref());
     let mut own: Vec<(&String, &crate::ir::Procedure, UpvarInfo)> = Vec::new();
     for (qname, proc) in entries {
         let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
         let namespace = if holder.is_empty() { "::" } else { holder };
-        own.push((
-            qname,
-            proc,
-            upvar_info::collect_upvar_targets_with_bindings(
-                &proc.body,
-                &proc.params,
-                registry,
-                command_bindings,
-                namespace,
-                crate::registry_invocation::InvocationMetadataContext::for_module(registry, module).and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input),
-            ),
-        ));
+        let mut info = upvar_info::collect_upvar_targets_with_bindings(
+            &proc.body,
+            &proc.params,
+            registry,
+            command_bindings,
+            namespace,
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+                .and_then(
+                    crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
+                ),
+        );
+        info.param_defaults = upvar_info::name_param_defaults(&info, &proc.params_raw, rules);
+        own.push((qname, proc, info));
     }
 
     // One hop, no fixpoint: `uplevel <caller frame> [list callee …]` puts
@@ -3215,52 +3877,8 @@ fn dedup_preserve_order(v: &mut Vec<String>) {
 // passes them through the recursive flow-fact helpers below.
 
 /// The actual source metadata owner, separate from explicit compatibility.
-#[derive(Debug, Clone)]
-pub(crate) enum CfgMetadataContext {
-    Standalone,
-    Supplied(Arc<tcl_registry::model::ContextRegistry>),
-    SuppliedSource(Box<crate::analyser::ResolvedAnalysisInput>),
-    Unavailable,
-}
+pub(crate) use crate::registry_invocation::OwnedInvocationMetadataContext as CfgMetadataContext;
 
-impl PartialEq for CfgMetadataContext {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Standalone, Self::Standalone) | (Self::Unavailable, Self::Unavailable) => true,
-            (Self::Supplied(left), Self::Supplied(right)) => Arc::ptr_eq(left, right),
-            (Self::SuppliedSource(left), Self::SuppliedSource(right)) => left == right,
-            _ => false,
-        }
-    }
-}
-
-impl CfgMetadataContext {
-    /// Reborrow the same actual owner; no profile fallback follows a supplied
-    /// refusal. Only the explicit standalone variant selects a static context.
-    pub(crate) fn metadata_context<'a>(
-        &'a self,
-        registry: &CommandRegistry,
-    ) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>> {
-        let context = match self {
-            Self::Supplied(context) => Some(context.as_ref().into()),
-            Self::SuppliedSource(input) => Some(
-                crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
-                    registry, input,
-                )?,
-            ),
-            Self::Standalone => registry
-                .profile()
-                .map(tcl_registry::model::semantic::SemanticContext::for_profile)
-                .map(crate::registry_invocation::InvocationMetadataContext::from),
-            Self::Unavailable => return None,
-        };
-        context
-            .is_none_or(|context| context.matches_registry(registry))
-            .then_some(context)
-    }
-}
-
-/// Shared command surface and availability for every CFG in one module.
 #[derive(Clone)]
 struct CfgCommandClasses {
     /// Actual immutable command surface used by the shared invocation owner.
@@ -3271,6 +3889,22 @@ struct CfgCommandClasses {
     /// complete name sets for every compilation unit.
     #[cfg(test)]
     semantics: Arc<EffectiveRegistrySemantics>,
+    /// The profile the registry serves, whose release reads `return`'s
+    /// options ([`Self::return_at_own_level`]).
+    profile: Option<&'static tcl_dialect::DialectProfile>,
+}
+
+/// What a call to `return` that completes at its own level does to the flow
+/// around it ([`CfgCommandClasses::return_at_own_level`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OwnLevelReturn {
+    /// It raises, as `error` does: `-code error`, or options the release
+    /// rejects (8.4 has no `-level`).
+    Raises,
+    /// It leaves the loop around it, as `break` does.
+    Breaks,
+    /// It starts the loop's next iteration, as `continue` does.
+    Continues,
 }
 
 impl CfgCommandClasses {
@@ -3526,6 +4160,126 @@ pub(crate) enum Completion {
     LoopJump,
     /// `return` / `error` / `throw` / `exit` / `tailcall` — leaves the proc.
     ProcExit,
+}
+
+/// How a protected region's scripts split their statements into blocks in an
+/// analysis build, so that every point at which the region can fail ends a
+/// block an exception edge leaves from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SplitRegion {
+    /// A flattened `catch` body: each of its straight-line statements, every
+    /// block a split ends a point the end block is thrown to from.
+    Catch,
+    /// A `try` body: each statement of it and of every script it holds, save
+    /// a nested `try` or `catch` body, which is a region of its own.
+    Try,
+}
+
+impl SplitRegion {
+    /// The prefix the blocks a split begins are named with.
+    pub(super) const fn step(self) -> &'static str {
+        match self {
+            Self::Catch => "catch_step",
+            Self::Try => "try_step",
+        }
+    }
+
+    /// Whether the scripts the region's statements hold — an `if` arm, a loop
+    /// body, a handler of a nested `try` — split too. A flattened `catch` body
+    /// is straight-line statements and holds none.
+    pub(super) const fn nested(self) -> bool {
+        matches!(self, Self::Try)
+    }
+
+    /// Whether a statement that leaves from the state before it stays in the
+    /// block before it ([`CfgBuilder::leaves_from_the_state_before`]), and a
+    /// block a split ends is a point a throw leaves from only where one may
+    /// ([`CfgBuilder::a_throw_may_leave_from`]): a `try`'s handlers select by
+    /// completion, so an edge one cannot take is a path that never runs.
+    pub(super) const fn selective(self) -> bool {
+        matches!(self, Self::Try)
+    }
+}
+
+/// A point a throw may leave a protected region from: the exit of a block a
+/// split ends.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct SplitPoint {
+    /// The block whose exit the point is.
+    pub(super) block: String,
+    /// Whether a statement of the block may leave after its own stores, with
+    /// any code.
+    pub(super) after_stores: bool,
+    /// How the statement after the block fails before it stores.
+    pub(super) next: NextFailure,
+}
+
+impl SplitPoint {
+    /// A point anything may leave from: a body's tail, a throw point, or a
+    /// point of a nested body that hands its ways out to the region around it.
+    pub(super) fn any(block: String) -> Self {
+        Self {
+            block,
+            after_stores: true,
+            next: NextFailure::Any,
+        }
+    }
+
+    /// Whether a throw may leave from the point at all.
+    pub(super) fn may_leave(&self) -> bool {
+        self.after_stores || self.next != NextFailure::Intercepted
+    }
+
+    /// Whether the statement after the point may fail before it stores with
+    /// a code a target takes when `takes` says so.
+    pub(super) fn next_fails_for(&self, takes: impl Fn(tcl_core_types::Code) -> bool) -> bool {
+        match self.next {
+            NextFailure::Intercepted => false,
+            NextFailure::Error => takes(tcl_core_types::Code::Error),
+            NextFailure::Any => true,
+        }
+    }
+}
+
+/// How a statement fails before it stores, for the state before it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum NextFailure {
+    /// It runs a clause of its own first — a `catch`, which takes every
+    /// completion of its script, or a `try` with a `finally`, whose clause is
+    /// the way out of it — so nothing leaves from the state before it.
+    Intercepted,
+    /// It raises an error if it fails at all: a literal assignment.
+    Error,
+    /// It may complete with any code.
+    Any,
+}
+
+impl NextFailure {
+    /// How `stmt` fails before it stores.
+    pub(super) fn of(stmt: &Statement) -> Self {
+        if matches!(
+            stmt,
+            Statement::Catch { .. }
+                | Statement::Try {
+                    finally_body: Some(_),
+                    ..
+                }
+        ) {
+            Self::Intercepted
+        } else if is_literal_assignment(stmt) {
+            Self::Error
+        } else {
+            Self::Any
+        }
+    }
+}
+
+/// Whether `stmt` assigns a literal to a name that substitutes nothing: it
+/// completes normally or raises `TCL_ERROR` (the name is an array, a write
+/// trace fails), never another code, and it raises before it stores.
+pub(super) fn is_literal_assignment(stmt: &Statement) -> bool {
+    matches!(stmt, Statement::AssignConst { name, name_braced, .. }
+        if *name_braced || !name.contains('['))
 }
 
 /// Whether `stmt` certainly ends the interpreter, running no enclosing
@@ -4312,6 +5066,8 @@ mod tests {
         Script::from_statements(vec![Statement::Switch {
             subject_braced: false,
             raw_arg_braced: Vec::new(),
+            raw_arg_quoted: Vec::new(),
+            command: "switch".into(),
             span: Span::new(0, 1),
             subject: "$which".into(),
             subject_span: Span::new(0, 1),
@@ -5731,6 +6487,39 @@ mod tests {
         );
     }
 
+    /// A call omitting a `Name` parameter defines the place the parameter's
+    /// default names, as Tcl binds the default; a default that names no
+    /// variable the analysis can place widens the caller's frame, as a
+    /// substituted argument does.
+    #[test]
+    fn an_omitted_upvar_parameter_defines_its_default() {
+        let module = lower_module(
+            "proc setter {{name n}} { upvar 1 $name x; set x 1 }\n\
+             setter",
+        );
+        let cfg = build_cfg(&module, false);
+        let defs = find_call_defs(&cfg.top_level, "setter")
+            .expect("setter call should be in top-level CFG");
+        assert_eq!(defs, vec!["n".to_owned()]);
+        assert_eq!(
+            cfg.top_level.caller_frame_barrier,
+            crate::dynamic_names::DynamicNameBarrier::default()
+        );
+        let module = lower_module(
+            "proc setter {{name a(1)}} { upvar 1 $name x; set x 1 }\n\
+             setter",
+        );
+        let cfg = build_cfg(&module, false);
+        assert_eq!(
+            cfg.top_level.caller_frame_barrier,
+            crate::dynamic_names::DynamicNameBarrier {
+                writes: true,
+                destroys: false,
+                reads: false,
+            }
+        );
+    }
+
     #[test]
     fn computed_or_expanded_direct_head_is_not_misidentified_as_a_static_callee() {
         for call in ["$command target", "{*}$invocation"] {
@@ -5885,9 +6674,9 @@ mod tests {
     }
 
     #[test]
-    fn embedded_subst_in_assign_value_emits_synthetic_invalidate() {
+    fn embedded_subst_in_assign_value_emits_its_word_effects() {
         // `set foo [setter]` where setter upvars caller_x.  The
-        // resulting CFG should have a synthetic `<upvar-invalidate>`
+        // resulting CFG should have a word-effects `<word-effects>`
         // Call with `caller_x` in its defs, emitted BEFORE the
         // `set foo ...` AssignValue.
         let module = lower_module(
@@ -5897,11 +6686,462 @@ mod tests {
         let cfg = build_cfg(&module, false);
         let cmd = find_call_with_def(&cfg.top_level, "caller_x")
             .expect("expected a Call carrying caller_x in defs");
-        assert_eq!(cmd, "<upvar-invalidate>");
+        assert_eq!(cmd, "<word-effects>");
+    }
+
+    /// The `(defs, reads)` of the first call named `command` in `func`.
+    fn defs_and_reads<'a>(
+        func: &'a Function,
+        command: &str,
+    ) -> Option<(&'a [String], &'a [String])> {
+        func.blocks.values().find_map(|block| {
+            block.statements.iter().find_map(|stmt| match stmt {
+                Statement::Call {
+                    command: name,
+                    defs,
+                    reads,
+                    ..
+                } if name == command => Some((defs.as_slice(), reads.as_slice())),
+                _ => None,
+            })
+        })
+    }
+
+    /// Where a statement's `[…]` substitutions write a place its own words read,
+    /// the call that carries the write reads it too — the version before the
+    /// write feeds the word that runs ahead of it. A read inside a command the
+    /// statement runs, or inside the expression word of one, is a read of the
+    /// statement.
+    #[test]
+    fn the_call_carrying_a_write_reads_the_place_its_statement_reads() {
+        for (body, carrier) in [
+            ("set r [expr {$x + [set x 10] + $x}]", "<word-effects>"),
+            ("expr {$x + [set x 10]}", "<word-effects>"),
+            ("set r \"$x [set x 10]\"", "<word-effects>"),
+            ("incr r [expr {$x + [set x 10]}]", "<word-effects>"),
+            ("return [expr {$x + [set x 10]}]", "<word-effects>"),
+            (
+                "set r [expr {[string length $x] + [set x 10]}]",
+                "<word-effects>",
+            ),
+            (
+                "set r [expr {[expr {$x + 1}] + [set x 10]}]",
+                "<word-effects>",
+            ),
+            ("if {$x + [set x 10] > 3} {puts a}", "<cond>"),
+            ("while {$x + [set x 10] < 3} {break}", "<cond>"),
+            ("puts [expr {$x + [set x 10] + $x}]", "puts"),
+            ("foo $x [incr x] $x", "foo"),
+        ] {
+            let module = lower_module(&format!("proc p {{}} {{ set x 1; set r 5; {body} }}"));
+            let cfg = build_cfg(&module, false);
+            let p = cfg.procedures.get("::p").expect("::p CFG");
+            let (defs, reads) = defs_and_reads(p, carrier).expect(body);
+            assert!(defs.iter().any(|name| name == "x"), "{body}: {defs:?}");
+            assert!(reads.iter().any(|name| name == "x"), "{body}: {reads:?}");
+        }
+    }
+
+    /// A place no word of the statement reads is no read of the call that
+    /// carries its write: the store the write overwrites stays dead, as it was
+    /// before a statement's reads were told from its writes, and a `gets` that
+    /// fills a loop's variable reads nothing of it.
+    #[test]
+    fn the_call_carrying_a_write_leaves_a_place_its_statement_never_reads_alone() {
+        for (body, carrier, place) in [
+            ("set r [expr {[set x 10] + 1}]", "<word-effects>", "x"),
+            ("puts [set x 2]", "puts", "x"),
+            (
+                "while {[gets $fd line] >= 0} {puts $line}",
+                "<cond>",
+                "line",
+            ),
+            ("if {[set x 10] > $r} {puts a}", "<cond>", "x"),
+        ] {
+            let module = lower_module(&format!(
+                "proc p {{fd}} {{ set x 1; set r 5; set line {{}}; {body} }}"
+            ));
+            let cfg = build_cfg(&module, false);
+            let p = cfg.procedures.get("::p").expect("::p CFG");
+            let (defs, reads) = defs_and_reads(p, carrier).expect(body);
+            assert!(defs.iter().any(|name| name == place), "{body}: {defs:?}");
+            assert!(!reads.iter().any(|name| name == place), "{body}: {reads:?}");
+        }
+    }
+
+    /// The `(command, defs)` of every call in `func`'s blocks, in order.
+    fn calls_in_order(func: &Function) -> Vec<(&str, &[String])> {
+        func.blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .filter_map(|stmt| match stmt {
+                Statement::Call { command, defs, .. } => Some((command.as_str(), defs.as_slice())),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn position_of(calls: &[(&str, &[String])], command: &str) -> usize {
+        calls
+            .iter()
+            .position(|(name, _)| *name == command)
+            .unwrap_or_else(|| panic!("no {command} in {calls:?}"))
+    }
+
+    /// An opaque `catch` keeps its body inside the statement and stops at the
+    /// body's first error, so what the body writes is a may-definition stated
+    /// ahead of the call, and only the result and options variables the call
+    /// assigns once the body has finished are its own definitions.
+    #[test]
+    fn an_opaque_catch_states_what_its_body_writes_as_may_definitions_ahead_of_the_call() {
+        let module =
+            lower_module("set g 5\ncatch { if {[gets stdin] eq {q}} { set g 0 } } msg opts\n");
+        let cfg = build_cfg(&module, false);
+        let calls = calls_in_order(&cfg.top_level);
+        let marker = position_of(&calls, "<arm-writes>");
+        let catch = position_of(&calls, "catch");
+        assert!(marker < catch, "{calls:?}");
+        assert_eq!(calls[marker].1, ["g"]);
+        assert_eq!(calls[catch].1, ["msg", "opts"]);
+    }
+
+    /// A callee an opaque `catch` body calls writes the caller's name through
+    /// `upvar`, as it would at a call the graph lowers: the name joins the
+    /// may-definitions.
+    #[test]
+    fn a_callee_an_opaque_catch_body_calls_may_define_the_name_it_writes() {
+        let module = lower_module(
+            "proc zero {v} {upvar 1 $v x; set x 0}\n\
+             proc p {} {\n set go 1\n catch { if {1} { zero go } }\n puts $go\n}\n",
+        );
+        let cfg = build_cfg(&module, false);
+        let p = cfg.procedures.get("::p").expect("::p CFG");
+        let calls = calls_in_order(p);
+        assert_eq!(calls[position_of(&calls, "<arm-writes>")].1, ["go"]);
+    }
+
+    /// The marker for where code the module cannot see runs, and the barrier
+    /// for a command that may write any name, stand ahead of the opaque
+    /// `catch` call whose body runs it: at the top level a plain name is the
+    /// global the code reaches, in a procedure a local is in the reach of a
+    /// callee that runs `upvar 1`, and a sourced file runs in the frame of the
+    /// call.
+    #[test]
+    fn an_opaque_catch_marks_the_unseen_code_and_the_barrier_its_body_runs() {
+        let has_marker = |func: &Function, marker: crate::ir::SyntheticMarker| {
+            func.blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .any(|stmt| {
+                    matches!(
+                        stmt,
+                        Statement::Call { tokens: Some(tokens), .. }
+                            | Statement::Barrier { tokens: Some(tokens), .. }
+                            if tokens.synthetic == Some(marker)
+                    )
+                })
+        };
+        let top = |src: &str| build_cfg(&lower_module(src), false).top_level;
+        let in_proc = |src: &str| {
+            let module = lower_module(&format!("proc p {{}} {{\n{src}\n}}"));
+            build_cfg(&module, false).procedures["::p"].clone()
+        };
+        for src in [
+            "catch {foo}",
+            "catch {foo} msg",
+            "catch { if {1} { foo } }",
+            "catch { puts [foo] }",
+            "catch { source other.tcl }",
+            "if {[catch {foo}]} { puts bad }",
+            "set rc [catch {foo} msg]",
+            "puts [catch { puts [foo] }]",
+            "while {[catch {if {1} {foo}}]} { break }",
+            "set rc [catch $script]",
+        ] {
+            let func = top(src);
+            assert!(
+                has_marker(&func, crate::ir::SyntheticMarker::UnseenCall),
+                "{src}"
+            );
+        }
+        // An autoloaded or unknown-handled callee reaches a procedure's local
+        // through `upvar 1`; a sourced file runs in its frame.
+        for src in [
+            "catch { if {1} { foo } }",
+            "if {[catch {foo}]} { puts bad }",
+            "set rc [catch {foo} msg]",
+            "puts [catch { puts [foo] }]",
+        ] {
+            assert!(
+                has_marker(&in_proc(src), crate::ir::SyntheticMarker::UnseenCall),
+                "proc: {src}"
+            );
+        }
+        assert!(has_marker(
+            &in_proc("if {[catch {source other.tcl}]} { puts bad }"),
+            crate::ir::SyntheticMarker::UnseenCall
+        ));
+        assert!(has_marker(
+            &in_proc("catch { if {1} { source other.tcl } }"),
+            crate::ir::SyntheticMarker::UnseenCall
+        ));
+        for (func, src) in [
+            (top("catch { namespace eval :: {set go 0} }"), "top"),
+            (
+                in_proc("catch { if {1} { namespace eval :: {set go 0} } }"),
+                "proc",
+            ),
+            (
+                in_proc("catch { if {1} { dict with d { set go 0 } } }"),
+                "dict with",
+            ),
+        ] {
+            assert!(
+                has_marker(&func, crate::ir::SyntheticMarker::CallerFrameOpaque),
+                "{src}"
+            );
+        }
+        // A body that writes another name and runs only commands the module
+        // knows states no marker.
+        let func = top("catch { if {1} { set other 1 } }");
+        assert!(!has_marker(&func, crate::ir::SyntheticMarker::UnseenCall));
+        assert!(!has_marker(
+            &func,
+            crate::ir::SyntheticMarker::CallerFrameOpaque
+        ));
+    }
+
+    /// The marker for a call whose own head runs code the module cannot see
+    /// follows the call and carries nothing: the names the call's words read,
+    /// which may be rewritten as it runs, are the SSA's to state.
+    #[test]
+    fn the_marker_for_a_call_follows_it_and_states_no_name() {
+        for (src, host) in [
+            ("set cmd puts\n$cmd hi", "${cmd}"),
+            ("set suffix _hi\nfoo$suffix", "foo${suffix}"),
+            ("set a 1\nget $a", "get"),
+            ("set f x.tcl\nsource $f", "source"),
+        ] {
+            let cfg = build_cfg(&lower_module(src), false);
+            let calls = calls_in_order(&cfg.top_level);
+            assert_eq!(
+                calls,
+                [(host, &[][..]), ("<unseen-call>", &[][..])],
+                "{src}"
+            );
+        }
+    }
+
+    /// A computed head runs whatever its value names, so it is code the module
+    /// cannot see, as a literal head it does not define is, at the top level
+    /// and in a procedure body alike.
+    #[test]
+    fn a_computed_head_is_an_unseen_call() {
+        let unseen = |func: &Function| {
+            calls_in_order(func)
+                .iter()
+                .any(|(command, _)| *command == "<unseen-call>")
+        };
+        for src in [
+            "$cmd",
+            "$cmd arg",
+            "puts [$cmd]",
+            "set x [$cmd]",
+            "if {[$cmd]} { puts a }",
+        ] {
+            assert!(
+                unseen(&build_cfg(&lower_module(src), false).top_level),
+                "{src}"
+            );
+        }
+        for src in ["$cmd", "puts [$cmd]", "set x [$cmd]"] {
+            let module = lower_module(&format!("proc p {{}} {{\n{src}\n}}"));
+            let cfg = build_cfg(&module, false);
+            assert!(unseen(&cfg.procedures["::p"]), "proc: {src}");
+        }
+    }
+
+    /// A command the document declares as a plain call that states its frame
+    /// effect is one the module can name: under `-frame own` and `-frame none`
+    /// its call, direct or in a substitution, marks nothing, and under
+    /// `-frame caller` it brings `argparse`'s caller-frame effect to the
+    /// computed-name walk. A declaration that states no frame effect, or
+    /// names a word the flow graph would have to follow, stays a call to code
+    /// the module cannot see; one with a body word lowers to the barrier
+    /// `time {…}` lowers to, whatever its frame effect.
+    #[test]
+    fn a_declared_plain_call_brings_the_frame_effect_it_states() {
+        let registry = static_context_for("tcl8.6").commands();
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let build = |stub: &str, body: &str| {
+            let src = format!(
+                "# tcl-lsp: stubs-begin\n# tcl-lsp: stub {stub}\n# tcl-lsp: stubs-end\n\
+                 proc p {{}} {{\n    set g 5\n    {body}\n    puts $g\n}}\n"
+            );
+            let declared = crate::analyser::utils::document_declared_surface(&src, None, "tcl8.6");
+            let module = crate::lowering::lower_to_ir_with(
+                crate::lowering::Lowerer::with_config(registry, config)
+                    .with_dialect(registry.profile())
+                    .with_declared_commands(Some(&declared)),
+                &src,
+            );
+            build_cfg_with_registry(&module, false, registry).procedures["::p"].clone()
+        };
+        let unseen = |func: &Function| {
+            calls_in_order(func)
+                .iter()
+                .any(|(command, _)| *command == "<unseen-call>")
+        };
+        let writes = |func: &Function| {
+            crate::dynamic_names::dynamic_name_barrier(func, registry, config).writes
+        };
+        for stub in [
+            "db_query {sql} -frame own",
+            "db_query {sql:pattern} -pure -frame none",
+        ] {
+            for body in ["db_query {select 1}", "set n [db_query {select 1}]"] {
+                let func = build(stub, body);
+                assert!(!unseen(&func), "{stub}: {body}");
+                assert!(!writes(&func), "{stub}: {body}");
+                assert_eq!(
+                    func.declared_frame_effects.get("::db_query"),
+                    Some(&None),
+                    "{stub}"
+                );
+            }
+        }
+        for body in ["db_query {select 1}", "set n [db_query {select 1}]"] {
+            let func = build("db_query {sql} -frame caller", body);
+            assert!(!unseen(&func), "caller: {body}");
+            assert!(writes(&func), "caller: {body}");
+        }
+        for stub in [
+            "db_query {sql}",
+            "db_query {sql} -frame bogus",
+            "db_query {row:var} -frame own",
+            "db_query {sql:expr} -frame own",
+            "db_query {sql} -barrier -frame own",
+            "db_query {sql} -extension -frame own",
+        ] {
+            let func = build(stub, "db_query {select 1}");
+            assert!(unseen(&func), "{stub}");
+            assert!(func.declared_frame_effects.is_empty(), "{stub}");
+        }
+        let barrier_reason = |func: &Function, head: &str| {
+            func.blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .find_map(|stmt| match stmt {
+                    Statement::Barrier {
+                        command, reason, ..
+                    } if command == head => Some(reason.clone()),
+                    _ => None,
+                })
+        };
+        let registry_body = build("db_query {sql} -frame own", "time {set x 1}");
+        assert!(barrier_reason(&registry_body, "time").is_some());
+        for stub in [
+            "db_eval {sql script:body} -frame own",
+            "db_eval {sql script:body} -frame none",
+            "db_eval {sql script:body}",
+            "db_eval {sql cb:command_prefix} -frame own",
+        ] {
+            let declared_body = build(stub, "db_eval {select 1} {set x 1}");
+            assert_eq!(
+                barrier_reason(&declared_body, "db_eval"),
+                barrier_reason(&registry_body, "time"),
+                "{stub}"
+            );
+            assert!(declared_body.declared_frame_effects.is_empty(), "{stub}");
+        }
+    }
+
+    /// A substitution's command reaches code the module cannot see through every
+    /// word it runs as code: a lambda's body, a body that runs in another frame
+    /// (`uplevel`, `namespace eval`), the commands in a `subst` text and in an
+    /// expression word of a body, as through a body of this frame, in a
+    /// procedure as at the top level. A body that holds no such code marks
+    /// nothing.
+    #[test]
+    fn a_substitution_marks_the_unseen_code_in_every_word_its_command_runs() {
+        let unseen = |func: &Function| {
+            calls_in_order(func)
+                .iter()
+                .any(|(command, _)| *command == "<unseen-call>")
+        };
+        for src in [
+            "set x [apply {{} {foo}}]",
+            "set x [apply {{x} {foo $x}} 1]",
+            "set x [apply {{} {if {1} {foo}}}]",
+            "set x [namespace eval ns {foo}]",
+            "set x [namespace eval ns {namespace eval inner {foo}}]",
+            "set x [uplevel #0 {foo}]",
+            "set x [subst {[foo]}]",
+            "set x [subst -nobackslashes {a [foo] b}]",
+            "set x [catch {apply {{} {foo}}}]",
+            "set x [catch {if {[foo]} {puts a}}]",
+            "set x [catch {while {[foo]} {puts a}}]",
+            "set x [catch {expr {[foo] + 1}}]",
+            "set x [apply {{} {if {[foo]} {puts a}}}]",
+            "puts [apply {{} {foo}}]",
+            "if {[apply {{} {foo}}]} {puts a}",
+            "set x [apply $lambda]",
+            "set x [namespace eval ns $script]",
+        ] {
+            assert!(
+                unseen(&build_cfg(&lower_module(src), false).top_level),
+                "{src}"
+            );
+        }
+        for src in [
+            "set x [apply {{} {set y 1}}]",
+            "set x [apply {{x} {set y $x}} 1]",
+            "set x [namespace eval ns {set y 1}]",
+            "set x [uplevel #0 {set y 1}]",
+            "set x [subst {abc}]",
+            "set x [subst {[set y 1]}]",
+            "set x [subst -nocommands {a [foo] b}]",
+            "set x [catch {apply {{} {set y 1}}}]",
+            "set x [catch {if {[set y 1]} {puts a}}]",
+            "set x [apply {{} {if {[set y 1]} {puts a}}}]",
+        ] {
+            assert!(
+                !unseen(&build_cfg(&lower_module(src), false).top_level),
+                "{src}"
+            );
+        }
+        // A callee the code reaches runs `upvar 1` into a procedure's frame too.
+        for src in [
+            "set x [apply {{} {foo}}]",
+            "set x [namespace eval ns {foo}]",
+            "set x [subst {[foo]}]",
+        ] {
+            let module = lower_module(&format!("proc p {{}} {{\n{src}\n}}"));
+            let cfg = build_cfg(&module, false);
+            assert!(unseen(&cfg.procedures["::p"]), "proc: {src}");
+        }
+    }
+
+    /// A `try` the codegen shape keeps as one call states what its body, its
+    /// handlers and its `finally` script write as may-definitions, and the
+    /// variables its handlers bind are among them: a handler runs only when it
+    /// is selected.
+    #[test]
+    fn a_deferred_try_states_what_its_scripts_write_as_may_definitions() {
+        let module =
+            lower_module("try { foo } on error {msg opts} { set a 1 } finally { set b 2 }\n");
+        let cfg = build_cfg(&module, true);
+        let calls = calls_in_order(&cfg.top_level);
+        let marker = position_of(&calls, "<arm-writes>");
+        let call = position_of(&calls, "try");
+        assert!(marker < call, "{calls:?}");
+        assert_eq!(calls[marker].1, ["a", "b", "msg", "opts"]);
+        assert!(calls[call].1.is_empty(), "{calls:?}");
+        assert!(calls.iter().any(|(command, _)| *command == "<unseen-call>"));
     }
 
     #[test]
-    fn embedded_subst_in_return_emits_synthetic_invalidate_before_terminator() {
+    fn embedded_subst_in_return_emits_its_word_effects_before_terminator() {
         let module = lower_module(
             "proc setter {} { upvar 1 caller_x x; set x 1; return 0 }\n\
              proc outer {} { return [setter] }",
@@ -5910,7 +7150,7 @@ mod tests {
         let outer = cfg.procedures.get("::outer").expect("::outer CFG");
         assert_eq!(
             find_call_with_def(outer, "caller_x"),
-            Some("<upvar-invalidate>")
+            Some("<word-effects>")
         );
         assert!(
             outer
@@ -5961,7 +7201,7 @@ mod tests {
                     if command == "switch" && tokens.as_ref().is_none_or(crate::ir::CommandTokens::evaluates_words)))
                 .count(), 1, "original invocation must execute once");
         } else {
-            assert_eq!(command, "<upvar-invalidate>");
+            assert!(boundary.synthetic_marker().is_some());
             assert!(outer.blocks.values().any(|block| {
                 block
                     .statements
@@ -5998,7 +7238,7 @@ mod tests {
             let function = cfg.procedures.get(proc_name).expect("procedure CFG");
             assert_eq!(
                 find_call_with_def(function, "caller_x"),
-                Some("<upvar-invalidate>"),
+                Some("<word-effects>"),
                 "missing embedded invalidation in {proc_name}"
             );
         }
@@ -6008,7 +7248,7 @@ mod tests {
     fn embedded_subst_in_call_arg_merges_into_call_defs() {
         // `puts [setter]` — Call host with embedded substitution.
         // The defs should merge into the existing Call's defs (no
-        // synthetic invalidate needed since the host is a Call).
+        // word effects needed since the host is a Call).
         let module = lower_module(
             "proc setter {} { upvar 1 caller_x x; return $x }\n\
              puts [setter]",
@@ -6020,7 +7260,7 @@ mod tests {
             defs.contains(&"caller_x".to_string()),
             "expected caller_x merged into puts's defs, got {defs:?}",
         );
-        // No synthetic invalidate should appear (the Call branch
+        // No word effects should appear (the Call branch
         // merged in place).
         let synthetic = find_call_with_def(&cfg.top_level, "caller_x");
         assert_eq!(
@@ -6041,8 +7281,8 @@ mod tests {
         );
         let cfg = build_cfg(&module, false);
         let cmd = find_call_with_def(&cfg.top_level, "myvar")
-            .expect("expected synthetic invalidate carrying myvar");
-        assert_eq!(cmd, "<upvar-invalidate>");
+            .expect("expected word effects carrying myvar");
+        assert_eq!(cmd, "<word-effects>");
     }
 
     /// On tclsh 9.0.4:
@@ -6062,7 +7302,7 @@ mod tests {
         );
         let cfg = build_cfg(&module, false);
         let p = cfg.procedures.get("::p").expect("::p CFG");
-        assert_eq!(find_call_with_def(p, "x"), Some("<upvar-invalidate>"));
+        assert_eq!(find_call_with_def(p, "x"), Some("<word-effects>"));
     }
 
     #[test]
@@ -6078,7 +7318,7 @@ mod tests {
         );
         let namespace_cfg = build_cfg(&namespace_module, false);
         let p = namespace_cfg.procedures.get("::a::p").expect("::a::p CFG");
-        assert_eq!(find_call_with_def(p, "x"), Some("<upvar-invalidate>"));
+        assert_eq!(find_call_with_def(p, "x"), Some("<word-effects>"));
         assert_eq!(find_call_with_def(p, "y"), None);
 
         let unknown_module = lower_module(
@@ -6087,13 +7327,13 @@ mod tests {
         );
         let unknown_cfg = build_cfg(&unknown_module, false);
         let p = unknown_cfg.procedures.get("::p").expect("::p CFG");
-        assert_eq!(find_call_with_def(p, "missing"), Some("<upvar-invalidate>"));
+        assert_eq!(find_call_with_def(p, "missing"), Some("<word-effects>"));
     }
 
     #[test]
     fn embedded_subst_unknown_command_ignored() {
         // `[not_upvar]` — unknown command, should produce no
-        // synthetic invalidate.
+        // word effects.
         let module = lower_module("proc setter {} { set x 1 }\nset foo [setter]");
         let cfg = build_cfg(&module, false);
         // setter has no upvar, so neither direct nor embedded form
@@ -6103,8 +7343,8 @@ mod tests {
             for stmt in &block.statements {
                 if let Statement::Call { command, .. } = stmt {
                     assert_ne!(
-                        command, "<upvar-invalidate>",
-                        "no synthetic invalidate should appear for non-upvar embedded calls",
+                        command, "<word-effects>",
+                        "no word effects should appear for non-upvar embedded calls",
                     );
                 }
             }
@@ -6124,13 +7364,13 @@ mod tests {
         let synthetic = find_call_with_def(&cfg.top_level, "caller_x");
         assert!(
             synthetic.is_none(),
-            "no synthetic invalidate expected when text has no `[`, got {synthetic:?}",
+            "no word effects expected when text has no `[`, got {synthetic:?}",
         );
     }
 
     #[test]
     fn embedded_subst_synthetic_appears_before_host_assign() {
-        // The synthetic invalidate must land BEFORE the host
+        // The word effects must land BEFORE the host
         // AssignValue in program order, so SSA / dataflow correctly
         // see the invalidation before any later use of the variable.
         let module = lower_module(
@@ -6139,13 +7379,13 @@ mod tests {
         );
         let cfg = build_cfg(&module, false);
         let entry = &cfg.top_level.blocks[&cfg.top_level.entry];
-        // Find the synthetic invalidate's index and the AssignValue's
-        // index; assert ordering.
+        // Find the word effects' index and the AssignValue's index; assert
+        // ordering.
         let mut synthetic_idx = None;
         let mut assign_idx = None;
         for (i, stmt) in entry.statements.iter().enumerate() {
             match stmt {
-                Statement::Call { command, .. } if command == "<upvar-invalidate>" => {
+                _ if stmt.word_effects_host() == Some(crate::ir::WordEffectsHost::Statement) => {
                     synthetic_idx = Some(i);
                 }
                 Statement::AssignValue { name, .. } if name == "foo" => {
@@ -6154,12 +7394,9 @@ mod tests {
                 _ => {}
             }
         }
-        let s = synthetic_idx.expect("synthetic <upvar-invalidate> should be in entry block");
+        let s = synthetic_idx.expect("<word-effects> should be in entry block");
         let a = assign_idx.expect("set foo AssignValue should be in entry block");
-        assert!(
-            s < a,
-            "synthetic invalidate at {s} should precede assign at {a}",
-        );
+        assert!(s < a, "word effects at {s} should precede assign at {a}");
     }
 
     // A known upvar proc's call-by-name write reached
@@ -6181,8 +7418,8 @@ mod tests {
         );
         let cfg = build_cfg(&module, false);
         let cmd = find_call_with_def(&cfg.top_level, "caller_x")
-            .expect("expected a synthetic invalidate recovering caller_x through the wrapper");
-        assert_eq!(cmd, "<upvar-invalidate>");
+            .expect("expected word effects recovering caller_x through the wrapper");
+        assert_eq!(cmd, "<word-effects>");
     }
 
     #[test]

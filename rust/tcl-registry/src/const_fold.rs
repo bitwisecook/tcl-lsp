@@ -158,11 +158,14 @@ pub(crate) fn list_join<S: AsRef<str>>(elems: &[S]) -> String {
 /// `0b101`).
 ///
 /// An index word is read by `Tcl_GetIntForIndex`, so it inherits every version
-/// difference in the numeral grammar — `lindex $l 010` is index 8 up to 8.6 and
-/// 10 from 9.0. These folds are registered as plain
+/// difference in the numeral grammar and the integer range — `lindex $l 010` is
+/// index 8 up to 8.6 and 10 from 9.0, `lindex $l 4294967295` the last element
+/// up to 8.6 and past it from 9.0. These folds are registered as plain
 /// [`ConstFoldFn`](crate::hooks::ConstFoldFn)s, which carry no release, so this
 /// resolves under **every** C release grammar and the Jim grammar, and folds
 /// only when they agree.
+/// Portable readings and literal/value container outcomes must also agree;
+/// a host-width-dependent reading remains unavailable.
 ///
 /// Declining is free: an unfolded `lindex` is evaluated at run time by an
 /// interpreter that does know its release. Folding under one release's grammar
@@ -206,12 +209,24 @@ pub(crate) fn parse_range(
     last: &str,
     length: usize,
 ) -> Option<NativeIndexSelection<(usize, usize)>> {
-    index_result_consensus(|syntax| {
-        let first = tcl_cmd_core::index::resolve_opt_in(first, length, syntax)?;
-        let last = tcl_cmd_core::index::resolve_opt_in(last, length, syntax)?;
-        Some(NativeIndexSelection::from_selection(clamp_range(
-            first, last, length,
-        )))
+    index_result_consensus(|syntax, release| {
+        let first_value = portable_index(first, length, syntax, release)?;
+        let last_value = portable_index(last, length, syntax, release)?;
+        let selected =
+            NativeIndexSelection::from_selection(clamp_range(first_value, last_value, length));
+        let first_compiled =
+            alternate_compiled_index(first, length, release).unwrap_or(first_value);
+        let last_compiled = alternate_compiled_index(last, length, release).unwrap_or(last_value);
+        for (first, last) in [
+            (first_compiled, last_value),
+            (first_value, last_compiled),
+            (first_compiled, last_compiled),
+        ] {
+            if NativeIndexSelection::from_selection(clamp_range(first, last, length)) != selected {
+                return None;
+            }
+        }
+        Some(selected)
     })
 }
 
@@ -222,17 +237,27 @@ fn parse_index_consensus<T: PartialEq>(
     length: usize,
     project: impl Fn(i64) -> T,
 ) -> Option<T> {
-    index_result_consensus(|syntax| {
-        tcl_cmd_core::index::resolve_opt_in(s, length, syntax).map(&project)
+    index_result_consensus(|syntax, release| {
+        let value = portable_index(s, length, syntax, release)?;
+        let selected = project(value);
+        if alternate_compiled_index(s, length, release)
+            .is_some_and(|value| project(value) != selected)
+        {
+            return None;
+        }
+        Some(selected)
     })
 }
 
 fn index_result_consensus<T: PartialEq>(
-    evaluate: impl Fn(tcl_dialect::IndexSyntax) -> Option<T>,
+    evaluate: impl Fn(tcl_dialect::IndexSyntax, Option<tcl_dialect::TclVersion>) -> Option<T>,
 ) -> Option<T> {
-    let mut answers = tcl_dialect::TclVersion::ALL
-        .iter()
-        .map(|&version| evaluate(tcl_dialect::IndexSyntax::for_version(version)));
+    let mut answers = tcl_dialect::TclVersion::ALL.iter().map(|&version| {
+        evaluate(
+            tcl_dialect::IndexSyntax::for_version(version),
+            Some(version),
+        )
+    });
     let first = answers.next()?;
     if !answers.all(|answer| answer == first) {
         return None;
@@ -243,7 +268,37 @@ fn index_result_consensus<T: PartialEq>(
         width: tcl_dialect::IndexIntegerWidth::Jim32,
         end_abbreviations: false,
     };
-    (evaluate(jim) == first).then_some(first).flatten()
+    (evaluate(jim, None) == first).then_some(first).flatten()
+}
+
+// Pure original index reading is not object/cache or execution admission.
+// A portable fold never selects the build host's C long width.
+fn portable_index(
+    spec: &str,
+    length: usize,
+    syntax: tcl_dialect::IndexSyntax,
+    release: Option<tcl_dialect::TclVersion>,
+) -> Option<i64> {
+    let Some(release) = release else {
+        return tcl_cmd_core::index::resolve_opt_in(spec, length, syntax);
+    };
+    match tcl_cmd_core::index::read_under(spec, length, release) {
+        tcl_cmd_core::index::IndexReading::At(value) => Some(value),
+        _ => None,
+    }
+}
+
+// C8.6's positive end-offset int overflow is clamped after the end by its
+// literal encoder, but wraps when the original runtime word is parsed.
+fn alternate_compiled_index(
+    spec: &str,
+    length: usize,
+    release: Option<tcl_dialect::TclVersion>,
+) -> Option<i64> {
+    let release = release?;
+    tcl_cmd_core::index::compiles_apart(spec, length, release)
+        .then(|| i64::try_from(length).ok())
+        .flatten()
 }
 
 /// Resolve `(first, last)` parsed indices into a clamped `[lo, hi]`
@@ -387,6 +442,12 @@ pub(crate) fn fold_lindex(args: &[&str]) -> Option<String> {
 
 /// `lrange list first last` — returns the sublist (re-quoted).
 pub(crate) fn fold_lrange(args: &[&str]) -> Option<String> {
+    let [list, first, last] = args else {
+        return None;
+    };
+    let length = split_list(list)?.len();
+    parse_range(first, last, length)?;
+
     let contract = crate::native_result::NativeResultContract::ListRange {
         list_at: 0,
         first_at: 1,
@@ -906,6 +967,71 @@ mod tests {
         assert_eq!(parse_index("end-2", 12), Some(9));
         // Still nothing at all for a genuinely bad spec.
         assert_eq!(parse_index("nope", 12), None);
+        // Past 32 bits 8.4 to 8.6 wrap or raise where 9.0 reads the wide, and
+        // a 64-bit `long` decides the rest.
+        for spec in [
+            "2147483648",
+            "4294967295",
+            "4294967296",
+            "-4294967295",
+            "end-4294967295",
+            "1+2147483647",
+            "18446744073709551615",
+            "9223372036854775808",
+        ] {
+            assert_eq!(parse_index(spec, 12), None, "{spec}");
+        }
+        assert_eq!(parse_index("2147483647", 12), Some(2_147_483_647));
+        // Every grammar reads this one before the first element, but 8.6
+        // encodes the literal after the end.
+        assert_eq!(parse_index("end-2147483649", 12), None);
+    }
+
+    #[test]
+    fn portable_folds_keep_host_width_and_compiled_origin_distinct() {
+        use tcl_cmd_core::index::IndexReading;
+        use tcl_dialect::{IndexSyntax, TclVersion};
+
+        // Pure selected readings and container projections, not native object
+        // types or compiler-instruction admission.
+        let host_word = "18446744069414584321";
+        assert_eq!(
+            tcl_cmd_core::index::read_under(host_word, 12, TclVersion::V8_5),
+            IndexReading::HostLong(1)
+        );
+        assert_eq!(
+            portable_index(
+                host_word,
+                12,
+                IndexSyntax::for_version(TclVersion::V8_5),
+                Some(TclVersion::V8_5)
+            ),
+            None
+        );
+        let compiled_word = "end+2147483647";
+        assert_eq!(
+            portable_index(
+                compiled_word,
+                12,
+                IndexSyntax::for_version(TclVersion::V8_6),
+                Some(TclVersion::V8_6)
+            ),
+            Some(-2_147_483_638)
+        );
+        assert_eq!(
+            alternate_compiled_index(compiled_word, 12, Some(TclVersion::V8_6)),
+            Some(12)
+        );
+        assert_eq!(
+            alternate_compiled_index(compiled_word, 12, Some(TclVersion::V8_5)),
+            None
+        );
+        assert_eq!(parse_range("0", compiled_word, 12), None);
+        assert_eq!(
+            parse_range("1", "010", 4),
+            Some(NativeIndexSelection::Selected((1, 3)))
+        );
+        assert_eq!(parse_range("1", "010", 12), None);
     }
 
     /// Fold only unanimous container outcomes, including clamped ranges whose
@@ -923,5 +1049,11 @@ mod tests {
             Some("b c d")
         );
         assert_eq!(fold_lrange(&["a b c d e f g h i j k l", "1", "010"]), None);
+        assert_eq!(
+            fold_lindex(&["a b c d e f g h i j k l", "4294967295"]),
+            None
+        );
+        assert_eq!(fold_lrange(&["a b c d", "0", "4294967296"]), None);
+        assert_eq!(fold_lrange(&["a b c d", "0", "end-2147483649"]), None);
     }
 }

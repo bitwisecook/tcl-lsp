@@ -183,6 +183,27 @@ scopes retain original namespace geometry. Completion inserts a source spelling
 only after both publication and written-lookup round trips select the retained
 slot, then renders that word through the shared Tcl list owner.
 
+## Consumer validation scope
+
+A named test is an available control, not an execution receipt. Software
+results apply only to the exact frozen source image, binary and selection
+retained in the [verification archive](../analysis/name-resolution-proofs/rust-validation/README.md).
+A successful inventory lists tests; it does not execute assertions. Native
+records answer only their original input and public channel. Source/API
+contracts retain not-tested provider rows even when a Rust control exercises
+a retained native-looking context.
+
+| Consumer area | Available controls and current boundary |
+| --- | --- |
+| Registry snapshots and memo dependencies | `registry_snapshot_tests::snapshot_retains_pack_reference_overlay_and_special_variable_axes` checks retained semantic axes and mutation isolation. `taint_interproc::tests::summary_dependencies_read_original_static_heads_under_source_grammar` and the tracked DB summary test cover original static head values and memo invalidation. These software controls establish no interpreter generation or native lookup. |
+| Lowering, CFG, SSA, optimisation and taint | The [actual metadata contract](../analysis/name-resolution-proofs/original-analysis-metadata-context.md) binds full input/configuration/store and independent Module/FU ownership. `cfg_lookup_context::tests` covers per-point namespace and replay horizons; `ssa::tests::supplied_ssa_role_scans_keep_actual_availability_grammar_and_missing_input` covers selected roles. Source advice is conditional; missing or contradictory owners refuse. Test availability supplies no entered command, frame or completed store. |
+| Materialized bodies, expressions and hidden names | The [materialized footprint contract](../analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md) and original hidden-read/purity controls retain actual installer and child lookup horizons. MAY names and unknown residuals remain separate from SSA uses, physical contents and erasure permission. |
+| Editor and tooling source consumers | Core/MCP scalar-subject and exact-case controls, selected variable cursor controls, retained path controls and actual-analysis highlighting controls share genuine whole-source/configuration geometry. Logical source advice and checked generated syntax do not provide Native rewrite or edit equivalence. |
+| Procedure declarations, incoming reads and AOT | [Original slot-purpose controls](../analysis/name-resolution-proofs/aot-original-slot-purpose.md) distinguish canonical declaration ordinals, reached-read cells and parent frame ownership. Coverage, declared storage, body admission, observer closure and physical slots require independent receipts. |
+| Runtime and VM naming/lifetime adapters | Whole-original array retirement, alias publication, dictionary path and command-inventory comparers retain separate provider/release purposes. Physical software ID controls remain independent of public Native outputs. A backend's passing receipt cannot establish the other backend's current behavior. |
+| Counted map prefixes and external UTF-8 | [Map-prefix public vectors](../analysis/name-resolution-proofs/ensemble-original-counted-map-prefix-construction.md) retain construction separately from later lookup; C8.4/Jim unsupported controls remain separate. [UTF-8 object observations](../analysis/name-resolution-proofs/encoding-original-utf8-convertto-object-storage.md) and [error offsets](../analysis/name-resolution-proofs/encoding-original-utf8-convertto-error-offset.md) retain original object/result coordinates. The complete20-map/55-C-conversion software comparers require their own execution receipts; they do not observe Native pointers or private cells. |
+| Return option grammar and completion projections | [Original source fields](../analysis/name-resolution-proofs/completion-return-option-pair-grammar.md) and [evaluated-worker fields](../analysis/name-resolution-proofs/completion-return-evaluated-argument-worker-grammar.md) are separate measured channels. Corrected worker383 preserves every original operand, and C8.5's two nested-option differences remain explicit. Finite Jim width/NUL controls supply no general u32 rule, compiler instruction admission or frame proof. |
+
 ## Remaining consumer boundaries
 
 These are current limits of the interfaces above, rather than permission to

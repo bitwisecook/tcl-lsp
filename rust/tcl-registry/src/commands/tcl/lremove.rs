@@ -54,6 +54,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("lremove"),
         // `list` is a *value* argument, not a variable name — like
         // `lreplace`/`linsert`/`lindex`, `lremove` reads nothing and
         // writes nothing; it only ever returns a new list. It has its
@@ -115,6 +116,9 @@ pub fn spec() -> CommandSpec {
                 },
             ),
         ],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     }
 }

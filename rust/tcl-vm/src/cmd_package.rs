@@ -502,7 +502,11 @@ fn jim_require(vm: &mut Vm, name: &NameBytes) -> Completion<Value> {
     package_error(&[b"Can't load package ", name.as_bytes()], b"NONE", vm)
 }
 
-fn pkg_provide(vm: &mut Vm, rest: &[Value], release: tcl_dialect::TclVersion) -> Completion<Value> {
+pub(crate) fn pkg_provide(
+    vm: &mut Vm,
+    rest: &[Value],
+    release: tcl_dialect::TclVersion,
+) -> Completion<Value> {
     let [original_name, tail @ ..] = rest else {
         return package_wrong_args(vm, "provide");
     };

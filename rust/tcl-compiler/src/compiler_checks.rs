@@ -39,7 +39,7 @@ use crate::irules_checks::{
     find_hoistable_set_warnings, find_http_flow_warnings, find_unguarded_drop_warnings,
 };
 use crate::path_concat::{PathConcatWarning, find_path_concat_warnings};
-use crate::sccp::ConstantBranch;
+use crate::sccp::{BranchFactKind, ConstantBranch};
 use crate::shimmer::{
     SharingWarning, ShimmerWarning, ThunkingWarning, find_byte_array_warnings_with_context,
     find_sharing_warnings_with_context, find_shimmer_warnings_with_context,
@@ -350,7 +350,7 @@ pub fn run_all_checks_with_generic_patterns(
 }
 
 /// Like [`run_all_checks`] but consumes a pre-computed interprocedural taint
-/// solve, so a caller can supply a memoised one (SRV-INCREMENTAL 2b) instead of
+/// solve, so a caller can supply a memoised one instead of
 /// re-solving the whole module on every edit — that solve is ~95% of this pass.
 #[must_use]
 pub fn run_all_checks_with_solved(
@@ -386,7 +386,7 @@ pub fn run_all_checks_with_solved_and_patterns(
     // methods/body units) — rebased to its offset. Factored into
     // [`function_nontaint_checks`] so
     // the LSP db can memoise it per procedure on the offset-0 `FnLatticeKey`
-    // (SRV-INCREMENTAL 2a): an unedited procedure's checks are a cache hit
+    // An unedited procedure's checks are a cache hit
     // instead of recomputed over the whole unit every edit.
     for fu in cu.analysable_body_function_units() {
         for d in function_nontaint_checks(fu, registry, dialect, cu.method_instance_vars(&fu.name))
@@ -415,7 +415,7 @@ pub fn run_all_checks_with_solved_and_patterns(
 /// byte-array S110).
 ///
 /// These read only the `FunctionUnit`, so the LSP db wraps this in a salsa query
-/// keyed on the offset-0 `FnLatticeKey` (SRV-INCREMENTAL 2a) — an unedited
+/// keyed on the offset-0 `FnLatticeKey` — an unedited
 /// procedure's checks are a cache hit.  The S110 `*::payload` byte-command set is
 /// dialect-gated (empty outside iRules).
 #[must_use]
@@ -426,7 +426,12 @@ pub fn function_nontaint_checks<S: std::hash::BuildHasher>(
     instance_vars: Option<&std::collections::HashSet<String, S>>,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
-    for cb in fu.diagnostic_value_facts().constant_branches() {
+    for cb in fu
+        .diagnostic_value_facts()
+        .constant_branches()
+        .iter()
+        .filter(|cb| cb.kind != BranchFactKind::Selected)
+    {
         out.push(Diagnostic::from_constant_branch(cb));
     }
     for r in find_redundancies_for_function(registry, fu, dialect) {
@@ -463,15 +468,7 @@ pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
         return Vec::new();
     };
     let mut out: Vec<Diagnostic> = Vec::new();
-    for w in find_shimmer_warnings_with_context(
-        &fu.cfg,
-        &fu.ssa,
-        &fu.types,
-        &fu.sccp.executable_blocks,
-        context,
-        &fu.sccp.values,
-        &fu.sccp.executable_edges,
-    ) {
+    for w in find_shimmer_warnings_with_context(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp, context) {
         out.push(Diagnostic::from_shimmer(&w));
     }
     for w in find_thunking_warnings_with_context(
@@ -500,13 +497,9 @@ pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
         } else {
             std::collections::HashMap::new()
         };
-    for w in find_byte_array_warnings_with_context(
-        &fu.cfg,
-        &fu.ssa,
-        &fu.sccp.executable_blocks,
-        context,
-        &payload_layouts,
-    ) {
+    for w in
+        find_byte_array_warnings_with_context(&fu.cfg, &fu.ssa, &fu.sccp, context, &payload_layouts)
+    {
         out.push(Diagnostic::from_shimmer(&w));
     }
     out
@@ -515,7 +508,7 @@ pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
 /// Append the taint-family warnings (per function, reading the interprocedural
 /// `solved` taints) and the iRules module-level flow checks — the half of
 /// [`run_all_checks_with_solved`] that is *not* per-function-pure (taint already
-/// arrives pre-solved), so SRV-INCREMENTAL 2a does not memoise it.
+/// arrives pre-solved), so the per-procedure cache does not memoise it.
 pub fn push_taint_and_module_checks(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
@@ -539,6 +532,7 @@ pub fn push_taint_and_module_checks(
     let module_traces = crate::compilation_unit::ModuleTraceFacts {
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+        deferred_writes: &cu.ir_module.deferred_writes,
     };
     // `analysable_body_function_units` (not `analysable_functions`) so a sink
     // inside a TclOO method body — or an `apply` lambda / `namespace eval`
@@ -575,6 +569,7 @@ pub fn push_taint_and_module_checks(
                 &fu.cfg,
                 &fu.ssa,
                 &taints,
+                Some(&fu.sccp.values),
                 &fu.sccp.executable_blocks,
                 dialect,
             ) {

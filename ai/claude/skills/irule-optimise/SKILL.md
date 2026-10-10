@@ -12,7 +12,8 @@ Apply the optimiser's rewrites to an iRule and explain each one.
 
 1. Read `../_prompts/irules_system.md`, then the iRule.
 2. Call `mcp__tcl-lsp__optimize` with the contents as `source` (`profile`
-   defaults to `full`; `aggressive` iterates to a fixpoint). On a tool error
+   defaults to the user's `config.ini` `[optimiser] profile`, else `full`; a
+   named one wins; `aggressive` iterates to a fixpoint). On a tool error
    (e.g. a parse failure) report it and suggest fixes; on no findings report
    the code is already well-optimised.
 3. Apply the returned optimised source with Edit.

@@ -37,6 +37,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
+                effect: None,
             }]
         },
         side_effects: &[SideEffect {
@@ -45,6 +46,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -62,6 +64,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
+                effect: None,
             }]
         },
         side_effects: &[SideEffect {
@@ -70,6 +73,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -88,6 +92,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
+                effect: None,
             }]
         },
         side_effects: &[SideEffect {
@@ -97,6 +102,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -115,6 +121,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
+                effect: None,
             }]
         },
         side_effects: &[SideEffect {
@@ -124,6 +131,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -142,6 +150,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
+                effect: None,
             }]
         },
         side_effects: &[SideEffect {
@@ -151,6 +160,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -169,6 +179,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
+                effect: None,
             }]
         },
         side_effects: &[SideEffect {
@@ -178,6 +189,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
 ];
@@ -213,6 +225,7 @@ pub const fn spec() -> CommandSpec {
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
+                effect: None,
             }]
         },
         subcommands: SUBCOMMANDS,

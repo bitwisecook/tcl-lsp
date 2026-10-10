@@ -39,6 +39,7 @@ tcl explore script.tcl --show ir,cfg,opt
 tcl explore script.tcl --json --codegen-passes native-lowering,cell-demotion
 tcl help taint analysis --dialect f5-irules
 tcl help taint --json
+tcl spec test pack.tclspec --package demo
 
 # Package management and virtual environments (tclpkg)
 tcl pkg init --name myapp --version 1.0.0
@@ -99,10 +100,10 @@ any, which is the shape a CI step wants.
 
 ## Verb contracts
 
-- `opt`: combines resolved inputs, applies optimiser rewrites, and emits rewritten Tcl.
-- `diag`: runs diagnostics over each resolved document and reports findings.
+- `opt`: applies the optimiser rewrites the inputs' policy shows and emits rewritten Tcl. `--profile` picks the profile, and it wins over every configuration file. Without `--profile`, the project file supplies the default: the `[optimiser] profile` in the input file's own `.tcl-lsp.ini`, then the one in the global `config.ini`, then `full`. The profile also sets the passes: `aggressive` repeats until nothing changes, and every other profile runs once. `--disable` and `--enable` are the invocation layer over the global `config.ini`, under each input file's own `.tcl-lsp.ini`; a `# noqa` on a command or a top-of-file `# tcl-lsp: disable=` keeps a rewrite off exactly as it keeps a squiggle off. Each input is optimised as its own program under its own policy and the outputs joined; the summary names each file's rewrites.
+- `diag`: runs diagnostics over each resolved document and reports findings — the same producers and the same policy the editor publishes under. Each file resolves its own layers: the global `config.ini`, `--disable` / `--enable` in the editor layer's slot, and the nearest `.tcl-lsp.ini` above the file (an inline `--source` has no project layer). The catalogue's default-off codes (W242) are off until a layer turns them on. `--show-suppressed` also lists what the policy hides: every suppressed finding with its reason, every code a layer or a top-of-file directive turned off, and the optimiser `diag` never runs, as one row per reason — so a missing diagnostic has an answer.
 - `lint`: runs the same diagnostics pass as `diag` with lint-oriented naming.
-- `validate`: reports error-severity diagnostics only (non-zero on any error, `--json` supported).
+- `validate`: reports error-severity diagnostics only, from the same shown set as `diag` (non-zero on any error, `--json` supported).
 - `format`: reformats resolved source using the shared Tcl formatter and emits rewritten Tcl.
 - `symbols`: emits symbol definitions from analyser scope data (`--json` supported).
 - `diagram`: emits diagram extraction data from compiler IR (`--json` supported).
@@ -119,9 +120,10 @@ any, which is the shape a CI step wants.
 - `diff`: compares two inputs at parser AST, lowered IR, and CFG layers (`--show` and `--json` supported).
 - `explore`: forwards combined source into compiler-explorer views. `--codegen-passes` applies to the `wasm` views, and the `semanticOptimisations` view lists every pass with the state the shown module was built with.
 - `help`: searches the KCS help database embedded in the binary at build time and reports KCS feature matches (`--dialect` optionally narrows matches).
+- `spec test`: holds a `.tclspec` pack's declared facts to the Tcl package they describe, in a real shell (`--tclsh`, else `TCL_VENV` or the newest `tclsh` on `PATH`; reach the package with `TCLLIBPATH`). It requires the package (`--package`, else the one every command's `required_package` names), then asks each command: its arity against the shell's `wrong # args` one word under the declared minimum, one over the declared maximum, and at the minimum and the maximum (the calls that must succeed pass the placeholder word `x`, so run it only for a package whose commands tolerate that); each `example` row against the answer and the declared `return_type` (checked for `Int`, `Double`, `Boolean`, `Numeric`, `List` and `Dict`, the types a shell can decide); a Tcl-body reference body against the command on the same examples, in a child interpreter; and a command declared `pure` against write/unset traces on namespace variables (globals and each namespace's own, such as a `variable cache` memo, but not the shell's own `::tcl`, where it keeps its history) from its first question through a second run of its examples. Execution-step observations attach traces to newly created variables, so creating and deleting a global between Tcl commands is still a divergence. This checks observable namespace-variable changes, not every possible effect; a temporary variable created and deleted within one native command may escape observation. It prints one row per divergence (`COMMAND: KIND: what the pack said and what the shell did`), then a summary that counts the commands the shell actually asked. It exits 1 on any divergence, when the package cannot be required, and when the shell stopped before it had asked every command, whatever status the package left it with: the probe ends with a line that counts the commands asked, and a package that calls `exit 0` does not produce it. It exits 2, as every verb does for an error, when the pack is not a file or fails to load, no `tclsh` can be found, or the shell does not finish within the timeout the policy allows. A valid pack declaring no commands exits 0 without starting a shell. Requiring a package runs its Tcl, so the verb runs only for a package the package-manager policy opts in (`[build] allow-build-scripts = true` and `tcl pkg trust NAME`), through the same sandboxed chokepoint a build script uses (the environment scrubbed, a timeout, and the network denied where the host's confinement can enforce it). The policy is the operator's: the project's `tclpkg.toml`, where the project is the outermost directory at or above the working directory that holds a `tclpkg.tcl`, or the working directory itself, and never a directory the pack was found in, so a dependency vendored into the project cannot opt itself in, whether the verb is run from the project or from inside the dependency; a project nested inside another takes the outer project's policy. It is a CLI verb: nothing the editor runs ever executes the package a pack describes.
 
 ## Exit-code contract
 
 - `0`: command succeeded.
-- `1`: diagnostics found for `diag`/`lint`/`validate`, semantic differences for `diff`, or unknown lookup target for `event-info`/`command-info`.
-- `2`: input resolution failure or command execution error.
+- `1`: diagnostics found for `diag`/`lint`/`validate`, a divergence, a package that cannot be required or a shell that stopped before it had asked every command for `spec test`, semantic differences for `diff`, or unknown lookup target for `event-info`/`command-info`.
+- `2`: input resolution failure or command execution error, including `spec test` rejecting a failed pack load, finding no shell or a shell that outlives the policy's timeout.

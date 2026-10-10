@@ -45,6 +45,20 @@ use tcl_syntax::value::{ValueError, ValueOps};
 
 use crate::error::CmdError;
 
+fn confined_store_error(operation: &[u8], name: &[u8]) -> CmdError {
+    let mut message = b"can't ".to_vec();
+    message.extend_from_slice(operation);
+    message.extend_from_slice(b" \"");
+    message.extend_from_slice(name);
+    message.extend_from_slice(b"\": stores are confined to the activation");
+    let code = if operation == b"unset" {
+        b"TCL UNSET VARNAME"
+    } else {
+        b"TCL WRITE VARNAME"
+    };
+    CmdError::with_error_code_bytes(message, code.to_vec())
+}
+
 /// Dispatch an `array` subcommand handled by the shared core. `rest` is the
 /// arguments after the subcommand (`rest[0]` is the array name). Returns `None`
 /// for `set`/`default`/`for` and any unknown subcommand, letting the adapter
@@ -251,6 +265,10 @@ where
         });
     }
     let name = ops.native_string_bytes(&rest[0])?;
+    let here = Frames::current(ops);
+    if matches!(option, b"set" | b"unset") && ops.unset_confined_bytes(here, &name)? {
+        return Err(confined_store_error(option, &name));
+    }
     if option == b"set" {
         let frame = Frames::current(ops);
         match ops.set_array_default_bytes(frame, &name, rest[1].clone())? {
@@ -459,6 +477,9 @@ where
 {
     let here = Frames::current(ops);
     let name = ops.native_string_bytes(name)?;
+    if ops.unset_confined_bytes(here, &name)? {
+        return Err(confined_store_error(b"unset", &name));
+    }
     let dictionary =
         ops.variable_container_model() == tcl_dialect::VariableContainerModel::DictionaryValue;
     let pattern = pattern.map(|p| ops.native_string_bytes(p)).transpose()?;

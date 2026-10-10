@@ -71,11 +71,15 @@
 //! |---|---|---|
 //! | `eval $body` | the frame it is written in | this module, directly |
 //! | `argparse {…}` | the frame that *called* it | this module, directly |
+//! | a stub's `-frame caller` | the frame that *called* it | this module, from [`CfgFunction::declared_frame_effects`] |
 //! | `uplevel 1 $body` in a proc | that proc's caller | the proc's [frame-effect summary][sum], read at each call site |
 //! | `upvar 1 $computed x` | that proc's caller | the same summary |
 //!
-//! The first two are visible in the function's own statements, so the walk
-//! below raises the flags itself.  The last two are visible only with the
+//! The first three are visible in the function's own statements, so the walk
+//! below raises the flags itself: a command the document declares as a plain
+//! call brings the frame effect its declaration states where the catalogue
+//! holds no command of that name ([`crate::ir::DeclaredFrameEffects`]), which
+//! the CFG builder records on the function for this walk.  The last two are visible only with the
 //! module-wide proc summaries, which the CFG builder holds and this
 //! per-function walk does not — so it records them on
 //! [`CfgFunction::caller_frame_barrier`], and
@@ -83,11 +87,13 @@
 //! the same three bits, so every consumer's abstention rule is unchanged
 //! and the cost stays `O(1)` per query.
 //!
-//! Deliberately **not** a per-call-site fact: every consumer of this
-//! lattice (`W210` / `W211` / `W220` / `I230`, `O101` / `O109` / `O126`)
-//! already reads it once per function and abstains for the whole function.
-//! A per-site fact would need flow-sensitivity none of them have, and would
-//! buy nothing — the flow-insensitive union is what they would compute.
+//! The function's flags are the flow-insensitive union, which every
+//! whole-function consumer (`W210` / `W211` / `W220`, `O109` / `O126`)
+//! reads once and abstains on. The one flow-sensitive consumer, the
+//! existence rung, reads each statement's own flags
+//! ([`statement_barrier`], [`terminator_barrier`]) and applies them from
+//! that statement on, so a computed name after a `[info exists …]` test no
+//! longer blinds the test.
 //!
 //! `uplevel 1 $body` written *inside* a proc raises nothing for that proc:
 //! the script runs one frame **up**, so the proc's own locals are
@@ -116,7 +122,7 @@ use tcl_registry::{ArgRole, CommandRegistry, Traits};
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
 use crate::expr_ast::ExprNode;
-use crate::ir::Statement;
+use crate::ir::{DeclaredFrameEffects, Statement};
 
 /// Whether a function accesses variables whose *name* is computed at run
 /// time, split by the direction each blinds.
@@ -442,93 +448,321 @@ pub fn dynamic_name_barrier(
     registry: &CommandRegistry,
     config: LexerConfig,
 ) -> DynamicNameBarrier {
-    // Caller-frame injection the CFG builder already resolved against the
-    // module-wide proc summaries — the same three bits, joined in.
     let mut barrier = cfg.caller_frame_barrier;
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
-            scan_statement(stmt, registry, &mut barrier, config);
-            // The CFG builder flattens structured control flow, but a
-            // non-lowered (glob / regexp / fall-through) `switch` keeps its
-            // arm bodies inline; descend through whatever nests.
-            for script in crate::ir_helpers::nested_bodies(stmt) {
-                crate::ir::for_each_statement(script, &mut |inner| {
-                    scan_statement(inner, registry, &mut barrier, config);
-                });
-            }
+            barrier = barrier.union(statement_barrier_for_cfg(stmt, cfg, registry, config));
         }
-        match &block.terminator {
-            Some(Terminator::Branch { condition, .. }) => {
-                scan_expr(condition, registry, &mut barrier, config);
-            }
-            // `return [set $n]` lowers to a terminator, not a statement.
-            Some(Terminator::Return { value, expr, .. }) => {
-                if let Some(v) = value {
-                    scan_text(v, registry, &mut barrier, 0, config);
-                }
-                if let Some(e) = expr {
-                    scan_expr(e, registry, &mut barrier, config);
-                }
-            }
-            _ => {}
+        if let Some(terminator) = &block.terminator {
+            barrier = barrier.union(terminator_barrier_for_cfg(
+                terminator, cfg, registry, config,
+            ));
         }
     }
     barrier
+}
+
+/// Computed-name facts for an explicitly standalone statement scan.
+/// Source-producing consumers use [`statement_barrier_for_cfg`].
+#[must_use]
+pub fn statement_barrier(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    declared: &DeclaredFrameEffects,
+    config: LexerConfig,
+) -> DynamicNameBarrier {
+    statement_barrier_with_commands(stmt, Commands::standalone(registry, declared), config)
+}
+
+/// Computed-name facts under the CFG's retained metadata owner. Missing or
+/// foreign supplied metadata cannot reopen catalogue compatibility.
+#[must_use]
+pub fn statement_barrier_for_cfg(
+    stmt: &Statement,
+    cfg: &CfgFunction,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> DynamicNameBarrier {
+    statement_barrier_with_commands(stmt, Commands::for_cfg(cfg, registry, config), config)
+}
+
+fn statement_barrier_with_commands(
+    stmt: &Statement,
+    commands: Commands<'_>,
+    config: LexerConfig,
+) -> DynamicNameBarrier {
+    let mut barrier = DynamicNameBarrier::default();
+    scan_statement(stmt, commands, &mut barrier, config);
+    for script in crate::ir_helpers::nested_bodies(stmt) {
+        crate::ir::for_each_statement(script, &mut |inner| {
+            scan_statement(inner, commands, &mut barrier, config);
+        });
+    }
+    barrier
+}
+
+/// Computed-name facts for an explicitly standalone terminator scan.
+#[must_use]
+pub fn terminator_barrier(
+    terminator: &Terminator,
+    registry: &CommandRegistry,
+    declared: &DeclaredFrameEffects,
+    config: LexerConfig,
+) -> DynamicNameBarrier {
+    terminator_barrier_with_commands(terminator, Commands::standalone(registry, declared), config)
+}
+
+/// Per-site terminator facts under the same owner as the CFG's statements.
+#[must_use]
+pub fn terminator_barrier_for_cfg(
+    terminator: &Terminator,
+    cfg: &CfgFunction,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> DynamicNameBarrier {
+    let commands = Commands::for_cfg(cfg, registry, config);
+    if !commands.standalone
+        && let Terminator::Branch {
+            condition,
+            condition_base,
+            ..
+        } = terminator
+    {
+        let parent = cfg.blocks.iter().find_map(|(block_id, block)| {
+            std::ptr::eq(block.terminator.as_ref()?, terminator)
+                .then(|| cfg.source_tokens_at(*block_id, usize::MAX))
+                .flatten()
+        });
+        let mut barrier = DynamicNameBarrier::default();
+        scan_original_expression(
+            condition,
+            *condition_base,
+            parent,
+            commands,
+            &mut barrier,
+            config,
+        );
+        return barrier;
+    }
+    terminator_barrier_with_commands(terminator, commands, config)
+}
+
+fn terminator_barrier_with_commands(
+    terminator: &Terminator,
+    commands: Commands<'_>,
+    config: LexerConfig,
+) -> DynamicNameBarrier {
+    let mut barrier = DynamicNameBarrier::default();
+    match terminator {
+        Terminator::Branch { condition, .. } => {
+            // Detached expression text has no supplied original child lookup.
+            if commands.standalone {
+                scan_expr(condition, commands, &mut barrier, config);
+            } else {
+                let mut children = Vec::new();
+                crate::ir_helpers::collect_expr_commands(condition, &mut children);
+                if !children.is_empty() {
+                    barrier = DynamicNameBarrier::OPAQUE_SCRIPT;
+                }
+            }
+        }
+        Terminator::Return {
+            tokens: Some(tokens),
+            ..
+        } => {
+            scan_original_substitutions(tokens, commands, &mut barrier, config);
+        }
+        Terminator::Return { value, expr, .. } => {
+            if let Some(v) = value {
+                scan_text(v, commands, &mut barrier, 0, config);
+            }
+            if let Some(e) = expr {
+                scan_expr(e, commands, &mut barrier, config);
+            }
+        }
+        Terminator::Goto { .. } | Terminator::Complete { .. } => {}
+    }
+    barrier
+}
+
+#[derive(Clone, Copy)]
+struct Commands<'a> {
+    registry: &'a CommandRegistry,
+    declared: &'a DeclaredFrameEffects,
+    // Outer None is terminal supplied refusal; inner None is the explicit
+    // profile-less standalone mode.
+    metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>>,
+    standalone: bool,
+}
+
+impl<'a> Commands<'a> {
+    fn standalone(registry: &'a CommandRegistry, declared: &'a DeclaredFrameEffects) -> Self {
+        Self {
+            registry,
+            declared,
+            metadata: Some(None),
+            standalone: true,
+        }
+    }
+
+    fn for_cfg(cfg: &'a CfgFunction, registry: &'a CommandRegistry, config: LexerConfig) -> Self {
+        let owner = &cfg.metadata_context;
+        let metadata = if owner
+            .source_analysis_input()
+            .is_some_and(|input| input.lexer_config().normalized() != config.normalized())
+        {
+            None
+        } else {
+            owner.metadata_context(registry)
+        };
+        Self {
+            registry,
+            declared: &cfg.declared_frame_effects,
+            metadata,
+            standalone: owner.is_standalone(),
+        }
+    }
+
+    fn declared_frame_effect(self, command: &str) -> Option<FrameEffectSpec> {
+        self.declared
+            .get(&tcl_syntax::naming::normalise_qualified_name(command))
+            .copied()
+    }
 }
 
 fn scan_call(
     command: &str,
     args: &[String],
     tokens: Option<&crate::ir::CommandTokens>,
-    registry: &CommandRegistry,
+    commands: Commands<'_>,
     barrier: &mut DynamicNameBarrier,
     config: LexerConfig,
 ) {
-    // `args` is the segmenter's *reconstructed* text, which cannot
-    // tell a brace-quoted `{$a}` (literal) from a substituted `$a`;
-    // the per-word token kinds can — asked via the shared
-    // `CommandTokens::arg_is_braced_literal`.
-    let braced: Option<Vec<bool>> = tokens.map(|t| {
-        (0..args.len())
-            .map(|i| t.arg_is_braced_literal(i))
-            .collect()
-    });
-    // Retained invocation identities, including a frozen computed head,
-    // supply candidates. The written head text cannot donate a handler.
+    let Some(metadata) = commands.metadata else {
+        *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+        return;
+    };
     if let Some(tokens) = tokens {
-        // Name hazards consume the actual retained handler's phased operands
-        // independently of strict execution facts. Re-querying its private
-        // implementation slot by spelling can lose the public selector roles.
-        if let Some(names) =
-            crate::registry_invocation::possible_variable_name_operands(registry, None, tokens)
+        if !commands.standalone
+            && tokens
+                .source_binding
+                .as_ref()
+                .and_then(|binding| binding.original_lexer_config_for_tokens(tokens))
+                .is_none_or(|original| original.normalized() != config.normalized())
         {
-            scan_possible_variable_names(&names, barrier);
+            *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+            return;
         }
-        if let Some(invocation) =
-            crate::registry_invocation::resolved_tokens_invocation(registry, None, tokens)
-        {
-            scan_retained_name_effects(&invocation, barrier);
+        let names =
+            crate::registry_invocation::possible_variable_name_operands_with_metadata_context(
+                commands.registry,
+                metadata,
+                tokens,
+            );
+        let invocation =
+            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                commands.registry,
+                metadata,
+                tokens,
+            );
+        if let Some(names) = &names {
+            scan_possible_variable_names(names, barrier);
         }
-    } else {
-        scan_command(command, args, braced.as_deref(), registry, barrier, None);
-    }
-    if let Some(tokens) = tokens {
-        scan_original_substitutions(tokens, registry, barrier, config);
-    } else {
+        if let Some(invocation) = &invocation {
+            scan_retained_name_effects(invocation, barrier);
+        }
+        if !commands.standalone {
+            if invocation.as_ref().is_some_and(|invocation| {
+                invocation
+                    .facts
+                    .traits
+                    .contains(Traits::PERFORMS_SUBSTITUTION)
+            }) {
+                scan_materialized_names(tokens, commands, barrier);
+            }
+            if invocation.is_none()
+                && names.as_ref().is_none_or(
+                    crate::registry_invocation::PossibleVariableNameOperands::unknown_residual,
+                )
+            {
+                *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+            }
+        } else {
+            // The template plan is source advice, independent of strict
+            // reached handler facts. Only explicit standalone scans reparse it.
+            let braced: Vec<bool> = (0..args.len())
+                .map(|i| tokens.arg_is_braced_literal(i))
+                .collect();
+            let head_dynamic = tokens.argv_kinds.first().is_some_and(|kind| {
+                matches!(kind, tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd)
+            });
+            if !head_dynamic {
+                scan_command(
+                    command,
+                    &CommandWords {
+                        args,
+                        braced: Some(&braced),
+                    },
+                    commands,
+                    barrier,
+                    (0, config),
+                );
+            }
+        }
+        scan_original_substitutions(tokens, commands, barrier, config);
+    } else if commands.standalone {
+        scan_command(
+            command,
+            &CommandWords { args, braced: None },
+            commands,
+            barrier,
+            (0, config),
+        );
         for arg in args {
-            scan_text(arg, registry, barrier, 0, config);
+            scan_text(arg, commands, barrier, 0, config);
         }
+    } else {
+        *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
     }
 }
 
-/// Original child dispatch receipts retain name effects across the enclosing
-/// value operation. Missing child ownership or a truncated walk stays opaque.
+fn scan_materialized_names(
+    tokens: &crate::ir::CommandTokens,
+    commands: Commands<'_>,
+    barrier: &mut DynamicNameBarrier,
+) {
+    let footprint = (|| {
+        let binding = tokens.source_binding.as_ref()?;
+        let source = binding
+            .invocation_site()?
+            .source
+            .source_image()
+            .try_text()
+            .ok()?;
+        let footprint = binding.original_materialized_footprint(
+            tokens,
+            source,
+            commands.registry,
+            commands.metadata.flatten(),
+        )?;
+        Some(footprint.invocation_footprint())
+    })();
+    if footprint.is_none_or(|footprint| footprint.opaque) {
+        *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+    }
+}
+
+/// Original child dispatch receipts retain their own lookup horizon.
 fn scan_original_substitutions(
     tokens: &crate::ir::CommandTokens,
-    registry: &CommandRegistry,
+    commands: Commands<'_>,
     barrier: &mut DynamicNameBarrier,
     config: LexerConfig,
 ) {
+    let Some(metadata) = commands.metadata else {
+        *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+        return;
+    };
     let Some(calls) = crate::word_subst::checked_lifted_calls(tokens, config) else {
         *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
         return;
@@ -539,18 +773,34 @@ fn scan_original_substitutions(
             continue;
         };
         let names =
-            crate::registry_invocation::possible_variable_name_operands(registry, None, tokens);
+            crate::registry_invocation::possible_variable_name_operands_with_metadata_context(
+                commands.registry,
+                metadata,
+                tokens,
+            );
         let invocation =
-            crate::registry_invocation::resolved_tokens_invocation(registry, None, tokens);
+            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                commands.registry,
+                metadata,
+                tokens,
+            );
         if let Some(names) = &names {
             scan_possible_variable_names(names, barrier);
         }
         if let Some(invocation) = &invocation {
             scan_retained_name_effects(invocation, barrier);
+            if !commands.standalone
+                && invocation
+                    .facts
+                    .traits
+                    .contains(Traits::PERFORMS_SUBSTITUTION)
+            {
+                scan_materialized_names(tokens, commands, barrier);
+            }
         }
         if invocation.is_none()
             && names.as_ref().is_none_or(
-                super::registry_invocation::PossibleVariableNameOperands::unknown_residual,
+                crate::registry_invocation::PossibleVariableNameOperands::unknown_residual,
             )
         {
             *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
@@ -560,14 +810,12 @@ fn scan_original_substitutions(
 
 fn scan_statement(
     stmt: &Statement,
-    registry: &CommandRegistry,
+    commands: Commands<'_>,
     barrier: &mut DynamicNameBarrier,
     config: LexerConfig,
 ) {
     match stmt {
-        Statement::NativeCall { .. } => {
-            *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
-        }
+        Statement::NativeCall { .. } => *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT),
         Statement::Call {
             command,
             args,
@@ -580,45 +828,176 @@ fn scan_statement(
             tokens,
             ..
         } => {
-            scan_call(command, args, tokens.as_ref(), registry, barrier, config);
+            scan_call(command, args, tokens.as_ref(), commands, barrier, config);
+        }
+        Statement::AssignConst { .. } => {
+            if let Some(tokens) = stmt.tokens() {
+                scan_original_substitutions(tokens, commands, barrier, config);
+            }
         }
         Statement::AssignValue { value, .. } => {
             if let Some(tokens) = stmt.tokens() {
-                scan_original_substitutions(tokens, registry, barrier, config);
+                scan_original_substitutions(tokens, commands, barrier, config);
             } else {
-                scan_text(value, registry, barrier, 0, config);
+                scan_text(value, commands, barrier, 0, config);
             }
         }
-        Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
-            scan_expr(expr, registry, barrier, config);
+        Statement::AssignExpr {
+            expr, expr_base, ..
         }
-        Statement::Return { value, expr, .. } => {
-            if let Some(v) = value {
-                scan_text(v, registry, barrier, 0, config);
+        | Statement::ExprEval {
+            expr, expr_base, ..
+        } => {
+            if let Some(tokens) = stmt.tokens() {
+                scan_original_substitutions(tokens, commands, barrier, config);
             }
-            if let Some(e) = expr {
-                scan_expr(e, registry, barrier, config);
+            if commands.standalone {
+                scan_expr(expr, commands, barrier, config);
+            } else {
+                scan_original_expression(
+                    expr,
+                    *expr_base,
+                    stmt.tokens(),
+                    commands,
+                    barrier,
+                    config,
+                );
             }
         }
-        // A non-lowered `switch`'s subject is a word; its arm bodies are
-        // reached by the caller's `nested_bodies` descent.
+        Statement::Return {
+            value,
+            expr,
+            expr_base,
+            ..
+        } => {
+            if let Some(tokens) = stmt.tokens() {
+                scan_original_substitutions(tokens, commands, barrier, config);
+                if let Some(expr) = expr {
+                    scan_original_expression(
+                        expr,
+                        *expr_base,
+                        Some(tokens),
+                        commands,
+                        barrier,
+                        config,
+                    );
+                }
+            } else {
+                if let Some(value) = value {
+                    scan_text(value, commands, barrier, 0, config);
+                }
+                if let Some(expr) = expr {
+                    scan_expr(expr, commands, barrier, config);
+                }
+            }
+        }
         Statement::Switch { subject, .. } => {
-            scan_text(subject, registry, barrier, 0, config);
+            if let Some(tokens) = stmt.tokens() {
+                scan_original_substitutions(tokens, commands, barrier, config);
+            } else {
+                scan_text(subject, commands, barrier, 0, config);
+            }
         }
-        // `Incr` names its target literally: `try_lower_incr` declines the
-        // specialisation for a computed name word — as `lower_set` does —
-        // and falls back to `Call`, which the arm above already scans. Every
-        // remaining statement carries no word text.
         _ => {}
+    }
+}
+
+/// Only each unchanged expression child's own lookup can supply its name roles.
+/// The original expression base joins lexical extents; it grants no entered
+/// frame or evaluation result. Missing source geometry retains an opaque tail.
+fn scan_original_expression(
+    expression: &ExprNode,
+    base: Option<u32>,
+    parent: Option<&crate::ir::CommandTokens>,
+    commands: Commands<'_>,
+    barrier: &mut DynamicNameBarrier,
+    config: LexerConfig,
+) {
+    let mut pending = vec![(expression, 0)];
+    while let Some((node, depth)) = pending.pop() {
+        if crate::depth_guard::MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+            *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+            continue;
+        }
+        match node {
+            ExprNode::Command { text, start, end } => {
+                let nested = (|| {
+                    let parent = parent?;
+                    let base = base?;
+                    let site = crate::ir::SourceSite::source(tcl_lexer::Span::new(
+                        base.checked_add(*start)?,
+                        base.checked_add(*end)?,
+                    ));
+                    let mut nested =
+                        crate::word_subst::nested_command_words(text, &site, config).ok()?;
+                    nested.inherit_nested_bindings(parent);
+                    Some(nested)
+                })();
+                if let Some(tokens) = nested {
+                    if let Some((head, args)) = tokens.argv_texts.split_first() {
+                        scan_call(head, args, Some(&tokens), commands, barrier, config);
+                    } else {
+                        *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+                    }
+                } else {
+                    *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+                }
+            }
+            ExprNode::Unary { operand, .. } => pending.push((operand, depth + 1)),
+            ExprNode::Binary { left, right, .. } => {
+                pending.push((right, depth + 1));
+                pending.push((left, depth + 1));
+            }
+            ExprNode::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => {
+                pending.push((false_branch, depth + 1));
+                pending.push((true_branch, depth + 1));
+                pending.push((condition, depth + 1));
+            }
+            ExprNode::Call { args, .. } => pending.extend(args.iter().map(|arg| (arg, depth + 1))),
+            ExprNode::Raw { text } => {
+                if !crate::var_refs::command_subst_texts_with_config(text, config).is_empty() {
+                    *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+                }
+            }
+            ExprNode::String { text, .. } => {
+                if !text.starts_with('{')
+                    && !crate::var_refs::command_subst_texts_with_config(text, config).is_empty()
+                {
+                    *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+                }
+            }
+            ExprNode::CompiledWord { text, braced } => {
+                if !*braced
+                    && !crate::var_refs::command_subst_texts_with_config(text, config).is_empty()
+                {
+                    *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+                }
+            }
+            ExprNode::Var { text, .. } => {
+                if !crate::var_refs::command_subst_texts_with_config(text, config).is_empty() {
+                    *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+                }
+            }
+            ExprNode::Literal { .. } => {}
+        }
     }
 }
 
 fn scan_expr(
     expr: &ExprNode,
-    registry: &CommandRegistry,
+    commands: Commands<'_>,
     barrier: &mut DynamicNameBarrier,
     config: LexerConfig,
 ) {
+    if !commands.standalone {
+        *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+        return;
+    }
+
     let mut cmds = Vec::new();
     crate::ir_helpers::collect_expr_commands(expr, &mut cmds);
     for cmd_text in &cmds {
@@ -627,18 +1006,23 @@ fn scan_expr(
             .strip_prefix('[')
             .and_then(|s| s.strip_suffix(']'))
             .unwrap_or(trimmed);
-        scan_script_text(inner, registry, barrier, 0, config);
+        scan_script_text(inner, commands, barrier, 0, config);
     }
 }
 
 /// Scan a word's raw text for nested `[…]` command substitutions.
 fn scan_text(
     text: &str,
-    registry: &CommandRegistry,
+    commands: Commands<'_>,
     barrier: &mut DynamicNameBarrier,
     depth: u32,
     config: LexerConfig,
 ) {
+    if !commands.standalone {
+        *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+        return;
+    }
+
     // Native-stack safety net: `[a [b [c …]]]` nests inside one word. This is
     // a soundness fact, not a best-effort diagnostic: past the cap the unread
     // suffix may contain any dynamic read, write, or destroy. Fail closed for
@@ -649,7 +1033,7 @@ fn scan_text(
         return;
     }
     for inner in crate::var_refs::command_subst_texts_with_config(text, config) {
-        scan_script_text(&inner, registry, barrier, depth + 1, config);
+        scan_script_text(&inner, commands, barrier, depth + 1, config);
     }
 }
 
@@ -657,11 +1041,16 @@ fn scan_text(
 /// dynamic-name accesses, then descend into whatever `[…]` it nests.
 fn scan_script_text(
     text: &str,
-    registry: &CommandRegistry,
+    commands: Commands<'_>,
     barrier: &mut DynamicNameBarrier,
     depth: u32,
     config: LexerConfig,
 ) {
+    if !commands.standalone {
+        *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+        return;
+    }
+
     if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
         *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
         return;
@@ -688,32 +1077,16 @@ fn scan_script_text(
             })
             .collect();
         let braced: Vec<bool> = args.iter().map(|w| w.braced_literal).collect();
-        scan_command(
-            &command.text,
-            &arg_texts,
-            Some(&braced),
-            registry,
-            barrier,
-            None,
-        );
+        let words = CommandWords {
+            args: &arg_texts,
+            braced: Some(&braced),
+        };
+        scan_command(&command.text, &words, commands, barrier, (depth, config));
     }
     // The script's own words may nest further substitutions; `text` still has
     // their brackets intact (a word's raw spelling does not — a delimited
     // token's closer sits one past its span), so recurse from here.
-    scan_text(text, registry, barrier, depth, config);
-}
-
-/// Whether a template word handed to a substituting command was itself
-/// produced by substitution — i.e. its content comes from run-time data
-/// rather than from source text the ordinary scanners can read.
-///
-/// A brace-quoted word (`subst {$a}`) is the one literal form that can
-/// legally carry a `$`, and Tcl leaves it verbatim: the `$a` inside is
-/// source text naming `a`, so the read is *not* blind.  Every other word
-/// carrying `$` or `[` (`subst $t`, `subst "$t"`, `subst [gen]`) reaches
-/// `subst` already substituted, so the names it then expands come from data.
-fn template_word_is_substituted(word: &str, braced_literal: bool) -> bool {
-    !braced_literal && (word.contains('$') || word.contains('['))
+    scan_text(text, commands, barrier, depth, config);
 }
 
 /// Preserve source-value uncertainty for both layout and frame selection.
@@ -969,20 +1342,8 @@ fn scan_partial_arguments(
             }
         }
     }
-    if invocation
-        .facts
-        .traits
-        .contains(Traits::PERFORMS_SUBSTITUTION)
-        && (0..invocation.arguments.len()).any(|index| {
-            invocation
-                .argument_word(index)
-                .as_registry_word()
-                .literal()
-                .is_none()
-        })
-    {
-        barrier.reads = true;
-    }
+    // Template name uncertainty belongs to its selected TemplateWordPlan;
+    // disabled variable/command substitution cannot donate a read barrier.
 }
 
 /// Apply the registry's name-role answers for one `command args…` call.
@@ -992,29 +1353,50 @@ fn scan_partial_arguments(
 /// text has already erased, and the one thing that separates a literal name
 /// or template (`set {$n} 1`, `subst {$a}`) from a substituted one
 /// (`set $n 1`, `subst $a`).
+/// One call's argument words, as [`scan_command`] reads them.
+#[derive(Clone, Copy)]
+struct CommandWords<'a> {
+    /// The argument texts.
+    args: &'a [String],
+    /// When present, whether each argument is a single brace-quoted word —
+    /// a distinction the segmenter's reconstructed `args` text has already
+    /// erased, and the one thing that separates a literal name or template
+    /// (`set {$n} 1`, `subst {$a}`) from a substituted one (`set $n 1`,
+    /// `subst $a`).
+    braced: Option<&'a [bool]>,
+}
+
+/// Apply the registry's name-role answers for one `command args…` call,
+/// `at` the bracket depth and lexer configuration its script is read under.
 fn scan_command(
     command: &str,
-    args: &[String],
-    arg_braced: Option<&[bool]>,
-    registry: &CommandRegistry,
+    words: &CommandWords<'_>,
+    commands: Commands<'_>,
     barrier: &mut DynamicNameBarrier,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    at: (u32, LexerConfig),
 ) {
-    let Some(spec) = registry.get_for_surface(
-        command,
-        dialect
-            .and_then(tcl_registry::InvocationDialect::authoring_query)
-            .or_else(|| registry.own_surface_query()),
-    ) else {
+    if !commands.standalone {
+        *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+        return;
+    }
+    let CommandWords {
+        args,
+        braced: arg_braced,
+    } = *words;
+    let registry = commands.registry;
+    let spec = registry.get_for_surface(command, registry.own_surface_query());
+    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let source_words = source_argument_words(&arg_strs, arg_braced);
+    let arguments = tcl_registry::InvocationArguments::structured(&source_words);
+    if let Some(frame) = spec.map_or_else(
+        || commands.declared_frame_effect(command),
+        |spec| spec.frame_effect,
+    ) {
+        scan_frame_effect(frame, &arg_strs, arg_braced, barrier, registry, None);
+    }
+    let Some(spec) = spec else {
         return;
     };
-    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-    let words = source_argument_words(&arg_strs, arg_braced);
-    let arguments = tcl_registry::InvocationArguments::structured(&words);
-    let arguments = dialect.map_or(arguments, |dialect| arguments.with_dialect(dialect));
-    if let Some(frame) = spec.frame_effect {
-        scan_frame_effect(frame, &arg_strs, arg_braced, barrier, registry, dialect);
-    }
     let destroys = spec.traits.contains(Traits::DESTROYS_VARIABLE);
     // A brace-quoted word is Tcl's literal spelling for a name that contains
     // `$` or `[`: `set {$n} v` creates a variable *called* `$n`, unrelated to
@@ -1032,12 +1414,18 @@ fn scan_command(
                 .is_some_and(|w| names_a_dynamic_variable(w))
     };
 
-    let Some(writes) = registry.arg_indices_for_role_words(command, arguments, ArgRole::VarWrite)
+    let Some(writes) =
+        commands
+            .registry
+            .arg_indices_for_role_words(command, arguments, ArgRole::VarWrite)
     else {
         *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
         return;
     };
-    let Some(reads) = registry.arg_indices_for_role_words(command, arguments, ArgRole::VarRead)
+    let Some(reads) =
+        commands
+            .registry
+            .arg_indices_for_role_words(command, arguments, ArgRole::VarRead)
     else {
         *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
         return;
@@ -1066,8 +1454,9 @@ fn scan_command(
     // covered precisely by the `VarRead` role walk above and raise
     // nothing here.  A dynamic subcommand word (`info $sub`) could be any
     // of them, so it counts as enumerating.
-    let introspecting: Vec<&str> =
-        registry.subcommands_with_trait(command, Traits::INTROSPECTS_BY_NAME);
+    let introspecting: Vec<&str> = commands
+        .registry
+        .subcommands_with_trait(command, Traits::INTROSPECTS_BY_NAME);
     if !introspecting.is_empty() {
         let enumerating = match arg_strs.first() {
             Some(word) if !word.contains('$') && !word.contains('[') => {
@@ -1085,21 +1474,53 @@ fn scan_command(
             barrier.reads = true;
         }
     }
-    // A template-expanding command (`subst`) performs `$name` substitution
-    // over its argument string. With a literal template the names are in the
-    // text and the ordinary scanners see them; with a computed one the names
-    // come from run-time data, so every local is reachable —
-    // `[subst $[subst $locVar]]` is exactly this shape.
-    if spec.traits.contains(Traits::PERFORMS_SUBSTITUTION)
-        && arg_strs.iter().enumerate().any(|(i, w)| {
-            !w.starts_with('-')
-                && template_word_is_substituted(
-                    w,
-                    arg_braced.and_then(|b| b.get(i)).copied().unwrap_or(false),
-                )
-        })
-    {
-        barrier.reads = true;
+    if spec.traits.contains(Traits::PERFORMS_SUBSTITUTION) {
+        scan_template(command, &arg_strs, arg_braced, commands, barrier, at);
+    }
+}
+
+/// A template-expanding command (`subst`) performs substitution over its
+/// template word, as the call's template-word plan says. A literal template
+/// names its reads in its text, which the ordinary scanners see, and each
+/// `[…]` region it runs is script in this frame, scanned here. A computed
+/// one reads names that come from run-time data whenever variable or
+/// command substitution runs over it — `[subst $[subst $locVar]]` is exactly
+/// this shape, and `subst -novariables $t` still runs `[set x]` — so every
+/// local is reachable; `subst -nocommands -novariables $t` reads none. A
+/// call with no plan to read keeps the conservative answer: any substituted
+/// word past the switches reads.
+fn scan_template(
+    command: &str,
+    args: &[&str],
+    arg_braced: Option<&[bool]>,
+    commands: Commands<'_>,
+    barrier: &mut DynamicNameBarrier,
+    (depth, config): (u32, LexerConfig),
+) {
+    use crate::value_transfer::SourceWord;
+    let source = |index: usize| {
+        let braced = arg_braced
+            .and_then(|b| b.get(index))
+            .copied()
+            .unwrap_or(false);
+        SourceWord::of(args.get(index).copied(), braced)
+    };
+    match crate::value_transfer::literal_template_plan(commands.registry, command, args, source) {
+        Some(plan) => {
+            if plan.dynamic && (plan.kinds.variables || plan.kinds.commands) {
+                barrier.reads = true;
+            }
+            for region in &plan.script_regions {
+                scan_script_text(&region.script.script, commands, barrier, depth + 1, config);
+            }
+        }
+        None => {
+            if args.iter().enumerate().any(|(index, word)| {
+                !word.starts_with('-') && source(index) == SourceWord::Substituted
+            }) {
+                barrier.reads = true;
+            }
+        }
     }
 }
 
@@ -1375,6 +1796,28 @@ mod tests {
     fn dynamic_subst_template_sets_the_read_flag() {
         let b = barrier_for("proc f {t} { return [subst $t] }\n");
         assert!(b.reads, "`subst $t` can dereference any name");
+    }
+
+    /// The barrier reads the call's template-word plan: a computed
+    /// template reads any name only when variable or command substitution
+    /// runs over it, so `subst -nocommands -novariables $t` no longer blinds
+    /// every read, while `subst -novariables $t` still does — its `[set x]`
+    /// reads `x` (tclsh 8.4 to 9.1: `proc f {t} {set x 1; return [subst
+    /// -novariables $t]}; f {[set x]}` is `1`, and removing the `set` as a
+    /// dead store makes it raise) — as `subst -nocommands $t` and `subst $t`
+    /// do; a braced template's `[…]` region is script in this frame and is
+    /// scanned as such.
+    #[test]
+    fn a_computed_template_blinds_reads_while_it_substitutes() {
+        let off = barrier_for("proc f {t} { return [subst -nocommands -novariables $t] }\n");
+        assert!(!off.reads, "no variable of the template is read");
+        assert!(barrier_for("proc f {t} { return [subst -novariables $t] }\n").reads);
+        assert!(barrier_for("proc f {t} { return [subst -nocommands $t] }\n").reads);
+        assert!(barrier_for("proc f {t} { return [subst $t] }\n").reads);
+        assert!(
+            barrier_for("proc f {n} { return [subst {x[set $n]}] }\n").reads,
+            "the region's own dynamic read"
+        );
     }
 
     #[test]

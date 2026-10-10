@@ -1142,9 +1142,9 @@ impl CodegenCtx<'_> {
         args: &[(String, bool)],
     ) -> Option<(InlineCodegenHookId, tcl_runtime_api::CommandBindingIdentity)> {
         let arg_refs: Vec<&str> = args.iter().map(|(a, _)| a.as_str()).collect();
-        let (hook, binding) = self.inline_codegen_resolution(cmd, &arg_refs)?;
-        self.require_command_binding(&binding);
-        Some((hook, binding))
+        let (hook, site) = self.inline_codegen_resolution(cmd, &arg_refs)?;
+        self.require_site_binding(&site);
+        Some((hook, site.binding))
     }
 
     /// Resolve and retain one registry-described inline specialisation.
@@ -1158,8 +1158,8 @@ impl CodegenCtx<'_> {
         cmd: &str,
         args: &[&str],
     ) -> Option<InlineCodegenHookId> {
-        let (hook, binding) = self.inline_codegen_resolution(cmd, args)?;
-        self.require_command_binding(&binding);
+        let (hook, site) = self.inline_codegen_resolution(cmd, args)?;
+        self.require_site_binding(&site);
         Some(hook)
     }
 
@@ -1170,7 +1170,7 @@ impl CodegenCtx<'_> {
         &self,
         cmd: &str,
         args: &[&str],
-    ) -> Option<(InlineCodegenHookId, tcl_runtime_api::CommandBindingIdentity)> {
+    ) -> Option<(InlineCodegenHookId, super::SiteBinding)> {
         if self.plain_command_dispatch || !self.invocation_specialisation_proved() {
             return None;
         }
@@ -1184,7 +1184,11 @@ impl CodegenCtx<'_> {
             )?;
             return Some((
                 admitted.inline_codegen_hook()?,
-                self.command_binding_identity(cmd, admitted.canonical_registration_name()),
+                super::SiteBinding {
+                    binding: self
+                        .command_binding_identity(cmd, admitted.canonical_registration_name()),
+                    claim: None,
+                },
             ));
         }
         // Whole-unit mutation discovery is deliberately not an admission
@@ -1219,8 +1223,15 @@ impl CodegenCtx<'_> {
         {
             return None;
         }
-        let binding = self.command_binding_identity(cmd, resolved.spec.name);
-        Some((hook, binding))
+        // As `registry_codegen_hook`: the `alias_of` target's identity, and
+        // the claim behind it, where the hook is the target's own; the
+        // command's own name otherwise.
+        let site = self.stamped_binding(
+            cmd,
+            &resolved,
+            tcl_registry::codegen_stamp::CodegenStamp::InlineCodegen(hook),
+        );
+        Some((hook, site))
     }
 
     /// Preserve source-proven local-name semantics before value-position
@@ -1276,8 +1287,10 @@ impl CodegenCtx<'_> {
         if !self.trusts_builtin(command) {
             return None;
         }
-        let (hook, binding) = self.inline_codegen_resolution(command, args)?;
-        (hook == expected).then_some(binding)
+        let (hook, site) = self.inline_codegen_resolution(command, args)?;
+        // These callers name shipped commands, whose bindings carry no
+        // pack claim; one that did would need it recorded, so it declines.
+        (hook == expected && site.claim.is_none()).then_some(site.binding)
     }
 
     /// Try an inline emitter whose registry hook is also valid for an ordinary
@@ -1299,7 +1312,7 @@ impl CodegenCtx<'_> {
         used_generic_invoke: &mut bool,
     ) -> bool {
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let Some((hook, binding)) = self.inline_codegen_resolution(cmd, &arg_refs) else {
+        let Some((hook, site)) = self.inline_codegen_resolution(cmd, &arg_refs) else {
             return false;
         };
         let mut inline_args: Vec<(String, bool)> = args
@@ -1382,7 +1395,7 @@ impl CodegenCtx<'_> {
                 if !self.try_emit_inline_string_invoke_replace(
                     previous_inline,
                     cmd,
-                    &binding,
+                    &site.binding,
                     &inline_args,
                     false,
                 ) {
@@ -1393,7 +1406,7 @@ impl CodegenCtx<'_> {
         }
         self.emit(Op::POP, vec![]);
         *used_generic_invoke = true;
-        self.require_command_binding(&binding);
+        self.require_site_binding(&site);
         true
     }
 

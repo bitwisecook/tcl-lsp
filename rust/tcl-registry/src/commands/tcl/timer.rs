@@ -174,6 +174,7 @@ static SUBCOMMANDS: [SubCommand; 6] = [
             reads: true,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -256,6 +257,7 @@ static SIDE_EFFECTS: [SideEffect; 1] = [SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "timer",
+        runtime_backing: RuntimeBacking::shipped("timer"),
         // `DEFERS_BODY`, exactly as `after` carries it (`tcl/after_.rs`) —
         // this command shares `after`'s event queue and id namespace, as the
         // module header above records. No 9.1 interpreter exists here to

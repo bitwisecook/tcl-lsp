@@ -51,6 +51,7 @@
 
 use std::fmt;
 use std::ops::{BitOr, BitOrAssign};
+use std::sync::OnceLock;
 
 use crate::documentation::{DocumentationAnnotation, DocumentationCarrier, DocumentationExample};
 
@@ -378,9 +379,18 @@ declare_traits! {
     ///
     /// The no-value `lappend var` form also writes only when the variable is
     /// undefined after read observers; an existing value is read without a store.
+    /// `array unset` carries it for the same reason: its unbind removes only
+    /// an array's matching elements, so a scalar, an absent variable and
+    /// every element the pattern misses keep what they held.
     ///
     /// `string is class -failindex var` is one too: it writes `var` only when
     /// the class test fails.
+    ///
+    /// A pack command needs no trait: a target its `stores` row declares
+    /// `write_or_preserve` or `may_write` is a conditional write
+    /// ([`DeclaredStores::write_class`](crate::value_transfer::DeclaredStores::write_class)),
+    /// which [`CommandRegistry::invocation_traits`](crate::registry::CommandRegistry::invocation_traits)
+    /// answers with this trait.
     ///
     /// Do **not** apply to `regsub`, `gets`, `lassign` or `catch`: each was
     /// measured writing unconditionally, including on the failure path
@@ -410,7 +420,7 @@ declare_traits! {
     /// The positive counterpart of [`Traits::CONDITIONAL_VARIABLE_WRITE`]: a
     /// consumer may treat a target as set after the command only when this
     /// trait says so. A loop header (`foreach` over an empty list leaves its
-    /// variable unset) and a may-writer carry neither. It covers the
+    /// variable unset) and a may-writer such as `file stat` carry neither. It covers the
     /// [`ArgRole::VarWrite`](crate::ArgRole::VarWrite) targets alone, never a
     /// variable a script argument assigns (`catch {error e; set a 1} x`
     /// leaves `a` unset).
@@ -1218,6 +1228,27 @@ declare_traits! {
     /// keeps the abstaining behaviour a pack author never has to think
     /// about.
     DefersBody => DEFERS_BODY, ControlFlow, "stores its script argument instead of running it; unset means the body is treated as executed";
+    /// The script this command stores becomes the body of a **definition** —
+    /// a procedure, method, macro or lambda — that runs later in a call frame
+    /// of its own, never in the global frame or in the frame of the code that
+    /// registered it (`proc name params body`, an iRules `when EVENT body`,
+    /// `snit::method`, `lambda`).
+    ///
+    /// Orthogonal to [`Traits::DEFERS_BODY`], which says the body is dormant
+    /// now. A **callback** — `after`, `fileevent`, `bind`, a trace — is
+    /// dormant too, but runs at the global level or in the frame of whatever
+    /// fires it, where a plain variable name can denote a variable the
+    /// registering code holds. A definition's plain names are its own frame's
+    /// locals, and reach a variable outside it only through `global`,
+    /// `upvar`, `variable` or a qualified name.
+    ///
+    /// So a consumer asking "may a script this command stores write a name my
+    /// frame can see?" reads [`Traits::DEFERS_BODY`] *without* this trait
+    /// ([`crate::registry::CommandRegistry::callback_script_indices`]). An
+    /// unset flag keeps the abstaining answer — the stored script is treated
+    /// as a callback — so a pack declaring its own definer states this to opt
+    /// out, and never has to state it to stay safe.
+    BodyRunsInOwnFrame => BODY_RUNS_IN_OWN_FRAME, ControlFlow, "the script it stores is a definition body that runs in a frame of its own, not a callback";
     /// The word is legal **only** inside a definition body that names it as a
     /// member — it is never a command an author may write at an open command
     /// position.
@@ -1366,6 +1397,7 @@ declare_trait_examples! {
     DeclaresNamespace => flow!("namespace eval ::app::model { set ready 1 }\nputs $::app::model::ready"; (0, "namespace"); (0, "namespace eval ::app::model", "creates missing parent and target namespaces"), (0, "set ready 1", "defines state inside the namespace"), (1, "$::app::model::ready", "observes the declaration"));
     TkGeometryManager => flow!("frame .panel\nlabel .panel.name -text Name\npack .panel.name\nputs [winfo manager .panel.name]"; (2, "pack"); (0, ".panel", "creates a container"), (2, "pack .panel.name", "places it with a geometry manager"), (3, "winfo manager", "observes pack"));
     DefersBody => flow!("set body {puts later}\nproc runLater {} $body\nputs registered\nrunLater"; (1, "proc"); (0, "{puts later}", "contains the script"), (1, "proc runLater {} $body", "stores it without running it"), (2, "puts registered", "runs before the deferred body"), (3, "runLater", "runs the body later"));
+    BodyRunsInOwnFrame => flow!("set count 1\nproc bump {} { set count 2 }\nafter idle { set count 3 }\nbump\nputs $count"; (1, "proc"); (1, "proc bump {} { set count 2 }", "stores a definition body, which runs in a frame of its own"), (1, "set count 2", "writes the procedure's local, never the global"), (2, "after idle { set count 3 }", "stores a callback, whose plain name is the global"), (4, "$count", "reads the global, which only the callback can change"));
 }
 
 /// Every trait that widens a file's caller set beyond the file itself — the
@@ -1448,36 +1480,73 @@ pub const RETIRED_TRAITS: &[(&str, &str)] = &[
 /// (`else` only means anything as an `if` clause), so they cannot carry a
 /// registry entry of their own the way `if`/`foreach`/`proc` do.
 ///
-/// Single source of truth for every consumer that needs "the real Tcl
-/// keywords a `CommandSpec`-driven scan alone would miss": the LSP's
-/// semantic-token classifier
-/// (`tcl_lsp_core::semantic_tokens::LANGUAGE_KEYWORD_SUB_KEYWORDS`, which
-/// unions in its own further residue — the `TclOO` method-body helpers
-/// `callback`/`mymethod`/`link`, which are context-sensitive rather than
-/// unconditional keywords) and the static TextMate-grammar generator
-/// (`xtask`'s `gen_tmlanguage_keywords`, which unions in the iRules-only
-/// `when`). Keeping this list here instead of duplicating it in both means a
-/// new clause word is added once and both consumers pick it up.
-pub const CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC: &[&str] =
-    &["else", "elseif", "on", "trap", "finally"];
+/// Derived once from the shipped clause grammars
+/// ([`crate::clause_grammar::clause_keywords`]): every row's introducing
+/// keyword that no command of the shipped registry spells, sorted. A new
+/// clause word is declared once, in its command's grammar, and every consumer
+/// picks it up — the LSP's semantic-token classifier (which unions in its own
+/// further residue, the `TclOO` method-body helpers `callback`/`mymethod`/
+/// `link`, context-sensitive rather than unconditional keywords) and the
+/// static TextMate-grammar generator (`xtask`'s `gen_tmlanguage_keywords`,
+/// which unions in the iRules-only `when`).
+#[must_use]
+pub fn clause_keywords_without_command_spec() -> &'static [&'static str] {
+    static WORDS: OnceLock<Vec<&'static str>> = OnceLock::new();
+    WORDS.get_or_init(|| {
+        let registry = crate::cache::default_registry();
+        derived_clause_words(|keyword| !keyword.noise && registry.get(keyword.word).is_none())
+    })
+}
 
 /// Clause *noise* words: accepted by a clause grammar as optional filler but
 /// deliberately **not** highlighted as keywords — today only `if`'s optional
-/// `then` (`if {c} then {b}`), which `if`'s arg-role resolver and clause-shape
-/// checker match by literal value.
+/// `then` (`if {c} then {b}`), a `?then?` slot of `if`'s grammar.
 ///
-/// Kept separate from [`CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`] because the two
-/// lists serve different consumers: the keyword list drives highlighting (the
+/// Derived once from the shipped clause grammars' noise slots, sorted. Kept
+/// apart from [`clause_keywords_without_command_spec`] because the two serve
+/// different consumers: the keyword list drives highlighting (the
 /// semantic-token classifier and the TextMate-grammar generator, which must
-/// not paint `then`), while the union of both lists is "every word a clause
-/// grammar matches by value", which value-sensitive rewriters (the minifier's
+/// not paint `then`), while the union of both is "every word a clause grammar
+/// matches by value", which value-sensitive rewriters (the minifier's
 /// argument aliasing — rewriting a literal `then` to `$alias` would break
 /// `if`'s clause parsing) must keep literal.
-pub const CLAUSE_NOISE_KEYWORDS: &[&str] = &["then"];
+#[must_use]
+pub fn clause_noise_keywords() -> &'static [&'static str] {
+    static WORDS: OnceLock<Vec<&'static str>> = OnceLock::new();
+    WORDS.get_or_init(|| derived_clause_words(|keyword| keyword.noise))
+}
+
+/// The shipped clause words `keep` selects, sorted and deduplicated.
+fn derived_clause_words(
+    keep: impl Fn(&crate::clause_grammar::ClauseKeyword) -> bool,
+) -> Vec<&'static str> {
+    let mut words: Vec<&'static str> = crate::clause_grammar::shipped_clause_keywords()
+        .iter()
+        .filter(|keyword| keep(keyword))
+        .map(|keyword| keyword.word)
+        .collect();
+    words.sort_unstable();
+    words.dedup();
+    words
+}
 
 #[cfg(test)]
 mod tests {
-    use super::{RETIRED_TRAITS, Trait};
+    use super::{
+        RETIRED_TRAITS, Trait, clause_keywords_without_command_spec, clause_noise_keywords,
+    };
+
+    /// The derivation replaced two hand-kept tables; it must answer exactly
+    /// what they said, which is also what the generated `TextMate` keyword
+    /// lists were built from.
+    #[test]
+    fn derived_clause_keyword_tables_equal_the_pinned_lists() {
+        assert_eq!(
+            clause_keywords_without_command_spec(),
+            ["else", "elseif", "finally", "on", "trap"]
+        );
+        assert_eq!(clause_noise_keywords(), ["then"]);
+    }
 
     /// The gate that stops a retired trait coming back. Reviving a spelling
     /// would leave the loader telling a pack author the flag moved while the

@@ -49,6 +49,10 @@ The Rust modules are:
    in `command_mocks.tcl`. `_user_surface_data.tcl` projects modern core
    command availability, including individually callable qualified ensemble
    members, from the same registry. They must never be edited by hand: `cargo xtask
+   in `command_mocks.tcl`, and only for a command whose declared
+   `runtime_backing` is `None` or `HostNative`: a shipped builtin or a Tcl
+   body is supplied by the interpreter, so it needs no mock and the table
+   holds none. They must never be edited by hand: `cargo xtask
    gen-irule-test-data` regenerates them and `make xtask-check` detects drift.
    `_mock_stubs.tcl` is a single data table consumed by the generic
    `::itest::cmd::_stub` proc, which records the shared decision-log triples.

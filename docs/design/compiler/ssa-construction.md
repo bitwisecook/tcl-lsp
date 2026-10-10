@@ -131,7 +131,12 @@ writes rather than writes the statement performs itself — the base refresh
 alongside an element write (`set arr(k) v` also defs `arr`), and the element
 fan of a dynamic-key write.  Type inference **joins** across a may-def;
 write-sensitive passes (shimmer oscillation, dead-store) must not count one
-as a real write.  `quoted_uses` is the subset of `uses` carried only by a
+as a real write.  A statement whose writes may not land at all — an opaque
+`switch`'s arm writes, the names an `ArmWrites` marker states for an opaque
+`catch` body or a callee — also reads, as a quoted use, the version each such
+name held before it, and for an element the version its array's base held,
+so the store before it stays live where the write does not land; W210 reads
+such a base as the definition it is (`ssa::refreshed_bases`).  `quoted_uses` is the subset of `uses` carried only by a
 brace-quoted word the statement does not substitute — see
 [def-use-chains.md](def-use-chains.md).
 
@@ -266,7 +271,7 @@ Consumers and the direction each abstains in:
 
 | consumer | flag | abstention |
 |---|---|---|
-| `sccp::existence_constant_branches` → I230, O101 | `writes` (absent fold), `destroys` (present fold) | do not fold |
+| the existence rung (`ExistenceRun` in `sccp.rs`) → I230, O101 | `writes` (absent fold), `destroys` (present fold) | do not fold, from the statement on |
 | read-before-set → W210 | `writes` | stay silent |
 | dead store / unused → W211, W220 | `reads` | stay silent |
 | `optimiser::elimination` → O109, O126 | `reads` | do not eliminate |
@@ -412,7 +417,8 @@ every hover:
   `caller_frame_bindings` answers for those names with the *call-head word* as
   the binding span.  A fully-qualified target (`upvar ::tk::FocusGrab($i)
   data`) is not a caller-frame variable at all — it names one fixed global
-  cell, which `handle_upvar_command` defines and links directly.
+  cell, which the analyser's alias consumer (`apply_state_transitions`)
+  defines and links directly.
 
 One gap remains: cross-document resolution needs the workspace-level
 interning described above, which nothing supplies.  A callee reached by
@@ -460,7 +466,7 @@ the rule hold end to end: defs (`defs_of_with_registry`,
 `set`/`incr`/`unset`/`append`/`global`/`variable`/`upvar` lowering hooks,
 `lower_default`'s registry role harvest), reads (`var_token_name`,
 `scan_var_read_role_names`, `collect_ref_forms` +
-`scan_var_ref_forms_braced`, `scan_command_words`'s name-role skip), the
+`scan_var_ref_forms_braced_with_config`, `scan_command_words`'s name-role skip), the
 analyser scope layer (`define_var` from the name word's token kind,
 `record_var_read_braced`), rename, and semantic highlighting.
 

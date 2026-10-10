@@ -677,6 +677,26 @@ pub fn added_in(name: &str) -> Option<MathFuncSince> {
     Some(since)
 }
 
+/// What a math function returns: the one table every consumer that types
+/// an `expr` function call reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MathResultClass {
+    /// An integer: `int`, `round`, `wide`, `entier`, `isqrt`.
+    Int,
+    /// A double: `double`, `ceil` and `floor` (`expr {ceil(3.14)}` is
+    /// `4.0`), and every transcendental function.
+    Float,
+    /// A number whose representation follows the operands: the result is
+    /// one of them (`abs`, `max`, `min`), so its type is their join.
+    Numeric,
+    /// `0` or `1`: `bool` and the classification predicates.
+    Bool,
+    /// Whatever the function returns. No built-in has this class; it is the
+    /// answer for a name the table does not describe, such as a
+    /// `::tcl::mathfunc` command the program defines itself.
+    Any,
+}
+
 /// Static facts about one `expr` math function — the string-keyed
 /// counterpart to `operators::OperatorSpec` (math functions are open and
 /// overridable via `::tcl::mathfunc::*`, TIP 232, so there's no closed enum
@@ -693,8 +713,32 @@ pub struct MathFuncSpec {
     /// Whether the operand accepts Tcl boolean words (`true`/`yes`/…) — see
     /// [`accepts_boolean_operand`].
     pub accepts_boolean_operand: bool,
+    /// What the function returns.
+    pub result_class: MathResultClass,
     /// A one-line human summary for hover text.
     pub summary: &'static str,
+}
+
+/// The result class of math function `name`: its [`MathFuncSpec`]'s, or
+/// [`MathResultClass::Any`] for a name no release defines.
+#[must_use]
+pub fn result_class(name: &str) -> MathResultClass {
+    spec(name).map_or(MathResultClass::Any, |spec| spec.result_class)
+}
+
+/// The table [`MathFuncSpec::result_class`] is filled from, keyed like
+/// [`added_in`]. Verified against tclsh 8.4 to 9.1: `ceil(3.14)` is `4.0`,
+/// `trunc(2.5)` is `2.0`, and `isfinite`, `isnormal`, `issubnormal` and
+/// `isunordered` answer `0` or `1` like `isnan` and `isinf`.
+fn class_of(name: &str) -> MathResultClass {
+    match name {
+        "int" | "round" | "wide" | "entier" | "isqrt" => MathResultClass::Int,
+        "abs" | "max" | "min" => MathResultClass::Numeric,
+        "bool" | "isfinite" | "isinf" | "isnan" | "isnormal" | "issubnormal" | "isunordered"
+        | "signbit" => MathResultClass::Bool,
+        _ if added_in(name).is_some() => MathResultClass::Float,
+        _ => MathResultClass::Any,
+    }
 }
 
 /// Static metadata for math function `name`, or `None` when `name` isn't a
@@ -829,6 +873,7 @@ fn spec_tcl84(name: &str) -> Option<MathFuncSpec> {
         since: MathFuncSince::Tcl84,
         arity,
         accepts_boolean_operand: false,
+        result_class: class_of(name),
         summary,
     })
 }
@@ -854,6 +899,7 @@ fn spec_tcl85(name: &str) -> Option<MathFuncSpec> {
         since: MathFuncSince::Tcl85,
         arity,
         accepts_boolean_operand: name == "bool",
+        result_class: class_of(name),
         summary,
     })
 }
@@ -895,6 +941,7 @@ fn spec_tcl90(name: &str) -> Option<MathFuncSpec> {
         since: MathFuncSince::Tcl90,
         arity,
         accepts_boolean_operand: false,
+        result_class: class_of(name),
         summary,
     })
 }
@@ -955,6 +1002,7 @@ fn spec_tcl91(name: &str) -> Option<MathFuncSpec> {
         since: MathFuncSince::Tcl91,
         arity,
         accepts_boolean_operand: false,
+        result_class: class_of(name),
         summary,
     })
 }
@@ -1377,6 +1425,43 @@ fn type_conv<B: super::super::number_tower::BigIntOps>(
 mod tests {
     use super::*;
 
+    /// Every built-in has a class of its own, and the classes are what the
+    /// interpreters return (tclsh 8.4 to 9.1: `int(2.5)` is 2, `ceil(3.14)`
+    /// is 4.0, `abs(-2)` is 2 and `abs(-2.5)` is 2.5, `isfinite(1.0)` is 1).
+    #[test]
+    fn every_function_has_a_result_class() {
+        for spec in all() {
+            assert_ne!(
+                spec.result_class,
+                MathResultClass::Any,
+                "{} has no class",
+                spec.name
+            );
+            assert_eq!(result_class(spec.name), spec.result_class, "{}", spec.name);
+        }
+        for (name, class) in [
+            ("int", MathResultClass::Int),
+            ("entier", MathResultClass::Int),
+            ("ceil", MathResultClass::Float),
+            ("trunc", MathResultClass::Float),
+            ("rand", MathResultClass::Float),
+            ("abs", MathResultClass::Numeric),
+            ("max", MathResultClass::Numeric),
+            ("bool", MathResultClass::Bool),
+            ("isfinite", MathResultClass::Bool),
+            ("isunordered", MathResultClass::Bool),
+            ("signbit", MathResultClass::Bool),
+        ] {
+            assert_eq!(result_class(name), class, "{name}");
+        }
+        assert_eq!(result_class("nope"), MathResultClass::Any);
+        assert_eq!(
+            result_class("ABS"),
+            MathResultClass::Any,
+            "lookup is verbatim"
+        );
+    }
+
     #[test]
     fn float_functions() {
         assert_eq!(dispatch("sqrt", &[Num::Int(4)]), Some(Num::Float(2.0)));
@@ -1402,7 +1487,7 @@ mod tests {
             dispatch("min", &[Num::Int(5), Num::Float(2.5)]),
             Some(Num::Float(2.5))
         );
-        // Adversarial-review finding: a mixed-type call whose *winner* is
+        // A mixed-type call whose winner is
         // the `Int` operand must return that `Int` unchanged, not a
         // re-widened `Float` — real Tcl preserves the winning argument's
         // own type (`expr {min(3, 5.5)}` is `3`, not `3.0`; confirmed
@@ -1531,10 +1616,8 @@ mod tests {
 
     #[test]
     fn isqrt_accepts_a_float_operand() {
-        // Adversarial-review finding: `isqrt` only matched `Num::Int`, so a
-        // `Num::Float` operand fell to the catch-all `_ => None` — treated
-        // as a domain error even though real Tcl accepts a float here,
-        // truncating it toward zero first (confirmed tclsh8.6/9.0):
+        // Tcl accepts a float operand to `isqrt`, truncating it toward
+        // zero first (confirmed tclsh8.6/9.0):
         //   expr {isqrt(9.0)}      -> 3
         //   expr {isqrt(9.5)}      -> 3   (truncates to 9, same as isqrt(9))
         //   expr {isqrt(15.9999)}  -> 3   (truncates to 15, not 16)

@@ -33,9 +33,10 @@ use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
 
 use tcl_registry::TclType;
+use tcl_registry::value_transfer::Existence;
 
 use crate::cfg::{BlockId, Function as CfgFunction};
-use crate::sccp::cfg_order;
+use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{Phi, SsaFunction, Symbol, ValueKey, Version};
 use crate::types::{TypeKind, TypeLattice, TypeShape};
 
@@ -63,6 +64,12 @@ struct PhiCtx<'a> {
     /// Destructure-foreach blocks excluded from in-loop def anchoring —
     /// see [`destructure_foreach_blocks`].
     destructure: &'a HashSet<String>,
+    /// Array-base symbols excluded from shimmer reporting (FP-SH-13) — a
+    /// conflated `arr(a)`/`arr(b)` phi merges independent elements.
+    array_syms: &'a HashSet<Symbol>,
+    /// The existence fact each version is established with — an arm on
+    /// which the variable is unbound carries no representation.
+    existence: &'a HashMap<ValueKey, Existence>,
 }
 
 /// The per-predecessor type evidence of one phi's incomings, split by
@@ -82,6 +89,12 @@ fn classify_incoming_types(ctx: &PhiCtx<'_>, phi: &Phi) -> IncomingTypes {
     let mut out = IncomingTypes::default();
     for (pred, &inc_ver) in &phi.incoming {
         if inc_ver == 0 {
+            continue;
+        }
+        // An arm on which the variable is unbound (`if {$c} {unset x}`)
+        // brings no intrep to the merge, whatever its definition is typed
+        // (#2133).
+        if ctx.existence.get(&(phi.name, inc_ver)) == Some(&Existence::Unbound) {
             continue;
         }
         let Some(inc_type) = ctx.types.get(&(phi.name, inc_ver)) else {
@@ -232,9 +245,10 @@ pub(crate) fn find_phi_shimmers(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<BlockId>,
+    sccp: &SccpResult,
     loop_blocks: &HashSet<String>,
 ) -> Vec<ShimmerWarning> {
+    let executable_blocks: &HashSet<BlockId> = &sccp.executable_blocks;
     let def_map = def_range_map(ssa);
     let empty_by_name = empty_value_versions(ssa);
     let destructure = destructure_foreach_blocks(cfg);
@@ -251,6 +265,8 @@ pub(crate) fn find_phi_shimmers(
         loop_body_types: &loop_body_types,
         def_map: &def_map,
         destructure: &destructure,
+        array_syms: &array_syms,
+        existence: &sccp.existence,
     };
     let mut out = Vec::new();
 
@@ -296,7 +312,7 @@ mod tests {
             &fu.cfg,
             &fu.ssa,
             &fu.types,
-            &fu.sccp.executable_blocks,
+            &fu.sccp,
             &crate::shimmer::graph::loop_body_blocks(&fu.cfg),
         );
         // Both 1 and 2 are Int — no Shimmered phi expected.
@@ -325,7 +341,7 @@ mod tests {
             &fu.cfg,
             &fu.ssa,
             &fu.types,
-            &fu.sccp.executable_blocks,
+            &fu.sccp,
             &crate::shimmer::graph::loop_body_blocks(&fu.cfg),
         );
         assert!(
@@ -343,7 +359,7 @@ mod tests {
             &fu.cfg,
             &fu.ssa,
             &fu.types,
-            &fu.sccp.executable_blocks,
+            &fu.sccp,
             &crate::shimmer::graph::loop_body_blocks(&fu.cfg),
         );
     }
@@ -365,7 +381,7 @@ mod tests {
             &fu.cfg,
             &fu.ssa,
             &fu.types,
-            &fu.sccp.executable_blocks,
+            &fu.sccp,
             &crate::shimmer::graph::loop_body_blocks(&fu.cfg),
         );
         assert!(
@@ -388,7 +404,7 @@ mod tests {
             &fu.cfg,
             &fu.ssa,
             &fu.types,
-            &fu.sccp.executable_blocks,
+            &fu.sccp,
             &crate::shimmer::graph::loop_body_blocks(&fu.cfg),
         );
         assert!(
@@ -411,7 +427,7 @@ mod tests {
             &fu.cfg,
             &fu.ssa,
             &fu.types,
-            &fu.sccp.executable_blocks,
+            &fu.sccp,
             &crate::shimmer::graph::loop_body_blocks(&fu.cfg),
         );
         let w = warnings
@@ -447,7 +463,7 @@ mod tests {
             &fu.cfg,
             &fu.ssa,
             &fu.types,
-            &fu.sccp.executable_blocks,
+            &fu.sccp,
             &crate::shimmer::graph::loop_body_blocks(&fu.cfg),
         );
         let w = warnings
@@ -481,7 +497,7 @@ mod tests {
             &fu.cfg,
             &fu.ssa,
             &fu.types,
-            &fu.sccp.executable_blocks,
+            &fu.sccp,
             &crate::shimmer::graph::loop_body_blocks(&fu.cfg),
         );
         let merge = warnings.iter().find(|w| w.variable == "x");
@@ -492,5 +508,54 @@ mod tests {
         let merge = merge.unwrap();
         assert_eq!(merge.code, DiagCode::S100, "out-of-loop merge must be S100");
         assert!(!merge.in_loop);
+    }
+
+    /// The merge-point shimmers `source`'s procedure `::p` reports for `x`,
+    /// through the whole shimmer pass.
+    fn shimmers_of_x(source: &str) -> Vec<ShimmerWarning> {
+        let cu = CompilationUnit::build_for(source, &registry(), false);
+        crate::shimmer::find_shimmer_warnings_for_cu(&cu, &registry())
+            .into_iter()
+            .filter(|w| w.variable == "x" && matches!(w.code, DiagCode::S100 | DiagCode::S101))
+            .collect()
+    }
+
+    /// An arm that unsets the variable brings no representation to the
+    /// merge (#2133): `set x 1; if {$c} {unset x}; puts $x` merges one
+    /// intrep, the int, so no S100 — the kill is typed the lattice's bottom
+    /// and its arm is unbound — and the read after the merge keeps its
+    /// W210.
+    #[test]
+    fn s100_ignores_an_unset_arm() {
+        let source = "proc p {c} {\n    set x 1\n    if {$c} {unset x}\n    puts $x\n}\n";
+        let shimmers = shimmers_of_x(source);
+        assert!(shimmers.is_empty(), "{shimmers:?}");
+        let reported = crate::analyser::Analyser::new()
+            .analyse(source, "tcl8.6")
+            .diagnostics;
+        assert!(
+            reported
+                .iter()
+                .any(|d| d.code == DiagCode::W210 && d.message.contains("'x'")),
+            "{reported:?}"
+        );
+    }
+
+    /// Dropping the unbound arm leaves the bound ones to merge: a three-way
+    /// `switch` whose arms set `x` to 1, set it to "hi" and unset it still
+    /// reports S100 for the int and the string.
+    #[test]
+    fn s100_still_fires_between_the_bound_arms_of_a_three_way_switch() {
+        let source = "proc p {v} {\n    switch -- $v {\n        a {set x 1}\n        \
+                      b {set x \"hi\"}\n        default {unset -nocomplain x}\n    }\n    \
+                      puts $x\n}\n";
+        let shimmers = shimmers_of_x(source);
+        let [merge] = shimmers.as_slice() else {
+            panic!("one merge shimmer for x: {shimmers:?}");
+        };
+        assert_eq!(merge.code, DiagCode::S100);
+        let mut merged = [merge.from_type, merge.to_type];
+        merged.sort_by_key(|t| format!("{t:?}"));
+        assert_eq!(merged, [TclType::Int, TclType::String]);
     }
 }

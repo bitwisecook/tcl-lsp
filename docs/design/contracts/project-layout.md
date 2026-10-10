@@ -6,8 +6,7 @@ a change lands in the layer that owns it.
 
 The product is a **Rust workspace** (see
 [`Cargo.toml`](../../../Cargo.toml) `[workspace] members`).  Every crate
-lives under `rust/`.  Python has been fully retired on this branch — the
-crate dependency direction runs from the leaf value types
+lives under `rust/`. The crate dependency direction runs from the leaf value types
 up to the binaries, and is enforced by cargo's own dependency graph.
 
 | Crate | Role |
@@ -17,7 +16,7 @@ up to the binaries, and is enforced by cargo's own dependency graph.
 | `tcl-compiler` | Tcl pipeline — IR, lowering, CFG, SSA, passes, optimiser, codegen, WASM emitter, compiler-internal analyses (taint, var-escape, interprocedural). |
 | `tcl-registry` | Command / dialect registry (per-command specs, arity, subcommands, arg-roles) + canonical dialect detection. |
 | `tcl-bytecode`, `tcl-runtime-api`, `tcl-cmd-core`, `tcl-vm`, `tcl-vm-cli` | Bytecode model, runtime API, per-command runtime, the bytecode VM, and its `tclvm` CLI. |
-| `tcl-engine-api`, `tcl-engine-tclvm`, `tcl-cshim` | The engine-neutral Tcl extension interface, the `tcl-vm` engine behind it, and the C Tcl extension shim over it. |
+| `tcl-engine-api`, `tcl-engine-tclvm`, `tcl-engine-wasm`, `tcl-cshim` | The engine-neutral Tcl extension interface, the `tcl-vm` engine behind it, the runtime compiled to `wasm32` as an engine under wasmtime (with the C extensions built for it), and the C Tcl extension shim over it. |
 | `tcl-host-c-abi` | Safe native thread numeric-environment access and explicitly loaded, digest-checked Tcl 8.4 integer updater over the host C ABI. Depends on `tcl-platform`, libc and SHA-256; contains the reviewed errno/conversion/dynamic-library unsafe boundary. |
 | `tcl-spectcl`, `tcl-spec-hooks`, `tcl-spec-studio` | SpecTcl runtime pack support (`.tclspec` loader, pack discovery, compiled-pack cache, registry insertion), the sandboxed hook host, and the spec-studio field schema / draft model / renderers behind the web UI. |
 | `tcl-regex` | Tcl regex engine port. |
@@ -30,6 +29,7 @@ up to the binaries, and is enforced by cargo's own dependency graph.
 | `tcl-mcp` | Native MCP server binary (`tcl-mcp`) — the tool surface Claude skills / Codex call. |
 | `tcl-explorer` | Compiler-explorer verbs behind `tcl explore` (and the embedded web GUI's `tcl explore --serve`). |
 | `tcl-pkg`, `tcl-debugger`, `tcl-fuzz`, `tcl-irule-test`, `tcl-sandbox`, `tcl-host-native` | Tcl package manager, interactive debugger, differential fuzzer, iRule-test framework, sandbox, and native host bridge. |
+| `tcl-pkg-model` | The `tclpkg` data model — manifest, lockfile, versions, errors, and a package's dependency tier. Split from `tcl-pkg` because the pack loader (`tcl-spectcl`) reads it and must not depend on the package manager, whose network, archive and sandbox code does not build for the browser hosts. `tcl-pkg` re-exports its modules. |
 | `tcl-sslictcl` | SslicTcl — declarative offline TLS configuration, certificate, trust, and assessment model. |
 | `tcl-test-support` | Shared tclsh discovery and source-tree location for the conformance suites. |
 | `bpf-tcl`, `bpf-tcl-ir`, `bpf-tcl-codegen` | Experimental Tcl→BPF backend. |
@@ -85,7 +85,11 @@ dependency graph (a crate can only use what it declares in
 5. **Developer tools sit above the compiler, beside the server.**
    `tcl-cli`, `f5-cli`, `tcl-explorer`, `tcl-pkg`, `tcl-debugger`,
    `tcl-fuzz`, and the F5 query/XC crates consume the compiler /
-   registry / VM but are not consumed by them.
+   registry / VM but are not consumed by them. What a lower crate needs of
+   one of them lives below it instead: the pack loader reads a package's
+   manifest and lockfile through `tcl-pkg-model`, and the per-user
+   directories through `tcl-userdirs`, and neither pulls the package
+   manager into the loader.
 6. **AI integrations sit above the LSP.**  `tcl-mcp` exposes analysis as
    MCP tools on top of the LSP-core and tooling crates; nothing below it
    depends on it.

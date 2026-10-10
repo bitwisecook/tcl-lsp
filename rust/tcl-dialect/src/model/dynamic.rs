@@ -16,9 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **Pack-declared dialects as runtime family data** — the P3 rider of
-//! the redesign's §6.2 `dialect` block, and the first step of Q1's
-//! endgame.
+//! **Pack-declared dialects as runtime family data** — described in
+//! the redesign's §6.2 `dialect` block.
 //!
 //! A `dialect NAME { … }` block sets values for axes *Rust* defines, so
 //! what a pack declares is not a new grammar mechanism but a new point in

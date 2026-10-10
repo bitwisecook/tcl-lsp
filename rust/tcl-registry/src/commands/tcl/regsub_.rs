@@ -26,20 +26,41 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
-/// Fold the value-returning form of `regsub` for literal arguments.
+/// Fold the value-returning form of `regsub` for literal arguments under
+/// `version`: the declared route ([`crate::value_transfer::regex::REGSUB`])
+/// over literal words, as `string range`'s folder is — or, with no version,
+/// the answer every release gives, declining where they differ.
 ///
-/// The registry delegates to the same Tcl ARE command plumbing used by the
-/// native runtime.  Calls carrying a result variable are deliberately not
-/// folds: their command result is a replacement count and the text is a
-/// write-side effect.  `-command` likewise declines in the shared command
-/// core, so a callback can never run during analysis.
-fn fold_regsub(args: &[&str]) -> Option<String> {
-    let bytes: Vec<&[u8]> = args.iter().map(|arg| arg.as_bytes()).collect();
-    let result = tcl_cmd_core::regex::regsub::<tcl_regex::cmd_core::AreEngine>(&bytes).ok()?;
-    if result.var.is_some() {
-        return None;
-    }
-    String::from_utf8(result.text).ok()
+/// The route runs the same Tcl ARE command plumbing the native runtime does,
+/// on its analysis path. Calls carrying a result variable are deliberately
+/// not folds: their command result is a replacement count and the text is a
+/// write-side effect. The `-command` form has no route, so a callback never
+/// runs during analysis.
+pub(crate) fn fold_regsub_versioned(args: &[&str], version: Option<TclVersion>) -> Option<String> {
+    crate::value_transfer::evaluate_literal(
+        &crate::value_transfer::regex::REGSUB,
+        "regsub",
+        None,
+        args,
+        version,
+    )
+}
+
+/// [`fold_regsub_versioned`] for a caller with no release fact: the same
+/// route, answering what every release gives and declining where they differ.
+pub(crate) fn fold_regsub(args: &[&str]) -> Option<String> {
+    fold_regsub_versioned(args, None)
+}
+
+/// Whether `args`' option run names `-command`: the callback form, whose
+/// substitution runs a script (`regsub -command {a} abc {string toupper}` is
+/// `Abc` from 9.0). The option table is the same one the role and prefix
+/// resolvers read, so the value route and the resolvers agree on the form.
+pub(crate) fn names_a_callback<S: AsRef<str>>(args: &[S]) -> bool {
+    let i = first_positional_index(OPTIONS, args, 0);
+    args[..i.min(args.len())]
+        .iter()
+        .any(|arg| arg.as_ref() == "-command")
 }
 
 /// `regsub ?switches? exp string subSpec ?varName?` — after skipping leading
@@ -57,7 +78,7 @@ fn fold_regsub(args: &[&str]) -> Option<String> {
 /// Structured native roles use only the actual prefix and cardinality.
 fn regsub_layout_roles(
     arguments: crate::InvocationArguments<'_>,
-    options: crate::resolved_invocation::InvocationOptions<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_, '_>,
 ) -> Option<Vec<(u8, ArgRole)>> {
     let count = arguments.exact_argv_len()?;
     if count > usize::from(u8::MAX) + 1 {
@@ -135,6 +156,7 @@ const fn flag(name: &'static str, detail: &'static str) -> OptionSpec {
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     }
 }
 
@@ -187,6 +209,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     // `regsub -command` is Tcl 9.0+ (TIP 463): absent from the fetched
     // 8.4/8.5/8.6 manpages' switch lists, present — identically worded —
@@ -202,6 +225,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     flag(
         "--",
@@ -221,6 +245,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("regsub"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::BYTE_COMPILED
@@ -288,6 +313,8 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::RegexPatternCapture),
         const_fold: Some(fold_regsub),
+        const_fold_versioned: Some(fold_regsub_versioned),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::regex::REGSUB),
         ..CommandSpec::DEFAULT
     }
 }

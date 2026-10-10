@@ -341,22 +341,44 @@ impl Analyser {
     }
 
     /// **IRULE5003.** `while {$var != 0} { incr var -1 }` can miss zero.
+    ///
+    /// The loop is the one whose iteration plan is a bare condition, read
+    /// with its body off the plan's words
+    /// ([`crate::value_transfer::resolved_iteration_plan`]); the body
+    /// decrements the variable when a cell update the registry declares an
+    /// integer increment of it adds a negative amount. An analyse with no
+    /// registry reads the catalogue's, as the loop checks do.
     fn emit_irule5003_loop_bound_inequality(
         &mut self,
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
     ) {
-        if cmd_name != "while" || args.len() < 2 {
-            return;
-        }
-        let Some(tok) = arg_tokens.first() else {
+        let registry = self
+            .registry
+            .as_deref()
+            .unwrap_or_else(super::bounds_checks::default_registry);
+        let head = cmd_name.strip_prefix("::").unwrap_or(cmd_name);
+        let Some(plan) = crate::value_transfer::resolved_iteration_plan(registry, head, args)
+        else {
             return;
         };
-        let Some(var_name) = find_loop_ne_zero(&args[0]) else {
+        let (tcl_registry::value_transfer::IterableKind::Condition(condition), Some(body)) =
+            (plan.iterable, plan.body)
+        else {
             return;
         };
-        if !body_decrements(&args[1], &var_name) {
+        let (Some(tok), Some(condition), Some(body)) = (
+            arg_tokens.get(condition.0),
+            args.get(condition.0),
+            args.get(body.body.0),
+        ) else {
+            return;
+        };
+        let Some(var_name) = find_loop_ne_zero(condition) else {
+            return;
+        };
+        if !body_decrements(body, &var_name, registry, self.lexer_config()) {
             return;
         }
         self.result
@@ -1121,61 +1143,19 @@ fn match_ne_op(b: &[u8], p: usize) -> Option<usize> {
     is_ne.then_some(p + 2)
 }
 
-/// Does *body* contain `incr <var> -<digits>` (word-bounded) for the
-/// given variable?
-fn body_decrements(body: &str, var_name: &str) -> bool {
-    let b = body.as_bytes();
-    let mut search = 0usize;
-    while let Some(rel) = body[search..].find("incr") {
-        let kw = search + rel;
-        search = kw + 4;
-        // `\bincr` — word boundary before `incr`.
-        if kw > 0 && is_word_byte(b[kw - 1]) {
-            continue;
-        }
-        let mut p = kw + 4;
-        // `\s+`
-        let ws_start = p;
-        p = skip_ws(b, p);
-        if p == ws_start {
-            continue;
-        }
-        // `(\w+)`
-        let name_start = p;
-        while p < b.len() && is_word_byte(b[p]) {
-            p += 1;
-        }
-        if p == name_start {
-            continue;
-        }
-        let name = &body[name_start..p];
-        // `\s+`
-        let ws2 = p;
-        p = skip_ws(b, p);
-        if p == ws2 {
-            continue;
-        }
-        // `-\d+`
-        if b.get(p) != Some(&b'-') {
-            continue;
-        }
-        p += 1;
-        let digit_start = p;
-        while p < b.len() && b[p].is_ascii_digit() {
-            p += 1;
-        }
-        if p == digit_start {
-            continue;
-        }
-        // `\b` after the digits — next char must be a non-word byte or end.
-        if b.get(p).is_some_and(|c| is_word_byte(*c)) {
-            continue;
-        }
-        if name == var_name {
-            return true;
-        }
-    }
-    false
+/// Whether a command in `body`, at any depth, decrements `var_name`: the
+/// registry's integer cell update of it, over literal words, adding a
+/// negative amount ([`super::bounds_checks::command_increment`]).
+fn body_decrements(
+    body: &str,
+    var_name: &str,
+    registry: &CommandRegistry,
+    lexer_config: tcl_lexer::LexerConfig,
+) -> bool {
+    super::bounds_checks::any_command_recursive(body, Some(registry), lexer_config, &mut |cmd| {
+        super::bounds_checks::command_increment(cmd, var_name, registry, lexer_config)
+            .is_some_and(|amount| amount < 0)
+    })
 }
 
 fn skip_ws(b: &[u8], mut p: usize) -> usize {
@@ -1821,6 +1801,30 @@ mod tests {
     fn irule5003_quiet_when_body_decrements_other_var() {
         assert!(!has(
             "when HTTP_REQUEST { while {$count != 0} { incr other -1 } }",
+            "IRULE5003"
+        ));
+    }
+
+    /// IRULE5003 takes the loop whose iteration plan is a bare condition, and
+    /// a decrement the registry's integer cell update states at any depth of
+    /// its body: the text `incr count -1` as a `log` argument is data, which
+    /// the substring scan read as a decrement.
+    #[test]
+    fn irule5003_reads_the_plan_and_the_cell_update() {
+        assert!(has(
+            "when HTTP_REQUEST { while {$count != 0} { if {1} { incr count -1 } } }",
+            "IRULE5003"
+        ));
+        assert!(has(
+            "when HTTP_REQUEST { while {$count != 0} { ::incr count -3 } }",
+            "IRULE5003"
+        ));
+        assert!(!has(
+            "when HTTP_REQUEST { while {$count != 0} { log local0. \"incr count -1\"; set count 0 } }",
+            "IRULE5003"
+        ));
+        assert!(!has(
+            "when HTTP_REQUEST { while {$count != 0} { incr count } }",
             "IRULE5003"
         ));
     }

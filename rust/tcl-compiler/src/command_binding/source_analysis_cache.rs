@@ -43,6 +43,7 @@ impl SourceAnalysisCacheKey {
             frame: frame.clone(),
             registry: registry.snapshot().semantic_key(),
             entry: SourceAnalysisEntry {
+                metadata_context: options.retained_metadata_context(),
                 hosted_execution_context: options.hosted_execution_context,
                 execution_name_policy: options.execution_name_policy,
                 logical_source_input: options.logical_source_input.cloned(),
@@ -159,6 +160,67 @@ mod tests {
         assert!(!reused.declaration_layouts.is_empty());
         assert!(changed.final_state.opaque_domain);
         assert!(changed.declaration_layouts.is_empty());
+    }
+
+    #[test]
+    fn authored_source_memo_keeps_supplied_metadata_generation_and_missing_tag() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&current),
+            config,
+        );
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(current.commands())),
+        );
+        let older_input =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, older, config);
+        let source = tcl_lexer::SourceImage::document("set item VALUE");
+        let frame = VariableExecutionFrame::Global;
+        let options = SourceAnalysisOptions {
+            metadata_context: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
+                Some(&input),
+            ),
+            ..Default::default()
+        };
+        let key =
+            SourceAnalysisCacheKey::at_entry(&source, &frame, config, current.commands(), options)
+                .unwrap();
+        let bindings = SourceCommandBindings::analyse_image_in_frame_with_options(
+            &source,
+            &frame,
+            config,
+            current.commands(),
+            options,
+        )
+        .unwrap();
+        retain(key.clone(), &bindings);
+        assert!(lookup(&key).is_some());
+        for metadata_context in [
+            crate::registry_invocation::InvocationMetadataInput::SuppliedSource(Some(&older_input)),
+            crate::registry_invocation::InvocationMetadataInput::SuppliedSource(None),
+            crate::registry_invocation::InvocationMetadataInput::Standalone,
+        ] {
+            let changed = SourceAnalysisCacheKey::at_entry(
+                &source,
+                &frame,
+                config,
+                current.commands(),
+                SourceAnalysisOptions {
+                    metadata_context,
+                    ..options
+                },
+            )
+            .unwrap();
+            assert!(lookup(&changed).is_none());
+        }
     }
 
     #[test]

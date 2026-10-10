@@ -68,6 +68,7 @@ pub fn spec() -> CommandSpec {
             crate::completion::CompletionCode::Ok,
             crate::completion::CompletionCode::Error,
         ])),
+        runtime_backing: RuntimeBacking::shipped("incr"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
@@ -112,7 +113,6 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE),
         side_effects: SIDE_EFFECTS,
-        analyser_hook: Some(crate::hooks::AnalyserHookId::Incr),
         ..CommandSpec::DEFAULT
     }
 }

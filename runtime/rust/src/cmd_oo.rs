@@ -3008,14 +3008,30 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
+/// The commands the object system binds in every object's namespace, each with
+/// the binding it takes: `my`, and `myclass` (TIP 478), a per-object command
+/// dispatching on the object's class, for invoking class-side (`self method`)
+/// methods. The backing report names them from here.
+const OBJECT_NAMESPACE_COMMANDS: [(&str, ObjectBinding); 2] =
+    [("my", Command::OoMy), ("myclass", Command::OoMyClass)];
+
+/// The binding a command the object system installs in each object's namespace
+/// takes, from the object's identity.
+type ObjectBinding = fn(OoId) -> Command;
+
+/// The names of the commands the object system binds in every object's
+/// namespace.
+pub(crate) fn object_namespace_command_names() -> impl Iterator<Item = &'static str> {
+    OBJECT_NAMESPACE_COMMANDS.iter().map(|(name, _)| *name)
+}
+
 impl Interp {
     /// Register private dispatchers in the actual instance namespace.
     pub(crate) fn oo_register_my(&mut self, object: OoId) {
         let namespace = self.oo.borrow().objects[&object].var_ns;
-        self.bind_command_replacement(namespace, b"my", Command::OoMy(object));
-        // `myclass` (TIP 478): a per-object command dispatching on the object's
-        // class, for invoking class-side (`self method`) methods.
-        self.bind_command_replacement(namespace, b"myclass", Command::OoMyClass(object));
+        for (name, binding) in OBJECT_NAMESPACE_COMMANDS {
+            self.bind_command_replacement(namespace, name.as_bytes(), binding(object));
+        }
     }
 
     /// The definition target at the actual selected variable activation.

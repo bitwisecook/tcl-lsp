@@ -30,9 +30,10 @@
 //! - **`O115`** ([`super::helpers::expr_simplify::try_unwrap_expr_in_expr`])
 //!   — remove redundant nested `[expr {…}]` on a standalone
 //!   `expr` statement.
-//! - **`O101`** — full constant fold via
-//!   [`crate::tcl_expr_eval::eval_tcl_expr`] on either an
-//!   `ExprEval` body or an `AssignExpr` right-hand side.
+//! - **`O101`** — full constant fold on the shared expression route
+//!   ([`crate::value_transfer::evaluate_expression_detached`], the one the
+//!   lattice runs) on either an `ExprEval` body or an `AssignExpr`
+//!   right-hand side.
 //! - **`O110`** ([`super::helpers::expr_simplify::instcombine_expr`])
 //!   — instcombine identities (`x + 0` → `x`, etc.) on an
 //!   `AssignExpr` right-hand side.  Skipped on `AssignExpr`
@@ -58,11 +59,25 @@ use crate::compilation_unit::CompilationUnit;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
 use crate::tcl_expr_eval::{Env, format_tcl_value_with_policy};
+use crate::tcl_expr_eval::{FoldPolicy, leading_zero_is_octal};
 use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 
 use super::helpers::expr_simplify::{NumericCtx, try_unwrap_expr_in_expr};
 use super::{Optimisation, PassContext};
+
+/// `expr`'s value on the shared expression route under `ctx`'s target and
+/// whole-module trust, rendered as its source text — what the lattice
+/// proves for it, so O101 never rewrites what the lattice declines.
+fn fold_on_the_route(ctx: &PassContext<'_>, expr: &ExprNode) -> Option<String> {
+    let value = crate::value_transfer::evaluate_expression_detached(
+        expr,
+        &std::collections::HashMap::new(),
+        ctx.rewrite_folds(),
+        FoldPolicy::for_profile(ctx.dialect.and_then(leading_zero_is_octal), ctx.dialect),
+    )?;
+    String::from_utf8(value.bytes).ok()
+}
 
 /// Run the expression-simplification pass across every function
 /// in `cu`.
@@ -138,9 +153,8 @@ fn walk_statement(
             try_rewrite_assign_expr(ctx, *span, name, expr, numeric);
         }
         // `return [expr {…}]` gets the same partial simplification as
-        // `set v [expr {…}]` (#1962). The walker used to fall through here,
-        // so `return [expr {$r ** 2}]` was left alone while the `set` form
-        // became `set v [expr {$r * $r}]`.
+        // `set v [expr {…}]`: `return [expr {$r ** 2}]` can become
+        // `return [expr {$r * $r}]` under the same numeric proof.
         //
         // It belongs in this walker and not beside `return`'s other
         // rewrites in `propagation`, because the rewrite needs the
@@ -151,7 +165,7 @@ fn walk_statement(
         // non-numeric `$x` and the second returns the string.
         //
         // O101 and O115 for `return` stay in `propagation`'s
-        // `try_fold_return_terminator`; only the O110 / O113 half is new,
+        // `try_fold_return_terminator`; this walker owns O110 and O113,
         // so neither is reported twice.
         Statement::Return {
             span,
@@ -582,7 +596,6 @@ fn try_rewrite_expr(ctx: &mut PassContext<'_>, span: Span, expr: &ExprNode) {
     // the rewrite would actually change the source text — an
     // expression like `expr {42}` folds to itself and a no-op
     // quick-fix is misleading.
-    let env = Env::new();
     if matches!(expr, ExprNode::Raw { .. }) {
         return;
     }

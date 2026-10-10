@@ -64,6 +64,7 @@ static FORMAT_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-gmt",
@@ -73,6 +74,7 @@ static FORMAT_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-locale",
@@ -82,6 +84,7 @@ static FORMAT_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-timezone",
@@ -91,6 +94,7 @@ static FORMAT_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 
@@ -110,6 +114,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-format",
@@ -125,6 +130,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-gmt",
@@ -134,6 +140,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-locale",
@@ -143,6 +150,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-timezone",
@@ -152,6 +160,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     // `-validate` is Tcl 9.0+ (TIP 688).
     OptionSpec {
@@ -162,6 +171,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 
@@ -177,6 +187,7 @@ static ADD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-locale",
@@ -186,6 +197,7 @@ static ADD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-timezone",
@@ -195,6 +207,7 @@ static ADD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 
@@ -212,6 +225,7 @@ static CLICKS_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-microseconds",
@@ -221,6 +235,7 @@ static CLICKS_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 
@@ -301,6 +316,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
             (8, ADD_UNIT_VALUES),
         ],
         pure: true,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..VERSIONED_CLOCK_CONTEXT_RESULT
     },
     SubCommand {
@@ -311,6 +329,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         options: CLICKS_OPTIONS,
         pure: true,
         return_type: Some(TclType::Int),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::VOLATILE_RESULT
     },
     SubCommand {
@@ -327,6 +348,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         format_string_type: Some(FormatType::Clock),
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..VERSIONED_CLOCK_CONTEXT_RESULT
     },
     SubCommand {
@@ -338,6 +362,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clock microseconds",
         pure: true,
         return_type: Some(TclType::Int),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::VOLATILE_RESULT
     },
     SubCommand {
@@ -349,6 +376,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clock milliseconds",
         pure: true,
         return_type: Some(TclType::Int),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::VOLATILE_RESULT
     },
     SubCommand {
@@ -363,6 +393,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clock monotonic",
         pure: true,
         return_type: Some(TclType::Int),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::VOLATILE_RESULT
     },
     SubCommand {
@@ -378,6 +411,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `FormatString` / `ScanFormat` argument role that locates the
         // word, it is the whole registry answer the LSP needs.
         format_string_type: Some(FormatType::Clock),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::VOLATILE_RESULT
     },
     SubCommand {
@@ -387,6 +423,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clock seconds",
         pure: true,
         return_type: Some(TclType::Int),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::VOLATILE_RESULT
     },
 ];
@@ -408,6 +447,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-format",
@@ -417,6 +457,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-gmt",
@@ -426,6 +467,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     // `-locale`/`-timezone` arrived with the Tcl 8.5 clock rewrite
     // (TIP 173) — absent from both `clock format` and `clock scan` in
@@ -439,6 +481,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-timezone",
@@ -448,6 +491,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     // `-validate` is Tcl 9.0+, same as `SCAN_OPTIONS`'s entry above — this
     // duplicate table had drifted to `surface: None`, silently omitting the
@@ -460,6 +504,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 
@@ -474,6 +519,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("clock"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(1),
@@ -497,6 +543,9 @@ pub fn spec() -> CommandSpec {
             return_value: "An integer for seconds, milliseconds, microseconds, clicks, monotonic, scan, and add; a formatted string for format.",
         }),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

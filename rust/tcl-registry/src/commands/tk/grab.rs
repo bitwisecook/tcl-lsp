@@ -67,6 +67,7 @@ const OPTIONS: &[OptionSpec] = &[OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 }];
 
 const FORMS: &[FormSpec] = &[FormSpec {

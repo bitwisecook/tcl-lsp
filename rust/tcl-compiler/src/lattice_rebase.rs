@@ -31,7 +31,7 @@
 //! `memory_ssa`/SSA phis — is span-free): the CFG block statements +
 //! terminators + loop-node spans + inlined-`eval` body spans, the SSA blocks'
 //! cloned statements (read for positions by some emitters), and the SCCP
-//! constant-branch spans.
+//! constant-branch, route-explanation, template-plan and selection spans.
 //! `ExprNode` carries *relative* offsets anchored to a statement span we shift,
 //! so it needs no rebasing — but the absolute `expr_base` / `condition_base`
 //! anchors those offsets map through do.
@@ -59,8 +59,18 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     }
     for loop_node in fu.cfg.loop_nodes.values_mut() {
         shift(&mut loop_node.span, delta);
-        rebase_statement(&mut loop_node.for_stmt, delta);
+        rebase_statement(&mut loop_node.statement, delta);
     }
+    fu.cfg.opaque_catch_bodies = std::mem::take(&mut fu.cfg.opaque_catch_bodies)
+        .into_iter()
+        .map(|(mut span, mut body)| {
+            shift(&mut span, delta);
+            for stmt in &mut body.statements {
+                rebase_statement(stmt, delta);
+            }
+            (span, body)
+        })
+        .collect();
     // Inlined-body error sites carry absolute spans too; without shifting them
     // a cache-hit, offset-rebased unit keeps stale offsets for error-region
     // mapping and explorer views.
@@ -93,6 +103,25 @@ pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
     }
     for cb in &mut fu.sccp.constant_branches {
         shift_opt(&mut cb.span, delta);
+    }
+    for explanation in &mut fu.sccp.explanations {
+        shift(&mut explanation.span, delta);
+    }
+    // A template plan's own spans are offsets into its word; only the
+    // word's span is absolute.
+    for record in &mut fu.sccp.template_plans {
+        shift(&mut record.span, delta);
+    }
+    // A selection's statement span and every arm's pattern span.
+    for record in &mut fu.sccp.selections {
+        shift(&mut record.span, delta);
+        for span in &mut record.arm_pattern_spans {
+            shift(span, delta);
+        }
+    }
+    // An enumerated loop's statement span.
+    for record in &mut fu.sccp.loop_enumerations {
+        shift(&mut record.span, delta);
     }
 }
 
@@ -153,7 +182,7 @@ fn rebase_word_expr(word: &mut WordExpr, delta: i64) {
         | WordExpr::Variable { source, .. }
         | WordExpr::CommandSubstitution { source, .. }
         | WordExpr::Opaque { source, .. } => shift(&mut source.span, delta),
-        WordExpr::Template { parts, source } => {
+        WordExpr::Template { parts, source, .. } => {
             shift(&mut source.span, delta);
             for part in parts {
                 rebase_word_part(part, delta);

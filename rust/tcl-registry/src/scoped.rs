@@ -361,7 +361,7 @@ pub const REPORT_DEFSTYLE_ENV: ScopedCommandEnv = ScopedCommandEnv {
 //
 // A manifest is a Tcl script evaluated in a deprivileged interpreter that
 // defines exactly these directive commands (see
-// `rust/tcl-pkg/src/manifest.rs`, `DIRECTIVES` + `apply_directive`, which is
+// `rust/tcl-pkg-model/src/manifest.rs`, `DIRECTIVES` + `apply_directive`, which is
 // the runtime source of truth for names and arities — a drift test in
 // `tcl-pkg` asserts the two stay aligned).  Several directives shadow real
 // Tcl/Tk commands (`package`, `entry`), so the environment must *replace*
@@ -483,6 +483,12 @@ const TCLPKG_MANIFEST_COMMANDS: &[ScopedCommand] = &[
         Arity::new(1, 2),
         "declarative build script (never auto-run)",
         "build <script.tcl> ?-network?",
+    ),
+    manifest_directive(
+        "spec",
+        Arity::exact(1),
+        "the .tclspec packs the package ships and the tier it asks for them at (data only)",
+        "spec {packs {<file.tclspec> ...} ?tier root|direct|transitive|development?}",
     ),
 ];
 

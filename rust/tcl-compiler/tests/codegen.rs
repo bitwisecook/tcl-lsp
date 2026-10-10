@@ -819,7 +819,7 @@ fn deeply_nested_if() {
 
 #[test]
 fn while_with_nested_switch() {
-    let src = "proc dispatch {items} { set i 0; set result {}; while {$i < 10} { switch -exact $i { 0 { set result \"zero\" } 1 { set result \"one\" } default { set result \"other\" } }; incr i }; return $result }";
+    let src = "proc dispatch {items} { set i 0; set result {}; while {$i < 10} { switch -exact -- $i { 0 { set result \"zero\" } 1 { set result \"one\" } default { set result \"other\" } }; incr i }; return $result }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
     let proc_cfg = &cfg.procedures["::dispatch"];
@@ -1025,7 +1025,7 @@ fn switch_many_arms() {
         .collect::<Vec<_>>()
         .join(" ");
     let src = format!(
-        "proc big_switch {{x}} {{ switch -exact $x {{ {arms} default {{ set r -1 }} }}; return $r }}"
+        "proc big_switch {{x}} {{ switch -exact -- $x {{ {arms} default {{ set r -1 }} }}; return $r }}"
     );
     let ops = opcodes(&proc_asm(&src, "::big_switch"));
     assert!(ops.contains(&Op::DONE));
@@ -1042,9 +1042,29 @@ fn switch_many_arms() {
 
 #[test]
 fn switch_with_return_in_arms() {
-    let src = "proc dispatch {cmd} { switch -exact $cmd { add { return 1 } sub { return 2 } mul { return 3 } default { return 0 } } }";
+    let src = "proc dispatch {cmd} { switch -exact -- $cmd { add { return 1 } sub { return 2 } mul { return 3 } default { return 0 } } }";
     let ops = opcodes(&proc_asm(src, "::dispatch"));
     assert!(ops.contains(&Op::JUMP_TABLE) || has_cond_jump(&ops));
+}
+
+// `asm_for` builds its CFG without naming a dialect, so it takes the lenient
+// `tcl` profile, which declares no release. Before 8.5 `switch` reads every
+// leading word that starts with `-` as an option, so a variable subject with no
+// `--` before it may be one: the statement stays one generic invoke, where a
+// dispatch chain would select the arm the subject spells. `--` ends the options
+// and keeps the jump table (`switch_with_return_in_arms`).
+#[test]
+fn switch_a_release_may_scan_as_an_option_routes_through_generic_invoke() {
+    let src = "proc dispatch {cmd} { switch -exact $cmd { add { return 1 } sub { return 2 } mul { return 3 } default { return 0 } } }";
+    let ops = opcodes(&proc_asm(src, "::dispatch"));
+    assert!(
+        !ops.contains(&Op::JUMP_TABLE) && !has_cond_jump(&ops),
+        "no dispatch chain: {ops:?}"
+    );
+    assert!(
+        ops.contains(&Op::INVOKE_STK1) || ops.contains(&Op::INVOKE_STK4),
+        "one generic invoke: {ops:?}"
+    );
 }
 
 // Loop control flow
@@ -1145,7 +1165,7 @@ fn for_with_complex_init() {
 }
 
 #[test]
-fn for_init_registry_barrier_keeps_count_two_boundary() {
+fn for_init_unseen_call_keeps_count_two_boundary() {
     let asm = proc_asm(
         "proc p {} { set warmup 1; for {missing_command} {0} {} {} }",
         "::p",
@@ -1351,6 +1371,71 @@ fn lassign_bytecoded() {
     let ops = ops_of("lassign \"a b c\" x y z");
     assert!(ops.contains(&Op::LIST_INDEX_IMM));
     assert!(ops.contains(&Op::LIST_RANGE_IMM));
+}
+
+/// The ops of `lassign "a b c" x y z` compiled against a registry projected to
+/// `profile`, whose `lassign` carries its bytecode hook as a window opening at
+/// 9.0 rather than as the plain field.
+fn lassign_ops_with_the_hook_stamped_from_9_0(
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Vec<Op> {
+    use tcl_registry::hooks::CodegenHookId;
+    use tcl_registry::lifecycle::Lifecycle;
+    use tcl_registry::stamp_window::StampWindow;
+
+    let mut authored = CommandRegistry::build_default();
+    let mut lassign = authored.get("lassign").expect("lassign ships").clone();
+    lassign.codegen_hook = None;
+    lassign.codegen_hook_windows = Box::leak(Box::new([StampWindow {
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        value: CodegenHookId::Lassign,
+    }]));
+    authored.insert(lassign);
+    let reg = authored.project_for_profile(profile);
+    let ir = lower_to_ir("lassign \"a b c\" x y z", &reg);
+    let cfg = build_cfg_codegen(&ir, true);
+    opcodes(&codegen_module(&cfg, &ir, &reg).top_level)
+}
+
+fn is_specialised_lassign(ops: &[Op]) -> bool {
+    ops.contains(&Op::LIST_INDEX_IMM) && ops.contains(&Op::LIST_RANGE_IMM)
+}
+
+/// A codegen stamp is a fact about a Tcl release: declared from 9.0, it
+/// specialises where the primary release is 9.0, and is dispatched plain where
+/// the point spans a window's edge — the permissive profile asks about the whole
+/// ladder — or sits below it. The unversioned `lassign` is the control: it
+/// specialises under the same permissive profile, so the decline is the window's.
+#[test]
+fn a_stamp_declared_from_9_0_declines_under_a_profile_spanning_8_6() {
+    use tcl_dialect::DialectProfile;
+
+    let pinned_at_9_0 = DialectProfile::find("tcl9.0").expect("tcl9.0 is a catalogue profile");
+    let pinned_at_8_6 = DialectProfile::find("tcl8.6").expect("tcl8.6 is a catalogue profile");
+    let spanning = DialectProfile::plain_tcl();
+
+    assert!(
+        is_specialised_lassign(&lassign_ops_with_the_hook_stamped_from_9_0(pinned_at_9_0)),
+        "pinned at 9.0, the window covers the release and the hook applies"
+    );
+    let at_8_6 = lassign_ops_with_the_hook_stamped_from_9_0(pinned_at_8_6);
+    assert!(
+        !is_specialised_lassign(&at_8_6) && at_8_6.contains(&Op::INVOKE_STK1),
+        "pinned at 8.6, no window covers the release: a plain invoke"
+    );
+    let across = lassign_ops_with_the_hook_stamped_from_9_0(spanning);
+    assert!(
+        !is_specialised_lassign(&across) && across.contains(&Op::INVOKE_STK1),
+        "across the ladder the window's edge divides it: declined, a plain invoke"
+    );
+
+    let control = CommandRegistry::build_default().project_for_profile(spanning);
+    let ir = lower_to_ir("lassign \"a b c\" x y z", &control);
+    let cfg = build_cfg_codegen(&ir, true);
+    assert!(
+        is_specialised_lassign(&opcodes(&codegen_module(&cfg, &ir, &control).top_level)),
+        "the unversioned stamp specialises under the same profile"
+    );
 }
 
 // Dict commands

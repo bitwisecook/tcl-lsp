@@ -692,7 +692,7 @@ impl SelectedTaintTransform {
         self,
         arguments: crate::InvocationArguments<'_>,
         offset: usize,
-        options: crate::InvocationOptions<'_>,
+        options: crate::InvocationOptions<'_, '_>,
     ) -> Option<TaintColour> {
         self.condition
             .is_none_or(|condition| condition.holds_arguments(arguments, offset, options))
@@ -708,7 +708,7 @@ impl TaintTransformCondition {
         self,
         arguments: crate::InvocationArguments<'_>,
         offset: usize,
-        options: crate::InvocationOptions<'_>,
+        options: crate::InvocationOptions<'_, '_>,
     ) -> bool {
         match self {
             Self::MappingDeletesCrlf => {

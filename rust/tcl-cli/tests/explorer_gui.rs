@@ -109,6 +109,73 @@ fn assert_editor_and_trait_reference(first: &Value) {
     );
 }
 
+/// The post-SSA card words each solver branch fact by its kind and lists the
+/// selection records the SCCP view carries: the arm a `selected` fact names is
+/// "never selected", not a constant branch with no target, a decided branch
+/// keeps its wording, and each record names the arm a member selects and the arm
+/// whose body runs. The shipped `explorer-core.js` runs in a `vm` context over a
+/// real contract payload, so this needs `node` and no browser.
+#[test]
+fn post_ssa_card_words_selected_facts_and_lists_selections() {
+    if Command::new("node").arg("--version").output().is_err() {
+        skip("`node` is not on PATH");
+        return;
+    }
+    let source = "proc pick {} {\n    set s abc\n    switch -glob -- $s {\n        a* {puts A}\n\
+                  b* {puts B}\n        default {puts D}\n    }\n}\n\
+                  proc fixed {} {\n    set c 1\n    if {$c} {puts yes} else {puts no}\n}\n";
+    let result = tcl_explorer::run_pipeline(source, "tcl8.6");
+    let payload = serde_json::to_string(&tcl_explorer::serialise_result(&result))
+        .expect("explorer payload serialises");
+    let out_dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+    std::fs::create_dir_all(&out_dir).expect("create target tmp dir");
+    let payload_path = out_dir.join("explorer-core-facts-payload.json");
+    std::fs::write(&payload_path, payload).expect("write payload");
+
+    let card = |view: &str| -> String {
+        let output = Command::new("node")
+            .arg(manifest_dir().join("tests/gui/explorer-core-facts.mjs"))
+            .arg(manifest_dir().join("gui"))
+            .arg(&payload_path)
+            .arg(view)
+            .output()
+            .expect("spawn node driver");
+        assert!(
+            output.status.success(),
+            "explorer-core facts driver failed:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let report: Value = serde_json::from_slice(&output.stdout).expect("driver prints JSON");
+        report["text"].as_str().unwrap_or_default().to_owned()
+    };
+    let text = card("compiled");
+
+    assert!(
+        text.contains("arm never selected: b* in entry_1"),
+        "the selected fact is not worded as the text view words it: {text}"
+    );
+    assert!(
+        !text.contains("b* is always"),
+        "a selected fact was worded as a constant branch: {text}"
+    );
+    assert!(
+        text.contains("selections: selection: arm 0 bodies: arm 0 [3:5]"),
+        "the selection record is not listed: {text}"
+    );
+    assert!(
+        text.contains("$c is always true (take if_then_3)"),
+        "a decided branch lost its wording: {text}"
+    );
+
+    // The selection records describe the compiled source alone: the optimised
+    // view is the CFG of the rewritten program, which holds no such statement.
+    let optimised = card("optimised");
+    assert!(
+        !optimised.contains("selection:"),
+        "a selection record of the compiled source was listed under the optimised view: {optimised}"
+    );
+}
+
 #[test]
 fn native_serve_requires_the_complete_monaco_bundle() {
     for asset in [

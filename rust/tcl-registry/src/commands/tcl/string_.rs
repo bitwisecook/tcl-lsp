@@ -25,7 +25,7 @@ use crate::prelude::*;
 /// `-noc` abbreviation without teaching any consumer about this subcommand.
 fn match_arg_roles(
     args: crate::InvocationArguments<'_>,
-    options: crate::resolved_invocation::InvocationOptions<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_, '_>,
 ) -> Option<Vec<(u8, ArgRole)>> {
     // naming.core.original-pattern-retained-context
     // docs/design/analysis/name-resolution-proofs/original-pattern-retained-context.md
@@ -46,6 +46,7 @@ const MATCH_OPTIONS: &[OptionSpec] = &[OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 }];
 use tcl_syntax::number::{Number, NumberSyntax, Numbers};
 
@@ -69,28 +70,28 @@ const OK_COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Ok];
 /// `char::to_uppercase` can expand one char to several, e.g. ß → SS,
 /// whereas Tcl maps 1:1). Bailing on non-ASCII is conservative —
 /// never a wrong fold.
-fn fold_toupper(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_toupper(args: &[&str]) -> Option<String> {
     match args {
         [s] if s.is_ascii() => Some(s.to_ascii_uppercase()),
         _ => None,
     }
 }
 
-fn fold_tolower(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_tolower(args: &[&str]) -> Option<String> {
     match args {
         [s] if s.is_ascii() => Some(s.to_ascii_lowercase()),
         _ => None,
     }
 }
 
-fn fold_reverse(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_reverse(args: &[&str]) -> Option<String> {
     match args {
         [s] if s.is_ascii() => Some(s.chars().rev().collect()),
         _ => None,
     }
 }
 
-fn fold_length(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_length(args: &[&str]) -> Option<String> {
     // ASCII-only: for ASCII the byte length equals the character count,
     // matching Tcl's `string length` (number of characters).  Non-ASCII
     // bails — the char count diverges across Tcl 8.x (UTF-16 units) and
@@ -110,7 +111,7 @@ fn fold_length(args: &[&str]) -> Option<String> {
 /// is a false positive here: the `Option` is the shared callback contract,
 /// not redundant wrapping we control.
 #[allow(clippy::unnecessary_wraps)] // signature fixed by ConstFoldFn dispatch contract
-fn fold_cat(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_cat(args: &[&str]) -> Option<String> {
     Some(args.concat())
 }
 
@@ -122,7 +123,7 @@ const MAX_FOLD_OUTPUT_BYTES: usize = 1 << 20;
 /// `string repeat string count` — repeat (bounded by a 10000 count cap and a
 /// 1 MiB output cap).  No char transformation → sound for any input.
 /// A negative count fails the `usize` parse → bails.
-fn fold_repeat(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_repeat(args: &[&str]) -> Option<String> {
     let [s, count] = args else {
         return None;
     };
@@ -176,21 +177,21 @@ fn fold_trim_impl(args: &[&str], left: bool, right: bool) -> Option<String> {
     Some(out.to_owned())
 }
 
-fn fold_trim(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_trim(args: &[&str]) -> Option<String> {
     fold_trim_impl(args, true, true)
 }
 
-fn fold_trimleft(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_trimleft(args: &[&str]) -> Option<String> {
     fold_trim_impl(args, true, false)
 }
 
-fn fold_trimright(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_trimright(args: &[&str]) -> Option<String> {
     fold_trim_impl(args, false, true)
 }
 
 /// `string totitle string` — the no-index form only (first char upper,
 /// rest lower).  ASCII-restricted.
-fn fold_totitle(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_totitle(args: &[&str]) -> Option<String> {
     let [s] = args else {
         return None;
     };
@@ -214,7 +215,7 @@ use tcl_dialect::model::SpecSurface;
 /// Fold `string match` for literal arguments.  The glob implementation is
 /// shared with the runtime-facing command core, so this callback is command
 /// semantics in the registry rather than a consumer-side spelling check.
-fn fold_match(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_match(args: &[&str]) -> Option<String> {
     let (nocase, pattern, text) = match args {
         [pattern, text] => (false, *pattern, *text),
         [option, pattern, text] if option.len() >= 2 && "-nocase".starts_with(*option) => {
@@ -227,7 +228,7 @@ fn fold_match(args: &[&str]) -> Option<String> {
 
 /// `string index string charIndex`.  ASCII-restricted (byte index ==
 /// char index for ASCII).
-fn fold_index(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_index(args: &[&str]) -> Option<String> {
     let [s, idx_str] = args else {
         return None;
     };
@@ -241,8 +242,19 @@ fn fold_index(args: &[&str]) -> Option<String> {
     })
 }
 
-/// `string range string first last`.  ASCII-restricted.
-fn fold_range(args: &[&str]) -> Option<String> {
+/// `string range` over literal words. An explicit C release uses the shared
+/// value route; an unversioned fold requires C/Jim container and origin
+/// agreement and is restricted to ASCII character geometry.
+pub(crate) fn fold_range(args: &[&str], version: Option<TclVersion>) -> Option<String> {
+    if let Some(version) = version {
+        return crate::value_transfer::evaluate_literal(
+            &crate::value_transfer::builtins::STRING_RANGE,
+            "string",
+            Some("range"),
+            args,
+            Some(version),
+        );
+    }
     let [s, first_s, last_s] = args else {
         return None;
     };
@@ -256,8 +268,13 @@ fn fold_range(args: &[&str]) -> Option<String> {
     }
 }
 
+/// Unversioned container agreement, with no native dispatch or object claim.
+pub(crate) fn fold_range_unanimous(args: &[&str]) -> Option<String> {
+    fold_range(args, None)
+}
+
 /// `string replace string first last ?newString?`.  ASCII-restricted.
-fn fold_replace(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_replace(args: &[&str]) -> Option<String> {
     let (s, first_s, last_s, repl) = match args {
         [s, f, l] => (*s, *f, *l, ""),
         [s, f, l, r] => (*s, *f, *l, *r),
@@ -276,7 +293,7 @@ fn fold_replace(args: &[&str]) -> Option<String> {
 
 /// `string first needleString haystackString ?startIndex?`.
 /// ASCII-restricted.  Returns the byte/char index, or `-1`.
-fn fold_first(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_first(args: &[&str]) -> Option<String> {
     let (needle, haystack, start) = match args {
         [n, h] => (*n, *h, 0usize),
         [n, h, st] => {
@@ -307,7 +324,7 @@ fn fold_first(args: &[&str]) -> Option<String> {
 
 /// `string last needleString haystackString ?lastIndex?`.
 /// ASCII-restricted.  Searches `haystack[0..end)` from the right.
-fn fold_last(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_last(args: &[&str]) -> Option<String> {
     let (needle, haystack, end_idx) = match args {
         [n, h] => (*n, *h, None),
         [n, h, last] => {
@@ -335,7 +352,7 @@ fn fold_last(args: &[&str]) -> Option<String> {
 
 /// `string compare ?-nocase? ?-length N? string1 string2`.
 /// ASCII-restricted.  Returns `-1` / `0` / `1`.
-fn fold_compare(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_compare(args: &[&str]) -> Option<String> {
     let mut nocase = false;
     let mut length: Option<usize> = None;
     let mut i = 0;
@@ -382,7 +399,7 @@ fn fold_compare(args: &[&str]) -> Option<String> {
 }
 
 /// `string equal ?-nocase? ?-length N? string1 string2`.
-fn fold_equal(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_equal(args: &[&str]) -> Option<String> {
     match fold_compare(args)?.as_str() {
         "0" => Some("1".to_owned()),
         _ => Some("0".to_owned()),
@@ -392,7 +409,7 @@ fn fold_equal(args: &[&str]) -> Option<String> {
 /// `string map ?-nocase? mapping string`.  ASCII-restricted (byte-exact
 /// greedy left-to-right replacement matching Tcl's `string map`; the
 /// `mapping` is a list of old/new pairs, first matching pair wins).
-fn fold_string_map(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_string_map(args: &[&str]) -> Option<String> {
     let (mapping_str, s) = match args {
         [m, s] => (*m, *s),
         ["-nocase", m, s] => {
@@ -470,7 +487,7 @@ fn fold_string_map_impl(mapping_str: &str, s: &str, nocase: bool) -> Option<Stri
 /// `wideinteger` / `dict` stay deferred — they *raise* in old dialects
 /// (8.4 / 8.4 + 8.5 / pre-9.0 respectively), so no dialect-agnostic fold can
 /// be sound (it would turn an error into a value).
-fn fold_is(args: &[&str], version: Option<TclVersion>) -> Option<String> {
+pub(crate) fn fold_is(args: &[&str], version: Option<TclVersion>) -> Option<String> {
     if args.len() < 2 {
         return None;
     }
@@ -547,6 +564,44 @@ fn fold_is(args: &[&str], version: Option<TclVersion>) -> Option<String> {
         _ => return None, // unknown class
     };
     Some(if member { "1" } else { "0" }.to_owned())
+}
+
+/// The type every value a `string is` test accepts holds once it has: what
+/// the true edge of a branch on `[string is CLASS ?-strict? $x]` proves of
+/// `x` (`docs/design/compiler/value-transfers.md` § *Predicate refinement*),
+/// a type and never a value. `args` are the words after `is` — the class, as
+/// Tcl reads it with its abbreviations, the options, and the value last, as
+/// [`fold_is`] reads them.
+///
+/// The test converts the value it accepts, so the type is the representation
+/// the value then holds (`tcl::unsupported::representation`, tclsh 8.6 to
+/// 9.1): an integer class (`integer`, `entier`, `wideinteger`) leaves an
+/// integer, `double` an integer or a double, so `Numeric`, each only under
+/// `-strict`, since without it the empty string, which none converts, passes
+/// every class; `dict` leaves a dictionary, the empty one included. `list`
+/// leaves the empty string a pure string, and `boolean`, `true` and `false`
+/// leave `0` and `1` integers, so neither proves a type, nor does a character
+/// class. `-failindex` writes a variable, and an option spelled any other way
+/// than `-strict` is one this reading does not decide, so either proves
+/// nothing.
+#[must_use]
+pub fn string_is_member_type(args: &[&str]) -> Option<TclType> {
+    let (class, rest) = args.split_first()?;
+    let (_value, options) = rest.split_last()?;
+    let mut strict = false;
+    for option in options {
+        match *option {
+            "-strict" => strict = true,
+            _ => return None,
+        }
+    }
+    let class = tcl_cmd_core::string_is::resolve_class(class).ok()?;
+    match class {
+        "integer" | "entier" | "wideinteger" if strict => Some(TclType::Int),
+        "double" if strict => Some(TclType::Numeric),
+        "dict" => Some(TclType::Dict),
+        _ => None,
+    }
 }
 
 /// Whether `string is class` is a *defined* operation in the target version
@@ -956,6 +1011,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // lists. `TCL8X` is the exact 8.4|8.5|8.6 set — not a
         // closest-sounding stand-in.
         surface: Some(SpecSurface::TCL8X),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -992,6 +1050,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         const_fold: Some(fold_cat),
         surface: Some(SpecSurface::TCL86_PLUS),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
@@ -1031,6 +1092,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-length",
@@ -1044,9 +1106,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
@@ -1095,6 +1161,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-length",
@@ -1108,9 +1175,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
@@ -1138,6 +1209,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_first),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_FIRST),
         arg_types: &[
             (
                 0,
@@ -1234,6 +1306,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ),
         ],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
@@ -1274,6 +1349,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1323,6 +1401,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-failindex",
@@ -1336,6 +1415,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -1346,6 +1426,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_values: &[(0, IS_CLASSES)],
         closed_value_args: &[0],
         arg_values_accept_prefix: true,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1408,6 +1491,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ),
         ],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
@@ -1447,6 +1533,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_length),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_LENGTH),
         // `Tcl_GetCharLength` installs the `tclStringType` intrep
         // (`SetStringFromAny`), replacing a List/Dict/Int/… rep —
         // tclsh-verified (`set i 5; incr i; string length $i` leaves `i` a
@@ -1510,6 +1597,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
+                effect: None,
             }]
         },
         arg_types: &[
@@ -1548,6 +1636,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ),
         ],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
@@ -1581,6 +1672,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ])),
         pure: true,
         const_fold: Some(fold_match),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_MATCH),
         return_type: Some(TclType::Boolean),
         options: MATCH_OPTIONS,
         arg_role_layout_resolver: Some(match_arg_roles),
@@ -1618,7 +1710,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ])),
         pure: true,
         return_type: Some(TclType::String),
-        const_fold: Some(fold_range),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_RANGE),
+        const_fold: Some(fold_range_unanimous),
+        const_fold_versioned: Some(fold_range),
         arg_types: &[
             (
                 0,
@@ -1705,6 +1799,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
@@ -1773,6 +1870,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ),
         ],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
@@ -1819,6 +1919,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[TclType::ByteArray],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
@@ -1865,6 +1968,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ),
         ],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
@@ -1911,6 +2017,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ),
         ],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
@@ -1957,6 +2066,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ),
         ],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
@@ -2002,6 +2114,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_trim),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
@@ -2040,6 +2155,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_trimleft),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
@@ -2078,6 +2196,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_trimright),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
@@ -2119,6 +2240,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -2155,6 +2279,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
 ];
@@ -2206,6 +2333,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("string"),
         // Present and unrestricted: its surface carries an iRules row
         // explicitly (`ALL_TCL.union(IRULES)`), so it resolves under the
         // iRules point — a pure value-transform ensemble with no
@@ -2233,6 +2361,9 @@ pub fn spec() -> CommandSpec {
         }),
         inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::String),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }
@@ -2241,9 +2372,37 @@ pub fn spec() -> CommandSpec {
 mod tests {
     use tcl_dialect::model::{Family, SurfaceQuery};
 
-    use super::fold_is;
+    use super::{fold_is, string_is_member_type};
     use crate::hooks::TclVersion;
+    use crate::types::TclType;
     use crate::{CommandRegistry, DispatchDependencies, DispatchDependencyDomain};
+
+    /// A `string is` test proves a type only where every value it accepts
+    /// holds it once tested: the numeric classes under `-strict` (`string is
+    /// integer {}` is 1 on every release, `-strict` makes it 0), `dict`
+    /// either way; `list`, which leaves `{}` a pure string, the boolean
+    /// classes, which leave `1` an integer, and a character class never; the
+    /// class reads with Tcl's abbreviations, and `-failindex` or an option
+    /// spelled otherwise proves nothing.
+    #[test]
+    fn a_string_is_test_proves_the_type_its_members_share() {
+        let cases: [(&[&str], Option<TclType>); 11] = [
+            (&["integer", "-strict", "$x"], Some(TclType::Int)),
+            (&["int", "-strict", "$x"], Some(TclType::Int)),
+            (&["integer", "$x"], None),
+            (&["double", "-strict", "$x"], Some(TclType::Numeric)),
+            (&["boolean", "-strict", "$x"], None),
+            (&["list", "$x"], None),
+            (&["dict", "-strict", "$x"], Some(TclType::Dict)),
+            (&["alpha", "-strict", "$x"], None),
+            (&["integer", "-failindex", "at", "$x"], None),
+            (&["integer", "-str", "$x"], None),
+            (&["integer"], None),
+        ];
+        for (args, expected) in cases {
+            assert_eq!(string_is_member_type(args), expected, "{args:?}");
+        }
+    }
 
     #[test]
     fn string_is_value_form_preserves_optional_write_effects() {

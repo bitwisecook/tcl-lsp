@@ -217,6 +217,26 @@ pub enum NativeIntegerDeclineReason {
     MissingDirectProcEvidence,
 }
 
+impl NativeIntegerDeclineReason {
+    /// Stable Explorer/API spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::MissingDefUseEvidence => "missing-def-use-evidence",
+            Self::ObservableVariable => "observable-variable",
+            Self::DynamicVariableTrace => "dynamic-variable-trace",
+            Self::DynamicCallerInput => "dynamic-caller-input",
+            Self::NonIntegerOperand => "non-integer-operand",
+            Self::BignumOperand => "bignum-operand",
+            Self::UnboundedOperand => "unbounded-operand",
+            Self::NonIntegralType => "non-integral-type",
+            Self::OperandOutsideNativeWidth => "operand-outside-native-width",
+            Self::OverflowNotExcluded => "overflow-not-excluded",
+            Self::MissingDirectProcEvidence => "missing-direct-proc-evidence",
+        }
+    }
+}
+
 /// Outcome for one SSA-keyed add site.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeAddDecision {

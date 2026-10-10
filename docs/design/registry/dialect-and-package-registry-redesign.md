@@ -1,8 +1,7 @@
 # Dialects, packages, and environments — the registry model (issue #1631)
 
-> The model as built. §11 is the single ledger of what is still open in
-> this programme; nothing outside it should be read as outstanding work.
-> Where the prose still describes intent rather than code it says so.
+> The implemented model and its remaining limitations (§11). Proposed
+> extensions are identified explicitly.
 >
 > Companions:
 > [dialect-and-package-registry-centralisation.md](dialect-and-package-registry-centralisation.md)
@@ -102,15 +101,13 @@ expressive power, reach for the shapes a Tcl programmer already knows
 (`if`, `switch`, `foreach`, ordinary command syntax) before inventing a
 mini-language.
 
-## 0.1 Review evidence
+## 0.1 Reference evidence
 
-Two adversarial reviews shaped the model. Their findings are built in —
-the build axis (§3.1), per-interpreter temporal package state (§4.2), the
-`VersionSet` algebra (§4.1), the surface-declaration / realm-binding
-split, the fixed editor-identity set (§3.3), the trust lattice (§6.4), the
-fail-closed vocabulary classes (§6.1), the classification-by-fingerprint
-rule (§2), and the invariants I1–I10 (§8). Three of their probes remain
-the reference experiments (`P-D`):
+The model distinguishes build capabilities (§3.1), per-interpreter package
+state (§4.2), version ranges (§4.1), surface declarations and live bindings,
+editor identities (§3.3), trust (§6.4), vocabulary classes (§6.1), and
+language fingerprints (§2). These reference experiments establish why
+those distinctions matter (`P-D`):
 
 | Probe | Result the model must reproduce |
 |---|---|
@@ -521,8 +518,8 @@ has left the workspace retires its environments — unlike the loaded
 
 **Editor identity is split out.** VS Code and Zed language ids,
 extensions, and filename patterns are extension-manifest contribution
-points, fixed at install time. `EditorLanguageIdentity` is a fixed,
-generated, contributed set (`tcl`, `tcl84`…`tcl91`, `tcl-irule`,
+points, fixed at install time. The contributed editor language identities form a fixed,
+generated set (`tcl`, `tcl84`…`tcl91`, `tcl-irule`,
 `tcl-iapp`, `tcl-bigip`, `tcl-jim`, `tclspec`, `sslictcl`, the six `tcl-<vendor>`
 ids, …), and dynamic server environments *select among* them. A pack may
 request detection patterns; the editor adapter reports whether it can
@@ -603,9 +600,10 @@ explicit.
   `Provider::Document`, the `VersionAxisId::document()` axis,
   `Provenance::Document` for a buffer and `Provenance::WorkspaceUntrusted`
   for a sidecar, read through the one `DocumentCommandSurface` door. The
-  surface's role lookup unions the catalogue's answer with the document's:
-  an untrusted addition may improve assistance and can never weaken a
-  shipped analysis fact.
+  surface answers nearest-wins: a name the document declares is answered
+  by its declaration — roles, traits and side effects — beneath the
+  shipped command's security traits and side effects (invariant I6), and
+  every other name by the catalogue.
 
 ### 4.2 The binding layer — realms and knowledge
 
@@ -898,12 +896,19 @@ capability-specific:
   keep the shipped value — so a four-line workspace pack declaring
   `command exec -override { arity 1.. }` cannot strip `exec`'s
   `TAINT_SINK` (`rust/tcl-spectcl/tests/i6_security_floor.rs`). The floor
-  is deliberately not tier-keyed: nothing on the discovery path is told
-  the editor's Workspace Trust state (§11 O9);
-- the workspace and studio tiers cannot `-override` a compiled command
-  name, extend a compiled environment, declare a `dialect` block, or claim
-  a reserved environment name — refused at registration with the
-  provenance named;
+  is deliberately not tier-keyed, and stays so now that the editor's
+  Workspace Trust state reaches discovery: it is a security contract over
+  every tier rather than a trust ranking between them;
+- an untrusted workspace's packs and the studio tier cannot `-override` a
+  compiled command name, extend a compiled environment, declare a `dialect`
+  block, or claim a reserved environment name — refused at registration
+  with the provenance named;
+- in a workspace the editor has not trusted, no pack hook body runs: the
+  pack's declarative facts install as above, and each dormant body is
+  reported on the pack file
+  ([registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+  § *Ruling — trust gates execution, not authority*; the client wire is
+  [spec-packs.md](spec-packs.md) § *Workspace trust*);
 - per-pack consent for security-weakening overrides and the "which tier
   won this fact" hover field are not built (§11 O8).
 
@@ -931,7 +936,7 @@ These hold across the tree:
 | I5 | Ambiguity widens effects or abstains; it never picks by catalogue order | load/import/rename permutation tests |
 | I6 | Untrusted data cannot weaken trusted security facts | `security_floor`; `i6_security_floor.rs` |
 | I7 | Dropped registry generations release dynamic specs | **not held** — §11 D10 |
-| I8 | Every advertised editor identity is actually contributed by that editor package | the fixed `EditorLanguageIdentity` set |
+| I8 | Every advertised editor identity is actually contributed by that editor package | the fixed contributed editor language identities |
 | I9 | Unknown semantic vocabulary fails closed | `VocabularyClass`; downgrade fixtures |
 | I10 | Pack migration preserves user-observable behaviour, not only serialised bytes | golden-snapshot gate plus behavioural parity per conversion |
 
@@ -952,11 +957,9 @@ of a programmed pack back into a program; an ahead-of-time `.tclspec` →
 | # | What it is | What it blocks | What would resolve it |
 |---|---|---|---|
 | O3 | **Standing studio overrides are not yet visible.** The `StudioOverride` patch-pack tier owes two surfaces: a studio indicator, and a `spectcl_check` warning once a patch has outlived a threshold, so an override reads as a staging area rather than a home. `PackStore::standing_overrides` is the queryable report; neither surface reads it yet | Nothing about correctness | The indicator and the warning |
-| O4 | **`spectcl_check` has no tier parameter.** It evaluates the pack as trusted (the author's own file) and appends the `Tier::Workspace` provenance verdict as a notice. The ruling wants an explicit tier defaulting to the tier the pack would actually install at, with the trusted view available on request | A check that predicts a user-tier install exactly | The parameter and its default |
 | O5 | **The iRules surface as a pack.** Six of the seven prerequisite words have loader readers, so the deferral is a standing choice rather than a blocked one | The iRules command surface stays compiled Rust. The dialect (grammar, structure) and the closed-world policy stay compiled either way, so nothing about correctness rides on it | An owner decision to schedule it |
 | O7 | **`primary` for a multi-target project.** The primary is the environment's, always; a declared range never moves it | Multi-target projects cannot choose which release assistance answers under. Compatibility checking evaluates the whole set, so this is an assistance-quality gap | An owner answer plus the settings/directive surface to carry it |
 | O8 | **Per-pack trust consent and provenance in hover.** The registration-time tier gate exists; the consent surface and the "which tier won this fact" hover do not | A workspace pack cannot be granted security-fact overrides at all, which is the safe direction | An owner ruling on where consent is recorded, then the config surface and the hover field |
-| O9 | **Workspace Trust is not plumbed.** `Provenance::WorkspaceUntrusted` is unreachable from pack discovery, so the editor's trust state cannot gate wholesale environment override; the security floor (§6.4) holds regardless | O8, and any rule that must distinguish a trusted workspace from an untrusted one | Plumbing the LSP client's Workspace Trust state to `discovery`, and deciding the behaviour for clients that do not report it |
 
 ### 11.2 Deferred model items
 
@@ -971,7 +974,7 @@ of a programmed pack back into a program; an ahead-of-time `.tclspec` →
 | D10 | **Registry generations** (invariant I7). The loader leaks per load (`Box::leak` in `tcl-spectcl/src/loader.rs`); no `RegistryGeneration` type exists | A Spec Studio session editing a large surface leaks ~3.1 MB per generation of ~2,400 specs; a prerequisite for any mass conversion | Move dynamic pack specs into an arena/`Arc<RegistryGeneration>`, return generation-bound handles, key salsa on the generation id — gated by a 1,000-reload allocator test |
 | D11 | **Shared `InvocationSpec`.** Taint sinks, forms, deprecation replacements and effects are copied field by field into `SubCommand` instead of living in one invocation capability model | Honest specs for method-level sinks (ticklecharts' file write, SpiceGenTcl's `runAndRead`) | The refactor, behind the four-surface parity rule |
 | D16 | **The per-distinct-profile reference evaluator** (§5.4). The two shipped detectors are token-local (lifecycle windows, numerals) | Every other range axis: escapes, `${a{b}c}`, expr comments and operators, `{*}`, the leading-BOM rule, numerals *inside* compound `expr` bodies, differential constant folding at the endpoints, `package require` satisfiability per target, per-folder `tclLsp.targets`, and the W151 fix-its | Build the multi-profile evaluation, then admit each per-pair detector after the differential gate proves it equivalent |
-| D17-P | **A package version window in `available` is parsed, reported, and dropped.** `available {package Tk 8.7-}` validates the range and carries only the name, so the row admits wherever Tk is present at any version. The loader says so at load | Per-package version gating | `SurfaceQuery::packages` becomes name-and-version, and `SpecSurface::package_in`'s windows are then answerable |
+| D17-P | **A package version window in `available` is parsed, reported, and dropped.** `available {package Tk 8.7-}` validates the range and carries only the name, so the row admits wherever Tk is present at any version. The loader says so at load. `SurfaceQuery::packages` carries each package's floor and `SpecSurface::package_in`'s windows are answered against it, so the data model can hold the window; the loader does not yet build the row, and `declarations_for_spec` lowers a package row to the package's whole axis | Per-package version gating from a pack | The loader projects the range onto `SpecSurface::package_in`, and the lowering intersects it with the package axis |
 | D18 | **Gap rulings that did not land as code** (the centralisation companion's §4). **R2** — special variables are `special_vars.rs`'s compiled table rather than SpecTcl declarations, so Jim's `env` and picol 2's capital-initial globals have no home. **R3** — `FILE_SCOPED_ENVS` is a hardcoded one-row Rust table (`("tclpkg.tcl", &TCLPKG_MANIFEST_ENV)`) rather than a detection-scoped environment whose surface is a pack. **R4** — `render_spectcl`'s `is_dialect_set` matches `"surface" \| "safe_on_uninit"` together, conflating a behaviour predicate with availability. **R5** — the hook `ctx` dict carries only a `dialect` key; no `environment` key. **R6** — the `tclpkg.tcl` manifest's `tcl` constraint has no multi-clause range grammar, and the three version comparators (`tcl_dialect`, `tcl_registry::version`, `tcl_pkg::version`) have not collapsed. **R7** — `spectcl_check` is MCP-only; there is no `tcl spec check` verb. **R9** — the KCS "Applies-to" controlled vocabulary is unregenerated | Each blocks a different small thing | Each is independently landable |
 
 ### 11.3 Evidence gaps

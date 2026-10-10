@@ -474,8 +474,8 @@ fn scan_var_read_role_names(
         // its `VarWrite` target's prior value, so report it as a read too.
         if include_rmw
             && registry
-                .get(cmd_name)
-                .is_some_and(|s| s.traits.contains(tcl_registry::Traits::READS_BEFORE_WRITE))
+                .invocation_traits(cmd_name, &args, None)
+                .contains(tcl_registry::Traits::READS_BEFORE_WRITE)
         {
             read_idx.extend(registry.arg_indices_for_role(cmd_name, &args, ArgRole::VarWrite));
         }

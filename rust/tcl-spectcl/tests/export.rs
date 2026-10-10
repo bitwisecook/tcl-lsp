@@ -438,7 +438,7 @@ fn an_environment_block_with_kind_and_short_name_round_trips_byte_identically() 
     assert_eq!(reloaded.environments, pack.environments);
 }
 
-/// The 2.0 word batch (P2-H): `provides`, `co_provides`,
+/// `SpecTcl` 2.0 declarations: `provides`, `co_provides`,
 /// `dynamic_surface`/`unknown_members`, and the `environment -extend`
 /// block all round-trip through gate A's machinery — export, reload,
 /// identical snapshot, idempotent text.
@@ -540,6 +540,58 @@ speclib probe 2.0 {
     assert_eq!(notice_keys(&pack), notice_keys(&reloaded));
     assert!(reloaded.commands[0].spec.body_scope.is_some());
     assert!(reloaded.commands[0].spec.result_stability.is_some());
+    let twice = export_pack_reporting(&reloaded).0;
+    assert_eq!(twice, exported, "export is not idempotent");
+}
+
+/// `semantics`, `evaluate`, and `facts` — vocabulary 2.2 — round-trip through
+/// export exactly as the pre-existing hook families do: the registration
+/// record is a verbatim replay of every word the loader read, regardless of
+/// which property it belongs to, so a declared implementation's body comes
+/// back byte for byte with no property-specific export code of its own.
+#[test]
+fn the_value_transfer_statements_round_trip_through_gate_a() {
+    let source = r#"
+speclib probe 2.2 {
+    command tenant::label {
+        arity 1
+        semantics {
+            effects {no_external_io}
+            result -semantic string
+        }
+        evaluate -implementation tenant.label.v1 -host bounded_tcl {
+            inputs {arg 0 exact}
+            depends {tcl_profile}
+            budget {-commands 2000}
+            body {name} { fold [string cat "tenant:" $name] }
+        }
+        facts {
+            result -string_segments {{constant "tenant:"} {operand 0}}
+        }
+    }
+    command tenant {
+        arity 1..
+        subcommand label {
+            arity 1
+            evaluate -direct ListOfArgs
+        }
+        subcommand quiet {
+            semantics none
+        }
+    }
+}
+"#;
+    let pack = evaluate_pack(source);
+    assert!(pack.notices.is_empty(), "{:#?}", pack.notices);
+    let (exported, losses) = export_pack_reporting(&pack);
+    assert!(losses.is_empty(), "{losses:#?}");
+    let reloaded = evaluate_pack(&exported);
+    assert_eq!(snapshot(&pack), snapshot(&reloaded));
+    assert_eq!(notice_keys(&pack), notice_keys(&reloaded));
+    assert!(
+        exported.contains("fold [string cat \"tenant:\" $name]"),
+        "{exported}"
+    );
     let twice = export_pack_reporting(&reloaded).0;
     assert_eq!(twice, exported, "export is not idempotent");
 }

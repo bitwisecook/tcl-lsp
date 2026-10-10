@@ -46,7 +46,8 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::DEFINES_PROCEDURE
             | Traits::NEVER_INLINE_BODY
-            | Traits::DEFERS_BODY,
+            | Traits::DEFERS_BODY
+            | Traits::BODY_RUNS_IN_OWN_FRAME,
         arg_roles: &[
             (0, ArgRole::Name),
             (1, ArgRole::ParamList),

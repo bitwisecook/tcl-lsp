@@ -59,6 +59,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("tell"),
         // `surface: Some(SpecSurface::ALL_TCL)`. F5 iRules bans `tell` — the
         // sandboxed TMM interpreter has no real filesystem/channel-seek
         // support — and under the explicit-per-spec model that ban is carried

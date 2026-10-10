@@ -114,6 +114,7 @@ pub fn spec() -> CommandSpec {
         // channel lookup or interpreter callbacks (tclUnixPipe.c, all audited C
         // releases). It remains context-dependent and has no native opcode.
         command_forms: CURRENT_PROCESS_FORMS,
+        runtime_backing: RuntimeBacking::shipped("pid"),
         surface: Some(SpecSurface::ALL_TCL),
         // Reads process/channel-table state that lives outside the
         // argument list rather than being a pure function of its own

@@ -126,9 +126,7 @@ fn sort_optimisations(opts: &mut [Optimisation]) {
 /// whole-module builtin-fold trust gate, O129/O116/O118 — without this a
 /// renamed/redefined builtin, e.g. `rename string {}; [string length …]`,
 /// still gets const-folded with its original semantics, a silent
-/// miscompile). One choke point so a future entry point can't forget any
-/// of the three the way `optimise_unit`'s production path once forgot
-/// `ir_module`.
+/// miscompile). Every production entry point shares this context builder.
 fn build_pass_context<'a>(
     cu: &'a CompilationUnit,
     registry: &'a CommandRegistry,
@@ -588,7 +586,7 @@ fn couple_const_dead_store_chain(
         return None;
     }
     if var.starts_with("::")
-        || scope_aliases.contains(var)
+        || super::elimination::store_is_seen_elsewhere(fu, chain, scope_aliases)
         || rmw_hidden.contains(var)
         || traced.contains(var.trim_start_matches("::"))
     {
@@ -614,11 +612,22 @@ fn couple_const_dead_store_chain(
     {
         return None;
     }
-    let def_block = fu.cfg.block_by_name(&chain.definition.block)?;
+    let def_block_id = fu.cfg.block_id(&chain.definition.block)?;
+    let def_block = fu.cfg.blocks.get(&def_block_id)?;
     let def_idx = usize::try_from(chain.definition.statement_index).ok()?;
     fu.cfg
         .statement_source_edit_span(fu.cfg.block_id(&chain.definition.block)?, def_idx)?;
     let def_stmt = def_block.statements.get(def_idx)?;
+    // A statement the solver proved raises keeps its raise, and a definition
+    // a raise preserved holds the value before it, not one the statement
+    // computed: neither is a constant store to remove.
+    let preserved = fu
+        .ssa
+        .var_symbol(var)
+        .is_some_and(|symbol| fu.sccp.preserved.contains_key(&(symbol, chain.key.1)));
+    if preserved || fu.sccp.raised.contains(&(def_block_id, def_idx)) {
+        return None;
+    }
     // The def must be a const-foldable scalar assignment whose inlined
     // value carries no substitution metacharacters. Two shapes qualify:
     //
@@ -882,14 +891,12 @@ pub fn optimise_raw_for_profile(
         registry,
         &cu.ir_module.source_entry,
     );
-    let ia = crate::interprocedural::build_interprocedural_analysis_with_cfg(
-        &cu.ir_module,
+    let ia = crate::interprocedural::build_interprocedural_analysis_for_unit(
+        &cu,
         registry,
         dialect,
         crate::interprocedural::ObjectTypeCandidates::candidates(&object_types),
         &identities,
-        Some(&cu.declared_commands),
-        &cu.cfg_module,
     );
     cu.interproc = Some(ia);
     let mut ctx = build_pass_context(&cu, registry, dialect);
@@ -941,7 +948,7 @@ pub fn apply_optimisations(source: &str, optimisations: &[Optimisation]) -> Stri
 /// iteration count is one per pass attempted, including the final pass that
 /// finds nothing new. A single-pass profile is simply `max_iterations == 1`.
 ///
-/// This is the shared core behind the `tcl opt` CLI verb.
+/// `tcl pkg discover` uses it; `tcl opt` runs `optimise_under_policy` instead.
 #[must_use]
 pub fn optimise_source_multipass_filtered<S: std::hash::BuildHasher>(
     source: &str,

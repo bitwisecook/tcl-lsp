@@ -314,8 +314,7 @@ pub(in crate::analyser) fn option_relation_diagnostics(
     out
 }
 
-/// Extend a token through its authentic closing delimiter using the shared
-/// source map and authoritative whole-word geometry.
+/// Whole-word end from the original source map.
 fn widen_token_end_in(source_map: &tcl_lexer::SourceMap<'_>, tok: tcl_lexer::Token) -> u32 {
     super::super::utils::full_word_span_in(source_map, tok).end()
 }
@@ -1054,6 +1053,14 @@ impl Analyser {
         );
     }
 
+    pub(in crate::analyser) fn emit_proven_source_option_relationships(
+        &mut self,
+        original: &crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation,
+        display_name: &str,
+    ) {
+        self.emit_source_option_relationships(original, display_name);
+    }
+
     /// Original Registry signatures use the retained source selection and
     /// shared count axes. User calls, object calls and lambda parameter lists
     /// retain their own separate declaration owners.
@@ -1408,6 +1415,45 @@ impl Analyser {
                     .filter_map(|record| record.original_name.as_ref()),
             )
             .any(matches)
+    }
+
+    /// Push each queued verdict about a builtin call whose call does not
+    /// resolve to a user definition — the drain
+    /// [`Self::flush_arity_diagnostics`] runs over `pending_arity`, shared
+    /// with the proven-word pass, which settles its own verdicts after the
+    /// flush.
+    pub(super) fn settle_builtin_verdicts(
+        &mut self,
+        facts: &UserResolutionFacts,
+        pending: Vec<(String, String, bool, crate::analyser::types::Diagnostic)>,
+    ) {
+        for (cmd_name, ns, enforce_order, diag) in pending {
+            if let Some(subject) = diag.registry_source()
+                && matches!(
+                    subject.kind(),
+                    crate::analyser::RegistrySourceDiagnosticKind::Arity
+                        | crate::analyser::RegistrySourceDiagnosticKind::ArgumentRelationship
+                )
+            {
+                // The sealed source selection owns naming/shadow applicability;
+                // a reporting-name lookup cannot change that semantic purpose.
+                if subject.kind() != crate::analyser::RegistrySourceDiagnosticKind::Arity
+                    || !self.selected_source_package_is_unmentioned(subject)
+                {
+                    self.result.diagnostics.push(diag);
+                }
+                continue;
+            }
+            let call_off = diag.span.start();
+            let path = crate::analyser::scope::implicit_command_namespace_path_at(
+                &self.result.global_scope,
+                call_off,
+            );
+            if facts.resolves_to_user(&cmd_name, &ns, path, enforce_order, call_off) {
+                continue;
+            }
+            self.result.diagnostics.push(diag);
+        }
     }
 
     /// Post-walk flush of the [`Self::pending_arity`] / [`Self::pending_user_call_arity`]

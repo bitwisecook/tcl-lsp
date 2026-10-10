@@ -129,5 +129,5 @@ fn file_decls_match_analyse_over_corpus() {
         mismatches.len(),
         mismatches.join("\n")
     );
-    eprintln!("slice-1 gate: {checked} files, file_decls == analyse decl sets");
+    eprintln!("file_decls gate: {checked} files, file_decls == analyse decl sets");
 }

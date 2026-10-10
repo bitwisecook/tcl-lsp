@@ -112,6 +112,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::ListSet),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("lset"),
         // `lset` reads the list's current value before rewriting one element,
         // and — like `set`/`append`/`lappend`/`incr` — its first argument is
         // a variable *name*, so it joins the name-first set the write-command
@@ -163,6 +164,7 @@ pub fn spec() -> CommandSpec {
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::list_update::LSET),
         ..CommandSpec::DEFAULT
     }
 }

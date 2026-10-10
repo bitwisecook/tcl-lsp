@@ -80,6 +80,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-displaycolumns",
@@ -89,6 +90,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-height",
@@ -98,6 +100,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-headingheight",
@@ -114,6 +117,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-selectmode",
@@ -123,6 +127,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-selecttype",
@@ -139,6 +144,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-striped",
@@ -176,6 +182,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-yscrollcommand",
@@ -185,6 +192,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-style",
@@ -194,6 +202,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-class",
@@ -203,6 +212,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-cursor",
@@ -212,6 +222,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-takefocus",
@@ -221,6 +232,7 @@ const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 
@@ -922,6 +934,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::String),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -942,6 +955,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::String),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -952,6 +966,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::List),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -963,6 +978,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::String),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1027,6 +1043,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::List),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1048,6 +1065,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::Int),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1069,6 +1087,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::String),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1101,6 +1120,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::Boolean),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1132,6 +1152,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::Boolean),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1165,6 +1186,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::String),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1175,6 +1197,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::String),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1186,6 +1209,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::String),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1197,6 +1221,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::Int),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1238,6 +1263,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::String),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1248,6 +1274,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::String),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1258,6 +1285,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::String),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1269,6 +1297,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::List),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1281,6 +1310,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::String),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1323,6 +1353,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::Int),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1385,6 +1416,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::String),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1407,6 +1439,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         pure: true,
         return_type: Some(TclType::Boolean),
         side_effects: super::common::TTK_WIDGET_READS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {

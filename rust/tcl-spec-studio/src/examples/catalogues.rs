@@ -52,6 +52,17 @@ pub(super) const CATALOGUE_HOOK: Example = Example {
         "selects special handling for this call",
     )],
 };
+pub(super) const CATALOGUE_DEFINITION_BODY: Example = Example {
+    code: "oo::class create Stack {\n    method push {x} { lappend items $x }\n}",
+    focuses: &[
+        focus(
+            0,
+            "oo::class create",
+            "names the grammar its body is read with",
+        ),
+        focus(1, "method", "a member row: its effect declares a callable"),
+    ],
+};
 pub(super) const CATALOGUE_TAINT: Example = Example {
     code: "set checked [validate $user_input]\nmy_sink $checked",
     focuses: &[

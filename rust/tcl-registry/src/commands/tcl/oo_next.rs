@@ -69,6 +69,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("next"),
         traits: Traits::LANGUAGE_KEYWORD
             .union(Traits::TCLOO_NEXT_CHAIN)
             .union(Traits::TCLOO_METHOD_CONTEXT)

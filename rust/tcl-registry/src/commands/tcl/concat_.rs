@@ -44,6 +44,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("concat"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(|args| Some(crate::const_fold::fold_concat(args))),
@@ -63,6 +64,9 @@ pub fn spec() -> CommandSpec {
             return_value: "The concatenated string, or the empty string when no arguments are given.",
         }),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     }
 }

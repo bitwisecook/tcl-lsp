@@ -192,6 +192,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -201,6 +202,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -245,6 +247,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -254,6 +257,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -279,6 +283,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_DIRNAME),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -330,6 +335,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_EXTENSION),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -402,6 +408,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // canonicalised) path.
         taint_transform: Some(TaintColour::PATH_JOINED),
         returns_path: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_JOIN),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -429,6 +436,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-hard",
@@ -438,6 +446,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -468,6 +477,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file lstat name ?varName?",
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::FILE_LSTAT),
         side_effects: &[
             SideEffect {
                 target: SideEffectTarget::FileIo,
@@ -549,6 +559,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -572,6 +585,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             ..SideEffect::DEFAULT
         }],
+        // The host decides: its working directory and its links.
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -604,6 +621,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file pathtype name",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -670,6 +690,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -679,6 +700,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },
@@ -703,6 +725,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_ROOTNAME),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -717,6 +740,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file separator ?name?",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -749,6 +775,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file split name",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_SPLIT),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -772,6 +799,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file stat name ?varName?",
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::FILE_STAT),
         side_effects: &[
             SideEffect {
                 target: SideEffectTarget::FileIo,
@@ -817,6 +845,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_TAIL),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -857,6 +886,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::Channel),
         mutator: true,
         arg_roles: &[(0, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::FILE_TEMPFILE),
         surface: Some(SpecSurface::TCL86_PLUS),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
@@ -960,6 +990,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("file"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::RETURNS_PATH | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(1),

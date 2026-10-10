@@ -69,10 +69,12 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("gets"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::TAINT_SOURCE | Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::new(1, 2),
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::GETS),
         assigns_variable_at: Some(1),
         // `gets` has no single "the" return type: without `varName` the
         // result is the line itself (a String); with `varName` the

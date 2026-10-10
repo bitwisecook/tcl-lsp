@@ -45,7 +45,7 @@
 //! `// registry-metadata`.
 
 use tcl_dialect::model::SurfaceQuery;
-use tcl_dialect::model::{Family, SurfaceLayer};
+use tcl_dialect::model::{Family, PackageFloor, SurfaceLayer};
 use tcl_registry::arity::Arity;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::model::ingress::{static_context_for, static_document_context_for};
@@ -1121,7 +1121,7 @@ fn tk_commands_are_gated_to_tcl_and_tk_not_irules_or_iapps() {
         );
         assert!(
             spec.supports_dialect(Some(
-                SurfaceQuery::any_release(Family::Tcl).with_packages(&["Tk"])
+                SurfaceQuery::any_release(Family::Tcl).with_packages(&[PackageFloor::named("Tk")])
             )),
             "{name} available under the tk dialect"
         );
@@ -1469,7 +1469,9 @@ fn dialect_name_resolves_to_its_point() {
     );
     assert_eq!(
         tcl_dialect::DialectProfile::find("expect").map(tcl_dialect::DialectProfile::surface_query),
-        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+        Some(
+            SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&[PackageFloor::named("expect")])
+        )
     );
     assert_eq!(
         tcl_dialect::DialectProfile::find("definitely-not-a-dialect")

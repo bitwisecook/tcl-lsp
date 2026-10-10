@@ -854,26 +854,29 @@ cause code injection. Use braces: {cmd_name} {sub_name} $child {{...}}"
     }
 
     /// **W102.** Emit "subst on variable input" when a substitution
-    /// performer's operand is a *computed* word — a `$var` reference, or any
+    /// performer's template is a *computed* word — a `$var` reference, or any
     /// word carrying a substitution — and the call still performs command or
     /// variable substitution over it, so whatever that word resolves to is
     /// evaluated a second time.
     ///
-    /// *Which* substitutions a call performs is the registry's question, not
-    /// this check's: [`tcl_registry::CommandRegistry::substitutions_performed`]
-    /// reads both switch families and answers every kind for a call it cannot
-    /// read.  Asking it is what keeps two shapes right: `subst $opt {hello
-    /// $name}` reports nothing, because the operand is the *final* argument —
-    /// the braced literal — and the computed word is a switch; and the Tcl 9.1
-    /// positive family
-    /// `subst -backslashes $tmpl` reports nothing, because it substitutes
-    /// neither commands nor variables.
+    /// *Which* substitutions a call performs, and which word is its template,
+    /// is the call's template-word plan
+    /// ([`crate::value_transfer::literal_template_plan`]) over its source
+    /// words: `subst $opt {hello $name}` reports nothing, because the template
+    /// is the *final* argument — the braced literal — and the computed word is
+    /// a switch; and the Tcl 9.1 positive family `subst -backslashes $tmpl`
+    /// reports nothing, because it substitutes neither commands nor
+    /// variables. A command with no plan of its own keeps the registry's
+    /// `substitutions_performed` answer. The walk reaches every body the
+    /// analyser reads; [`Self::emit_w102_template_plans`] re-reads a call the
+    /// lattice has a plan for, whose switch words it may prove.
     pub(in crate::analyser) fn emit_w102_subst_injection(
         &mut self,
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
     ) {
+        use crate::value_transfer::SourceWord;
         // Registry gate: [`Traits::PERFORMS_SUBSTITUTION`] marks the
         // template-expanding command (`subst`) — any spec that performs
         // `$var` / `[cmd]` substitution over an argument string.  Checked
@@ -887,61 +890,76 @@ cause code injection. Use braces: {cmd_name} {sub_name} $child {{...}}"
         {
             return;
         }
+        let Some(registry) = self.registry.as_deref() else {
+            return;
+        };
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let Some(performed) = self
-            .registry
-            .as_deref()
-            .and_then(|r| r.substitutions_performed(cmd_name, &arg_refs))
-        else {
-            return;
-        };
-        if !performed.commands && !performed.variables {
-            // Backslash substitution alone rewrites text; it neither reads a
-            // variable nor runs a command, so there is nothing to inject.
-            return;
-        }
-        // The operand is the call's final argument, as the resolver defines
-        // it; every earlier word is a switch.
-        let idx = args.len() - 1;
-        let Some(tok) = arg_tokens.get(idx) else {
-            return;
-        };
-        // A braced operand is the template as written — its `$var`s are the
+        // A braced word is the template as written — its `$var`s are the
         // substitution the call was made for, not a value spliced in from
         // elsewhere.  Any other word carrying a substitution reaches `subst`
         // already expanded once, and is expanded again.
-        if is_braced_word(tok) || !has_substitution(&args[idx], tok) {
+        let source = |index: usize| match arg_tokens.get(index) {
+            Some(tok) if is_braced_word(tok) => SourceWord::Braced,
+            Some(tok) if !has_substitution(&args[index], tok) => SourceWord::Literal,
+            _ => SourceWord::Substituted,
+        };
+        let plan =
+            crate::value_transfer::literal_template_plan(registry, cmd_name, &arg_refs, source);
+        let (performed, dynamic, idx) = if let Some(plan) = plan {
+            (plan.kinds, plan.dynamic, plan.operand.0)
+        } else {
+            let Some(performed) = registry.substitutions_performed(cmd_name, &arg_refs) else {
+                return;
+            };
+            let idx = args.len() - 1;
+            (performed, source(idx) == SourceWord::Substituted, idx)
+        };
+        let Some(tok) = arg_tokens.get(idx) else {
+            return;
+        };
+        // Backslash substitution alone rewrites text; it neither reads a
+        // variable nor runs a command, so there is nothing to inject.
+        if !dynamic || (!performed.commands && !performed.variables) {
             return;
         }
-        let active = match (performed.commands, performed.variables) {
-            (true, true) => "[cmd] and $var",
-            (true, false) => "[cmd]",
-            _ => "$var",
-        };
-        let advice = self
-            .substitution_narrowing_switches(cmd_name, &arg_refs, performed)
-            .map_or_else(
-                || "Use [format] / [string map] for safe templating.".to_owned(),
-                |switches| {
-                    format!(
-                        "Add {} to limit substitution scope, or use [format] / \
-[string map] for safe templating.",
-                        switches.join(" ")
-                    )
-                },
-            );
-        let message = format!(
-            "{cmd_name} with a variable argument enables code injection: any \
-{active} in the string will be evaluated. {advice}"
-        );
+        let advice = self.substitution_narrowing_switches(cmd_name, &arg_refs, performed);
         self.result
             .diagnostics
-            .push(crate::analyser::types::Diagnostic::new(
-                DiagCode::W102,
-                tok.span,
-                message,
-                Severity::Warning,
+            .push(w102_diagnostic(cmd_name, tok.span, performed, advice));
+    }
+
+    /// **W102** over the lattice: each call the unit holds a template-word
+    /// plan for (`SccpResult::template_plans`) is re-read with the switch
+    /// values the lattice proves, and its finding replaces the walk's at the
+    /// template word — so `set opt -novariables; subst $opt $x` warns of
+    /// `[cmd]` alone and advises `-nocommands`, as the literal spelling does,
+    /// and a call whose proven switches turn both kinds off warns of nothing.
+    pub(in crate::analyser) fn emit_w102_template_plans(
+        &mut self,
+        function_unit: &crate::compilation_unit::FunctionUnit,
+    ) {
+        for record in &function_unit.sccp.template_plans {
+            self.result
+                .diagnostics
+                .retain(|d| !(d.code == DiagCode::W102 && d.span == record.span));
+            let performed = record.plan.kinds;
+            if !record.plan.dynamic || (!performed.commands && !performed.variables) {
+                continue;
+            }
+            // The advice reads the proven spellings; a switch the lattice does
+            // not prove leaves the call unreadable, and advises nothing.
+            let advice = record.switches.as_ref().and_then(|switches| {
+                let mut words: Vec<&str> = switches.iter().map(String::as_str).collect();
+                words.push("");
+                self.substitution_narrowing_switches(&record.command, &words, performed)
+            });
+            self.result.diagnostics.push(w102_diagnostic(
+                &record.command,
+                record.span,
+                performed,
+                advice,
             ));
+        }
     }
 
     /// **W103.** Emit "open with a pipeline" when `open`'s first
@@ -1235,27 +1253,43 @@ matching time on crafted input."
     /// **W127.** A literal at a closed-value argument index is not in the
     /// command's allowed set.  Only fires
     /// for indices the spec marks `closed_value_args` (the `arg_values`
-    /// are exhaustive, not hints).  Dynamic values (`$var` / `[cmd]`) and
-    /// declared option flags are skipped.
+    /// are exhaustive, not hints). Unknown original values and declared
+    /// option flags are skipped; literal substitution-like data stays data.
     pub(in crate::analyser) fn emit_w127_closed_value_args(
         &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-        cmd_tok: tcl_lexer::Token,
+        original: Option<&super::super::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
+        let Some(original) = original else {
+            return;
+        };
+        let Some((arguments, tokens, _)) = original.source_arguments() else {
+            return;
+        };
+        let args = arguments.as_slice();
+        let arg_tokens = tokens.as_slice();
+        let cmd_name = original.command();
+        let cmd_tok = *original
+            .head()
+            .tokens()
+            .first()
+            .expect("original head has a token");
+        let Some(descriptors) =
+            original.with_schema(super::super::diagnostic_registry::source_descriptors)
+        else {
+            return;
+        };
         let mut hits: Vec<W127Hit> = Vec::new();
-        if let Some(registry) = self.registry.clone() {
-            let Some(spec) = registry.get(cmd_name) else {
-                return;
-            };
+        {
+            let spec = descriptors.command;
             let span_at = |i: usize| arg_tokens.get(i).map_or(cmd_tok.span, |t| t.span);
             // Top-level closed value args (exact match).
             let opt_names: std::collections::HashSet<&str> =
                 spec.options.iter().map(|o| o.name).collect();
             for &idx in spec.closed_value_args {
                 let i = idx as usize;
-                let Some(value) = args.get(i) else { continue };
+                let Some(value) = original.literal(i) else {
+                    continue;
+                };
                 let values = spec.arg_values_at(idx);
                 let allowed: Vec<&str> = values.iter().map(|av| av.value).collect();
                 if let Some(hit) =
@@ -1270,13 +1304,18 @@ matching time on crafted input."
             // arg 0, so the command-level index is one past the subcommand
             // relative index. `string is <class>` marks its class (`&[0]`),
             // matched by unique prefix (`arg_values_accept_prefix`).
-            if let Some(sub) = args.first().and_then(|s| spec.resolve_subcommand(s)) {
+            if let Some(sub) = descriptors.subcommand {
                 let sub_opt_names: std::collections::HashSet<&str> =
                     sub.options.iter().map(|o| o.name).collect();
                 let display = format!("{cmd_name} {}", args[0]);
                 for &sub_idx in sub.closed_value_args {
-                    let i = sub_idx as usize + 1;
-                    let Some(value) = args.get(i) else { continue };
+                    let i = usize::from(sub_idx)
+                        + original
+                            .with_schema(|schema| schema.semantics.argument_offset)
+                            .unwrap_or(0);
+                    let Some(value) = original.literal(i) else {
+                        continue;
+                    };
                     let allowed: Vec<&str> = sub
                         .arg_values_at(sub_idx)
                         .iter()
@@ -1303,7 +1342,23 @@ matching time on crafted input."
                 }
             }
         }
-        for hit in hits {
+        for mut hit in hits {
+            let Some(ordinal) = arg_tokens.iter().position(|token| token.span == hit.span) else {
+                continue;
+            };
+            let Some(subject) = original.subject(
+                super::super::diagnostic_registry::RegistrySourceDiagnosticKind::LiteralArgument,
+                Some(ordinal),
+            ) else {
+                continue;
+            };
+            let Some(word) = original.word(ordinal) else {
+                continue;
+            };
+            hit.span = word.span();
+            for fix in &mut hit.fixes {
+                fix.span = word.span();
+            }
             self.result.diagnostics.push(
                 crate::analyser::types::Diagnostic::new(
                     DiagCode::W127,
@@ -1311,7 +1366,8 @@ matching time on crafted input."
                     hit.message,
                     Severity::Warning,
                 )
-                .with_fixes(hit.fixes),
+                .with_fixes(hit.fixes)
+                .with_subject(subject),
             );
         }
     }
@@ -1331,9 +1387,6 @@ matching time on crafted input."
         accept_prefix: bool,
         display_name: &str,
     ) {
-        if value.contains('$') || value.contains('[') {
-            return;
-        }
         let matched = values.iter().find(|av| av.value == value).or_else(|| {
             if !accept_prefix || value.is_empty() {
                 return None;
@@ -1369,55 +1422,77 @@ matching time on crafted input."
     /// value that's structurally malformed — `-errorstack`'s value must be
     /// an even-sized list — rather than merely outside a closed set).
     /// Options are matched by name or alias, arity and the `--` terminator
-    /// are honoured via `value_indices`, and dynamic values (`$var` /
-    /// `[cmd]`) are skipped for both checks — mirroring the positional path
-    /// without overloading it.
+    /// are honoured by the shared source option scan. Both checks require
+    /// original literal values or separately retained lattice values.
     pub(in crate::analyser) fn emit_w127_closed_option_values(
         &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-        cmd_tok: tcl_lexer::Token,
+        original: Option<&super::super::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
+        let Some(original) = original else {
+            return;
+        };
+        let Some((arguments, tokens, _)) = original.source_arguments() else {
+            return;
+        };
+        let args = arguments.as_slice();
+        let arg_tokens = tokens.as_slice();
+        let cmd_name = original.command();
+        let cmd_tok = *original
+            .head()
+            .tokens()
+            .first()
+            .expect("original head has a token");
+        let Some(scan) = original
+            .with_schema(super::super::diagnostic_registry::source_diagnostic_options)
+            .flatten()
+        else {
+            return;
+        };
         let mut hits: Vec<W127Hit> = Vec::new();
         let mut hook_hits: Vec<W127Hit> = Vec::new();
-        if let Some(registry) = self.registry.as_deref() {
-            let Some(spec) = registry.get(cmd_name) else {
-                return;
+        for selected in scan
+            .options
+            .into_iter()
+            .filter(|selected| selected.available)
+        {
+            let Some(values) = selected.values else {
+                continue;
             };
-            let find_opt = |arg: &str| {
-                spec.options
-                    .iter()
-                    .chain(spec.command_forms.iter().flat_map(|f| f.options.iter()))
-                    .find(|o| o.matches(arg))
+            let Some(flag) = original.literal(selected.argument) else {
+                continue;
             };
-            let mut i = 0usize;
-            while i < args.len() {
-                let arg = args[i].as_str();
-                if arg == "--" {
-                    break;
-                }
-                let Some(opt) = find_opt(arg) else {
-                    i += 1;
-                    continue;
-                };
-                let vals = opt.value_indices(args, i);
-                let occ = OptionOccurrence {
-                    cmd_name,
-                    arg,
-                    opt,
-                    vals: &vals,
-                    args,
-                    arg_tokens,
-                    flag_idx: i,
-                    cmd_tok,
-                };
-                hits.extend(w127_domain_hits(&occ, registry));
-                hook_hits.extend(w141_hook_hit(&occ));
-                i += 1 + vals.len();
-            }
+            let values = values.collect::<Vec<_>>();
+            let occurrence = OptionOccurrence {
+                original,
+                cmd_name,
+                arg: flag,
+                opt: selected.option,
+                vals: &values,
+                args,
+                arg_tokens,
+                flag_idx: selected.argument,
+                cmd_tok,
+            };
+            hits.extend(w127_domain_hits(&occurrence, self.grammar().numbers));
+            hook_hits.extend(w141_hook_hit(&occurrence));
         }
-        for hit in hits {
+        for mut hit in hits {
+            let Some(ordinal) = arg_tokens.iter().position(|token| token.span == hit.span) else {
+                continue;
+            };
+            let Some(subject) = original.subject(
+                super::super::diagnostic_registry::RegistrySourceDiagnosticKind::LiteralArgument,
+                Some(ordinal),
+            ) else {
+                continue;
+            };
+            let Some(word) = original.word(ordinal) else {
+                continue;
+            };
+            hit.span = word.span();
+            for fix in &mut hit.fixes {
+                fix.span = word.span();
+            }
             self.result.diagnostics.push(
                 crate::analyser::types::Diagnostic::new(
                     DiagCode::W127,
@@ -1425,10 +1500,27 @@ matching time on crafted input."
                     hit.message,
                     Severity::Warning,
                 )
-                .with_fixes(hit.fixes),
+                .with_fixes(hit.fixes)
+                .with_subject(subject),
             );
         }
-        for hit in hook_hits {
+        for mut hit in hook_hits {
+            let Some(ordinal) = arg_tokens.iter().position(|token| token.span == hit.span) else {
+                continue;
+            };
+            let Some(subject) = original.subject(
+                super::super::diagnostic_registry::RegistrySourceDiagnosticKind::LiteralArgument,
+                Some(ordinal),
+            ) else {
+                continue;
+            };
+            let Some(word) = original.word(ordinal) else {
+                continue;
+            };
+            hit.span = word.span();
+            for fix in &mut hit.fixes {
+                fix.span = word.span();
+            }
             self.result.diagnostics.push(
                 crate::analyser::types::Diagnostic::new(
                     DiagCode::W141,
@@ -1436,7 +1528,8 @@ matching time on crafted input."
                     hit.message,
                     Severity::Warning,
                 )
-                .with_fixes(hit.fixes),
+                .with_fixes(hit.fixes)
+                .with_subject(subject),
             );
         }
     }
@@ -1597,8 +1690,9 @@ fn variable_name_for_placeholder(placeholder: &str) -> String {
 /// One W127 closed-value check: return a `(message, span)` hit when the literal
 /// value at command-level index `cmd_idx` is not among `allowed` — an exact
 /// match, or (when `accept_prefix`) a unique prefix, mirroring C Tcl's
-/// abbreviation rule for `string is <class>`. Dynamic values (`$`/`[`) and
-/// declared option flags are skipped, and an empty allowed set never fires.
+/// abbreviation rule for `string is <class>`. The caller supplies an original
+/// literal or separately retained lattice value; variable-looking data stays
+/// data. Declared option flags and an empty allowed set are skipped.
 fn w127_closed_hit(
     value: &str,
     span: tcl_lexer::Span,
@@ -1607,8 +1701,7 @@ fn w127_closed_hit(
     opt_names: &std::collections::HashSet<&str>,
     display_name: &str,
 ) -> Option<W127Hit> {
-    if allowed.is_empty() || value.contains('$') || value.contains('[') || opt_names.contains(value)
-    {
+    if allowed.is_empty() || opt_names.contains(value) {
         return None;
     }
     let valid = if accept_prefix {
@@ -1653,6 +1746,7 @@ struct W127Hit {
 /// loose parameters, mirroring `commands::DispatchSite`'s bundled-context
 /// shape.
 struct OptionOccurrence<'a> {
+    original: &'a super::super::diagnostic_registry::OriginalDiagnosticInvocation,
     cmd_name: &'a str,
     arg: &'a str,
     opt: &'a tcl_registry::hover::OptionSpec,
@@ -1669,12 +1763,11 @@ struct OptionOccurrence<'a> {
 /// invalid word; empty when the option declares neither (an open value).
 fn w127_domain_hits(
     occ: &OptionOccurrence<'_>,
-    registry: &tcl_registry::CommandRegistry,
+    numbers: tcl_dialect::NumberSyntax,
 ) -> Vec<W127Hit> {
     // Whether a literal is a Tcl integer is release-dependent (`08` and `1_0`
     // are integers from 9.0 and not before), so the domain check reads it under
     // the release being analysed rather than the ambient grammar.
-    let numbers = registry.numbers();
     let allowed = occ.opt.value_values();
     let integer_domain = occ.opt.value_integer_domain();
     let has_closed_set = occ.opt.value_is_closed() && !allowed.is_empty();
@@ -1683,13 +1776,10 @@ fn w127_domain_hits(
     }
     let mut hits = Vec::new();
     for &vi in occ.vals {
-        let Some(value) = occ.args.get(vi) else {
+        let Some(value) = occ.original.literal(vi) else {
             continue;
         };
-        if value.contains('$') || value.contains('[') {
-            continue;
-        }
-        let matches_literal = allowed.iter().any(|av| av.value == value.as_str());
+        let matches_literal = allowed.iter().any(|av| av.value == value);
         let matches_integer = integer_domain.is_some_and(|dom| {
             match tcl_syntax::number::parse_whole_with(
                 value,
@@ -1750,16 +1840,15 @@ fn w127_domain_hits(
 
 /// Per-occurrence [`tcl_registry::hover::OptionArity::Hook`] content check
 /// for [`Analyser::emit_w127_closed_option_values`] — `None` when the
-/// option's arity isn't `Hook`, the value is dynamic (`$var`/`[cmd]`), or
-/// the hook reports the value valid.
+/// option's arity isn't `Hook`, an original value is unknown, or the hook
+/// reports the value valid.
 fn w141_hook_hit(occ: &OptionOccurrence<'_>) -> Option<W127Hit> {
     let hook = occ.opt.value_arity_hook()?;
-    let dynamic = occ
+    if occ
         .vals
         .iter()
-        .filter_map(|&vi| occ.args.get(vi))
-        .any(|v| v.contains('$') || v.contains('['));
-    if dynamic {
+        .any(|&ordinal| occ.original.literal(ordinal).is_none())
+    {
         return None;
     }
     let full: Vec<&str> = occ.args.iter().map(String::as_str).collect();
@@ -1910,4 +1999,34 @@ fn find_regex_patterns_in_command(
         }
         _ => Vec::new(),
     }
+}
+
+/// The W102 finding for `cmd_name`'s template at `span`, naming the kinds
+/// `performed` still runs and the switches that would narrow them.
+fn w102_diagnostic(
+    cmd_name: &str,
+    span: tcl_lexer::Span,
+    performed: tcl_registry::substitution::SubstitutionKinds,
+    advice: Option<Vec<&'static str>>,
+) -> crate::analyser::types::Diagnostic {
+    let active = match (performed.commands, performed.variables) {
+        (true, true) => "[cmd] and $var",
+        (true, false) => "[cmd]",
+        _ => "$var",
+    };
+    let advice = advice.map_or_else(
+        || "Use [format] / [string map] for safe templating.".to_owned(),
+        |switches| {
+            format!(
+                "Add {} to limit substitution scope, or use [format] / [string map] for safe \
+templating.",
+                switches.join(" ")
+            )
+        },
+    );
+    let message = format!(
+        "{cmd_name} with a variable argument enables code injection: any {active} in the \
+string will be evaluated. {advice}"
+    );
+    crate::analyser::types::Diagnostic::new(DiagCode::W102, span, message, Severity::Warning)
 }

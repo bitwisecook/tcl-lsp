@@ -25,7 +25,7 @@
 
 use tcl_registry::{ArgRole, InvocationWord, InvocationWords};
 
-use crate::interp::{new_string, obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, new_string, obj_bytes};
 use crate::obj::TclObj;
 
 /// Register `array`.
@@ -468,7 +468,11 @@ fn array_set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[2]);
     // An array-element name (`foo(bar)`) can't be the target of `array set`.
-    if crate::frame::split_array_ref(&name).1.is_some() {
+    let (_, element) = match interp.variable_name_parts(&name) {
+        Ok(parts) => parts,
+        Err(error) => return crate::builtins::var_error(interp, &name, error),
+    };
+    if element.is_some() {
         let mut m = b"can't set \"".to_vec();
         m.extend_from_slice(&name);
         m.extend_from_slice(b"\": variable isn't array");
@@ -486,6 +490,11 @@ fn array_set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.report_cmd_error(tcl_cmd_core::CmdError::argument_format(
             "list must have an even number of elements",
         ));
+    }
+    // Confined stores refuse the array outside the activation before it is
+    // made, as they refuse each element store below.
+    if interp.store_escapes(&name) {
+        return interp.confined_store_error(&name);
     }
     // `array set a {}` still materialises an empty array (and a scalar `a`
     // errors `variable isn't array`), so initialise that empty case explicitly.
@@ -528,7 +537,7 @@ mod undefined_root;
 #[cfg(test)]
 mod tests {
     use crate::counters;
-    use crate::interp::{new_string, Code, Interp};
+    use crate::interp::{Code, Interp, new_string};
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
         leak_free_native(crate::environment::profile_for_dialect("tcl9.0"), body);
@@ -601,12 +610,10 @@ mod tests {
         leak_free_native(
             tcl_registry::model::resolve_environment("jim").unit_profile(),
             |_| {
-                assert!(!crate::environment::release_subcommands(
-                    "jim",
-                    "array",
-                    super::SUBCOMMANDS
-                )
-                .contains(&b"startsearch".as_slice()));
+                assert!(
+                    !crate::environment::release_subcommands("jim", "array", super::SUBCOMMANDS)
+                        .contains(&b"startsearch".as_slice())
+                );
             },
         );
     }

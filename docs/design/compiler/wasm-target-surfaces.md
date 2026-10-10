@@ -1,6 +1,6 @@
 # WASM target surfaces: WASI vs the browser
 
-> **Status:** audit + design. What the two WASM deployment surfaces of
+> What the two WASM deployment surfaces of
 > `runtime/rust` support, so that AOT direct-emission work targets the
 > surface where it earns its keep. The other browser artefacts in the
 > workspace — `tcl-vm-wasm` (the bytecode VM as a self-contained
@@ -12,9 +12,10 @@ There are two distinct WASM deployment surfaces for `runtime/rust`, and they
 are not the same target with different flags — they have different host
 contracts entirely:
 
-- **WASM + WASI** (`wasm32-wasip1`/`wasm32-wasip2`, run under wasmtime) — a
-  real operating-system-shaped host: real files via preopens, real `fd_write`
-  stdio, a real clock. This is what
+- **WASM + WASI** (`wasm32-wasip1`/`wasm32-wasip2`, run under wasmtime) —
+  WASI can provide files, stdio, and a clock. The runtime's `WasiHost` uses
+  `fd_write` and an optional in-memory filesystem; its clock remains a
+  stub (§2). This is the deployment surface that
   [`rust/tcl-compiler/tests/wasm_real_link.rs`](../../../rust/tcl-compiler/tests/wasm_real_link.rs)
   already exercises.
 - **In-browser WASM** (`wasm32-unknown-unknown`, no WASI) — no file
@@ -40,7 +41,7 @@ $ cargo build --target wasm32-unknown-unknown --features wasm_stdlib
 
 It produces a real `tcl_runtime.wasm` cdylib with **zero WASI imports** —
 disassemble the module (`wasm-dis`) and grep for `(import `: none.
-Compare the `wasm32-wasip1` build of the same crate, which imports fifteen
+The measured `wasm32-wasip1` build of the same crate imports fifteen
 `wasi_snapshot_preview1` functions (`environ_get`, `clock_time_get`,
 `fd_write`, `path_open`, `poll_oneoff`, `random_get`, …) pulled in by Rust's
 `std` runtime bootstrap, not by anything this crate calls directly.
@@ -128,7 +129,8 @@ feature; its `Clock` is the same stub as the browser's.
 This distinction decides whether a working browser stdlib bootstrap is days
 or weeks away, so it is worth stating precisely, with the evidence: **it is
 a pure wiring fix.** Neither `MemFs` (`mem_fs.rs`) nor `embedded_stdlib.rs`
-contains a single `#[cfg]` attribute, a WASI import, or any I/O call:
+depends on WASI or performs host I/O; their test modules are gated with
+`#[cfg(test)]`:
 
 - `mem_fs.rs`'s `MemFs` is `RefCell<BTreeMap<String, Vec<u8>>>` (files) plus
   `RefCell<BTreeSet<String>>` (explicit directories), implementing the
@@ -180,7 +182,8 @@ which is `None`.
 
 For the four things Rust cannot fabricate host-side — a console, a wall
 clock, a real script source, and a graceful way to stop — the minimum import
-surface is four functions, declared the same way as the existing
+surface covers four capabilities with five functions (the clock uses two),
+declared the same way as the existing
 [`CodegenAbiImportId`](../../../rust/tcl-runtime-api/src/codegen_abi.rs)
 table (module `"env"`, distinct from the compiler's own `"tcl"` module, so
 the two ABIs never collide):
@@ -232,7 +235,8 @@ place for `exec`/`socket`/`load` — nothing in this proposal changes that.
 
 ## 4. Module size
 
-Measured by building `runtime/rust` exactly as
+The sizes below are measurements of one build, rather than guarantees
+for every revision or toolchain. The build uses `runtime/rust` as
 [`wasm_real_link.rs`](../../../rust/tcl-compiler/tests/wasm_real_link.rs)
 does (same crate, same `--global-base=2097152` linker flag for the WASI
 build), with the `wasm_stdlib` feature on and the numeric tower linked
@@ -281,12 +285,12 @@ valid only for following MQTT message types:"`). That text is a real,
 modest (under 3% of the release binary), tower-independent size-reduction
 opportunity — not the dominant cost.
 
-The `wasm_stdlib` feature costs the browser build next to nothing today
+The `wasm_stdlib` feature costs the measured browser build next to nothing
 because `embedded_stdlib::seed` is called nowhere on the
 `wasm32-unknown-unknown` target (a wiring question, not a numeric-code one —
-see "Wiring gap, not a WASI dependency" in §2). Once §2's wiring fix lands
-for `BrowserHost`, the ~250 KB `embedded_stdlib.rs`'s module doc describes
-is paid on this target too.
+see "Wiring gap, not a WASI dependency" in §2). Seeding `BrowserHost` with
+the embedded library would add the ~250 KB described in
+`embedded_stdlib.rs`'s module documentation to this target too.
 
 ## 5. Recommendation: what does AOT direct emission actually buy the browser?
 

@@ -112,6 +112,7 @@ impl Vm {
                 context.path().clone(),
                 compiler,
             );
+            unit.manifest = module.manifest.clone();
             unit.native_cache = native_owner.map(|owner| self.native_cache_stamp(owner));
             // A newer compiler artifact replaces only the same source and exact
             // geometry; another colliding display remains an independent entry.
@@ -159,6 +160,7 @@ mod tests {
         let name = "::a:::b::p".to_owned();
         ModuleAsm {
             profile: vm.source_profile(),
+            manifest: None,
             source: tcl_lexer::SourceImage::document("proc p {} {return SAME}"),
             source_namespace: NamespacePath::root(),
             plain_command_dispatch: false,

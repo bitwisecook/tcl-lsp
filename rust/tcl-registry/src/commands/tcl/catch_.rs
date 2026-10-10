@@ -59,6 +59,28 @@ const FORMS: &[FormSpec] = &[
     },
 ];
 
+/// The protected script.
+const SCRIPT: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Body)];
+/// `?resultVarName? ?optionsVarName?`. The names are bound whatever the
+/// script's completion, and `catch`'s own `arg_roles` carries their
+/// `VarWrite`; here they are the clause's binding words.
+const RESULT_WORDS: &[ClauseSlot] = &[
+    ClauseSlot::of(ArgRole::LoopVarList).optional(),
+    ClauseSlot::of(ArgRole::LoopVarList).optional(),
+];
+
+/// `catch script ?resultVarName? ?optionsVarName?`: a protected script whose
+/// completion is observed, and the words that receive it.
+pub const GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
+    head: ClauseRow::head(SCRIPT, ClauseTiming::Protected),
+    rows: &[],
+    tail: Some(ClauseRow::once(None, RESULT_WORDS, ClauseTiming::Selected)),
+    fallthrough_body: None,
+    default_clause: None,
+    selection: ClauseSelection::All,
+    surface: None,
+};
+
 /// Command spec for `catch`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -71,6 +93,7 @@ pub fn spec() -> CommandSpec {
             ),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("catch"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
@@ -83,9 +106,14 @@ pub fn spec() -> CommandSpec {
             (1, ArgRole::VarWrite),
             (2, ArgRole::VarWrite),
         ],
+        clause_grammar: Some(&GRAMMAR),
         lowering_hook: Some(crate::hooks::LoweringHookId::Catch),
         inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::Catch),
         return_type: Some(TclType::Int),
+        // The result variable holds what the script returned and the options
+        // variable a dictionary: neither is the integer completion code
+        // `catch` itself returns.
+        var_write_typing: VarWriteTyping::Destructured,
         hover: Some(HoverSnippet {
             summary: "Evaluate script and trap exceptional returns",
             synopsis: &["catch script ?resultVarName? ?optionsVarName?"],
@@ -97,6 +125,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Catch),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::completion::CATCH),
         ..CommandSpec::DEFAULT
     }
 }

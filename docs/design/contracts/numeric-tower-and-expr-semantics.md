@@ -1,7 +1,7 @@
 # Contract: the numeric tower & `expr` semantics
 
 > The numeric value model and the `expr` language every arithmetic consumer in
-> the stack routes through. Related as-built notes:
+> the stack routes through. Related runtime notes:
 > [shimmer-reference-behaviour.md](shimmer-reference-behaviour.md) and the
 > bignum/arith modules in the Rust runtime (`runtime/rust/src/bignum.rs`,
 > `expr.rs`).

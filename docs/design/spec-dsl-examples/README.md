@@ -11,7 +11,7 @@ checks and demonstrates the listed features.
 | Example | Native descriptor | Features demonstrated |
 |---|---|---|
 | [`lsort.tclspec`](lsort.tclspec) | `commands/tcl/lsort_.rs` | option rows, command-prefix options, integer domains, per-option dialect gates |
-| [`foreach.tclspec`](foreach.tclspec) | `commands/tcl/foreach_.rs` | stepped arity, repeated-argument layouts, hook bodies |
+| [`foreach.tclspec`](foreach.tclspec) | `commands/tcl/foreach_.rs` | stepped arity, repeated-argument layouts, clause groups and evaluated-cardinality hooks |
 | [`string.tclspec`](string.tclspec) | `commands/tcl/string_.rs` (`length`, `is`, `map`, `range`) | pack-level shared tables, closed value sets, subcommand facts, const-folds as Tcl |
 | [`switch.tclspec`](switch.tclspec) | `commands/tcl/switch_.rs` | `-also` arity, an inline `case_list`, option-skipping in a resolver |
 | [`if.tclspec`](if.tclspec) | `commands/tcl/if_.rs` | the declarative `clause_grammar` |
@@ -30,6 +30,7 @@ speclib <pack-name> <dsl-version> {
     display_name {…}              ;# the pack's human-readable name
     file_extension <ext> ?-name {…}? ?-dialect DIALECT?  ;# one extension row
     ambient_package <name> <version>  ;# a package the dialect provides
+    special_var  <name> -kind K -access A -origin O ?-dialects {…}? ?-startup B?  ;# a global it provides
     values       <name> { … }     ;# a shared argument-value table
     hook         <name> {params} { … }  ;# a shared hook body
     descriptor   <key> <name> { … }     ;# a shared block-valued descriptor
@@ -53,8 +54,8 @@ it gates hard breaks (a word whose *meaning* changed), never additions.
 It is the **only** loader directive; a `pragma` statement is an unknown
 property, dropped with a logged notice.
 
-The current vocabulary is **2.1**. `1`, `1.0`, `1.1`, `1.2`, `2.0` and `2.1` all
-name a vocabulary the loader reads in full. A pack declaring a newer
+The current vocabulary is **2.2**. `1`, `1.0`, `1.1`, `1.2`, `2.0`, `2.1` and
+`2.2` all name a vocabulary the loader reads in full. A pack declaring a newer
 *minor* of a major the loader knows still loads, with a notice saying
 which vocabulary the loader knows — it only loses the words that server
 has never heard of. A newer **major** is the one case that fails closed;
@@ -73,9 +74,27 @@ therefore use `-retired` at the next window's `-introduced` bound. An `arg` row'
 flags gate its whole row. `ambient_package` states the version of a package
 provided by the dialect without a `package require`.
 
+Value transfers at command, subcommand and `refine` scope use `semantics`,
+`evaluate` and `facts`, with the innermost declaration winning. `none` withdraws
+the corresponding declaration. `evaluate` supports direct, expression, native
+and declared-implementation routes with an explicit host, inputs, dependencies
+and budget. `semantics` declares effects, results, stores and iteration; `facts`
+declares result facts. An option can decline evaluation with `-evaluate none`
+and an explicit `-evaluate-reason`.
+
 `dialects` and `available` project onto the same internal representation.
 Equivalent declarations load to byte-equal specs, and `tcl spec upgrade`
 rewrites supported 1.x source forms mechanically.
+
+`dialects` and `available` project onto the same internal availability
+representation; `tcl spec upgrade` rewrites supported 1.x source vocabulary.
+
+`codegen_hook`, `inline_codegen_hook` and `semantic_operation` accept lifecycle
+windows at command and subcommand scope. A window selects the primary Tcl core
+release; an unsettled release selects no stamp, and a subcommand's decline
+does not borrow its parent's stamp. Windows cannot overlap; an invalid window
+is not widened to all releases. Forms take no window. Registry
+`native_lowering` windows have no pack spelling.
 
 The loader applies these validation rules:
 
@@ -262,6 +281,41 @@ other flag value is one, and because a row parser must not have to tell
 `{words ctx}` from an enum payload by inspection. See "The option-arity
 hook" under Hooks, and [`return.tclspec`](return.tclspec).
 
+### Options with semantic effects
+
+An option that turns a declared axis on or off, suppresses a role, changes
+the trailing-operand reservation, or ends option parsing states it with
+`-effect` and `-family`
+(`docs/design/compiler/registry-consumer-contracts.md` § *Options with
+semantic effects*); a family the command's own options cite is declared
+once with `option_effect_family`, at command or subcommand scope:
+
+```tcl
+option_effect_family negated { base all-on  combine accumulate }
+option_effect_family positive { base all-off combine accumulate \
+                                -introduced 9.1 }
+option -nobackslashes -effect {disables substitution backslashes} \
+                      -family negated
+option -backslashes   -effect {selects substitution backslashes} \
+                      -family positive -introduced 9.1
+```
+
+`-effect`'s value is `{disables AXIS VALUE}`, `{selects AXIS VALUE}`,
+`{suppresses-role ROLE}`, `{reserves-trailing-words N}`, or the bare
+`ends-options`; `ROLE` is an `ArgRole` spelling (`-role`'s own vocabulary).
+The closed axis vocabulary: `substitution backslashes|commands|variables`,
+`pattern-language` (the `PatternType` spellings `Glob`/`Regex`, `pattern
+-language`'s own — every other axis has its own lowercase word instead),
+`case-sensitivity` (no value: it is a plain on/off axis), and `selection
+exact|glob|regexp|other`. `option_effect_family`'s `base` is `all-on`,
+`all-off`, or `{only AXIS VALUE}`; `combine` is `accumulate` (every
+matching option's effect applies) or `last-wins` (each option resets the
+family before applying); `-introduced V` gates the family from `V` onward
+on the command's own core-Tcl axis, the same reading `-introduced` carries
+everywhere else in this vocabulary. `subst.tclspec` is this row's own
+worked example, ported from the design page's `command subst { … }` body
+verbatim.
+
 ### Other rows
 
 ```tcl
@@ -381,7 +435,9 @@ provides `NAME` at `VERSION` without a `package require` — the
 pack-authored twin of an ambient `LibraryPin`. Both words are required;
 a row with no version is dropped with a notice, because an ambient
 package with no version would floor at nothing, which is what the row
-exists to stop.
+exists to stop, and so is a row whose version is not a package version
+(`ambient_package Tk junk`), because a floor the comparison cannot read
+orders against the profile's pin as it happens to.
 
 The version composes with the document's own `package require` lines and
 the profile's library pin by taking the **greatest** — all three are
@@ -401,6 +457,25 @@ is dropped whole rather than applied everywhere, because dropping only
 the flag would leave the wider claim standing. See
 [`spec-packs.md`](../registry/spec-packs.md), "Scoping an ambient package".
 
+**`special_var NAME -kind K -access A -origin O ?-dialects {…}? ?-startup
+B?`** declares an interpreter-provided global the pack's dialect has — a
+row of the special-variable registry, installed into the pack's registry
+generation beside the shipped `SPECIAL_VARS` table and read through
+`CommandRegistry::special_vars()`. `-kind` (`Scalar`, `Array`,
+`Namespace`), `-access` (`ReadOnly`, `ReadWrite`) and `-origin`
+(`Interpreter`, `AutoLoader`, `Platform`, `Environment`, `Dialect`) are
+required, and a row missing one is dropped with a notice. `-dialects`
+narrows where the variable exists, as a command's `dialects` row does
+(unlike `ambient_package`, whose scoping is an environment placement);
+a row naming none takes the pack's `default dialects`, else every Tcl
+release, and one naming nothing this build knows is dropped rather than
+widened. `-startup` (`None` by default; `Interpreter`, `TclInit`,
+`TclMain`, `AppInit`, `ReadTrace`) is the lifecycle event that makes the
+variable readable before user code. The statement is additive vocabulary
+and needs no vocabulary bump; see
+[`special-variable-registry.md`](../registry/special-variable-registry.md)
+§ *Declaring one in a pack*.
+
 ### Block statements
 
 Ten properties take a braced block instead of a value, and each may
@@ -411,13 +486,13 @@ the descriptor's own field names, so nothing new has to be learnt:
 |---|---|
 | `hover` | `summary`, `synopsis`*, `description`, `source`, `example`*, `returns` |
 | `values NAME` | `value V ?-detail {…}? ?-min-tcl VER? ?-code N? ?-introduced V? ?-deprecated V? ?-retired V?`* |
-| `case_list` | `subject_args`, `two_arg_optionless_surface`, `exact_option`, `glob_option`, `regex_option`, `nocase_option`, `end_options_option`, `fallthrough_body`, `value_options_require_regex`, `special_match_options`, `clause_flags`, `clause_regex_flag`, `clause_value_flags`, `clause_end_options_flag`, `clause_force_inline_flag`, `clause_force_list_flag`, `clause_force_list_shape` (`first_arg_only_remainder`), `allow_omitted_final_body`, `keyword_patterns {…} ?-final-only?`, `warn_unbraced_bodies`, `optional_subject_separator` |
-| `clause_grammar` | `head {slots}`, `repeated KEYWORD {slots}`*, `tail ?KEYWORD? {slots}` |
+| `case_list` | `subject_args`, `two_arg_optionless_surface`, `fallthrough_body`, `value_options_require_regex`, `special_match_options`, `clause_flags`, `clause_regex_flag`, `clause_value_flags`, `clause_end_options_flag`, `clause_force_inline_flag`, `clause_force_list_flag`, `clause_force_list_shape` (`first_arg_only_remainder`), `allow_omitted_final_body`, `keyword_patterns {…} ?-final-only?`, `warn_unbraced_bodies`, `optional_subject_separator`, `default_mode exact\|glob\|regexp`, `pattern_words single\|lists` |
+| `clause_grammar` | `head {slots} ?-timing T?`, `repeated KEYWORD {slots} ?-timing T? ?-pattern completion-code\|error-code-prefix? ?-conditional? ?-optional-keyword? ?-available V?`*, `once ?KEYWORD? {slots} ?-timing T?`*, `group N ?-timing T?`*, `tail ?KEYWORD? {slots} ?-timing T?`, `fallthrough_body WORD`, `default_clause ROW\|tail ?-final-only?`, `selection first-match\|all`; timings `selected\|always\|per-iteration\|init\|next\|protected`; a slot is `ROLE`, `?noise?` or `{ROLE optional}` |
 | `event_requires` | `client_side`, `server_side`, `transport`, `profiles`, `also_in`, `init_only`, `flow`, `capability` |
 | `world_effects` | `composition`, `access …`*, `callback -kinds {…} -reentrancy R`, `resolver`, `dynamic_fallback` |
-| `state_transitions` | `composition`, `argument_shape`, `resolver`, `success_resolver`, `widen -operands L -domains {…}`*, `covers SOURCE -domains {…}`*, `commit` |
+| `state_transitions` | `composition Extend\|Replace`, `argument_shape Independent\|Positional`, `resolver none\|from-frame-effect\|-native ID\|{words ctx} {…}`, `widen -operands EveryArgument\|{Indices N …}\|{Strided FIRST STRIDE} -domains {…}`*, `covers SOURCE -domains {…}`*, `commit OnOkOnly\|MayCommitBeforeAbruptCompletion` |
 | `object_class NAME` | `superclasses`, `allow_unknown_methods`, `method_prefix_matching`, `method NAME { … }`* (a `subcommand` body) |
-| `definition_body` | `family`, `member …`*, `member_option …`*, `implicit_vars`, `member_body_namespace_path`, `builtin_type_methods`, `builtin_object_method …`*, `builtin_terminating_methods`, `member_body_command …`*, `bare_word_construction`, `dynamic_method_dispatch`, `manufacturer …`*, `unknown_dispatch_method`, `property_accessor_methods` |
+| `definition_body` | `family`, `member KEYWORD … -effect E ?-shift S?`*, `member_option KEYWORD POS VALUE -role R ?-visibility V?`*, `implicit_vars`, `member_body_namespace_path`, `builtin_type_methods`, `builtin_object_method …`*, `builtin_terminating_methods`, `member_body_command …`*, `bare_word_construction`, `dynamic_method_dispatch`, `manufacturer …`*, `unknown_dispatch_method`, `property_accessor_methods`; effects `{callable -receiver R -role K ?-name N? ?-params N? ?-body N?}`, `{forward ?-name N? ?-prefix N?}`, `{state-declaration per-instance\|per-type\|option}`, `{relation superclass\|mixin\|filter}`, `visibility`, `retraction`, `{init-script ?-body N? -timing at-definition\|at-construction}`, `configuration` |
 | `body_scope` | `name`, `include_sibling_definitions`, `allow_unknown_commands`, `command NAME { … }`* |
 
 `*` marks a repeatable row. `world_effects none` is the one-word
@@ -529,7 +604,10 @@ declares, a closed keyword — `arg_role_resolver from-manufacturers`,
 The tenth of those fields — the option-arity hook — is a *flag* on an
 option row rather than a property statement, so it is written
 `-arity-hook {words ctx} { … }` (or `-arity-hook -native ID`).
-Everything in the rest of this section applies to it unchanged.
+Everything in the rest of this section applies to it unchanged. So does
+the resolver row of a `state_transitions` block, written `resolver
+{words ctx} { … }` inside the block: its body states variable-cell alias
+facts and nothing else (the verb table below).
 
 ### Inputs
 
@@ -545,7 +623,7 @@ That is exactly the `args: &[&str]` every current hook receives.
 | `subcommand` | the resolved subcommand word, or empty |
 | `nwords` | `[llength $words]`, for symmetry with the argv-shaped hooks |
 | `kinds` | one word per element of `words`: `literal`, `known-bytes`, `dynamic`, `expanded`, or `opaque`; `known-bytes` retains one native-value argv position while the logical `words` entry remains unavailable |
-| `tcl-version` | `8.4` … `9.1`, or empty when the profile names no release |
+| `tcl-version` | `8.4` … `9.1`, or empty when the profile has no evaluation point: a Tcl release gives its own, a vendor fork whose release was measured (iRules, iApps, tmsh) gives that release, and a profile nothing measured gives none |
 | `dialect` | the active dialect member word |
 | `in-event-body` | `0` / `1` — the one lexical fact `context_gate` takes today |
 
@@ -619,8 +697,8 @@ precisely to stay inside the range where 8.x and 9.x agree, and
 ### Outputs: the emitter protocol
 
 **Every hook's own return value is ignored.** Each family injects one to
-six verbs; calling none is an abstention. One protocol for all eleven hook
-families, so "what does silence mean" has one answer per family and it is
+six verbs; calling none is an abstention. One protocol for every hook
+family, so "what does silence mean" has one answer per family and it is
 always the conservative one.
 
 | field | verbs | silence means |
@@ -635,6 +713,20 @@ always the conservative one.
 | `clause_shape_check` | `missing-expr ?after?`, `missing-body after`, `extra-words first` | the shape is accepted |
 | `constraints` | readers `option-present OPTION`, `option-value OPTION`, `literal N`, `arg-count`; emitters `invalid SLOT MESSAGE ?-conflict?`, `abstain` | no report |
 | option-arity hook (`-arity-hook`) | `consume N ?-invalid MESSAGE?` | consume one word |
+| `state_transitions` `resolver` | `alias LOCAL TARGET ?-level LEVEL?`, `namespace-variable NAME` — word indices | no transitions |
+
+The `state_transitions` resolver is the one family whose verbs name words
+rather than values: `alias 1 0 -level 2` says the word at 1 names a local
+bound to the variable the word at 0 names, in the frame the level word at
+2 selects (`upvar`'s fact), and `namespace-variable 0` says the word at 0
+names a current-namespace variable the call binds locally (`variable`'s).
+The host reads each index against the call's own words, so a fact naming a
+computed word abstains and widens the variable-cell domains instead of
+naming a cell, and a fact naming a word past the call names nothing. No
+verb reaches the command-binding, interpreter, object-dispatch or trace
+families — those decide binding and realm identity, which is the compiler's
+own proof — so a body that calls `command-binding` raises `invalid command
+name` and states nothing.
 
 Returning early (`return`) is the ordinary way to abstain, which is why
 the emitter protocol beats returning a value: `if {…} return` reads
@@ -695,6 +787,20 @@ the family's emitter verbs. No `open`, `exec`, `source`, `socket`,
 `rename`, `info`, or `subst`. A hook has a step budget and a wall-clock
 cap; exceeding either is an abstention.
 
+The whitelist alone once left one door open: `set`, `incr`, `lappend`,
+and `lassign` can still write a `::`-qualified or namespace name with no
+`global` needed, and the VM's own bootstrap seeds `::env`,
+`::tcl_platform`, `::tcl_library`, and `::auto_path`. `Engine::confine_stores`
+closes both: every store, array creation and unset whose name resolves
+outside the running body's own activation is refused as an ordinary Tcl
+error (an abstention, same as any other), and the host-seeded globals are
+removed for the
+confinement's duration, so a read of one is a decline too, never the
+analysing machine's own environment leaking into an answer about the
+analysed program
+([value-evaluation.md](../compiler/value-evaluation.md) § *Per-evaluation
+state: writes outside the activation are denied*).
+
 Hooks run per call site, so they are the one part of a pack whose cost is
 not "identical to compiled-in". Shipped packs keep native pointers, so
 only pack-declared commands pay it, and the answer is memoisable by
@@ -705,27 +811,69 @@ The body is compiled to bytecode once at pack load, not per call.
 
 `clause_shape_check` exists because `if`'s grammar is not a `min..=max`
 range. It is, however, perfectly regular, and the manpage already writes
-it down. So the DSL writes the manpage:
+it down. So the DSL writes the manpage, as the registry's own descriptor
+(`ClauseGrammarSpec`, `rust/tcl-registry/src/clause_grammar.rs`):
 
 ```tcl
 clause_grammar {
-    head            {Expr ?then? Body}
-    repeated elseif {Expr ?then? Body}
-    tail     ?else? {Body}
+    head            {Expr ?then? Body} -timing selected
+    repeated elseif {Expr ?then? Body} -timing selected
+    tail     ?else? {Body}             -timing selected
+    default_clause tail -final-only
 }
 ```
 
-- **`head {slots}`** — the mandatory leading clause, matched
+One row per statement:
+
+- **`head {slots} ?flags?`** — the mandatory leading clause, matched
   *positionally*. Its slots are never keyword-matched, which is why `if
   else {a}` is a well-formed `if` whose condition is the bareword `else`
-  — the behaviour `IfConditionCallback` has.
-- **`repeated KEYWORD {slots}`** — zero or more clauses, each introduced
-  by that literal word (role `Keyword`).
-- **`tail ?KEYWORD? {slots}`** — at most one clause, last. A bare
+  — the behaviour `IfConditionCallback` has. A grammar whose first words
+  are a group (`foreach`) declares no head.
+- **`repeated KEYWORD {slots} ?flags?`** — zero or more clauses, each
+  introduced by that literal word (role `Keyword`).
+- **`once ?KEYWORD? {slots} ?flags?`** — exactly one clause. A keywordless
+  `once` row is entered positionally, in declaration order — `for`'s test
+  and `next` script.
+- **`group N ?flags?`** — the keywordless binder groups of a loop: the
+  stride and the excluded trailing words are `repeat` layout `N`'s, which
+  the row cites and never restates. At least one whole group is required.
+- **`tail ?KEYWORD? {slots} ?flags?`** — at most one clause, last. A bare
   `KEYWORD` requires the word; `?KEYWORD?` makes it optional, which is
   what allows `if`'s implicit trailing body.
-- Inside a slot list, a bare word is an `ArgRole` name and `?word?` is an
-  optional noise keyword.
+- **`fallthrough_body WORD`** — a selected clause whose body is `WORD`
+  runs the next clause's body (`try`'s `-`).
+- **`default_clause ROW|tail ?-final-only?`** — the clause that runs when
+  no earlier one is selected (`if`'s final body), by row index or `tail`.
+- **`selection first-match|all`** — whether one call selects the first
+  matching clause (the default) or runs every clause present (a loop).
+- Inside a slot list, a bare word is an `ArgRole` name, `?word?` is an
+  optional noise keyword, and `{ROLE optional}` is a slot that may be
+  absent (`catch`'s result words). A clause uses six roles: `Expr`,
+  `Body`, `LoopVarList`, `Pattern`, `Keyword` (the noise words) and
+  `Value`.
+- Row flags: **`-timing selected|always|per-iteration|init|next|protected`**
+  (when the clause's body runs; `selected` when absent),
+  **`-pattern completion-code|error-code-prefix`** (the handler vocabulary
+  of the row's `Pattern` slot), **`-conditional`** (the row's
+  `LoopVarList` slots bind only when a runtime data condition holds),
+  **`-optional-keyword`**, and **`-available V`** (the row's releases).
+  `clause_grammar { … } -available V` gates the whole grammar.
+
+`try` in full:
+
+```tcl
+clause_grammar {
+    head {Body} -timing protected
+    repeated on   {Pattern LoopVarList Body} -timing selected \
+                                             -pattern completion-code
+    repeated trap {Pattern LoopVarList Body} -timing selected \
+                                             -pattern error-code-prefix
+    tail finally  {Body} -timing always
+    fallthrough_body -
+    selection first-match
+}
+```
 
 **Normative — where keywords match.** A `clause_grammar` keyword is
 matched **only at a clause boundary and at a `?noise?` position**; every
@@ -739,24 +887,37 @@ version an implementer can test against: at each step the walk asks
 "does a clause start here?", and only that question ever compares a word
 against a keyword.
 
-From that one declaration the loader derives **both** hook behaviours:
+From that one declaration the registry derives **both** hook behaviours,
+walking the call once:
 
-- `arg_role_resolver` — the roles the walk assigns, and
-- `clause_shape_check` — `MissingExpr{after}` for an absent `Expr` slot,
-  `MissingBody{after}` for an absent `Body` slot, `ExtraWords{first_extra}`
+- the argument roles — each keyword and noise word as `Keyword`, each
+  `Expr`, `Body` and pattern-language `Pattern` slot as its role (a
+  binder list, a handler's pattern and a fall-through body are clause
+  facts, read from the plan's clauses), and
+- the structural defect — `MissingExpr{after}` for an absent `Expr` slot,
+  `MissingBody{after}` for any other absent slot, `ExtraWords{first_extra}`
   for anything past the tail.
 
-Walked against `if_.rs`'s own test matrix, the generated walk agrees case
-for case with `walk_if`, including the two subtle rows (`if else {a}` is
-valid; a bare trailing body needs no `else` but nothing may follow it).
-`STRUCTURALLY_CHECKED_ARITY` is *not* implied — the pack still declares
-it, and the loader warns if a `clause_grammar` command omits it.
+The shipped grammars are the same descriptor — `if`, `try`, `catch`,
+`for`, `while`, `foreach`, `lmap`, `dict for` / `dict map` / `dict
+update`, `array for` — and walked against `if_.rs`'s retired test matrix
+the grammar agrees case for case, including the two subtle rows (`if else
+{a}` is valid; a bare trailing body needs no `else` but nothing may follow
+it). `STRUCTURALLY_CHECKED_ARITY` is *not* implied: it is the opt-in that
+makes the walk's defect the command's arity diagnostic (`if`'s E004),
+where `try` and the loops keep an ordinary arity range.
 
 Case lists are the other clause shape and stay a separate field, because
 they are a *value* (`{pattern body …}` inside one word) rather than a
 word grammar. `case_list switch` names the shipped descriptor;
 `case_list { … }` spells out every plain-data field of the descriptor,
-which is what a private Expect-like command needs. (No count here on
+which is what a private Expect-like command needs. The command-level
+switches that pick the match mode, fold case, or end the option run are
+not descriptor fields: each is the command's own `option` row, declaring
+its effect (`Selects(Selection(…))`, `Selects(CaseSensitivity)`,
+`EndsOptions`), and the five retired rows (`exact_option`, `glob_option`,
+`regex_option`, `nocase_option`, `end_options_option`) load with a notice
+and change nothing. (No count here on
 purpose: a number in prose drifts, and this one had — it said nineteen
 against eighteen elsewhere and twenty-two in the struct. The property is
 pinned by `case_list_rows_author_every_descriptor_field_issue_2140`
@@ -790,18 +951,28 @@ exactly: `args.first()` → `manufacturer(word)` → `definition_body_at` →
 **`state_transitions … resolver from-frame-effect`.** The rule is: read
 the command's own `frame_effect`; take the level word from its
 `-level-word` policy; then walk the remaining words as the `-layout`
-says. Two policies must be pinned because they are where an
-implementation would silently differ from the shipped resolver
-(`upvar_state_transitions` in `upvar_.rs`):
+says — `AliasPairs` is the one layout that states alias facts, so any
+other (or no `frame_effect` at all) leaves nothing to derive, a notice,
+and no resolver. A subcommand's `from-frame-effect` reads its command's
+frame effect, and either may be written first. Two policies must be
+pinned because they are where an implementation would silently differ
+from the shipped resolver (`upvar_state_transitions` in `upvar_.rs`,
+which states an alias with an unknown subject instead):
 
-- **A dynamic level word aborts the whole derivation** — zero
+- **A dynamic level word aborts the whole derivation** — zero alias
   transitions for the call, not "assume the default frame".
 - **A dynamic member of an alias pair skips that pair and continues** —
   the pairs after it still produce transitions.
 
+Each abstention widens the variable-cell domains for the word it could
+not read, which is the resolver contract every pack-declared
+`state_transitions` resolver keeps
+(`tcl_registry::state_transition::alias_pairs_resolver`).
+
 **`clause_grammar`.** Derives both `arg_role_resolver` and
-`clause_shape_check`; its own normative rule (where keywords match) is
-stated above.
+`clause_shape_check` — the registry walks the declared descriptor, so
+neither is installed as a hook; its own normative rule (where keywords
+match) is stated above.
 
 **Derivation requires equivalence.** Each keyword above asserts that a
 data-driven rule reproduces a native function. The fidelity table identifies
@@ -822,11 +993,28 @@ to agree. The loader must compare those projections and reject a mismatch.
   `analyser_hook`, `return_type_hook`, `semantic_operation`, `bpf_op`) —
   bucket 2 of
   spec-packs.md's hook plan: a pack reuses named hooks, it cannot add to
-  them. Naming a *lowering* or *codegen* hook is reported at load, since
-  it changes how the compiler translates the command rather than what the
-  editor knows about it.
+  them. Naming a *lowering* hook is reported at load, since it changes how
+  the compiler translates the command rather than what the editor knows
+  about it. A *codegen-axis stamp* — `codegen_hook`, `inline_codegen_hook`,
+  or `semantic_operation {Intrinsic …}` — goes further: it survives only on
+  a bundled pack's command whose `alias_of` names the shipped builtin that
+  carries it, and the load drops it everywhere else with a warning naming
+  the provenance and the target (the stamp rejection rule); a stamp in a
+  window is the same stamp, held to the same rule and dropped from the windows
+  when refused. A pack a
+  package ships, beside its `tclpkg.tcl`, is narrowed further by how far the
+  package sits from the workspace root: a transitive or development
+  dependency's pack also loses `alias_of` and a `runtime_backing`, each with
+  a warning naming the tier (the capability gate).
 - `command NAME -override { … }` claims a name a shipped spec already
-  has; without it, shipped wins and the collision is reported.
+  has; without it, shipped wins and the collision is reported. An
+  override keeps the shipped command's security facts and its
+  compiler-side identity — the two codegen hooks, `lowering_hook`,
+  `analyser_hook`, `semantic_operation`, `state_transitions`,
+  `native_lowering`, `bpf_op` and `runtime_backing`, with the windows beside
+  the four stamps — wherever the shipped command has one, and gives no notice
+  that it did. A command that ships a stamp, plain or in a window, leaves its
+  override no window of its own.
 
 ## What a pack cannot author
 
@@ -839,7 +1027,9 @@ the summary is:
 | `completion` | a compiler proof obligation, not a description of the command. See the rationale below. |
 | `dispatch_dependencies` | specialisation-proof machinery whose meaning is defined by the optimiser; `fields.md` itself says "leave unset". |
 | `data_collection`, `bpf_op` | shared named descriptors, referenced by name — the boundary spec-packs.md's bucket 2 draws. `data_collection`'s descriptor is paired with protocol machinery outside the registry; `bpf_op` is a closed compiler catalogue. |
-| the `resolver` of `world_effects` / `state_transitions` | a function producing typed transition facts; the resolver is `-native`, `none`, or a derivation keyword. The surrounding typed data is not authorable: `world_effects_value` and `state_transitions_value` accept the `composition` row. Unsupported or invalid semantic rows exclude the command from strong analysis; they cannot become an empty descriptor. See [`spec-packs.md`](../registry/spec-packs.md) for the supported pack boundary. |
+| the `resolver` of `world_effects`, and the non-alias facts of `state_transitions` | a function producing typed effect or transition facts. `world_effects`' resolver is `-native`, `none`, or a derivation keyword, and `world_effects_value` still reads only the `composition` row, excluding unsupported semantic rows with a notice. `state_transitions` loads every row, and its `resolver` may be a body — but that body states variable-cell alias facts only; a command-binding, interpreter, object-dispatch or trace fact stays `-native` ([`spec-packs.md`](../registry/spec-packs.md) § What a pack still cannot say). |
+Unsupported or invalid semantic rows cannot become an empty effect or transition
+descriptor. They exclude the command from strong analysis with a semantic notice.
 
 ### Why `completion` is excluded and `const_fold` is not
 
@@ -898,15 +1088,21 @@ it is not itself a loadable block; the loadable one is the snit port:
 
 ```tcl
 definition_body {
-    family Snit                              ;# TclOo | Snit | Itcl | JimClass
-    member method     -roles {0 Name 1 ParamList 2 Body}
-    member superclass -all-refs Class -slot Set
-    member variable   -all-vars -slot Append -dedup
-    member property   -kind FlagKeyed -dialects tcl9.0+
-    member self       -kind Wrapper -block-body
-    member export     -all-refs Method -visibility Exported
-    member renamemethod -all-refs Method -retracts FirstArgument
-    member option                            ;# keyword-only
+    family Snit                  ;# TclOo | Snit | Itcl | JimClass | SpecTcl | SslicTcl
+    member method     -roles {0 Name 1 ParamList 2 Body} \
+                      -effect {callable -receiver instance -role method}
+    member constructor -roles {0 ParamList 1 Body} \
+                      -effect {callable -receiver instance -role constructor}
+    member forward    -roles {0 Name 1 CommandName} -effect forward
+    member superclass -all-refs Class -slot Set -effect {relation superclass}
+    member variable   -all-vars -slot Append -dedup -effect {state-declaration per-instance}
+    member property   -kind FlagKeyed -dialects tcl9.0+ -effect configuration
+    member self       -kind Wrapper -block-body -roles {0 Body} -effect configuration \
+                      -shift {-receiver type-object}
+    member export     -all-refs Method -visibility Exported -effect visibility
+    member renamemethod -all-refs Method -retracts FirstArgument -effect retraction
+    member typeconstructor -roles {0 Body} -effect {init-script -timing at-definition}
+    member option     -effect {state-declaration option}    ;# keyword-only
     member_option method 1 -export -role Option -visibility Public -dialects tcl9.0+
     implicit_vars {self selfns type options}
     member_body_namespace_path {::oo::Helpers}
@@ -922,8 +1118,23 @@ definition_body {
 }
 ```
 
-Four notes:
+Six notes:
 
+- **Every `member` row states its `-effect`** — what the member declares,
+  in the member-effect vocabulary
+  (`docs/design/compiler/registry-consumer-contracts.md` § *The
+  member-effect descriptor*): a callable on the instances or the type
+  object, a forward, state, a relation, a visibility change, a
+  retraction, a definition-time script, or configuration. A row without
+  one is dropped with a notice. A `callable`, `forward` or `init-script`
+  slot left unwritten is the first `-roles` position typed `Name`,
+  `ParamList` or `Body` (a forward's prefix: `CommandName`, then
+  `CommandPrefix`), so the usual row writes only its receiver and role.
+- **A wrapper's `-shift`** says what it does to the member it wraps:
+  `-receiver type-object` moves it to the class object (`self`),
+  `-visibility private|unexported|public` declares its visibility
+  (`private`, itcl's access modifiers). The wrapper's own effect is
+  `configuration`.
 - **`-roles {N ROLE …}` is the field.** `MemberSpec::arg_roles` is a list
   of (index, role) pairs, which is what spells snit's `onconfigure -option
   valueVar BODY`, whose roles sit at 1 and 2 with index 0 carrying none.
@@ -937,13 +1148,15 @@ Four notes:
   (`bare_word_construction_hint` in `definer.rs`) it is an exact-word set plus a prefix set —
   `%AUTO%`, or a leading `.`. A family whose hint is not that shape
   keeps `-native`.
-- **`member_option` is spelled, not ported.** It is the one
-  `MemberSpec` field the snit grammar does not exercise
-  (`optional_argument`); its witnesses are the shipped TclOO rows
-  `method ?-export|-private|-unexport?` and `definitionnamespace
-  ?-class|-instance?`, read from `definer.rs`. It is a
-  sibling row keyed by the member keyword and the fixed position, so
-  option-bearing members stay rows rather than growing a nested block.
+- **`member_option` is a sibling row.** It is the one `MemberSpec`
+  field the snit grammar does not exercise (`optional_argument`); its
+  witnesses are the shipped TclOO rows `method ?-export|-private|-unexport?`
+  and `definitionnamespace ?-class|-instance?`, and the `SpecTcl`
+  document's `command NAME ?-override?`. Keyed by the member keyword and
+  the fixed position, one row per accepted spelling, so option-bearing
+  members stay rows rather than growing a nested block. Every shipped
+  grammar, spelt out inline this way, reloads as itself — the studio's
+  round-trip gate checks each.
 
 `body_scope` takes the same treatment, one level smaller —
 `ScopedCommandEnv` is four fields and `ScopedCommand` is six:
@@ -1052,14 +1265,14 @@ What each port loses, if anything, against its `.rs`.
 | port | fidelity | what is missing |
 |---|---|---|
 | `lsort` | **complete** | — |
-| `foreach` | **complete** | the resolver's `u8::try_from` guard becomes the loader's index cap, which is the same behaviour stated once instead of per hook |
+| `foreach` | **complete** | the retired role resolver became the shipped clause grammar, and the port declares the same one: a group row citing the `repeat` layout and the body tail |
 | `switch` | **complete** | — |
-| `if` | **complete, and smaller** | two hook functions (~110 lines of Rust) become a three-line grammar; the derived walk agrees with `walk_if` on its whole test matrix |
+| `if` | **complete, and smaller** | two hook functions (~110 lines of Rust) became a four-row grammar — in the shipped spec too; the walk agrees with the retired `walk_if` on its whole test matrix |
 | `string` (4 subcommands) | **near-complete** | `string is`'s `const_fold_versioned` stays `-native`. Its Rust is a version-aware classifier (per-class availability floors, 8.x/9.x magnitude caps, radix prefixes, digit separators, ambiguous-form bail-outs); a Tcl body would be a re-implementation, not a port. `length` / `map` / `range` port fully — but see the note below. |
-| `oo::class` | **partial** | The three subcommands' `state_transitions` resolvers are `-native`: they emit typed `CommandBinding::Define` + `ObjectDispatch::Create` facts that the DSL cannot construct. Composition, argument shape, widening, effect coverage and commit are data. Argument roles are derived from the `manufacturer` rows; the keyword and body-index projections of `TCLOO_GRAMMAR.manufacturers` and `TCLOO_ROOT_CLASS_MANUFACTURERS` must agree. Their differing `new` visibility does not supply an argument-role equivalence claim. |
+| `oo::class` | **partial** | Typed `CommandBinding::Define` and `ObjectDispatch::Create` resolver facts remain native. Composition, argument shape, widening, effect coverage and commit are authorable data; missing native resolver ids cannot establish those strong facts. Argument roles derive from `manufacturer` rows: the keyword and body-index projections of `TCLOO_GRAMMAR.manufacturers` and `TCLOO_ROOT_CLASS_MANUFACTURERS` must agree. Their differing `new` visibility does not itself supply equivalence. |
 | `uri::geturl` + `http::geturl` | **complete** | — |
 | `HTTP::header` | **complete** | including the shipped spec's `credential_arg 2` on `insert`/`replace`, carried verbatim. Design review verified it is **not** an off-by-one: the W310 consumer (`security.rs::emit_w310_hardcoded_credentials`) indexes with the *subcommand word at 0* (`args[0]` = `insert`, `args[1]` = header name, `args[2]` = value), so `2` is the value slot as consumed — the schema help text's "index after the subcommand word" is the erroneous half. A loader must store this field verbatim, **not** re-base it to after-subcommand coordinates |
-| `upvar` | **near-complete** | `state_transitions.resolver` becomes `from-frame-effect`. That is a *derivation claim*, not a transcription: it asserts that the alias facts `upvar_state_transitions` produces are exactly determined by `AliasPairs` + `ArityParity`. Reading the Rust, they are — but an implementation must prove it, not assume it, and must match the two abstention policies pinned under "Derivations, exactly". |
+| `upvar` | **near-complete** | `state_transitions.resolver` becomes `from-frame-effect`. That is a *derivation claim*, not a transcription: it asserts that the alias facts `upvar_state_transitions` produces are exactly determined by `AliasPairs` + `ArityParity`. On literal words they are; on a computed word the derivation takes the two abstentions pinned under "Derivations, exactly", where the shipped resolver states the alias with an unknown subject — the derivation widens instead, which is the pack contract. |
 | `snit::type` + `SNIT_GRAMMAR` | **complete** | all 14 `DefinitionBodyGrammar` fields, 15 member rows, 6 built-in object methods, the `install` member-body command with its handle binding, and the single `create` manufacturer, transcribed field for field. The one field that is a function pointer in the Rust — `bare_word_construction_hint` — becomes data (`-hint-values {%AUTO%} -hint-prefixes {.}`), which is a transcription of a two-clause boolean, not a derivation. Deliberate omissions, each equal to the Rust default: `member_body_namespace_path` (`&[]`), `builtin_terminating_methods` (`&[]`), `unknown_dispatch_method` (`None`), `property_accessor_methods` (`&[]`). `snit::widget` / `snit::widgetadaptor` are **not** ported: they carry `SNIT_WIDGET_GRAMMAR`, a second constant differing in `implicit_vars` and `member_body_commands` only. |
 | `return` | **complete** | including the option-arity hook: `errorstack_value`'s four outcomes port one-for-one, with `string is list` standing in for `split_list_raw`'s `Ok`/`Err` because the sandbox has no `catch` (the two agree on which words are lists). `arg_role_resolver` and `context_gate` are Tcl bodies; `lowering_hook` / `inline_codegen_hook` stay `-native`, which is the closed-catalogue rule, not a loss. The three-example `examples` string is one `example` block, not three rows — see the newline rule. |
 
@@ -1169,6 +1382,7 @@ schema order. "excluded" rows carry the reason.
 | `forms` | `form KIND {synopsis} ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per form; the three releases are `FormSpec.lifecycle` |
 | `command_forms` | `refine NAME { … }` | one block per invocation form (2.0); the body takes `arity`, `selector {WORD …} ?-exact?`, `arg N -role R`, `option …`, the four `option_*` relations, `available`/`dialects`, `traits`, `mutator`, `side_effect …` / `side_effects none`. An omitted overlay inherits, so `traits {}` and no `traits` row are different declarations. The descriptor's native halves (`completion`, `dispatch_dependencies`, `literal_argument_validator`) stay Rust-only and a form carrying one is reported, not thinned. Plain `forms` still only documents synopsis/lifecycle. |
 | `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | an operation identity, so it keeps the enum spelling rather than `-native` |
+| `semantic_operation_windows` | `semantic_operation SPELLING -introduced V ?-deprecated V? ?-retired V?` | since 2.2; one row per window, beside the plain row. Repeatable, must not overlap, and a window the primary release does not settle selects nothing |
 | `completion` | **excluded** | `CompletionDescriptor` describes the command's *control-flow edges*, so a wrong value corrupts the CFG rather than one value — see "Why `completion` is excluded and `const_fold` is not". The traits `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` stay authorable and cover the standard codes |
 | `assigns_variable_at` | `assigns_variable_at N` |  |
 | `safe_on_uninit` | `safe_on_uninit {SET …}` |  |
@@ -1176,14 +1390,16 @@ schema order. "excluded" rows carry the reason.
 | `const_fold_versioned` | `const_fold_versioned {words ctx} { … }` \| `-native ID` | same, with `tcl-version` in `ctx` |
 | `lowering_hook` | `lowering_hook -native ID` | closed catalogue |
 | `codegen_hook` | `codegen_hook -native ID` | closed catalogue |
+| `codegen_hook_windows` | `codegen_hook -native ID -introduced V ?-deprecated V? ?-retired V?` | since 2.2; the plain row with a lifecycle is one window, as `arity`'s is. Repeatable, must not overlap |
 | `inline_codegen_hook` | `inline_codegen_hook -native ID` | closed catalogue |
+| `inline_codegen_hook_windows` | `inline_codegen_hook -native ID -introduced V ?-deprecated V? ?-retired V?` | the same lifecycle-window contract |
 | `bpf_op` | `bpf_op -native ID` | BPF dialect only; unsupported by the loader |
 | `analyser_hook` | `analyser_hook -native ID` | closed catalogue |
 | `return_type_hook` | `return_type_hook -native ID` | closed catalogue; names the algorithm that types a call whose result shape moves with the call (`lsearch -inline`, `regsub`'s positional count). `return_type` stays the one-value-per-command answer and the hook wins over it |
 | `command_table_effect` | `command_table_effect DefinesProcedure\|RenamesCommands\|CreatesAliases` |  |
 | `side_effects` | `side_effect TARGET ?-reads? ?-writes? ?-side S? ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per effect; the three releases are `SideEffect.lifecycle` |
-| `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only. **Only `composition` is loaded**; other rows exclude the command from strong analysis with a semantic notice; this includes native `VARIABLE_READ`, `VARIABLE_WRITE`, and `VARIABLE_READ_MODIFY_WRITE` variable effects on `set` forms, `incr`, `append`, `lappend`, `lassign`, and `lset` |
-| `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit; `resolver` takes `none`, `from-frame-effect`, or `-native ID`. **Only `composition` is loaded**; other rows exclude the command from strong analysis with a semantic notice; this includes native success-edge resolvers and `VARIABLE_READ`, `VARIABLE_WRITE`, and `VARIABLE_READ_MODIFY_WRITE` variable effects on `set` forms, `incr`, `append`, `lappend`, `lassign`, and `lset` |
+| `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only. **Only `composition` is loaded**; unsupported semantic rows exclude strong analysis with a notice |
+| `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit, every row loaded; `resolver` takes `none`, `from-frame-effect`, `-native ID`, or a body whose verbs are `alias LOCAL TARGET ?-level LEVEL?` / `namespace-variable NAME` (variable-cell alias facts only); no call = no transitions |
 | `dispatch_dependencies` | **excluded** | specialisation-proof machinery whose meaning is defined by the optimiser, not by the command; fields.md itself says "leave unset" |
 | `result_stability` | `result_stability Unknown\|ReferentiallyTransparent\|Volatile\|{ReadsVersionedWorld {D …}}` |  |
 | `literal_argument_validator` | `literal_argument_validator {words ctx} { … }` \| `-native ID` | emitter verbs `invalid …` / `abstain REASON`; no call = valid |
@@ -1198,8 +1414,9 @@ schema order. "excluded" rows carry the reason.
 | `data_collection` | `data_collection -native ID` | reference-only: the collect/release descriptor is paired with protocol machinery outside the registry |
 | `side_switch_target` | `side_switch_target Client\|Server` |  |
 | `event_handler_priority` | `event_handler_priority -default N ?-warn-implicit?` |  |
-| `options` | `option NAME ?-flag value? …` | one row per option; see the option flag table |
+| `options` | `option NAME ?-flag value? …` | one row per option; see the option flag table. `-effect {disables\|selects AXIS VALUE}\|{suppresses-role ROLE}\|{reserves-trailing-words N}\|ends-options` and `-family NAME` declare the option's option-effect descriptor — see "Options with semantic effects" |
 | `option_relations` | `option_conflict {TERM …}` / `option_requires SUBJECT {TERM …}` / `option_requires_one_of SUBJECT {TERM …}` / `option_forbids SUBJECT {TERM …}`, each `?-dialects {…}? ?-message {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per relation; a relation only exists once both its operands do, which is what its own three releases say. A term is `-name`, `{-name value}`, `{arg N}` or `{arg N value}`; an empty subject (`{}`) makes the relation unconditional |
+| `option_effect_families` | `option_effect_family NAME { base all-on\|all-off\|{only AXIS VALUE} combine accumulate\|last-wins ?-introduced V? }` | one row per family; the options that cite it by name (`-family NAME`) share where its axis starts and how they combine — see "Options with semantic effects" |
 | `option_placement` | `option_placement Leading\|Anywhere` | where the command's options may be found — `Leading` (the default, and what core Tcl's C option loops do) stops at the first non-option word; `Anywhere` keeps recognising them between positionals up to `--` |
 | `reserved_trailing_words` | `reserved_trailing_words N` |  |
 | `arg_values` | `arg N -values {v …}` \| `arg N -values-from NAME` | `values NAME { … }` declares the shared table, whose rows carry `-min-tcl` (the Tcl axis) and the three releases (the package axis) independently |
@@ -1235,11 +1452,13 @@ schema order. "excluded" rows carry the reason.
 | `xc_translatable` | `xc_translatable yes\|no` | argument required — absent means unset |
 | `deprecated_replacement` | `deprecated_replacement NAME` |  |
 | `deprecated_replacement_drop_in` | `deprecated_replacement_drop_in ?yes\|no?` |  |
+| `alias_of` | `alias_of NAME` | the shipped builtin this pack command is — the target whose own codegen-axis stamps a bundled pack may carry (`docs/design/compiler/registry-consumer-contracts.md` § "The loader's stamp rejection rule"); dropped, with a warning, from a transitive or development dependency's pack |
+| `runtime_backing` | `runtime_backing none\|host-native\|shipped-builtin ID\|tcl-body {-package-source PATH ?-evaluate?}\|tcl-body {-pack-text {TEXT} ?-evaluate?}` | how the command's behaviour reaches the runtime (`docs/design/compiler/registry-consumer-contracts.md` § "Four rungs of codegen meeting `.tclspec`", rung 4); every shipped core command declares one, and an unstated one reads as `none`. A `-pack-text` body is reported at load; a backing is dropped, with a warning, from a transitive or development dependency's pack. `-evaluate`, before or after the source, is the author's assertion that the analyser may run the body to fold a call: no declared implementation is derived from a body without it |
 | `byte_array_payload` | `byte_array_payload -replace-data-index N ?-message-flag-shift?` |  |
 | `byte_array_effect` | `byte_array_effect None\|Transparent\|Coerces\|CaseFolds\|Encodes\|{Rebinarifies N}` |  |
 | `definition_body` | `definition_body NAME\|{ … }` | a shipped grammar by name (`tcloo`, `tcloo-configurable`, `snit`, `snit-widget`, `itcl`), a pack `descriptor`, or the inline block — see "Definer grammars and scoped bodies" |
 | `manufacturer_methods` | `manufacturer KEYWORD ?-unexported? ?-names-instance-at N? ?-definition-body-at N? -constructor-args-from N` | one row per method |
-| `case_list` | `case_list NAME\|{ … }` | `switch` / `expect` by name, or the 19 plain-data fields inline |
+| `case_list` | `case_list NAME\|{ … }` | `switch` / `expect` by name, or the plain-data fields inline (the match-mode, case-folding and terminator switches are option rows' effects) |
 | `oo_context_facts` | `oo_context_fact WORD FACT` | one row per fact |
 | `self_receiver_words` | `self_receiver_words {WORD …}` |  |
 | `object_class` | `object_class NAME` \| `object_class NAME ?-superclass {…}? ?-allow-unknown? ?-method-prefix-matching Enabled\|Strict? { method … }` | `method` rows reuse the `subcommand` body grammar; method matching defaults to `Strict` |
@@ -1284,12 +1503,15 @@ schema order. "excluded" rows carry the reason.
 | `const_fold_versioned` | `const_fold_versioned {words ctx} { … }` \| `-native ID` | same, with `tcl-version` in `ctx` |
 | `lowering_hook` | `lowering_hook -native ID` | closed catalogue |
 | `codegen_hook` | `codegen_hook -native ID` | closed catalogue |
+| `codegen_hook_windows` | `codegen_hook -native ID -introduced V ?-deprecated V? ?-retired V?` | since 2.2; the plain row with a lifecycle is one window, as `arity`'s is. Repeatable, must not overlap |
 | `inline_codegen_hook` | `inline_codegen_hook -native ID` | closed catalogue |
+| `inline_codegen_hook_windows` | `inline_codegen_hook -native ID -introduced V ?-deprecated V? ?-retired V?` | since 2.2; the same contract |
 | `analyser_hook` | `analyser_hook -native ID` | closed catalogue |
 | `return_type_hook` | `return_type_hook -native ID` | closed catalogue; names the algorithm that types a call whose result shape moves with the call (`lsearch -inline`, `regsub`'s positional count). `return_type` stays the one-value-per-command answer and the hook wins over it |
 | `command_table_effect` | `command_table_effect DefinesProcedure\|RenamesCommands\|CreatesAliases` |  |
-| `options` | `option NAME ?-flag value? …` | one row per option; see the option flag table |
+| `options` | `option NAME ?-flag value? …` | one row per option; see the option flag table. `-effect {disables\|selects AXIS VALUE}\|{suppresses-role ROLE}\|{reserves-trailing-words N}\|ends-options` and `-family NAME` declare the option's option-effect descriptor — see "Options with semantic effects" |
 | `option_relations` | `option_conflict {TERM …}` / `option_requires SUBJECT {TERM …}` / `option_requires_one_of SUBJECT {TERM …}` / `option_forbids SUBJECT {TERM …}`, each `?-dialects {…}? ?-message {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per relation; a relation only exists once both its operands do, which is what its own three releases say. A term is `-name`, `{-name value}`, `{arg N}` or `{arg N value}`; an empty subject (`{}`) makes the relation unconditional |
+| `option_effect_families` | `option_effect_family NAME { base all-on\|all-off\|{only AXIS VALUE} combine accumulate\|last-wins ?-introduced V? }` | one row per family; the options that cite it by name (`-family NAME`) share where its axis starts and how they combine — see "Options with semantic effects" |
 | `option_placement` | `option_placement Leading\|Anywhere` | where the command's options may be found — `Leading` (the default, and what core Tcl's C option loops do) stops at the first non-option word; `Anywhere` keeps recognising them between positionals up to `--` |
 | `min_abbrev` | `min_abbrev N` |  |
 | `prefix_matching` | `prefix_matching Enabled\|Strict` |  |
@@ -1297,6 +1519,7 @@ schema order. "excluded" rows carry the reason.
 | `versioned_arg_values` | `versioned_arg_value N VALUE ?-introduced V? ?-deprecated V? ?-retired V?` | one row per gate; the same statement is legal in a `command` body since 1.1 |
 | `subcommand_forms` | `refine NAME { … }` | the subcommand-level twin of `command_forms`, one grammar and one reader |
 | `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | an operation identity, so it keeps the enum spelling rather than `-native` |
+| `semantic_operation_windows` | `semantic_operation SPELLING -introduced V ?-deprecated V? ?-retired V?` | since 2.2; one row per window, beside the plain row. Repeatable, must not overlap, and a window the primary release does not settle selects nothing |
 | `completion` | **excluded** | `CompletionDescriptor` describes the command's *control-flow edges*, so a wrong value corrupts the CFG rather than one value — see "Why `completion` is excluded and `const_fold` is not". The traits `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` stay authorable and cover the standard codes |
 | `dialects` | `dialects {SET …}` | absent inherits the parent command's set |
 | `introduced_version` | `introduced_version V` | `Lifecycle.introduced` |
@@ -1322,8 +1545,8 @@ schema order. "excluded" rows carry the reason.
 | `pattern_type` | `pattern_type Glob\|Regex` |  |
 | `format_string_type` | `format_string_type Sprintf\|Clock\|Binary\|Regsub` |  |
 | `side_effects` | `side_effect TARGET ?-reads? ?-writes? ?-side S? ?-dialects {…}?` | one row per effect |
-| `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only. **Only `composition` is loaded**; other rows exclude the command from strong analysis with a semantic notice; this includes native `VARIABLE_READ`, `VARIABLE_WRITE`, and `VARIABLE_READ_MODIFY_WRITE` variable effects on `set` forms, `incr`, `append`, `lappend`, `lassign`, and `lset` |
-| `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit; `resolver` takes `none`, `from-frame-effect`, or `-native ID`. **Only `composition` is loaded**; other rows exclude the command from strong analysis with a semantic notice; this includes native success-edge resolvers and `VARIABLE_READ`, `VARIABLE_WRITE`, and `VARIABLE_READ_MODIFY_WRITE` variable effects on `set` forms, `incr`, `append`, `lappend`, `lassign`, and `lset` |
+| `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only. **Only `composition` is loaded**; unsupported semantic rows exclude strong analysis with a notice |
+| `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit, every row loaded; `resolver` takes `none`, `from-frame-effect`, `-native ID`, or a body whose verbs are `alias LOCAL TARGET ?-level LEVEL?` / `namespace-variable NAME` (variable-cell alias facts only); no call = no transitions |
 | `dispatch_dependencies` | **excluded** | specialisation-proof machinery whose meaning is defined by the optimiser, not by the command; fields.md itself says "leave unset" |
 | `result_stability` | `result_stability Unknown\|ReferentiallyTransparent\|Volatile\|{ReadsVersionedWorld {D …}}` |  |
 | `literal_argument_validator` | `literal_argument_validator {words ctx} { … }` \| `-native ID` | emitter verbs `invalid …` / `abstain REASON`; no call = valid |

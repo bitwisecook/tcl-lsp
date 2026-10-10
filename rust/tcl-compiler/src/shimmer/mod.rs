@@ -181,38 +181,32 @@ pub(crate) fn committed_from_label(
 ///    versions of a variable (S101).
 /// 3. **Expression** ([`expr`]): arithmetic/comparison operators used with
 ///    the wrong operand type (S100).
+///
+/// `sccp` is the function's own lattice: its reachability, its constants,
+/// and the folded types its evaluations state — a computed value's
+/// representation decides whether a use of it converts
+/// ([`hints::is_free_first_conversion`]).
 #[must_use]
 #[cfg(test)]
 pub(crate) fn find_shimmer_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<BlockId>,
+    sccp: &crate::sccp::SccpResult,
     registry: &CommandRegistry,
-    values: &HashMap<ValueKey, crate::analyses::LatticeValue>,
-    executable_edges: &HashSet<(BlockId, BlockId)>,
 ) -> Vec<ShimmerWarning> {
-    find_shimmer_warnings_with_context(
-        cfg,
-        ssa,
-        types,
-        executable_blocks,
-        ShimmerContext::standalone(registry),
-        values,
-        executable_edges,
-    )
+    find_shimmer_warnings_with_context(cfg, ssa, types, sccp, ShimmerContext::standalone(registry))
 }
 
 pub(crate) fn find_shimmer_warnings_with_context(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<BlockId>,
+    sccp: &crate::sccp::SccpResult,
     context: ShimmerContext<'_>,
-    values: &HashMap<ValueKey, crate::analyses::LatticeValue>,
-    executable_edges: &HashSet<(BlockId, BlockId)>,
 ) -> Vec<ShimmerWarning> {
     let registry = context.registry();
+    let executable_blocks = &sccp.executable_blocks;
     // The committed-intrep dataflow (first-use commit) is shared by the
     // use-site and expr detectors: it tells each use whether the value has
     // already committed a different intrep on every path (a genuine second
@@ -223,39 +217,84 @@ pub(crate) fn find_shimmer_warnings_with_context(
         ssa,
         source: crate::ssa::SsaSourceView::unpositioned(ssa),
         types,
-        values,
+        values: &sccp.values,
+        folded: &sccp.folded_types,
     };
     let facts = ShimmerFacts {
-        commit: commit::compute_commit_facts(cfg, &commit_ctx, executable_blocks, executable_edges),
+        commit: commit::compute_commit_facts(
+            cfg,
+            &commit_ctx,
+            executable_blocks,
+            &sccp.executable_edges,
+        ),
         loop_blocks: graph::loop_body_blocks(cfg),
     };
+    // A use reads the type a refinement in force at its block proves.
+    let in_force = crate::type_infer::types_in_force(types, sccp);
     let mut out = Vec::new();
     out.extend(use_site::find_use_site_shimmers_with_context(
         cfg,
-        ssa,
-        types,
-        executable_blocks,
-        context,
-        values,
+        &commit_ctx,
+        (executable_blocks, &in_force),
         &facts,
     ));
     out.extend(phi::find_phi_shimmers(
         cfg,
         ssa,
         types,
-        executable_blocks,
+        sccp,
         &facts.loop_blocks,
     ));
     out.extend(expr::find_expr_shimmers_with_context(
         cfg,
-        ssa,
-        types,
-        executable_blocks,
-        values,
-        context,
+        &commit_ctx,
+        (executable_blocks, &in_force),
         &facts,
     ));
     out
+}
+
+/// The type lattice as one block's statements and terminator read it: the
+/// type a refinement in force at the block proves of a version
+/// ([`crate::type_infer::types_in_force`]) — the arm of `[string is integer
+/// -strict $x]` reads `x` as an integer — and otherwise the version's own.
+#[derive(Clone, Copy)]
+pub(crate) struct BlockTypes<'a> {
+    own: &'a HashMap<ValueKey, TypeLattice>,
+    in_force: Option<&'a HashMap<(BlockId, ValueKey), TypeLattice>>,
+    block: BlockId,
+}
+
+impl<'a> BlockTypes<'a> {
+    /// `own` as `block` reads it under the refinements `in_force`.
+    pub(crate) fn at(
+        own: &'a HashMap<ValueKey, TypeLattice>,
+        in_force: &'a HashMap<(BlockId, ValueKey), TypeLattice>,
+        block: BlockId,
+    ) -> Self {
+        Self {
+            own,
+            in_force: Some(in_force),
+            block,
+        }
+    }
+
+    /// `own` read with no refinement in force.
+    #[cfg(test)]
+    pub(crate) fn unrefined(own: &'a HashMap<ValueKey, TypeLattice>, block: BlockId) -> Self {
+        Self {
+            own,
+            in_force: None,
+            block,
+        }
+    }
+
+    /// The type `key` holds in the block.
+    pub(crate) fn get(&self, key: ValueKey) -> Option<&'a TypeLattice> {
+        self.in_force
+            .and_then(|in_force| in_force.get(&(self.block, key)))
+            .or_else(|| self.own.get(&key))
+    }
 }
 
 /// Per-function facts the three shimmer sub-passes share, each computed once
@@ -290,13 +329,7 @@ pub fn find_shimmer_warnings_for_cu(
             continue;
         };
         out.extend(find_shimmer_warnings_with_context(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            context,
-            &fu.sccp.values,
-            &fu.sccp.executable_edges,
+            &fu.cfg, &fu.ssa, &fu.types, &fu.sccp, context,
         ));
     }
     out
@@ -325,6 +358,7 @@ pub fn first_use_commitments_for_cu(
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
             values: &fu.sccp.values,
+            folded: &fu.sccp.folded_types,
         };
         let facts = commit::compute_commit_facts(
             &fu.cfg,
@@ -481,17 +515,11 @@ pub fn find_sharing_warnings_for_cu(
 pub(crate) fn find_byte_array_warnings_with_context(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    executable_blocks: &HashSet<BlockId>,
+    sccp: &crate::sccp::SccpResult,
     context: ShimmerContext<'_>,
     payload_layouts: &HashMap<&'static str, BytePayloadSpec>,
 ) -> Vec<ShimmerWarning> {
-    byte_array::find_byte_array_warnings_with_context(
-        cfg,
-        ssa,
-        executable_blocks,
-        context,
-        payload_layouts,
-    )
+    byte_array::find_byte_array_warnings_with_context(cfg, ssa, sccp, context, payload_layouts)
 }
 
 /// Find every byte-array-corruption warning (S110) across a whole compilation
@@ -511,7 +539,7 @@ pub fn find_byte_array_warnings_for_cu(
         out.extend(find_byte_array_warnings_with_context(
             &fu.cfg,
             &fu.ssa,
-            &fu.sccp.executable_blocks,
+            &fu.sccp,
             context,
             &payload_layouts,
         ));
@@ -551,23 +579,14 @@ mod tests {
                 registry: &registry(),
                 traced_variables: &std::collections::BTreeSet::new(),
                 has_dynamic_variable_trace: false,
+                deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
+                analysis_context: None,
+                existence: None,
             },
         );
         let types: HashMap<ValueKey, TypeLattice> = HashMap::new();
-        assert_eq!(
-            find_shimmer_warnings(
-                &f,
-                &ssa,
-                &types,
-                &sccp.executable_blocks,
-                &registry(),
-                &sccp.values,
-                &sccp.executable_edges,
-            )
-            .len(),
-            0
-        );
-        assert_eq!(
+        assert!(find_shimmer_warnings(&f, &ssa, &types, &sccp, &registry()).is_empty());
+        assert!(
             find_thunking_warnings(
                 &f,
                 &ssa,

@@ -40,6 +40,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::ListIndex),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("lindex"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         const_fold: Some(crate::const_fold::fold_lindex),
         traits: Traits::FRAMELESS_RUNTIME
@@ -78,6 +79,9 @@ pub fn spec() -> CommandSpec {
                 },
             ),
         ],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     }
 }

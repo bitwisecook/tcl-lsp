@@ -189,6 +189,10 @@ pub enum VarError {
     /// A write/unset of a `const` variable (`can't set "name": variable is a
     /// constant`; the command supplies the `set`/`incr`/`unset` verb).
     IsConstant,
+    /// A store that would land outside the running procedure's own frame while
+    /// stores are confined (`can't set "name": stores are confined to the
+    /// activation`; `Interp::confine_stores`).
+    Confined,
 }
 
 /// Original indexed alias settlement rejects an occupied or observed local.

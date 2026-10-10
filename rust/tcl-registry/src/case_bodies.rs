@@ -61,19 +61,8 @@ impl CaseListSpec {
         )?;
         let list_index = layout.clause_list_index;
         let inline_start = layout.inline_clause_start;
-        let selection_unknown = layout.subject_index.is_some_and(|index| {
-            values[index].is_none()
-                && !values[..index].contains(&self.end_options_option)
-                && self
-                    .option_scan_reserved_for_arguments(
-                        arguments,
-                        arguments
-                            .dialect()
-                            .and_then(crate::InvocationDialect::authoring_query),
-                        2,
-                    )
-                    .is_none_or(|reserved| count != 2 || reserved != 2)
-        });
+        let selection_unknown =
+            self.subject_selection_is_unknown(arguments, options, &values, layout.subject_index);
         let no_match_possible;
         let patterns;
         let bodies = if let Some(argument) = list_index {
@@ -140,6 +129,36 @@ impl CaseListSpec {
             selection_unknown,
             no_match_possible,
         })
+    }
+
+    fn subject_selection_is_unknown(
+        self,
+        arguments: InvocationArguments<'_>,
+        options: &[&crate::hover::OptionSpec],
+        values: &[Option<&str>],
+        subject: Option<usize>,
+    ) -> bool {
+        let Some(index) = subject.filter(|index| values[*index].is_none()) else {
+            return false;
+        };
+        let query = arguments
+            .dialect()
+            .and_then(crate::InvocationDialect::authoring_query);
+        let Some(reserved) = self.option_scan_reserved_for_arguments(arguments, query, 2) else {
+            return true;
+        };
+        if values.len() == 2 && reserved == 2 {
+            return false;
+        }
+        let effects = crate::option_effect::option_effects_over(
+            options,
+            &[],
+            arguments,
+            reserved,
+            query,
+            crate::abbrev::PrefixMatching::Enabled,
+        );
+        !(effects.complete && effects.ended_by_marker && effects.option_end <= index)
     }
 
     fn clauses_are_exhaustive(
@@ -229,6 +248,61 @@ mod tests {
             selection.no_match_possible,
             "event keyword does not imply exhaustive input matching"
         );
+    }
+
+    #[test]
+    fn selected_end_marker_uses_declared_effect_and_skips_option_values() {
+        // Software descriptor contract, independent of any Native worker/frame.
+        // A marker-shaped option value is data; the selected EndsOptions row
+        // provides the boundary even when its declared name is not `--`.
+        use crate::InvocationWord::{Dynamic, Literal};
+        use crate::hover::{OptionSpec, OptionValue};
+        use crate::option_effect::{OptionEffect, OptionEffectKind};
+        let value_option = OptionSpec {
+            name: "-takes",
+            value: OptionValue::value("value"),
+            ..OptionSpec::DEFAULT
+        };
+        let marker = OptionSpec {
+            name: "-stop",
+            effect: Some(OptionEffect {
+                kind: OptionEffectKind::EndsOptions,
+                family: "source-boundary",
+            }),
+            ..OptionSpec::DEFAULT
+        };
+        let options = [&value_option, &marker];
+        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let spec = CaseListSpec::SWITCH;
+        let data_marker = [
+            Literal("-takes"),
+            Literal("--"),
+            Dynamic,
+            Literal("a {set x 1}"),
+        ];
+        let selected = spec
+            .possible_body_operands(
+                InvocationArguments::structured(&data_marker).with_dialect(dialect),
+                &options,
+            )
+            .expect("possible bodies with unknown subject");
+        assert!(selected.selection_unknown);
+        assert_eq!(selected.bodies[0].argument, 3);
+        let ended = [
+            Literal("-takes"),
+            Literal("--"),
+            Literal("-stop"),
+            Dynamic,
+            Literal("a {set x 1}"),
+        ];
+        let selected = spec
+            .possible_body_operands(
+                InvocationArguments::structured(&ended).with_dialect(dialect),
+                &options,
+            )
+            .expect("genuine selected end marker");
+        assert!(!selected.selection_unknown);
+        assert_eq!(selected.bodies[0].argument, 4);
     }
 
     #[test]

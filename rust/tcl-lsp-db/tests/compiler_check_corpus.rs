@@ -246,8 +246,7 @@ fn compiler_check_memo_matches_uncached_over_corpus() {
 }
 
 /// Corpus-scale **random-edit** differential for the memoised checks path
-/// (SRV-INCREMENTAL Task 2b gate — the random-edit fuzzer over real source the
-/// status table flags as "still to build").  The sweep above compares memo vs
+/// over real source. The sweep above compares memo vs
 /// uncached on a *fresh* db per file; this drives each file through a fuzzed
 /// **edit sequence** on one **warm** db — prepending blank lines (an offset
 /// shift the per-proc memo must reuse), appending a fuzzed synthetic proc (a
@@ -347,4 +346,98 @@ fn compiler_check_memo_matches_uncached_under_corpus_edits() {
         bad.len(),
         bad.join("\n")
     );
+}
+
+/// The memoised and the whole-module build agree on `src`, byte for byte, and
+/// return what the memoised one drew.
+fn memo_checked(
+    db: &TclDatabase,
+    file: SourceFile,
+    dialect: &str,
+    src: &str,
+) -> std::sync::Arc<tcl_lsp_db::CompilerDiagnostics> {
+    let got = compiler_check_diagnostics(db, file, default_config(db));
+    let registry = db.registry(dialect);
+    let want = compiler_check_diagnostics_uncached(src, registry, dialect, None, None);
+    assert_eq!(
+        got.checks, want.checks,
+        "checks diverge (memo vs uncached): {src}"
+    );
+    assert_eq!(
+        got.optimisations, want.optimisations,
+        "optimisations diverge (memo vs uncached): {src}"
+    );
+    got
+}
+
+/// A write no statement of a procedure shows — an arm of a `switch` the flow
+/// graph keeps as one statement, directly or through a callee that sets the
+/// caller's variable, a callback script stored elsewhere in the module, a
+/// command prefix built with `list`, a variable trace's callback — leaves the
+/// procedure's stale value
+/// unfolded on the memoised path exactly as on the whole-module one, and a
+/// callback an edit adds anywhere re-keys every procedure's lattice, so a
+/// warm memo never serves the fold the callback has since made wrong.
+#[test]
+fn compiler_check_memo_matches_uncached_for_hidden_writes() {
+    use tcl_compiler::compiler_checks::DiagCode;
+    let dialect = "tcl8.6";
+    let folds = |opts: &[tcl_compiler::optimiser::Optimisation]| {
+        opts.iter().any(|o| {
+            o.code == DiagCode::O112
+                || (matches!(o.code, DiagCode::O100 | DiagCode::O102) && o.replacement == "1")
+        })
+    };
+    let control = "proc p {} {\n set go 1\n if {$go} { puts a } else { puts b }\n puts $go\n}\n";
+    for src in [
+        "proc p {s} {\n set go 1\n switch -glob -- $s { q* { set go 0 } }\n if {$go} { puts a } else { puts b }\n puts $go\n}\n",
+        "after 100 { set go 0 }\nproc p {} {\n set go 1\n if {$go} { puts a } else { puts b }\n puts $go\n}\n",
+        "proc p {} {\n set go 1\n trace add variable x write { set ::go 0 ;# }\n set x 1\n if {$go} { puts a } else { puts b }\n puts $go\n}\n",
+        "proc zero {v} {upvar 1 $v x; set x 0}\nproc p {s} {\n set go 1\n switch -glob -- $s { q* { zero go } }\n if {$go} { puts a } else { puts b }\n puts $go\n}\n",
+        "after 100 [list set go 0]\nproc p {} {\n set go 1\n if {$go} { puts a } else { puts b }\n puts $go\n}\n",
+    ] {
+        let db = TclDatabase::default();
+        let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);
+        let got = memo_checked(&db, file, dialect, src);
+        assert!(!folds(&got.optimisations), "{src}: {:?}", got.optimisations);
+    }
+    // The control folds; the edit that adds a callback elsewhere stops it.
+    let mut db = TclDatabase::default();
+    let file = SourceFile::new(&db, control.to_owned(), dialect.to_owned(), None);
+    let got = memo_checked(&db, file, dialect, control);
+    assert!(folds(&got.optimisations), "{:?}", got.optimisations);
+    let edited = format!("after 100 {{ set go 0 }}\n{control}");
+    file.set_text(&mut db).to(edited.clone());
+    let got = memo_checked(&db, file, dialect, &edited);
+    assert!(!folds(&got.optimisations), "{:?}", got.optimisations);
+}
+
+/// The iRules flow checks read the same lattice on the memoised path: a flag
+/// a `switch` arm sets leaves the guarded `HTTP::respond` and `drop`
+/// reachable, so IRULE1201 and IRULE5002 are drawn, and an arm's write of
+/// `svc` is a second write that keeps IRULE4004 off `set svc foo`.
+#[test]
+fn compiler_check_memo_matches_uncached_for_irules_flow_checks() {
+    use tcl_compiler::compiler_checks::DiagCode;
+    let dialect = "f5-irules";
+    let drawn = |src: &str, code: DiagCode| {
+        let db = TclDatabase::default();
+        let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);
+        memo_checked(&db, file, dialect, src)
+            .checks
+            .iter()
+            .any(|check| check.code == code)
+    };
+    assert!(drawn(
+        "when HTTP_REQUEST { set is_api 0; switch -glob [HTTP::uri] { \"/api*\" { set is_api 1 } }; if {$is_api} { HTTP::respond 403 }; HTTP::header insert X-Seen 1 }\n",
+        DiagCode::Irule1201
+    ));
+    assert!(drawn(
+        "when CLIENT_ACCEPTED { set bad 0; switch -glob [IP::client_addr] { 10.* { set bad 1 } }; if {$bad} { drop } }\n",
+        DiagCode::Irule5002
+    ));
+    assert!(!drawn(
+        "when HTTP_REQUEST { set svc foo; switch -glob [HTTP::uri] { /a* { set svc bar } }; pool $svc }\n",
+        DiagCode::Irule4004
+    ));
 }

@@ -47,6 +47,7 @@ expect_relevant rust/tcl-lsp-server/tests/e2e/completion.rs
 expect_relevant rust/tcl-compiler/src/lib.rs
 expect_relevant rust/tcl-registry/src/spec.rs
 expect_relevant rust/tcl-vm/src/lib.rs
+expect_relevant runtime/rust/src/lib.rs
 expect_relevant Cargo.toml
 expect_relevant Cargo.lock
 expect_relevant .cargo/config.toml
@@ -68,7 +69,6 @@ expect_unrelated docs/design/compiler/wasm-native-lowering.md
 expect_unrelated editors/vscode/src/test/runTest.ts
 expect_unrelated rust/tcl-lsp-server-wasm/src/lib.rs
 expect_unrelated rust/tcl-irule-test/src/lib.rs
-expect_unrelated runtime/rust/src/lib.rs
 expect_invalid ""
 
 # A missing or malformed committed closure must never classify a path as

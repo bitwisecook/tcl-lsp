@@ -673,6 +673,7 @@ fn pack_include_links(
     for pack in segment_commands_with_offset_and_config(source, 0, config) {
         // `speclib NAME VERSION { … }` — the pack body is the fourth word, and
         // the document grammar admits no other statement at the root.
+        // value-transfer-ok: irreducible — the pack grammar's own statements
         if pack.texts.first().is_none_or(|head| head != "speclib") {
             continue;
         }
@@ -687,6 +688,7 @@ fn pack_include_links(
             continue;
         };
         for row in segment_commands_with_offset_and_config(body_text, body_start, config) {
+            // value-transfer-ok: irreducible — the pack grammar's own statements
             if row.texts.first().is_none_or(|head| head != "include") || row.texts.len() != 2 {
                 continue;
             }
@@ -1783,8 +1785,8 @@ mod original_document_link_tests {
 
 #[cfg(test)]
 mod original_hosted_document_link_tests {
-    use super::*;
     use super::tests::path_analysis;
+    use super::*;
     use tcl_compiler::analyser::Analyser;
 
     #[test]

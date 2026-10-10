@@ -30,6 +30,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pkg::create",
+        runtime_backing: RuntimeBacking::package_source("package.tcl"),
         // A Tcl-level library procedure (`library/package.tcl`, documented on
         // its own dedicated `packagens.n` manual page — identical NAME and
         // SYNOPSIS text on Tcl 8.4, 8.5, 8.6, 9.0, and 9.1; OPTIONS text

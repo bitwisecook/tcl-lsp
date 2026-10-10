@@ -584,6 +584,9 @@ mod tests {
                 registry: &registry,
                 traced_variables: &BTreeSet::new(),
                 has_dynamic_variable_trace: false,
+                deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
+                analysis_context: None,
+                existence: None,
             },
         );
         let g = extract_function_dataflow::<std::collections::hash_map::RandomState>(

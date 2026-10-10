@@ -4528,6 +4528,7 @@ impl Value {
                 "native dictionary key updater",
             )
         })?;
+        value.check_native_header()?;
         if !matches!(*self.0.intrep.borrow(), IntRep::Dict(_)) {
             drop(self.native_object_dict_pairs(protocol)?);
         }
@@ -4542,10 +4543,13 @@ impl Value {
                 .is_some_and(|bytes| bytes == key_bytes)
         });
         if let Some(index) = existing {
-            Rc::make_mut(&mut contents.pairs)[index].1 = value;
+            Rc::make_mut(&mut contents.pairs)[index].1 = value.into_native_reference();
         } else {
             contents.hash_order.insert(&key_bytes);
-            Rc::make_mut(&mut contents.pairs).push((key, value));
+            // Dictionary storage owns each original child independently of
+            // borrowed invocation/search transport leases, just as DictRep::new does.
+            Rc::make_mut(&mut contents.pairs)
+                .push((key.into_native_reference(), value.into_native_reference()));
         }
         dict.epoch.set(epoch);
         *self.0.string.borrow_mut() = None;
@@ -5755,6 +5759,106 @@ impl std::fmt::Debug for Value {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_dictionary_member_publication_owns_borrowed_live_children() {
+        // A software ownership control for the member-publication boundary.
+        // Whole public writeback observations are checked independently by
+        // naming.dictionary.update-with-body-and-observer-frontiers:
+        // docs/design/analysis/name-resolution-proofs/dictionary-update-with-body-and-observer-frontiers.md.
+        for protocol in [
+            NativeStringProtocol::C(tcl_dialect::TclVersion::V8_5),
+            NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6),
+            NativeStringProtocol::C(tcl_dialect::TclVersion::V9_0),
+            NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1),
+            NativeStringProtocol::Jim084,
+        ] {
+            let root = Value::dict(Vec::new());
+            let mut dictionary = root.prepare_native_dictionary(protocol).unwrap();
+            drop(root);
+            let key = Value::new_native_string_bytes(b"key\0tail".as_slice());
+            let key_lease = key.native_lifetime_lease();
+            let first = Value::int(37);
+            let first_lease = first.native_lifetime_lease();
+            dictionary
+                .set_member(
+                    key.native_lifetime_lease().into_value(),
+                    first.native_lifetime_lease().into_value(),
+                )
+                .unwrap();
+            assert_eq!(key.native_object_reference_count(), 2);
+            assert_eq!(first.native_object_reference_count(), 2);
+            drop((key, first));
+            assert_eq!(key_lease.value().native_object_reference_count(), 1);
+            assert_eq!(first_lease.value().native_object_reference_count(), 1);
+            assert!(first_lease.value().resident_string_bytes().is_none());
+
+            let replacement_key = Value::new_native_string_bytes(b"key\0tail".as_slice());
+            let replacement_key_lease = replacement_key.native_lifetime_lease();
+            let replacement = Value::int(41);
+            let replacement_lease = replacement.native_lifetime_lease();
+            dictionary
+                .set_member(
+                    replacement_key.native_lifetime_lease().into_value(),
+                    replacement.native_lifetime_lease().into_value(),
+                )
+                .unwrap();
+            assert!(!first_lease.value().native_object_is_live());
+            assert_eq!(replacement_key.native_object_reference_count(), 1);
+            assert_eq!(replacement.native_object_reference_count(), 2);
+            drop((replacement_key, replacement));
+            assert!(!replacement_key_lease.value().native_object_is_live());
+            assert_eq!(replacement_lease.value().native_object_reference_count(), 1);
+            dictionary
+                .original()
+                .with_cached_dictionary_representation(|pairs, _| {
+                    assert_eq!(pairs.len(), 1);
+                    assert!(pairs[0].0.is_same_object(key_lease.value()));
+                    assert!(pairs[0].1.is_same_object(replacement_lease.value()));
+                })
+                .unwrap();
+            assert_eq!(
+                replacement_lease
+                    .value()
+                    .native_string_bytes(protocol)
+                    .unwrap()
+                    .as_ref(),
+                b"41"
+            );
+            drop(dictionary);
+            assert!(!key_lease.value().native_object_is_live());
+            assert!(!replacement_lease.value().native_object_is_live());
+            assert_eq!(replacement_lease.value().native_object_reference_count(), 0);
+        }
+    }
+
+    #[test]
+    fn native_dictionary_member_publication_refuses_retired_lifetime_handles() {
+        let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
+        let root = Value::dict(Vec::new());
+        let mut dictionary = root.prepare_native_dictionary(protocol).unwrap();
+        drop(root);
+        let child = Value::int(37);
+        let child_lease = child.native_lifetime_lease();
+        drop(child);
+        assert!(!child_lease.value().native_object_is_live());
+        let result = dictionary.set_member(
+            Value::new_native_string_bytes(b"key".as_slice()),
+            child_lease.value().native_lifetime_lease().into_value(),
+        );
+        assert!(matches!(
+            result,
+            Err(ValueError::CommandProtocolUnavailable(
+                "retired native object header"
+            ))
+        ));
+        assert_eq!(child_lease.value().native_object_reference_count(), 0);
+        assert!(!child_lease.value().native_object_is_live());
+        dictionary
+            .original()
+            .with_cached_dictionary_representation(|pairs, _| assert!(pairs.is_empty()))
+            .unwrap();
+    }
+
     #[test]
     fn native_dictionary_constructor_retains_first_original_key_and_last_value() {
         let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V9_0);

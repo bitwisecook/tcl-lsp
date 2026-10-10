@@ -110,6 +110,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("lreverse"),
         const_fold: Some(crate::const_fold::fold_lreverse),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::CSE_CANDIDATE,
         // Added in Tcl 8.5 (TIP 272) — absent from the 8.4 manpage tree and
@@ -136,6 +137,9 @@ pub fn spec() -> CommandSpec {
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     }
 }

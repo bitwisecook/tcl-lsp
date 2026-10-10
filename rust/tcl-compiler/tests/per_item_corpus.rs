@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Slice-2b corpus gate: `analyse_per_item` must equal `analyse` byte-for-byte
+//! Corpus differential: `analyse_per_item` must equal `analyse` byte-for-byte
 //! over the real-world `tmp/` corpus (the per-item walk decomposition must
 //! converge to exactly a full rebuild). Corpus-gated (`--ignored`), mirroring
 //! `differential_incremental`.
@@ -130,7 +130,7 @@ fn per_item_matches_analyse_over_corpus() {
         mismatches.join("\n")
     );
     eprintln!(
-        "slice-2b gate: {checked} files, analyse_per_item == analyse ({fellback} trivially-fellback)"
+        "per-item equivalence: {checked} files, analyse_per_item == analyse ({fellback} trivially-fellback)"
     );
 }
 

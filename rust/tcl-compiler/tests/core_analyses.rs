@@ -725,11 +725,13 @@ proc wire_namespace_vars {} {
     }
 
     #[test]
-    fn list_cmd_with_const_vars_diverges_overdefined() {
-        // `list` folds only over literal args, not var refs → Overdefined.
-        // tclsh: `list puts hello` → puts hello.
+    fn list_cmd_with_const_vars_folds_through_the_lattice() {
+        // The registry-owned `list` route reads its operands from the
+        // lattice, so constant variables fold like literals. tclsh 8.4, 8.5,
+        // 8.6, 9.0 and 9.1: `set x puts; set y hello; list $x $y` →
+        // puts hello.
         let cu = build("set x puts\nset y hello\nset cmd [list $x $y]");
-        assert_overdefined_or_absent(&cu.top_level, "cmd", 1, "list with var args");
+        assert_const_str(&cu.top_level, "cmd", 1, "puts hello");
     }
 
     #[test]
@@ -1027,19 +1029,18 @@ mod provably_absent_folds_false {
     }
 
     #[test]
-    fn lazy_init_reuse_branch_is_dead_for_local_diverges() {
-        // The existence-folder folds only the two FP-free cases — a
-        // *never-defined* local (→ false) and a *parameter* (→ true). Here H is
-        // defined in the `else` arm (`set H 1`), so it is "defined somewhere" and
-        // the folder deliberately bails (declining flow-sensitive
-        // must-not-be-defined reasoning). That is sound — it just omits the
-        // optional I230 hint. tclsh confirms the underlying fact (`info exists H`
-        // of an unset local → 0), but the conservative non-fold is the actual
-        // verdict.
+    fn lazy_init_reuse_branch_is_dead_for_local() {
+        // The existence rung decides the query where it runs: H is unbound
+        // at the check — the `else` arm's `set H 1`
+        // runs after it — so the guard folds always false and the reuse arm
+        // is dead. tclsh 8.4.20 to 9.1b0: `info exists H` of an unset local
+        // → 0.
         let src = "proc authorize {} {\n    if {[info exists H]} {\n        set reuse 1\n    } else {\n        set H 1\n    }\n}";
         assert!(
-            i230_messages(src).is_empty(),
-            "Rust declines to fold (H is assigned in the else arm); got {:?}",
+            i230_messages(src)
+                .iter()
+                .any(|m| m.contains("always false")),
+            "H is unbound at the check; got {:?}",
             i230_messages(src)
         );
     }
@@ -1069,16 +1070,14 @@ mod provably_present_folds_true {
     use super::*;
 
     #[test]
-    fn set_before_check_diverges_no_fold() {
-        // The existence-folder folds to TRUE only for a *parameter*; a plain
-        // `set` makes X "defined somewhere", which it does not promote to a
-        // must-exist fold (that needs flow-sensitive must-define reasoning). It
-        // bails — sound, no I230. tclsh agrees on the fact: `set X 1; info exists
-        // X` → 1.
+    fn set_before_check_folds_true() {
+        // The existence rung carries the `set` to the check: X is bound
+        // there, so the guard folds always true.
+        // tclsh 8.4.20 to 9.1b0: `set X 1; info exists X` → 1.
         let src = "proc p {} { set X 1; if {[info exists X]} { puts ok } else { puts dead } }";
         assert!(
-            !i230_messages(src).iter().any(|m| m.contains("always true")),
-            "Rust does not fold a `set`-defined local to must-exist; got {:?}",
+            i230_messages(src).iter().any(|m| m.contains("always true")),
+            "a `set`-defined local exists at the check; got {:?}",
             i230_messages(src)
         );
     }
@@ -1200,17 +1199,26 @@ mod array_exists_parameter_is_false {
     }
 
     #[test]
-    fn tn_unset_parameter_abstains() {
-        // TN: `unset a` removes the scalar binding, after which `array set a`
-        // legitimately makes `a` an array — the fold must abstain, as it
-        // already did for the `info` spelling.
-        for src in [
-            "proc p {a} { unset a; array set a {x 1}; if {[array exists a]} { puts x } else { puts y } }",
-            "proc p {a} { unset a; if {[array exists a]} { puts x } else { puts y } }",
+    fn unset_parameter_follows_the_rung() {
+        // `unset a` removes the scalar binding, after which `array set a`
+        // legitimately makes `a` an array: the existence rung follows both,
+        // so the parameter's entry "scalar" never
+        // decides here. tclsh 8.4.20 to 9.1b0 print 1 for the first body and
+        // 0 for the second.
+        for (src, value) in [
+            (
+                "proc p {a} { unset a; array set a {x 1}; if {[array exists a]} { puts x } else { puts y } }",
+                true,
+            ),
+            (
+                "proc p {a} { unset a; if {[array exists a]} { puts x } else { puts y } }",
+                false,
+            ),
         ] {
-            assert!(
-                branch_values(src).is_empty(),
-                "an unset parameter must abstain; got {:?} for {src:?}",
+            assert_eq!(
+                branch_values(src),
+                vec![value],
+                "the unset parameter's array query follows the rung for {src:?}; got {:?}",
                 i230_messages(src)
             );
         }
@@ -1309,13 +1317,21 @@ mod soundness_gates {
     }
 
     #[test]
-    fn nested_command_sub_assignment_is_not_folded() {
-        // `set y [set X 1]` creates X with no SSA def → folder must not treat X
-        // as absent. tclsh: `set y [set X 1]; info exists X` → 1.
-        assert!(!fires(
+    fn nested_command_sub_assignment_is_not_folded_as_absent() {
+        // `set y [set X 1]` creates X: the folder must not treat X as absent, and
+        // the statement's evaluation says it is set. tclsh: `set y [set X 1]; info
+        // exists X` → 1.
+        let messages = i230_messages(
             "proc p {} { set y [set X 1]; if {[info exists X]} { puts a } else { puts b } }",
-            "I230"
-        ));
+        );
+        assert!(
+            messages.iter().any(|m| m.contains("always true")),
+            "{messages:?}"
+        );
+        assert!(
+            !messages.iter().any(|m| m.contains("always false")),
+            "{messages:?}"
+        );
     }
 
     #[test]
@@ -1389,24 +1405,40 @@ mod flow_sensitive_narrowing {
     }
 
     #[test]
-    fn and_pure_right_keeps_both_facts_diverges() {
-        // The analyser narrows only a single top-level existence guard, not an
-        // `&&` conjunction, so with `[info exists X] && [info exists Y]` both X
-        // and Y are still flagged. The reads are guard-safe in Tcl; the
-        // over-warn is sound (it never suppresses a real read). Asserted at the
-        // actual verdict.
-        let f = flagged("if {[info exists X] && [info exists Y]} { puts $X$Y }");
+    fn and_pure_right_keeps_both_facts() {
+        // The existence guard refines through `&&`:
+        // with X and Y set on one path, `[info exists X] && [info exists Y]`
+        // binds both on its true edge, so neither read is flagged — tclsh
+        // reads both only when both exist. With neither ever set the guard
+        // decides false, the arm is dead, and a read there carries no fact.
+        let f = flagged(
+            "if {[string length $cmd]} { set X 1; set Y 1 }\n\
+             if {[info exists X] && [info exists Y]} { puts $X$Y }",
+        );
         assert!(
-            f.contains("X") && f.contains("Y"),
-            "Rust does not narrow through `&&`; both X and Y flagged; got {f:?}"
+            !f.contains("X") && !f.contains("Y"),
+            "both facts narrow the arm; got {f:?}"
+        );
+        let dead = flagged("if {[info exists X] && [info exists Y]} { puts $X$Y }");
+        assert!(
+            !dead.contains("X") && !dead.contains("Y"),
+            "a dead arm reports nothing; got {dead:?}"
         );
     }
 
     #[test]
     fn and_impure_right_drops_left_fact() {
         // An impure right operand could mutate X before the branch, so the left
-        // `info exists X` fact must not narrow the body → X stays flagged.
-        assert!(flagged("if {[info exists X] && [otherproc]} { puts $X }").contains("X"));
+        // `info exists X` fact must not narrow the body → X stays flagged. X
+        // is set on one path, so the guard decides nothing (a never-set X
+        // makes the arm dead, where no read reports).
+        assert!(
+            flagged(
+                "if {[string length $cmd]} { set X 1 }\n\
+                 if {[info exists X] && [otherproc]} { puts $X }"
+            )
+            .contains("X")
+        );
     }
 }
 

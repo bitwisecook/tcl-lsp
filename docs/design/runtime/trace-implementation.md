@@ -291,7 +291,7 @@ variable's own list out of the table before firing (C moves it to a dummy
 callback revives carries no traces.
 
 Re-entrancy is suppressed per scope: a variable trace pushes its scope onto
-`active_var_scopes` for the duration of the callback, so a callback touching
+`active_var_trace_scopes` for the duration of the callback, so a callback touching
 the same variable does not re-fire itself. Command-trace firing is gated the
 way C gates it — **per command**, on the command whose traces are running
 (`CMD_TRACE_ACTIVE`, and `CMD_DYING` for a deletion), not interpreter-wide: a

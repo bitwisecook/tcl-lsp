@@ -23,7 +23,7 @@
 //! `.tclspec` text out, so a shipped spec can be *exported* to a pack, a pack
 //! can be round-tripped through the studio's editor, and the studio's DSL pane
 //! has something to show. The syntax is the frozen one in
-//! `docs/design/spec-dsl-examples/README.md`, and the eleven `*.tclspec` ports
+//! `docs/design/spec-dsl-examples/README.md`, and the twelve `*.tclspec` ports
 //! beside it are the formatting exemplars: one-screen simple commands, row
 //! statements rather than nested blocks, `\`-continued option rows with the
 //! prose flag last.
@@ -179,6 +179,14 @@ pub struct Gap {
 /// a failure.
 pub const GAPS: &[Gap] = &[
     Gap {
+        // Shipped names preserve the entire original grammar, including its
+        // native object-method operation. Inline authoring cannot assert that
+        // operation, so a custom grammar that retains one is withheld whole.
+        key: "definition_body",
+        spelling: "definition_body NAME|{ … }",
+        kind: GapKind::Excluded,
+    },
+    Gap {
         key: "nested_native_compilation",
         spelling: "sub_subcommand NAME -native_compilation CONTRACT",
         kind: GapKind::Excluded,
@@ -226,32 +234,36 @@ pub const GAPS: &[Gap] = &[
     // data all the way down, and its method table *is* `&[SubCommand]`, so
     // seeding now carries the whole thing and the renderer writes it as
     // `object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }`.
-    // What still lives here is genuinely opaque: a function pointer, or a
-    // reference to a shared registry constant a pack can only name.
+    // `definition_body` followed once every member row states its effect: a
+    // grammar is seeded as the shipped name it equals or as the whole block,
+    // and written as `definition_body NAME` or `definition_body { … }`.
+    // `semantic_operation` is a closed vocabulary seeded as `{kind, detail}`
+    // and written in the loader's spelling. What still lives here is
+    // genuinely opaque: a function pointer, or a reference to a shared
+    // registry constant a pack can only name.
     Gap {
         key: "frame_effect",
         spelling: "frame_effect -level-word W -layout L",
         kind: GapKind::DraftOpaque,
     },
     Gap {
-        key: "semantic_operation",
-        spelling: "semantic_operation Invoke|{Intrinsic ID}|{StructuredLowering ID}",
-        kind: GapKind::DraftOpaque,
-    },
-    // Includes VARIABLE_READ, VARIABLE_WRITE and VARIABLE_READ_MODIFY_WRITE
-    // used by native set forms / incr / append / lappend. Their typed variable
-    // accesses are not recovered by the draft or loaded by world_effects_value;
-    // only composition is loadable. Unsupported semantic rows exclude strong
-    // analysis instead of issuing an empty descriptor. Packs cannot gain native write proof
-    // from omitted access rows or from their command's spelling.
-    Gap {
+        // Unsupported typed world accesses withdraw strong semantics; they cannot
+        // become an empty footprint or derive native write proof from a spelling.
         key: "world_effects",
         spelling: "world_effects none|NAME|{ … }",
         kind: GapKind::DraftOpaque,
     },
+    // Every row of the block loads — `resolver` a body of the
+    // `state_transitions` resolver family, `from-frame-effect`, `none` or
+    // `-native ID` — but a draft holds no hook body for any family: a body
+    // survives a form edit because the pack store carries its statement
+    // forward verbatim. So the block stays one row here and travels the same
+    // way, rather than splitting into drafted rows around a resolver the
+    // draft could only hold as opaque.
     Gap {
         key: "state_transitions",
-        spelling: "state_transitions NAME|{ … }",
+        spelling: "state_transitions NAME|{ composition … argument_shape … resolver \
+                   none|from-frame-effect|-native ID|{words ctx} {…} widen … covers … commit … }",
         kind: GapKind::DraftOpaque,
     },
     Gap {
@@ -262,11 +274,6 @@ pub const GAPS: &[Gap] = &[
     Gap {
         key: "case_list",
         spelling: "case_list NAME|{ … }",
-        kind: GapKind::DraftOpaque,
-    },
-    Gap {
-        key: "definition_body",
-        spelling: "definition_body NAME|{ … }",
         kind: GapKind::DraftOpaque,
     },
     Gap {
@@ -361,25 +368,11 @@ pub const GAPS: &[Gap] = &[
         spelling: "",
         kind: GapKind::Excluded,
     },
-    // This is a native resolver over a command's own OptionSpec table. Packs
-    // can describe the table and static pattern facts, but not arbitrary
-    // option-selected language dispatch yet; keeping it excluded makes the
-    // native-only boundary explicit until a declarative selector exists.
-    Gap {
-        key: "pattern_arg_resolver",
-        spelling: "",
-        kind: GapKind::Excluded,
-    },
-    // The same shape, over `subst`'s own switch table: which substitutions a
-    // call runs is read from options a pack can already declare, but the answer
-    // is computed, and the only commands carrying `PERFORMS_SUBSTITUTION` are
-    // core Tcl's. Excluded until a declarative selector exists, rather than
-    // inventing a Tcl-body hook family for one command.
-    Gap {
-        key: "substitution_resolver",
-        spelling: "",
-        kind: GapKind::Excluded,
-    },
+    // `substitution_resolver` and `pattern_arg_resolver` left this bucket with
+    // the option-effect descriptor: `subst`'s switch families and `lsearch`'s
+    // match styles are option rows declaring their effects, the first field is
+    // gone from `CommandSpec`, and the second remains only as an escape hatch
+    // no shipped spec sets — so the round trip never sees it set.
     // The native-lowering descriptor is the compiler's own account of how it
     // may compile a command to native code — a representation lattice and the
     // framing it is allowed to elide, meaningful only to `tcl-compiler`'s
@@ -392,6 +385,20 @@ pub const GAPS: &[Gap] = &[
         spelling: "",
         kind: GapKind::Excluded,
     },
+    Gap {
+        key: "native_lowering_windows",
+        spelling: "",
+        kind: GapKind::Excluded,
+    },
+    // `semantics` is not in this bucket: the structural half is plain data all the
+    // way down (like `object_class`), and a route with no body renders in
+    // full. What still cannot survive a bare `CommandSpec` — a declared
+    // implementation's body, which lives only in the loader's pack-hook
+    // table, and an option-level `-evaluate` decline, not yet carried back
+    // onto its option row — goes through [`native_hook`]'s existing
+    // unrecovered-field path, exactly as `const_fold`'s body does, so it
+    // needs no register entry of its own.
+    //
     // Rows of the pack-level `environment NAME { … }` block. The studio's
     // forms edit commands; an environment block is carried through an edit
     // untouched, and `tcl spec export` writes its rows as declared.
@@ -1476,6 +1483,130 @@ fn relation_term_word(expr: &str) -> Option<String> {
     Some(words.join(" "))
 }
 
+/// The `.tclspec` axis and value words from a rendered [`EffectAxis`]
+/// expression (`EffectAxis::Substitution(SubstitutionKind::Backslashes)`,
+/// `EffectAxis::CaseSensitivity`, …) — the inverse of `draft.rs`'s
+/// `effect_axis_expr`.
+fn effect_axis_words(expr: &str) -> Option<(&'static str, Option<String>)> {
+    let expr = expr.trim();
+    if expr == "EffectAxis::CaseSensitivity" {
+        return Some(("case-sensitivity", None));
+    }
+    if let Some(inner) = between(expr, "EffectAxis::Substitution(", ")") {
+        let word = match variant_of(inner) {
+            "Backslashes" => "backslashes",
+            "Commands" => "commands",
+            "Variables" => "variables",
+            _ => return None,
+        };
+        return Some(("substitution", Some(word.to_owned())));
+    }
+    if let Some(inner) = between(expr, "EffectAxis::PatternLanguage(", ")") {
+        let word = match variant_of(inner) {
+            "Glob" => "glob",
+            "Regex" => "regex",
+            _ => return None,
+        };
+        return Some(("pattern-language", Some(word.to_owned())));
+    }
+    if let Some(inner) = between(expr, "EffectAxis::Selection(", ")") {
+        let word = match variant_of(inner) {
+            "Exact" => "exact",
+            "Glob" => "glob",
+            "Regexp" => "regexp",
+            "Other" => "other",
+            _ => return None,
+        };
+        return Some(("selection", Some(word.to_owned())));
+    }
+    None
+}
+
+/// The `option_effect_family NAME { … }` rows from a rendered
+/// `&[OptionEffectFamily]` — the inverse of `draft.rs`'s
+/// `option_effect_families_expr`.
+fn option_effect_family_rows(expr: &str) -> Option<Vec<Vec<String>>> {
+    let mut rows = Vec::new();
+    for item in slice_items(expr)? {
+        let fields = struct_fields(item)?;
+        let name = word(&rust_str(fields.get("name")?)?)?;
+        let base_expr = (*fields.get("base")?).trim();
+        let base = if base_expr == "FamilyBase::AllOn" {
+            "all-on".to_owned()
+        } else if base_expr == "FamilyBase::AllOff" {
+            "all-off".to_owned()
+        } else {
+            let inner = between(base_expr, "FamilyBase::Only(", ")")?;
+            let (axis, value) = effect_axis_words(inner)?;
+            value.map_or_else(
+                || format!("{{only {axis}}}"),
+                |v| format!("{{only {axis} {v}}}"),
+            )
+        };
+        let combine = match variant_of(fields.get("combine")?) {
+            "Accumulate" => "accumulate",
+            "LastWins" => "last-wins",
+            _ => return None,
+        };
+        let mut block = vec![
+            "base".to_owned(),
+            base,
+            "combine".to_owned(),
+            combine.to_owned(),
+        ];
+        if let Some(inner) = unwrap_some(fields.get("surface")?) {
+            let members = dialect_names(inner)?;
+            // `-introduced V` is the one gate a family may declare — the
+            // lowest release the surface admits, on the family's own (Tcl
+            // core) axis; anything else the loader could not have produced.
+            let mut versions: Vec<&str> = members
+                .iter()
+                .filter_map(|member| member.strip_prefix("tcl"))
+                .collect();
+            versions.sort_by(|a, b| {
+                tcl_dialect::model::Version::parse(a)
+                    .ok()
+                    .cmp(&tcl_dialect::model::Version::parse(b).ok())
+            });
+            let lowest = versions.first()?;
+            if versions.len() != members.len() {
+                return None;
+            }
+            block.push("-introduced".to_owned());
+            block.push((*lowest).to_owned());
+        }
+        rows.push(vec![
+            "option_effect_family".to_owned(),
+            name,
+            braced(&block.join(" "))?,
+        ]);
+    }
+    Some(rows)
+}
+
+/// An option row's `-effect` value: `{disables|selects AXIS VALUE}`,
+/// `{suppresses-role ROLE}`, `{reserves-trailing-words N}`, or
+/// `ends-options` — read off the drafted, structured `effect` object (never
+/// `null`, checked by the caller). `None` for an unreadable kind.
+fn option_effect_block(effect: &Value) -> Option<String> {
+    match str_of(&effect["kind"]) {
+        kind @ ("disables" | "selects") => {
+            let axis = str_of(&effect["axis"]);
+            Some(match effect["value"].as_str() {
+                Some(value) => format!("{{{kind} {axis} {value}}}"),
+                None => format!("{{{kind} {axis}}}"),
+            })
+        }
+        "suppresses-role" => Some(format!("{{suppresses-role {}}}", str_of(&effect["role"]))),
+        "reserves-trailing-words" => Some(format!(
+            "{{reserves-trailing-words {}}}",
+            effect["n"].as_u64().unwrap_or(0)
+        )),
+        "ends-options" => Some("ends-options".to_owned()),
+        _ => None,
+    }
+}
+
 /// The four E-R14 option-relation rows from a rendered `&[OptionRelation]`.
 ///
 /// `option_conflict` keeps its 1.x shape exactly — statement word then the
@@ -2006,6 +2137,106 @@ fn catalogue_hook(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
     }
 }
 
+/// `semantics { effects …; result -semantic T; stores …; iterate … }` and
+/// `evaluate …`: [`crate::draft::semantics_value`]'s captured plan, or a
+/// `-native SCOPE::FIELD` placeholder — the route picker's read-only
+/// fallback — when seeding could not recover it (a shipped, compiled-in
+/// specialisation; a declared implementation's body; an option-level
+/// `-evaluate` decline). The body box itself belongs to
+/// `evaluate -implementation`'s own author-facing editor, over the route
+/// this function reads back rather than a reconstruction from `CommandSpec`.
+fn semantics_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    if unrecovered(draft, "semantics") {
+        out.line(&ctx.native("semantics").join(" "));
+        return;
+    }
+    if !ctx.set(draft, "semantics") {
+        return;
+    }
+    let value = &draft["semantics"];
+    if value.as_str() == Some("none") {
+        out.line("semantics none");
+        return;
+    }
+    let effects: Vec<&str> = as_array(&value["effects"])
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    let result = value["result"].as_str();
+    let stores = value.get("stores").filter(|v| !v.is_null());
+    let iterate = value.get("iterate").filter(|v| !v.is_null());
+    if !effects.is_empty() || result.is_some() || stores.is_some() || iterate.is_some() {
+        let mut body = Out::at(out.indent + 1);
+        if !effects.is_empty() {
+            body.line(&format!("effects {{{}}}", effects.join(" ")));
+        }
+        if let Some(result) = result {
+            body.line(&format!("result -semantic {result}"));
+        }
+        if let Some(stores) = stores {
+            let targets: Vec<String> = as_array(&stores["targets"])
+                .iter()
+                .map(ToString::to_string)
+                .collect();
+            body.line(&format!(
+                "stores -targets {{{}}} -outcome {}",
+                targets.join(" "),
+                str_of(&stores["outcome"])
+            ));
+        }
+        if let Some(iterate) = iterate {
+            let mut inner = Out::at(body.indent + 1);
+            inner.line(&format!("binder -arg {}", iterate["binder"]));
+            inner.line(&format!(
+                "iterable -arg {} -kind {}",
+                iterate["iterable"],
+                str_of(&iterate["kind"])
+            ));
+            if let Some(arg) = iterate["body"].as_u64() {
+                inner.line(&format!("body -arg {arg}"));
+            }
+            if let Some(yields) = iterate["yields"].as_str() {
+                inner.line(&format!("yield -semantic {yields}"));
+            }
+            if let Some(cardinality) = iterate["cardinality"].as_u64() {
+                inner.line(&format!("cardinality -arg {cardinality}"));
+            }
+            if iterate["zero_iterations_bind"].as_bool() == Some(true) {
+                inner.line("zero_iterations -bindings bind");
+            }
+            body.line("iterate {");
+            body.block(&inner);
+            body.line("}");
+        }
+        out.line("semantics {");
+        out.block(&body);
+        out.line("}");
+    }
+    match value["evaluation"]["kind"].as_str() {
+        Some("none") if value["evaluation"]["reason"].as_str() == Some("declared") => {
+            out.line("evaluate none");
+        }
+        Some("direct") => {
+            out.line(&format!(
+                "evaluate -direct {}",
+                str_of(&value["evaluation"]["id"])
+            ));
+        }
+        Some("expression") => {
+            out.line(&format!(
+                "evaluate -expression {}",
+                str_of(&value["evaluation"]["language"])
+            ));
+        }
+        // `none` with any reason other than `declared` — `unauthored` (no
+        // `evaluate` statement at all) chief among them, since a
+        // command/subcommand scope's own `evaluate none` cannot produce any
+        // other — and no `evaluation` key at all: nothing was said, so
+        // nothing is written.
+        _ => {}
+    }
+}
+
 /// `arity N`, `N..M`, `N..`, `..M`, `..`, plus `-step` / `-also` / `-positionals`.
 fn arity_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     if !ctx.set(draft, "arity") {
@@ -2344,6 +2575,21 @@ fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
         row.push("-min-abbrev".to_owned());
         row.push(n.to_string());
     }
+    if !option["effect"].is_null() {
+        match option_effect_block(&option["effect"]) {
+            Some(block) => {
+                row.push("-effect".to_owned());
+                row.push(block);
+                push_flag(
+                    &mut row,
+                    &mut lost,
+                    "-family",
+                    word(str_of(&option["effect"]["family"])),
+                );
+            }
+            None => lost = true,
+        }
+    }
     push_lifecycle_flags(&mut row, &mut lost, option);
     // The data form of the quick-fix hook: the same flags the command-level
     // `deprecation_fix` statement takes, wrapped in one block word. The
@@ -2575,7 +2821,8 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     enum_word(out, ctx, draft, "default_form_first_word");
     text_list(out, ctx, draft, "self_receiver_words");
 
-    // Hooks.
+    // The clause grammar, then the hooks.
+    clause_grammar_block(out, ctx, draft);
     out.gap();
     native_hook(out, ctx, draft, "arg_role_resolver");
     native_hook(out, ctx, draft, "arg_role_count_resolver");
@@ -2590,14 +2837,18 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     native_hook(out, ctx, draft, "clause_shape_check");
     native_hook(out, ctx, draft, "const_fold");
     native_hook(out, ctx, draft, "const_fold_versioned");
+    semantics_block(out, ctx, draft);
     native_hook(out, ctx, draft, "literal_argument_validator");
     native_hook(out, ctx, draft, "context_gate");
     catalogue_hook(out, ctx, draft, "lowering_hook");
     catalogue_hook(out, ctx, draft, "codegen_hook");
+    hook_window_rows(out, ctx, draft, "codegen_hook");
     catalogue_hook(out, ctx, draft, "inline_codegen_hook");
+    hook_window_rows(out, ctx, draft, "inline_codegen_hook");
     catalogue_hook(out, ctx, draft, "analyser_hook");
     catalogue_hook(out, ctx, draft, "return_type_hook");
-    gap_todo(out, ctx, draft, "semantic_operation");
+    semantic_operation_row(out, ctx, draft);
+    semantic_operation_window_rows(out, ctx, draft);
     gap_todo(out, ctx, draft, "bpf_op");
     gap_todo(out, ctx, draft, "completion");
     gap_todo(out, ctx, draft, "dispatch_dependencies");
@@ -2663,10 +2914,12 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     text(out, ctx, draft, "deprecated_replacement");
     flag(out, ctx, draft, "deprecated_replacement_drop_in");
     enum_word(out, ctx, draft, "source_deprecation_advice");
+    text(out, ctx, draft, "alias_of");
+    runtime_backing_row(out, ctx, draft);
 
     // Descriptors.
     out.gap();
-    gap_todo(out, ctx, draft, "definition_body");
+    definition_body_block(out, ctx, draft);
     manufacturer_rows(out, draft);
     gap_todo(out, ctx, draft, "case_list");
     object_class_block(out, ctx, draft);
@@ -2750,6 +3003,18 @@ fn option_block(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
                 }
             }
             None => todo(out, "option_relations"),
+        }
+    }
+    if ctx.set(draft, "option_effect_families")
+        && let Some(expr) = draft["option_effect_families"].as_str()
+    {
+        match option_effect_family_rows(expr) {
+            Some(rows) => {
+                for row in rows {
+                    out.row(&row, "");
+                }
+            }
+            None => todo(out, "option_effect_families"),
         }
     }
 }
@@ -2922,30 +3187,561 @@ fn refine_blocks(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft, key: &str) {
 
 fn manufacturer_rows(out: &mut Out, draft: &Draft) {
     for method in as_array(draft.get("manufacturer_methods").unwrap_or(&Value::Null)) {
+        out.row(&manufacturer_row(method), "");
+    }
+}
+
+/// One `manufacturer KEYWORD ?-unexported? ?-names-instance-at N?
+/// ?-definition-body-at N? ?-constructor-args-from N?` row — the command's
+/// own `manufacturer_methods` and a definition body's `manufacturers` alike.
+fn manufacturer_row(method: &Value) -> Vec<String> {
+    let mut row = vec![
+        "manufacturer".to_owned(),
+        name_word(str_of(&method["keyword"])),
+    ];
+    if str_of(&method["visibility"]) == "Unexported" {
+        row.push("-unexported".to_owned());
+    }
+    for (key, flag) in [
+        ("names_instance_at", "-names-instance-at"),
+        ("definition_body_at", "-definition-body-at"),
+    ] {
+        if let Some(n) = method[key].as_u64() {
+            row.push(flag.to_owned());
+            row.push(n.to_string());
+        }
+    }
+    if let Some(n) = method["constructor_args_from"].as_u64()
+        && n != 0
+    {
+        row.push("-constructor-args-from".to_owned());
+        row.push(n.to_string());
+    }
+    row
+}
+
+/// `runtime_backing none|host-native|shipped-builtin ID|tcl-body {…}` — the
+/// draft holds the statement's own spelling, read and re-spelled through the
+/// loader's parser ([`tcl_spectcl::BackingSyntax`]) so the row is always one
+/// the loader reads back; a spelling that does not read is a `TODO`, not a
+/// statement the loader would drop.
+fn runtime_backing_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    if !ctx.set(draft, "runtime_backing") {
+        return;
+    }
+    let Some(spelling) = draft["runtime_backing"].as_str() else {
+        return;
+    };
+    match tcl_spectcl::BackingSyntax::parse_spelling(spelling) {
+        Ok(syntax) => out.line(&format!("runtime_backing {}", syntax.spelling())),
+        Err(_) => out.comment(&format!(
+            "TODO(spectcl): `runtime_backing {spelling}` does not read; the loader \
+             takes `none`, `host-native`, `shipped-builtin ID`, `tcl-body \
+             {{-package-source PATH ?-evaluate?}}` or `tcl-body {{-pack-text {{TEXT}} \
+             ?-evaluate?}}`."
+        )),
+    }
+}
+
+/// `semantic_operation Invoke|{Intrinsic ID}|{StructuredLowering ID}` — the
+/// closed vocabulary in the loader's spelling
+/// ([`tcl_spectcl::semantic_operation_spelling`]).
+fn semantic_operation_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    let Some(value) = draft
+        .get("semantic_operation")
+        .filter(|value| !value.is_null())
+    else {
+        return;
+    };
+    if !ctx.set(draft, "semantic_operation") {
+        return;
+    }
+    match semantic_operation_word(value) {
+        Some(spelling) => out.line(&format!("semantic_operation {spelling}")),
+        None => todo(out, "semantic_operation"),
+    }
+}
+
+/// The loader's spelling of a draft semantic operation, when the closed
+/// vocabulary has one.
+fn semantic_operation_word(value: &Value) -> Option<String> {
+    let kind = str_of(&value["kind"]);
+    let detail = value["detail"].as_str();
+    tcl_spectcl::semantic_operations()
+        .find(|operation| operation.kind_str() == kind && operation.detail_str() == detail)
+        .map(tcl_spectcl::semantic_operation_spelling)
+        .and_then(|spelling| word(&spelling))
+}
+
+/// ` -introduced V -deprecated V -retired V`, for the releases a window's
+/// lifecycle states.
+fn lifecycle_flags(lifecycle: &Value) -> String {
+    let mut flags = String::new();
+    for (flag, key) in [
+        ("-introduced", "introduced"),
+        ("-deprecated", "deprecated"),
+        ("-retired", "retired"),
+    ] {
+        if let Some(at) = lifecycle.get(key).and_then(Value::as_str) {
+            let _ = write!(flags, " {flag} {at}");
+        }
+    }
+    flags
+}
+
+/// `KEY -native ID -introduced V ?-deprecated V? ?-retired V?` — one row per
+/// window of a catalogue hook (`SpecTcl` 2.2), after the plain row.
+fn hook_window_rows(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
+    let windows = format!("{key}_windows");
+    if !ctx.set(draft, &windows) {
+        return;
+    }
+    for window in as_array(&draft[windows.as_str()]) {
+        if let Some(id) = window["value"].as_str() {
+            out.line(&format!(
+                "{key} -native {id}{}",
+                lifecycle_flags(&window["lifecycle"])
+            ));
+        }
+    }
+}
+
+/// `semantic_operation SPELLING -introduced V ?-deprecated V? ?-retired V?` —
+/// one row per window of the semantic operation, after the plain row.
+fn semantic_operation_window_rows(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    if !ctx.set(draft, "semantic_operation_windows") {
+        return;
+    }
+    for window in as_array(&draft["semantic_operation_windows"]) {
+        match semantic_operation_word(&window["value"]) {
+            Some(spelling) => out.line(&format!(
+                "semantic_operation {spelling}{}",
+                lifecycle_flags(&window["lifecycle"])
+            )),
+            None => todo(out, "semantic_operation"),
+        }
+    }
+}
+
+/// `definition_body NAME` for a shipped grammar, or `definition_body { … }`
+/// spelling the grammar out row by row in the loader's vocabulary: `family`,
+/// one `member` row per member — each with its `-effect`, and a wrapper's
+/// `-shift` — one `member_option` row per accepted optional word, and the
+/// object-model rows a class family declares.
+fn definition_body_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    let Some(value) = draft
+        .get("definition_body")
+        .filter(|value| !value.is_null())
+    else {
+        return;
+    };
+    if !ctx.set(draft, "definition_body") {
+        return;
+    }
+    if let Some(name) = value.as_str() {
+        out.line(&format!("definition_body {}", name_word(name)));
+        return;
+    }
+    if as_array(&value["builtin_object_methods"])
+        .iter()
+        .any(|method| !method["operation"].is_null())
+    {
+        out.comment(
+            "TODO(spectcl): `definition_body` contains native object-method operations. \
+             Only an exact shipped grammar name preserves them; this custom block is omitted.",
+        );
+        out.losses.push(Loss {
+            key: "definition_body".to_owned(),
+            reason: "custom native object-method operations cannot be authored inline".to_owned(),
+        });
+        return;
+    }
+    let mut body = Out::at(out.indent + 1);
+    let mut lost = false;
+    body.line(&format!("family {}", str_of(&value["family"])));
+    let members = as_array(&value["members"]);
+    for member in members {
+        let row = member_row(member, &mut lost, ctx.availability);
+        body.row(&row, "-effect");
+    }
+    for member in members {
+        for row in member_option_rows(member, &mut lost, ctx.availability) {
+            body.row(&row, "");
+        }
+    }
+    for key in [
+        "implicit_vars",
+        "member_body_namespace_path",
+        "builtin_type_methods",
+    ] {
+        list_row(&mut body, &mut lost, value, key);
+    }
+    for method in as_array(&value["builtin_object_methods"]) {
         let mut row = vec![
-            "manufacturer".to_owned(),
-            name_word(str_of(&method["keyword"])),
+            "builtin_object_method".to_owned(),
+            name_word(str_of(&method["name"])),
         ];
         if str_of(&method["visibility"]) == "Unexported" {
             row.push("-unexported".to_owned());
         }
-        for (key, flag) in [
-            ("names_instance_at", "-names-instance-at"),
-            ("definition_body_at", "-definition-body-at"),
-        ] {
-            if let Some(n) = method[key].as_u64() {
-                row.push(flag.to_owned());
-                row.push(n.to_string());
-            }
-        }
-        if let Some(n) = method["constructor_args_from"].as_u64()
-            && n != 0
-        {
-            row.push("-constructor-args-from".to_owned());
-            row.push(n.to_string());
-        }
-        out.row(&row, "");
+        row.push("-receiver".to_owned());
+        row.push(str_of(&method["receiver"]).to_owned());
+        push_flag(
+            &mut row,
+            &mut lost,
+            "-detail",
+            braced(str_of(&method["detail"])),
+        );
+        body.row(&row, "-detail");
     }
+    list_row(&mut body, &mut lost, value, "builtin_terminating_methods");
+    for command in as_array(&value["member_body_commands"]) {
+        let mut row = vec![
+            "member_body_command".to_owned(),
+            name_word(str_of(&command["name"])),
+        ];
+        push_flag(
+            &mut row,
+            &mut lost,
+            "-detail",
+            braced(str_of(&command["detail"])),
+        );
+        if let Some(expr) = command["binds_handle"].as_str() {
+            push_flag(
+                &mut row,
+                &mut lost,
+                "-binds-handle",
+                binds_handle_word(expr),
+            );
+        }
+        body.row(&row, "-binds-handle");
+    }
+    if value["bare_word_construction"].as_bool() == Some(true) {
+        body.line("bare_word_construction");
+    }
+    if value["dynamic_method_dispatch"].as_bool() == Some(true) {
+        body.line("dynamic_method_dispatch");
+    }
+    for method in as_array(&value["manufacturers"]) {
+        body.row(&manufacturer_row(method), "");
+    }
+    if let Some(name) = value["unknown_dispatch_method"].as_str() {
+        let mut row = vec!["unknown_dispatch_method".to_owned()];
+        push_word(&mut row, &mut lost, word(name));
+        body.row(&row, "");
+    }
+    list_row(&mut body, &mut lost, value, "property_accessor_methods");
+    if lost {
+        unwritable(out, "definition_body");
+        return;
+    }
+    out.line("definition_body {");
+    out.block(&body);
+    out.line("}");
+}
+
+/// A `KEY {word …}` row for a non-empty name list of a definition body.
+fn list_row(out: &mut Out, lost: &mut bool, grammar: &Value, key: &str) {
+    if as_array(&grammar[key]).is_empty() {
+        return;
+    }
+    let mut row = vec![key.to_owned()];
+    push_word(&mut row, lost, str_list_word(&grammar[key]));
+    out.row(&row, "");
+}
+
+/// One `member KEYWORD …` row: the layout flags the loader reads, then the
+/// member's `-effect` and a wrapper's `-shift`.
+fn member_row(member: &Value, lost: &mut bool, algebra: bool) -> Vec<String> {
+    let mut row = vec!["member".to_owned(), name_word(str_of(&member["keyword"]))];
+    let roles: Vec<String> = as_array(&member["arg_roles"])
+        .iter()
+        .flat_map(|pair| {
+            [
+                pair["index"].as_u64().unwrap_or_default().to_string(),
+                str_of(&pair["role"]).to_owned(),
+            ]
+        })
+        .collect();
+    if !roles.is_empty() {
+        push_flag(&mut row, lost, "-roles", list_word(&roles));
+    }
+    if member["all_args_var"].as_bool() == Some(true) {
+        row.push("-all-vars".to_owned());
+    }
+    if let Some(kind) = member["all_args_ref"].as_str() {
+        row.push("-all-refs".to_owned());
+        row.push(kind.to_owned());
+    }
+    let kind = str_of(&member["kind"]);
+    if kind != "Flat" {
+        row.push("-kind".to_owned());
+        row.push(kind.to_owned());
+    }
+    if member["wrapper_block_body"].as_bool() == Some(true) {
+        row.push("-block-body".to_owned());
+    }
+    if !member["surface"].is_null() {
+        push_availability_flag(&mut row, lost, &member["surface"], algebra);
+    }
+    if let Some(retraction) = member["retraction"].as_str() {
+        row.push("-retracts".to_owned());
+        row.push(retraction.to_owned());
+    }
+    if let Some(slot) = member["slot"].as_object() {
+        row.push("-slot".to_owned());
+        row.push(str_of(&slot["default_op"]).to_owned());
+        if slot.get("dedup").and_then(Value::as_bool) == Some(true) {
+            row.push("-dedup".to_owned());
+        }
+    }
+    if let Some(visibility) = member["visibility_effect"].as_str() {
+        row.push("-visibility".to_owned());
+        row.push(visibility.to_owned());
+    }
+    push_flag(
+        &mut row,
+        lost,
+        "-effect",
+        effect_word(&member["effect"], &member["arg_roles"]),
+    );
+    if let Some(shift) = member["wrapper_shift"].as_object() {
+        let mut words = Vec::new();
+        if let Some(receiver) = shift.get("receiver").and_then(Value::as_str) {
+            words.extend(["-receiver".to_owned(), receiver.to_owned()]);
+        }
+        if let Some(visibility) = shift.get("visibility").and_then(Value::as_str) {
+            words.extend(["-visibility".to_owned(), visibility.to_owned()]);
+        }
+        push_flag(&mut row, lost, "-shift", braced(&words.join(" ")));
+    }
+    row
+}
+
+/// A member's `-effect` value in the loader's spelling. A slot the loader
+/// would position from the row's roles is left unwritten; a slot that differs
+/// is written; `None` when the effect leaves a slot empty that the roles would
+/// fill, which the loader has no spelling for.
+fn effect_word(effect: &Value, roles: &Value) -> Option<String> {
+    let first = |wanted: &[&str]| {
+        wanted.iter().find_map(|role| {
+            as_array(roles)
+                .iter()
+                .find(|pair| str_of(&pair["role"]) == *role)
+                .and_then(|pair| pair["index"].as_u64())
+        })
+    };
+    let mut words = vec![str_of(&effect["kind"]).to_owned()];
+    let mut slot = |flag: &str, key: &str, derived: Option<u64>| -> Option<()> {
+        match (effect[key].as_u64(), derived) {
+            (Some(written), Some(derived)) if written == derived => {}
+            (Some(written), _) => words.extend([flag.to_owned(), written.to_string()]),
+            (None, None) => {}
+            (None, Some(_)) => return None,
+        }
+        Some(())
+    };
+    match str_of(&effect["kind"]) {
+        "callable" => {
+            let (receiver, role) = (str_of(&effect["receiver"]), str_of(&effect["role"]));
+            slot("-name", "name_slot", first(&["Name"]))?;
+            slot("-params", "params_slot", first(&["ParamList"]))?;
+            slot("-body", "body_slot", first(&["Body"]))?;
+            let mut head = vec![
+                "callable".to_owned(),
+                "-receiver".to_owned(),
+                receiver.to_owned(),
+                "-role".to_owned(),
+                role.to_owned(),
+            ];
+            head.extend(words.drain(1..));
+            words = head;
+        }
+        "forward" => {
+            slot("-name", "name_slot", first(&["Name"]))?;
+            slot(
+                "-prefix",
+                "prefix_slot",
+                first(&["CommandName", "CommandPrefix"]),
+            )?;
+        }
+        "init-script" => {
+            slot("-body", "body_slot", first(&["Body"]))?;
+            words.extend(["-timing".to_owned(), str_of(&effect["timing"]).to_owned()]);
+        }
+        "state-declaration" => words.push(str_of(&effect["scope"]).to_owned()),
+        "relation" => words.push(str_of(&effect["slot"]).to_owned()),
+        _ => {}
+    }
+    list_word(&words)
+}
+
+/// The `member_option KEYWORD POSITION VALUE -role ROLE ?-visibility V?
+/// ?-available V?` rows of one member's optional word, one per spelling.
+fn member_option_rows(member: &Value, lost: &mut bool, algebra: bool) -> Vec<Vec<String>> {
+    let Some(optional) = member["optional_argument"].as_object() else {
+        return Vec::new();
+    };
+    let position = optional
+        .get("position")
+        .and_then(Value::as_u64)
+        .unwrap_or_default()
+        .to_string();
+    as_array(optional.get("values").unwrap_or(&Value::Null))
+        .iter()
+        .map(|value| {
+            let mut row = vec![
+                "member_option".to_owned(),
+                name_word(str_of(&member["keyword"])),
+                position.clone(),
+            ];
+            push_word(&mut row, lost, word(str_of(&value["value"])));
+            row.push("-role".to_owned());
+            row.push(str_of(&value["role"]).to_owned());
+            if let Some(visibility) = value["declared_visibility"].as_str() {
+                row.push("-visibility".to_owned());
+                row.push(visibility.to_owned());
+            }
+            if !value["surface"].is_null() {
+                push_availability_flag(&mut row, lost, &value["surface"], algebra);
+            }
+            row
+        })
+        .collect()
+}
+
+/// `clause_grammar { … } ?-available V?` — the clause-grammar descriptor, one
+/// row per statement, in the loader's spelling (`clause_grammar_value` in
+/// `tcl-spectcl`).
+///
+/// A row writes only what differs from the loader's reading of a bare row:
+/// `-timing` unless `selected`, `-pattern` for a handler slot, `-conditional`
+/// for a conditionally bound binder, `?KEYWORD?` for an optional keyword, and
+/// `-available` for a row's own releases. An empty head — the loops whose
+/// first words are a group — is no row at all.
+fn clause_grammar_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    let Some(grammar) = draft.get("clause_grammar").filter(|value| !value.is_null()) else {
+        return;
+    };
+    if !ctx.set(draft, "clause_grammar") {
+        return;
+    }
+    let mut body = Out::at(out.indent + 1);
+    let mut lost = false;
+    let head = &grammar["head"];
+    let empty_head = as_array(&head["slots"]).is_empty()
+        && str_of(&head["timing"]) == "selected"
+        && head["surface"].is_null();
+    if !empty_head {
+        clause_row(&mut body, &mut lost, ctx, "head", head);
+    }
+    for row in as_array(&grammar["rows"]) {
+        let statement = match str_of(&row["shape"]) {
+            "repeated" => "repeated",
+            "group" => "group",
+            _ => "once",
+        };
+        clause_row(&mut body, &mut lost, ctx, statement, row);
+    }
+    if !grammar["tail"].is_null() {
+        clause_row(&mut body, &mut lost, ctx, "tail", &grammar["tail"]);
+    }
+    if let Some(marker) = grammar["fallthrough_body"].as_str() {
+        let mut row = vec!["fallthrough_body".to_owned()];
+        push_word(&mut row, &mut lost, word(marker));
+        body.row(&row, "");
+    }
+    if let Some(default) = grammar["default_clause"].as_object() {
+        let mut row = vec![
+            "default_clause".to_owned(),
+            default
+                .get("row")
+                .and_then(Value::as_u64)
+                .map_or_else(|| "tail".to_owned(), |row| row.to_string()),
+        ];
+        if default.get("final_only").and_then(Value::as_bool) == Some(true) {
+            row.push("-final-only".to_owned());
+        }
+        body.row(&row, "");
+    }
+    if str_of(&grammar["selection"]) != "first-match" {
+        body.line(&format!("selection {}", str_of(&grammar["selection"])));
+    }
+    let mut closing = vec!["}".to_owned()];
+    if !grammar["surface"].is_null() {
+        push_availability_flag(
+            &mut closing,
+            &mut lost,
+            &grammar["surface"],
+            ctx.availability,
+        );
+    }
+    if lost {
+        unwritable(out, "clause_grammar");
+        return;
+    }
+    out.gap();
+    out.line("clause_grammar {");
+    out.block(&body);
+    out.row(&closing, "");
+}
+
+/// One `head` / `repeated` / `once` / `group` / `tail` row.
+fn clause_row(out: &mut Out, lost: &mut bool, ctx: &Ctx<'_>, statement: &str, row: &Value) {
+    let mut words = vec![statement.to_owned()];
+    if statement == "group" {
+        words.push(row["layout"].as_u64().unwrap_or_default().to_string());
+    } else {
+        if let Some(keyword) = row["keyword"].as_str() {
+            let spelling = if row["keyword_required"].as_bool() == Some(false) {
+                format!("?{keyword}?")
+            } else {
+                keyword.to_owned()
+            };
+            push_word(&mut words, lost, word(&spelling));
+        }
+        let slots: Vec<String> = as_array(&row["slots"])
+            .iter()
+            .map(|slot| {
+                if let Some(noise) = slot["noise"].as_str() {
+                    format!("?{noise}?")
+                } else if slot["optional"].as_bool() == Some(true) {
+                    format!("{} optional", str_of(&slot["role"]))
+                } else {
+                    str_of(&slot["role"]).to_owned()
+                }
+            })
+            .collect();
+        push_word(
+            &mut words,
+            lost,
+            if slots.is_empty() {
+                Some("{}".to_owned())
+            } else {
+                list_word(&slots)
+            },
+        );
+    }
+    let timing = str_of(&row["timing"]);
+    if timing != "selected" {
+        words.push("-timing".to_owned());
+        words.push(timing.to_owned());
+    }
+    let slots = as_array(&row["slots"]);
+    if let Some(handler) = slots.iter().find_map(|slot| slot["handler"].as_str()) {
+        words.push("-pattern".to_owned());
+        words.push(handler.to_owned());
+    }
+    if slots
+        .iter()
+        .any(|slot| slot["conditional_binding"].as_bool() == Some(true))
+    {
+        words.push("-conditional".to_owned());
+    }
+    if !row["surface"].is_null() {
+        push_availability_flag(&mut words, lost, &row["surface"], ctx.availability);
+    }
+    out.row(&words, "-timing");
 }
 
 /// `object_class NAME ?-superclass {…}? ?-allow-unknown?`
@@ -3141,6 +3937,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
         }
     }
 
+    clause_grammar_block(out_body, ctx, sub);
     native_hook(out_body, ctx, sub, "arg_role_resolver");
     native_hook(out_body, ctx, sub, "arg_role_count_resolver");
     native_hook(out_body, ctx, sub, "arg_role_layout_resolver");
@@ -3153,12 +3950,16 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     native_hook(out_body, ctx, sub, "script_timing_resolver");
     native_hook(out_body, ctx, sub, "const_fold");
     native_hook(out_body, ctx, sub, "const_fold_versioned");
+    semantics_block(out_body, ctx, sub);
     native_hook(out_body, ctx, sub, "literal_argument_validator");
     catalogue_hook(out_body, ctx, sub, "lowering_hook");
     catalogue_hook(out_body, ctx, sub, "codegen_hook");
+    hook_window_rows(out_body, ctx, sub, "codegen_hook");
     catalogue_hook(out_body, ctx, sub, "inline_codegen_hook");
+    hook_window_rows(out_body, ctx, sub, "inline_codegen_hook");
     catalogue_hook(out_body, ctx, sub, "analyser_hook");
-    gap_todo(out_body, ctx, sub, "semantic_operation");
+    semantic_operation_row(out_body, ctx, sub);
+    semantic_operation_window_rows(out_body, ctx, sub);
     gap_todo(out_body, ctx, sub, "completion");
     gap_todo(out_body, ctx, sub, "dispatch_dependencies");
     gap_todo(out_body, ctx, sub, "result_stability");
@@ -3427,6 +4228,73 @@ mod tests {
         let mut d = draft::default_command_draft();
         d.insert("name".into(), json!(name));
         d
+    }
+
+    #[test]
+    fn native_object_method_operations_keep_grammar_identity_and_explicit_inline_loss() {
+        use tcl_registry::definer::{DefinitionBodyGrammar, TCLOO_GRAMMAR};
+
+        assert_eq!(
+            draft::from_command_spec(&tcl_registry::CommandSpec {
+                name: "shipped",
+                definition_body: Some(&TCLOO_GRAMMAR),
+                ..tcl_registry::CommandSpec::DEFAULT
+            })["definition_body"],
+            json!("tcloo")
+        );
+        let mut methods = TCLOO_GRAMMAR.builtin_object_methods.to_vec();
+        let original = methods
+            .iter_mut()
+            .find(|method| method.operation.is_some())
+            .expect("a shipped native object-method operation");
+        original.detail = "custom object method";
+        let grammar = Box::leak(Box::new(DefinitionBodyGrammar {
+            builtin_object_methods: Box::leak(methods.clone().into_boxed_slice()),
+            ..TCLOO_GRAMMAR
+        }));
+        let seeded = draft::from_command_spec(&tcl_registry::CommandSpec {
+            name: "custom",
+            definition_body: Some(grammar),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        assert!(seeded["definition_body"].is_object());
+        assert!(
+            seeded["definition_body"]["builtin_object_methods"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|method| !method["operation"].is_null())
+        );
+        let (text, losses) = render_pack_reporting(&[seeded], "probe");
+        assert!(losses.iter().any(|loss| loss.key == "definition_body"));
+        assert!(text.contains("Only an exact shipped grammar name preserves them"));
+        let loaded = crate::spectcl::evaluate_pack(&text);
+        assert!(
+            loaded
+                .command("custom")
+                .unwrap()
+                .spec
+                .definition_body
+                .is_none()
+        );
+
+        let mut methods = TCLOO_GRAMMAR.builtin_object_methods.to_vec();
+        for method in &mut methods {
+            method.operation = None;
+        }
+        let without_operation = Box::leak(Box::new(DefinitionBodyGrammar {
+            builtin_object_methods: Box::leak(methods.into_boxed_slice()),
+            ..TCLOO_GRAMMAR
+        }));
+        let seeded = draft::from_command_spec(&tcl_registry::CommandSpec {
+            name: "metadata",
+            definition_body: Some(without_operation),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        assert!(
+            seeded["definition_body"].is_object(),
+            "a missing native operation cannot be identified as the shipped grammar"
+        );
     }
 
     #[test]

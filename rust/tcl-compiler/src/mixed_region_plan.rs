@@ -28,7 +28,7 @@ use tcl_registry::{
 
 use crate::backend_registry::{
     BackendPlanKind, SelectionFacts, SelectionInput, SelectionProofFailure, SelectionRegion,
-    guard_domains_for_dispatch, specialisation_proof_failures,
+    guard_domains_for_intrinsic, specialisation_proof_failures,
 };
 use crate::executable_ir::{
     CompletionId, ExecutableArgvId, ExecutableFunction, ExecutableFunctionId,
@@ -703,7 +703,7 @@ fn refine_guarded_boxed_intrinsic(
         return;
     };
 
-    let domains = guard_domains_for_dispatch(facts.dispatch_dependencies);
+    let domains = guard_domains_for_intrinsic(intrinsic, facts.dispatch_dependencies);
     let guard = GuardCondition::from_analysis(
         GuardIdentity::registry_intrinsic_with_semantics(
             intrinsic.stable_id(),
@@ -1000,7 +1000,7 @@ fn validate_intrinsic_guarded_plan(
         ));
     }
     if evidence.guarded_plan.guard().domains()
-        != guard_domains_for_dispatch(facts.dispatch_dependencies)
+        != guard_domains_for_intrinsic(intrinsic, facts.dispatch_dependencies)
     {
         return Err(MixedPlanValidationError::GuardDomainsMismatch(node.clone()));
     }
@@ -1310,7 +1310,10 @@ mod tests {
         assert_eq!(evidence.runtime_version(), tcl_dialect::TclVersion::V9_0);
         assert_eq!(
             evidence.guarded_plan().guard().domains(),
-            guard_domains_for_dispatch(evidence.dispatch_dependencies())
+            guard_domains_for_intrinsic(
+                IntrinsicId::StringLength,
+                evidence.dispatch_dependencies()
+            )
         );
         assert_eq!(evidence.guarded_plan().slow(), on.slow_path());
         assert_eq!(

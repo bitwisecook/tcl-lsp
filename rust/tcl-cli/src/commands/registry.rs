@@ -31,14 +31,14 @@ use tcl_registry::command_snapshot::{command_registry_snapshot, command_registry
 /// stable sorted-name order.
 ///
 /// The predicate is the catalogue's own "this profile is a plain Tcl release"
-/// fact ([`DialectProfile::const_fold_version`], `Some` only for the versioned
-/// Tcl profiles and `None` for every vendor dialect), so a new release added
-/// to the catalogue is snapshotted automatically, with no second list to keep
-/// in sync.
+/// fact ([`DialectProfile::is_tcl_release`], true only for the versioned Tcl
+/// profiles and false for every vendor dialect, measured fork or not), so a new
+/// release added to the catalogue is snapshotted automatically, with no second
+/// list to keep in sync.
 fn tcl_dialects() -> Vec<&'static str> {
     DialectProfile::all()
         .iter()
-        .filter(|profile| profile.const_fold_version().is_some())
+        .filter(|profile| profile.is_tcl_release())
         .map(|profile| profile.name)
         .collect()
 }
@@ -65,4 +65,19 @@ pub fn run_registry_dump(
     };
     write_text_output(&target, &json.dumps_indent2())?;
     Ok(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::tcl_dialects;
+
+    /// `--all-dialects` snapshots the Tcl releases and no vendor fork, including
+    /// the forks whose release was measured and so have an evaluation point.
+    #[test]
+    fn all_dialects_is_the_tcl_releases_and_not_a_measured_fork() {
+        assert_eq!(
+            tcl_dialects(),
+            ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"]
+        );
+    }
 }

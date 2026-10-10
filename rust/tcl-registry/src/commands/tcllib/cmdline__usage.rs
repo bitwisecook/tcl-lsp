@@ -40,6 +40,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         tcllib_package: Some("cmdline"),
         required_package: Some("cmdline"),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..CommandSpec::DEFAULT
     }
 }

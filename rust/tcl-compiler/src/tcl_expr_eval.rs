@@ -52,6 +52,11 @@
 use std::{cell::RefCell, collections::HashMap};
 
 use tcl_dialect::{NumberSyntax, StringCharacterModel};
+use tcl_registry::value_transfer::{
+    AnalysisInputs, Axis, Budget, BudgetLimit, CompletionOutcome, DeclineReason, DomainFact,
+    EvalAnswer, EvaluationState, ExactValue, ExactValueOrUnavailable, Existence, FactDomain,
+    FactView, NumericValue, RepresentationEvidence, WrittenPlace,
+};
 
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 mod native_constant;
@@ -540,6 +545,74 @@ pub fn eval_tcl_expr_with_policy(
     eval_with_config(node, env, policy)
 }
 
+/// Evaluate an expression under `env` to an integer: `Some(int)` when the
+/// result folds to an integer or an integer-valued float, `None` otherwise.
+/// A boolean answers 0 or 1.
+#[must_use]
+pub fn evaluate_expr_with_constants(expr: &ExprNode, env: &Env, policy: FoldPolicy) -> Option<i64> {
+    match eval_tcl_expr_with_policy(expr, env, policy)? {
+        TclValue::Int(i) => Some(i),
+        // A beyond-wide value is pathological here — decline rather than
+        // saturate.
+        TclValue::Big(_) => None,
+        TclValue::Float(f) => {
+            if !f.is_finite() || f.fract() != 0.0 {
+                return None;
+            }
+            // Finite integral float: saturate to the `i64` range.
+            Some(saturating_f64_to_i64(f))
+        }
+    }
+}
+
+/// Convert a finite, integer-valued `f64` to `i64`, saturating to
+/// `i64::MIN` / `i64::MAX` when the value is out of range.
+///
+/// Avoids a lossy `as` cast: the value is rendered to its exact integer
+/// decimal (`f` is integral by contract) and parsed. Out-of-range
+/// magnitudes fail to parse and saturate by sign, as an `f as i64` cast
+/// does.
+fn saturating_f64_to_i64(f: f64) -> i64 {
+    // `+ 0.0` normalises `-0.0` to `0.0` so it renders/parses as `0`, as an
+    // `as i64` cast does.
+    match format!("{:.0}", f + 0.0).parse::<i64>() {
+        Ok(i) => i,
+        Err(_) if f.is_sign_negative() => i64::MIN,
+        Err(_) => i64::MAX,
+    }
+}
+
+/// Whether `profile`'s target widens an integer past a wide and reads an
+/// infinity as a value: from 8.5, and for a caller that names no dialect
+/// (read as 9.0). An 8.4 runtime computes something else — `1 << 70` wraps
+/// to 0, `1e308 * 10` raises `floating-point value too large to represent`
+/// (tclsh 8.4) — and a profile whose runtime names no release cannot say
+/// which, so under either no such operand or result folds.
+fn widens_past_a_wide(profile: Option<&tcl_dialect::DialectProfile>) -> bool {
+    profile.is_none_or(|profile| {
+        profile
+            .runtime_base
+            .is_some_and(|release| release >= tcl_dialect::TclVersion::V8_5)
+    })
+}
+
+/// Whether `value` is past the wide tower under the grammar: a beyond-wide
+/// integer or an infinity, as an operand or a result — what a target that
+/// does not widen ([`widens_past_a_wide`]) computes differently.
+fn past_the_wide_tower(value: &FoldValue, octal: Option<bool>, numbers: NumberSyntax) -> bool {
+    match value {
+        FoldValue::Big(_) => true,
+        FoldValue::Float(f) => f.is_infinite(),
+        FoldValue::Int(_) => false,
+        FoldValue::RetainedNativeObject { value, .. } => past_the_wide_tower(value, octal, numbers),
+        FoldValue::Str(_) => match strict_number_for_dialect(value, octal, numbers) {
+            Some(TclValue::Big(_)) => true,
+            Some(TclValue::Float(f)) => f.is_infinite(),
+            Some(TclValue::Int(_)) | None => false,
+        },
+    }
+}
+
 /// Parse one Tcl expression arithmetic operand as an integer under `policy`.
 ///
 /// Unlike evaluating a standalone literal expression and converting its final
@@ -589,6 +662,21 @@ pub fn math_func_ceiling_for_dialect(
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Option<tcl_syntax::expr::mathfunc::MathFuncSince> {
     tcl_registry::mathfunc::expr_grammar_ceiling(dialect)
+}
+
+/// The newest math function a fold under `profile` may call: the profile's
+/// own ceiling, or 8.4's set for a profile that names no release, because
+/// only a function every modelled release has answers alike on all of them
+/// (tclsh 8.4 raises `unknown math function "min"`). Unlike
+/// [`math_func_ceiling_for_dialect`], which leaves such a profile unbounded
+/// so the availability diagnostic never flags a function one of its
+/// releases has.
+#[must_use]
+pub(crate) fn fold_math_ceiling(
+    profile: &'static tcl_dialect::DialectProfile,
+) -> tcl_syntax::expr::mathfunc::MathFuncSince {
+    math_func_ceiling_for_dialect(profile)
+        .unwrap_or(tcl_syntax::expr::mathfunc::MathFuncSince::Tcl84)
 }
 
 /// Whether `name` is a genuine built-in `expr` math function (`sin`, `max`,
@@ -808,6 +896,12 @@ fn make_fold_ops<'a>(
             .unwrap_or(tcl_dialect::NativeArithmetic::TclBignum),
         env,
         ambiguous: false,
+        platform: false,
+        tower: if widens_past_a_wide(policy.dialect) || policy.arithmetic.is_some() {
+            Tower::Widens
+        } else {
+            Tower::Wide
+        },
         octal: policy.octal,
         numbers: policy.numbers.unwrap_or_else(|| {
             if policy.octal == Some(true) {
@@ -837,10 +931,12 @@ fn evaluate_with_math_queries(
     // The final value must reduce to a number (a bare string like `expr {"x"}`
     // doesn't fold) — `to_number` maps a `Str` result through `parse_literal`.
     let result = tcl_syntax::expr::eval(node, &mut ops).ok()?;
-    if ops.ambiguous {
+    if ops.ambiguous || ops.platform || ops.tower == Tower::Breached || ops.beyond_tower(&result) {
         // A comparison hit a leading-zero operand whose octal-vs-decimal
-        // reading is dialect-dependent and the dialect is unknown — decline
-        // to fold rather than pick one.
+        // reading is dialect-dependent and the dialect is unknown, or a
+        // comparison the platform decides, or an operand or result past a
+        // tower the target does not widen to — decline to fold rather than
+        // pick one.
         return None;
     }
     let result_dependency = native_result_dependency(&result, ops.arithmetic, ops.numbers);
@@ -924,7 +1020,7 @@ fn native_result_dependency(
 /// verbatim) — exactly the `eval`-vs-`eval_as_string` split, so the raw-text
 /// string-compare behaviour (`5.00 eq 5.0` → 0) is preserved.
 #[derive(Clone)]
-enum FoldValue {
+pub(crate) enum FoldValue {
     Int(i64),
     Big(num_bigint::BigInt),
     Float(f64),
@@ -989,6 +1085,20 @@ impl FoldValue {
     }
 }
 
+/// The integer and floating-point tower a constant fold keeps to.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Tower {
+    /// The target widens past a wide integer and reads an infinity as a
+    /// value: from 8.5, or no dialect named.
+    Widens,
+    /// It does not — an 8.4 runtime, or a profile naming no release — so an
+    /// operand or result past a wide declines.
+    Wide,
+    /// As [`Self::Wide`], and a comparison met such an operand: the fold
+    /// declines once the walk is done.
+    Breached,
+}
+
 /// The const-folder's [`ExprOps`](tcl_syntax::expr::ExprOps). `Error = ()` is the
 /// "can't fold" signal (mapped to the public `Option`); `$var` resolves from the
 /// `env`, `[cmd]`/`Raw` are opaque.
@@ -1028,6 +1138,16 @@ struct FoldOps<'a> {
     /// comparison whose answer is platform-dependent in C Tcl (see
     /// [`numeric_cmp`]).
     ambiguous: bool,
+    /// Set when a comparison's answer is the platform's rather than a
+    /// release's: the wide-vs-2⁶³-double sliver whose result is undefined
+    /// behaviour in C Tcl (see [`numeric_cmp`]). Declines like
+    /// [`Self::ambiguous`].
+    platform: bool,
+    /// The tower the fold keeps to ([`widens_past_a_wide`]): past it, a
+    /// beyond-wide or infinite operand or result folds nothing
+    /// ([`Self::beyond_tower`]). The analysis services gate the tower
+    /// themselves, with its decline reason, so their value ops leave it open.
+    tower: Tower,
     /// How a bare leading-zero integer (`08`, `010`) is read in `==`/`!=`/`<`/…
     /// numeric eligibility: `Some(true)` = octal (Tcl 8.x — `08`/`09` invalid →
     /// string, `010` → 8), `Some(false)` = decimal (Tcl 9.0 — `08` → 8,
@@ -1181,6 +1301,73 @@ fn parse_octal_literal(s: &str) -> Option<TclValue> {
     Some(TclValue::Int(if neg { -v } else { v }))
 }
 
+impl FoldOps<'_> {
+    /// Whether `value` is past a tower the target does not widen to
+    /// ([`Self::tower`]).
+    fn beyond_tower(&self, value: &FoldValue) -> bool {
+        self.tower != Tower::Widens && past_the_wide_tower(value, self.octal, self.numbers)
+    }
+
+    /// `Err` when any of `values` is past the target's tower.
+    fn within_tower(&self, values: &[&FoldValue]) -> Result<(), ()> {
+        if values.iter().any(|value| self.beyond_tower(value)) {
+            return Err(());
+        }
+        Ok(())
+    }
+
+    /// Run the math function `name` — spelled as the program calls it —
+    /// over `args` through the shared dispatcher, the one the runtime
+    /// evaluates with; `Err` when it declines.
+    fn math_call(&self, name: &str, args: &[FoldValue]) -> Result<FoldValue, ()> {
+        use tcl_syntax::expr::mathfunc::{Num, accepts_boolean_operand, dispatch};
+        // Map `TclValue` → `Num` → result. Every function except `bool`
+        // reads its operand as a strict number — `Tcl_GetBoolean` coercion
+        // (`true`→1) would let the folder turn an error (`abs(true)`) into
+        // a value, so parse strictly unless the function itself accepts
+        // boolean words (the registry of that fact is the mathfunc module,
+        // not a name check here).
+        let boolean_ok = accepts_boolean_operand(name);
+        let octal = self.octal;
+        let numbers = self.numbers;
+        let nums: Option<Vec<Num>> = args
+            .iter()
+            .map(|v| {
+                let parsed = if boolean_ok {
+                    self.number_for(v, NativeCoercionKind::Boolean)
+                } else {
+                    self.strict_number(v)
+                };
+                parsed.and_then(|t| match t {
+                    TclValue::Int(i) => Some(Num::Int(i)),
+                    TclValue::Float(f) => Some(Num::Float(f)),
+                    // A beyond-wide integer argument: the math functions
+                    // dispatch over the wide/double pair, so decline rather
+                    // than approximate.
+                    TclValue::Big(_) => None,
+                })
+            })
+            .collect();
+        let protocol = self
+            .invocation_dialect
+            .and_then(tcl_registry::mathfunc::native_math_protocol)
+            .or_else(|| self.intrinsic_math.then_some(NativeMathProtocol::Tcl))
+            .ok_or(())?;
+        match try_dispatch_with_backend_protocol(
+            &name,
+            &nums.ok_or(())?,
+            IntWidth::for_native_arithmetic(self.arithmetic),
+            protocol,
+        )
+        .map_err(|_| ())?
+        {
+            Num::Int(i) => Ok(FoldValue::Int(i)),
+            Num::Float(f) => Ok(FoldValue::Float(f)),
+            Num::Big(never) => match never {},
+        }
+    }
+}
+
 impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
     type Value = FoldValue;
     type Error = ();
@@ -1308,7 +1495,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             IntWidth, NativeMathProtocol, Num, accepts_boolean_operand, added_in,
             try_dispatch_with_backend_protocol,
         };
-        let name = function.to_ascii_lowercase();
+        let name = function.to_owned();
         if self.native_family == Some(tcl_dialect::model::Family::Jim) {
             let functions = self
                 .invocation_dialect
@@ -2199,16 +2386,982 @@ fn apply_irules_string_op(
     Some(TclValue::Int(i64::from(predicate.evaluate(left, right))))
 }
 
+// The engine adapter: the shared walk over the analysis services
+
+/// Whether the math function `name` reads or seeds the interpreter's random
+/// generator, whose state no evaluation can know.
+fn reads_the_generator(name: &str) -> bool {
+    // value-transfer-ok: irreducible — `rand` and `srand` read and seed the
+    // interpreter's generator, which no evaluation can know.
+    matches!(name, "rand" | "srand")
+}
+
+/// Why an evaluation under the analysis services stopped short of a value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ExprStop {
+    /// An input the solver has not reached yet.
+    Pending,
+    /// No value, for the recorded reason.
+    Declined(DeclineReason),
+    /// A nested invocation did not complete normally: the evaluation ends
+    /// with that completion and the writes made so far.
+    Ended,
+}
+
+impl ExprStop {
+    /// The stop an input service's answer stands for.
+    fn of_answer(answer: &EvalAnswer) -> Self {
+        match answer {
+            EvalAnswer::Pending => Self::Pending,
+            EvalAnswer::Declined(reason) => Self::Declined(*reason),
+            // A service that answers an outcome where a value was asked for
+            // is malformed.
+            EvalAnswer::Evaluated(_) => Self::Declined(DeclineReason::Unsupported),
+        }
+    }
+}
+
+/// The shared engine's answer for one expression under the analysis
+/// services.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExprAnswer {
+    /// The expression's full value: the number Tcl normalises a numeric
+    /// result to, or the string result itself.
+    Value(ExactValue),
+    /// An input has not reached a usable fact.
+    Pending,
+    /// No value, for the recorded reason.
+    Declined(DeclineReason),
+    /// The evaluation ended on a nested invocation that did not complete
+    /// normally, with that completion: no value, and the writes the state
+    /// holds are the ones that ran before it.
+    Ended(Box<CompletionOutcome>),
+}
+
+/// The environment the services' value model never reads: every `$name`
+/// goes through [`AnalysisInputs::variable`].
+static NO_ENV: std::sync::LazyLock<Env> = std::sync::LazyLock::new(Env::new);
+
+/// The engine's `ExprOps` over the analysis inputs: `var` reads through
+/// `variable`, `command` through `nested`, `call` through `math_function`
+/// and the shared dispatcher, and a quoted operand is substituted as
+/// `expr` substitutes it. The value semantics — the numeral grammar, the
+/// comparisons, the arithmetic — are the const-folder's ([`FoldOps`]), so
+/// an expression answers here what it answers there; what differs is where
+/// an operand's value comes from, and that a stop says why.
+pub(crate) struct ExprServices<'a> {
+    inputs: &'a dyn AnalysisInputs,
+    state: &'a mut EvaluationState,
+    budget: &'a mut Budget,
+    fold: FoldOps<'static>,
+    /// Whether the target widens an integer past a wide and reads `Inf`:
+    /// `Some(true)` from 8.5 (and for a caller that names no dialect, which
+    /// reads as 9.0), `Some(false)` for a 8.4 runtime, `None` for a profile
+    /// whose runtime names no release.
+    widens: Option<bool>,
+    /// The first stop an infallible hook raised (a comparison over an
+    /// operand the target's integer tower cannot read).
+    stopped: Option<DeclineReason>,
+    /// The completion a nested invocation ended the evaluation with.
+    ended: Option<CompletionOutcome>,
+    /// The document's lexer configuration, for a quoted operand's
+    /// substitution.
+    lexer: tcl_lexer::LexerConfig,
+}
+
+impl<'a> ExprServices<'a> {
+    /// Services over `inputs`, recording nested evidence in `state` and
+    /// charging `budget`.
+    pub(crate) fn new(
+        inputs: &'a dyn AnalysisInputs,
+        state: &'a mut EvaluationState,
+        budget: &'a mut Budget,
+    ) -> Self {
+        let profile = inputs.context().profile;
+        Self {
+            inputs,
+            state,
+            budget,
+            fold: FoldOps::for_services(FoldPolicy::default()),
+            widens: Some(true),
+            stopped: None,
+            ended: None,
+            lexer: tcl_lexer::LexerConfig::for_profile(profile),
+        }
+    }
+
+    /// Take the value semantics `policy` states.
+    fn configure(&mut self, policy: FoldPolicy) {
+        self.fold = FoldOps::for_services(policy);
+        self.widens = policy.dialect.map_or(Some(true), |profile| {
+            profile
+                .runtime_base
+                .map(|release| release >= tcl_dialect::TclVersion::V8_5)
+        });
+        self.stopped = None;
+    }
+
+    /// A cancellation point: every service call is one.
+    fn checkpoint(&self) -> Result<(), ExprStop> {
+        if self.budget.is_cancelled() {
+            return Err(ExprStop::Declined(DeclineReason::Budget(
+                BudgetLimit::Cancelled,
+            )));
+        }
+        Ok(())
+    }
+
+    /// Why a beyond-wide integer or an infinity has no value here: 8.4
+    /// computes something else (it wraps, or raises on `Inf`), and a
+    /// profile that names no release cannot say which.
+    fn tower_reason(&self) -> DeclineReason {
+        match self.widens {
+            Some(_) => DeclineReason::WrongRepresentation,
+            None => DeclineReason::ReleaseAmbiguous(Axis::IntTower),
+        }
+    }
+
+    /// `Err` when an operand or result is a beyond-wide integer or an
+    /// infinity the target does not widen to — an intermediate one too:
+    /// `expr {(1e308 * 10) > 0}` is 1 from 8.5, and tclsh 8.4 raises
+    /// `floating-point value too large to represent` at the product.
+    fn tower(&self, values: &[&FoldValue]) -> Result<(), ExprStop> {
+        if self.widens != Some(true)
+            && values
+                .iter()
+                .any(|value| past_the_wide_tower(value, self.fold.octal, self.fold.numbers))
+        {
+            return Err(ExprStop::Declined(self.tower_reason()));
+        }
+        Ok(())
+    }
+
+    /// An exact input as an engine operand: its numeric classification when
+    /// it has one, else its text.
+    fn operand_of(value: &ExactValue) -> Result<FoldValue, ExprStop> {
+        match value.numeric {
+            Some(NumericValue::Int(i)) => Ok(FoldValue::Int(i)),
+            Some(NumericValue::Float(f)) => Ok(FoldValue::Float(f)),
+            Some(NumericValue::Bool(b)) => Ok(FoldValue::Int(i64::from(b))),
+            None => value
+                .as_str()
+                .map(|text| FoldValue::Str(text.to_owned()))
+                .map_err(ExprStop::Declined),
+        }
+    }
+
+    /// Whether `left / right` and `left % right` are integer operations
+    /// over a zero divisor: the one arithmetic failure whose completion every
+    /// release words alike. A float operand makes the operation floating
+    /// point (`1 / 0.0` is `Inf`), and an operand that reads as no integer
+    /// raises another error the engine does not word.
+    fn divides_integers_by_zero(&self, left: &FoldValue, right: &FoldValue) -> bool {
+        let integer = |value: &FoldValue| {
+            strict_number_for_dialect(value, self.fold.octal, self.fold.numbers)
+        };
+        matches!(
+            (integer(left), integer(right)),
+            (
+                Some(TclValue::Int(_) | TclValue::Big(_)),
+                Some(TclValue::Int(0))
+            )
+        )
+    }
+
+    /// The error a division by an integer zero raises: `divide by zero`,
+    /// `-errorcode` `ARITH DIVZERO {divide by zero}`, in every release
+    /// (tclsh 8.4 to 9.1), raised before any write the expression's own
+    /// commands have not already made.
+    fn divide_by_zero(&mut self) -> ExprStop {
+        self.ended = Some(CompletionOutcome::Error {
+            written: self.state.writes.len(),
+            message: ExactValueOrUnavailable::exact_text("divide by zero"),
+            error_code: ExactValueOrUnavailable::exact_text("ARITH DIVZERO {divide by zero}"),
+        });
+        ExprStop::Ended
+    }
+
+    /// The expression's full value, as `expr` returns it: a string result
+    /// that reads as a number under the target's grammar is that number's
+    /// canonical form (`expr {"0x10"}` is 16, `expr {" 5 "}` is 5), and any
+    /// other string is the result (`expr {"x"}` is `x`, `expr {"true"}` is
+    /// `true`).
+    fn full_value(&self, value: &FoldValue) -> Result<ExactValue, DeclineReason> {
+        let number = match value {
+            FoldValue::Str(text) => {
+                match classify_operand(value, self.fold.octal, self.fold.numbers) {
+                    Operand::Num(number) => number,
+                    Operand::Str => return Ok(ExactValue::text(text.clone())),
+                    Operand::Ambiguous => {
+                        return Err(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar));
+                    }
+                }
+            }
+            FoldValue::Int(i) => TclValue::Int(*i),
+            FoldValue::Big(b) => TclValue::from_big(b.clone()),
+            FoldValue::Float(f) => TclValue::Float(*f),
+            FoldValue::RetainedNativeObject { .. } => {
+                return Err(DeclineReason::WrongRepresentation);
+            }
+        };
+        match number {
+            TclValue::Int(i) => Ok(ExactValue::int(i)),
+            TclValue::Big(_) if self.widens != Some(true) => Err(self.tower_reason()),
+            // A beyond-wide integer is its canonical decimal spelling, which
+            // a later fold re-reads exactly.
+            TclValue::Big(b) => Ok(ExactValue::text(b.to_string())),
+            // `expr` raises on a NaN result: a domain error, never a value.
+            TclValue::Float(f) if f.is_nan() => Err(DeclineReason::WrongRepresentation),
+            TclValue::Float(f) if f.is_infinite() && self.widens != Some(true) => {
+                Err(self.tower_reason())
+            }
+            TclValue::Float(f) => Ok(ExactValue {
+                bytes: tcl_syntax::number::format_double(f).into_bytes(),
+                numeric: Some(NumericValue::Float(f)),
+                representation: RepresentationEvidence::Unknown,
+            }),
+        }
+    }
+}
+
+impl FoldOps<'static> {
+    /// The value semantics the analysis services evaluate under: `policy`'s
+    /// numeral grammar and operator set, reading no environment. The math
+    /// functions' availability is the `math_function` service's.
+    fn for_services(policy: FoldPolicy) -> Self {
+        let mut fold = make_fold_ops(
+            &NO_ENV,
+            policy.with_intrinsic_math(),
+            None,
+            None,
+            FoldNativeInputs::objects(None),
+            true,
+        );
+        fold.tower = Tower::Widens;
+        fold.math_since = None;
+        fold
+    }
+}
+
+/// A fold operation's refusal: the program raises (a non-numeric operand,
+/// division by zero, a domain error) or the model does not compute it, and
+/// either way an error is never a value.
+const fn refused(_: ()) -> ExprStop {
+    ExprStop::Declined(DeclineReason::WrongRepresentation)
+}
+
+impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
+    type Value = FoldValue;
+    type Error = ExprStop;
+
+    fn literal(&mut self, text: &str) -> Result<FoldValue, ExprStop> {
+        Ok(FoldValue::Str(text.to_owned()))
+    }
+
+    /// A `"…"` operand is substituted as a quoted word is: its variables
+    /// read through `variable`, its scripts through `nested`, its escapes
+    /// decoded under the document's grammar. A `{…}` operand is its body,
+    /// unless a backslash-newline in it leaves the value to the dialect.
+    fn string(&mut self, inner: &str, substitutes: bool) -> Result<FoldValue, ExprStop> {
+        use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
+        if !substitutes {
+            return tcl_syntax::expr::fixed_string_body(inner, false)
+                .map(|body| FoldValue::Str(body.to_owned()))
+                .ok_or(ExprStop::Declined(DeclineReason::NotExact));
+        }
+        let parts = match decompose(inner.as_bytes(), SubstFlags::default(), self.lexer) {
+            WordBody::Literal(_) => return Ok(FoldValue::Str(inner.to_owned())),
+            WordBody::Parts(parts) => parts,
+        };
+        let mut bytes = Vec::with_capacity(inner.len());
+        for part in parts {
+            match part {
+                Part::Text(text) => bytes.extend_from_slice(&text),
+                Part::Variable(reference) => {
+                    let name = crate::value_transfer::variable_name(&reference)
+                        .map_err(ExprStop::Declined)?;
+                    let value = tcl_syntax::expr::ExprOps::var(self, &name)?;
+                    bytes.extend_from_slice(value.to_string_val().as_bytes());
+                }
+                Part::Command(script) => {
+                    let script = std::str::from_utf8(script)
+                        .map_err(|_| ExprStop::Declined(DeclineReason::NotText))?;
+                    let value = tcl_syntax::expr::ExprOps::command(self, script)?;
+                    bytes.extend_from_slice(value.to_string_val().as_bytes());
+                }
+                Part::ParseError(_) => {
+                    return Err(ExprStop::Declined(DeclineReason::WrongRepresentation));
+                }
+            }
+        }
+        String::from_utf8(bytes)
+            .map(FoldValue::Str)
+            .map_err(|_| ExprStop::Declined(DeclineReason::NotText))
+    }
+
+    /// A read consults the state's own writes before the inputs at the
+    /// program point: after `[incr x]` the next `$x` is the incremented
+    /// value.
+    fn var(&mut self, name: &str) -> Result<FoldValue, ExprStop> {
+        self.checkpoint()?;
+        let value = match self.state.written(name) {
+            WrittenPlace::Exact(value) => value,
+            WrittenPlace::Unknown => return Err(ExprStop::Declined(DeclineReason::NotExact)),
+            WrittenPlace::Untouched => self
+                .inputs
+                .variable(name, FactDomain::ExactValue)
+                .exact()
+                .map_err(|answer| ExprStop::of_answer(&answer))?,
+        };
+        Self::operand_of(&value)
+    }
+
+    fn command(&mut self, script: &str) -> Result<FoldValue, ExprStop> {
+        self.checkpoint()?;
+        let outcome = match self.inputs.nested(script, self.state) {
+            EvalAnswer::Evaluated(outcome) => outcome,
+            answer => return Err(ExprStop::of_answer(&answer)),
+        };
+        if outcome.completion != CompletionOutcome::Normal {
+            self.ended = Some(outcome.completion);
+            return Err(ExprStop::Ended);
+        }
+        match &outcome.result {
+            ExactValueOrUnavailable::Exact(value) => Self::operand_of(value),
+            ExactValueOrUnavailable::Unavailable(_) => {
+                Err(ExprStop::Declined(DeclineReason::NotExact))
+            }
+        }
+    }
+
+    fn call(&mut self, function: &str, args: Vec<FoldValue>) -> Result<FoldValue, ExprStop> {
+        self.checkpoint()?;
+        if reads_the_generator(function) {
+            return Err(ExprStop::Declined(DeclineReason::Unsupported));
+        }
+        let binding = self
+            .inputs
+            .math_function(function)
+            .map_err(ExprStop::Declined)?;
+        if !self.state.evidence.bindings.contains(&binding) {
+            self.state.evidence.bindings.push(binding);
+        }
+        let operands: Vec<&FoldValue> = args.iter().collect();
+        self.tower(&operands)?;
+        let value = self.fold.math_call(function, &args).map_err(refused)?;
+        self.tower(&[&value])?;
+        Ok(value)
+    }
+
+    fn arith(
+        &mut self,
+        op: BinOp,
+        left: FoldValue,
+        right: FoldValue,
+    ) -> Result<FoldValue, ExprStop> {
+        self.tower(&[&left, &right])?;
+        if matches!(op, BinOp::Div | BinOp::Mod) && self.divides_integers_by_zero(&left, &right) {
+            return Err(self.divide_by_zero());
+        }
+        let value = self.fold.arith(op, left, right).map_err(refused)?;
+        self.tower(&[&value])?;
+        Ok(value)
+    }
+
+    fn unary(&mut self, op: UnaryOp, value: FoldValue) -> Result<FoldValue, ExprStop> {
+        self.tower(&[&value])?;
+        let value = self.fold.unary(op, value).map_err(refused)?;
+        self.tower(&[&value])?;
+        Ok(value)
+    }
+
+    fn binary_other(
+        &mut self,
+        op: BinOp,
+        left: FoldValue,
+        right: FoldValue,
+    ) -> Result<FoldValue, ExprStop> {
+        self.fold
+            .binary_other(op, left, right)
+            .map_err(|()| ExprStop::Declined(DeclineReason::Unsupported))
+    }
+
+    fn compare_numeric(
+        &mut self,
+        left: &FoldValue,
+        right: &FoldValue,
+    ) -> Option<tcl_syntax::expr::NumericCompare> {
+        if self.stopped.is_none()
+            && let Err(ExprStop::Declined(reason)) = self.tower(&[left, right])
+        {
+            self.stopped = Some(reason);
+        }
+        self.fold.compare_numeric(left, right)
+    }
+
+    fn compare_string(&mut self, left: &FoldValue, right: &FoldValue) -> std::cmp::Ordering {
+        self.fold.compare_string(left, right)
+    }
+
+    fn in_list(&mut self, needle: &FoldValue, list: &FoldValue) -> Result<bool, ExprStop> {
+        self.fold.in_list(needle, list).map_err(refused)
+    }
+
+    fn to_bool(&mut self, value: &FoldValue) -> Result<bool, ExprStop> {
+        self.tower(&[value])?;
+        self.fold.to_bool(value).map_err(refused)
+    }
+
+    fn bool_value(&mut self, b: bool) -> FoldValue {
+        FoldValue::Int(i64::from(b))
+    }
+
+    fn unsupported(&mut self, what: &str) -> ExprStop {
+        // An unparsed expression is the program's syntax error; any other
+        // unsupported construct is one this model does not evaluate.
+        ExprStop::Declined(if what == "syntax error in expression" {
+            DeclineReason::WrongRepresentation
+        } else {
+            DeclineReason::Unsupported
+        })
+    }
+}
+
+/// The nodes of `node`, the work its evaluation is charged before it runs.
+fn node_count(node: &ExprNode) -> u64 {
+    1 + match node {
+        ExprNode::Unary { operand, .. } => node_count(operand),
+        ExprNode::Binary { left, right, .. } => node_count(left) + node_count(right),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => node_count(condition) + node_count(true_branch) + node_count(false_branch),
+        ExprNode::Call { args, .. } => args.iter().map(node_count).sum(),
+        ExprNode::Literal { .. }
+        | ExprNode::String { .. }
+        | ExprNode::CompiledWord { .. }
+        | ExprNode::Var { .. }
+        | ExprNode::Command { .. }
+        | ExprNode::Raw { .. } => 0,
+    }
+}
+
+/// Evaluate `node` under the analysis services and `policy`'s value
+/// semantics: the engine's full value, or why there is none. One work unit
+/// per node is charged before the walk; each service call is a
+/// cancellation point.
+pub(crate) fn evaluate_expression(
+    node: &ExprNode,
+    services: &mut ExprServices<'_>,
+    policy: FoldPolicy,
+) -> ExprAnswer {
+    services.configure(policy);
+    if let Err(reason) = services.budget.charge_work(node_count(node)) {
+        return ExprAnswer::Declined(reason);
+    }
+    let value = match tcl_syntax::expr::eval(node, services) {
+        Ok(value) => value,
+        Err(ExprStop::Pending) => return ExprAnswer::Pending,
+        Err(ExprStop::Declined(reason)) => return ExprAnswer::Declined(reason),
+        Err(ExprStop::Ended) => {
+            return services.ended.take().map_or(
+                ExprAnswer::Declined(DeclineReason::Unsupported),
+                |completion| ExprAnswer::Ended(Box::new(completion)),
+            );
+        }
+    };
+    if let Some(reason) = services.stopped {
+        return ExprAnswer::Declined(reason);
+    }
+    if services.fold.ambiguous {
+        return ExprAnswer::Declined(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar));
+    }
+    if services.fold.platform {
+        return ExprAnswer::Declined(DeclineReason::ReleaseAmbiguous(Axis::Platform));
+    }
+    match services.full_value(&value) {
+        Ok(value) => ExprAnswer::Value(value),
+        Err(reason) => ExprAnswer::Declined(reason),
+    }
+}
+
+// Edge refinement: what a branch condition's outcome proves
+
+/// One place's fact on one edge of a branch: what the condition's outcome
+/// along the edge proves about it, in one domain
+/// (`docs/design/compiler/value-transfers.md` § *Predicate refinement*).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct PlaceFact {
+    /// The place as the condition names it: the variable an operand reads,
+    /// or the word an existence query asks about.
+    pub(crate) place: String,
+    /// The domain the fact narrows.
+    pub(crate) domain: FactDomain,
+    /// The fact in the domain's view: an exact value or a finite set of
+    /// them for the value domain, a domain fact for every other.
+    pub(crate) fact: FactView,
+}
+
+impl PlaceFact {
+    /// `place` holds exactly `value`.
+    fn exact(place: &str, value: &str) -> Self {
+        Self {
+            place: place.to_owned(),
+            domain: FactDomain::ExactValue,
+            fact: FactView::Exact(ExactValue::from_literal(value), None),
+        }
+    }
+
+    /// `place` holds `fact` in `domain`.
+    fn domain(place: &str, domain: FactDomain, fact: DomainFact) -> Self {
+        Self {
+            place: place.to_owned(),
+            domain,
+            fact: FactView::Domain(fact),
+        }
+    }
+
+    /// `place`'s existence is `fact`.
+    fn existence(place: &str, fact: Existence) -> Self {
+        Self::domain(place, FactDomain::Existence, DomainFact::Existence(fact))
+    }
+}
+
+/// The facts one condition states on its true and on its false edge.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(crate) struct EdgeFacts {
+    /// What the condition holding proves.
+    pub(crate) on_true: Vec<PlaceFact>,
+    /// What the condition failing proves.
+    pub(crate) on_false: Vec<PlaceFact>,
+}
+
+impl EdgeFacts {
+    /// `facts` on the true edge alone.
+    fn when_true(facts: Vec<PlaceFact>) -> Self {
+        Self {
+            on_true: facts,
+            on_false: Vec::new(),
+        }
+    }
+
+    /// `facts` on the false edge alone.
+    fn when_false(facts: Vec<PlaceFact>) -> Self {
+        Self {
+            on_true: Vec::new(),
+            on_false: facts,
+        }
+    }
+}
+
+/// What the condition-tree transfer reads beside the tree: the registry an
+/// existence query or a `string is` test resolves against, the document's
+/// lexer configuration its substitutions are split under, the fold policy
+/// whose numeral grammar decides whether `==` compares numbers, and whether
+/// a command head still denotes the registry's command.
+#[derive(Clone, Copy)]
+pub(crate) struct ConditionReading<'a> {
+    /// The registry the condition's commands resolve against.
+    pub(crate) registry: &'a tcl_registry::CommandRegistry,
+    /// The document's lexer configuration.
+    pub(crate) config: tcl_lexer::LexerConfig,
+    /// The target's fold policy.
+    pub(crate) policy: FoldPolicy,
+    /// Whether the module leaves a command head denoting the registry's
+    /// command, which a `string is` test asks of `string`.
+    pub(crate) trusted: &'a dyn Fn(&str) -> bool,
+}
+
+/// The `Selection` transfer of a branch condition over its tree: per edge,
+/// what the condition's outcome proves about the places it reads
+/// (`docs/design/compiler/value-transfers.md` § *Predicate refinement*, the
+/// per-shape table). `eq` proves its literal on the true edge and `ne` on
+/// the false one; `==` and `!=` do the same where the literal is no number
+/// under the target's numeral grammar, which makes the comparison a string
+/// one, and otherwise prove a number — the point when it is an integer —
+/// and never the string; `<`, `<=`, `>` and `>=` against an integer prove
+/// the half-line an integer value lies on, on each edge; `in` and `ni`
+/// prove the list's finite set; a
+/// `string is` test proves the type its members share, an existence query
+/// the place's existence; `!` swaps the edges, `C1 && C2` proves both
+/// true-edge answers on its true edge and `C1 || C2` both false-edge
+/// answers on its false edge — `C1`'s only when `C2`, which runs after it,
+/// changes no place ([`changes_no_place`]). The variable must be one plain
+/// local operand and the other side a literal: `$x` alone, `$x eq $y`, an
+/// element and a qualified name prove nothing.
+pub(crate) fn condition_edge_facts(node: &ExprNode, reading: ConditionReading<'_>) -> EdgeFacts {
+    match node {
+        ExprNode::Unary {
+            op: UnaryOp::Not | UnaryOp::WordNot,
+            operand,
+        } => {
+            let EdgeFacts { on_true, on_false } = condition_edge_facts(operand, reading);
+            EdgeFacts {
+                on_true: on_false,
+                on_false: on_true,
+            }
+        }
+        // The right operand runs after the left one, so the left operand's
+        // facts reach the edge only when the right one changes no place.
+        ExprNode::Binary {
+            op: BinOp::And,
+            left,
+            right,
+        } => {
+            let mut on_true = condition_edge_facts(right, reading).on_true;
+            if changes_no_place(right, reading) {
+                on_true.extend(condition_edge_facts(left, reading).on_true);
+            }
+            EdgeFacts::when_true(on_true)
+        }
+        ExprNode::Binary {
+            op: BinOp::Or,
+            left,
+            right,
+        } => {
+            let mut on_false = condition_edge_facts(right, reading).on_false;
+            if changes_no_place(right, reading) {
+                on_false.extend(condition_edge_facts(left, reading).on_false);
+            }
+            EdgeFacts::when_false(on_false)
+        }
+        ExprNode::Binary { op, left, right } => comparison_facts(*op, left, right, reading),
+        ExprNode::Command { text, .. } => {
+            crate::existence_query::in_text(text, reading.registry, reading.config).map_or_else(
+                || EdgeFacts::when_true(string_is_fact(text, reading).into_iter().collect()),
+                |(name, kind)| query_facts(&name, kind),
+            )
+        }
+        _ => EdgeFacts::default(),
+    }
+}
+
+/// Whether evaluating `node` changes no place: every command it substitutes
+/// is an existence query over a name that runs no command, and no operand
+/// substitutes a command of its own. A math function may be a procedure,
+/// and an unparsed operand may be anything, so neither is.
+fn changes_no_place(node: &ExprNode, reading: ConditionReading<'_>) -> bool {
+    match node {
+        ExprNode::Command { text, .. } => {
+            crate::existence_query::in_text(text, reading.registry, reading.config)
+                .is_some_and(|(name, _)| !name.contains('['))
+        }
+        ExprNode::Binary { left, right, .. } => {
+            changes_no_place(left, reading) && changes_no_place(right, reading)
+        }
+        ExprNode::Unary { operand, .. } => changes_no_place(operand, reading),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => [condition, true_branch, false_branch]
+            .iter()
+            .all(|operand| changes_no_place(operand, reading)),
+        ExprNode::Literal { .. } => true,
+        ExprNode::Var { text, .. }
+        | ExprNode::String { text, .. }
+        | ExprNode::CompiledWord { text, .. } => !text.contains('['),
+        ExprNode::Call { .. } | ExprNode::Raw { .. } => false,
+    }
+}
+
+/// The places one existence query states a fact about, on its true and on
+/// its false edge. `info exists` of a whole place binds it on the true
+/// edge, as either kind, and unbinds it on the false edge; of a literal
+/// element it binds the element as a scalar and its array as an array on
+/// the true edge and unbinds the element on the false edge; of an element
+/// under a computed key it binds the array, when the base is a bareword,
+/// on the true edge. `array exists` of a whole place binds it as an array
+/// on the true edge and states nothing on the false edge, where the place
+/// may be a scalar or absent; of an element it states nothing.
+fn query_facts(name: &str, kind: crate::existence_query::ExistenceKind) -> EdgeFacts {
+    use crate::existence_query::ExistenceKind;
+    use tcl_registry::value_transfer::BindingKind;
+    let computed = name.contains('$') || name.contains('[');
+    let base = crate::sccp::place_base(name);
+    match kind {
+        _ if computed => match (kind, crate::existence_query::computed_element_base(name)) {
+            (ExistenceKind::AnyVariable, Some(base)) => {
+                EdgeFacts::when_true(vec![PlaceFact::existence(
+                    base,
+                    Existence::Bound(BindingKind::Array),
+                )])
+            }
+            _ => EdgeFacts::default(),
+        },
+        ExistenceKind::AnyVariable if base == name => EdgeFacts {
+            on_true: vec![PlaceFact::existence(
+                name,
+                Existence::Bound(BindingKind::Either),
+            )],
+            on_false: vec![PlaceFact::existence(name, Existence::Unbound)],
+        },
+        ExistenceKind::AnyVariable => EdgeFacts {
+            on_true: vec![
+                PlaceFact::existence(name, Existence::Bound(BindingKind::Scalar)),
+                PlaceFact::existence(base, Existence::Bound(BindingKind::Array)),
+            ],
+            on_false: vec![PlaceFact::existence(name, Existence::Unbound)],
+        },
+        ExistenceKind::Array if base == name => EdgeFacts::when_true(vec![PlaceFact::existence(
+            name,
+            Existence::Bound(BindingKind::Array),
+        )]),
+        ExistenceKind::Array => EdgeFacts::default(),
+    }
+}
+
+/// The facts a comparison of one plain local variable with a literal
+/// proves: `eq`'s and `ne`'s exact value, `==`'s and `!=`'s exact value or
+/// number ([`equality_facts`]), the half-line of an ordered comparison with
+/// an integer ([`ordering_facts`]), and the finite set of `in`'s and `ni`'s
+/// list ([`membership_facts`]). A comparison reads either side as the
+/// variable, an ordered one turned round when the literal comes first
+/// ([`turned_round`]); membership asks whether the variable is in the list,
+/// never the reverse.
+fn comparison_facts(
+    op: BinOp,
+    left: &ExprNode,
+    right: &ExprNode,
+    reading: ConditionReading<'_>,
+) -> EdgeFacts {
+    let style = reading.config.braced_var;
+    let operands = variable_operand(left, style)
+        .zip(literal_operand(right))
+        .map(|(place, literal)| (op, place, literal))
+        .or_else(|| {
+            let turned = turned_round(op)?;
+            literal_operand(left)
+                .zip(variable_operand(right, style))
+                .map(|(literal, place)| (turned, place, literal))
+        });
+    let Some((op, place, literal)) = operands else {
+        return EdgeFacts::default();
+    };
+    match op {
+        BinOp::StrEq => EdgeFacts::when_true(vec![PlaceFact::exact(&place, &literal)]),
+        BinOp::StrNe => EdgeFacts::when_false(vec![PlaceFact::exact(&place, &literal)]),
+        BinOp::Eq => EdgeFacts::when_true(equality_facts(&place, &literal, reading.policy)),
+        BinOp::Ne => EdgeFacts::when_false(equality_facts(&place, &literal, reading.policy)),
+        BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => {
+            ordering_facts(op, &place, &literal, reading.policy)
+        }
+        BinOp::In => EdgeFacts::when_true(membership_facts(&place, &literal, reading.policy)),
+        BinOp::Ni => EdgeFacts::when_false(membership_facts(&place, &literal, reading.policy)),
+        _ => EdgeFacts::default(),
+    }
+}
+
+/// The comparison `L op R` read as `R op' L`: an equality as it is, an
+/// ordered comparison turned round (`5 < $x` is `$x > 5`); `in` and `ni`,
+/// which ask about their left operand, never.
+fn turned_round(op: BinOp) -> Option<BinOp> {
+    match op {
+        BinOp::StrEq | BinOp::StrNe | BinOp::Eq | BinOp::Ne => Some(op),
+        BinOp::Lt => Some(BinOp::Gt),
+        BinOp::Le => Some(BinOp::Ge),
+        BinOp::Gt => Some(BinOp::Lt),
+        BinOp::Ge => Some(BinOp::Le),
+        _ => None,
+    }
+}
+
+/// What an ordered comparison of `x` with an integer numeral proves on each
+/// edge: the half-line `x` lies on when it is an integer. `$x < 5` holding
+/// puts an integer `x` at 4 or below, and failing at 5 or above, the false
+/// edge reading the operator's inverse ([`BinOp::inverse`]). The range is
+/// conditional on the value being an integer: a value that is not compares
+/// as a double (`2.5`, NaN, which fails every ordered comparison) or as a
+/// string (`abc`, `end`), and an integer interval says nothing of it, so a
+/// consumer that reads a value that may be no integer as one reads past the
+/// fact. A literal that is no integer under the target's numeral grammar
+/// proves nothing: a word, `true` and `false` among them, which a
+/// comparison reads as a string; a double; a bignum; a leading zero the
+/// target's release leaves open. A bound at the edge of the 64-bit range
+/// saturates, one value wide, rather than wrapping.
+fn ordering_facts(op: BinOp, place: &str, literal: &str, policy: FoldPolicy) -> EdgeFacts {
+    let numbers = policy.numbers.unwrap_or_default();
+    let Operand::Num(TclValue::Int(bound)) =
+        classify_operand(&FoldValue::Str(literal.to_owned()), policy.octal, numbers)
+    else {
+        return EdgeFacts::default();
+    };
+    let half_line = |op: BinOp| {
+        let (lo, hi) = match op {
+            BinOp::Lt => (None, Some(bound.saturating_sub(1))),
+            BinOp::Le => (None, Some(bound)),
+            BinOp::Gt => (Some(bound.saturating_add(1)), None),
+            BinOp::Ge => (Some(bound), None),
+            _ => return Vec::new(),
+        };
+        vec![PlaceFact::domain(
+            place,
+            FactDomain::Range,
+            DomainFact::Range { lo, hi },
+        )]
+    };
+    EdgeFacts {
+        on_true: half_line(op),
+        on_false: op.inverse().map_or_else(Vec::new, half_line),
+    }
+}
+
+/// What `$x == LIT` holding proves. A literal that is no number under the
+/// target's numeral grammar makes the comparison a string one, so `x` is
+/// exactly `LIT`; a number makes it a numeric one, so `x` is a number equal
+/// to it — the integer point when `LIT` is an integer — whose string may be
+/// any spelling of it (`1.0`, ` 1`, `01`), so never `LIT`. A leading-zero
+/// literal whose reading the target's release leaves open proves nothing,
+/// and neither does a NaN, which equals nothing.
+fn equality_facts(place: &str, literal: &str, policy: FoldPolicy) -> Vec<PlaceFact> {
+    let numbers = policy.numbers.unwrap_or_default();
+    match classify_operand(&FoldValue::Str(literal.to_owned()), policy.octal, numbers) {
+        Operand::Str => vec![PlaceFact::exact(place, literal)],
+        Operand::Num(TclValue::Float(f)) if f.is_nan() => Vec::new(),
+        Operand::Num(value) => {
+            let mut facts = vec![PlaceFact::domain(
+                place,
+                FactDomain::Type,
+                DomainFact::Type {
+                    intrep: Some(tcl_registry::TclType::Numeric),
+                    shape: None,
+                },
+            )];
+            if let TclValue::Int(point) = value {
+                facts.push(PlaceFact::domain(
+                    place,
+                    FactDomain::Range,
+                    DomainFact::Range {
+                        lo: Some(point),
+                        hi: Some(point),
+                    },
+                ));
+            }
+            facts
+        }
+        Operand::Ambiguous => Vec::new(),
+    }
+}
+
+/// What `$x in LIST` holding proves: `x` is one of the list's elements, as
+/// the target's list rules split it — a finite set, compared as strings. A
+/// list with no element, or more than the lattice holds as a set, proves
+/// nothing.
+fn membership_facts(place: &str, list: &str, policy: FoldPolicy) -> Vec<PlaceFact> {
+    let mut members: Vec<String> = Vec::new();
+    for element in split_tcl_list(list, policy.word_rules) {
+        if !members.contains(&element) {
+            members.push(element);
+        }
+    }
+    match members.as_slice() {
+        [] => Vec::new(),
+        [one] => vec![PlaceFact::exact(place, one)],
+        _ if members.len() > crate::analyses::MAX_CONSTSET_SIZE => Vec::new(),
+        _ => vec![PlaceFact {
+            place: place.to_owned(),
+            domain: FactDomain::ExactValue,
+            fact: FactView::Finite(
+                members
+                    .iter()
+                    .map(|member| ExactValue::from_literal(member))
+                    .collect(),
+                None,
+            ),
+        }],
+    }
+}
+
+/// The true edge of `[string is CLASS ?-strict? $x]`: the type every value
+/// the test accepts belongs to
+/// ([`tcl_registry::commands::tcl::string_is_member_type`]), for the one
+/// variable the test's last word reads. Every other word is literal, and
+/// the head is the registry's command the module has not rebound.
+fn string_is_fact(text: &str, reading: ConditionReading<'_>) -> Option<PlaceFact> {
+    let inner = text.strip_prefix('[')?.strip_suffix(']')?;
+    let commands = crate::ir_helpers::tokenise_command_words(inner, reading.config);
+    let [words] = commands.as_slice() else {
+        return None;
+    };
+    let (head, args) = words.split_first()?;
+    let head = head.literal()?;
+    let (value, options) = args.split_last()?;
+    if value.expanded || !(reading.trusted)(head) {
+        return None;
+    }
+    let place = variable_name(&value.raw, reading.config.braced_var)?;
+    let mut texts: Vec<&str> = options
+        .iter()
+        .map(crate::ir_helpers::CommandWord::literal)
+        .collect::<Option<_>>()?;
+    texts.push(&value.text);
+    let operation = reading
+        .registry
+        .resolve_invocation(head, &texts, reading.registry.own_surface_query())?
+        .semantics
+        .operation;
+    if operation
+        != tcl_registry::SemanticOperationId::Intrinsic(tcl_registry::IntrinsicId::StringIs)
+    {
+        return None;
+    }
+    let member = tcl_registry::commands::tcl::string_is_member_type(texts.get(1..)?)?;
+    Some(PlaceFact::domain(
+        place,
+        FactDomain::Type,
+        DomainFact::Type {
+            intrep: Some(member),
+            shape: None,
+        },
+    ))
+}
+
+/// The plain local variable an operand reads whole: a `$x` or `${x}`
+/// reference, or the flattened `switch` subject that carries one as `Raw`
+/// text. A qualified name or an array element is no plain local.
+fn variable_operand(node: &ExprNode, style: tcl_dialect::BracedVarStyle) -> Option<String> {
+    match node {
+        ExprNode::Var { text, .. } | ExprNode::Raw { text } => {
+            variable_name(text, style).map(str::to_owned)
+        }
+        _ => None,
+    }
+}
+
+/// The plain local name a `$x` or `${x}` spelling reads.
+fn variable_name(text: &str, style: tcl_dialect::BracedVarStyle) -> Option<&str> {
+    crate::value_transfer::whole_variable_operand(text, style)
+        .filter(|name| !name.is_empty() && !name.contains("::") && !name.contains('('))
+}
+
+/// The value an operand's literal spelling holds: a bare literal's text, a
+/// string operand's body where it is its value in every dialect
+/// ([`tcl_syntax::expr::fixed_string_operand`]), or a compiled word's value
+/// when it was braced or substitutes nothing.
+fn literal_operand(node: &ExprNode) -> Option<String> {
+    match node {
+        ExprNode::Literal { text, .. } => Some(text.clone()),
+        ExprNode::String { text, .. } => {
+            tcl_syntax::expr::fixed_string_operand(text).map(str::to_owned)
+        }
+        ExprNode::CompiledWord { text, braced } => {
+            (*braced || !text.contains(['$', '[', '\\'])).then(|| text.clone())
+        }
+        _ => None,
+    }
+}
+
 // Tests
 
 #[cfg(test)]
 mod tests {
-    /// Adversarial-review regressions (tclsh 8.6/9.0 verified): exact
+    /// Reference-interpreter regressions (tclsh 8.6/9.0 verified): exact
     /// bignum↔double comparison folds, the `**` base collapses for bignum
     /// exponents, and NaN branch conditions declining.
     #[test]
     fn adversarial_fold_regressions() {
-        // B7: C compares a bignum and a double EXACTLY — never through the
+        // C compares a bignum and a double EXACTLY — never through the
         // bignum's rounded double view.
         assert_eq!(
             eval_str("18446744073709551617 == 1.8446744073709552e19"),
@@ -2221,7 +3374,7 @@ mod tests {
         );
         assert_eq!(eval_str("10**308 == 1e308"), Some(TclValue::Int(0)));
         assert_eq!(eval_str("(2**1024) == inf"), Some(TclValue::Int(0)));
-        // B8: 0/±1 base collapses precede the negative-bignum-exponent rule.
+        // 0/±1 base collapses precede the negative-bignum-exponent rule.
         assert_eq!(
             eval_str("0**(-(2**64))"),
             None,
@@ -2234,6 +3387,104 @@ mod tests {
 
     use super::*;
     use crate::expr_parser::parse_expr;
+
+    // evaluate_expr_with_constants
+
+    #[test]
+    fn evaluate_expr_integer() {
+        let mut env = Env::new();
+        env.insert("x".into(), EnvValue::Int(5));
+        assert_eq!(
+            evaluate_expr_with_constants(&parse_expr("$x + 3", None), &env, FoldPolicy::default()),
+            Some(8)
+        );
+    }
+
+    #[test]
+    fn evaluate_expr_integer_valued_float() {
+        assert_eq!(
+            evaluate_expr_with_constants(
+                &parse_expr("6.0 / 2", None),
+                &Env::new(),
+                FoldPolicy::default()
+            ),
+            Some(3)
+        );
+    }
+
+    #[test]
+    fn evaluate_expr_fractional_float_none() {
+        assert_eq!(
+            evaluate_expr_with_constants(
+                &parse_expr("1.5", None),
+                &Env::new(),
+                FoldPolicy::default()
+            ),
+            None
+        );
+    }
+
+    /// A string binding is decoded as Tcl reads a literal: a boolean word is
+    /// 1 or 0, an integer's text is the integer.
+    #[test]
+    fn evaluate_expr_decodes_a_string_binding() {
+        let mut env = Env::new();
+        env.insert("flag".into(), EnvValue::Str("true".into()));
+        env.insert("n".into(), EnvValue::Str("42".into()));
+        let value = |text: &str| {
+            evaluate_expr_with_constants(&parse_expr(text, None), &env, FoldPolicy::default())
+        };
+        assert_eq!(value("$flag"), Some(1));
+        assert_eq!(value("$n + 1"), Some(43));
+    }
+
+    #[test]
+    fn saturating_f64_to_i64_in_range_and_saturates() {
+        // In-range integral floats convert exactly.
+        assert_eq!(saturating_f64_to_i64(0.0), 0);
+        assert_eq!(saturating_f64_to_i64(42.0), 42);
+        assert_eq!(saturating_f64_to_i64(-42.0), -42);
+        // `-0.0` normalises to 0 (tclsh `int(-0.0)` == 0), not "-0".
+        assert_eq!(saturating_f64_to_i64(-0.0), 0);
+        // Out-of-range magnitudes saturate by sign, as an `as i64` cast
+        // does.
+        assert_eq!(saturating_f64_to_i64(1e30), i64::MAX);
+        assert_eq!(saturating_f64_to_i64(-1e30), i64::MIN);
+    }
+
+    /// The half-line an ordered comparison with an integer proves, on each
+    /// edge: the false edge reads the operator's inverse (`$x < 5` failing
+    /// puts an integer `x` at 5 or above), and a bound at the 64-bit edge
+    /// saturates, one value wide, rather than wrapping — `$x < MIN` puts `x`
+    /// at `MIN` or below on its true edge, `$x > MAX` at `MAX` or above.
+    #[test]
+    fn an_ordered_comparison_states_the_half_line_on_each_edge() {
+        let range = |facts: &[PlaceFact]| match facts {
+            [
+                PlaceFact {
+                    fact: FactView::Domain(DomainFact::Range { lo, hi }),
+                    ..
+                },
+            ] => Some((*lo, *hi)),
+            _ => None,
+        };
+        let policy = FoldPolicy::default();
+        let five = ordering_facts(BinOp::Lt, "x", "5", policy);
+        assert_eq!(range(&five.on_true), Some((None, Some(4))));
+        assert_eq!(range(&five.on_false), Some((Some(5), None)));
+        let at_most = ordering_facts(BinOp::Le, "x", "5", policy);
+        assert_eq!(range(&at_most.on_false), Some((Some(6), None)));
+        let min = ordering_facts(BinOp::Lt, "x", &i64::MIN.to_string(), policy);
+        assert_eq!(range(&min.on_true), Some((None, Some(i64::MIN))));
+        assert_eq!(range(&min.on_false), Some((Some(i64::MIN), None)));
+        let max = ordering_facts(BinOp::Gt, "x", &i64::MAX.to_string(), policy);
+        assert_eq!(range(&max.on_true), Some((Some(i64::MAX), None)));
+        assert_eq!(range(&max.on_false), Some((None, Some(i64::MAX))));
+        for word in ["true", "false", "2.5", "abc", "18446744073709551616"] {
+            let none = ordering_facts(BinOp::Lt, "x", word, policy);
+            assert_eq!(none, EdgeFacts::default(), "{word}");
+        }
+    }
 
     fn eval_str(expr: &str) -> Option<TclValue> {
         let env = Env::new();
@@ -2336,6 +3587,46 @@ mod tests {
                 "a profile alone cannot establish a reached native function"
             );
         }
+    }
+
+    /// The old folder stays within the target's tower, as the route does:
+    /// a beyond-wide integer or an infinity, as an operand, a result or in
+    /// the middle, folds nothing under an 8.4 runtime or a profile naming
+    /// no release. tclsh 8.4: `1 << 70` is 0, `9223372036854775807 + 1`
+    /// wraps, `1e308 * 10` and `1e309` raise `floating-point value too large
+    /// to represent`, and `18446744073709551616 > 0` raises `integer value
+    /// too large to represent`; 8.5 to 9.1 answer
+    /// 1180591620717411303424, 9223372036854775808, `Inf`, `Inf` and 1.
+    #[test]
+    fn the_old_folder_stays_within_the_targets_tower() {
+        let env = Env::new();
+        let fold = |expr: &str, dialect: &str| {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+            eval_tcl_expr_with_policy(
+                &parse_expr(expr, Some(dialect)),
+                &env,
+                FoldPolicy::for_profile(leading_zero_is_octal(profile), Some(profile)),
+            )
+        };
+        for expr in [
+            "1 << 70",
+            "(1 << 70) == 0",
+            "9223372036854775807 + 1",
+            "1e308 * 10",
+            "1e308 * 10 > 0",
+            "1e309 > 0",
+            "18446744073709551616 > 0",
+            "-(1 << 70)",
+            "abs(1e308 * 10)",
+        ] {
+            for dialect in ["tcl8.4", "f5-irules", "f5-bigip"] {
+                assert_eq!(fold(expr, dialect), None, "{dialect}: {expr}");
+            }
+            assert!(fold(expr, "tcl8.6").is_some(), "tcl8.6: {expr}");
+        }
+        assert_eq!(fold("1 << 62", "tcl8.4"), Some(TclValue::Int(1 << 62)));
+        assert_eq!(fold("1e308 * 1", "tcl8.4"), Some(TclValue::Float(1e308)));
     }
 
     #[test]
@@ -2603,8 +3894,8 @@ mod tests {
                 "{d}"
             );
         }
-        // 9.x runtimes dropped the rule (TIP 114/472) — bpf embeds Tcl 9.0
-        // (D7), so `010` is not octal there either.
+        // 9.x runtimes dropped the rule (TIP 114/472). bpf embeds Tcl 9.0,
+        // so `010` is not octal there either.
         for d in ["tcl9.0", "tcl9.1", "bpf"] {
             assert_eq!(
                 leading_zero_is_octal(
@@ -2892,10 +4183,55 @@ mod tests {
         assert_eq!(eval_str_env("$undef + 1", &env), None);
     }
 
+    /// A command substitution an expression evaluates is the nested
+    /// service's to run, not the evaluator's: on its own the evaluator has no
+    /// service to ask and answers neither program. With the service at
+    /// `LocalWrites` and `x` holding 1, `[incr x] + 1` is 3 and the state
+    /// holds the write that makes `x` 2; under `EffectFreeOnly` the write is
+    /// `StatefulNested`. A command that reads the wall clock has no answer
+    /// under any policy, and makes no write.
     #[test]
-    fn command_substitution_is_none() {
-        // Raw text `[foo]` is parsed as an ExprCommand, which is opaque.
+    fn command_substitution_evaluates_through_the_nested_service() {
+        use crate::value_transfer::evaluate_over_x;
+        use tcl_registry::value_transfer::{
+            DeclineReason, ExactValueOrUnavailable, LiftedAnswer, NestedPolicy, StoreOutcome,
+        };
+        assert_eq!(eval_str("[incr x] + 1"), None);
         assert_eq!(eval_str("[clock seconds] + 1"), None);
+
+        let LiftedAnswer::Evaluated(outcomes) =
+            evaluate_over_x("[incr x] + 1", NestedPolicy::LocalWrites)
+        else {
+            panic!("the nested service evaluates `[incr x] + 1` under `LocalWrites`");
+        };
+        let [outcome] = outcomes.as_slice() else {
+            panic!("one outcome: {outcomes:?}");
+        };
+        let ExactValueOrUnavailable::Exact(result) = &outcome.result else {
+            panic!("an exact result: {outcome:?}");
+        };
+        assert_eq!(result.bytes, b"3");
+        let [(place, StoreOutcome::Write { value, .. })] = outcome.nested_writes.as_slice() else {
+            panic!("one write: {:?}", outcome.nested_writes);
+        };
+        assert_eq!(
+            (place.name.as_str(), value.bytes.as_slice()),
+            ("x", &b"2"[..])
+        );
+
+        assert!(matches!(
+            evaluate_over_x("[incr x] + 1", NestedPolicy::EffectFreeOnly),
+            LiftedAnswer::Declined(DeclineReason::StatefulNested)
+        ));
+        for nested in [NestedPolicy::EffectFreeOnly, NestedPolicy::LocalWrites] {
+            assert!(
+                matches!(
+                    evaluate_over_x("[clock seconds] + 1", nested),
+                    LiftedAnswer::Declined(_)
+                ),
+                "{nested:?}"
+            );
+        }
     }
 
     #[test]
@@ -2910,7 +4246,7 @@ mod tests {
     #[test]
     fn overflow_promotes_to_exact_bignum() {
         // 10 ** 100 overflows a wide: C Tcl promotes to a bignum and so does
-        // the folder (P4, type-tracking.md) — exactly, never wrapped.
+        // the folder (`type-tracking.md`) — exactly, never wrapped.
         let want = format!("1{}", "0".repeat(100));
         assert_eq!(
             eval_str("10 ** 100").map(|v| format_tcl_value(&v)),
@@ -3079,6 +4415,10 @@ mod tests {
         );
     }
 
+    /// A bracket class is written braced: a quoted operand is substituted,
+    /// so `"a[bxy]c"` would run the command `bxy` (tclsh 8.4 to 9.1 raise
+    /// `invalid command name "bxy"` for `expr {"abc" eq "a[bxy]c"}`) and
+    /// declines here.
     #[test]
     fn irules_matches_glob_question_and_class() {
         assert_eq!(
@@ -3182,7 +4522,7 @@ mod tests {
 
     #[test]
     fn lshift_overflowing_a_wide_promotes_exactly() {
-        // → P4: `1 << 63` overflows a wide; Tcl promotes to
+        // Promotes: `1 << 63` overflows a wide; Tcl promotes to
         // the bignum 9223372036854775808 and the folder now computes it
         // exactly (never the wrapped `i64::MIN`).
         assert_eq!(
@@ -3447,7 +4787,7 @@ mod tests {
     fn math_min_max_preserve_int_width() {
         assert_eq!(eval_str("min(3, 1, 2)"), Some(TclValue::Int(1)));
         assert_eq!(eval_str("max(3, 1, 2)"), Some(TclValue::Int(3)));
-        // Adversarial-review finding: a mixed int/float call returns the
+        // A mixed int/float call returns the
         // *winning* argument's own value, preserving its type — it does not
         // widen to float just because a float appeared among the operands.
         // `min(1, 2.5)` is `1` (an Int, since 1 wins), not `1.0` (confirmed

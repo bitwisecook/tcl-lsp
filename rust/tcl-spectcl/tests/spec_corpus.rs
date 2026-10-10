@@ -39,7 +39,7 @@
 //!
 //! ## Why the packs are loaded one file at a time
 //!
-//! A pack is a logical unit, not a file, and nine of the eleven ports under
+//! A pack is a logical unit, not a file, and ten of the twelve ports under
 //! `docs/design/spec-dsl-examples/` declare `speclib tcl` (the other two are
 //! `speclib tcllib` and `speclib f5-irules`, and `snit-type.tclspec` shares
 //! `tcllib` with the external draft) — merging them would
@@ -162,7 +162,7 @@ fn relative(path: &Path, root: &Path) -> String {
 
 // The inventory: every `.tclspec` the repo ships. Paths and their discovery
 // tier/origin/dialect metadata come from `tcl_spectcl::golden`, the same owner
-// used by the loader, golden, upgrade, and real-Tcl lanes.
+// used by the loader, golden, upgrade, and real-Tcl suites.
 
 // The corpus
 
@@ -471,6 +471,14 @@ impl Engine for CountingEngine {
         self.inner.set_budget(budget)
     }
 
+    fn set_release(&mut self, profile: &str) -> Result<(), EngineError> {
+        self.inner.set_release(profile)
+    }
+
+    fn confine_stores(&mut self) -> Result<(), EngineError> {
+        self.inner.confine_stores()
+    }
+
     fn commands_spent(&self) -> Option<u64> {
         self.inner.commands_spent()
     }
@@ -640,6 +648,7 @@ fn load_one(pack: &ShippedPackFile) -> (PackSet, Duration) {
         tier: pack.tier,
         path: pack.path.clone(),
         origin: pack.origin,
+        dependency_tier: None,
     };
     let started = Instant::now();
     let set = tcl_spectcl::pack::load(std::slice::from_ref(&file));
@@ -671,6 +680,7 @@ fn analyse_legacy(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
     let registry = std::sync::Arc::clone(
         tcl_registry::model::ingress::resolve_environment(dialect)
             .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
+            .expect("the corpus installs the overlay before it asks")
             .commands(),
     );
     let optimisations = optimise_raw(source, &registry, Some(dialect));
@@ -693,6 +703,7 @@ fn analyse_shared(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
     let registry = Arc::clone(
         environment
             .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
+            .expect("the corpus installs the overlay before it asks")
             .commands(),
     );
     let unit_profile = environment.unit_profile();
@@ -1409,7 +1420,7 @@ const BASELINE_HEADER: &str = "\
 #
 #     <pack file>\\t<severity>\\t<context>\\t<message>
 #
-# tab-separated, sorted, one line per occurrence — 49 of them today, in four
+# tab-separated, sorted, one line per occurrence — 30 of them today, in seven
 # groups. `tests/spec_corpus.rs`
 # compares the notices of every pack against this file as a multiset and fails
 # on any difference in either direction, so a notice that gets fixed must also
@@ -1422,18 +1433,11 @@ const BASELINE_HEADER: &str = "\
 # `docs/design/spec-dsl-examples/`, and each is a known, named gap rather than
 # a defect:
 #
-#   `unknown property `object_class` dropped` (13 lines, all four external
-#       drafts) — a REAL LOADER GAP, and the most useful thing this baseline
-#       records. `object_class NAME ?-superclass {…}? ?-allow-unknown?
-#       { method … }` is ratified vocabulary: it is in the frozen syntax
-#       (`docs/design/spec-dsl-examples/README.md`, the field table and the
-#       statement index) and it is a compiled-in `SpecTcl` self-spec statement
-#       (`tcl-registry/src/commands/spectcl/blocks.rs`). `tcl-spectcl`'s
-#       loader implements none of it — `object_class` does not appear in
-#       `src/loader.rs` at all — so every handle-returning factory in the four
-#       external drafts loses its method table on the way in. Nothing under
-#       `specs/` uses the statement, which is why the gap survived the EDA
-#       migration unnoticed.
+#   `unknown flag … on `arg` dropped` (6, the `apave` and `tcllib` external
+#       drafts' object-class methods) — the drafts spell `arg` columns the
+#       vocabulary does not have (`-body-kind`, `-repeats`, a bare `Plain`, an
+#       inline `row {…}`), dropped exactly as the compatibility policy
+#       promises.
 #
 #   `unknown flag `-readonly` on `option` dropped` (3, tcllib draft) — not a
 #       gap: the draft says so itself at `tcllib.tclspec:288`, \"no field in the
@@ -1441,19 +1445,34 @@ const BASELINE_HEADER: &str = "\
 #       A marked invention, dropped exactly as the compatibility policy
 #       promises.
 #
-#   `names a lowering hook` / `names a codegen hook` (6, the `foreach`, `if`,
-#       `return`, `switch` and `upvar` ports) — deliberate. A pack naming a
-#       *native* lowering or codegen hook changes how the compiler translates a
-#       command, so the loader warns and installs it anyway. These five ports
-#       are ports of shipped specs that legitimately carry those hooks; a
-#       private pack getting the same warning is being told something true.
+#   `hook body on `method walk` is not yet bindable` (1, tcllib draft) — an
+#       object-class method's hook body has no slot to bind to yet, so the
+#       field abstains.
 #
-#   ``state_transitions` row … is not yet loadable` /
-#   ``world_effects` row … is not yet loadable` (27, the `oo-class` and `upvar`
-#       ports) — the loader's own words. Those two descriptor families are the
-#       named, still-unimplemented tail of the schema; the ports transcribe
-#       them because the ports were written against the *design*, and the
-#       notices are the honest record of the distance left.
+#   `names a lowering hook` (5, the `foreach`, `if`, `return`, `switch` and
+#       `upvar` ports) — deliberate. A pack naming a *native* lowering hook
+#       changes how the compiler translates a command, so the loader warns and
+#       installs it anyway. These five ports are ports of shipped specs that
+#       legitimately carry those hooks; a private pack getting the same
+#       warning is being told something true.
+#
+#   `… refused for …` (6, the `return`, `string` and `upvar` ports) — the
+#       stamp rejection rule, working. The ports copy their shipped specs'
+#       codegen-axis stamps (`inline_codegen_hook`, `codegen_hook`, and
+#       `semantic_operation {Intrinsic …}` on `string`'s `length`, `is` and
+#       `range`), and a workspace pack may not stamp at all — only a bundled
+#       pack may, as its `alias_of` target's own. Each stamp is dropped and
+#       said on its command's row; the command loads with every other fact.
+#
+#   ``world_effects` row … is not yet loadable` (6, the `oo-class` port) —
+#       the loader's own words: the `world_effects` block's rows beside
+#       `composition` are the named, still-unimplemented tail of the schema.
+#
+#   `state_transitions.resolver -native … names nothing this build ships`
+#       (3, the `oo-class` port) — the port names the shipped `oo::class`
+#       resolvers by id, and no build ships a transition resolver by id yet;
+#       every other row of those blocks loads, and the `upvar` port's
+#       `resolver from-frame-effect` derives.
 #
 # Adding a line here is therefore an admission with a reason attached. Adding
 # one for a file under `specs/` would be a regression in the only tier that
@@ -1658,6 +1677,7 @@ fn drive_hostile_pack() -> Containment {
         tier: Tier::Workspace,
         path: fixture,
         origin: Origin::DotDir,
+        dependency_tier: None,
     }]);
     assert!(
         set.notices.is_empty(),

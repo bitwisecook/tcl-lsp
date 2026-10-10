@@ -55,7 +55,7 @@ pub use autoload::{autoload_command_candidates, native_autoload_command_candidat
 mod command_geometry;
 mod compiled_variables;
 mod variable_geometry;
-pub use variable_geometry::NativeVariableRootGeometry;
+pub use variable_geometry::{NativeVariableBridgeUnavailable, NativeVariableRootGeometry};
 mod variable_spelling;
 pub use variable_spelling::{NativeScalarSourceSpelling, native_scalar_source_spelling};
 mod jim_enumeration;

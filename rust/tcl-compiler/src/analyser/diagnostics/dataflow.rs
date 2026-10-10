@@ -70,21 +70,188 @@ fn reportable_dead_assignment(
 use std::collections::HashSet;
 use tcl_core_types::DiagCode;
 use tcl_dialect::model::SurfaceQuery;
+use tcl_registry::value_transfer::{DomainFact, Existence, FactView};
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::helpers::{
-    PhiUndefMemo, UndefSuppression, block_dominated_by, build_phi_undef_index,
-    collect_existence_guards, find_dotted_quads, is_ident_continue, is_word_byte, phi_can_undef,
-    source_slice,
+    PhiUndefMemo, UndefSuppression, build_phi_undef_index, find_dotted_quads, is_ident_continue,
+    is_word_byte, phi_can_undef, source_slice,
 };
-#[cfg(test)]
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
-
+use crate::analyser::bounds_checks::HeaderFact;
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 use crate::analyser::utils::param_name_spans;
+use crate::compilation_unit::ExistencePoint;
+#[cfg(test)]
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{ExprNode, UnaryOp};
+
+/// The solver's decision at the loop header whose condition word spans
+/// `span` in `fu`, from its `Applied` branch fact: `None` where the unit did
+/// not decide it (the header is not reached, or its condition varies).
+fn header_fact(
+    fu: &crate::compilation_unit::FunctionUnit,
+    span: tcl_lexer::Span,
+) -> Option<HeaderFact> {
+    let branch = fu
+        .diagnostic_value_facts()
+        .constant_branches()
+        .iter()
+        .find(|branch| {
+            branch.kind == crate::sccp::BranchFactKind::Applied
+                && branch.span.map(|found| fu.abs_span(found)) == Some(span)
+        })?;
+    if !branch.value {
+        return Some(HeaderFact::Never);
+    }
+    Some(HeaderFact::Always {
+        exits: loop_exit_is_executable(fu, &branch.taken_target, &branch.not_taken_target),
+    })
+}
+
+/// The loop `fu` holds whose condition word spans `span`, with the block it
+/// leaves to.
+fn held_loop(
+    fu: &crate::compilation_unit::FunctionUnit,
+    span: tcl_lexer::Span,
+) -> Option<(crate::cfg::BlockId, &crate::cfg::LoopNode)> {
+    use crate::ir::Statement;
+    fu.cfg
+        .loop_nodes
+        .iter()
+        .find(|(_, node)| match &node.statement {
+            Statement::For { condition_span, .. } | Statement::While { condition_span, .. } => {
+                fu.abs_span(*condition_span) == span
+            }
+            _ => false,
+        })
+        .map(|(&end, node)| (end, node))
+}
+
+/// The blocks a loop's passes may run: every block reachable from the block
+/// its passes start from ([`crate::cfg::LoopNode::start`]) without passing
+/// the block it leaves to, over the exception edges too — so a handler a pass
+/// may reach, and what follows it, is counted, which only adds to what may
+/// write.
+fn loop_blocks(
+    fu: &crate::compilation_unit::FunctionUnit,
+    start: crate::cfg::BlockId,
+    end: crate::cfg::BlockId,
+) -> HashSet<crate::cfg::BlockId> {
+    let mut seen = HashSet::new();
+    let mut pending = fu.cfg.block_successors(start);
+    while let Some(block) = pending.pop() {
+        if block != end && seen.insert(block) {
+            pending.extend(fu.cfg.block_successors(block));
+        }
+    }
+    seen
+}
+
+/// What may write `var` over a loop's passes, its `blocks`
+/// ([`crate::analyser::bounds_checks::LoopWrites`]): each statement of the
+/// blocks whose SSA definitions name it — a cell update, a write a
+/// substitution makes, a binder, a destructuring target, an opaque
+/// statement's or an arm marker's may-definition, a procedure's write the
+/// call states — and, as unseen, a call to code the module cannot see in the
+/// blocks ([`crate::ssa::is_unseen_call_marker`]), a write to a computed
+/// name in the function ([`crate::dynamic_names::DynamicNameBarrier`]), and
+/// a callback script or variable trace of the module that names it.
+fn loop_writes(
+    fu: &crate::compilation_unit::FunctionUnit,
+    blocks: &HashSet<crate::cfg::BlockId>,
+    var: &str,
+    module: &crate::analyser::bounds_checks::ModuleUnseenWrites,
+) -> crate::analyser::bounds_checks::LoopWrites {
+    let symbol = fu.ssa.var_symbol(var);
+    let statements = blocks
+        .iter()
+        .filter_map(|block| fu.ssa.blocks.get(block))
+        .flat_map(|block| &block.statements);
+    let mut definitions = 0;
+    let mut unseen = fu.dynamic_names.writes || module.may_write(var);
+    for statement in statements {
+        if symbol.is_some_and(|symbol| statement.defs.contains_key(&symbol)) {
+            definitions += 1;
+        }
+        unseen |= crate::ssa::is_unseen_call_marker(&statement.statement);
+    }
+    crate::analyser::bounds_checks::LoopWrites {
+        definitions,
+        unseen,
+    }
+}
+
+/// The integer `var` holds where `node`'s passes start — the end of a
+/// `for`'s start script, the block before any other loop
+/// ([`crate::cfg::LoopNode::start`]) — when the unit's solver proves it
+/// there, on a path that reaches the loop.
+fn loop_start_integer(
+    fu: &crate::compilation_unit::FunctionUnit,
+    node: &crate::cfg::LoopNode,
+    var: &str,
+) -> Option<i64> {
+    use crate::analyses::{ConstValue, LatticeValue};
+    if !fu.sccp.executable_blocks.contains(&node.start) {
+        return None;
+    }
+    let symbol = fu.ssa.var_symbol(var)?;
+    let version = fu
+        .ssa
+        .blocks
+        .get(&node.start)?
+        .exit_versions
+        .get(&symbol)
+        .copied()
+        .unwrap_or(0);
+    match fu.sccp.value_at(node.start, (symbol, version))? {
+        LatticeValue::Const(ConstValue::Int(start)) => Some(*start),
+        _ => None,
+    }
+}
+
+/// Whether an executable path leaves the loop whose body starts at block
+/// `body` and whose exit is block `end`: a `break` reaches `end` (the
+/// header's own false edge is never taken, the branch being decided), or a
+/// block of the loop ends the procedure — a `return`, `error`, `exit` or
+/// `throw`. A block the graph cannot name is taken to exit.
+fn loop_exit_is_executable(
+    fu: &crate::compilation_unit::FunctionUnit,
+    body: &str,
+    end: &str,
+) -> bool {
+    let (Some(start), Some(end)) = (fu.cfg.block_id(body), fu.cfg.block_id(end)) else {
+        return true;
+    };
+    if fu.sccp.executable_blocks.contains(&end) {
+        return true;
+    }
+    let mut successors: std::collections::HashMap<crate::cfg::BlockId, Vec<crate::cfg::BlockId>> =
+        std::collections::HashMap::new();
+    for &(from, to) in &fu.sccp.executable_edges {
+        successors.entry(from).or_default().push(to);
+    }
+    let mut seen = HashSet::from([start]);
+    let mut pending = vec![start];
+    while let Some(block) = pending.pop() {
+        let ends_the_procedure = fu.cfg.blocks.get(&block).is_some_and(|block| {
+            matches!(
+                block.terminator,
+                Some(crate::cfg::Terminator::Return { .. })
+            )
+        });
+        if ends_the_procedure {
+            return true;
+        }
+        for &next in successors.get(&block).into_iter().flatten() {
+            if seen.insert(next) {
+                pending.push(next);
+            }
+        }
+    }
+    false
+}
 
 /// Scope facts that make a store observable outside its local SSA chain.
 struct DeadStoreVisibility<'a> {
@@ -235,6 +402,7 @@ struct PhiUndefIndex<'a> {
     phi_def: &'a super::helpers::PhiDefMap,
     phi_block: &'a super::helpers::PhiBlockMap,
     killed: &'a FxHashSet<crate::def_use::SsaValueKey>,
+    may_defs: &'a super::helpers::MayDefMap,
 }
 
 /// The read-only scope and suppression facts for the version-0 / statement
@@ -259,6 +427,9 @@ struct DeclaredReadProofs<'a> {
 
 pub(super) struct ReturnUndefCtx<'a> {
     pub registry: std::sync::Arc<tcl_registry::CommandRegistry>,
+    /// The variables the read pass already reported: W210 is one per
+    /// variable, so a `return` read of one of them adds nothing.
+    pub already_reported: &'a HashSet<String>,
     pub initial_global: bool,
     pub global_aliases: &'a HashSet<String>,
     pub dialect: Option<SurfaceQuery<'a>>,
@@ -287,6 +458,7 @@ fn startup_read_facts(
     initial_global: bool,
     global_aliases: &HashSet<String>,
     dialect: Option<SurfaceQuery<'_>>,
+    registry: &tcl_registry::CommandRegistry,
 ) -> StartupReadFacts {
     let (startup_name, global_binding) =
         super::helpers::startup_cell_binding(cell, initial_global, global_aliases);
@@ -294,13 +466,99 @@ fn startup_read_facts(
         readable: global_binding
             && version == 0
             && !killed
-            && tcl_registry::special_vars::is_readable_at_startup(startup_name, dialect),
+            && registry.is_readable_at_startup(startup_name, dialect),
         initially_bound: global_binding
             && version == 0
-            && tcl_registry::special_vars::is_initially_bound(startup_name, dialect),
-        lazy_read: global_binding
-            && tcl_registry::special_vars::is_lazily_readable(startup_name, dialect),
+            && registry.is_initially_bound(startup_name, dialect),
+        lazy_read: global_binding && registry.is_lazily_readable(startup_name, dialect),
     }
+}
+
+/// The command of the case-list statement that holds the `Selected` fact
+/// `arm`, as the source spells it, less a leading `::`, and capitalised to
+/// open a message: `Switch`, or `Case` for the statement a `case` spells.
+fn case_list_command(
+    fu: &crate::compilation_unit::FunctionUnit,
+    arm: &crate::sccp::ConstantBranch,
+) -> String {
+    let command = arm
+        .span
+        .zip(fu.cfg.block_by_name(&arm.block))
+        .and_then(|(pattern, block)| {
+            block
+                .statements
+                .iter()
+                .find_map(|statement| match statement {
+                    crate::ir::Statement::Switch { span, command, .. }
+                        if span.start() <= pattern.start() && pattern.end() <= span.end() =>
+                    {
+                        Some(command.as_str())
+                    }
+                    _ => None,
+                })
+        })
+        .unwrap_or("switch");
+    let mut letters = command.trim_start_matches(':').chars();
+    letters.next().map_or_else(String::new, |first| {
+        first.to_uppercase().chain(letters).collect()
+    })
+}
+
+/// The existence fact the read at `index` of `block` finds at `var`'s place:
+/// the statement's own read, or — for the terminator, `index` -1
+/// — the block's exit, as the unit's typed view
+/// ([`crate::compilation_unit::FunctionUnit::existence`]): `Pending`
+/// where the run never reached it, and `Unavailable` below the deep tier or
+/// past the complexity ceiling, neither of which is bound or unbound.
+fn place_fact(
+    fu: &crate::compilation_unit::FunctionUnit,
+    block: &str,
+    index: i32,
+    cell: &crate::var_resolve::VariableCellKey,
+) -> FactView {
+    let (Some(block), Some(symbol)) = (fu.cfg.block_id(block), fu.ssa.cell_symbol(cell)) else {
+        return FactView::Pending;
+    };
+    let point = match usize::try_from(index) {
+        Ok(index) => ExistencePoint::Before(block, index),
+        Err(_) => ExistencePoint::Exit(block),
+    };
+    fu.existence(symbol, point)
+}
+
+/// The existence fact a W210 or W213 read reports on: an unbound or a
+/// may-bound place. A bound one, one the run never reached, and one it
+/// computed nothing for — `Unavailable` below the deep tier or past the
+/// complexity ceiling — report nothing.
+fn reportable(fact: &FactView) -> Option<Existence> {
+    match fact {
+        FactView::Domain(DomainFact::Existence(
+            fact @ (Existence::Unbound | Existence::MayBound),
+        )) => Some(*fact),
+        _ => None,
+    }
+}
+
+/// Destruction at an original normal transfer, selected under the actual
+/// function metadata. A spelling or reporting name cannot select this policy.
+fn destroys_variable(
+    fu: &crate::compilation_unit::FunctionUnit,
+    site: &crate::def_use::UseSite,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<crate::registry_invocation::NormalTransferInvocation> {
+    let block = fu.cfg.block_id(&site.block)?;
+    let index = usize::try_from(site.statement_index).ok()?;
+    let metadata = fu.invocation_metadata_context(registry)?;
+    let tokens = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index).source_tokens()?;
+    let selected = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        registry,
+        Some(metadata),
+        tokens,
+    )?;
+    selected
+        .variable_traits()
+        .contains(tcl_registry::Traits::DESTROYS_VARIABLE)
+        .then_some(selected)
 }
 
 /// Facts used while recording the read sites of one undef def-use chain.
@@ -550,6 +808,9 @@ file; this call falls through to the 'unknown' handler."
             // condition the version-precise `used` set can't see keeps every
             // write of it alive (`set i 0` before `[incr i $j]`). Suppress at
             // name level.
+            if fu.ssa.name_is_observed_by_unseen_call(var, *version) {
+                continue;
+            }
             if (hidden_reads.contains(var) || (fu.dynamic_names.reads && !conditional_unread))
                 && overwrite.is_none()
             {
@@ -772,6 +1033,19 @@ file; this call falls through to the 'unknown' handler."
         find_var(&slice, stmt_span.start(), target, self.lexer_config(), 0)
     }
 
+    /// Whether the runtime reads `var` when the script does not — a special
+    /// variable such as `auto_path`, whose write the host observes — under
+    /// the analyser's registry, pack-declared rows included.
+    fn externally_read(&self, var: &str) -> bool {
+        self.registry
+            .as_deref()
+            .unwrap_or_else(|| tcl_registry::default_registry())
+            .is_externally_read(
+                crate::naming::normalise_var_name(var),
+                Some(self.analysis_context().context().authoring_query()),
+            )
+    }
+
     /// W211 — unused-variable hint.
     ///
     /// Fires when an
@@ -818,6 +1092,7 @@ file; this call falls through to the 'unknown' handler."
         // variable.
         let mut earliest: std::collections::HashMap<String, tcl_lexer::Span> =
             std::collections::HashMap::new();
+        let observed_by_unseen_calls = names_observed_by_unseen_calls(fu);
         for chain in fu.def_use.chains.values() {
             if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
                 continue;
@@ -853,6 +1128,9 @@ file; this call falls through to the 'unknown' handler."
                     &declaration_layout,
                 )
             {
+                continue;
+            }
+            if observed_by_unseen_calls.contains(var.as_str()) {
                 continue;
             }
             // A synthetic may-def (base refresh / element fan) is not a
@@ -1288,7 +1566,7 @@ file; this call falls through to the 'unknown' handler."
         fu: &crate::compilation_unit::FunctionUnit,
         ir_proc: Option<&crate::ir::Procedure>,
         ctx: &ReadBeforeSetCtx<'_>,
-    ) {
+    ) -> HashSet<String> {
         let exists_guards =
             collect_existence_guards(fu, self.analysis_context().commands(), self.lexer_config());
         let mut w210_min = self.definite_missing_read_spans(fu, ctx, &exists_guards);
@@ -1321,9 +1599,10 @@ file; this call falls through to the 'unknown' handler."
                 )
             });
             suppress_declared_read_warnings(fu, ctx, declared_flow.as_deref(), &mut w210_min);
+            let reported = w210_min.keys().cloned().collect();
             self.emit_w210_read_spans(w210_min, ctx);
             self.emit_declaration_potential_reads(potential);
-            return;
+            return reported;
         }
 
         // An authored declaration can delimit a diagnostic read without
@@ -1371,8 +1650,10 @@ file; this call falls through to the 'unknown' handler."
             )
         });
         suppress_declared_read_warnings(fu, ctx, declared_flow.as_deref(), &mut w210_min);
+        let reported = w210_min.keys().cloned().collect();
         self.emit_w210_read_spans(w210_min, ctx);
         self.emit_declaration_potential_reads(potential);
+        reported
     }
 
     fn collect_chain_read_before_set_spans(
@@ -1421,6 +1702,7 @@ file; this call falls through to the 'unknown' handler."
                 ctx.initial_global,
                 ctx.global_aliases,
                 Some(self.analysis_context().context().authoring_query()),
+                &self.profile_registry(),
             );
             if startup.lazy_read && ctx.supp.killed.contains(&chain.key) {
                 continue;
@@ -1497,7 +1779,7 @@ file; this call falls through to the 'unknown' handler."
             // CONST("") (keys = ∅, not unknown), so the blanket variant fires
             // on a genuine missing-key read while still suppressing an
             // unknown-shape (mixed-caller / no-caller) dict.
-            if ctx.supp.suppresses(var) {
+            if ctx.supp.suppresses_read(var, &chain.key) {
                 continue;
             }
             self.record_chain_w210_uses(
@@ -1681,6 +1963,7 @@ file; this call falls through to the 'unknown' handler."
                             ctx.initial_global,
                             ctx.global_aliases,
                             Some(self.analysis_context().context().authoring_query()),
+                            &self.profile_registry(),
                         );
                         facts.lazy_read || incoming && facts.readable
                     });
@@ -1715,6 +1998,7 @@ file; this call falls through to the 'unknown' handler."
         use std::fmt::Write as _;
         let mut entries: Vec<(String, tcl_lexer::Span)> = spans.into_iter().collect();
         entries.sort_by_key(|(_, s)| s.start());
+        let reported = entries.iter().map(|(var, _)| var.clone()).collect();
         for (var, span) in entries {
             let mut message = format!("Variable '{var}' is read before it is set");
             if let Some(similar) = undefined_var_suggestion(&var, ctx.defined_vars) {
@@ -1729,6 +2013,7 @@ file; this call falls through to the 'unknown' handler."
                     Severity::Warning,
                 ));
         }
+        reported
     }
 
     /// Record the earliest read-before-set span for one undef def-use chain
@@ -1748,7 +2033,7 @@ file; this call falls through to the 'unknown' handler."
         use crate::def_use::UseKind;
         use crate::ir::Statement;
 
-        let (cell_name, _version) = &chain.key;
+        let (cell_name, version) = &chain.key;
         let Some(symbol) = fu.ssa.cell_symbol(cell_name) else {
             return;
         };
@@ -1765,12 +2050,46 @@ file; this call falls through to the 'unknown' handler."
             if use_site.class == crate::ssa::UseClass::Quoted {
                 continue;
             }
+            // A definition its statement left untouched holds the prior
+            // version on the paths the solver's outcome runs, and only there:
+            // a read in a block that outcome makes unreachable — the match
+            // arm of a `regexp` that never matches — reads a written value.
+            if ctx.supp.preserved_undef.contains(&chain.key)
+                && fu
+                    .cfg
+                    .block_id(&use_site.block)
+                    .is_none_or(|id| !fu.sccp.executable_blocks.contains(&id))
+            {
+                continue;
+            }
             // An after-loop read of a variable the loop body defines on every
             // iteration is not read-before-set (see
             // `UndefSuppression::loop_entry_only_undef`): we assume a may-run
             // loop runs, matching C Tcl. A read *inside* the loop body still
             // fires.
             if ctx.supp.after_loop_defined(&chain.key, &use_site.block) {
+                continue;
+            }
+            // A read at or after an `expr` substitution's write of the name.
+            if fu.cfg.block_id(&use_site.block).is_some_and(|block| {
+                ctx.supp.written_by_substitution_before(
+                    var,
+                    &fu.ssa,
+                    block,
+                    use_site.statement_index,
+                )
+            }) {
+                continue;
+            }
+            // A name nothing in the function assigns, read after code the module
+            // cannot see: the code may have set it, as a sourced file or a
+            // command the module does not define may set a global.
+            if *version == 0
+                && fu.cfg.block_id(&use_site.block).is_some_and(|block| {
+                    ctx.supp
+                        .unseen_call_before(&fu.ssa, block, use_site.statement_index)
+                })
+            {
                 continue;
             }
             let Some(block) = fu.cfg.block_by_name(&use_site.block) else {
@@ -1872,7 +2191,7 @@ file; this call falls through to the 'unknown' handler."
             }
             // A statement the lowering synthesised to carry an effect — the
             // `<cond>` placeholder holding a branch condition's substitution
-            // reads, or `<upvar-invalidate>` holding a word's — has no source
+            // reads, or `<word-effects>` holding a word's — has no source
             // word to anchor a read at: its span is the whole `if` or the whole
             // host statement. And the reads it carries are precisely the
             // existence-tolerant ones — `[info exists x]` is the idiom for a
@@ -1896,16 +2215,31 @@ file; this call falls through to the 'unknown' handler."
             ) {
                 continue;
             }
-            // ``unset`` without ``-nocomplain`` → W213.
-            if let Some(Statement::Call {
-                command,
-                args,
-                tokens,
-                ..
-            }) = stmt_opt
-                && command == "unset"
-                && !args.iter().any(|a| a == "-nocomplain")
+            // An unbind of the place — a command the registry declares
+            // `DESTROYS_VARIABLE`, under the spelling the source uses —
+            // reads the existence fact where it runs: W213 is
+            // definite on an unbound place, "may not exist" on a may-bound
+            // one, and nothing on a bound one or where the run computed no
+            // fact. The `-nocomplain` form raises nothing, so it reports
+            // neither W213 nor, since destroying is no read, W210.
+            if let Some(Statement::Call { tokens, .. }) = stmt_opt
+                && let Some(selected) = destroys_variable(fu, use_site, &self.profile_registry())
             {
+                let targets = selected.variable_roles();
+                if (0..selected.argument_count()).any(|ordinal| {
+                    !targets.iter().any(|(index, _)| *index == ordinal)
+                        && selected.argument_literal(ordinal).as_deref() == Some("-nocomplain")
+                }) {
+                    continue;
+                }
+                let Some(fact) = reportable(&place_fact(
+                    fu,
+                    &use_site.block,
+                    use_site.statement_index,
+                    cell_name,
+                )) else {
+                    continue;
+                };
                 // Eager startup bindings (`argv`, `tcl_version`, …) already
                 // exist when their first `unset` runs. A lazy read trace is
                 // different: its first `unset` still errors until an earlier
@@ -1921,10 +2255,17 @@ file; this call falls through to the 'unknown' handler."
                 {
                     continue;
                 }
-                let message = format!(
-                    "Variable '{var}' may not exist; \
+                let message = if fact == Existence::Unbound {
+                    format!(
+                        "Variable '{var}' does not exist here; \
                          use 'unset -nocomplain' to suppress the error",
-                );
+                    )
+                } else {
+                    format!(
+                        "Variable '{var}' may not exist; \
+                         use 'unset -nocomplain' to suppress the error",
+                    )
+                };
                 // Narrow the squiggle to the offending variable word (so
                 // `unset a b c` flags only the missing name), and attach a
                 // quick fix that inserts `-nocomplain` right after `unset` —
@@ -1959,6 +2300,19 @@ file; this call falls through to the 'unknown' handler."
             // applies to the initial global frame, a qualified global, or a
             // registry-declared global alias — never a same-named local.
             if ctx.startup.readable {
+                continue;
+            }
+            // The existence rung has the last word: a read at a place
+            // bound there, or where the run computed no fact, is no
+            // read-before-set.
+            if reportable(&place_fact(
+                fu,
+                &use_site.block,
+                use_site.statement_index,
+                cell_name,
+            ))
+            .is_none()
+            {
                 continue;
             }
             // Anchor at the `$var` read token; fall back to the command
@@ -1997,11 +2351,17 @@ file; this call falls through to the 'unknown' handler."
             return;
         };
 
-        let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered, registry);
+        let super::helpers::UndefIndexMaps {
+            phi_def,
+            phi_block,
+            killed,
+            may_defs,
+        } = build_phi_undef_index(&fu.ssa, considered, registry, &ctx.supp.call_steps);
         let phi_idx = PhiUndefIndex {
             phi_def: &phi_def,
             phi_block: &phi_block,
             killed: &killed,
+            may_defs: &may_defs,
         };
         // Every `return_read_fires_w210` call below traces the same phi graph
         // with the same context, so they share one memo (issue #2021).
@@ -2017,7 +2377,7 @@ file; this call falls through to the 'unknown' handler."
             self.lexer_config(),
         );
 
-        let mut reported: FxHashSet<String> = FxHashSet::default();
+        let mut reported: FxHashSet<String> = ctx.already_reported.iter().cloned().collect();
         // Deterministic block order for stable diagnostics (by BlockId =
         // creation order; the analyser re-sorts diagnostics by span/code).
         let mut block_ids: Vec<crate::cfg::BlockId> = considered.iter().copied().collect();
@@ -2079,6 +2439,16 @@ file; this call falls through to the 'unknown' handler."
                 if !Self::return_read_fires_w210(fu, &name, ver, bn, &phi_idx, ctx, &mut memo) {
                     continue;
                 }
+                // The existence rung has the last word here too.
+                let fact = fu
+                    .ssa
+                    .var_symbol(&name)
+                    .map_or(FactView::Pending, |symbol| {
+                        fu.existence(symbol, ExistencePoint::Exit(bn))
+                    });
+                if reportable(&fact).is_none() {
+                    continue;
+                }
                 reported.insert(name.clone());
                 let mut message = format!("Variable '{name}' is read before it is set");
                 if let Some(similar) = undefined_var_suggestion(&name, defined_vars) {
@@ -2099,9 +2469,10 @@ file; this call falls through to the 'unknown' handler."
     /// Decide whether a single `return`-value read of `(name, ver)` in block
     /// `bn` is a W210 phi-from-undef read: its reaching version must be able to
     /// reach an undef origin, and it must not be a parameter / scope alias /
-    /// known-defined / qualified / suppressed name or be proven
-    /// defined by a dominating existence guard.  Version-0 reads are handled by
-    /// the def-use `DefKind::Parameter` emitter, so they never fire here.
+    /// known-defined / qualified / suppressed name or lie in the region an
+    /// existence guard proves it bound ([`crate::sccp::SccpResult::guarded`]).
+    /// Version-0 reads are handled by the def-use `DefKind::Parameter`
+    /// emitter, so they never fire here.
     fn return_read_fires_w210(
         fu: &crate::compilation_unit::FunctionUnit,
         name: &str,
@@ -2124,9 +2495,11 @@ file; this call falls through to the 'unknown' handler."
             return false;
         }
         let undef_ctx = super::helpers::PhiUndefCtx {
+            registry: ctx.registry,
             phi_def: phi_idx.phi_def,
             phi_block: phi_idx.phi_block,
             killed: phi_idx.killed,
+            may_defs: phi_idx.may_defs,
             considered: ctx.considered,
             executable_edges: fu.diagnostic_value_facts().executable_edges(),
             exists_guards: ctx.exists_guards,
@@ -2134,6 +2507,7 @@ file; this call falls through to the 'unknown' handler."
             global_aliases: ctx.global_aliases,
             dialect: ctx.dialect,
             ssa: &fu.ssa,
+            preserved: &fu.sccp.preserved,
         };
         let cell_name = fu.ssa.cell_key(symbol);
         if !phi_can_undef(cell_name, ver, &undef_ctx, memo) {
@@ -2154,7 +2528,10 @@ file; this call falls through to the 'unknown' handler."
             )
             || ctx.extra_known_defined.contains(name)
             || (cell_name.namespace_membership_for_advice().is_some() && !known_killed)
-            || ctx.supp.suppresses(name)
+            || ctx.supp.suppresses_read(name, &(cell_name.clone(), ver))
+            || ctx
+                .supp
+                .written_by_substitution_before(name, &fu.ssa, bn, -1)
         {
             return false;
         }
@@ -2243,6 +2620,7 @@ file; this call falls through to the 'unknown' handler."
                             ctx.initial_global,
                             ctx.global_aliases,
                             Some(context.context().authoring_query()),
+                            context.commands(),
                         );
                         if startup.readable {
                             continue;
@@ -2424,6 +2802,10 @@ file; this call falls through to the 'unknown' handler."
     /// - Otherwise → I230 with the generic
     ///   ``"Branch condition '...' is constant"`` message.
     ///
+    /// A loop's own test decided true — the idiomatic `while 1` — is not
+    /// reported; a loop's test is the branch whose false edge enters the
+    /// block the loop leaves to.
+    ///
     /// Severity is mapped to ``Hint`` because the
     /// [`Severity`] enum has no ``Info`` variant — ``Hint`` is
     /// the closest non-actionable level.
@@ -2431,7 +2813,12 @@ file; this call falls through to the 'unknown' handler."
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) {
-        for branch in fu.diagnostic_value_facts().constant_branches() {
+        for branch in fu
+            .diagnostic_value_facts()
+            .constant_branches()
+            .iter()
+            .filter(|branch| branch.kind == crate::sccp::BranchFactKind::Applied)
+        {
             // A branch is dead when the not-taken target is
             // unreachable.  SCCP exposes
             // ``executable_blocks`` (the complement); a block
@@ -2449,12 +2836,20 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             };
             let Some(crate::cfg::Terminator::Branch {
-                span: Some(span), ..
+                span: Some(span),
+                false_target,
+                ..
             }) = &block.terminator
             else {
                 continue;
             };
             let span = fu.abs_span(*span);
+            // A loop's own test is the branch that leaves the loop when false:
+            // its false edge enters the block the loop leaves to
+            // (`cfg.loop_nodes`), wherever the test sits. A decided `if` in the
+            // loop's body, or right after the loop in the block it leaves to,
+            // is no loop test, whatever its block's name.
+            let is_loop = fu.cfg.loop_nodes.contains_key(false_target);
 
             let names = [
                 branch.block.as_str(),
@@ -2463,9 +2858,6 @@ file; this call falls through to the 'unknown' handler."
             ];
             let is_switch = names.iter().any(|n| n.starts_with("switch_"));
             let is_if = names.iter().any(|n| n.starts_with("if_"));
-            let is_loop = names.iter().any(|n| {
-                n.starts_with("while_") || n.starts_with("for_") || n.starts_with("foreach_")
-            });
             // Suppress the idiomatic infinite loop `while 1 { … }`:
             // a constant-TRUE loop condition is intentional, not a bug (a
             // constant-FALSE loop still flags its unreachable body).
@@ -2504,6 +2896,13 @@ file; this call falls through to the 'unknown' handler."
                     )
                 };
                 (DiagCode::I230, msg)
+            } else if is_loop {
+                // A loop's own test decided true was skipped above.
+                let msg = format!(
+                    "Loop condition '{}' is never true; the loop leaves at this test",
+                    branch.condition,
+                );
+                (DiagCode::I230, msg)
             } else {
                 let msg = format!(
                     "Branch condition '{}' is constant; one branch is unreachable",
@@ -2524,30 +2923,15 @@ file; this call falls through to the 'unknown' handler."
         }
     }
 
-    /// I230 — fold `[info exists X]` / `[array exists X]` conditions.
-    ///
-    /// SCCP can't fold these (the predicate lowers to an
-    /// opaque `ExprNode::Command`, and SCCP has no parameter/existence
-    /// facts), so the fold is computed by
-    /// [`crate::sccp::existence_constant_branches`] using the frame's formal
-    /// parameters — the same helper whose result
-    /// `FunctionUnit::build` appends to `sccp.constant_branches` for the
-    /// optimiser's O101 fold / DCE.  Emitting the I230 here (rather than
-    /// via [`Self::emit_constant_branch_diagnostics`]) is deliberate:
-    /// that emitter gates on the not-taken arm being unreachable in
-    /// `executable_blocks`, which these post-pass folds don't update, so
-    /// it skips them and there is no double emission.
-    ///
-    /// `frame` supplies the typed entry facts for whichever kind of body
-    /// this is: a procedure contributes its parameters, a
-    /// `TclOO` method body contributes its parameters **and** its class's
-    /// instance variables, on which the fold must abstain.  Both halves come
-    /// from the same IR the optimiser's copy of the fold reads, so the two
-    /// consumers cannot drift.
-    pub(super) fn emit_existence_constant_branch_diagnostics(
+    /// I230, I231 and the loop-termination verdicts from the unit's stored
+    /// branch facts: the decided branches
+    /// ([`Self::emit_constant_branch_diagnostics`]), the arms of an opaque
+    /// `switch` no member of the subject runs
+    /// ([`Self::emit_selected_arm_diagnostics`]), and each loop's header
+    /// ([`Self::resolve_loop_terminations`]).
+    pub(super) fn emit_branch_fact_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
-        frame: crate::sccp::ExistenceFrame<'_>,
     ) {
         // The fold consults the registry's scope-alias roles to skip
         // out-of-frame-linked locals; a registry-less analyser falls back to
@@ -2571,24 +2955,17 @@ file; this call falls through to the 'unknown' handler."
             let Some(span) = cb.span.map(|s| fu.abs_span(s)) else {
                 continue;
             };
-            let message = if cb.value {
-                format!(
-                    "Condition '{}' is always true; the alternate branch is unreachable",
-                    cb.condition,
-                )
-            } else {
-                format!(
-                    "Condition '{}' is always false; the alternate branch is unreachable",
-                    cb.condition,
-                )
-            };
             self.result
                 .diagnostics
                 .push(crate::analyser::types::Diagnostic::new(
-                    DiagCode::I230,
-                    span,
-                    message,
-                    // I230 is observational (LSP `Information`).
+                    DiagCode::I231,
+                    fu.abs_span(span),
+                    format!(
+                        "{} arm '{}' is never selected; this arm is unreachable",
+                        case_list_command(fu, arm),
+                        arm.condition,
+                    ),
+                    // I230/I231 are observational (LSP `Information`).
                     Severity::Info,
                 ));
         }
@@ -2740,7 +3117,7 @@ file; this call falls through to the 'unknown' handler."
         for finding in crate::interval_bounds::find_divide_by_zero_with_entered_operands(
             &fu.cfg,
             &fu.ssa,
-            fu.diagnostic_value_facts().values(),
+            (fu.diagnostic_value_facts().values(), (&fu.sccp, &fu.types)),
             &executable,
             // The document's own numeral grammar: a divisor literal means what
             // this dialect says it means (`0755` is 493 up to 8.6, 755 from
@@ -2780,8 +3157,83 @@ file; this call falls through to the 'unknown' handler."
     /// against a statically-established container length.  Complements the
     /// syntactic bounds checks (literal index + literal container only); the
     /// two never double-fire because the syntactic checks back off on any
-    /// `$var` index.  Restricted to SCCP-reachable blocks so a dynamic index
-    /// in dead code does not warn.
+    /// `$var` index, and the proven-word re-run leaves a site reported here
+    /// to this check ([`Self::interval_index_sites`]).  Restricted to
+    /// SCCP-reachable blocks so a dynamic index in dead code does not warn.
+    /// Resolve each loop the walk examined that `fu` decides against the
+    /// unit's branch fact at its condition span
+    /// ([`crate::analyser::bounds_checks::LoopTerminationCandidate::resolve`]).
+    /// A header false at entry is W240, one true at every test with no
+    /// executable exit is W241, and either suppresses W242. A loop the unit
+    /// holds and does not decide is read against what the unit knows of it
+    /// ([`crate::analyser::bounds_checks::LoopTerminationCandidate::settle`]):
+    /// what may write a variable over its passes ([`loop_writes`]) and the
+    /// integer its counter starts at ([`loop_start_integer`]). It stays
+    /// queued, as one the unit does not hold does, for another unit or for
+    /// [`Self::flush_loop_terminations`].
+    pub(super) fn resolve_loop_terminations(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
+        for mut candidate in std::mem::take(&mut self.loop_candidates) {
+            if let Some(header) = header_fact(fu, candidate.condition_span) {
+                self.result
+                    .diagnostics
+                    .extend(candidate.resolve(Some(header)));
+                continue;
+            }
+            if let Some((end, node)) = held_loop(fu, candidate.condition_span) {
+                let blocks = loop_blocks(fu, node.start, end);
+                let module = &self.loop_unseen_writes;
+                candidate.settle(
+                    |var| loop_writes(fu, &blocks, var, module),
+                    |var| loop_start_integer(fu, node, var),
+                );
+            }
+            self.loop_candidates.push(candidate);
+        }
+    }
+
+    /// Report every loop no unit decided as its text says: a constant-false
+    /// literal, a constant-true one whose body never leaves the loop, a
+    /// `for` counter that never terminates, or a counter nothing modifies.
+    pub(in crate::analyser) fn flush_loop_terminations(&mut self) {
+        for candidate in std::mem::take(&mut self.loop_candidates) {
+            self.result.diagnostics.extend(candidate.resolve(None));
+        }
+    }
+
+    /// I231 for each arm of an opaque `switch` the solver's selection never
+    /// runs the body of — the `Selected` branch facts. The arms have no
+    /// blocks of their own, so nothing is dropped and no reachability is
+    /// applied: the statement stays one call, and only the pattern that can
+    /// never be the one selected is reported, at its span.
+    pub(super) fn emit_selected_arm_diagnostics(
+        &mut self,
+        fu: &crate::compilation_unit::FunctionUnit,
+    ) {
+        for arm in fu
+            .diagnostic_value_facts()
+            .constant_branches()
+            .iter()
+            .filter(|branch| branch.kind == crate::sccp::BranchFactKind::Selected)
+        {
+            let Some(span) = arm.span else {
+                continue;
+            };
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::I231,
+                    fu.abs_span(span),
+                    format!(
+                        "{} arm '{}' is never selected; this arm is unreachable",
+                        case_list_command(fu, arm),
+                        arm.condition,
+                    ),
+                    // I230/I231 are observational (LSP `Information`).
+                    Severity::Info,
+                ));
+        }
+    }
+
     pub(super) fn emit_interval_bounds_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
@@ -2801,7 +3253,7 @@ file; this call falls through to the 'unknown' handler."
         let findings = crate::interval_bounds::find_interval_bounds_resolved(
             &fu.cfg,
             &fu.ssa,
-            fu.diagnostic_value_facts().values(),
+            (fu.diagnostic_value_facts().values(), (&fu.sccp, &fu.types)),
             &executable,
             self.profile.character_model(),
             crate::intervals::numbers_for_dialect(Some(self.profile)),
@@ -2840,6 +3292,8 @@ file; this call falls through to the 'unknown' handler."
             } else {
                 "silently returns the empty string"
             };
+            self.interval_index_sites
+                .insert((f.code, fu.abs_span(f.span), f.index_var.clone()));
             self.result
                 .diagnostics
                 .push(crate::analyser::types::Diagnostic::new(
@@ -3564,6 +4018,18 @@ fn match_ipv6_candidate(bytes: &[u8], start: usize) -> Option<usize> {
     best
 }
 
+/// The names some version of which a call to a command the module cannot see
+/// holds where it runs: that code may read the name at any version it holds
+/// there, so such a name is never unused.
+fn names_observed_by_unseen_calls(fu: &crate::compilation_unit::FunctionUnit) -> HashSet<&str> {
+    fu.def_use
+        .chains
+        .keys()
+        .filter(|(name, held)| fu.ssa.name_is_observed_by_unseen_call(name, *held))
+        .map(|(name, _)| name.as_str())
+        .collect()
+}
+
 /// The suggestion name for an undefined-variable "; did you mean 'X'?"
 /// suffix (W210): a case-insensitive twin among `defined_vars` wins at
 /// any edit distance ([`find_case_mismatch`] — the established W210/W211/
@@ -3855,13 +4321,7 @@ pub(crate) fn report_original_store_diagnostic_gates(
 
 /// Synthetic effect statements have no original argv for a diagnostic anchor.
 fn statement_is_synthetic_effect(stmt: &crate::ir::Statement) -> bool {
-    match stmt {
-        crate::ir::Statement::Call { tokens, .. }
-        | crate::ir::Statement::Barrier { tokens, .. } => tokens
-            .as_ref()
-            .is_some_and(|tokens| tokens.synthetic.is_some()),
-        _ => false,
-    }
+    stmt.synthetic_marker().is_some()
 }
 
 /// Suppress a lexical body read when unchanged conditional source advice
@@ -3975,10 +4435,9 @@ fn existence_query_cells(
         .collect()
 }
 
-/// True when a read of `var` at `use_block` is exempt
-/// from W210 because it is the existence-query word itself, or because
-/// it sits in a region guarded by an enclosing `[info exists var]`.
-fn existence_exempt(
+/// True when a read of `var` is the word of an existence query in the
+/// statement itself (`info exists var`), which W210 never reports.
+fn is_existence_query_word(
     stmt_opt: Option<&crate::ir::Statement>,
     cell: &crate::var_resolve::VariableCellKey,
     exists_guards: &[super::helpers::ExistenceGuard],
@@ -4042,6 +4501,30 @@ fn use_site_safe_initialises(
     super::helpers::original_definition_places(fu, block, index, registry)
         .iter()
         .any(|place| crate::var_resolve::canonical_place_key(place).as_ref() == Some(cell))
+}
+
+/// Whether `var`'s use at `stmt` is the read of a cell update embedded in the
+/// words of a host `Call` (`puts [incr n]`, `lappend l [append s y]`): the CFG
+/// builder merges the embedded update's read and write into the host call, so
+/// the store feeding it stays live (#2050). A non-`Call` host carries them on
+/// the definition point of its word effects instead (`<word-effects>`), which
+/// [`statement_is_synthetic_effect`] already exempts; this is the host-`Call`
+/// half of the same exemption. Lowering flags every call whose own named
+/// reads overlap its definitions `reads_own_defs`, so the overlap on an
+/// unflagged call is the embedded scan's. The scan recovers every `[…]` in
+/// the words, braced ones included (a `proc` body, a `catch` script), so the
+/// read may not run here: like a quoted mention it keeps liveness
+/// conservative and is never a read *before set*.
+fn embedded_cell_update_read(stmt: Option<&crate::ir::Statement>, var: &str) -> bool {
+    matches!(
+        stmt,
+        Some(crate::ir::Statement::Call {
+            reads,
+            defs,
+            reads_own_defs: false,
+            ..
+        }) if reads.iter().any(|r| r == var) && defs.iter().any(|d| d == var)
+    )
 }
 
 /// The namespace of a fully-qualified name: everything up to the last `::`,
@@ -4581,7 +5064,7 @@ mod issue996_tests {
         };
         for _ in 0..3000 {
             node = ExprNode::Unary {
-                op: UnaryOp::Not,
+                op: crate::expr_ast::UnaryOp::Not,
                 operand: Box::new(node),
             };
         }

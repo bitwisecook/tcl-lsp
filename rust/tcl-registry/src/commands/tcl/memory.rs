@@ -110,6 +110,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "memory info",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {

@@ -1,0 +1,18 @@
+{
+  "provider": "8.6.18",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/tmp/native-return-grammar382/probe.tcl"
+  ],
+  "original_source_sha256": "43e30c5448ee489f127d128f90fb2f16a730c34a5a5a28d5c923eae54ec67b29",
+  "executable_sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+  "started_utc": "2026-10-10T12:31:45.733048+00:00",
+  "elapsed_seconds": 0.009972258005291224,
+  "exit_code": 0,
+  "stdout_sha256": "b53949700ee604e80a0e424ad73a9bbc76d88e142a970aaf63438c2242af3ad8",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "public_meta_rows": [
+    "META|8.6.18|1"
+  ],
+  "row_count": 76
+}

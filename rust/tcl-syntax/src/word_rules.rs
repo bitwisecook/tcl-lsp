@@ -271,9 +271,9 @@ mod tests {
     /// `of_dialect_name` and `of_profile` agree for every dialect the legacy
     /// catalogue can name — and *cannot* agree for one it cannot.
     ///
-    /// `jim` is deliberately not a catalogue profile (P6: a grammar is a
+    /// `jim` is not a catalogue profile: a grammar is a
     /// function of `(family, release, build)`, so an environment names the
-    /// family and ladder instead), which means `of_profile` receives `None`
+    /// family and ladder instead, which means `of_profile` receives `None`
     /// for a Jim document and answers C Tcl. That asymmetry is a property of
     /// the `Option<&DialectProfile>` currency, not of this type, and it is why
     /// a layer should carry a resolved point rather than a profile handle.

@@ -18,10 +18,8 @@
 
 //! The **bundled** tier on its own: the loadables tcl-lsp ships.
 //!
-//! `docs/design/registry/spec-packs.md` puts the EDA vendor libraries here — "the EDA
-//! vendor libraries ship as bundled `.tclspec` loadables … so the loader path
-//! is exercised in production from day one rather than reserved for private
-//! packs" — and since the migration that is literally true: `sdc_base`, `upf` and the
+//! The EDA vendor libraries ship as bundled `.tclspec` loadables:
+//! `sdc_base`, `upf` and the
 //! five vendor packs have no Rust modules behind them at all, so a `get_cells`
 //! or a `synth_design` reaches a registry only by way of [`crate::loader`].
 //!
@@ -29,10 +27,8 @@
 //! together ([`crate::discover`]) and installs the merged set. This is for
 //! every *other* consumer — the `tcl` CLI, `f5-query`, `tcl-mcp`, a test
 //! harness — which has no workspace and no `tclLsp.specPacks`, and simply
-//! wants the registry a dialect is supposed to have. Those callers used to get
-//! the EDA packs for free from `CommandRegistry::load_eda_packs`; they get them
-//! from here now, and the discovery, parse, merge and install they go through
-//! is the same code the server runs.
+//! wants the registry a dialect is supposed to have. Discovery, parsing, merging,
+//! and installation use the same code the server runs.
 //!
 //! Loading is done **once per process** and the result is cached, so the cost
 //! is one directory scan plus ~4,700 lines of Tcl parsed at first use.
@@ -63,6 +59,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock, RwLock};
 
 use tcl_dialect::DialectProfile;
+use tcl_dialect::model::WorkspaceTrust;
 use tcl_registry::registry::CommandRegistry;
 
 use crate::discovery::{DiscoveryOptions, Origin, PackFile, Tier, discover};
@@ -132,7 +129,12 @@ const EMBEDDED_PACKS: &[(&str, &str)] = &[
 /// but every notice still needs *a* path to report against.
 #[must_use]
 pub fn load_embedded() -> PackSet {
-    crate::pack::load_sources(embedded_sources(), Vec::new())
+    crate::pack::load_sources(
+        embedded_sources(),
+        Vec::new(),
+        WorkspaceTrust::Trusted,
+        None,
+    )
 }
 
 /// [`EMBEDDED_PACKS`] as loader sources.
@@ -147,6 +149,7 @@ fn embedded_sources() -> Vec<(PackFile, String)> {
                 tier: Tier::Bundled,
                 path: PathBuf::from(format!("<embedded>/{name}")),
                 origin: Origin::Bundled,
+                dependency_tier: None,
             };
             (file, (*text).to_owned())
         })
@@ -174,14 +177,24 @@ fn embedded_sources() -> Vec<(PackFile, String)> {
 /// authoritative when it has anything in it. A file from the host's
 /// [`VIRTUAL_PACK_MOUNT`](crate::discovery::VIRTUAL_PACK_MOUNT) is not such a
 /// directory: see [`load_discovered_in`].
+///
+/// The workspace tier loads trusted — the command-line tools' reading, whose
+/// packs are their user's own; the language server, which holds an editor's
+/// trust state, loads through [`load_discovered_in`].
 #[must_use]
 pub fn load_discovered(files: &[PackFile]) -> PackSet {
-    load_discovered_in(&tcl_lsp_core::vfs::NativeStore, files)
+    load_discovered_in(
+        &tcl_lsp_core::vfs::NativeStore,
+        files,
+        WorkspaceTrust::Trusted,
+    )
 }
 
 /// [`load_discovered`] reading each file's bytes from `store` rather than
 /// `std::fs` — the browser worker's path, where `files` came from
-/// [`discover_in`](crate::discovery::discover_in) over the same store.
+/// [`discover_in`](crate::discovery::discover_in) over the same store — with
+/// the workspace tier's files loaded under `trust`, the
+/// [`DiscoveryOptions::workspace_trust`] the discovery was made with.
 ///
 /// The rule the embedded fallback follows here, in full:
 ///
@@ -212,6 +225,7 @@ pub fn load_discovered(files: &[PackFile]) -> PackSet {
 pub fn load_discovered_in(
     store: &dyn tcl_lsp_core::vfs::SourceStore,
     files: &[PackFile],
+    trust: WorkspaceTrust,
 ) -> PackSet {
     let (mut sources, notices) = crate::pack::read_sources(store, files);
     // The host mount is deliberately *not* counted as a real bundled
@@ -237,7 +251,7 @@ pub fn load_discovered_in(
                 .filter(|(file, _)| !file.path.file_name().is_some_and(|n| mounted.contains(n))),
         );
     }
-    crate::pack::load_sources(sources, notices)
+    crate::pack::load_sources(sources, notices, trust, Some(store))
 }
 
 /// [`packs`]'s resolution, factored out so a test can drive it with an
@@ -564,6 +578,7 @@ mod tests {
             tier: Tier::Workspace,
             path: workspace.clone(),
             origin: Origin::Setting,
+            dependency_tier: None,
         }];
         let set = load_discovered(&files);
 
@@ -593,6 +608,7 @@ mod tests {
             tier: Tier::Bundled,
             path: bundled,
             origin: Origin::Bundled,
+            dependency_tier: None,
         }]);
 
         assert!(
@@ -630,7 +646,7 @@ mod tests {
                 ..DiscoveryOptions::default()
             },
         );
-        let set = load_discovered_in(&store, &files);
+        let set = load_discovered_in(&store, &files, WorkspaceTrust::Trusted);
 
         let mut names: Vec<&str> = set.packs.iter().map(|p| p.name.as_str()).collect();
         names.sort_unstable();
@@ -706,7 +722,7 @@ mod tests {
                 ..DiscoveryOptions::default()
             },
         );
-        let set = load_discovered_in(&store, &files);
+        let set = load_discovered_in(&store, &files, WorkspaceTrust::Trusted);
 
         let names: Vec<&str> = set.packs.iter().map(|p| p.name.as_str()).collect();
         assert!(

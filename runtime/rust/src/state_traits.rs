@@ -336,6 +336,26 @@ impl VarStore for Interp {
         Ok(self.unset(frame, name))
     }
 
+    fn unset_confined(&self, frame: FrameId, name: &str) -> bool {
+        if frame.0 == self.frames.borrow().current_level() {
+            self.store_escapes(name.as_bytes())
+        } else {
+            self.store_escapes_at(name.as_bytes(), frame.0)
+        }
+    }
+
+    fn unset_confined_bytes(
+        &self,
+        frame: FrameId,
+        name: &[u8],
+    ) -> Result<bool, tcl_syntax::value::ValueError> {
+        Ok(if frame.0 == self.frames.borrow().current_level() {
+            self.store_escapes(name)
+        } else {
+            self.store_escapes_at(name, frame.0)
+        })
+    }
+
     fn exists(&self, frame: FrameId, name: &str) -> bool {
         if frame.0 == self.frames.borrow().current_level() {
             self.var_exists(name.as_bytes())
@@ -519,7 +539,7 @@ impl VarStore for Interp {
                 None => {
                     return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                         "array member unset lookup",
-                    ))
+                    ));
                 }
             }
         };

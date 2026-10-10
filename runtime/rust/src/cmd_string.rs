@@ -31,7 +31,7 @@
 
 use tcl_cmd_core::prefix::Resolution;
 
-use crate::interp::{new_string, obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, new_string, obj_bytes};
 use crate::obj::{self, TclObj};
 
 /// Register `append` + the `string` ensemble.
@@ -255,6 +255,18 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             ));
         }
     };
+    // `string repeat` is the one subcommand that can allocate without bound in
+    // one command, so it is charged against an embedder's value-size limit
+    // before the shared core builds anything; the limit is the interpreter's,
+    // which is why the guard is here and not in the core.
+    if canonical == b"repeat" && argv.len() == 4 && interp.has_value_limit() {
+        if let Some(count) = parse_isize(&obj_bytes(argv[3])).filter(|&count| count > 0) {
+            let wanted = (obj_bytes(argv[2]).len() as u64).saturating_mul(count as u64);
+            if let Some(code) = interp.charge_allocation(wanted) {
+                return code;
+            }
+        }
+    }
     // Portable subcommands now live in the shared command core (`tcl-cmd-core`),
     // driven over this runtime's `*mut TclObj` `ValueOps`. The runtime is a thin
     // adapter: map `Result<*mut TclObj, CmdError>` onto set_result/set_error.

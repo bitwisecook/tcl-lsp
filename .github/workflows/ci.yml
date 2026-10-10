@@ -111,7 +111,7 @@ jobs:
   #                    clean stock runner provisions a capable C compiler.
   #   spectcl_compat_changed — SpecTcl or its TclVM/compiler/registry/runtime
   #                    and exact-reference-toolchain closure changed. Runs the
-  #                    non-vacuous 15+3+4+2+1 compatibility lane.
+  #                    non-vacuous 15+3+4+2+1 compatibility suite.
   #   runtime_rust_changed — the standalone `runtime/rust` crate, its Tcl 9
   #                    smoke corpus, or one of the path dependencies its own
   #                    cargo workspace resolves changed, so
@@ -1174,6 +1174,9 @@ jobs:
   #                     `rust-tests-shard`'s workspace run too, so `wasm_real_link.rs`
   #                     also executes there — without the toolchain, where it
   #                     skips loudly by naming what is missing.
+  #                     It also runs the WASM engine's suite
+  #                     (`tcl-engine-wasm`), which is out of rust-tests-shard
+  #                     for the reason `tcl-fuzz` is.
   #   lsp-server-wasm   the real wasm-bindgen LSP server, driven through a
   #                     scripted JSON-RPC session under Node.  Path-filtered
   #                     to the browser server's local dependency closure.
@@ -1238,8 +1241,8 @@ jobs:
     #
     # Untrusted code must never reach the self-hosted runner, so PRs from forks
     # and Dependabot stay on GitHub-hosted. Trusted PRs and pushes prefer `tank`
-    # while its logical lane is idle, then spill onto hosted capacity when
-    # another run is already occupying that lane. A manual dispatch remains an
+    # while its runner capacity is available, then spill onto hosted capacity when
+    # another run is already using that capacity. A manual dispatch remains an
     # explicit override, and runner-policy changes prove themselves on hosted
     # capacity.
     needs: [channel]
@@ -1383,8 +1386,11 @@ jobs:
 
       # The real-tclsh conformance binaries fail closed when no manifest-pinned
       # interpreter is available. Provision the shared Tcl 9.0 gold-standard
-      # lane through the same tool entry point SpecTcl uses; distro Tcl and a
+      # suite through the same tool entry point SpecTcl uses; distro Tcl and a
       # stale system tclsh9.0 must never decide which oracle CI exercises.
+      # The output witnesses (`tcl_test_support::witness_tclsh`) compare under
+      # every release they find and report the rest as skipped; requiring the
+      # one installed here makes a missing 9.0 a failure, not a silent pass.
       - name: Install exact Tcl 9.0 reference interpreter
         if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
         env:
@@ -1395,6 +1401,7 @@ jobs:
           tcl_reference_load_toolchains "$PWD"
           tclsh="$(tcl_reference_resolve_tclsh 9.0)"
           printf 'TCL_LSP_TCLSH90=%s\n' "$tclsh" >> "$GITHUB_ENV"
+          printf 'TCL_LSP_REQUIRE_TCLSH=9.0\n' >> "$GITHUB_ENV"
 
       # --no-fail-fast: report every failure, not just the first.
       # Skipped entirely for docs-only changes and already-green tags;
@@ -1416,9 +1423,9 @@ jobs:
           if [ "$ALREADY_GREEN" = "true" ]; then
             echo "tree already green on its PR run — building test binaries (cache warmth) without re-running them"
             if [ "$RUST_TESTS_RUNNER" = tank ]; then
-              bash scripts/dev/persistent-cargo-target.sh with-lock "$CARGO_TARGET_DIR" cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features
+              bash scripts/dev/persistent-cargo-target.sh with-lock "$CARGO_TARGET_DIR" cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --exclude tcl-engine-wasm --all-features
             else
-              cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features
+              cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --exclude tcl-engine-wasm --all-features
             fi
             exit 0
           fi
@@ -1731,7 +1738,7 @@ jobs:
   #
   # `runtime/rust` is its own cargo workspace, deliberately excluded from the
   # root one (it needs `unsafe` over the shared linear memory, and its churn
-  # must not gate the LSP/compiler workstream).  The cost of that exclusion is
+  # must not gate the LSP/compiler checks).  The cost of that exclusion is
   # that `cargo test --workspace --all-features` in `rust-tests` never runs a
   # single test in it, and `wasm-real-link` compiles and LINKS the crate
   # without executing its tests either.  `pr-gate` only formats and clippies
@@ -1823,6 +1830,10 @@ jobs:
   # script degrades *silently* to a bignum-less runtime without it, and the
   # link then fails with a missing-output diff that reads like a codegen
   # regression rather than a missing dependency.
+  #
+  # The authored C header's wasm32 compiles (`make check-c-extension-wasm`) run
+  # here too, because this is the only job with wasi-sdk; `rust-check` runs the
+  # half of that gate that needs no compiler.
   wasm-real-link:
     # Deliberately hosted -- see `rust-tests-heavy`.
     needs: [channel]
@@ -1885,6 +1896,15 @@ jobs:
           .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0
           test -f tmp/tcl9.0.4/libtommath/tommath.h
 
+      # `runtime/rust/include/tcl.h` held to both of its hosts: the wasm32
+      # compiles need wasi-sdk, so with the toolchain required a missing
+      # compiler is a failure here and not the skip `rust-check` makes of it.
+      - name: make check-c-extension-wasm (toolchain required)
+        if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+        env:
+          TCL_REQUIRE_WASM_LINK: '1'
+        run: make check-c-extension-wasm
+
       # Same skip/downgrade contract as rust-tests — see the channel job header.
       # No `--no-run` downgrade: the point of this job is that the link really
       # executes, and building the test binary without running it would be
@@ -1897,6 +1917,18 @@ jobs:
         env:
           TCL_REQUIRE_WASM_LINK: '1'
         run: cargo test -p tcl-compiler --test wasm_real_link --test wasm_tiers -- --test-threads=1
+
+      # The runtime compiled to wasm32 as an engine (`tcl-engine-wasm`): the
+      # test extension built as a side module and evaluated under wasmtime with
+      # fuel, and the cases the native runtime engine is held to. Its tests
+      # return early without the toolchain, so this is where they run; the
+      # crate is out of rust-tests-shard so wasmtime and cranelift stay out of
+      # the main partition's build graph.
+      - name: cargo test -p tcl-engine-wasm (toolchain required)
+        if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+        env:
+          TCL_REQUIRE_WASM_LINK: '1'
+        run: cargo test -p tcl-engine-wasm
 
       # The language server's wasip1 arm (rt.rs `mod wasi`) has no in-tree
       # consumer until the WASI transport crate lands, so nothing else in CI
@@ -2056,7 +2088,7 @@ jobs:
           CARGO_PROFILE_RELEASE_LTO: true
         run: make lsp-server-wasi
 
-      # Same handoff shape as `build-server-matrix`'s `server-bins-*`: a plain,
+      # Same artefact layout as `build-server-matrix`'s `server-bins-*`: a plain,
       # short-lived workflow artifact for the downstream packaging job.  The
       # Release asset (attested + SBOM'd) is attached by `build-vsix`, which is
       # the one that can be sure `create-release` has already run.

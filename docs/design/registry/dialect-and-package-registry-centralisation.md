@@ -61,6 +61,14 @@ context and floors. A diagnostic that asserts identity, an executable rewrite,
 or code generation requires the corresponding positioned semantic receipt.
 `Absent`, `May` and `Unknown` cannot be treated as a unique live implementation.
 
+| Query | Owner | Required distinction |
+| --- | --- | --- |
+| Written environment name | `model::ingress::resolve_environment` | Canonical names, aliases and editor identities share one ingress. |
+| Document context | Detection facts, overlays and targets | Retain environment generation, overlay and target axes. |
+| Call-site binding | `Analyser::command_existence_oracle`, realm `knowledge_at` | `Absent`, `Must`, `May` and `Unknown` remain positioned verdicts. |
+| Package requirements | `VersionSet`, floor engine and `PackageResolver` | Assistance candidates do not establish installed packages. |
+| Semantic hook | `ResolvedContext::resolve_spec` and retained invocation owner | Availability alone does not prove command binding or trust. |
+
 ## 2. Consumer purposes
 
 ### 2.1 Front end
@@ -97,6 +105,27 @@ specification owns every possible hint.
 
 ### 2.3 Runtime and backends
 
+Both engines (`tcl-vm`, `runtime/rust`), the engine adapter
+(`tcl-engine-tclvm`), the two VM-driving hosts (`tcl-vm-cli`,
+`tcl-debugger`) and the `xtask` sweeps and generators that exercise them
+resolve every dialect **name** through the seam and reach the registry
+as per-environment `ContextRegistry` generations, through one small
+`environment` module each: `profile_for_dialect`
+(`resolve_environment(…).unit_profile()`), `store_for_profile` /
+`store_for_dialect` where provided (the generation's command store), and
+`surface_point` in the engines (the resolved environment's document
+`SurfaceQuery`). Both engines
+resolve the point *and* the store once per profile pin and cache them on
+the interpreter, because the builtin-surface gate is consulted on every
+command resolution. `codegen_abi`'s three raw name ingresses are
+`resolve_known_environment`, keeping the fail-closed decline. Release-based
+constructors use the closed release set `TclVersion::dialect_profile_name`
+spells and the fixed `f5-irules`/`tk`/`expect`/`f5-iapps` projection targets.
+Both engines also resolve explicit `RuntimeContext` pins through
+`environment::pin_context`, including registered environments and overlays;
+an overlay that has not been installed is an error.
+
+
 VM and standalone runtime use live command/package tables under their actual
 native environment. Registry visibility is a surface gate; it cannot replace
 live command lookup. `codegen_abi` uses strict known-environment resolution for
@@ -110,6 +139,21 @@ command filtering uses `safe_interp_hidden_commands` narrowed by the commands
 that the interpreter actually carries.
 
 ### 2.4 Tooling and generated views
+
+The two CLIs (`tcl-cli`, through the shared `tcl-cli-support`), the MCP
+server (`tcl-mcp`), the spec studio (`tcl-spec-studio`) and the pack
+loader's name ingress (`tcl-spectcl`) resolve every dialect **name**
+through the seam and answer availability from the resolved environment's
+`ResolvedContext`. Their small `environment` modules expose the ingress
+forms each consumer needs. `tcl-cli-support` supplies
+`profile_for_dialect`, `known_profile_for_dialect` (the validator),
+`context_for_dialect` (the assistance view), and
+`analyser_profile_for_dialect`. The pack loader supplies
+`profile_for_dialect`, `catalogue_profile_for_dialect`, and `lenient_store`.
+The CLI's analyser-profile form and the pack loader's profile form use
+`DocumentEnvironment::analyser_profile`: the KCS help filter and the
+pack-carrying registry cache key deliberately sink `tk` to the permissive
+fallback rather than promoting it. 
 
 CLI, MCP, SpecTcl and Studio environment ingress uses `model::ingress`.
 `ResolvedContext` supplies command/option/keyed-range assistance. Selectable
@@ -255,6 +299,29 @@ interpreter provenance. Required discovery validates the reported release and
 fails on a missing, malformed or stale interpreter. An optional local run is
 explicitly partial; missing capability is different from missing interpreter.
 
+`ensure-test-deps.sh`'s `ensure_tclsh` provisions the five pinned
+interpreters declared in `rust/tcl-dialect/data/reference-toolchains.tsv`.
+`scripts/dev/tcl-reference-toolchains.sh` validates each source/build tree
+and publishes wrappers that execute its `unix/tclsh` with the matching
+library. `TCL_LSP_TCL_BIN_DIR` selects the wrapper directory; otherwise the
+helper chooses `~/.local/bin` or `/usr/local/bin` according to the
+available writable PATH location. An existing build is reused only when
+its reported `info patchlevel` matches the pinned patchlevel.
+
+`tcl_test_support::locate_tclsh(TclVersion)` validates the interpreter's
+exact pinned patchlevel. The `tcltest_sweep` instead binds the pinned Tcl
+9.0 source tree through `source_tree_for_sweep` and
+`tcl_test_support::locate_source_tree`, then obtains its interpreter with
+`tclsh_from_source_tree`. This keeps the test sources and executable from
+the same validated tree.
+
+`audit_option_dialects` calls
+`require_all_tclsh_built` before probing and fails immediately listing
+any missing binary (`AUDIT_ALLOW_MISSING_TCLSH=1` is the documented escape
+hatch for a deliberately partial run). `fetch_tcl_source.sh` fetches the
+Tk trees (`tk84` … `tk91`, `tkall`) beside the Tcl ones, and
+`session-start.sh` runs `tkall`.
+
 ### 7.2 Vector files and expectation columns
 
 | File | Domain | Renderer / query owner |
@@ -281,11 +348,34 @@ without treating Jim as a C release. C imports retain command-token relationship
 through rename; Jim imports can follow later target names, so their columns are
 independent.
 
-Variable and namespace-operation vectors observe `<catch code> <result-or-message>`
-with the whole row inside `catch`. A release lacking an operation therefore has
-its actual error expectation. Command vectors use `-` for an invalid command and
-`!ERROR` when the setup itself cannot execute. Documented non-conformance rows
-identify excluded native known-bug or unavailable test-helper cases.
+- `tcl_syntax::release_expectations::PerRelease` parses an expectation
+  field that is either one value every release shares or a
+  `RANGE=VALUE;RANGE=VALUE` list over the ladder 8.4, 8.5, 8.6, 9.0, 9.1
+  (`8.4-8.6=…`, `9.0+=…`). The entries must cover the ladder exactly once,
+  and a `;` only separates entries when a range token follows it, so
+  expectation values may contain semicolons.
+- `tcl_syntax::vector_ops` holds the row syntax the domain files share:
+  pipe-split rows and the `kind(argument)` setup mini-ops, split on
+  parenthesis depth so an argument may contain commas and nested
+  parentheses.
+- `rust/tcl-syntax/tests/support/mod.rs` is the five-binary matrix, keyed
+  `TCL_LSP_TCLSH84` … `TCL_LSP_TCLSH91` with PATH fallbacks; it uses `tcl_test_support` to verify
+  the interpreter's reported patchlevel matches the pinned release,
+  and skips a missing release loudly. The three suites
+  (`command_resolution_conformance`, `variable_resolution_conformance`,
+  `namespace_op_conformance`) run every row against every available
+  release and assert that release's own column.
+- The variable and namespace-op observable is the two-element list
+  `<catch code> <result-or-message>`, with the whole row inside the
+  `catch`, so a row that uses a subcommand a release does not have states
+  that release's real error text rather than being excluded. The command
+  domain keeps its `-` sentinel for `invalid command name` and `!ERROR`
+  for a scenario a release cannot set up at all.
+- Each file carries a `documented-non-conformance` block naming the
+  `knownBug` rows deliberately excluded (`namespace-56.4`, `info-15.8`,
+  `interp-27.5–27.8`, `var-3.3`/`var-3.4`'s `testupvar` constraint, and
+  `namespace-51.13`'s mid-teardown observation) — so nobody "fixes" the
+  model to a behaviour real Tcl does not exhibit.
 
 The same rendered bytes can be consumed by hermetic owners, source analysis,
 VM/runtime dispatch and real-interpreter tests. Using a shared fixture does not

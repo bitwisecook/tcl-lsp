@@ -20,18 +20,10 @@
 //!
 //! # Progress, not elapsed time
 //!
-//! A flat wall-clock budget (give up N ms after launch, whatever is
-//! happening) is fragile: the suite's own honest runtime (~190s for 846
-//! tests) can grow past any fixed budget, so a fully green run would race
-//! its own successful exit and lose — reported as "mocha never completed
-//! (likely hung)" with zero failures.
-//!
-//! The fix is to bound *lack of progress*, not elapsed time: a run that is
-//! still completing tests is not hung however long it has taken; a run whose
-//! `completed + failed` count and in-flight test title have not moved for
-//! [`DEFAULT_NO_PROGRESS_TIMEOUT_MS`] is. The wall-clock ceiling
-//! ([`DEFAULT_ABSOLUTE_CEILING_MS`]) stays only as a generous backstop for a
-//! run that never stalls but also never finishes.
+//! The watchdog reports a stall when neither the `completed + failed` count
+//! nor the in-flight test title changes within [`DEFAULT_NO_PROGRESS_TIMEOUT_MS`].
+//! Progress resets that window. [`DEFAULT_ABSOLUTE_CEILING_MS`] also bounds a
+//! run that keeps progressing without finishing.
 //!
 //! This module holds the *pure* half of that decision ([`evaluateWatchdog`]) —
 //! it does no I/O, so it is directly unit-testable with a synthetic sequence
@@ -51,11 +43,8 @@ import { loadFactor, scaledTimeout } from "./signal";
  * What the heartbeat file records, so a hang is attributable from outside the
  * extension host.
  *
- * Without this, a hang would report nothing more than a process
- * list and "mocha never completed (likely hung)" — naming neither the
- * test that stalled nor whether the server was still alive.
- * The extension host is the only place that knows both, so it writes them
- * down continuously and this module reads the last entry after the fact.
+ * The extension host records the current test and server liveness so the
+ * watchdog can attribute a stall from the last heartbeat.
  */
 export interface Heartbeat {
   /** When this heartbeat was written (ms since epoch). Its *age* at read time

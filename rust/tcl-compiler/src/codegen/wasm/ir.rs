@@ -542,6 +542,10 @@ pub struct WasmModule {
     /// for the table install — but it is the cheap half: un-exporting a
     /// function later would otherwise silently invalidate the module.
     pub elem_declared: Vec<u32>,
+    /// What the module says about the world it was compiled for, emitted as
+    /// the custom section [`tcl_runtime_api::manifest::WASM_SECTION`] after
+    /// every other section. `None` emits no section.
+    pub manifest: Option<tcl_runtime_api::ArtefactIdentityManifest>,
     /// Interned function signatures `(params, results)`, in type-index order.
     types: Vec<(Vec<ValType>, Vec<ValType>)>,
 }
@@ -832,6 +836,13 @@ impl WasmModule {
             ));
         }
 
+        // Custom section: the artefact's identity manifest, last.
+        if let Some(manifest) = &self.manifest {
+            let mut content = encode_string(tcl_runtime_api::manifest::WASM_SECTION);
+            content.extend(manifest.to_bytes());
+            sections.extend(Self::make_section(SectionId::Custom, &content));
+        }
+
         let mut out = Vec::with_capacity(8 + sections.len());
         out.extend_from_slice(&WASM_MAGIC);
         out.extend_from_slice(&WASM_VERSION);
@@ -1105,6 +1116,46 @@ mod tests {
             i += 1 + adv + len as usize;
         }
         assert_eq!(seen, vec![1, 2, 3, 7, 10], "section ids in order: {seen:?}");
+    }
+
+    #[test]
+    fn a_manifest_is_the_last_section_and_no_manifest_is_no_section() {
+        use tcl_runtime_api::{ArtefactIdentityManifest, RuntimeContext};
+
+        let section_ids = |bytes: &[u8]| {
+            let mut seen = Vec::new();
+            let mut i = 8;
+            while i < bytes.len() {
+                let (len, adv) = read_uleb(&bytes[i + 1..]);
+                seen.push(bytes[i]);
+                i += 1 + adv + len as usize;
+            }
+            seen
+        };
+        let mut without = sample_module();
+        assert!(without.manifest.is_none());
+        assert_eq!(section_ids(&without.to_bytes()), vec![1, 2, 3, 7, 10]);
+
+        let manifest = RuntimeContext {
+            environment: "tcl9.0".to_owned(),
+            release: "9.0".to_owned(),
+            build: tcl_dialect::model::BuildProfileId::Canonical,
+            packages: Vec::new(),
+            overlay_generation: 0,
+        }
+        .identity(&[], [3; 32]);
+        let mut with = sample_module();
+        with.manifest = Some(manifest.clone());
+        let bytes = with.to_bytes();
+        assert_eq!(section_ids(&bytes), vec![1, 2, 3, 7, 10, 0]);
+        assert_eq!(
+            ArtefactIdentityManifest::from_wasm(&bytes),
+            Ok(Some(manifest))
+        );
+        assert_eq!(
+            ArtefactIdentityManifest::from_wasm(&without.to_bytes()),
+            Ok(None)
+        );
     }
 
     // Minimal uleb reader for the test (returns value + bytes consumed).

@@ -456,14 +456,42 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "functions" => info_functions_impl(vm, rest),
         // The empty original list denotes this interpreter. Each reached child
         // element uses the shared original-list/C-string path owner.
-        "loaded" => match rest {
-            [] => ok(Value::empty()),
-            [path] | [path, _] => match vm.resolve_interp_path_original(path) {
-                Ok(_) => ok(Value::empty()),
-                Err(error) => error,
-            },
-            _ => crate::command::native_wrong_args(vm, "info loaded ?interp? ?prefix?"),
-        },
+        "loaded" => {
+            let (path, prefix) = match rest {
+                [] => (None, None),
+                [path] => (Some(path), None),
+                [path, prefix] => (Some(path), Some(prefix)),
+                _ => return crate::command::native_wrong_args(vm, "info loaded ?interp? ?prefix?"),
+            };
+            if let Some(path) = path {
+                let selected = match vm.resolve_interp_path_original(path) {
+                    Ok(selected) => selected,
+                    Err(error) => return error,
+                };
+                if !selected.is_empty() {
+                    return vm.refuse_host_command("foreign loaded-library inventory".into());
+                }
+            }
+            let libraries = vm.loaded_libraries();
+            match prefix {
+                Some(prefix) => ok(libraries
+                    .iter()
+                    .find(|(_, loaded)| loaded.as_bytes() == prefix.to_str().as_bytes())
+                    .map_or_else(Value::empty, |(file, _)| Value::string(file.as_str()))),
+                None => ok(Value::list(
+                    libraries
+                        .iter()
+                        .map(|(file, prefix)| {
+                            Value::list(vec![
+                                Value::string(file.as_str()),
+                                Value::string(prefix.as_str()),
+                            ])
+                        })
+                        .collect(),
+                )),
+            }
+        }
+
         // `info cmdtype commandName` — native / proc / alias (interp/object kinds
         // need those subsystems).
         "cmdtype" => match rest {

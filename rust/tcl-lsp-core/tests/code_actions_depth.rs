@@ -71,6 +71,35 @@ use tcl_lsp_core::code_actions::{
 };
 use tcl_lsp_core::definition::LspRange;
 
+/// The document's report under a policy that shows everything: the
+/// analyser's diagnostics plus the style pass's own findings, so a shown
+/// W115 gates `continuation_comment_actions` the way it gates every other
+/// finding-carried action — a host with no configuration, which is what
+/// this test stands in for.
+fn report_of(
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+    source: &str,
+) -> tcl_lsp_core::diagnostic_policy::Report {
+    use tcl_lsp_core::diagnostic_policy::{Finding, Policy};
+    use tcl_lsp_core::diagnostic_report::{
+        DocumentSource, SourcePass, document_report_with_analysis,
+    };
+    let produced: Vec<Finding> = analysis
+        .diagnostics
+        .iter()
+        .cloned()
+        .map(Finding::from)
+        .collect();
+    let doc = DocumentSource {
+        text: source,
+        analysis_text: source,
+        decode: None,
+        dialect: tcl_lsp_core::profile_for_dialect(&analysis.dialect),
+        pass: SourcePass::Tcl { line_length: 120 },
+    };
+    document_report_with_analysis(&doc, produced, &Policy::unrestricted(), Some(analysis))
+}
+
 // Harness — same shape as call_hierarchy.rs / lsp_lens_links_symbols.rs.
 
 /// Analyse `source` for the vanilla Tcl 8.6 dialect.
@@ -225,6 +254,11 @@ fn whole(source: &str) -> LspRange {
     }
 }
 
+/// The compiler-check quick-fixes for `checks` under an editor layer that
+/// turns `disabled` off and the analyser's `suppressed` map, through the one
+/// report path every action takes. `source` is analysed as plain Tcl so the
+/// range-based refactors run too; only the quick-fixes come back.
+
 /// Every edit's range is well-formed: start ≤ end (a valid LSP edit range).
 fn edits_well_formed(action: &CodeAction) -> bool {
     action.edits.iter().all(|e| {
@@ -272,9 +306,9 @@ fn find<'a>(actions: &'a [CodeAction], needle: &str) -> Option<&'a CodeAction> {
 
 #[test]
 fn w115_continued_comment_offers_per_line_conversion() {
-    // A backslash-continued comment run. `continuation_comment_actions`
-    // detects the shape directly at the range start (a `#` line ending in
-    // `\`), independent of any analyser-emitted W115. The fix rewrites the
+    // A backslash-continued comment run: the style pass's W115 covers it, so
+    // `continuation_comment_actions` (gated on a shown W115 overlapping the
+    // request range) offers the conversion. The fix rewrites the
     // continuation block into standalone `#` lines.
     //
     // tclsh: in real Tcl a trailing backslash on a comment line continues the
@@ -285,7 +319,12 @@ fn w115_continued_comment_offers_per_line_conversion() {
     //   comment, so semantics are unchanged.
     let src = "# header part \\\nmore text\nset x 1\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(0, 0), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(
+        src,
+        cursor(0, 0),
+        Some(&analysis),
+        &report_of(&analysis, src),
+    );
     let conv = find(&actions, "per-line comments")
         .expect("a per-line-comment conversion on the continued comment");
     assert_eq!(conv.kind, ActionKind::QuickFix, "{conv:?}");
@@ -316,7 +355,12 @@ fn w115_no_conversion_on_plain_comment() {
     // offers no conversion. Negative control for the direct-shape gate.
     let src = "# just a comment\nset x 1\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(0, 0), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(
+        src,
+        cursor(0, 0),
+        Some(&analysis),
+        &report_of(&analysis, src),
+    );
     assert!(
         find(&actions, "per-line comments").is_none(),
         "plain comment must not offer the conversion; got {:?}",
@@ -328,7 +372,12 @@ fn w115_no_conversion_on_plain_comment() {
 fn w115_no_conversion_when_trailing_space_breaks_backslash() {
     let src = "# note \\ \nputs next\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(0, 0), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(
+        src,
+        cursor(0, 0),
+        Some(&analysis),
+        &report_of(&analysis, src),
+    );
     assert!(find(&actions, "per-line comments").is_none(), "{actions:?}");
 }
 
@@ -339,7 +388,12 @@ fn w115_no_conversion_for_braced_or_quoted_pseudo_comments() {
         ("set payload \"# pseudo \\\nputs live\"\n", cursor(0, 14)),
     ] {
         let analysis = analyse(source);
-        let actions = code_actions(source, request, Some(&analysis), &analysis.diagnostics);
+        let actions = code_actions(
+            source,
+            request,
+            Some(&analysis),
+            &report_of(&analysis, source),
+        );
         assert!(
             find(&actions, "per-line comments").is_none(),
             "pseudo-comment must not expose W115 conversion: {:?}",
@@ -355,7 +409,12 @@ fn w115_no_conversion_on_continued_code_line() {
     // the corruption the provider's own comment warns against.
     let src = "set x \\\n5\nputs $x\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(0, 0), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(
+        src,
+        cursor(0, 0),
+        Some(&analysis),
+        &report_of(&analysis, src),
+    );
     assert!(
         find(&actions, "per-line comments").is_none(),
         "continued code line must not be commented out; got {:?}",
@@ -379,7 +438,7 @@ fn invert_comparison_flips_equality_operator() {
         src,
         selection(0, 4, 12),
         Some(&analysis),
-        &analysis.diagnostics,
+        &report_of(&analysis, src),
     );
     let inv = find(&actions, "Invert comparison").expect("an invert-comparison rewrite");
     assert_eq!(inv.kind, ActionKind::RefactorRewrite, "{inv:?}");
@@ -409,7 +468,7 @@ fn invert_comparison_flips_relational_operator() {
         src,
         selection(0, 7, 15),
         Some(&analysis),
-        &analysis.diagnostics,
+        &report_of(&analysis, src),
     );
     let inv = find(&actions, "Invert comparison").expect("an invert-comparison rewrite");
     assert_eq!(
@@ -433,7 +492,7 @@ fn invert_comparison_flips_tip461_string_ordering_operator() {
         src,
         selection(0, 4, 12),
         Some(&analysis),
-        &analysis.diagnostics,
+        &report_of(&analysis, src),
     );
     let inv = find(&actions, "Invert comparison").expect("an invert-comparison rewrite");
     assert_eq!(
@@ -454,7 +513,7 @@ fn invert_comparison_absent_without_top_level_operator() {
         src,
         selection(0, 5, 11),
         Some(&analysis),
-        &analysis.diagnostics,
+        &report_of(&analysis, src),
     );
     assert!(
         find(&actions, "Invert comparison").is_none(),
@@ -469,7 +528,12 @@ fn invert_comparison_absent_on_empty_selection() {
     // cursor (start == end) offers neither De Morgan nor invert.
     let src = "if {$a == $b} { puts hi }\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(0, 8), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(
+        src,
+        cursor(0, 8),
+        Some(&analysis),
+        &report_of(&analysis, src),
+    );
     assert!(
         find(&actions, "Invert comparison").is_none() && find(&actions, "De Morgan").is_none(),
         "no expr rewrites without a selection; got {:?}",
@@ -491,7 +555,7 @@ fn demorgan_reverse_collapses_disjunction_of_negations() {
         src,
         selection(0, 4, 14),
         Some(&analysis),
-        &analysis.diagnostics,
+        &report_of(&analysis, src),
     );
     let dm = find(&actions, "De Morgan").expect("a reverse-direction De Morgan rewrite");
     assert_eq!(dm.kind, ActionKind::RefactorRewrite);
@@ -523,7 +587,7 @@ fn demorgan_forward_recognises_irules_word_operators() {
         src,
         selection(0, 4, 16),
         Some(&analysis),
-        &analysis.diagnostics,
+        &report_of(&analysis, src),
     );
     let dm =
         find(&actions, "De Morgan").expect("a forward-direction word-operator De Morgan rewrite");
@@ -549,7 +613,7 @@ fn demorgan_reverse_recognises_irules_word_operators() {
         src,
         selection(0, 4, 20),
         Some(&analysis),
-        &analysis.diagnostics,
+        &report_of(&analysis, src),
     );
     let dm =
         find(&actions, "De Morgan").expect("a reverse-direction word-operator De Morgan rewrite");
@@ -573,7 +637,12 @@ fn ipv6_mapped_literal_offers_ipv4_conversion() {
     let src = "set ip ::ffff:10.0.0.1\n";
     let analysis = analyse(src);
     // Cursor inside the literal (after `set ip `, col ~12).
-    let actions = code_actions(src, cursor(0, 12), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(
+        src,
+        cursor(0, 12),
+        Some(&analysis),
+        &report_of(&analysis, src),
+    );
     let conv = find(&actions, "IPv4 address").expect("an IPv6-mapped -> IPv4 refactor");
     assert_eq!(conv.kind, ActionKind::Refactor);
     assert_eq!(conv.edits.len(), 1);
@@ -594,7 +663,12 @@ fn ipv6_mapped_with_cidr_preserves_suffix() {
     // -> `10.0.0.0/24`.
     let src = "set net ::ffff:10.0.0.0/24\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(0, 14), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(
+        src,
+        cursor(0, 14),
+        Some(&analysis),
+        &report_of(&analysis, src),
+    );
     let conv = find(&actions, "IPv4 address").expect("a mapped -> v4 conversion");
     assert_eq!(
         conv.edits[0].new_text, "10.0.0.0/24",
@@ -609,7 +683,12 @@ fn ip_conversion_absent_on_non_ip_word() {
     // offers no IP conversion. (`set` itself is hex-free word text.)
     let src = "set greeting hello\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(0, 14), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(
+        src,
+        cursor(0, 14),
+        Some(&analysis),
+        &report_of(&analysis, src),
+    );
     assert!(
         find(&actions, "IPv4 address").is_none() && find(&actions, "IPv6-mapped").is_none(),
         "no IP literal at cursor -> no conversion; got {:?}",
@@ -629,7 +708,12 @@ fn inline_single_command_proc_substitutes_args() {
     //   inlined `puts bob` prints `bob` too (verified 8.6 + 9.0).
     let src = "proc greet {who} { puts $who }\ngreet bob\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(1, 0), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(
+        src,
+        cursor(1, 0),
+        Some(&analysis),
+        &report_of(&analysis, src),
+    );
     let inline = find(&actions, "Inline proc").expect("an inline-proc action at the call");
     assert_eq!(inline.kind, ActionKind::RefactorInline, "{inline:?}");
     assert_eq!(inline.edits.len(), 1);
@@ -653,7 +737,12 @@ fn inline_declines_control_flow_body() {
     // tell "cannot be done here" from "is broken".
     let src = "proc f {} { return 1 }\nf\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(1, 0), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(
+        src,
+        cursor(1, 0),
+        Some(&analysis),
+        &report_of(&analysis, src),
+    );
     let inline = find(&actions, "Inline proc").expect("a refused inline action");
     let reason = inline
         .disabled
@@ -669,7 +758,12 @@ fn inline_declines_multi_command_body() {
     // commands into one caller word changes how the caller parses.
     let src = "proc f {x} {\n    set y $x\n    puts $y\n}\nf 1\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(4, 0), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(
+        src,
+        cursor(4, 0),
+        Some(&analysis),
+        &report_of(&analysis, src),
+    );
     let inline = find(&actions, "Inline proc").expect("a refused inline action");
     let reason = inline
         .disabled
@@ -693,7 +787,12 @@ fn inline_declines_multi_command_body() {
 fn inline_braced_expr_body_keeps_closing_brace() {
     let src = "proc double {n} { expr {$n * 2} }\ndouble 5\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(1, 0), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(
+        src,
+        cursor(1, 0),
+        Some(&analysis),
+        &report_of(&analysis, src),
+    );
     let inline = find(&actions, "Inline proc").expect("an inline-proc action");
     assert_eq!(
         inline.edits[0].new_text, "expr {5 * 2}",
@@ -722,7 +821,12 @@ fn switch_to_dict_offered_for_uniform_assignment_switch() {
         "}\n",
     );
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(0, 0), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(
+        src,
+        cursor(0, 0),
+        Some(&analysis),
+        &report_of(&analysis, src),
+    );
     let dict = find(&actions, "dict").expect("a switch->dict conversion at the switch cursor");
     assert!(
         dict.title.to_lowercase().contains("dict"),
@@ -745,7 +849,12 @@ fn switch_to_dict_absent_at_inert_cursor() {
     // offered (the refactor self-gates on `find_command_at(.., "switch")`).
     let src = "set x 1\nputs $x\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(0, 4), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(
+        src,
+        cursor(0, 4),
+        Some(&analysis),
+        &report_of(&analysis, src),
+    );
     assert!(
         find(&actions, "dict").is_none(),
         "no switch at cursor -> no dict conversion; got {:?}",
@@ -753,7 +862,7 @@ fn switch_to_dict_absent_at_inert_cursor() {
     );
 }
 
-// check_diagnostic_actions — IRULE5004 (DNS::return without return)
+// compiler-check fixes — IRULE5004 (DNS::return without return)
 
 #[test]
 fn check_actions_surface_irule5004_dns_return_fix() {
@@ -1015,7 +1124,7 @@ fn multi_action_position_offers_several_families() {
         src,
         selection(0, 7, 18),
         Some(&analysis),
-        &analysis.diagnostics,
+        &report_of(&analysis, src),
     );
     let kinds: std::collections::BTreeSet<&str> = actions.iter().map(|a| a.kind.as_str()).collect();
     assert!(
@@ -1050,7 +1159,7 @@ fn caller_only_filter_can_select_a_single_kind() {
         src,
         selection(0, 4, 12),
         Some(&analysis),
-        &analysis.diagnostics,
+        &report_of(&analysis, src),
     );
     let only_rewrites: Vec<&CodeAction> = actions
         .iter()
@@ -1083,7 +1192,7 @@ fn out_of_range_positions_never_panic() {
         src,
         cursor(999, 999),
         Some(&analysis),
-        &analysis.diagnostics,
+        &report_of(&analysis, src),
     );
     // A range straddling beyond the buffer.
     let _ = code_actions(
@@ -1095,10 +1204,15 @@ fn out_of_range_positions_never_panic() {
             end_character: 50,
         },
         Some(&analysis),
-        &analysis.diagnostics,
+        &report_of(&analysis, src),
     );
     // Column far past the line end on a valid line.
-    let _ = code_actions(src, cursor(0, 9999), Some(&analysis), &analysis.diagnostics);
+    let _ = code_actions(
+        src,
+        cursor(0, 9999),
+        Some(&analysis),
+        &report_of(&analysis, src),
+    );
     // The package-suggestion and context entry points must also be panic-safe.
     let reg = tcl_registry::CommandRegistry::build_default();
     let _ = tcl_lsp_core::code_actions::package_require_actions(
@@ -1125,14 +1239,19 @@ fn empty_and_whitespace_documents_never_panic() {
     // offer nothing.
     for src in ["", "   ", "\n", "   \n\t\n", "\n\n\n"] {
         let analysis = analyse(src);
-        let actions = code_actions(src, cursor(0, 0), Some(&analysis), &analysis.diagnostics);
+        let actions = code_actions(
+            src,
+            cursor(0, 0),
+            Some(&analysis),
+            &report_of(&analysis, src),
+        );
         assert!(
             actions.is_empty(),
             "empty/whitespace doc {src:?} should offer nothing; got {:?}",
             titles(&actions),
         );
         // Whole-document range too.
-        let actions = code_actions(src, whole(src), Some(&analysis), &analysis.diagnostics);
+        let actions = code_actions(src, whole(src), Some(&analysis), &report_of(&analysis, src));
         assert!(actions.is_empty(), "{src:?} -> {:?}", titles(&actions));
     }
 }
@@ -1143,7 +1262,12 @@ fn inert_statement_offers_nothing() {
     // quick-fix and no range refactor (broad negative control).
     let src = "set x 1\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, cursor(0, 4), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(
+        src,
+        cursor(0, 4),
+        Some(&analysis),
+        &report_of(&analysis, src),
+    );
     assert!(
         actions.is_empty(),
         "inert position should offer nothing; got {:?}",
@@ -1164,7 +1288,7 @@ fn every_emitted_action_is_structurally_sound() {
         "greet bob\n",
     );
     let analysis = analyse(src);
-    let actions = code_actions(src, whole(src), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(src, whole(src), Some(&analysis), &report_of(&analysis, src));
     assert!(
         !actions.is_empty(),
         "expected at least one action over the document",

@@ -126,7 +126,11 @@ fn literal_regexp_outputs(
         };
     let regex = tcl_regex::Regex::compile_str(pattern, flags).ok()?;
     let subject = input.chars().map(u32::from).collect::<Vec<_>>();
-    let matched = regex.exec(&subject, 0, 0).is_some();
+    let matched = match regex.exec(&subject, 0, 0) {
+        tcl_regex::ExecOutcome::Matched(_) => true,
+        tcl_regex::ExecOutcome::NoMatch => false,
+        tcl_regex::ExecOutcome::Stopped(_) => return None,
+    };
     Some(
         outputs
             .iter()

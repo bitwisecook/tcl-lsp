@@ -24,6 +24,12 @@ A command the analyser cannot find in the registry, user procs, or unknown handl
 - A hint underline under the command name, with the message "Unknown command
   'unknownCmd'; did you mean 'unknown'?" — the "did you mean" tail appears only
   when a close match exists.
+- Where the call makes tcl-lsp forget the variables it holds, the message goes
+  on: "The call widens the variables held at it, in a procedure's own frame
+  its locals; a `# tcl-lsp: stub unknownCmd {…} -frame own` (or `-frame
+  none`) declaration keeps them when every argument is a value, name, pattern
+  or channel and no flag but `-pure` or `-unsafe` is set." See
+  [the call widens the variables held at it](#the-call-widens-the-variables-held-at-it).
 
 ## Example that triggers it
 
@@ -227,6 +233,49 @@ extension, an EDA-vendor builtin — declare its shape with a
 [stub](../kcs-howto-annotate-commands-with-stubs.md) instead. A stub also
 declares which of its arguments are scripts, so `W123` then reports the
 commands inside those scripts on their own merits.
+
+## The call widens the variables held at it
+
+A command tcl-lsp cannot find may still exist when the script runs — a
+procedure the unknown handler or an autoloader brings in, a command a C
+extension registers — and such a command can reach the frame that calls it
+through `upvar 1` or `uplevel 1`, or set a global by name. So every variable
+that frame holds at the call is unknown after it: in a procedure body, a method
+body or an `apply` lambda its locals, at the top level the globals, in a
+`namespace eval` body that namespace's variables. A condition on one is never
+reported as always true or false
+([`I230`](kcs-diagnostic-i230-constant-existence-check.md)), and a value stored
+before the call is never reported as unused
+([`W211`](kcs-diagnostic-w211-variable-set-not-used.md)). The message says so
+wherever the call has that effect, and only there: a call in an `uplevel #0`
+body inside a procedure, which runs when the procedure does, is accounted for
+at the procedure's own calls instead, and its message ends without the
+sentence.
+
+```tcl
+set g 5
+db_query x                                  ;# W123, with the sentence
+if {$g == 5} {puts five} else {puts other}  ;# no I230: g may have changed
+```
+
+When the command runs in a frame of its own, a stub that says so keeps them:
+
+```tcl
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub db_query {sql} -frame own
+# tcl-lsp: stubs-end
+
+proc q {} {
+    set g 5
+    db_query {select 1}
+    if {$g == 5} {puts five} else {puts other}   ;# I230: always true
+}
+```
+
+A stub without `-frame`, or one whose arguments include a script, an
+expression, a callback or a variable, or that sets another flag, keeps the
+call widening. See
+[`-frame`](../kcs-howto-annotate-commands-with-stubs.md#what-the-command-does-to-the-callers-variables--frame).
 
 ## How to suppress
 

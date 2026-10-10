@@ -20,7 +20,8 @@
 # (`Tcl_CreateObjCommand`, `objv`, `Tcl_SetObjResult`) behind the engine-
 # neutral Tcl extension interface (`tcl-engine-api`), so it runs on whichever
 # engine the host picked without knowing which. The C-facing header is
-# `include/tclshim.h`; every declaration there is implemented in `src/ffi.rs`.
+# `runtime/rust/include/tcl.h`; every declaration its native leg makes is
+# implemented in `src/ffi.rs`.
 # See docs/design/runtime/c-extension-shim.md.
 [package]
 name = "tcl-cshim"
@@ -43,12 +44,12 @@ num-bigint = "0.5"
 tcl-engine-api = { path = "../tcl-engine-api" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-core-types = { path = "../tcl-core-types" }
+tcl-registry = { path = "../tcl-registry" }
 # The shared owners the shim must not re-implement: list quoting/splitting,
 # number parsing and double formatting (`tcl-syntax`), and option-table
 # prefix resolution with its C-shaped messages (`tcl-cmd-core`).
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-cmd-core = { path = "../tcl-cmd-core" }
-tcl-registry = { path = "../tcl-registry" }
 
 [dev-dependencies]
 tcl-vm = { path = "../tcl-vm" }

@@ -329,6 +329,10 @@ impl LiveSession {
         session.bootstrap(lib_dir)?;
         session.eval_host_initialization("::tmm::_static_enroll")?;
         session.eval_host_initialization("::orch::init")?;
+        // The pure functions run their shared cores, registered before
+        // `register_all` looks for each command's mock.
+        crate::pure_functions::register(&mut session.vm);
+        session.eval("::orch::init")?;
         Ok(session)
     }
 

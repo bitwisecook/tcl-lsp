@@ -103,6 +103,7 @@ macro_rules! opt {
             aliases: &[],
             lifecycle: Lifecycle::UNSPECIFIED,
             min_abbrev: None,
+            effect: None,
         }
     };
 }

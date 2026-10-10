@@ -29,7 +29,8 @@
 //! provably integral, or whose range we cannot bound, are `TOP` — always sound.
 //! Loop-header phis are **widened** so the fixpoint terminates.  Tightening back
 //! is query-driven via [`refine_interval`], which intersects a value's interval
-//! with the dominating constant-bound guards at a specific use site.  If the
+//! with the range refinements in force at a specific use site — what the branch
+//! conditions every path there crossed prove of it.  If the
 //! bounded fixpoint does not converge within the iteration cap, the whole result
 //! degrades to `TOP` rather than risk returning a still-ascending (unsound,
 //! too-narrow) interval.
@@ -45,9 +46,11 @@ use tcl_syntax::expr::ast::{BinOp, ExprNode, UnaryOp};
 use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
 
 use crate::analyses::{ConstValue, LatticeValue};
-use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::ssa::{SsaFunction, SsaSourceView, Symbol, ValueKey, Version};
+use crate::types::{TypeKind, TypeLattice};
+use tcl_registry::TclType;
 
 /// A bound is an `i64`, or `None` for an infinity (sign given by position).
 pub type Bound = Option<i64>;
@@ -540,13 +543,10 @@ fn dominates(ssa: &SsaFunction, ancestor: BlockId, node: BlockId) -> bool {
     }
 }
 
-/// The guard-analysis lookup tables [`refine_interval`] consults: the
-/// branch-block index (`build_guard_index`), the per-block predecessor
-/// count (used for the merge / edge-domination check), and the numeral grammar
-/// the branch conditions' literal bounds are read under.  Bundled so the
-/// refiner keeps a small argument list.
+/// Guard tables for conditional declaration-source diagnostics. These are
+/// separate from the solver's normal type and range facts.
 #[derive(Clone, Copy)]
-pub struct GuardTables<'a> {
+pub(crate) struct DeclarationGuardTables<'a> {
     /// Branch blocks that constrain each `(sym, version)`.
     pub guard_index: &'a HashMap<ValueKey, Vec<BlockId>>,
     /// Predecessor count per block.
@@ -559,42 +559,112 @@ pub struct GuardTables<'a> {
     pub numbers: NumberSyntax,
 }
 
-/// Narrow `base[(name, version)]` by the constant-bound guards that hold on
-/// every path reaching `block`.
+/// Narrow `base[(name, version)]` at `block` by the range refinements in
+/// force there ([`crate::sccp::SccpResult::refinements_in`]): what the
+/// conditions every executable path into `block` crossed prove of the
+/// version — `if {$i < 10}` puts `i` at 9 or below in its arm — stated by the
+/// condition's own `Selection` transfer, which reads a bound under the
+/// target's numeral grammar.
+///
+/// A range refinement holds of the value when it is an integer: a value
+/// that is not compares as a double or a string, so `7.0` takes the false
+/// edge of `$i != 7` and `end` the true edge of `$i > 5`. So the refinements
+/// narrow only a version proved an integer at `block` ([`proved_integer`]),
+/// and every other version keeps its own interval, which only integers
+/// reach.
+///
+/// The state an enumerated loop leaves is the version's exact value where it
+/// is in force (`EdgeRefinement::loop_exit`), past the loop header's
+/// widening: an integer there is the version's interval, a point within its
+/// own.
 #[must_use]
-pub fn refine_interval<S1: std::hash::BuildHasher>(
+pub fn refine_interval<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     base: &HashMap<ValueKey, Interval, S1>,
-    cfg: &CfgFunction,
     ssa: &SsaFunction,
+    (sccp, types): (
+        &crate::sccp::SccpResult,
+        &HashMap<ValueKey, TypeLattice, S2>,
+    ),
     block: BlockId,
     name: &str,
     version: Version,
-    guards: GuardTables<'_>,
 ) -> Interval {
-    let Some(symbol) = ssa.var_symbol(name) else {
+    let Some(sym) = ssa.var_symbol(name) else {
         return TOP;
     };
-    refine_interval_for_value(base, cfg, ssa, block, symbol, version, guards)
+    refine_interval_for_value(base, (sccp, types), block, sym, version)
+}
+
+/// Narrow one genuine SSA cell through the solver's actual refinements and
+/// integer-type premise. Source spelling and conditional declaration advice
+/// do not select this normal fact owner.
+#[must_use]
+pub fn refine_interval_for_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+    base: &HashMap<ValueKey, Interval, S1>,
+    (sccp, types): (
+        &crate::sccp::SccpResult,
+        &HashMap<ValueKey, TypeLattice, S2>,
+    ),
+    block: BlockId,
+    sym: Symbol,
+    version: Version,
+) -> Interval {
+    let key = (sym, version);
+    let mut iv = base.get(&key).copied().unwrap_or(TOP);
+    let left = sccp
+        .refinements_in(block)
+        .find_map(|refinement| match &refinement.fact {
+            tcl_registry::value_transfer::FactView::Exact(value, _)
+                if refinement.loop_exit && refinement.key == key =>
+            {
+                value.as_int()
+            }
+            _ => None,
+        });
+    if let Some(point) = left {
+        let point = Interval {
+            lo: Some(point),
+            hi: Some(point),
+        };
+        if intersect(iv, point) == point {
+            return point;
+        }
+    }
+    if !proved_integer((sccp, types), block, key) {
+        return iv;
+    }
+    for refinement in sccp.refinements_in(block) {
+        if refinement.key != key {
+            continue;
+        }
+        if let tcl_registry::value_transfer::FactView::Domain(
+            tcl_registry::value_transfer::DomainFact::Range { lo, hi },
+        ) = &refinement.fact
+        {
+            iv = intersect(iv, Interval { lo: *lo, hi: *hi });
+        }
+    }
+    iv
 }
 
 /// Narrow an actual SSA value by dominating guards on that same cell.
 /// Guard source spellings are resolved at their own terminator points.
 #[must_use]
-pub fn refine_interval_for_value<S1: std::hash::BuildHasher>(
-    base: &HashMap<ValueKey, Interval, S1>,
+pub(crate) fn refine_declaration_interval_for_value(
+    base: &DeclarationIntervals,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     block: BlockId,
     sym: Symbol,
     version: Version,
-    guards: GuardTables<'_>,
+    guards: DeclarationGuardTables<'_>,
 ) -> Interval {
-    let GuardTables {
+    let DeclarationGuardTables {
         guard_index,
         pred_counts,
         numbers,
     } = guards;
-    let mut iv = base.get(&(sym, version)).copied().unwrap_or(TOP);
+    let mut iv = base.values().get(&(sym, version)).copied().unwrap_or(TOP);
     let Some(candidate_blocks) = guard_index.get(&(sym, version)) else {
         return iv;
     };
@@ -670,6 +740,33 @@ pub fn refine_interval_for_value<S1: std::hash::BuildHasher>(
     iv
 }
 
+/// Whether the version `key` is an integer at `block`: the type lattice
+/// types it one (an integer literal, an `incr`, a route that builds an
+/// integer), or a type refinement in force there does (`string is integer
+/// -strict`). A numeric `==` proves a number, never an integer — `7.0 == 7`
+/// holds — so its type refinement is no proof.
+fn proved_integer<S: std::hash::BuildHasher>(
+    (sccp, types): (&crate::sccp::SccpResult, &HashMap<ValueKey, TypeLattice, S>),
+    block: BlockId,
+    key: ValueKey,
+) -> bool {
+    let integer =
+        |ty: &TypeLattice| ty.kind() == TypeKind::Known && ty.tcl_type() == Some(TclType::Int);
+    types.get(&key).is_some_and(integer)
+        || sccp.refinements_in(block).any(|refinement| {
+            refinement.key == key
+                && matches!(
+                    refinement.fact,
+                    tcl_registry::value_transfer::FactView::Domain(
+                        tcl_registry::value_transfer::DomainFact::Type {
+                            intrep: Some(TclType::Int),
+                            ..
+                        }
+                    )
+                )
+        })
+}
+
 /// Seed a `[c, c]` interval from a constant-integer SCCP value, else `None`.
 #[must_use]
 fn seed_const<S: std::hash::BuildHasher>(
@@ -684,6 +781,14 @@ fn seed_const<S: std::hash::BuildHasher>(
 }
 
 /// Interval produced by `stmt` for its def `name`.
+///
+/// The typed cell update is the registry's `CellReadModifyWrite(Increment)`
+/// descriptor by construction, and the domain consumes that descriptor's
+/// model of the operation ([`tcl_registry::value_transfer::RangeModel`]):
+/// an `IntegerAdd` is the interval sum of the cell and the amount — a
+/// canonical literal, or the interval a `$var` amount holds — and any other
+/// model is `TOP`. The domain interprets the operation; it never runs the
+/// evaluator.
 #[must_use]
 fn transfer(
     stmt: &crate::ir::Statement,
@@ -691,24 +796,72 @@ fn transfer(
     old: Interval,
     numbers: NumberSyntax,
     read: &impl Fn(&ExprNode) -> Interval,
+    amount_read: Interval,
 ) -> Interval {
     use crate::ir::Statement;
+    use tcl_registry::native_lowering::CellUpdate;
+    use tcl_registry::value_transfer::RangeModel;
     match stmt {
         Statement::AssignConst { value, .. } => const_int_from_value(value).map_or(TOP, constant),
         Statement::AssignExpr { expr, .. } => eval_expr_with_reads(expr, read, numbers),
         Statement::Incr { name, amount, .. } => {
-            let mut base = env.get(name).copied().unwrap_or(old);
-            if base.is_bottom() {
-                base = TOP;
+            let operands = 1 + usize::from(amount.is_some());
+            match crate::value_transfer::cell_update_range_model(CellUpdate::Increment, operands) {
+                Some(RangeModel::IntegerAdd) => {
+                    let mut base = env.get(name).copied().unwrap_or(old);
+                    if base.is_bottom() {
+                        base = TOP;
+                    }
+                    let amount = match amount {
+                        None => constant(1),
+                        Some(value) => const_int_from_value(value).map_or(amount_read, constant),
+                    };
+                    add(base, amount)
+                }
+                _ => TOP,
             }
-            let amt = match amount {
-                None => constant(1),
-                Some(a) => const_int_from_value(a).map_or(TOP, constant),
-            };
-            add(base, amt)
         }
         _ => TOP,
     }
+}
+
+fn increment_amount_read(
+    view: SsaSourceView<'_>,
+    statement: &crate::ir::Statement,
+    intervals: &HashMap<ValueKey, Interval>,
+) -> Interval {
+    let crate::ir::Statement::Incr {
+        amount: Some(amount),
+        amount_braced: false,
+        ..
+    } = statement
+    else {
+        return TOP;
+    };
+    let Some(tokens) = view.source_tokens() else {
+        return TOP;
+    };
+    let mut selected = None;
+    for access in &tokens.variable_accesses {
+        if &access.original_spelling != amount {
+            continue;
+        }
+        let Some(read) = view.read_reference(&access.source, &access.original_spelling) else {
+            return TOP;
+        };
+        let Some(version) = read.version else {
+            return TOP;
+        };
+        let key = (read.symbol, version);
+        if selected.is_some_and(|previous| previous != key) {
+            return TOP;
+        }
+        selected = Some(key);
+    }
+    selected
+        .and_then(|key| intervals.get(&key))
+        .copied()
+        .unwrap_or(TOP)
 }
 
 const MAX_ITERS: usize = 50;
@@ -928,11 +1081,20 @@ fn compute_intervals_kernel<S: std::hash::BuildHasher>(
                             crate::ir::Statement::AssignExpr { expr_base, .. } => *expr_base,
                             _ => None,
                         };
-                        transfer(&s.statement, &env, cur(&result, &key), numbers, &|node| {
-                            view.read_expression_variable(node, base)
-                                .and_then(|read| read.version.map(|version| (read.symbol, version)))
-                                .map_or(TOP, |key| cur(&result, &key))
-                        })
+                        transfer(
+                            &s.statement,
+                            &env,
+                            cur(&result, &key),
+                            numbers,
+                            &|node| {
+                                view.read_expression_variable(node, base)
+                                    .and_then(|read| {
+                                        read.version.map(|version| (read.symbol, version))
+                                    })
+                                    .map_or(TOP, |key| cur(&result, &key))
+                            },
+                            increment_amount_read(view, &s.statement, &result),
+                        )
                     });
                     if val != cur(&result, &key) {
                         result.insert(key, val);
@@ -1022,26 +1184,6 @@ mod tests {
                 lo: Some(7),
                 hi: Some(19)
             }
-        );
-    }
-
-    #[test]
-    fn intersect_guard() {
-        // value < 10 (true) → [-inf, 9].
-        assert_eq!(
-            guard_interval(BinOp::Lt, 10, false),
-            Some(Interval {
-                lo: None,
-                hi: Some(9)
-            })
-        );
-        // negated `< 10` → `>= 10` → [10, +inf].
-        assert_eq!(
-            guard_interval(BinOp::Lt, 10, true),
-            Some(Interval {
-                lo: Some(10),
-                hi: None
-            })
         );
     }
 
@@ -1481,6 +1623,38 @@ mod tests {
                 hi: Some(i64::MIN)
             })
         );
+    }
+
+    /// The increment's interval is the registry's `IntegerAdd` over the
+    /// cell and the amount, and a `$var` amount contributes the interval
+    /// it holds.
+    #[test]
+    fn incr_adds_the_interval_of_a_var_amount() {
+        use crate::compilation_unit::CompilationUnit;
+        use tcl_registry::model::ingress::static_context_for;
+        let registry = static_context_for("tcl8.6").commands();
+        let cu = CompilationUnit::build_for(
+            "proc f {} { set n 3\n set x 5\n incr x $n\n return $x }",
+            registry,
+            false,
+        );
+        let fu = cu.procedures.get("::f").expect("proc");
+        let intervals = compute_intervals_with(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.sccp.values,
+            numbers_for_dialect(Some(
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            )),
+        );
+        let x = fu.ssa.var_symbol("x").expect("x");
+        let last = intervals
+            .iter()
+            .filter(|((sym, _), _)| *sym == x)
+            .max_by_key(|((_, ver), _)| *ver)
+            .map(|(_, interval)| *interval)
+            .expect("x has an interval");
+        assert_eq!(last, constant(8));
     }
 
     #[test]

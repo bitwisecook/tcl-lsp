@@ -102,6 +102,7 @@ const ENSEMBLE_OPT_COMMAND: OptionSpec = OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 };
 
 /// `-namespace`: in `ensembleConfigOptions` only, and read-only even there —
@@ -121,6 +122,7 @@ const ENSEMBLE_OPT_NAMESPACE: OptionSpec = OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 };
 
 /// The five options both C tables carry, in their shared (alphabetical) order.
@@ -132,6 +134,7 @@ const ENSEMBLE_OPT_MAP: OptionSpec = OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 };
 
 const ENSEMBLE_OPT_PARAMETERS: OptionSpec = OptionSpec {
@@ -142,6 +145,7 @@ const ENSEMBLE_OPT_PARAMETERS: OptionSpec = OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 };
 
 const ENSEMBLE_OPT_PREFIXES: OptionSpec = OptionSpec {
@@ -152,6 +156,7 @@ const ENSEMBLE_OPT_PREFIXES: OptionSpec = OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 };
 
 const ENSEMBLE_OPT_SUBCOMMANDS: OptionSpec = OptionSpec {
@@ -162,6 +167,7 @@ const ENSEMBLE_OPT_SUBCOMMANDS: OptionSpec = OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 };
 
 const ENSEMBLE_OPT_UNKNOWN: OptionSpec = OptionSpec {
@@ -172,6 +178,7 @@ const ENSEMBLE_OPT_UNKNOWN: OptionSpec = OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 };
 
 /// A namespace unknown handler is installed for a future failed dispatch;
@@ -273,6 +280,7 @@ static WHICH_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-variable",
@@ -282,6 +290,7 @@ static WHICH_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 
@@ -368,6 +377,7 @@ const JIM_ENSEMBLE_OPTIONS: &[OptionSpec] = &[OptionSpec {
     value: OptionValue::value("prefix"),
     detail: "Literal target command-name prefix concatenated with each requested subcommand; defaults to the current namespace followed by ::.",
     surface: None,
+    effect: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: Some(8),
@@ -397,6 +407,7 @@ static EXPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 }];
 
 /// `namespace import`'s only flag — present unchanged in the synopsis of
@@ -409,6 +420,7 @@ static IMPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
+    effect: None,
 }];
 
 /// `namespace delete ?namespace namespace ...?` — every positional word names
@@ -454,14 +466,14 @@ fn namespace_delete_count_arg_roles(count: usize) -> Vec<(u8, ArgRole)> {
 /// Registered dialect-invariantly (`const_fold`, not `const_fold_versioned`):
 /// the C implementation of both subcommands is unchanged across 8.4-9.1 and
 /// the transcripts agree byte-for-byte.
-fn fold_qualifiers(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_qualifiers(args: &[&str]) -> Option<String> {
     let [s] = args else {
         return None;
     };
     Some(crate::state_transition::namespace_qualifiers(s).to_owned())
 }
 
-fn fold_tail(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_tail(args: &[&str]) -> Option<String> {
     let [s] = args else {
         return None;
     };
@@ -727,6 +739,10 @@ fn namespace_upvar_state_transitions(arguments: InvocationArguments<'_>) -> Stat
                     variable,
                 },
                 writes_value: false,
+                words: crate::state_transition::AliasWords {
+                    local: other_index + 1,
+                    target: other_index,
+                },
             },
         ));
     }
@@ -995,6 +1011,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // listed (`namespace children ::tomato`); the optional
         // second is a glob pattern filtering the *result*, not a namespace.
         arg_roles: &[(0, ArgRole::NamespaceName), (1, ArgRole::Pattern)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1028,6 +1045,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Keep that timing in registry data so every executable-body
         // consumer distinguishes capture from same-invocation execution.
         traits: Traits::WRAPS_COMMAND_PREFIX.union(Traits::DEFERS_BODY),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1043,6 +1061,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace current",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1178,6 +1197,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // other namespace reference, and no diagnostic asserts it exists
         // (both interpreters answer `0` rather than erroring).
         arg_roles: &[(0, ArgRole::NamespaceName)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1319,6 +1339,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // The single argument is a command name resolved (not called), so it
         // is a command reference navigation follows.
         arg_roles: &[(0, ArgRole::CommandName)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1331,6 +1352,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         // The optional word names the namespace whose parent is reported.
         arg_roles: &[(0, ArgRole::NamespaceName)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1362,6 +1384,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         // Pure string arithmetic on the word — see [`fold_qualifiers`].
         const_fold: Some(fold_qualifiers),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1380,6 +1405,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         // Pure string arithmetic on the word — see [`fold_tail`].
         const_fold: Some(fold_tail),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1454,7 +1482,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         subcommand_forms: NAMESPACE_UPVAR_FORMS,
         creates_scope_alias: true,
         surface: Some(SpecSurface::TCL85_PLUS),
-        analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceUpvar),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(NAMESPACE_UPVAR_TRANSITIONS),
         ..SubCommand::DEFAULT
@@ -1481,6 +1508,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_role_resolver_roles: &[ArgRole::VarRead, ArgRole::CommandNameProbe],
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
 ];
@@ -1572,6 +1600,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("namespace"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY

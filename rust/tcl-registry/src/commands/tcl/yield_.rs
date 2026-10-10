@@ -64,6 +64,7 @@ pub fn spec() -> CommandSpec {
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
         inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::Yield),
+        runtime_backing: RuntimeBacking::shipped("yield"),
         // `TCL86_PLUS` alone already resolves availability correctly
         // everywhere, via the mask-intersection rule
         // (`CommandSpec::supports_dialect` / `ProfileQueries::is_available`):

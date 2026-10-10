@@ -105378,6 +105378,1059 @@
       "tests": [],
       "question_ids": [],
       "limits": "Only this exact locked14-package Consumer244 all-targets check failure applies. Three distinct Compiler errors block compilation: Option::flatten on a single metadata option, a missing MAX_EXPR_NODE_DEPTH value and a ContextRegistry crate path. The flatten diagnostic is independently emitted for lib and lib-test builds; four complete diagnostic events are retained. No assertions execute; no successful check, executable pin, current edited-definition pass or external native result is supplied."
+    },
+    {
+      "id": "rust.frozen245.compiler-vm-build245",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/compiler-vm-build245/receipt.json.gz",
+        "sha256": "4ea2406d27dbd1b648fcd73ce45d98a0b9ae22856a9d0aabe9faf80fffe6bfb1",
+        "compression": "gzip",
+        "uncompressed_sha256": "3d503c2be4bb76d131fa23d8299cdfd6316eb9ae892e91fd68f135dee9618934"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/compiler-vm-build245/tests.log",
+        "sha256": "3a6e760d580c6a9e0f9c58e338968078508d4d71149144684d5460d1f3df3f04"
+      },
+      "command": [
+        "env",
+        "RUSTUP_HOME=/workspace/.rustup",
+        "CARGO_HOME=/workspace/.cargo",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-verify065",
+        "CARGO_BUILD_JOBS=2",
+        "CARGO_PROFILE_DEV_DEBUG=0",
+        "CARGO_PROFILE_TEST_DEBUG=0",
+        "CARGO_INCREMENTAL=0",
+        "CARGO_NET_OFFLINE=true",
+        "cargo",
+        "test",
+        "--locked",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-vm"
+      ],
+      "exit": 0,
+      "seconds": 193.4606615419907,
+      "uniform_source": true,
+      "status": "compile-passed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the complete immutable source inventory and its actual command association."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Only these ten exact closed Main245 operations and independently successful Compiler/VM executable/build/source associations apply. Core and other consumer-library no-run compilation fails from ENOSPC and supplies no Core pin or assertion. Inventories execute no assertions. Compiler focus and five isolated traces retain complete failures and repeated events; the VM 343-name selection is inventory-only and has no finite batch receipt. Current edited definitions, incoming rust integration, other images, native provider outcomes, Clippy, Python and full suites remain independent. No aggregate pass or unique coverage count follows."
+    },
+    {
+      "id": "rust.frozen245.compiler-list245",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/compiler-list245/receipt.json.gz",
+        "sha256": "672bb66a91619bca2d6d792e08f0198da5cbb3cd2c059e88ffacfcd340557839",
+        "compression": "gzip",
+        "uncompressed_sha256": "329690b58d767ddbf42a4e59dea04824d89ae2504924b940720e3961bae31260"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/compiler-list245/tests.log",
+        "sha256": "d534b14bc51e2409257b0819e3b7373697f274bc116e9ad5a5ef2333b322ccb9"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-compiler245.elf",
+        "--list"
+      ],
+      "exit": 0,
+      "seconds": 0.05086203900282271,
+      "uniform_source": true,
+      "status": "listed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the complete immutable source inventory and its actual command association."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Only these ten exact closed Main245 operations and independently successful Compiler/VM executable/build/source associations apply. Core and other consumer-library no-run compilation fails from ENOSPC and supplies no Core pin or assertion. Inventories execute no assertions. Compiler focus and five isolated traces retain complete failures and repeated events; the VM 343-name selection is inventory-only and has no finite batch receipt. Current edited definitions, incoming rust integration, other images, native provider outcomes, Clippy, Python and full suites remain independent. No aggregate pass or unique coverage count follows."
+    },
+    {
+      "id": "rust.frozen245.vm-list245",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/vm-list245/receipt.json.gz",
+        "sha256": "f65bdbc2901d8348f1e20b34a0f62e5f80f9f0bca47b5f86ed567bcd728ace44",
+        "compression": "gzip",
+        "uncompressed_sha256": "0beca002ba6985ba9493c81380e6383c82dbc9382bbbc0d106d89d7cd26b4854"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/vm-list245/tests.log",
+        "sha256": "9d64ea5bb8e8225d7aa54b71b9e736fa9460fc94f0d557dca2c514cf198733ac"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm245.elf",
+        "--list"
+      ],
+      "exit": 0,
+      "seconds": 0.007999496010597795,
+      "uniform_source": true,
+      "status": "listed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the complete immutable source inventory and its actual command association."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Only these ten exact closed Main245 operations and independently successful Compiler/VM executable/build/source associations apply. Core and other consumer-library no-run compilation fails from ENOSPC and supplies no Core pin or assertion. Inventories execute no assertions. Compiler focus and five isolated traces retain complete failures and repeated events; the VM 343-name selection is inventory-only and has no finite batch receipt. Current edited definitions, incoming rust integration, other images, native provider outcomes, Clippy, Python and full suites remain independent. No aggregate pass or unique coverage count follows."
+    },
+    {
+      "id": "rust.frozen245.compiler-focus245",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/compiler-focus245/receipt.json.gz",
+        "sha256": "858e1d34032ae8c66e0b88f203fae843645c6ce514af467706077406c1c3f838",
+        "compression": "gzip",
+        "uncompressed_sha256": "f935cd2466250bad30d0c5677a8494d2a2e59fb01524457475cfeddbf030ae5e"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/compiler-focus245/tests.log",
+        "sha256": "2e2cb5183235c2050358b67b785f26baf6ca390f15d9a110cbfded1c5bcc8d2b"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-compiler245.elf",
+        "analyser::diagnostics::dataflow::issue996_tests::opaque_body_local_set_requires_original_body_owner",
+        "analyser::diagnostics::dataflow::issue996_tests::original_body_ownership_keeps_installer_horizon_and_child_refusal",
+        "analyser::diagnostics::dataflow::source_body_purpose_tests::original_reference_only_body_cannot_supply_local_store_suppression",
+        "auto_path_eval::source_expression::tests::original_source_path_parts_keep_selected_variable_roots_and_missing_premises",
+        "codegen::wasm::backend::tests::assignment_source_metadata_retains_nested_lexer_overlays",
+        "codegen::wasm::backend::tests::structural_assignments_need_unanimous_original_source_carriers",
+        "codegen::wasm::backend::tests::structural_assignments_require_actual_availability_and_grammar",
+        "codegen::wasm::pipeline::tests::incoming_native_operands_use_declared_arguments_without_inventing_ssa",
+        "command_binding::cfg_lookup_context::tests::original_cfg_binding_replay_keeps_native_move_and_delete_horizons",
+        "command_binding::cfg_lookup_context::tests::original_cfg_logical_lookup_keeps_its_positive_owner_separate_from_native_names",
+        "command_binding::cfg_lookup_context::tests::original_cfg_lookup_refuses_missing_foreign_and_changed_source_metadata",
+        "command_binding::cfg_lookup_context::tests::original_cfg_lookup_uses_per_point_native_namespace_not_reported_function_name",
+        "command_binding::declaration_preview::tests::nested_declared_layout_declines_lookup_after_unknown_variable_observers",
+        "command_binding::declaration_preview::tests::nested_declared_layout_keeps_original_scope_without_entered_authority",
+        "command_binding::declaration_preview::tests::nested_declared_layout_stops_before_condition_callbacks_or_aliases",
+        "command_binding::logical_definition::tests::logical_definition_declines_unknown_rebound_dynamic_and_invalid_inputs",
+        "command_binding::logical_definition::tests::logical_definition_publishes_general_static_procedures_in_the_authored_model",
+        "command_binding::logical_definition::tests::logical_model_roster_requires_the_complete_current_input_and_source_mode",
+        "command_binding::logical_operation::tests::logical_original_alias_capture_composes_registry_operations_at_the_call",
+        "command_binding::logical_operation::tests::logical_original_operation_refusals_do_not_recover_from_reporting_state",
+        "command_binding::logical_operation::tests::logical_original_transfers_preserve_moves_deletes_and_scalar_head_values",
+        "command_binding::logical_operation::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases",
+        "command_binding::tests::logical_command_layout_keeps_unknown_physical_frames_separate",
+        "common_aot_plan::tests::authored_program_storage_keeps_original_coverage_without_native_frame_or_body_grants",
+        "common_aot_plan::tests::declared_arguments_keep_distinct_reached_cells_and_exact_source_receipts",
+        "common_aot_plan::tests::declared_arguments_refuse_missing_owners_changed_contents_and_future_callers",
+        "common_aot_plan::tests::retained_native_program_coverage_does_not_donate_root_frame_slots",
+        "common_aot_plan::tests::unknown_actual_type_poisons_cross_call_formal_propagation",
+        "lowering::execution_regions::tests::captured_provider_metadata_keeps_actual_availability_and_missing_owner_refusal",
+        "lowering::execution_regions::tests::case_list_possible_regions_enter_bodies_as_list_elements",
+        "lowering::execution_regions::tests::conditional_case_sources_decline_replaced_handlers",
+        "lowering::execution_regions::tests::conditional_case_sources_do_not_claim_entered_bodies",
+        "lowering::execution_regions::tests::core_and_provider_namespace_shadows_withdraw_stock_proof",
+        "lowering::execution_regions::tests::helper_replacement_and_phase_hook_installation_decline_the_plan",
+        "lowering::execution_regions::tests::issue_2286_default_c_authoring_entry_uses_real_setup_definitions",
+        "lowering::execution_regions::tests::package_advertisement_and_replaced_wrapper_do_not_license_expansion",
+        "lowering::execution_regions::tests::qualified_and_imported_wrappers_share_the_same_lifecycle",
+        "lowering::execution_regions::tests::scoped_provider_lifecycle_retains_conditional_dependencies",
+        "lowering::tests::complete_logical_source_keeps_original_structure_and_native_absence",
+        "lowering::tests::complete_source_input_declines_changed_unit_profile_without_authoring_fallback",
+        "lowering::tests::deferred_command_prefix_does_not_create_a_runtime_barrier",
+        "lowering::tests::logical_original_declaration_layout_keeps_unicode_and_qualified_alias_heads",
+        "lowering::tests::namespace_directive_metadata_keeps_actual_availability_and_source_config",
+        "lowering::tests::reference_only_command_prefix_does_not_create_a_runtime_barrier",
+        "optimiser::elimination::source_purity::tests::literal_assignment_purity_keeps_no_evaluation_without_metadata",
+        "optimiser::elimination::source_purity::tests::logical_procedure_purity_joins_the_original_declaration_not_its_label",
+        "optimiser::elimination::source_purity::tests::native_substitution_metadata_does_not_borrow_logical_purity",
+        "optimiser::elimination::source_purity::tests::original_substitution_purity_keeps_alias_prefixes_and_target_barriers",
+        "optimiser::elimination::source_purity::tests::original_substitution_purity_requires_actual_availability_and_input",
+        "optimiser::elimination::source_reads::tests::original_hidden_read_names_keep_alias_horizons_and_literal_roots",
+        "optimiser::elimination::source_reads::tests::original_hidden_reads_keep_actual_availability_and_variable_grammar",
+        "optimiser::elimination::source_reads::tests::original_hidden_reads_refuse_missing_foreign_and_stale_inputs",
+        "optimiser::elimination::tests::resolved_store_observer_advice_preserves_literal_sigil_and_scalar_names",
+        "script_binds::tests::declaration_read_advice_requires_original_unchanged_body_and_formals",
+        "script_binds::tests::selected_formal_read_scope_follows_original_factory_aliases_and_replacements",
+        "script_binds::tests::selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate",
+        "ssa::tests::conditional_nested_expression_reads_keep_original_tokens_without_entry",
+        "ssa::tests::supplied_ssa_definition_and_lexical_reads_do_not_reconstruct_catalogue_roles",
+        "ssa::tests::supplied_ssa_role_scans_keep_actual_availability_grammar_and_missing_input",
+        "taint::tests::actual_option_advice_keeps_selected_terminator_availability_and_source_vector",
+        "taint::tests::actual_option_terminator_withdraws_possible_source_positions",
+        "taint::tests::actual_regexp_warning_refuses_missing_and_foreign_source_metadata",
+        "taint::tests::constant_command_head_candidates_use_retained_escape_grammar",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 139.72347507299855,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 21,
+        "failed": 42,
+        "ignored": 0,
+        "filtered_out": 8531
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the complete immutable source inventory and its actual command association."
+      },
+      "tests": [
+        {
+          "selector": "analyser::diagnostics::dataflow::issue996_tests::opaque_body_local_set_requires_original_body_owner",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.source.original-editor-body-structure"
+          ],
+          "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs"
+        },
+        {
+          "selector": "analyser::diagnostics::dataflow::issue996_tests::original_body_ownership_keeps_installer_horizon_and_child_refusal",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.diagnostic.original-materialized-write-footprint"
+          ],
+          "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs"
+        },
+        {
+          "selector": "analyser::diagnostics::dataflow::source_body_purpose_tests::original_reference_only_body_cannot_supply_local_store_suppression",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.source.original-script-region-purpose"
+          ],
+          "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs"
+        },
+        {
+          "selector": "auto_path_eval::source_expression::tests::original_source_path_parts_keep_selected_variable_roots_and_missing_premises",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.navigation.retained-path-source-inventory",
+            "naming.source.original-crlf-evaluation-channels"
+          ],
+          "path": "rust/tcl-compiler/src/auto_path_eval/source_expression.rs"
+        },
+        {
+          "selector": "codegen::wasm::backend::tests::assignment_source_metadata_retains_nested_lexer_overlays",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs"
+        },
+        {
+          "selector": "codegen::wasm::backend::tests::structural_assignments_need_unanimous_original_source_carriers",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs"
+        },
+        {
+          "selector": "codegen::wasm::backend::tests::structural_assignments_require_actual_availability_and_grammar",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs"
+        },
+        {
+          "selector": "codegen::wasm::pipeline::tests::incoming_native_operands_use_declared_arguments_without_inventing_ssa",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.variable.aot-original-slot-purpose"
+          ],
+          "path": "rust/tcl-compiler/src/codegen/wasm/pipeline.rs"
+        },
+        {
+          "selector": "command_binding::cfg_lookup_context::tests::original_cfg_binding_replay_keeps_native_move_and_delete_horizons",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs"
+        },
+        {
+          "selector": "command_binding::cfg_lookup_context::tests::original_cfg_logical_lookup_keeps_its_positive_owner_separate_from_native_names",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs"
+        },
+        {
+          "selector": "command_binding::cfg_lookup_context::tests::original_cfg_lookup_refuses_missing_foreign_and_changed_source_metadata",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs"
+        },
+        {
+          "selector": "command_binding::cfg_lookup_context::tests::original_cfg_lookup_uses_per_point_native_namespace_not_reported_function_name",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs"
+        },
+        {
+          "selector": "command_binding::declaration_preview::tests::nested_declared_layout_declines_lookup_after_unknown_variable_observers",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.source.original-registry-header-advice"
+          ],
+          "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs"
+        },
+        {
+          "selector": "command_binding::declaration_preview::tests::nested_declared_layout_keeps_original_scope_without_entered_authority",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.source.original-registry-header-advice"
+          ],
+          "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs"
+        },
+        {
+          "selector": "command_binding::declaration_preview::tests::nested_declared_layout_stops_before_condition_callbacks_or_aliases",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "command_binding::logical_definition::tests::logical_definition_declines_unknown_rebound_dynamic_and_invalid_inputs",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.source.logical-procedure-definition-model"
+          ],
+          "path": "rust/tcl-compiler/src/command_binding/logical_definition.rs"
+        },
+        {
+          "selector": "command_binding::logical_definition::tests::logical_definition_publishes_general_static_procedures_in_the_authored_model",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.source.logical-procedure-definition-model"
+          ],
+          "path": "rust/tcl-compiler/src/command_binding/logical_definition.rs"
+        },
+        {
+          "selector": "command_binding::logical_definition::tests::logical_model_roster_requires_the_complete_current_input_and_source_mode",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.source.logical-procedure-definition-model"
+          ],
+          "path": "rust/tcl-compiler/src/command_binding/logical_definition.rs"
+        },
+        {
+          "selector": "command_binding::logical_operation::tests::logical_original_alias_capture_composes_registry_operations_at_the_call",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.source.logical-original-operation-transfer"
+          ],
+          "path": "rust/tcl-compiler/src/command_binding/logical_operation.rs"
+        },
+        {
+          "selector": "command_binding::logical_operation::tests::logical_original_operation_refusals_do_not_recover_from_reporting_state",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.source.logical-original-operation-transfer"
+          ],
+          "path": "rust/tcl-compiler/src/command_binding/logical_operation.rs"
+        },
+        {
+          "selector": "command_binding::logical_operation::tests::logical_original_transfers_preserve_moves_deletes_and_scalar_head_values",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.source.logical-original-operation-transfer"
+          ],
+          "path": "rust/tcl-compiler/src/command_binding/logical_operation.rs"
+        },
+        {
+          "selector": "command_binding::logical_operation::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.source.logical-original-operation-transfer"
+          ],
+          "path": "rust/tcl-compiler/src/command_binding/logical_operation.rs"
+        },
+        {
+          "selector": "command_binding::tests::logical_command_layout_keeps_unknown_physical_frames_separate",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/command_binding.rs"
+        },
+        {
+          "selector": "common_aot_plan::tests::authored_program_storage_keeps_original_coverage_without_native_frame_or_body_grants",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.variable.aot-original-slot-purpose"
+          ],
+          "path": "rust/tcl-compiler/src/common_aot_plan.rs"
+        },
+        {
+          "selector": "common_aot_plan::tests::declared_arguments_keep_distinct_reached_cells_and_exact_source_receipts",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.variable.aot-original-slot-purpose"
+          ],
+          "path": "rust/tcl-compiler/src/common_aot_plan.rs"
+        },
+        {
+          "selector": "common_aot_plan::tests::declared_arguments_refuse_missing_owners_changed_contents_and_future_callers",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.variable.aot-original-slot-purpose"
+          ],
+          "path": "rust/tcl-compiler/src/common_aot_plan.rs"
+        },
+        {
+          "selector": "common_aot_plan::tests::retained_native_program_coverage_does_not_donate_root_frame_slots",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.variable.aot-original-slot-purpose"
+          ],
+          "path": "rust/tcl-compiler/src/common_aot_plan.rs"
+        },
+        {
+          "selector": "common_aot_plan::tests::unknown_actual_type_poisons_cross_call_formal_propagation",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.variable.aot-original-slot-purpose"
+          ],
+          "path": "rust/tcl-compiler/src/common_aot_plan.rs"
+        },
+        {
+          "selector": "lowering::execution_regions::tests::captured_provider_metadata_keeps_actual_availability_and_missing_owner_refusal",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/lowering/execution_regions.rs"
+        },
+        {
+          "selector": "lowering::execution_regions::tests::case_list_possible_regions_enter_bodies_as_list_elements",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::execution_regions::tests::conditional_case_sources_decline_replaced_handlers",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::execution_regions::tests::conditional_case_sources_do_not_claim_entered_bodies",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::execution_regions::tests::core_and_provider_namespace_shadows_withdraw_stock_proof",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::execution_regions::tests::helper_replacement_and_phase_hook_installation_decline_the_plan",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::execution_regions::tests::issue_2286_default_c_authoring_entry_uses_real_setup_definitions",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::execution_regions::tests::package_advertisement_and_replaced_wrapper_do_not_license_expansion",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::execution_regions::tests::qualified_and_imported_wrappers_share_the_same_lifecycle",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::execution_regions::tests::scoped_provider_lifecycle_retains_conditional_dependencies",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::tests::complete_logical_source_keeps_original_structure_and_native_absence",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/lowering/mod.rs"
+        },
+        {
+          "selector": "lowering::tests::complete_source_input_declines_changed_unit_profile_without_authoring_fallback",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/lowering/mod.rs"
+        },
+        {
+          "selector": "lowering::tests::deferred_command_prefix_does_not_create_a_runtime_barrier",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::tests::logical_original_declaration_layout_keeps_unicode_and_qualified_alias_heads",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/lowering/mod.rs"
+        },
+        {
+          "selector": "lowering::tests::namespace_directive_metadata_keeps_actual_availability_and_source_config",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/lowering/mod.rs"
+        },
+        {
+          "selector": "lowering::tests::reference_only_command_prefix_does_not_create_a_runtime_barrier",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "optimiser::elimination::source_purity::tests::literal_assignment_purity_keeps_no_evaluation_without_metadata",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/optimiser/elimination/source_purity.rs"
+        },
+        {
+          "selector": "optimiser::elimination::source_purity::tests::logical_procedure_purity_joins_the_original_declaration_not_its_label",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/optimiser/elimination/source_purity.rs"
+        },
+        {
+          "selector": "optimiser::elimination::source_purity::tests::native_substitution_metadata_does_not_borrow_logical_purity",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/optimiser/elimination/source_purity.rs"
+        },
+        {
+          "selector": "optimiser::elimination::source_purity::tests::original_substitution_purity_keeps_alias_prefixes_and_target_barriers",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/optimiser/elimination/source_purity.rs"
+        },
+        {
+          "selector": "optimiser::elimination::source_purity::tests::original_substitution_purity_requires_actual_availability_and_input",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/optimiser/elimination/source_purity.rs"
+        },
+        {
+          "selector": "optimiser::elimination::source_reads::tests::original_hidden_read_names_keep_alias_horizons_and_literal_roots",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/optimiser/elimination/source_reads.rs"
+        },
+        {
+          "selector": "optimiser::elimination::source_reads::tests::original_hidden_reads_keep_actual_availability_and_variable_grammar",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/optimiser/elimination/source_reads.rs"
+        },
+        {
+          "selector": "optimiser::elimination::source_reads::tests::original_hidden_reads_refuse_missing_foreign_and_stale_inputs",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/optimiser/elimination/source_reads.rs"
+        },
+        {
+          "selector": "optimiser::elimination::tests::resolved_store_observer_advice_preserves_literal_sigil_and_scalar_names",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/optimiser/elimination.rs"
+        },
+        {
+          "selector": "script_binds::tests::declaration_read_advice_requires_original_unchanged_body_and_formals",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/script_binds.rs"
+        },
+        {
+          "selector": "script_binds::tests::selected_formal_read_scope_follows_original_factory_aliases_and_replacements",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/script_binds.rs"
+        },
+        {
+          "selector": "script_binds::tests::selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/script_binds.rs"
+        },
+        {
+          "selector": "ssa::tests::conditional_nested_expression_reads_keep_original_tokens_without_entry",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "ssa::tests::supplied_ssa_definition_and_lexical_reads_do_not_reconstruct_catalogue_roles",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/ssa.rs"
+        },
+        {
+          "selector": "ssa::tests::supplied_ssa_role_scans_keep_actual_availability_grammar_and_missing_input",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/ssa.rs"
+        },
+        {
+          "selector": "taint::tests::actual_option_advice_keeps_selected_terminator_availability_and_source_vector",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/taint.rs"
+        },
+        {
+          "selector": "taint::tests::actual_option_terminator_withdraws_possible_source_positions",
+          "status": "passed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/taint.rs"
+        },
+        {
+          "selector": "taint::tests::actual_regexp_warning_refuses_missing_and_foreign_source_metadata",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/taint.rs"
+        },
+        {
+          "selector": "taint::tests::constant_command_head_candidates_use_retained_escape_grammar",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/taint.rs"
+        }
+      ],
+      "question_ids": [
+        "naming.compiler.original-analysis-metadata-context",
+        "naming.diagnostic.original-materialized-write-footprint",
+        "naming.navigation.retained-path-source-inventory",
+        "naming.source.logical-original-operation-transfer",
+        "naming.source.logical-procedure-definition-model",
+        "naming.source.original-crlf-evaluation-channels",
+        "naming.source.original-editor-body-structure",
+        "naming.source.original-registry-header-advice",
+        "naming.source.original-script-region-purpose",
+        "naming.variable.aot-original-slot-purpose"
+      ],
+      "limits": "Only these ten exact closed Main245 operations and independently successful Compiler/VM executable/build/source associations apply. Core and other consumer-library no-run compilation fails from ENOSPC and supplies no Core pin or assertion. Inventories execute no assertions. Compiler focus and five isolated traces retain complete failures and repeated events; the VM 343-name selection is inventory-only and has no finite batch receipt. Current edited definitions, incoming rust integration, other images, native provider outcomes, Clippy, Python and full suites remain independent. No aggregate pass or unique coverage count follows.",
+      "framework": "rust-libtest"
+    },
+    {
+      "id": "rust.frozen245.compiler-declaration-world-trace245",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/compiler-declaration-world-trace245/receipt.json.gz",
+        "sha256": "7eb3489a3de6095f3f7cabdf25308f6fcd9caa08d810c47157021e402271a9c4",
+        "compression": "gzip",
+        "uncompressed_sha256": "15964b139115644f496e7e987e88909043d49d379ca2a4acb7753e89c775888c"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/compiler-declaration-world-trace245/tests.log",
+        "sha256": "7b2b43e8a4123912c925a3cc74362bf4c5be0f7cad524b4893d551e4ae21db79"
+      },
+      "command": [
+        "env",
+        "TCL_LSP_TRACE_SOURCE_PHASES=1",
+        "/workspace/.proofs/pinned-compiler245.elf",
+        "command_binding::declaration_preview::tests::nested_layout_visits_process_each_exact_source_world_once",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 3.541108723002253,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 8593
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the complete immutable source inventory and its actual command association."
+      },
+      "tests": [
+        {
+          "selector": "command_binding::declaration_preview::tests::nested_layout_visits_process_each_exact_source_world_once",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.source.original-declaration-layout-visits"
+          ],
+          "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs"
+        }
+      ],
+      "question_ids": [
+        "naming.source.original-declaration-layout-visits"
+      ],
+      "limits": "Only these ten exact closed Main245 operations and independently successful Compiler/VM executable/build/source associations apply. Core and other consumer-library no-run compilation fails from ENOSPC and supplies no Core pin or assertion. Inventories execute no assertions. Compiler focus and five isolated traces retain complete failures and repeated events; the VM 343-name selection is inventory-only and has no finite batch receipt. Current edited definitions, incoming rust integration, other images, native provider outcomes, Clippy, Python and full suites remain independent. No aggregate pass or unique coverage count follows.",
+      "framework": "rust-libtest"
+    },
+    {
+      "id": "rust.frozen245.vm-mathop-codegen245",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/vm-mathop-codegen245/receipt.json.gz",
+        "sha256": "23f14a0896b0d8db21bfc629c7ecf094475fd801d743ac2c67955123f8ad2432",
+        "compression": "gzip",
+        "uncompressed_sha256": "5a96a7cbcf643c67ee2ef77e9912ce9ae1259e006d0608cecd96e9d39d213ea6"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/vm-mathop-codegen245/tests.log",
+        "sha256": "107dd39ccba29a3020db78e93297fcd38366ac49fe397ad5cc22c258d60399bc"
+      },
+      "command": [
+        "env",
+        "TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC=1",
+        "/workspace/.proofs/pinned-vm245.elf",
+        "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 8.046141000988428,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 709
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the complete immutable source inventory and its actual command association."
+      },
+      "tests": [
+        {
+          "selector": "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.mathop-procedure-source-controls"
+          ],
+          "path": "runtime/rust/src/cmd_mathop.rs"
+        }
+      ],
+      "question_ids": [
+        "naming.mathop-procedure-source-controls"
+      ],
+      "limits": "Only these ten exact closed Main245 operations and independently successful Compiler/VM executable/build/source associations apply. Core and other consumer-library no-run compilation fails from ENOSPC and supplies no Core pin or assertion. Inventories execute no assertions. Compiler focus and five isolated traces retain complete failures and repeated events; the VM 343-name selection is inventory-only and has no finite batch receipt. Current edited definitions, incoming rust integration, other images, native provider outcomes, Clippy, Python and full suites remain independent. No aggregate pass or unique coverage count follows.",
+      "framework": "rust-libtest"
+    },
+    {
+      "id": "rust.frozen245.vm-dict-writeback-progress245",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/vm-dict-writeback-progress245/receipt.json.gz",
+        "sha256": "cdf742fdb44b00e4af5b03d9779359e6f890fae986f40d0181f6752ef4528c6c",
+        "compression": "gzip",
+        "uncompressed_sha256": "ba1e6853044dbc44db534c14c88da1446ae09c565f9aa0b9bcd7e2388108b48d"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/vm-dict-writeback-progress245/tests.log",
+        "sha256": "394736f0b4850535abf1ea323d7dee7ce0ad0faccc1d4f2ffbd480a7b07ddf9b"
+      },
+      "command": [
+        "env",
+        "TCL_LSP_ORACLE_PROGRESS=1",
+        "/workspace/.proofs/pinned-vm245.elf",
+        "cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 28.941718274989398,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 709
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the complete immutable source inventory and its actual command association."
+      },
+      "tests": [
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [],
+      "limits": "Only these ten exact closed Main245 operations and independently successful Compiler/VM executable/build/source associations apply. Core and other consumer-library no-run compilation fails from ENOSPC and supplies no Core pin or assertion. Inventories execute no assertions. Compiler focus and five isolated traces retain complete failures and repeated events; the VM 343-name selection is inventory-only and has no finite batch receipt. Current edited definitions, incoming rust integration, other images, native provider outcomes, Clippy, Python and full suites remain independent. No aggregate pass or unique coverage count follows.",
+      "framework": "rust-libtest"
+    },
+    {
+      "id": "rust.frozen245.vm-dict-publication-progress245",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/vm-dict-publication-progress245/receipt.json.gz",
+        "sha256": "01f095114741f0d52eb878f8e21bfec9cac95e82f48f08d2cceb45a2a53cb686",
+        "compression": "gzip",
+        "uncompressed_sha256": "a41447a84f2d923b36a5f4a991a1a9b581b89cd73b0c9e32edad5b0b8e3b34cc"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/vm-dict-publication-progress245/tests.log",
+        "sha256": "fae4cd0c7196a6b7b4f5dd5acc1dc73160a5824b1ba460fadaa7ecb6e7fa26fa"
+      },
+      "command": [
+        "env",
+        "TCL_LSP_ORACLE_PROGRESS=1",
+        "/workspace/.proofs/pinned-vm245.elf",
+        "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 73.11998110599234,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 709
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the complete immutable source inventory and its actual command association."
+      },
+      "tests": [
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+          ],
+          "path": "rust/tcl-vm/src/cmd_dict.rs"
+        }
+      ],
+      "question_ids": [
+        "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+      ],
+      "limits": "Only these ten exact closed Main245 operations and independently successful Compiler/VM executable/build/source associations apply. Core and other consumer-library no-run compilation fails from ENOSPC and supplies no Core pin or assertion. Inventories execute no assertions. Compiler focus and five isolated traces retain complete failures and repeated events; the VM 343-name selection is inventory-only and has no finite batch receipt. Current edited definitions, incoming rust integration, other images, native provider outcomes, Clippy, Python and full suites remain independent. No aggregate pass or unique coverage count follows.",
+      "framework": "rust-libtest"
+    },
+    {
+      "id": "rust.frozen245.consumer-libs-build245",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/consumer-libs-build245/receipt.json.gz",
+        "sha256": "764c326b8909a3f942e54817d283c78c16f8aeee8e814ae48470a5ecaa00226e",
+        "compression": "gzip",
+        "uncompressed_sha256": "bf41a1d0bcc80a2a4ca0cee825b8aba444921285c8fc84a0fdac7d5a7e8477d4"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/consumer-libs-build245/tests.log",
+        "sha256": "dca70d7a1a69c884a2b90d8d8c4e337f3b0391281d299e22827661311a52204a"
+      },
+      "command": [
+        "env",
+        "RUSTUP_HOME=/workspace/.rustup",
+        "CARGO_HOME=/workspace/.cargo",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-verify065",
+        "CARGO_BUILD_JOBS=2",
+        "CARGO_PROFILE_DEV_DEBUG=0",
+        "CARGO_PROFILE_TEST_DEBUG=0",
+        "CARGO_INCREMENTAL=0",
+        "CARGO_NET_OFFLINE=true",
+        "cargo",
+        "test",
+        "--locked",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "-p",
+        "tcl-lsp-core",
+        "-p",
+        "tcl-lsp-db",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "-p",
+        "tcl-cmd-core",
+        "-p",
+        "tcl-spec-studio",
+        "-p",
+        "tcl-explorer"
+      ],
+      "exit": 101,
+      "seconds": 112.19463708001422,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the complete immutable source inventory and its actual command association."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Only these ten exact closed Main245 operations and independently successful Compiler/VM executable/build/source associations apply. Core and other consumer-library no-run compilation fails from ENOSPC and supplies no Core pin or assertion. Inventories execute no assertions. Compiler focus and five isolated traces retain complete failures and repeated events; the VM 343-name selection is inventory-only and has no finite batch receipt. Current edited definitions, incoming rust integration, other images, native provider outcomes, Clippy, Python and full suites remain independent. No aggregate pass or unique coverage count follows."
+    },
+    {
+      "id": "rust.frozen245.compiler-cfg-replay-trace245",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/compiler-cfg-replay-trace245/receipt.json.gz",
+        "sha256": "2a38a35348cbcc8c7fc0fd2680e053610162a126dbeb528babbd869d2a47f37f",
+        "compression": "gzip",
+        "uncompressed_sha256": "eacc595402ba011857dba1a8c7ef743dad6516142cb0ae00da1d2ea08b0003e6"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen245/compiler-cfg-replay-trace245/tests.log",
+        "sha256": "d331122c9aa06bf125b6ae70052f527d8e2fbeb07433f36b69fe388946416799"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-compiler245.elf",
+        "command_binding::cfg_lookup_context::tests::original_cfg_binding_replay_keeps_native_move_and_delete_horizons",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit": 101,
+      "seconds": 2.6033907550154254,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 8593
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the complete immutable source inventory and its actual command association."
+      },
+      "tests": [
+        {
+          "selector": "command_binding::cfg_lookup_context::tests::original_cfg_binding_replay_keeps_native_move_and_delete_horizons",
+          "status": "failed",
+          "purpose": "Exact actual libtest event in the independently successful Compiler/VM245 executable and immutable source inventory. Repeated trace/focus events, current edited definitions, incoming integration and external native outcomes remain independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ],
+          "path": "rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs"
+        }
+      ],
+      "question_ids": [
+        "naming.compiler.original-analysis-metadata-context"
+      ],
+      "limits": "Only these ten exact closed Main245 operations and independently successful Compiler/VM executable/build/source associations apply. Core and other consumer-library no-run compilation fails from ENOSPC and supplies no Core pin or assertion. Inventories execute no assertions. Compiler focus and five isolated traces retain complete failures and repeated events; the VM 343-name selection is inventory-only and has no finite batch receipt. Current edited definitions, incoming rust integration, other images, native provider outcomes, Clippy, Python and full suites remain independent. No aggregate pass or unique coverage count follows.",
+      "framework": "rust-libtest"
     }
   ]
 }

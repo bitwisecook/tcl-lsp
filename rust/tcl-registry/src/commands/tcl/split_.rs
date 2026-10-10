@@ -33,6 +33,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("split"),
         // `split`'s surface carries an iRules row explicitly
         // (`ALL_TCL.union(IRULES)`), deliberately, not by oversight: it is a
         // pure string/list-manipulation command, exactly the class iRules
@@ -46,6 +47,7 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(crate::const_fold::fold_split),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::SPLIT),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::CSE_CANDIDATE,
         // `split string ?splitChars?` — synopsis, argument defaults, and
         // documented behaviour are byte-for-byte identical across the

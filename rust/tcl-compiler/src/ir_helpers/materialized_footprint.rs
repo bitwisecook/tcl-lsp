@@ -100,6 +100,29 @@ pub(crate) fn script_value_name_ownership_with_metadata_context(
     out
 }
 
+/// Conditional names in the selected original command and its re-evaluated
+/// values, using the same closed source lookup as materialized script advice.
+pub(crate) fn command_possible_footprint_with_metadata_context(
+    words: &[CommandWord],
+    registry: &CommandRegistry,
+    bindings: &ModuleCommandBindings,
+    namespace: &ExecutionNamespace,
+    metadata: InvocationMetadataContext<'_>,
+    config: LexerConfig,
+) -> VariableWriteEffects {
+    let context = FootprintContext {
+        registry,
+        metadata,
+        namespace,
+        config,
+        reads: ReadPurpose::InterpolationAndNames,
+    };
+    let mut state = bindings.clone();
+    let mut out = VariableWriteEffects::default();
+    command_writes(words, &context, &mut state, &mut out, 0);
+    out
+}
+
 /// Possible named reads at one independently retained original dispatch.
 /// Read/write metadata and re-evaluated values remain conditional source facts.
 pub(crate) fn command_possible_reads_with_metadata_context(
@@ -321,8 +344,20 @@ fn reevaluated_reads(
     out: &mut VariableWriteEffects,
     depth: u32,
 ) {
-    let (bodies, expressions, opaque) = immediate_values(words, context, state, holder);
+    let (bodies, expressions, templates, opaque) = immediate_values(words, context, state, holder);
     out.opaque |= opaque;
+    for plan in templates {
+        if plan.dynamic && (plan.kinds.commands || plan.kinds.variables) {
+            out.opaque = true;
+        }
+        out.read_names
+            .extend(plan.reads.into_iter().map(|read| read.name));
+        for region in plan.script_regions {
+            let mut branch = state.clone();
+            script_writes(&region.script.script, context, &mut branch, out, depth + 1);
+            state.join_possible_source_effects(&branch);
+        }
+    }
     let mut scanner = crate::var_refs::VarReferenceScanner::with_config(
         crate::var_refs::VarScanOptions::default(),
         context.config,
@@ -357,9 +392,15 @@ fn immediate_values(
     context: &FootprintContext<'_>,
     state: &ModuleCommandBindings,
     holder: &crate::command_binding::SourceNamespaceKey,
-) -> (Vec<String>, Vec<String>, bool) {
+) -> (
+    Vec<String>,
+    Vec<String>,
+    Vec<tcl_registry::value_transfer::TemplateWordPlan>,
+    bool,
+) {
     let mut bodies = Vec::new();
     let mut expressions = Vec::new();
+    let mut templates = Vec::new();
     let mut opaque = false;
     state.for_each_resolved_command_words(words, holder, |target, invocation| {
         if !target.registry_backed {
@@ -378,6 +419,16 @@ fn immediate_values(
             return;
         };
         bodies.extend(immediate_same_frame_script_values(&schema));
+        if schema
+            .semantics
+            .traits
+            .contains(Traits::PERFORMS_SUBSTITUTION)
+        {
+            match template_value_plan(&schema, context) {
+                Some(plan) => templates.push(plan),
+                None => opaque = true,
+            }
+        }
         let Some(layout) = schema.authored_source_expression_arguments() else {
             opaque = true;
             return;
@@ -404,7 +455,49 @@ fn immediate_values(
             }
         }
     });
-    (bodies, expressions, opaque)
+    (bodies, expressions, templates, opaque)
+}
+
+/// The selected descriptor's template structure under the independent source
+/// grammar. Captured values supply literal structure only; unknown values have
+/// no manufactured contents or original child-source extent.
+fn template_value_plan(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    context: &FootprintContext<'_>,
+) -> Option<tcl_registry::value_transfer::TemplateWordPlan> {
+    use tcl_registry::value_transfer::{
+        AnalysisContext, AnalysisTier, LiteralInputs, OperandId, PlanAnswer,
+    };
+    let input = context.metadata.source_analysis_input()?;
+    let arguments = schema.words.arguments();
+    let texts = (0..arguments.len())
+        .map(|ordinal| arguments.literal_at(ordinal).unwrap_or_default())
+        .collect::<Vec<_>>();
+    // This is a source-structure plan, not an evaluator context: current
+    // bindings, stores and execution evidence remain with the sealed owner.
+    let mut selected = AnalysisContext::detached(Some(input.unit_profile()));
+    selected.grammar = context.config.grammar_over(input.unit_profile().grammar);
+    selected.registry_generation = context.registry.generation();
+    selected.overlay_generation = context.registry.overlay_generation();
+    selected.tier = AnalysisTier::Structure;
+    let mut literals = LiteralInputs::new(
+        schema.canonical_command,
+        None,
+        &texts,
+        Some(input.unit_profile()),
+    )
+    .with_context(selected);
+    for ordinal in 0..arguments.len() {
+        literals = if arguments.literal_at(ordinal).is_some() {
+            literals.with_bare(OperandId(ordinal))
+        } else {
+            literals.with_unproven(OperandId(ordinal))
+        };
+    }
+    match schema.semantics.value.semantics()?.structure(&literals) {
+        PlanAnswer::TemplateWord(plan) => Some(plan),
+        _ => None,
+    }
 }
 
 /// Static values in immediate current-frame bodies of an already selected

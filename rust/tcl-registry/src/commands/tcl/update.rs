@@ -78,6 +78,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("update"),
         // `ALL_TCL` (no iRules row) is deliberate, not an oversight: F5's TMM
         // interpreter does ban `update` — it is one of the K36322151
         // event-loop bans — and that ban is now encoded directly here, as an

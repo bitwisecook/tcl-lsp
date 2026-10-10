@@ -25,9 +25,13 @@
 use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::TokenType;
+use tcl_registry::definer::{
+    DefinitionBodyGrammar, InitTiming, MemberCurrentNamespace, MemberEffect, MemberReceiver,
+    MemberRow,
+};
 use tcl_registry::events::{IrulesCommandPlacement, IrulesExecutionContext};
 use tcl_registry::hooks::LoweringHookId;
-use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_registry::{ArgRole, CommandRegistry, InvocationArguments, InvocationWord};
 
 use crate::alias::CommandAliasMap;
 use crate::command_binding::{SourceAnalysisOptions, SourceCommandBindings, TrustedPackageLoader};
@@ -55,8 +59,8 @@ mod native_control_carrier_tests;
 mod passive_metadata_tests;
 pub use execution_regions::stock_body_provider_loader;
 // `pub(crate)` for one item: `structured::parse_switch_options`, which the
-// opaque-switch emitter asks where a `switch`'s options end rather than
-// carrying a second copy of that rule.
+// dispatch chain's lowering asks where a `switch`'s options end, and whether
+// `--` closed them, rather than carrying a second copy of that rule.
 pub(crate) mod structured;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1122,7 +1126,7 @@ pub struct Lowerer<'r> {
     /// into one three-state enum (`clippy::struct_excessive_bools`); see
     /// [`CompileTarget`].
     pub(crate) target: CompileTarget,
-    /// Optional memoised per-procedure body lowering (SRV-INCREMENTAL Task 3).
+    /// Optional memoised per-procedure body lowering.
     /// When set, a **top-level** `proc`'s static literal body is lowered through
     /// this callback `(offset-0 body text, namespace) -> offset-0 body Script`
     /// (the caller rebases by the body offset) instead of `lower_body`, so an
@@ -1885,6 +1889,7 @@ impl<'r> Lowerer<'r> {
             self.config,
             self.registry,
             SourceAnalysisOptions {
+                metadata_context: self.source_metadata_input(),
                 hosted_execution_context: self.hosted_execution_context,
                 execution_name_policy: self.execution_name_policy,
                 logical_source_input: self.logical_source_input.as_ref(),
@@ -2866,6 +2871,44 @@ impl<'r> Lowerer<'r> {
         lower: impl FnOnce(&mut Self) -> Option<Statement>,
     ) -> Option<Box<Statement>> {
         lower(self).map(Box::new)
+    }
+
+    /// The structured lowering a command head selects, with the two facts the
+    /// dispatch reads beside the hook: the operation's inline-body error
+    /// context and the canonical command.
+    ///
+    /// Resolved at the registry's own point: a profile-built registry
+    /// suppresses the structured lowering of a command its release does not
+    /// have (`lmap` at 8.4), so the call flows to `lower_default` and reaches
+    /// the runtime's availability gate as a generic dispatch. A profile-less
+    /// registry keeps the dialect-blind resolution.
+    ///
+    /// Its own frame, never inlined into [`Self::try_dispatch_structured_hook`]:
+    /// the dispatcher stays on the stack while the lowerer recurses into the
+    /// command's bodies, and the resolution is kilobytes the braced-body
+    /// depth budget (`depth_guard::SOURCE_WALK_BYTES_PER_LEVEL`) would
+    /// otherwise pay at every nesting level.
+    #[inline(never)]
+    fn structured_dispatch(
+        &self,
+        cmd_name: &str,
+        args: &[String],
+    ) -> Option<(
+        LoweringHookId,
+        Option<tcl_registry::InlineBodyErrorContext>,
+        &'static str,
+    )> {
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let resolved = self.registry.resolve_invocation(
+            cmd_name,
+            &arg_refs,
+            self.registry.own_surface_query(),
+        )?;
+        Some((
+            resolved.semantics.lowering_hook?,
+            resolved.semantics.operation.inline_body_error_context(),
+            resolved.canonical_command,
+        ))
     }
 
     /// Retain the resolved head of a command whose typed lowering consumes its
@@ -4086,60 +4129,52 @@ impl<'r> Lowerer<'r> {
         })
     }
 
-    /// If *`cmd_text`* is a `subst` call the registry says performs
-    /// [`SUBST_NOCOMMANDS_KINDS`] over a braced literal operand AND every
-    /// `$var` inside that template is in the current const-map, return the
-    /// substituted string. Otherwise `None` so the caller falls back to
-    /// runtime dispatch.
+    /// If *`cmd_text`* is a call whose template-word plan
+    /// (`docs/design/compiler/value-transfers.md` § *The template-word
+    /// plan*) runs exactly [`SUBST_NOCOMMANDS_KINDS`] over a braced
+    /// template AND every variable that template reads is in the current
+    /// const-map, return the substituted string. Otherwise `None` so the
+    /// caller falls back to runtime dispatch.
     ///
     /// Used to materialise the tcltest-style `Option` factory body
     /// at compile time when the surrounding proc has all the
     /// template vars const-tracked.
     ///
-    /// Which substitutions the call performs is
-    /// [`tcl_registry::CommandRegistry::substitutions_performed`]'s answer,
-    /// not a switch-spelling match here: any other effect set is a call this
-    /// evaluator does not reproduce, and a call the registry cannot read — a
-    /// computed switch word — answers every kind and folds nothing.
+    /// The plan is the registry's answer over the call's literal words: any
+    /// other set of kinds is a call this evaluator does not reproduce, and a
+    /// computed switch word is no spelling a release accepts, so it folds
+    /// nothing.
     fn eval_subst_nocommands_body(&self, cmd_text: &str) -> Option<String> {
         use tcl_lexer::TokenType;
         let inner = self.segment_source(cmd_text, 0)?;
-        if inner.len() != 1 {
+        let [inner_cmd] = inner.as_slice() else {
             return None;
-        }
-        let inner_cmd = &inner[0];
-        if inner_cmd.texts.is_empty() || inner_cmd.texts[0] != "subst" {
-            return None;
-        }
+        };
+        let head = inner_cmd.texts.first()?;
         let texts = inner_cmd.args();
         let arg_refs: Vec<&str> = texts.iter().map(String::as_str).collect();
-        if self
-            .registry
-            .substitutions_performed(&inner_cmd.texts[0], &arg_refs)
-            != Some(SUBST_NOCOMMANDS_KINDS)
-        {
+        // A braced word is one `Str` token; only it is a template this can
+        // substitute at compile time.
+        let source = |index: usize| {
+            let braced = inner_cmd
+                .single_token_word
+                .get(index + 1)
+                .copied()
+                .unwrap_or(false)
+                && inner_cmd
+                    .arg_tokens()
+                    .get(index)
+                    .is_some_and(|token| token.kind == TokenType::Str);
+            crate::value_transfer::SourceWord::of(arg_refs.get(index).copied(), braced)
+        };
+        let plan =
+            crate::value_transfer::literal_template_plan(self.registry, head, &arg_refs, source)?;
+        if plan.kinds != SUBST_NOCOMMANDS_KINDS || self.proc_depth == 0 {
             return None;
         }
-        // The operand is the call's final argument; only a braced literal one
-        // is a template this can substitute at compile time.
-        let idx = texts.len().checked_sub(1)?;
-        if !inner_cmd
-            .single_token_word
-            .get(idx + 1)
-            .copied()
-            .unwrap_or(false)
-        {
-            return None;
-        }
-        if inner_cmd.arg_tokens().get(idx)?.kind != TokenType::Str {
-            return None;
-        }
-        let template = texts[idx].as_str();
-        if self.proc_depth == 0 {
-            return None;
-        }
+        let template = arg_refs.get(plan.operand.0)?;
         let scope = self.const_map_stack.last()?;
-        crate::subst_nocommands::subst_nocommands(template, scope)
+        crate::subst_nocommands::subst_nocommands(template, &plan, scope)
     }
 
     /// Try to lower `eval ?body?` to a static-body
@@ -4685,6 +4720,26 @@ impl<'r> Lowerer<'r> {
             && self.dialect_context.is_none()
     }
 
+    fn source_metadata_input(&self) -> crate::registry_invocation::InvocationMetadataInput<'_> {
+        use crate::registry_invocation::InvocationMetadataInput;
+        if let Some(input) = self
+            .metadata_input
+            .as_ref()
+            .or(self.logical_source_input.as_ref())
+            .or(self.vendor_source_input.as_ref())
+        {
+            return InvocationMetadataInput::SuppliedSource(Some(input));
+        }
+        if let Some(context) = self.dialect_context.as_ref() {
+            return InvocationMetadataInput::Supplied(context);
+        }
+        if self.allows_standalone_registry_metadata() {
+            InvocationMetadataInput::Standalone
+        } else {
+            InvocationMetadataInput::SuppliedSource(None)
+        }
+    }
+
     fn invocation_metadata_context(
         &self,
     ) -> Option<crate::registry_invocation::InvocationMetadataContext<'_>> {
@@ -5221,7 +5276,7 @@ impl<'r> Lowerer<'r> {
             // modifiers) either prefixes an inner member (shift one place
             // right) or — for `wrapper_block_body` wrappers — carries a
             // whole nested definition script to recurse into.
-            let (member, kw, base, wrapper) = match member.kind {
+            let (member, kw, base) = match member.kind {
                 tcl_registry::definer::MemberKind::Wrapper => match seg.texts.get(1) {
                     Some(inner) if self.source_definition_member(call.grammar, inner).is_some() => {
                         let inner_member = self
@@ -5234,7 +5289,7 @@ impl<'r> Lowerer<'r> {
                                 member_supplies_body;
                             continue;
                         }
-                        (inner_member, inner.as_str(), 2usize, Some(head))
+                        (inner_member, inner.as_str(), 2usize)
                     }
                     Some(_)
                         if member.wrapper_block_body
@@ -5254,7 +5309,15 @@ impl<'r> Lowerer<'r> {
                         // instance union — only the members are lifted.
                         let wrapped_call = DefinerCall { ..*call };
                         let empty = HashSet::new();
-                        let ivars = if head == "self" { &empty } else { class_ivars };
+                        let moves_off_the_instances = member
+                            .wrapper_shift
+                            .and_then(|shift| shift.receiver)
+                            .is_some_and(|receiver| receiver != MemberReceiver::Instance);
+                        let ivars = if moves_off_the_instances {
+                            &empty
+                        } else {
+                            class_ivars
+                        };
                         self.extract_members_from_wrapper_block(
                             &wrapped_call,
                             &sub,
@@ -5270,7 +5333,7 @@ impl<'r> Lowerer<'r> {
                         continue;
                     }
                 },
-                tcl_registry::definer::MemberKind::Flat => (member, head, 1usize, None),
+                tcl_registry::definer::MemberKind::Flat => (member, head, 1usize),
                 // Flag-keyed bodies (`property … -get/-set …`) are accessor
                 // scripts, not method frames — no unit today (documented
                 // limit).
@@ -5279,6 +5342,13 @@ impl<'r> Lowerer<'r> {
                     continue;
                 }
             };
+            let words = statement_words(seg, &[]);
+            let frame = MemberFrame::of_row(
+                call.grammar,
+                call.grammar
+                    .member_row(0, InvocationArguments::structured(&words), None)
+                    .as_ref(),
+            );
             self.extract_one_member(
                 MemberExtraction {
                     call,
@@ -5286,7 +5356,7 @@ impl<'r> Lowerer<'r> {
                     member,
                     kw,
                     base,
-                    wrapper,
+                    frame,
                 },
                 class_qname,
                 class_ivars,
@@ -5295,10 +5365,11 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Recurse into a wrapper's block form with the wrapper name forced —
-    /// `self { method m … }` records `m` as a class-object method, and
-    /// `private { method m … }` as an instance method, exactly like their
-    /// prefix spellings.
+    /// Recurse into a wrapper's block form with the wrapper prefixed onto
+    /// each member — `self { method m … }` records `m` as a class-object
+    /// method, and `private { method m … }` as an instance method, exactly
+    /// like their prefix spellings, because the registry answers the prefixed
+    /// statement's row with the wrapper's shift applied.
     fn extract_members_from_wrapper_block(
         &mut self,
         call: &DefinerCall,
@@ -5326,6 +5397,13 @@ impl<'r> Lowerer<'r> {
                 self.module.oo_evidence.unretained_executable_roots |= member_supplies_body;
                 continue;
             }
+            let words = statement_words(seg, &[InvocationWord::Literal(wrapper)]);
+            let frame = MemberFrame::of_row(
+                call.grammar,
+                call.grammar
+                    .member_row(0, InvocationArguments::structured(&words), None)
+                    .as_ref(),
+            );
             self.extract_one_member(
                 MemberExtraction {
                     call,
@@ -5333,7 +5411,7 @@ impl<'r> Lowerer<'r> {
                     member,
                     kw: head,
                     base: 1,
-                    wrapper: Some(wrapper),
+                    frame,
                 },
                 class_qname,
                 class_ivars,
@@ -5360,7 +5438,7 @@ impl<'r> Lowerer<'r> {
             member,
             kw,
             base,
-            wrapper,
+            frame,
         } = ex;
         let args = &seg.texts[base..];
         let Some(context) = self
@@ -5380,15 +5458,29 @@ impl<'r> Lowerer<'r> {
             self.module.oo_evidence.unretained_executable_roots = true;
             return;
         };
-        let Some(kind) = member_method_kind(kw, wrapper == Some("self")) else {
-            self.module.oo_evidence.unretained_executable_roots = true;
-            return;
+        let kind = match frame {
+            MemberFrame::Opens(kind) => kind,
+            MemberFrame::NoFrame => {
+                self.module.oo_evidence.unretained_executable_roots = true;
+                return;
+            }
+            // The layout the body word sits in is unknowable (a computed word
+            // where an optional one may stand): whichever method it defines,
+            // no scan can read it, so the class abstains as a whole — the
+            // same answer a computed name gives below.
+            MemberFrame::Unreadable => {
+                self.module
+                    .oo_unanalysed_classes
+                    .insert(class_qname.to_string());
+                self.module.oo_evidence.unretained_executable_roots = true;
+                return;
+            }
         };
         // A member that also declares a variable (itcl `variable NAME ?init?
         // ?configbody?`, snit 1.x `onconfigure`) is a declaration whose
         // trailing script is not an ordinary method frame — skipped
-        // (documented limit; `member_method_kind` already excludes them by
-        // keyword, this keeps the exclusion structural too).
+        // (documented limit; `MemberFrame::of_row` already excludes them by
+        // effect, this keeps the exclusion structural too).
         if member
             .indices_for_call_in(args, surface, ArgRole::VarWrite)
             .next()
@@ -5539,7 +5631,7 @@ impl<'r> Lowerer<'r> {
             params,
             body: body_script,
             execution_namespace,
-            kind: MethodKind::from_str_lossy(kind),
+            kind,
             span: Some(seg.span),
             instance_vars: method_ivars,
             original_receiver_context,
@@ -5602,37 +5694,83 @@ struct MemberExtraction<'a, 'b> {
     /// Index of the member's first argument word in `seg.texts` (1, or 2
     /// past a wrapper prefix).
     base: usize,
-    /// The wrapper the member was written under, when any (`self`,
-    /// `private`, itcl's access modifiers).
-    wrapper: Option<&'a str>,
+    /// The frame the member's body opens, read off its row.
+    frame: MemberFrame,
 }
 
-/// Which [`MethodDef`] kind a member keyword's body opens, or `None` for
-/// members whose trailing script is **not** a method frame (`initialise` /
-/// `initialize` evaluate a *definition script* in the class object's
-/// namespace; `property` accessors are flag-keyed scripts; declarations
-/// carry no frame at all).
-///
-/// Routing a member keyword to its `MethodDef` kind is the analyser-local
-/// semantics AGENTS.md's definition-body contract leaves with the consumer
-/// (an object `destructor` and a class-level `initialise` are structurally
-/// identical single-body members — the difference is frame modelling, not
-/// command structure).  Recognition and argument layout still come from the
-/// registry grammar; this routes only.
-fn member_method_kind(kw: &str, wrapped_in_self: bool) -> Option<&'static str> {
-    Some(match kw {
-        "method" if wrapped_in_self => "classmethod",
-        // snit's `typemethod` / `typeconstructor` dispatch on the type
-        // command with no instance in frame — the class-method shape.
-        "classmethod" | "typemethod" | "typeconstructor" => "classmethod",
-        // A snit / itcl class-scoped `proc` opens a fresh frame like a
-        // method (with no instance state auto-bound; the over-approximated
-        // instance-var set only widens abstention, never a false claim).
-        "method" | "proc" => "method",
-        "constructor" => "constructor",
-        "destructor" => "destructor",
-        _ => return None,
-    })
+/// The frame a member statement's body opens, read off the statement's
+/// [`MemberRow`] — its effect and the side it resolves to after every wrapper
+/// shift — never its keyword.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MemberFrame {
+    /// A method frame of this shape ([`MethodKind::from_effect`]).
+    Opens(MethodKind),
+    /// A body that is not a method frame: an option accessor or mutator, a
+    /// declaration's configuration script, a definition-time script whose
+    /// namespace no name reaches.
+    NoFrame,
+    /// The registry cannot read the statement's layout (a computed word where
+    /// an optional one may stand).
+    Unreadable,
+}
+
+impl MemberFrame {
+    /// The frame `row` opens under `grammar`.
+    ///
+    /// A callable opens the frame [`MethodKind::from_effect`] names. A script
+    /// run once at definition opens a class-level frame when the family runs
+    /// member bodies in the defined entity's own namespace
+    /// ([`MemberCurrentNamespace::DefinedEntity`] — snit's `typeconstructor`
+    /// is the proc `${type}::Snit_typeconstructor`, run with `type` bound);
+    /// under [`MemberCurrentNamespace::RuntimeReceiver`] it runs in the class
+    /// object's own namespace (`TclOO`'s `initialise`, in `::oo::ObjN`), which
+    /// neither the class name nor a receiver names, so it opens none.
+    fn of_row(grammar: &DefinitionBodyGrammar, row: Option<&MemberRow>) -> Self {
+        let Some(row) = row else {
+            return Self::Unreadable;
+        };
+        let kind = match row.effect {
+            MemberEffect::Callable { role, .. } => MethodKind::from_effect(role, row.receiver),
+            MemberEffect::InitScript {
+                timing: InitTiming::AtDefinition,
+                ..
+            } if grammar.member_current_namespace() == MemberCurrentNamespace::DefinedEntity => {
+                Some(MethodKind::ClassMethod)
+            }
+            _ => None,
+        };
+        kind.map_or(Self::NoFrame, Self::Opens)
+    }
+}
+
+/// The words of one definition-body statement as the registry reads them,
+/// after `prefix` (a block's wrapper, which the block's own statements do not
+/// repeat): a literal where the source proves the value, and otherwise the
+/// kind of word it is — the boundary callback arity and the literal-argument
+/// checks draw ([`crate::signature_scan::command_prefix::invocation_word`]).
+fn statement_words<'s>(
+    seg: &'s SegmentedCommand,
+    prefix: &[InvocationWord<'s>],
+) -> Vec<InvocationWord<'s>> {
+    let expanded = |index: usize| {
+        seg.expand_word
+            .as_ref()
+            .and_then(|flags| flags.get(index).copied())
+            .unwrap_or(false)
+    };
+    prefix
+        .iter()
+        .copied()
+        .chain(seg.texts.iter().enumerate().map(|(index, text)| {
+            crate::signature_scan::command_prefix::invocation_word(
+                None,
+                text,
+                seg.argv.get(index).copied(),
+                seg.single_token_word.get(index).copied().unwrap_or(false),
+                expanded(index),
+            )
+        }))
+        .collect()
 }
 
 /// The instance variables one definition body declares at class level, per
@@ -5738,8 +5876,8 @@ pub fn lower_to_ir(source: &str, registry: &CommandRegistry) -> Module {
 /// For a body free of cross-item context (no nested `proc` / `namespace
 /// import`/`export` / command alias / const-map materialisation), this is
 /// byte-identical to the body the whole-file lowering produces for that
-/// procedure, normalised to offset 0 — the seam the SRV-INCREMENTAL per-procedure
-/// lowering memo (Task 3) keys on the offset-0 body text and feeds back through
+/// procedure, normalised to offset 0 — the seam the per-procedure
+/// lowering memo keys on the offset-0 body text and feeds back through
 /// [`Lowerer::with_body_cache`].
 #[must_use]
 pub fn lower_proc_body_isolated(
@@ -6287,7 +6425,7 @@ mod body_cache_eligible_tests {
 }
 
 /// Like [`lower_to_ir_with_dialect`] but with a memoised per-procedure body-lowering
-/// callback (SRV-INCREMENTAL Task 3): a top-level `proc`'s static body is lowered
+/// callback: a top-level `proc`'s static body is lowered
 /// through `body_cache` `(offset-0 body text, namespace) -> offset-0 Script` and
 /// rebased, so an unchanged proc's body IR is reused across edits.  The caller must
 /// only install a cache for **context-free** files (see [`Lowerer::body_cache`]);
@@ -6559,8 +6697,9 @@ fn lower_with(mut lowerer: Lowerer<'_>, source: &str) -> Module {
 impl Lowerer<'_> {
     /// Complete either module entry path after its top-level script has been
     /// lowered.  Namespace tables, OO extraction, source/profile stamps, and
-    /// trace facts deliberately have this one owner so compiling a runtime
-    /// procedure target cannot drift from ordinary module lowering.
+    /// trace and callback-write facts deliberately have this one owner so
+    /// compiling a runtime procedure target cannot drift from ordinary module
+    /// lowering.
     pub(crate) fn finish_module(mut self, source: &str) -> Module {
         // Surface namespace import / export directives onto the module for
         // downstream consumers (codegen import resolution and warning passes).
@@ -6575,7 +6714,14 @@ impl Lowerer<'_> {
         let registry = self.registry;
         let standalone_metadata = self.metadata_origin == LoweringMetadataOrigin::Standalone
             && self.source_entry_origin == SourceEntryOrigin::Authoring;
+        let declared_frame_effects = self
+            .command_surface()
+            .plain_call_frame_effects()
+            .filter(|(name, _)| registry.get(name).is_none())
+            .map(|(name, effect)| (tcl_syntax::naming::normalise_qualified_name(name), effect))
+            .collect();
         let mut module = self.module;
+        module.declared_frame_effects = declared_frame_effects;
         module.source = tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
         module.retained_source_bindings =
             self.module_source_bindings.as_deref().and_then(|bindings| {
@@ -6584,6 +6730,7 @@ impl Lowerer<'_> {
                 )
             });
         populate_trace_facts(&mut module, registry, standalone_metadata);
+        module.deferred_writes = crate::deferred_writes::scan_module(&module, registry);
         module
     }
 }
@@ -7574,6 +7721,42 @@ mod tests {
         assert!(
             m.oo_evidence.unretained_executable_roots,
             "the unrepresented initialise script must remain explicit evidence"
+        );
+    }
+
+    // TN: `self constructor` / `self destructor` name no member (tclsh
+    // 8.6.18, 9.0.4 and 9.1: `invalid command name "constructor"`), so
+    // neither lifts a unit —
+    // while the instance-side spellings beside them do.
+    #[test]
+    fn tcloo_self_constructor_and_destructor_lift_no_unit() {
+        let src = "oo::class create S {\n\
+                   \x20   self constructor {} { set a 1 }\n\
+                   \x20   self destructor { set b 2 }\n\
+                   \x20   method m {} { return 3 }\n\
+                   }\n";
+        let m = lower_to_ir(src, &reg());
+        assert!(
+            m.methods
+                .values()
+                .all(|d| !matches!(d.kind, MethodKind::Constructor | MethodKind::Destructor)),
+            "methods: {:?}",
+            m.methods.keys().collect::<Vec<_>>()
+        );
+        assert!(m.methods.contains_key("::S::m"));
+        let src = "oo::class create T {\n\
+                   \x20   constructor {} { set a 1 }\n\
+                   \x20   destructor { set b 2 }\n\
+                   }\n";
+        let m = lower_to_ir(src, &reg());
+        assert_eq!(
+            m.methods["::T::<constructor>"].kind,
+            MethodKind::Constructor
+        );
+        assert!(
+            m.methods.values().any(|d| d.kind == MethodKind::Destructor),
+            "methods: {:?}",
+            m.methods.keys().collect::<Vec<_>>()
         );
     }
 

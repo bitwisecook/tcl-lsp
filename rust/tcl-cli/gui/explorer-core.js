@@ -384,6 +384,36 @@ function renderTerminator(t) {
   return '';
 }
 
+// One of the solver's branch facts, worded as the text view words it. A
+// `selected` fact is an arm of an opaque `switch` or `case` that no member of
+// the subject runs the body of: no block stands for the arm, so it names the
+// pattern and the block that holds the statement instead of a target.
+function renderConstantBranch(b) {
+  if (b.kind === 'selected') {
+    return 'arm never selected: <span class="val">' + esc(b.condition) + '</span> '
+      + '<span style="color:var(--text-dim)">in ' + esc(b.block) + '</span>';
+  }
+  return esc(b.block) + ': ' + esc(b.condition) + ' is always <span class="val">' + b.value + '</span> (take ' + esc(b.takenTarget) + ')';
+}
+
+// The selection records the SCCP view carries for `func`: one per executable
+// opaque `switch` or `case`, naming the arm each member of the subject selects
+// and the arm whose body runs. They ride on `data.sccp`, beside the function of
+// the same name and kind, and describe the compiled source alone.
+function renderSelections(func) {
+  var html = '';
+  var rows = Array.isArray(data.sccp) ? data.sccp : [];
+  for (var row of rows) {
+    if (row.name !== func.name || row.kind !== func.kind) continue;
+    for (var sel of row.selections || []) {
+      html += '<div class="analysis-entry" style="margin-left:12px; color:var(--blue)"' + sourceRangeAttrs(sel.range) + '>'
+        + 'selection: <span class="val">' + esc(sel.selected.join(', ')) + '</span> '
+        + '<span style="color:var(--text-dim)">bodies: ' + esc(sel.bodies.join(', ')) + ' [' + spanLabel(sel.range) + ']</span></div>';
+    }
+  }
+  return html;
+}
+
 // CFG (post-SSA)
 function renderCfgPost() {
   var pane = $('#pane-cfg-post');
@@ -426,8 +456,12 @@ function renderCfgPost() {
     if (a.constantBranches.length) {
       html += '<div class="analysis-entry" style="color:var(--blue)">constant branches:</div>';
       for (var b of a.constantBranches) {
-        html += '<div class="analysis-entry" style="margin-left:12px; color:var(--blue)">' + esc(b.block) + ': ' + esc(b.condition) + ' is always <span class="val">' + b.value + '</span> (take ' + esc(b.takenTarget) + ')</div>';
+        html += '<div class="analysis-entry" style="margin-left:12px; color:var(--blue)">' + renderConstantBranch(b) + '</div>';
       }
+    }
+    var selections = mode === 'on' ? '' : renderSelections(func);
+    if (selections) {
+      html += '<div class="analysis-entry" style="color:var(--blue)">selections:</div>' + selections;
     }
     if (a.deadStores.length) {
       html += '<div class="analysis-entry" style="color:var(--yellow)">dead stores:</div>';

@@ -37,6 +37,14 @@ compiler's own inference — never guesswork from names.
    the traits per the proc-arg-traits contract; hover text from the
    docstring; `required_package` from `package provide`. A parameter with
    no traits is a plain `Value`. Claim only what the evidence shows.
+   The body states more, and the import carries it as proposals with their
+   evidence lines (`mcp__tcl-lsp__spec_import`, `tcl spec import`): `PURE`
+   when the compiler's interprocedural summary finds no write outside the
+   frame and no call it cannot read, a `side_effects` row for each kind of
+   state outside the frame the body reads or writes, `return_type` when every
+   path answers one type, and the parameters it invokes as commands. Keep a
+   proposal only when its evidence line holds for the command's contract, not
+   merely for today's body.
 5. Check each name with `mcp__tcl-lsp__command_info`: a clash with a
    built-in needs the user's decision, never a silent overwrite.
 6. Write **SpecTcl** either way: one `<library>.tclspec` at the library root
@@ -58,9 +66,39 @@ compiler's own inference — never guesswork from names.
 7. Re-run `mcp__tcl-lsp__analyze` on a library file that *uses* the
    commands: the unknown-command diagnostics are gone (private) or you list
    what clears once the specs ship (contribution).
+   Then hold the pack to the package: `tcl spec test PACK.tclspec` requires the
+   package in a real shell and prints one row per divergence — arity against
+   `wrong # args`, each `hover` example and its `return_type`, a `pure`
+   command against a run that traces every global, and a Tcl-body reference
+   body against the command it describes. It runs the package's code, so the
+   project's `[build] allow-build-scripts` and `tcl pkg trust NAME` come first;
+   say so rather than running it without them.
 8. Report: commands covered, evidence per inference, anything skipped, and
-   the questions only the author can answer (side effects, taint, version
-   history).
+   the questions only the author can answer: taint, version history, and a
+   proposal the body cannot settle (a command that calls something the
+   compiler cannot read is neither pure nor impure on its evidence). What the
+   body answers — purity, side effects, the answer's type, callbacks — is
+   evidence to cite and `tcl spec test` to run, not a question to put.
+
+## A command backed by its Tcl body
+
+When the library's own source is the command — a `proc` the pack describes — say
+so in the pack instead of describing it twice: `runtime_backing tcl-body
+{-pack-text {proc NAME params body}}` carries the definition in the pack, and
+`runtime_backing tcl-body {-package-source PATH}` reads it from the package that
+ships the pack (a relative path inside the package, never `..`). Only the
+workspace's own package may declare one; a dependency's is dropped at load with a
+warning. The compiler inlines such a body into the code that calls the command,
+and when the body is value-position Tcl the bounded host can run — only commands
+on the sandbox's list, no `upvar`, `uplevel`, `global`, `variable`, channel or
+`exec`, no namespace-qualified variable, `return` only as the last statement —
+the author can add `-evaluate` beside the source (`tcl-body {-package-source PATH
+-evaluate}`) and the analyser then evaluates a call whose arguments it knows, so
+declare `arity` as exactly the body's parameters. Without `-evaluate` nothing is
+run, because the engine emulates an older release imperfectly and only the
+author can vouch that the body does not meet the difference: leave it off unless
+the user asks for it. A pack-text body is a copy: it goes stale when the library
+changes, and the load says so.
 
 ## Vocabulary versions
 
@@ -173,7 +211,34 @@ patterns: `docs/design/spec-dsl-examples/external/`.
 
 Proc inference sees nothing from a compiled extension (`.c`/`.cpp` with
 `tcl.h`, `critcl::cproc`/`ccommand`, SWIG `.i`, cffi, a `pkgIndex.tcl` that
-`load`s a library). Derive from the C, citing file:line:
+`load`s a library). Start from the tools, which write a draft pack:
+
+- `tcl spec import --c-source DIR` scans the C source (every `.c`, `.h`, `.cc`,
+  `.cpp`, `.cxx` and `.hpp` under DIR) for `Tcl_CreateObjCommand`,
+  `Tcl_CreateCommand` and `Tcl_NRCreateCommand`, `Tcl_PkgProvide`, the
+  `Tcl_WrongNumArgs` usage messages and the `Tcl_GetIndexFromObj` tables of each
+  command's own procedure. Every row has the provenance `c-scan`, with the line
+  each fact was read at. A registration whose name is computed is listed as
+  dynamic and not given a name; a call to the TclOO C API or a C-built ensemble
+  is listed as a call the scan cannot read, and the commands behind it are not in
+  the pack. One pack is one extension: a directory whose sources define several
+  entry points (`Foo_Init`, `Bar_Init`) is refused with the list of them, and
+  `--entry Foo` describes the registrations in the functions `Foo_Init` reaches.
+- `tcl spec import --probe PACKAGE` requires the package in a real shell, under
+  the package manager's policy (it runs the package: `tcl pkg trust PACKAGE`
+  first), and lists the commands it added. Those rows have the provenance
+  `probe`; with `--c-source` a command both found carries both.
+
+Both start every command at the conservative default for a command native code
+registers: unknown arity, a dynamic barrier, unknown reads and writes, a taint
+sink and source, hidden in a safe interpreter, never pure, host-native. Nothing
+in a C source says what a command does to state, so neither tool narrows it; the
+scan reports whether the procedure's own body calls anything that evaluates,
+touches a variable or changes the command table, and its callees are not read.
+Narrow a command only from what you know: in a stub, `-extension` declares the
+default and `-pure` or `-mutator` narrows its effects
+(`docs/design/contracts/dialect-stubs.md` § *Extension commands*); in a pack,
+state the facts. Derive the rest from the C by hand, citing file:line:
 
 - `Tcl_CreateObjCommand(interp, "name", handler, …)` — the name; a
   registration inside another handler is a factory (`defines_command_at`,

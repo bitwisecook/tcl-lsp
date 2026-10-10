@@ -99,6 +99,15 @@ The server does not walk upward from the workspace root looking for
 ancestor config files.  Each workspace gets exactly one project file,
 directly at its root.
 
+The `tcl` verbs that read diagnostic policy (`diag`, `lint`, `validate`,
+`opt`) find the project file per input file instead: the nearest
+`.tcl-lsp.ini` at or above the file's own directory, at most 20 levels up.
+A missing file is simply absent. A file that exists but cannot be read — a
+directory in its place, a permission error — ends that search and is
+reported on stderr rather than skipped, and an unreadable global file is
+reported the same way by those verbs and by the MCP tools; either
+contributes no settings.
+
 ## Precedence
 
 Settings are applied in layers — later sources override earlier ones.
@@ -187,6 +196,7 @@ interpreter to drift.
 | Key | Type | Description |
 |-----|------|-------------|
 | `disabled` | comma-separated codes | Diagnostic codes to suppress (e.g. `W111, T100, IRULE1005`) |
+| `<CODE>` | bool | Turns one code on or off (`W242 = true`, `W111 = false`); wins over `disabled` in the same file, and a higher layer's `true` turns back on what a lower layer disabled |
 | `generic_variable_patterns` | multi-line regexes | Patterns for IRULE4002 generic variable detection |
 
 ### `[optimiser]`
@@ -195,6 +205,7 @@ interpreter to drift.
 |-----|------|---------|-------------|
 | `enabled` | bool | `true` | Master switch for all optimiser suggestions |
 | `disabled` | comma-separated codes | (none) | Individual rules to suppress (e.g. `O109, O126`) |
+| `<CODE>` | bool | (none) | Turns one rule on or off over the profile (`O106 = true`); wins over `disabled` in the same file |
 
 ### `[shimmer]`
 
@@ -382,7 +393,7 @@ max_files = 6000
 
 | Concern | Where |
 |---|---|
-| INI parsing, layer sections, deep merge | `rust/tcl-lsp-server/src/config_ini.rs` — `settings_from_ini`, `Layer`, `merge_settings` |
+| INI parsing, layer sections, deep merge | `rust/tcl-lsp-core/src/config_ini.rs` — `settings_from_ini`, `Layer`, `merge_settings` |
 | Config-path resolution | `rust/tcl-lsp-core/src/tcl_install.rs` — `user_config_path`, `project_config_path`, `config_path_for`, `library_paths_from_ini` |
 | Notice state directory | `rust/tcl-lsp-core/src/tcl_install.rs` — `user_notices_dir`, `notices_dir_for` |
 | Dismissal markers, notice text, presentation | `rust/tcl-lsp-server/src/environment_notice.rs` |

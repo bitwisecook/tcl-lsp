@@ -155,8 +155,37 @@ break / continue targets through `switch_jump` blocks.
 **`try` / `catch`** (`lower_try_dispatch` → `lower_try`) — the body,
 handlers, and `finally` clause are lowered into `try_body`,
 `try_handler`, `try_ok`, `try_finally`, `try_after_finally`, and `try_end`
-blocks.  A plain `catch` is emitted as an opaque `Statement::Call` with
-`defs` covering the body's writes plus the result and options variables.
+blocks, and in analysis builds the body into a `try_step` block per statement
+(§ *Exception edges*).  A `catch` in a procedure whose script is straight-line statements
+and whose result and options words are plain local names is lowered into
+`catch_body`, `catch_step` and `catch_end` blocks (`lower_catch`): in analysis
+builds each statement ends a block that an exception edge leaves for the end
+block, and the end block's first statement defines the result and options
+variables and carries no words, which the code generator skips.  The analysis
+build keeps the `catch` as written beside it (`Function::catch_ends`: the
+block before the body, the block that ends the region, and the call), so the
+solver can evaluate it over the state before the body; the names the script's
+last command stores are recorded as observed, since that command's value is
+the result the `catch` stores.  Every other `catch` is emitted as an opaque
+`Statement::Call` with `defs` covering the body's writes plus the result and
+options variables.
+
+**`return`** (`try_lower_return`) — `return ?value?` lowers to
+`Statement::Return`, which ends its block with a `Return` terminator. A
+`return` with options lowers as the registry decodes them
+(`CommandRegistry::return_completion`, the one reading of `return`'s options
+that the solver's route and the completion queries share): while two words
+remain they are an option and its value, and a last word on its own is the
+result, whatever it starts with. One that completes at its own level is a
+call the builder reads through the same decoding: with `-level 0 -code ok` the
+block runs on; with `-level 0 -code error`, or options the release rejects (8.4
+has no `-level`), the block ends as it does at `error`, a throw point; with
+`-level 0 -code break` or `continue` it jumps to the enclosing loop's targets
+as `break` and `continue` do. Any other — a positive level, which leaves the
+procedure (`TCL_RETURN`), a code above `continue`, or a word the decoding
+cannot read — is the `return with options` `Statement::Barrier`, which in
+analysis builds ends its block with a `Return` terminator, as the `return
+with expansion` barrier of a `{*}`-expanded `return` does.
 
 ### Exception edges
 
@@ -253,8 +282,9 @@ fails.
 A body that cannot fall through reaches a handler from its explicit throw
 points, or failing those from its terminal block — but not a source whose
 exact completion code differs from the one the handler's selector decodes
-to (`trap` is an error; a numeric selector is read with the dialect's own
-numerals, so `on 010` is code 8 in Tcl 8.x).  A source's code is known only for the body's
+to (the registry's `HandlerChain` decodes it: a `trap` is an error, and a
+numeric selector is read with the dialect's own numerals, so `on 010` is code
+8 in Tcl 8.x).  A source's code is known only for the body's
 first block with nothing else in it that could complete with another code
 (a literal assignment before an error may only raise an error itself), for a plain `return` whose value cannot
 substitute (`TCL_RETURN`), and for a sole statement the registry classifies
@@ -265,26 +295,26 @@ behind its `Goto`, a non-`ok` code behind a `Return`.  So
 undecodable selector or completion keeps the edge.
 
 A `break` / `continue` out of the body that a handler catches never reaches
-its loop: `route_caught_loop_jumps` retargets its `Goto` at the first
-handler whose decoded code matches (a `-` handler hands it to the body it
+its loop: `route_caught_loop_jumps` retargets its `Goto` at the handler
+`HandlerChain::first_taking` names (a `-` handler hands it to the body it
 shares), so the `finally` routing never resumes it, and
 `try {break} on break {} {set x 1}` binds `x` before the loop is left.  A
 handler met first whose selector cannot be decoded might catch it instead,
 and then the jump keeps its edge.
 
-A handler an earlier one always pre-empts gets no edges at all: Tcl runs
-only the first matching handler, so a second `on error` after an
-unconditional `on error` is dead.  Only an earlier non-`trap` handler with
-the same decoded code proves it — a `-` handler counts, since it selects
-its code before handing its body on.  A `-` handler's own block is
-empty and never runs, so it gets no edges at all: an edge into it, and
-on to `try_end`, let a match skip the body it shares.  That body is
-reached only through the edges of the handler that owns it, and those
-edges are filtered against the whole
-group: a completion any member matches keeps its edge, save a member an
-earlier handler pre-empts.  So `try {error boom} on error {} - on ok {}
-{set x 1}` reaches `set x 1`, and an owner is dead only when every
-member of its group is pre-empted.
+Which handlers run is the registry's to say, not the builder's
+([value-transfers.md](value-transfers.md) § *`catch`, `try`, and completion*):
+`HandlerChain::live_group` names the handlers whose matches reach a script.  A
+handler an earlier one always pre-empts gets no edges at all — Tcl runs only
+the first matching handler, so a second `on error` after an unconditional `on
+error` is dead, and an edge into it drew W210 on a `finally` that always sees
+`x` set — and a `-` handler's own block, which is empty and never runs, gets
+none either: an edge into it, and on to `try_end`, let a match skip the body it
+shares.  That body is reached only through the edges of the handler that owns
+it, and those edges are filtered against the whole group: a completion any
+member matches keeps its edge, save a member an earlier handler pre-empts.  So
+`try {error boom} on error {} - on ok {} {set x 1}` reaches `set x 1`, and an
+owner is dead only when every member of its group is pre-empted.
 
 A handler of a body with a resting tail takes its exception edges from the
 pre-`try` block, the tail, **and** every recorded throw point: an `error`
@@ -297,6 +327,54 @@ The edges are not added without a `finally`:
 there the tail really is unreachable on those paths, because the exception
 resumes unwinding past it.
 
+Any command of a `try` body may fail, at any depth, and what the body has
+stored when it does is what a handler or the `finally` clause runs over.  So in
+an analysis build the body is a protected region whose scripts split into a
+block per statement (`try_step` blocks), as a flattened `catch` body's do: the
+body's own statements and those of every script it holds — an `if` or
+`switch` arm, a loop body, a handler or the `finally` of a nested `try` — save
+a nested `try` or `catch` body, which is a region of its own.  The exit of a
+block a split ends is a point a throw may leave from, for two reasons: a
+statement of the block may leave after its own stores, with any code, and the
+next statement may fail before it stores.  No edge is recorded where neither
+can happen: a literal assignment raises before it stores if it raises at all,
+and a `catch` or a `try` with a `finally` runs a clause of its own before a
+failure inside it leaves.  Each live handler group takes the points (a literal
+assignment's error only where some member may take an error), and the
+`finally` clause takes them
+where no handler certainly takes the failure (`HandlerChain::first_taking`) —
+any command but a literal assignment may complete with any code — together with
+a region entry from the block before the body, unless the body's first
+statement completes from the state before it or runs a clause of its own. A
+handler of a body that never rests takes that region entry too where the
+body's first statement is neither of those nor a literal assignment, and
+where the first block's exact completion, when the registry knows it, is one
+the handler takes: a literal assignment raises only where its own place
+holds an array, whose scalar value nothing reads, and leaves every other
+place as the point after it does. Without it `try {lassign {x y} a b; error
+boom} on error {} {}` gave the handler `b` as `lassign` wrote it where `a`
+may be an array, and the store before the `try` was called dead.
+Without these, `try {set x 2; foo; set x 3} finally {puts $x}` printed `3` once
+optimised where tclsh prints `2` when `foo` raises.  A nested `try` with no
+`finally` hands its body's points to the region around it, since a completion
+none of its handlers takes leaves from where the body left.  A statement that
+completes with its code from the state before it — a `return`, a `break` or
+`continue` a loop takes, an `error` or `exit`, with words that substitute
+nothing — stays in the block before it, and the body's first statements are
+read as one run when a handler is matched against their exact completion
+(`entry_run_statements`), so `set z 0; error boom` is still an error an `on
+error` handler takes whole.  The codegen build splits nothing.
+
+A handler's variables are bound by a statement at the top of its block that
+defines them, and since the IR keeps no span for the variable list, the
+statement carries the span of the whole `try`.  A handler that never runs — one
+an earlier handler pre-empts, a `-` handler, one none of whose throw sources
+completes with a code it selects, an `on ok` handler of a body that never
+completes — keeps that statement in a block nothing reaches, so a consumer that
+deletes what a dead block holds leaves a statement whose span holds code that
+runs: O107 does ([optimisation-passes.md](optimisation-passes.md)), or
+`try {error boom} on error {} {A} on 1 {m} {B}` would lose the whole `try`.
+
 ### Block naming convention
 
 `CfgBuilder::new_block(prefix)` names each block `{prefix}_{counter}`,
@@ -307,7 +385,11 @@ block is `entry_1`).  The prefixes are:
 - `entry`, `exit` — function entry and the synthetic fall-through exit
 - `unreachable` — dead code after an unconditional terminator, routed
   into an orphan block with no incoming edge so SCCP marks it unreachable
-  and O107 can flag it
+  and O107 can flag it.  The script's terminal block is still the one its
+  main path ends in, and a throw point inside the dead code is not
+  recorded, so a `try` handler is thrown to from where the body leaves:
+  `try {return r3; set v 8} on return {} {…}` reaches its handler from the
+  `return`
 - `if_then`, `if_next`, `if_end`
 - `inline_block_body`, `inline_block_end` — an inlined `Statement::Block`
 - `while_header`, `while_body`, `while_end`
@@ -315,8 +397,9 @@ block is `entry_1`).  The prefixes are:
 - `foreach_header`, `foreach_body`, `foreach_latch`, `foreach_end`
 - `switch_next`, `switch_arm_body`, `switch_default`, `switch_end`,
   `switch_cont`, `switch_jump`, `switch_jump_dead`
-- `try_body`, `try_handler`, `try_ok`, `try_finally`,
+- `try_body`, `try_step`, `try_handler`, `try_ok`, `try_finally`,
   `try_after_finally`, `try_end`
+- `catch_body`, `catch_step`, `catch_end`
 
 ### Worked example — `set x 1; if {$x} { set y 10 }`
 

@@ -29,7 +29,7 @@ function linesWithCode(diags: vscode.Diagnostic[], code: string): number[] {
   return diags.filter((d) => codeOf(d) === code).map((d) => d.range.start.line);
 }
 
-// S100 shimmer precision — coverage for the deep shimmer review: interp-alias
+// S100 shimmer precision: interp-alias
 // resolution, TclOO/namespace-eval body coverage, tight per-argument spans,
 // write-trace awareness, and `# noqa` suppression directives.
 //
@@ -37,8 +37,8 @@ function linesWithCode(diags: vscode.Diagnostic[], code: string): number[] {
 //   7  lindex $x 0             TRUE  — committed dict shimmered to a list intrep
 //   13 lindex $y 0             FALSE — value already carries a list intrep
 //   20 myindex $z 0            TRUE  — shimmer detected through an interp alias
-//   27 incr a (TclOO method)   TRUE  — method bodies now get shimmer coverage
-//   34 incr b (namespace eval) TRUE  — namespace eval bodies now get coverage
+//   27 incr a (TclOO method)   TRUE  — shimmer in method bodies
+//   34 incr b (namespace eval) TRUE  — shimmer in namespace eval bodies
 //   42 incr c (traced)         FALSE — a write-traced var is never confidently typed
 //   49 lindex $d 0 (noqa S100) FALSE — suppressed by a matching preceding directive
 //   56 lindex $e 0 (noqa W100) TRUE  — a mismatched directive must not suppress
@@ -47,7 +47,7 @@ function linesWithCode(diags: vscode.Diagnostic[], code: string): number[] {
 // marker (the file is a single deep-analysis unit, so once one S100 has
 // landed the absence of another on the same publish is meaningful), then
 // asserts the specific line in question.
-suite("Shimmer precision (S100 deep review)", () => {
+suite("Shimmer precision (S100)", () => {
   const docUri = getDocUri("shimmerPrecision.tcl");
 
   async function s100Diagnostics(): Promise<vscode.Diagnostic[]> {

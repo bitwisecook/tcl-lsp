@@ -23,7 +23,7 @@
 //! [`TypeShape`] terms — refining the registry's coarse [`TclType`]
 //! vocabulary with the numeric tower's bignum rung and per-element container
 //! facts — and tracks a **bounded union** of possible shapes per SSA value
-//! through dataflow (`docs/design/compiler/type-tracking.md`, P2).
+//! through dataflow (`docs/design/compiler/type-tracking.md`).
 //!
 //! Lattice order (bottom to top):
 //!
@@ -673,7 +673,7 @@ mod tests {
         assert_eq!(joined.shimmer_pair(), Some((TclType::Int, TclType::List)));
     }
 
-    /// The un-masking at the heart of P2: a three-way merge of incompatible
+    /// The union retains a three-way merge of incompatible
     /// types stays a tracked union instead of collapsing to `OVERDEFINED`
     /// (the old pair model's documented lossy point).
     #[test]

@@ -73,7 +73,7 @@ use rustc_hash::FxHashSet;
 
 use helpers::{
     UndefSuppressionSemantics, build_undef_suppression, collect_defined_vars,
-    collect_existence_guards, globals_read_by_procs, globals_written_by_procs,
+    globals_read_by_procs, globals_written_by_procs,
 };
 
 use super::state::Analyser;
@@ -119,6 +119,7 @@ pub(in crate::analyser) use validity::{
 
 // The W110 operator-anchor selector is consumed by the EXPR-argument
 // dispatch in `crate::analyser::commands`.
+pub(in crate::analyser) use proven::{CallWords, ProvenSite};
 pub(in crate::analyser) use usage::W110Anchor;
 
 mod const_dispatch;
@@ -129,6 +130,7 @@ mod original_control_advice;
 #[cfg(test)]
 mod original_positioned_callee;
 mod original_roles;
+mod proven;
 mod security;
 mod unresolved;
 mod usage;
@@ -305,29 +307,6 @@ impl<'a> BodyFrame<'a> {
             Self::TopLevel | Self::Method(_) => None,
         }
     }
-
-    /// The entry facts the `[info exists]` fold needs: the
-    /// frame's formal parameters, plus a method's instance variables.
-    #[must_use]
-    fn existence_frame(self) -> crate::sccp::ExistenceFrame<'a> {
-        match self {
-            Self::TopLevel => crate::sccp::ExistenceFrame {
-                params: &[],
-                object_state: None,
-                initial_global: true,
-            },
-            Self::Procedure(p) => crate::sccp::ExistenceFrame {
-                params: &p.params,
-                object_state: None,
-                initial_global: false,
-            },
-            Self::Method(m) => crate::sccp::ExistenceFrame {
-                params: &m.params,
-                object_state: Some(&m.instance_vars),
-                initial_global: false,
-            },
-        }
-    }
 }
 
 impl Analyser {
@@ -459,6 +438,8 @@ impl Analyser {
         registry: &tcl_registry::CommandRegistry,
     ) {
         self.settle_cu_derived_object_facts(cu, registry);
+        self.settle_w123_widening(cu);
+        self.loop_unseen_writes = super::bounds_checks::ModuleUnseenWrites::of(&cu.ir_module);
 
         // **W128.** Flag calls to commands renamed or
         // deleted earlier in the file via the flow-sensitive
@@ -548,18 +529,30 @@ impl Analyser {
         // ``CompilationUnit::functions``.
         // Iterate top-level explicitly so we can pass the IR
         // module through.
+        let module = crate::interprocedural::ModuleProcedures::of_unit(cu, registry);
         self.emit_cfg_ssa_diagnostics_for_function_with_cells(
             &cu.top_level,
             BodyFrame::TopLevel,
             &top_level_known_defined,
             &top_level_cross_event_vars,
             &cell_facts,
+            Some(&module),
         );
         self.emit_channel_diagnostics(&cu.top_level);
         self.emit_irules_cell_diagnostics(&cu.top_level, "::top", registry);
-        self.emit_procedure_body_diagnostics(cu, registry, &traced_globals, &unit_commands);
+        self.emit_procedure_body_diagnostics(
+            cu,
+            registry,
+            &traced_globals,
+            (&unit_commands, &module),
+        );
 
-        self.emit_fresh_frame_body_diagnostics(cu, registry, &traced_globals, &unit_commands);
+        self.emit_fresh_frame_body_diagnostics(
+            cu,
+            registry,
+            &traced_globals,
+            (&unit_commands, &module),
+        );
 
         // Cross-function post-pass: resolve $var-as-command sites
         // collected during the walk.
@@ -573,6 +566,7 @@ impl Analyser {
         // emitting the indirect head references and their writable
         // literal-anchored twins.
         self.settle_const_dispatches(cu);
+        self.emit_proven_word_diagnostics(cu);
     }
 
     /// Emit per-procedure diagnostics using the same prepared cross-function
@@ -582,7 +576,10 @@ impl Analyser {
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
         traced_globals: &HashSet<String>,
-        unit_commands: &UnitCommandResolver<'_>,
+        (unit_commands, module): (
+            &UnitCommandResolver<'_>,
+            &crate::interprocedural::ModuleProcedures<'_>,
+        ),
     ) {
         for (qname, fu) in &cu.procedures {
             // For ``::when::*`` procs, threaded
@@ -614,8 +611,8 @@ impl Analyser {
                     .procedures
                     .get(qname)
                     .map_or(BodyFrame::TopLevel, BodyFrame::Procedure),
-                &extra_known_defined,
-                &cross_event_vars,
+                (&extra_known_defined, &cross_event_vars),
+                Some(&module),
             );
             self.emit_channel_diagnostics(fu);
             self.emit_irules_cell_diagnostics(fu, qname, registry);
@@ -673,7 +670,10 @@ impl Analyser {
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
         traced_globals: &HashSet<String>,
-        unit_commands: &UnitCommandResolver<'_>,
+        (unit_commands, module): (
+            &UnitCommandResolver<'_>,
+            &crate::interprocedural::ModuleProcedures<'_>,
+        ),
     ) {
         for (qname, fu) in &cu.methods {
             let method_ir = cu.ir_module.methods.get(qname);
@@ -730,8 +730,8 @@ impl Analyser {
             self.emit_cfg_ssa_diagnostics_for_function_full(
                 fu,
                 method_ir.map_or(BodyFrame::TopLevel, BodyFrame::Method),
-                &known_bound,
-                &cross_event_vars,
+                (&known_bound, &cross_event_vars),
+                Some(module),
             );
             self.emit_channel_diagnostics(fu);
         }
@@ -746,10 +746,13 @@ impl Analyser {
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
         traced_globals: &HashSet<String>,
-        unit_commands: &UnitCommandResolver<'_>,
+        (unit_commands, module): (
+            &UnitCommandResolver<'_>,
+            &crate::interprocedural::ModuleProcedures<'_>,
+        ),
     ) {
-        self.emit_method_body_diagnostics(cu, registry, traced_globals, unit_commands);
-        self.emit_lambda_body_diagnostics(cu, registry, traced_globals, unit_commands);
+        self.emit_method_body_diagnostics(cu, registry, traced_globals, (unit_commands, module));
+        self.emit_lambda_body_diagnostics(cu, registry, traced_globals, (unit_commands, module));
     }
 
     /// The same CFG/SSA dataflow family over an `apply` **lambda body**.
@@ -774,7 +777,10 @@ impl Analyser {
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
         traced_globals: &HashSet<String>,
-        unit_commands: &UnitCommandResolver<'_>,
+        (unit_commands, module): (
+            &UnitCommandResolver<'_>,
+            &crate::interprocedural::ModuleProcedures<'_>,
+        ),
     ) {
         for qname in &cu.ir_module.lambda_body_units {
             let (Some(fu), Some(ir_proc)) =
@@ -801,8 +807,8 @@ impl Analyser {
             self.emit_cfg_ssa_diagnostics_for_function_full(
                 fu,
                 BodyFrame::Procedure(ir_proc),
-                &known_bound,
-                &cross_event_vars,
+                (&known_bound, &cross_event_vars),
+                Some(module),
             );
             self.emit_channel_diagnostics(fu);
         }
@@ -821,8 +827,8 @@ impl Analyser {
         self.emit_cfg_ssa_diagnostics_for_function_full(
             function_unit,
             frame,
-            &HashSet::new(),
-            &HashSet::new(),
+            (&HashSet::new(), &HashSet::new()),
+            None,
         );
     }
 
@@ -843,8 +849,8 @@ impl Analyser {
         self.emit_cfg_ssa_diagnostics_for_function_full(
             function_unit,
             frame,
-            extra_known_defined,
-            &HashSet::new(),
+            (extra_known_defined, &HashSet::new()),
+            None,
         );
     }
 
@@ -859,12 +865,16 @@ impl Analyser {
     /// | cross_event_imports`) and for `pkgIndex.tcl` `$dir`,
     /// which the package loader assigns before the script body
     /// runs.
-    pub fn emit_cfg_ssa_diagnostics_for_function_full(
+    ///
+    /// `module` holds the module's procedures where the caller has them, so
+    /// the read-before-set check reads what a call to one does to the places
+    /// it names from its transfer summary.
+    pub(crate) fn emit_cfg_ssa_diagnostics_for_function_full(
         &mut self,
         function_unit: &crate::compilation_unit::FunctionUnit,
         frame: BodyFrame<'_>,
-        extra_known_defined: &HashSet<String>,
-        cross_event_vars: &HashSet<String>,
+        (extra_known_defined, cross_event_vars): (&HashSet<String>, &HashSet<String>),
+        module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
     ) {
         self.emit_cfg_ssa_diagnostics_for_function_with_cells(
             function_unit,
@@ -872,6 +882,7 @@ impl Analyser {
             extra_known_defined,
             cross_event_vars,
             &helpers::DiagnosticCellFacts::default(),
+            module,
         );
     }
 
@@ -891,6 +902,7 @@ impl Analyser {
     fn undef_suppression_semantics<'a>(
         &'a self,
         context: &'a tcl_registry::model::ContextRegistry,
+        module: Option<&'a crate::interprocedural::ModuleProcedures<'a>>,
     ) -> UndefSuppressionSemantics<'a> {
         UndefSuppressionSemantics {
             dialect: Some(context.context().authoring_query()),
@@ -898,6 +910,7 @@ impl Analyser {
             lexer_config: self.lexer_config(),
             source: &self.source,
             analysis: &self.result,
+            module,
             context,
         }
     }
@@ -909,6 +922,7 @@ impl Analyser {
         extra_known_defined: &HashSet<String>,
         cross_event_vars: &HashSet<String>,
         cell_facts: &helpers::DiagnosticCellFacts,
+        module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
     ) {
         let defined = collect_defined_vars(&function_unit.cfg);
         // Alias recognition is registry-driven; fall back to the cached
@@ -977,6 +991,7 @@ impl Analyser {
             cell_facts,
         );
         self.emit_possible_paste_error_diagnostics(function_unit);
+        self.emit_w102_template_plans(function_unit);
         // Shared read-before-set context: semantic normal reachability and
         // the name-level suppression (`dict with` keys, qualified-`variable`
         // alias tails, dict vars), threaded through both the version-0
@@ -988,7 +1003,7 @@ impl Analyser {
             &considered,
             initial_global,
             &global_aliases,
-            self.undef_suppression_semantics(&suppression_context),
+            self.undef_suppression_semantics(&suppression_context, module),
         );
         let exists_guards = collect_existence_guards(
             function_unit,
@@ -1007,7 +1022,8 @@ impl Analyser {
             cell_facts,
             supp: &supp,
         };
-        self.emit_read_before_set_diagnostics(function_unit, ir_proc, &read_before_set_ctx);
+        let already_reported =
+            self.emit_read_before_set_diagnostics(function_unit, ir_proc, &read_before_set_ctx);
         // Phi-from-undef on `return $v` reads (the def-use builder records
         // statement + branch-condition uses but NOT `Terminator::Return`
         // values).
@@ -1015,11 +1031,12 @@ impl Analyser {
             function_unit,
             &dataflow::ReturnUndefCtx {
                 registry: self.profile_registry(),
+                exists_guards: &exists_guards,
+                already_reported: &already_reported,
                 initial_global,
                 global_aliases: &global_aliases,
                 dialect: Some(suppression_context.context().authoring_query()),
                 params: &rbs_params,
-                exists_guards: &exists_guards,
                 scope_aliases: &scope_aliases,
                 extra_known_defined,
                 cell_facts,
@@ -1037,6 +1054,8 @@ impl Analyser {
         );
         self.emit_constant_branch_diagnostics(function_unit);
         self.emit_existence_constant_branch_diagnostics(function_unit, existence_frame);
+        self.emit_selected_arm_diagnostics(function_unit);
+        self.resolve_loop_terminations(function_unit);
         self.emit_invalid_ip_diagnostics(function_unit);
         self.emit_w233_divide_by_zero(function_unit);
         self.emit_interval_bounds_diagnostics(function_unit);

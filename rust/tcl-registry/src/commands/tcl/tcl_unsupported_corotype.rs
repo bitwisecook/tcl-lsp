@@ -66,6 +66,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 fn make_spec(name: &'static str) -> CommandSpec {
     CommandSpec {
         name,
+        runtime_backing: RuntimeBacking::shipped(name),
         // `cmd_corotype` (`tcl-vm/src/cmd_coro.rs`) is a flat hashmap lookup
         // with no eval fallback and no `Frame` of its own — genuinely
         // frame-free, like its list/string/set siblings on the audited

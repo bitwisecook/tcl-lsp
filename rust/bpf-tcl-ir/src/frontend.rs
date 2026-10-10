@@ -422,7 +422,7 @@ fn is_decl(stmt: &Statement, registry: &CommandRegistry) -> bool {
 mod tests {
     use super::*;
     use crate::ir::Term;
-    use tcl_dialect::model::{Family, SurfaceQuery};
+    use tcl_dialect::model::{Family, PackageFloor, SurfaceQuery};
     use tcl_dialect::{NumberSyntax, TclVersion};
     use tcl_syntax::number::{runtime_syntax, set_runtime_syntax};
 
@@ -437,7 +437,7 @@ mod tests {
         assert_eq!(profile.name, "bpf");
         assert_eq!(
             profile.surface_query(),
-            SurfaceQuery::core(Family::Tcl, "9.0").with_packages(&["bpf"])
+            SurfaceQuery::core(Family::Tcl, "9.0").with_packages(&[PackageFloor::named("bpf")])
         );
         assert_eq!(registry.runtime_version(), Some(TclVersion::V9_0));
         assert_eq!(registry.numbers(), NumberSyntax::Tcl90);

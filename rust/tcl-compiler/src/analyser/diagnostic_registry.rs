@@ -178,8 +178,17 @@ pub struct RegistrySourceDiagnosticSubject {
     owning_package: Option<&'static str>,
     required_package: Option<&'static str>,
     required_package_key: Option<tcl_registry::native_package::NativePackageNameKey>,
+    supplemental_literals: Vec<(usize, String)>,
 }
 impl RegistrySourceDiagnosticSubject {
+    /// Effective source operands whose advisory value is supplied by the
+    /// actual SSA lattice. They do not replace the original written words or
+    /// prove a native argument value, successful dispatch or completion.
+    #[must_use]
+    pub fn supplemental_literals(&self) -> &[(usize, String)] {
+        &self.supplemental_literals
+    }
+
     /// Exact source syntax and retained context, separate from execution.
     #[must_use]
     pub fn words(&self) -> &OriginalRegistryWords {
@@ -231,6 +240,7 @@ impl RegistrySourceDiagnosticSubject {
 pub(super) struct OriginalDiagnosticInvocation {
     words: Arc<OriginalRegistryWords>,
     context: Arc<tcl_registry::model::ContextRegistry>,
+    supplemental_literals: Vec<(usize, String)>,
 }
 impl OriginalDiagnosticInvocation {
     pub(super) fn new(
@@ -244,13 +254,56 @@ impl OriginalDiagnosticInvocation {
         Some(Self {
             words: Arc::new(words),
             context,
+            supplemental_literals: Vec::new(),
         })
     }
     pub(super) fn with_schema<'r, T>(
         &'r self,
         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
     ) -> Option<T> {
-        self.words.with_source_schema(&self.context, project)
+        if self.supplemental_literals.is_empty() {
+            return self.words.with_source_schema(&self.context, project);
+        }
+        let values = self
+            .supplemental_literals
+            .iter()
+            .map(|(ordinal, value)| (*ordinal, value.as_str()))
+            .collect::<Vec<_>>();
+        self.words
+            .with_source_value_projection(&self.context, &values, project)
+    }
+    /// Supplement only original, ordinary written operands at their retained
+    /// effective ordinals; captures and expansions retain their own owner.
+    pub(super) fn with_supplemental_literals(&self, literals: &[(usize, String)]) -> Option<Self> {
+        let mut supplemental_literals = Vec::new();
+        for (written, value) in literals {
+            let indices = (0..self.words.arguments().len())
+                .filter(|&index| self.written_index(index) == Some(*written))
+                .collect::<Vec<_>>();
+            let [effective] = indices.as_slice() else {
+                return None;
+            };
+            self.word(*effective)?;
+            if supplemental_literals
+                .iter()
+                .any(|(index, _)| index == effective)
+            {
+                return None;
+            }
+            supplemental_literals.push((*effective, value.clone()));
+        }
+        let projected = Self {
+            words: Arc::clone(&self.words),
+            context: Arc::clone(&self.context),
+            supplemental_literals,
+        };
+        projected.with_schema(|_| ())?;
+        Some(projected)
+    }
+
+    /// Effective original operands with separately retained advisory values.
+    pub(super) fn supplemental_literals(&self) -> &[(usize, String)] {
+        &self.supplemental_literals
     }
     pub(super) fn command(&self) -> &str {
         self.words.command()
@@ -271,7 +324,37 @@ impl OriginalDiagnosticInvocation {
     }
     pub(super) fn literal(&self, argument: usize) -> Option<&str> {
         self.operand(argument)?;
+        if let Some((_, value)) = self
+            .supplemental_literals
+            .iter()
+            .find(|(index, _)| *index == argument)
+        {
+            return Some(value);
+        }
         std::str::from_utf8(self.words.arguments().get(argument)?.literal_bytes()?).ok()
+    }
+    /// Effective operand text and its genuine original first token. Captured
+    /// operands retain their producer; expansion children have no whole word.
+    pub(super) fn source_arguments(
+        &self,
+    ) -> Option<(Vec<String>, Vec<tcl_lexer::Token>, Vec<bool>)> {
+        let mut text = Vec::new();
+        let mut tokens = Vec::new();
+        let mut single = Vec::new();
+        for ordinal in 0..self.words.arguments().len() {
+            let word = self.word(ordinal)?;
+            let original = word.tokens().first().copied()?;
+            let value = self.literal(ordinal).map(str::to_owned).or_else(|| {
+                let span = word.content_span();
+                std::str::from_utf8(word.image().bytes().get(span.as_range())?)
+                    .ok()
+                    .map(str::to_owned)
+            })?;
+            text.push(value);
+            tokens.push(original);
+            single.push(word.tokens().len() == 1);
+        }
+        Some((text, tokens, single))
     }
     pub(super) fn written_index(&self, argument: usize) -> Option<usize> {
         self.operand(argument)?;
@@ -313,6 +396,7 @@ impl OriginalDiagnosticInvocation {
                     .command
                     .required_package,
                 required_package_key: self.required_package_key(),
+                supplemental_literals: self.supplemental_literals.clone(),
             },
         )))
     }
@@ -368,6 +452,7 @@ impl OriginalDiagnosticInvocation {
                     .command
                     .required_package,
                 required_package_key: self.required_package_key(),
+                supplemental_literals: self.supplemental_literals.clone(),
             },
         )))
     }
@@ -435,6 +520,7 @@ impl OriginalDiagnosticInvocation {
                     .command
                     .required_package,
                 required_package_key: self.required_package_key(),
+                supplemental_literals: self.supplemental_literals.clone(),
             },
         )))
     }
@@ -450,7 +536,7 @@ impl OriginalDiagnosticInvocation {
             .into_iter()
             .filter_map(|format| {
                 let operand = self.operand(format.index)?;
-                let bytes = self.words.arguments().get(format.index)?.literal_bytes()?;
+                let bytes = self.literal(format.index)?.as_bytes();
                 Some(super::commands::OriginalFormatTemplate {
                     format,
                     bytes: bytes.to_vec(),

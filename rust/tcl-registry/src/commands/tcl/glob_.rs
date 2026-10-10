@@ -140,7 +140,7 @@ const OPTION_RELATIONS: &[OptionRelation] = &[OptionRelation::conflict(&[
 /// option selectors and expanded cardinality leave the layout unavailable.
 fn glob_arg_roles(
     args: crate::InvocationArguments<'_>,
-    options: crate::resolved_invocation::InvocationOptions<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_, '_>,
 ) -> Option<Vec<(u8, ArgRole)>> {
     // naming.core.original-pattern-retained-context
     // docs/design/analysis/name-resolution-proofs/original-pattern-retained-context.md
@@ -167,6 +167,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("glob"),
         // `Some(SpecSurface::ALL_TCL)`, deliberately: `glob` is banned in F5
         // iRules (the TMM sandbox has no real filesystem), and that exclusion
         // is now modelled by this explicit surface — `ALL_TCL` does NOT carry
@@ -209,6 +210,7 @@ pub fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-join",
@@ -218,6 +220,7 @@ pub fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-nocomplain",
@@ -227,6 +230,7 @@ pub fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-path",
@@ -236,6 +240,7 @@ pub fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-tails",
@@ -245,6 +250,7 @@ pub fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "-types",
@@ -259,6 +265,7 @@ pub fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -268,6 +275,7 @@ pub fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },

@@ -33,9 +33,11 @@ fast-tier diagnostic is never contradicted.
 2. **Push only.** The fast tier never primes the pull-diagnostic cache and is
    skipped for a pull client — `textDocument/diagnostic` always serves the
    complete deep set.
-3. **Shared suppression and finalisation.** Both tiers go through the same
-   lifts and `finalise_diagnostics`, so `# noqa`, `# tcl-lsp: disable=`,
-   disabled codes, tags, and severity overrides cannot differ between them.
+3. **Shared suppression and finalisation.** Both tiers render through the
+   same `lifted_report` — the policy step's report, then `lift_report`, the
+   LSP adapter ([diagnostic-policy.md](diagnostic-policy.md) § Adapters) — so
+   `# noqa`, `# tcl-lsp: disable=`, disabled codes, tags, and severity
+   overrides cannot differ between them.
 
 ## Failure modes
 
@@ -48,7 +50,8 @@ fast-tier diagnostic is never contradicted.
 
 - `rust/tcl-lsp-server/src/lib.rs` — `run_diagnostics_analyser_path`,
   `run_deep_diagnostics`, `publish_fast_tier`, `is_fast_tier`,
-  `DeliveryCtx::deliver_fast_tier_if_current`, `finalise_diagnostics`
+  `DeliveryCtx::deliver_fast_tier_if_current`, `refine_and_lift_diagnostics`,
+  `published_findings`, `lifted_report`, `lift_report`
 - `rust/tcl-core-types/src/diag_code.rs` — `DiagCode::refined_by_workspace`
 - `rust/tcl-lsp-db/src/lib.rs` — `file_analysis`,
   `compiler_check_diagnostics`, `project_diagnostics` (the salsa queries the

@@ -7,13 +7,12 @@
 //!
 //! These checks belong below the LSP/CLI/MCP adapters: every consumer of the
 //! analyser must see the same security verdict, and non-Tcl adapters can reuse
-//! the pure producer without copying the Unicode table or the message.
-
-use std::collections::{HashMap, HashSet};
-use std::hash::BuildHasher;
+//! the pure producer without copying the Unicode table or the message. The
+//! producer filters nothing: directives and disabled codes are the policy
+//! step's.
 
 use tcl_core_types::{DiagCode, Severity};
-use tcl_lexer::{LineIndex, Span};
+use tcl_lexer::Span;
 
 use super::confusables_table::bidi_control_name;
 use super::types::Diagnostic;

@@ -42,6 +42,7 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::irules::URI_COMPARE),
         ..CommandSpec::DEFAULT
     }
 }

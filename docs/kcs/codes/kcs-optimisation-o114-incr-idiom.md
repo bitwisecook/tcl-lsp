@@ -33,6 +33,10 @@ set count 0
 incr count
 ```
 
+This shows O114 in isolation (`tcl opt --profile off --enable O114`).
+With other rewrites enabled, constant propagation or dead-store removal can
+take precedence on this constant example.
+
 ## Safety conditions
 
 - Skipped when the increment value is not an integer constant.

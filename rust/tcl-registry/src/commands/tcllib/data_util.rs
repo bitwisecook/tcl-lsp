@@ -31,7 +31,8 @@ const STATEFUL: &[SideEffect] = &[SideEffect {
 }];
 
 /// One command in a flat tcllib package.  `stateful` marks a state-mutating
-/// command (file / counter side effects); otherwise the command is pure.
+/// command (file / counter side effects); otherwise the command is pure, and
+/// declares `pure`: why no route evaluates it.
 fn cmd(
     name: &'static str,
     pkg: &'static str,
@@ -39,6 +40,7 @@ fn cmd(
     synopsis: &'static [&'static str],
     summary: &'static str,
     stateful: bool,
+    pure: SemanticsDeclaration,
 ) -> CommandSpec {
     CommandSpec {
         name,
@@ -52,6 +54,11 @@ fn cmd(
         side_effects: if stateful { STATEFUL } else { &[] },
         tcllib_package: Some(pkg),
         required_package: Some(pkg),
+        semantics: if stateful {
+            SemanticsDeclaration::Inherited
+        } else {
+            pure
+        },
         ..CommandSpec::DEFAULT
     }
 }
@@ -66,12 +73,13 @@ type Row = (
     bool,
 );
 
-/// Build specs for a package from its command table.
-fn rows(pkg: &'static str, table: &'static [Row]) -> Vec<CommandSpec> {
+/// Build specs for a package from its command table, its pure commands
+/// declaring `pure`.
+fn rows(pkg: &'static str, table: &'static [Row], pure: SemanticsDeclaration) -> Vec<CommandSpec> {
     table
         .iter()
         .map(|&(name, arity, synopsis, summary, stateful)| {
-            cmd(name, pkg, arity, synopsis, summary, stateful)
+            cmd(name, pkg, arity, synopsis, summary, stateful, pure)
         })
         .collect()
 }
@@ -291,14 +299,28 @@ fn inifile_specs() -> Vec<CommandSpec> {
         required_package: Some("inifile"),
         ..CommandSpec::DEFAULT
     }];
-    specs.extend(rows("inifile", INI_CMDS));
+    // An INI handle's sections, keys and values are the open file's.
+    specs.extend(rows(
+        "inifile",
+        INI_CMDS,
+        SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+    ));
     specs
 }
 
 /// All `inifile` / `units` / `counter` command specs.
 pub fn specs() -> Vec<CommandSpec> {
     let mut specs = inifile_specs();
-    specs.extend(rows("units", UNITS_CMDS));
-    specs.extend(rows("counter", COUNTER_CMDS));
+    specs.extend(rows(
+        "units",
+        UNITS_CMDS,
+        SemanticsDeclaration::Declared(&crate::value_transfer::builtins::ROUTE_UNAUTHORED),
+    ));
+    // A counter's value is the count the program has kept.
+    specs.extend(rows(
+        "counter",
+        COUNTER_CMDS,
+        SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+    ));
     specs
 }

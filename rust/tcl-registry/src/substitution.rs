@@ -17,6 +17,8 @@
 //! Reached source evaluation uses [`crate::ResolvedInvocation::native_substitution_template`]
 //! with the actual handler, available switches and retained template source.
 //! Its ordered reads and errors remain separate from executable folding.
+//! The selected descriptor declares option effects; the generic effect walk
+//! projects authored substitution kinds independently of native object conversion.
 
 /// The substitutions a call performs over its argument text.
 ///

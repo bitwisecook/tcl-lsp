@@ -54,12 +54,8 @@ fn dialect_terms(dialect: &str) -> &'static [&'static str] {
     match dialect {
         // The explicit "everything" selector — not a dialect name.
         "all" => &[],
-        // The *analyser* ingress form, deliberately: `tk` takes the
-        // permissive fallback's empty term set here, exactly as
-        // `DialectProfile::by_name` gave it, so `tcl help --dialect tk`
-        // keeps filtering nothing. Ledger C1 (post-P1-G): when the
-        // profile retires, the term set becomes an environment fact and
-        // `tk` gains its own.
+        // `tk` resolves to the analyser's permissive fallback, whose empty
+        // term set leaves help results unfiltered.
         name => tcl_cli_support::environment::analyser_profile_for_dialect(name).help_terms,
     }
 }

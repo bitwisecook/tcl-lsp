@@ -19,16 +19,21 @@
 //! Loop-termination index-bounds checks (W230-W242).
 //!
 //! Covers the **loop-termination** family (W240 / W241 / W242 over
-//! `while` / `for`, including the `for`-step provably-infinite heuristic)
+//! `while` / `for`, including the provably-infinite counter heuristic)
 //! and the **index-bounds** family (W230 over `lindex` / `lrange` /
 //! `lreplace`, W231 over `lset`, W232 over `string index` / `range` /
 //! `replace`).  W242 (unprovable termination) is always emitted here; its
 //! default-off opt-in is a consuming-layer concern.
 //!
-//! The analysis is intentionally shallow — it inspects the literal text
-//! of the condition and body.  A dynamic condition (anything not a
-//! constant true/false literal) yields no diagnostic, avoiding false
-//! positives.
+//! The walk reads the literal text of the condition and body, and a loop's
+//! counter as its iteration plan states it: the bound its condition compares
+//! with, and the step every pass adds — a counted loop's step script, or a
+//! conditional loop's one increment, each read through the registry's cell
+//! update. What else may write the counter, and where it starts, are the
+//! flow graph's and the solver's answers, read by the per-function pass for
+//! a loop its unit holds and does not decide
+//! ([`LoopTerminationCandidate::settle`]); a loop no unit holds keeps what
+//! its condition's text says.
 
 use tcl_core_types::DiagCode;
 use tcl_lexer::{ExprToken, ExprTokenType, Token, TokenType, tokenise_expr_checked_with_grammar};
@@ -47,6 +52,14 @@ pub(crate) enum BoundsMetadataContext<'a> {
     Standalone(Option<&'a tcl_registry::CommandRegistry>),
 }
 impl<'a> BoundsMetadataContext<'a> {
+    fn commands(self) -> &'a tcl_registry::CommandRegistry {
+        match self {
+            Self::Retained(context) => context.commands(),
+            #[cfg(test)]
+            Self::Standalone(registry) => registry.unwrap_or_else(tcl_registry::default_registry),
+        }
+    }
+
     fn spec(self, name: &str) -> Option<&'a tcl_registry::CommandSpec> {
         match self {
             Self::Retained(context) => context.context().resolve_spec(context.commands(), name),
@@ -126,28 +139,48 @@ fn is_loop_exit_command(name: &str, registry: BoundsMetadataContext<'_>) -> bool
 }
 
 /// Which argument of a conditional-loop invocation is which: the boolean
-/// condition, the loop body, and — for a C-style loop — the init and step
-/// scripts.  Indices exclude the command name.
+/// condition and the loop body. Indices exclude the command name.
 struct LoopShape {
-    init: Option<usize>,
     cond: usize,
-    step: Option<usize>,
     body: usize,
 }
 
-/// The loop shape of `name`, or `None` when it is not a conditional loop.
+/// The loop shape of `name` invoked with `args`, or `None` when it is not a
+/// conditional loop.
 ///
-/// Whether a command *is* a loop is the registry's answer
-/// ([`tcl_registry::CommandRegistry::is_loop_command`], reading
-/// `HAS_LOOP_BODY`), and the shape is read off its declared argument roles:
-/// the `Expr` word is the condition, the last `Body` word after it is the loop
-/// body, and a `Body` on either side of the condition is the C-style init and
-/// step.  A pack-declared loop therefore reaches W240 / W241 / W242 with no
-/// command name written here.
+/// Whether a command *is* a loop is the command surface's answer — the
+/// `HAS_LOOP_BODY` trait, which a catalogue command states in its spec and a
+/// document's stub states with `-loop` — and the shape is read off its
+/// argument roles: the `Expr` word is the condition, and the last `Body` word
+/// after it is the loop body. A pack-declared or stub-declared loop therefore
+/// reaches W240 / W241 / W242 with no command name written here. A name the
+/// document declares answers from its declaration alone (nearest wins), so a
+/// stub that redeclares `while` without `-loop` is not a loop.
 ///
-/// Standalone test controls can select the core syntax fallback. Production
-/// callers retain their actual availability; an unavailable schema refuses.
-fn loop_shape(name: &str, registry: BoundsMetadataContext<'_>) -> Option<LoopShape> {
+fn loop_shape(
+    name: &str,
+    args: &[String],
+    registry: BoundsMetadataContext<'_>,
+    surface: Option<&tcl_registry::model::DocumentCommandSurface<'_>>,
+) -> Option<LoopShape> {
+    use tcl_registry::ArgRole;
+    if let Some(surface) = surface.filter(|surface| surface.declares(name)) {
+        if !surface
+            .traits(name)
+            .is_some_and(|traits| traits.contains(tcl_registry::Traits::HAS_LOOP_BODY))
+        {
+            return None;
+        }
+        let words: Vec<_> = args.iter().map(String::as_str).collect();
+        return conditional_loop_shape([ArgRole::Expr, ArgRole::Body].into_iter().flat_map(
+            |role| {
+                surface
+                    .arg_indices_for_role(name, &words, role)
+                    .into_iter()
+                    .map(move |index| (index, role))
+            },
+        ));
+    }
     let Some(spec) = registry.spec(name) else {
         #[cfg(test)]
         if matches!(registry, BoundsMetadataContext::Standalone(_)) {
@@ -157,7 +190,13 @@ fn loop_shape(name: &str, registry: BoundsMetadataContext<'_>) -> Option<LoopSha
     };
     spec.traits
         .contains(tcl_registry::Traits::HAS_LOOP_BODY)
-        .then(|| conditional_loop_shape(spec))
+        .then(|| {
+            conditional_loop_shape(
+                spec.arg_roles
+                    .iter()
+                    .map(|&(index, role)| (usize::from(index), role)),
+            )
+        })
         .flatten()
 }
 
@@ -165,53 +204,544 @@ fn loop_shape(name: &str, registry: BoundsMetadataContext<'_>) -> Option<LoopSha
 #[cfg(test)]
 fn core_loop_shape(name: &str) -> Option<LoopShape> {
     match name {
-        "while" => Some(LoopShape {
-            init: None,
-            cond: 0,
-            step: None,
-            body: 1,
-        }),
-        "for" => Some(LoopShape {
-            init: Some(0),
-            cond: 1,
-            step: Some(2),
-            body: 3,
-        }),
+        "while" => Some(LoopShape { cond: 0, body: 1 }),
+        "for" => Some(LoopShape { cond: 1, body: 3 }),
         _ => None,
     }
 }
 
-/// Read a loop's condition / body / init / step positions off its argument
-/// roles, or `None` when it has no single boolean-condition word — `foreach`
-/// and `lmap` iterate a list rather than testing a condition, so nothing here
+/// Read a loop's condition / body positions off its argument roles,
+/// or `None` when it has no single boolean-condition word — `foreach` and
+/// `lmap` iterate a list rather than testing a condition, so nothing here
 /// applies to them.
-fn conditional_loop_shape(spec: &tcl_registry::spec::CommandSpec) -> Option<LoopShape> {
+fn conditional_loop_shape(
+    roles: impl IntoIterator<Item = (usize, tcl_registry::arg_role::ArgRole)>,
+) -> Option<LoopShape> {
     let mut cond = None;
     let mut bodies: Vec<usize> = Vec::new();
-    for &(index, role) in spec.arg_roles {
+    for (index, role) in roles {
         match role {
             tcl_registry::arg_role::ArgRole::Expr if cond.is_some() => return None,
-            tcl_registry::arg_role::ArgRole::Expr => cond = Some(usize::from(index)),
-            tcl_registry::arg_role::ArgRole::Body => bodies.push(usize::from(index)),
+            tcl_registry::arg_role::ArgRole::Expr => cond = Some(index),
+            tcl_registry::arg_role::ArgRole::Body => bodies.push(index),
             _ => {}
         }
     }
     let cond = cond?;
     bodies.sort_unstable();
     let body = bodies.iter().copied().rfind(|&i| i > cond)?;
-    Some(LoopShape {
-        init: bodies.iter().copied().find(|&i| i < cond),
-        cond,
-        step: bodies.iter().copied().find(|&i| i > cond && i < body),
-        body,
+    Some(LoopShape { cond, body })
+}
+
+/// What a conditional loop's text says about its termination — the verdict
+/// the walk reaches before any solver fact is known — and, for a loop its
+/// unit holds and does not decide, what that unit adds
+/// ([`LoopTerminationCandidate::settle`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum LexicalVerdict {
+    /// The condition is a constant-false literal: the body never executes.
+    Dead,
+    /// The loop never terminates: a constant-true literal condition over a
+    /// body that never leaves the loop (`None`), or a counter that never
+    /// reaches its bound (the reason it gives).
+    Infinite(Option<String>),
+    /// Nothing in the loop may write the variable the condition reads.
+    Unprovable(String),
+    /// Nothing is said.
+    Silent,
+}
+
+/// A loop whose termination the walk examined. The per-function pass
+/// resolves it against the unit's branch fact at its condition span
+/// ([`Self::resolve`]), and reads its counter against what the unit that
+/// holds it knows when that unit does not decide it ([`Self::settle`]); a
+/// loop no unit decides keeps its verdict.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LoopTerminationCandidate {
+    /// The loop command as the document spells it.
+    pub cmd_name: String,
+    /// The condition word's span — where every verdict is reported, and the
+    /// key of the branch fact.
+    pub condition_span: tcl_lexer::Span,
+    /// What the loop's text says.
+    pub lexical: LexicalVerdict,
+    /// Whether the body holds, in command position, a command that leaves
+    /// the loop ([`is_loop_exit_command`]) — a path the flow graph cannot see
+    /// inside a script it does not lower.
+    pub body_may_exit: bool,
+    /// The loop's counter, when its plan states one ([`loop_counter`]).
+    pub counter: Option<LoopCounter>,
+    /// The variable W242 asks after: the condition's first scalar read
+    /// ([`extract_counter_name`]), for a condition that is no constant.
+    pub progress_var: Option<String>,
+}
+
+/// The variables the module may write where no function's statements show
+/// it: the names its callback scripts write and the names its variable
+/// traces watch ([`crate::ir::Module::deferred_writes`],
+/// [`crate::ir::Module::traced_variables`]), each spelled without a leading
+/// `::`, and whether a computed name makes it any variable at all.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct ModuleUnseenWrites {
+    /// The names.
+    names: std::collections::BTreeSet<String>,
+    /// A callback or a trace names a variable computed at run time.
+    any: bool,
+}
+
+impl ModuleUnseenWrites {
+    /// What `module`'s callback scripts and variable traces may write.
+    pub(crate) fn of(module: &crate::ir::Module) -> Self {
+        Self {
+            names: module
+                .deferred_writes
+                .names
+                .iter()
+                .chain(&module.traced_variables)
+                .map(|name| name.trim_start_matches("::").to_owned())
+                .collect(),
+            any: module.deferred_writes.any || module.has_dynamic_variable_trace,
+        }
+    }
+
+    /// Whether a callback script or a variable trace of the module may write
+    /// `var`.
+    pub(crate) fn may_write(&self, var: &str) -> bool {
+        self.any || self.names.contains(var.trim_start_matches("::"))
+    }
+}
+
+/// What may write one variable over a loop's passes, as the unit that holds
+/// the loop knows it: the statements of the loop's blocks that define it —
+/// a cell update, a write a substitution makes, a binder, a destructuring
+/// target, an opaque statement's may-definition, a procedure the call
+/// reaches — and whether code those statements do not show may write it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct LoopWrites {
+    /// The statements of the loop's blocks that define the variable.
+    pub definitions: usize,
+    /// Whether code the loop's statements do not show may write it: a call
+    /// to code the module cannot see in the loop, a callback script or a
+    /// variable trace of the module, or a write to a computed name in the
+    /// function.
+    pub unseen: bool,
+}
+
+impl LoopWrites {
+    /// Whether the loop's one write of a counter is its plan's step.
+    fn step_alone(self) -> bool {
+        self.definitions == 1 && !self.unseen
+    }
+
+    /// Whether nothing in the loop may write the variable.
+    fn none(self) -> bool {
+        self.definitions == 0 && !self.unseen
+    }
+}
+
+/// A loop's counter, as its iteration plan states it: the condition compares
+/// `var` with the literal `bound` by `op`, and every pass adds `step` to it —
+/// the counted plan's step script, or a conditional plan's one increment at
+/// its body's top level — with nothing in its body leaving the loop. That
+/// nothing else writes `var` is the unit's answer ([`LoopWrites`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LoopCounter {
+    /// The counter's name.
+    pub var: String,
+    /// The comparison, with the counter on its left.
+    op: String,
+    /// The literal the counter is compared with.
+    bound: i64,
+    /// What every pass adds to the counter.
+    step: i64,
+}
+
+impl LoopCounter {
+    /// Why a loop whose counter starts at `start` never terminates, or `None`
+    /// when it may: the condition holds on entry and the step is zero, moves
+    /// the counter away from its bound, or steps over the one value `!=`
+    /// stops at.
+    fn never_terminates(&self, start: i64) -> Option<String> {
+        let (op, bound, step) = (self.op.as_str(), self.bound, self.step);
+        if !cond_true_at(op, start, bound) {
+            return None;
+        }
+        let counter = format!("${}", self.var);
+        if step == 0 {
+            return Some("step is zero ('incr' with 0) and condition holds on entry".to_string());
+        }
+        let away = match op {
+            "<" | "<=" => step < 0,
+            ">" | ">=" => step > 0,
+            _ => false,
+        };
+        if away {
+            return Some(format!(
+                "counter {counter} starts at {start}, moves by {step} per step, and compares {op} \
+                 {bound} (never reached)"
+            ));
+        }
+        if matches!(op, "!=" | "ne") {
+            let distance = i128::from(bound) - i128::from(start);
+            if distance * i128::from(step) < 0 {
+                return Some(format!(
+                    "counter {counter} starts at {start}, moves by {step} per step, never \
+                     reaches {bound}"
+                ));
+            }
+            if distance % i128::from(step) != 0 {
+                return Some(format!(
+                    "counter {counter} starts at {start}, moves by {step} per step, never \
+                     exactly equals {bound}"
+                ));
+            }
+        }
+        None
+    }
+}
+
+/// What the solver decided about a loop's header condition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum HeaderFact {
+    /// False at entry: the body never runs.
+    Never,
+    /// True at every test; `exits` says whether an executable path leaves
+    /// the loop.
+    Always {
+        /// An executable `break`, `return` or other exit is reachable.
+        exits: bool,
+    },
+}
+
+impl LoopTerminationCandidate {
+    fn diagnostic(&self, code: DiagCode, message: String, severity: Severity) -> Diagnostic {
+        crate::analyser::types::Diagnostic::new(code, self.condition_span, message, severity)
+    }
+
+    /// W240: the body never executes.
+    fn dead(&self) -> Diagnostic {
+        self.diagnostic(
+            DiagCode::W240,
+            format!(
+                "{} condition is constant false; body never executes.",
+                self.cmd_name
+            ),
+            Severity::Warning,
+        )
+    }
+
+    /// W241: the loop never terminates, for the reason its counter gives or
+    /// because the condition is constant true and the body never leaves.
+    fn infinite(&self, reason: Option<&str>) -> Diagnostic {
+        let message = reason.map_or_else(
+            || {
+                format!(
+                    "{} is provably infinite: condition is constant true and the body \
+                     never leaves the loop (no break/return/error/exit/throw/tailcall).",
+                    self.cmd_name
+                )
+            },
+            |reason| format!("{} loop is provably infinite: {reason}", self.cmd_name),
+        );
+        self.diagnostic(DiagCode::W241, message, Severity::Warning)
+    }
+
+    /// W242 (default-off): a counter variable appears in the condition but
+    /// nothing in the loop may write it. The analyser always emits it; the
+    /// default-off opt-in is applied by the consuming LSP/config layer.
+    fn unprovable(&self, var: &str) -> Diagnostic {
+        self.diagnostic(
+            DiagCode::W242,
+            format!(
+                "{} termination cannot be proven: variable '{var}' in the \
+                 condition is never modified by the step or body.",
+                self.cmd_name
+            ),
+            Severity::Hint,
+        )
+    }
+
+    /// Read the loop against what the unit that holds it knows, where that
+    /// unit does not decide its header: `writes` answers what may write a
+    /// variable over the loop's passes, and `start` the integer the solver
+    /// proves the counter holds where they start. A counter the plan's step
+    /// alone writes that never reaches its bound from its start is W241, for
+    /// the reason the counter gives — so `set i $start` is checked as `set i
+    /// 5` is, and a `while` as a `for` is — and else a condition variable
+    /// nothing in the loop may write is W242.
+    pub(crate) fn settle(
+        &mut self,
+        writes: impl Fn(&str) -> LoopWrites,
+        start: impl Fn(&str) -> Option<i64>,
+    ) {
+        if self.lexical != LexicalVerdict::Silent {
+            return;
+        }
+        if let Some(counter) = &self.counter
+            && writes(&counter.var).step_alone()
+            && let Some(reason) = start(&counter.var).and_then(|at| counter.never_terminates(at))
+        {
+            self.lexical = LexicalVerdict::Infinite(Some(reason));
+            return;
+        }
+        if let Some(var) = &self.progress_var
+            && writes(var).none()
+        {
+            self.lexical = LexicalVerdict::Unprovable(var.clone());
+        }
+    }
+
+    /// What the loop's text alone says.
+    pub(crate) fn lexical_diagnostic(&self) -> Option<Diagnostic> {
+        match &self.lexical {
+            LexicalVerdict::Dead => Some(self.dead()),
+            LexicalVerdict::Infinite(reason) => Some(self.infinite(reason.as_deref())),
+            LexicalVerdict::Unprovable(var) => Some(self.unprovable(var)),
+            LexicalVerdict::Silent => None,
+        }
+    }
+
+    /// What the loop draws once the solver's header fact is known: a header
+    /// decided false at entry is W240, one decided true with no exit the
+    /// flow graph or the body's text finds is W241, and either suppresses
+    /// W242; a header the solver did not decide keeps the lexical verdict.
+    pub(crate) fn resolve(&self, header: Option<HeaderFact>) -> Option<Diagnostic> {
+        match header {
+            None => self.lexical_diagnostic(),
+            Some(HeaderFact::Never) => Some(self.dead()),
+            Some(HeaderFact::Always { exits: false }) if !self.body_may_exit => {
+                let reason = match &self.lexical {
+                    LexicalVerdict::Infinite(reason) => reason.as_deref(),
+                    _ => None,
+                };
+                Some(self.infinite(reason))
+            }
+            Some(HeaderFact::Always { .. }) => None,
+        }
+    }
+}
+
+/// The loop-termination candidate of every conditional loop the document's
+/// command surface declares — catalogued or stub-declared, see
+/// [`loop_shape`] — with what its text says: W240 for a constant-false
+/// condition, W241 for a constant-true one whose body never leaves the loop;
+/// for any other condition, the counter its plan states and the variable
+/// W242 asks after, which the per-function pass reads
+/// ([`LoopTerminationCandidate::settle`]). The loop-exit set is the
+/// catalogue's — see [`is_loop_exit_command`]. `args` / `arg_tokens` exclude
+/// the command name.
+pub(crate) fn loop_termination_candidate(
+    cmd_name: &str,
+    args: &[String],
+    arg_tokens: &[Token],
+    registry: BoundsMetadataContext<'_>,
+    surface: Option<&tcl_registry::model::DocumentCommandSurface<'_>>,
+    lexer_config: tcl_lexer::LexerConfig,
+    grammar: &tcl_dialect::LexerGrammar,
+) -> Option<LoopTerminationCandidate> {
+    let shape = loop_shape(cmd_name, args, registry, surface)?;
+
+    // An under-applied call is an arity diagnostic, not a termination one.
+    if args.len() <= shape.body || arg_tokens.len() <= shape.body {
+        return None;
+    }
+    let may_exit = body_may_exit(args[shape.body].as_str(), registry, lexer_config);
+    let words = plan_words(cmd_name, args, registry);
+    let counter = words
+        .as_ref()
+        .and_then(|words| loop_counter(words, registry, lexer_config, grammar));
+    let constant = condition_constant(args[shape.cond].as_str());
+    let lexical = match constant {
+        Some(false) => LexicalVerdict::Dead,
+        Some(true) if !may_exit => LexicalVerdict::Infinite(None),
+        Some(true) | None => LexicalVerdict::Silent,
+    };
+    let progress_var = constant
+        .is_none()
+        .then(|| extract_counter_name(args[shape.cond].as_str(), grammar))
+        .flatten();
+    Some(LoopTerminationCandidate {
+        cmd_name: cmd_name.to_owned(),
+        condition_span: arg_tokens[shape.cond].span,
+        lexical,
+        body_may_exit: may_exit,
+        counter,
+        progress_var,
     })
 }
 
-/// W240 (constant-false condition → dead body) / W241 (constant-true
-/// condition whose body never leaves the loop → provably infinite) for every
-/// registry-declared conditional loop — see [`loop_shape`].  The loop-exit set
-/// is registry-driven too — see [`is_loop_exit_command`].  `args` /
-/// `arg_tokens` exclude the command name.
+/// The words of a conditional loop's iteration plan: the condition and the
+/// body, and a counted plan's step script.
+struct PlanWords<'a> {
+    /// The condition.
+    condition: &'a str,
+    /// A counted plan's step script.
+    next: Option<&'a str>,
+    /// The body.
+    body: &'a str,
+}
+
+/// The words the iteration plan `cmd_name` declares over `args` names, when
+/// it declares a counted or a conditional one
+/// ([`crate::value_transfer::resolved_iteration_plan`]); the catalogue's
+/// registry answers for an analyse with none.
+fn plan_words<'a>(
+    cmd_name: &str,
+    args: &'a [String],
+    registry: BoundsMetadataContext<'_>,
+) -> Option<PlanWords<'a>> {
+    use tcl_registry::value_transfer::IterableKind;
+    let head = cmd_name.strip_prefix("::").unwrap_or(cmd_name);
+    registry.spec(head)?;
+    let plan = crate::value_transfer::resolved_iteration_plan(registry.commands(), head, args)?;
+    let word = |id: tcl_registry::value_transfer::OperandId| args.get(id.0).map(String::as_str);
+    let body = word(plan.body?.body)?;
+    match plan.iterable {
+        IterableKind::Counted {
+            condition, next, ..
+        } => Some(PlanWords {
+            condition: word(condition)?,
+            next: Some(word(next)?),
+            body,
+        }),
+        IterableKind::Condition(condition) => Some(PlanWords {
+            condition: word(condition)?,
+            next: None,
+            body,
+        }),
+        _ => None,
+    }
+}
+
+/// The catalogue's registry, for an analyse with none.
+pub(super) fn default_registry<'a>() -> &'a tcl_registry::CommandRegistry {
+    tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
+}
+
+/// The loop's counter ([`LoopCounter`]): the condition is `$v OP INT`, and
+/// either the counted plan's step script is one integer increment of `v`, or
+/// the conditional plan's body holds exactly one at its top level; nothing
+/// in the body leaves the loop. Whether anything else writes `v` is the
+/// unit's answer, read where the loop is settled ([`LoopWrites`]).
+fn loop_counter(
+    words: &PlanWords<'_>,
+    registry: BoundsMetadataContext<'_>,
+    lexer_config: tcl_lexer::LexerConfig,
+    grammar: &tcl_dialect::LexerGrammar,
+) -> Option<LoopCounter> {
+    let (var, op, bound) = parse_simple_for_cond(words.condition, grammar)?;
+    if body_may_exit(words.body, Some(registry), lexer_config) {
+        return None;
+    }
+    let step = match words.next {
+        Some(next) => command_increment(
+            &sole_command(next, lexer_config)?,
+            &var,
+            registry,
+            lexer_config,
+        )?,
+        None => body_increment(words.body, &var, registry, lexer_config)?,
+    };
+    Some(LoopCounter {
+        var,
+        op,
+        bound,
+        step,
+    })
+}
+
+/// The one integer increment of `var` at `body`'s top level, which runs on
+/// every pass that reaches its end.
+fn body_increment(
+    body: &str,
+    var: &str,
+    registry: BoundsMetadataContext<'_>,
+    lexer_config: tcl_lexer::LexerConfig,
+) -> Option<i64> {
+    let mut steps = segment_commands_with_offset_and_config(body, 0, lexer_config)
+        .into_iter()
+        .filter_map(|cmd| command_increment(&cmd, var, registry, lexer_config));
+    let step = steps.next()?;
+    steps.next().is_none().then_some(step)
+}
+
+/// What `cmd` adds to `var` each time it runs, when it is the registry's
+/// integer cell update of `var` over literal words: its route, run from 0,
+/// stores the amount.
+pub(super) fn command_increment(
+    cmd: &SegmentedCommand,
+    var: &str,
+    registry: BoundsMetadataContext<'_>,
+    lexer_config: tcl_lexer::LexerConfig,
+) -> Option<i64> {
+    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+    registry.spec(head)?;
+    let (operation, target) =
+        crate::value_transfer::resolved_cell_update(registry.commands(), head, cmd.args())?;
+    if operation != tcl_registry::native_lowering::CellUpdate::Increment
+        || cmd.args().get(target.0).map(String::as_str) != Some(var)
+    {
+        return None;
+    }
+    parse_signed_decimal(&literal_store(cmd, var, "0", registry, lexer_config)?)
+}
+
+/// What `cmd` stores in `var` when the route its words resolve to runs over
+/// them, each one literal token read as Tcl substitutes it and given the role
+/// the resolver gives it, with `var` holding `prior` before: `None` when a
+/// word substitutes, the route declines or does not complete normally, or
+/// the run stores anything but one value in `var`.
+fn literal_store(
+    cmd: &SegmentedCommand,
+    var: &str,
+    prior: &str,
+    registry: BoundsMetadataContext<'_>,
+    lexer_config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    use tcl_registry::value_transfer::{
+        Budget, CompletionOutcome, EvalAnswer, ExactValue, LiteralInputs, OperandId, StoreOutcome,
+    };
+    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+    registry.spec(head)?;
+    let cooked: Vec<std::borrow::Cow<'_, str>> = cmd
+        .args()
+        .iter()
+        .enumerate()
+        .map(|(index, text)| {
+            if cmd.arg_single_token().get(index) != Some(&true) {
+                return None;
+            }
+            let token = cmd.arg_tokens().get(index)?;
+            crate::value_transfer::literal_token_value(text, token.kind, &lexer_config)
+        })
+        .collect::<Option<_>>()?;
+    let texts: Vec<&str> = cooked.iter().map(AsRef::as_ref).collect();
+    let (resolved, roles) =
+        crate::value_transfer::resolved_literal_semantics(registry.commands(), head, &texts)?;
+    let semantics = resolved.semantics()?;
+    let mut inputs = LiteralInputs::new(head, None, &texts, registry.commands().profile())
+        .with_prior(var, ExactValue::text(prior));
+    for (index, role) in roles {
+        inputs = inputs.with_role(OperandId(index), role);
+    }
+    let EvalAnswer::Evaluated(outcome) = semantics.evaluate(&inputs, &mut Budget::evaluation())
+    else {
+        return None;
+    };
+    if outcome.completion != CompletionOutcome::Normal || !outcome.nested_writes.is_empty() {
+        return None;
+    }
+    match outcome.ordered_stores.as_slice() {
+        [StoreOutcome::Write { target, value }] if texts.get(target.0.0) == Some(&var) => {
+            String::from_utf8(value.bytes.clone()).ok()
+        }
+        _ => None,
+    }
+}
+
+/// The lexical loop-termination diagnostics of one command — what the text
+/// alone says, with no solver fact.
+#[cfg(test)]
 pub(crate) fn loop_termination_diagnostics(
     cmd_name: &str,
     args: &[String],
@@ -220,87 +750,18 @@ pub(crate) fn loop_termination_diagnostics(
     lexer_config: tcl_lexer::LexerConfig,
     grammar: &tcl_dialect::LexerGrammar,
 ) -> Vec<Diagnostic> {
-    let Some(shape) = loop_shape(cmd_name, registry) else {
-        return Vec::new();
-    };
-    // An under-applied call is an arity diagnostic, not a termination one.
-    if args.len() <= shape.body || arg_tokens.len() <= shape.body {
-        return Vec::new();
-    }
-    let word = |index: Option<usize>| index.map_or("", |i| args[i].as_str());
-    let (init_text, cond_text, step_text, body_text, cond_tok) = (
-        word(shape.init),
-        args[shape.cond].as_str(),
-        word(shape.step),
-        args[shape.body].as_str(),
-        &arg_tokens[shape.cond],
-    );
-
-    match condition_constant(cond_text) {
-        Some(false) => {
-            return vec![crate::analyser::types::Diagnostic::new(
-                DiagCode::W240,
-                cond_tok.span,
-                format!("{cmd_name} condition is constant false; body never executes."),
-                Severity::Warning,
-            )];
-        }
-        Some(true) if !body_may_exit(body_text, registry, lexer_config) => {
-            return vec![crate::analyser::types::Diagnostic::new(
-                DiagCode::W241,
-                cond_tok.span,
-                format!(
-                    "{cmd_name} is provably infinite: condition is constant true and the body \
-                     never leaves the loop (no break/return/error/exit/throw/tailcall)."
-                ),
-                Severity::Warning,
-            )];
-        }
-        Some(true) => return Vec::new(),
-        None => {}
-    }
-
-    // `for {init} {cond} {step} body` provably-infinite counter shape — only a
-    // loop that declares both an init and a step script has a counter to walk.
-    if shape.init.is_some()
-        && shape.step.is_some()
-        && let Some(reason) = for_is_provably_infinite(
-            init_text,
-            cond_text,
-            step_text,
-            body_text,
-            registry,
-            lexer_config,
-            grammar,
-        )
-    {
-        return vec![crate::analyser::types::Diagnostic::new(
-            DiagCode::W241,
-            cond_tok.span,
-            format!("for loop is provably infinite: {reason}"),
-            Severity::Warning,
-        )];
-    }
-
-    // W242 (default-off): a counter variable appears in the condition but
-    // neither the step nor the body provably modifies it.  Reported on
-    // the condition token, like W240/W241.  The analyser always emits
-    // W242; the default-off opt-in is applied by the consuming LSP/config
-    // layer.
-    if let Some(var) = extract_counter_name(cond_text, grammar)
-        && !loop_modifies_var(&var, step_text, body_text, registry, lexer_config)
-    {
-        return vec![crate::analyser::types::Diagnostic::new(
-            DiagCode::W242,
-            cond_tok.span,
-            format!(
-                "{cmd_name} termination cannot be proven: variable '{var}' in the \
-                     condition is never modified by the step or body."
-            ),
-            Severity::Hint,
-        )];
-    }
-    Vec::new()
+    loop_termination_candidate(
+        cmd_name,
+        args,
+        arg_tokens,
+        registry,
+        None,
+        lexer_config,
+        grammar,
+    )
+    .and_then(|candidate| candidate.lexical_diagnostic())
+    .into_iter()
+    .collect()
 }
 
 /// Return the scalar name of the first variable referenced by a
@@ -316,8 +777,7 @@ pub(crate) fn loop_termination_diagnostics(
 /// argument words can reference (and the body can update) a variable this
 /// shallow scan never sees — `while {[string length $u] > $rest}` picked
 /// `rest`, a threshold the loop never touches, over `u`, which the body
-/// visibly shrinks each iteration — the module doc's own "intentionally
-/// shallow ... avoiding false positives" stance applied to this shape
+/// visibly shrinks each iteration — so abstaining avoids the false positive
 /// (corpus example: `tcltest.tcl`'s option-usage word-wrapper).
 fn extract_counter_name(cond: &str, grammar: &tcl_dialect::LexerGrammar) -> Option<String> {
     let tokens = tokenise_expr_checked_with_grammar(strip_braces(cond), grammar).0;
@@ -573,37 +1033,6 @@ fn flip_comparison(op: &str) -> &str {
     }
 }
 
-/// `(var, value)` from an init clause `set v INT`.  Parsed via the
-/// segmenter: a lone `set` command with a scalar-name word and a
-/// signed-integer literal.
-fn parse_init_var_value(init: &str, lexer_config: tcl_lexer::LexerConfig) -> Option<(String, i64)> {
-    let cmd = sole_command(init, lexer_config)?;
-    if cmd.name() != "set" {
-        return None;
-    }
-    let args = cmd.args();
-    if args.len() != 2 {
-        return None;
-    }
-    let var = scalar_word(&args[0])?;
-    let value = parse_signed_decimal(&args[1])?;
-    Some((var, value))
-}
-
-/// `(var, delta)` from a step clause `incr v ?INT?`.  Parsed via the
-/// segmenter; a missing delta defaults to `1`.
-fn parse_step_incr(step: &str, lexer_config: tcl_lexer::LexerConfig) -> Option<(String, i64)> {
-    let cmd = sole_command(step, lexer_config)?;
-    if cmd.name() != "incr" {
-        return None;
-    }
-    match cmd.args() {
-        [v] => Some((scalar_word(v)?, 1)),
-        [v, delta] => Some((scalar_word(v)?, parse_signed_decimal(delta)?)),
-        _ => None,
-    }
-}
-
 /// The single command in `fragment` (after stripping an enclosing brace
 /// pair), or `None` when it segments to zero or more than one command.
 fn sole_command(fragment: &str, lexer_config: tcl_lexer::LexerConfig) -> Option<SegmentedCommand> {
@@ -615,16 +1044,6 @@ fn sole_command(fragment: &str, lexer_config: tcl_lexer::LexerConfig) -> Option<
     }
 }
 
-/// A scalar variable name word — non-empty and all `\w` bytes (no array
-/// index, namespace qualifier, or substitution).
-fn scalar_word(word: &str) -> Option<String> {
-    if !word.is_empty() && word.bytes().all(is_word_byte) {
-        Some(word.to_string())
-    } else {
-        None
-    }
-}
-
 /// Parse a signed decimal integer literal (`-?\d+`); `+`-signs and
 /// non-decimal forms are rejected.
 fn parse_signed_decimal(word: &str) -> Option<i64> {
@@ -632,10 +1051,9 @@ fn parse_signed_decimal(word: &str) -> Option<i64> {
     parse_decimal(digits).map(|v| if word.starts_with('-') { -v } else { v })
 }
 
-/// Does `body` write `var` via `set` / `incr` / `lset` / `append` /
-/// `lappend`?  Resolves commands with the segmenter (recursing into
-/// braced/quoted word bodies) rather than a flat-text scan, so writes
-/// inside string arguments don't count and nested-body writes still do.
+/// Walk every command in `script`, descending into each word that may be a
+/// nested script, and return `true` as soon as `pred` matches.  A
+/// shallow-but-structural body scan.
 ///
 /// A write counts only in command position (a `\bset\s+var\b` flat regex
 /// would also match `set var(i)` array writes and matches inside
@@ -647,7 +1065,7 @@ fn body_writes_var(
     registry: BoundsMetadataContext<'_>,
     lexer_config: tcl_lexer::LexerConfig,
 ) -> bool {
-    any_command_recursive(body, lexer_config, &mut |cmd| {
+    any_command_recursive(body, registry, lexer_config, &mut |cmd| {
         writes_first_arg(cmd.name(), registry)
             && cmd.args().first().map(String::as_str) == Some(var)
     })
@@ -673,6 +1091,7 @@ fn writes_first_arg(name: &str, registry: BoundsMetadataContext<'_>) -> bool {
 /// `pred` matches.  A shallow-but-structural body scan.
 fn any_command_recursive(
     script: &str,
+    registry: BoundsMetadataContext<'_>,
     lexer_config: tcl_lexer::LexerConfig,
     pred: &mut impl FnMut(&SegmentedCommand) -> bool,
 ) -> bool {
@@ -680,17 +1099,31 @@ fn any_command_recursive(
         if pred(&cmd) {
             return true;
         }
-        let args = cmd.args();
-        for (i, tok) in cmd.arg_tokens().iter().enumerate() {
-            if tok.kind == TokenType::Str
-                && let Some(inner) = args.get(i)
-                && any_command_recursive(inner, lexer_config, pred)
-            {
+        for inner in script_words(&cmd, registry) {
+            if any_command_recursive(inner, registry, lexer_config, pred) {
                 return true;
             }
         }
     }
     false
+}
+
+/// The words of `cmd` that may be nested scripts: each braced word, and each
+/// word the registry gives a `Body` role however it is written.
+fn script_words<'c>(
+    cmd: &'c SegmentedCommand,
+    registry: BoundsMetadataContext<'_>,
+) -> Vec<&'c str> {
+    let args = cmd.args();
+    let words: Vec<&str> = args.iter().map(String::as_str).collect();
+    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+    let bodies = registry.argument_indices(head, &words, tcl_registry::ArgRole::Body);
+    cmd.arg_tokens()
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| bodies.contains(index))
+        .filter_map(|(index, _)| args.get(index).map(String::as_str))
+        .collect()
 }
 
 /// W230: a constant list literal with a constant out-of-range index
@@ -705,6 +1138,7 @@ pub(crate) fn list_index_diagnostics(
     numbers: tcl_dialect::NumberSyntax,
     rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Vec<Diagnostic> {
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     if !matches!(cmd_name, "lindex" | "lrange" | "lreplace")
         || args.len() < 2
         || arg_tokens.len() < 2
@@ -722,12 +1156,14 @@ pub(crate) fn list_index_diagnostics(
     let length = i64::try_from(crate::tcl_expr_eval::split_tcl_list(&args[0], rules).len())
         .unwrap_or(i64::MAX);
 
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     if cmd_name == "lindex" {
         return lindex_diagnostics(args, arg_tokens, length, numbers);
     }
 
     // lrange / lreplace: a (first, last) pair that resolves to an empty
     // slice.
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     if args.len() < 3 || arg_tokens.len() < 3 || (cmd_name == "lrange" && args.len() != 3) {
         return Vec::new();
     }
@@ -749,6 +1185,7 @@ pub(crate) fn list_index_diagnostics(
     if !pair_slice_empty(lo_index, hi_index, length) {
         return Vec::new();
     }
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     let verb = if cmd_name == "lrange" {
         "lrange slice is empty".to_string()
     } else if lo_index < 0 && hi_index < 0 {
@@ -819,6 +1256,7 @@ pub(crate) fn lset_index_diagnostics(
     lexer_config: tcl_lexer::LexerConfig,
     numbers: tcl_dialect::NumberSyntax,
 ) -> Vec<Diagnostic> {
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     if cmd_name != "lset" || args.len() < 3 || arg_tokens.len() < 3 {
         return Vec::new();
     }
@@ -892,9 +1330,12 @@ pub(crate) fn lset_index_diagnostics(
 ///
 /// Structural, not textual.  The walk segments the document, descends the
 /// braced word that *contains* the `lset` one level at a time, and takes the
-/// length from the last literal assignment to `var_name` in the innermost
-/// script the `lset` shares.  Descending resets the accumulator: a `set` in an
-/// enclosing (or sibling) script is never trusted for a nested `lset`.
+/// value from the last literal assignment to `var_name` in the innermost
+/// script the `lset` shares, carried through every cell update on it whose
+/// resolved route evaluates over literal words (`lappend xs a b c` after
+/// `set xs {}` leaves three elements, #2054).  Descending resets the
+/// accumulator: a `set` in an enclosing (or sibling) script is never trusted
+/// for a nested `lset`; a write the walk cannot evaluate forgets the value.
 ///
 /// What that buys over a byte scan:
 ///
@@ -916,9 +1357,19 @@ fn infer_list_length_from_recent_set(
     if before_offset == 0 || before_offset as usize > source.len() || var_name.is_empty() {
         return None;
     }
+    let length_of = |value: &str| {
+        i64::try_from(
+            crate::tcl_expr_eval::split_tcl_list(
+                value,
+                tcl_syntax::word_rules::WordValueRules::from_config(&lexer_config),
+            )
+            .len(),
+        )
+        .unwrap_or(i64::MAX)
+    };
     let mut script: &str = source;
     let mut base: u32 = 0;
-    let mut best: Option<i64> = None;
+    let mut best: Option<String> = None;
     for _ in 0..MAX_SCOPE_DESCENT.0 {
         best = None;
         let mut inner: Option<(&str, u32)> = None;
@@ -940,17 +1391,24 @@ fn infer_list_length_from_recent_set(
                     .and_then(|tok| super::scope::inner_of(source, *tok));
                 break;
             }
-            if let Some(length) = literal_list_assignment(registry, &cmd, var_name, lexer_config) {
-                best = Some(length);
+            if let Some(value) = literal_list_assignment(registry, &cmd, var_name, lexer_config) {
+                best = Some(value);
+            } else if let Some(write) =
+                cell_update_assignment(registry, &lexer_config, &cmd, var_name, best.as_deref())
+            {
+                best = match write {
+                    CellUpdateWrite::Value(value) => Some(value),
+                    CellUpdateWrite::Unknown => None,
+                };
             } else if writes_the_name(registry, &cmd, var_name) {
-                // A write this scan cannot turn into a fresh literal length —
-                // `lappend`/`append`/`incr`, or a `set` whose value is not one
-                // literal word — invalidates the length recovered from an
-                // earlier literal assignment. Keeping the stale one reported
-                // `set xs {}` as the length at a later `lset xs 2 X`, a W231
-                // "list has 0 elements" on a list that really has three
-                // (#2054). Abstaining matches how the rest of this checker
-                // handles a value it cannot pin down.
+                // Any other write this scan cannot turn into a fresh literal
+                // value — a `set` whose value is not one literal word —
+                // invalidates the value recovered from an earlier literal
+                // assignment. Keeping the stale one reported `set xs {}` as
+                // the length at a later `lset xs 2 X`, a W231 "list has 0
+                // elements" on a list that really has three (#2054).
+                // Abstaining matches how the rest of this checker handles a
+                // value it cannot pin down.
                 best = None;
             }
         }
@@ -959,36 +1417,95 @@ fn infer_list_length_from_recent_set(
                 script = text;
                 base = text_base;
             }
-            None => return best,
+            None => return best.as_deref().map(length_of),
         }
     }
-    best
+    best.map(|value| {
+        i64::try_from(
+            crate::tcl_expr_eval::split_tcl_list(
+                &value,
+                tcl_syntax::word_rules::WordValueRules::from_config(&lexer_config),
+            )
+            .len(),
+        )
+        .unwrap_or(i64::MAX)
+    })
 }
 
-/// Native-stack safety net for [`infer_list_length_from_recent_set`]'s
-/// descent through nested braced bodies.
-const MAX_SCOPE_DESCENT: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
+/// What a cell update leaves in the variable the length walk follows.
+enum CellUpdateWrite {
+    /// The registry's route evaluated the update over its literal words.
+    Value(String),
+    /// The update writes the variable but the walk cannot evaluate it (a
+    /// dynamic word, an unknown prior), so the walk forgets the value.
+    Unknown,
+}
 
-/// The literal list length `cmd` assigns to `var_name`, or `None`.
-///
-/// Registry-driven throughout: which argument is written comes from
-/// [`tcl_registry::ArgRole::VarWrite`] (so `set`, `variable`, and any
-/// spec-declared setter answer alike, and `::set` answers like `set`), and
-/// two trait guards keep the answer honest —
-/// [`tcl_registry::Traits::READS_BEFORE_WRITE`] excludes `append` / `incr` /
-/// `lappend`, whose trailing word is *not* the resulting value, and
-/// [`tcl_registry::Traits::WHOLE_ARRAY_ARG`] excludes `array set`, whose
-/// target is an array rather than a list-valued scalar.
-///
-/// The value must be a single braced word, which is what makes it a literal:
-/// the segmenter has already stripped the delimiter, so the text splits
-/// directly as a Tcl list.
+/// What `cmd` leaves in `var_name` when `cmd` is a cell update on it, the
+/// route evaluating from `current`; `None` when `cmd` does not write
+/// `var_name` at all.
+fn cell_update_assignment(
+    registry: BoundsMetadataContext<'_>,
+    config: &tcl_lexer::LexerConfig,
+    cmd: &SegmentedCommand,
+    var_name: &str,
+    current: Option<&str>,
+) -> Option<CellUpdateWrite> {
+    use tcl_registry::value_transfer::{EvalAnswer, ExactValue, LiteralInputs, StoreOutcome};
+    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+    let args = cmd.args();
+    let (_, target) = crate::value_transfer::resolved_cell_update(registry.commands(), head, args)?;
+    if args.get(target.0).map(String::as_str) != Some(var_name) {
+        return None;
+    }
+    // Every word is one literal token, read as Tcl substitutes it: `append
+    // xs "\tc"` appends a tab, so the list gains an element.
+    let cooked: Option<Vec<std::borrow::Cow<'_, str>>> = args
+        .iter()
+        .enumerate()
+        .map(|(index, text)| {
+            let token = cmd.arg_tokens().get(index)?;
+            if cmd.arg_single_token().get(index) != Some(&true) {
+                return None;
+            }
+            crate::value_transfer::literal_token_value(text, token.kind, config)
+        })
+        .collect();
+    let (Some(current), Some(cooked)) = (current, cooked) else {
+        return Some(CellUpdateWrite::Unknown);
+    };
+    let texts: Vec<&str> = cooked.iter().map(AsRef::as_ref).collect();
+    let spec = registry.spec(head)?;
+    let semantics = tcl_registry::value_transfer::resolve_semantics(spec, None, None);
+    let semantics = semantics.semantics()?;
+    let inputs = LiteralInputs::new(head, None, &texts, registry.commands().profile())
+        .with_prior(var_name, ExactValue::text(current));
+    let value = match semantics.evaluate(
+        &inputs,
+        &mut tcl_registry::value_transfer::Budget::evaluation(),
+    ) {
+        EvalAnswer::Evaluated(outcome) => {
+            outcome
+                .ordered_stores
+                .into_iter()
+                .find_map(|store| match store {
+                    StoreOutcome::Write { target: t, value } if t.0 == target => {
+                        String::from_utf8(value.bytes).ok()
+                    }
+                    _ => None,
+                })
+        }
+        EvalAnswer::Pending | EvalAnswer::Declined(_) => None,
+    };
+    Some(value.map_or(CellUpdateWrite::Unknown, CellUpdateWrite::Value))
+}
+
 /// Whether `cmd` writes `var_name` at all, however it writes it.
 ///
 /// Deliberately weaker than [`literal_list_assignment`]: no
 /// `READS_BEFORE_WRITE` / `WHOLE_ARRAY_ARG` exclusion and no single-literal-word
 /// requirement, because the question here is only "did this command touch the
-/// name", not "what is its new length".
+/// name", not "what is its new value".
 fn writes_the_name(
     registry: BoundsMetadataContext<'_>,
     cmd: &SegmentedCommand,
@@ -1002,13 +1519,30 @@ fn writes_the_name(
         .any(|index| args.get(index) == Some(&var_name))
 }
 
+/// Native-stack safety net for [`infer_list_length_from_recent_set`]'s
+/// descent through nested braced bodies.
+const MAX_SCOPE_DESCENT: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
+
+/// The literal list value `cmd` assigns to `var_name`, or `None`.
+///
+/// Registry-driven throughout: which argument is written comes from
+/// [`tcl_registry::ArgRole::VarWrite`] (so `set`, `variable`, and any
+/// spec-declared setter answer alike, and `::set` answers like `set`), and
+/// two trait guards keep the answer honest —
+/// [`tcl_registry::Traits::READS_BEFORE_WRITE`] excludes `append` / `incr` /
+/// `lappend`, whose trailing word is *not* the resulting value, and
+/// [`tcl_registry::Traits::WHOLE_ARRAY_ARG`] excludes `array set`, whose
+/// target is an array rather than a list-valued scalar.
+///
+/// The value must be a single braced word, which is what makes it a literal:
+/// the segmenter has already stripped the delimiter, so the text splits
+/// directly as a Tcl list.
 fn literal_list_assignment(
     registry: BoundsMetadataContext<'_>,
     cmd: &SegmentedCommand,
     var_name: &str,
     lexer_config: tcl_lexer::LexerConfig,
-) -> Option<i64> {
-    let rules = tcl_syntax::word_rules::WordValueRules::from_config(&lexer_config);
+) -> Option<String> {
     let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
     let spec = registry.spec(head)?;
     if spec.traits.intersects(
@@ -1030,10 +1564,7 @@ fn literal_list_assignment(
     {
         return None;
     }
-    let value = cmd.args().get(value_index)?;
-    Some(
-        i64::try_from(crate::tcl_expr_eval::split_tcl_list(value, rules).len()).unwrap_or(i64::MAX),
-    )
+    cmd.args().get(value_index).cloned()
 }
 
 /// True when a `(first, last)` index pair resolves to a provably-empty
@@ -1059,6 +1590,7 @@ pub(crate) fn string_index_diagnostics(
     arg_tokens: &[Token],
     numbers: tcl_dialect::NumberSyntax,
 ) -> Vec<Diagnostic> {
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     if cmd_name != "string" || args.len() < 2 {
         return Vec::new();
     }
@@ -1091,6 +1623,7 @@ pub(crate) fn string_index_diagnostics(
         i64::try_from(str_text.chars().count()).ok()
     };
 
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     if sub == "index" || sub == "insert" {
         return string_single_index(sub, args, arg_tokens, str_len, numbers);
     }
@@ -1123,6 +1656,7 @@ fn string_single_index(
     }
     // `string insert` clamps other overshoots; only `string index`
     // flags an in-bounds miss.
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     if sub == "index"
         && let Some(len) = str_len
         && let Some(resolved) = resolve_index(stripped, len, numbers)
@@ -1158,6 +1692,7 @@ fn string_pair_index(
     {
         return Vec::new();
     }
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     let verb = if sub == "range" {
         "slice is empty"
     } else {
@@ -1299,15 +1834,17 @@ fn condition_constant(cond: &str) -> Option<bool> {
 /// the loop (`break` / `tailcall` / a `TERMINATES_BLOCK` command such as
 /// `return` / `error` / `exit` / `throw`) — see [`is_loop_exit_command`].
 ///
-/// Resolved via the segmenter (recursing into nested bodies) so only a
-/// command in *command position* counts — a `break` appearing as a bare
-/// argument no longer triggers a false exit.
+/// Resolved via the segmenter (recursing into nested bodies,
+/// [`any_command_recursive`]) so only a command in *command position* counts
+/// — a `break` appearing as a bare argument of a command that does not run
+/// it as a script triggers no false exit, and one an `if` runs as its bare
+/// body is an exit.
 fn body_may_exit(
     body: &str,
     registry: BoundsMetadataContext<'_>,
     lexer_config: tcl_lexer::LexerConfig,
 ) -> bool {
-    any_command_recursive(body, lexer_config, &mut |cmd| {
+    any_command_recursive(body, registry, lexer_config, &mut |cmd| {
         is_loop_exit_command(cmd.name(), registry)
     })
 }
@@ -1346,9 +1883,12 @@ mod tests {
         let config = tcl_lexer::LexerConfig::for_dialect("f5-irules");
         let one = sole_command("cmd {a}{b}", config).expect("one command");
         assert_eq!(one.args().len(), 2, "iRules words: {:?}", one.texts);
-        assert!(any_command_recursive("cmd {a}{b}", config, &mut |cmd| {
-            cmd.args().len() == 2
-        }));
+        assert!(any_command_recursive(
+            "cmd {a}{b}",
+            None,
+            config,
+            &mut |cmd| { cmd.args().len() == 2 }
+        ));
 
         let source = "set xs {a b}\nlset xs 9 v\n";
         let before = u32::try_from(source.find("lset").expect("lset")).expect("offset");
@@ -1398,6 +1938,138 @@ mod tests {
         assert_eq!(codes("while 1 {incr n}\n"), vec!["W241"]);
         // `continue` is NOT an exit — it keeps looping — so W241 still fires.
         assert_eq!(codes("while 1 {continue}\n"), vec!["W241"]);
+    }
+
+    /// Every loop-termination verdict (W240, W241, W242) `src` draws, in
+    /// source order.
+    fn loop_verdicts(src: &str) -> Vec<String> {
+        let mut a = Analyser::new();
+        let mut found: Vec<(u32, String)> = a
+            .analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "W240" | "W241" | "W242"))
+            .map(|d| (d.span.start(), d.code.to_string()))
+            .collect();
+        found.sort();
+        found.into_iter().map(|(_, code)| code).collect()
+    }
+
+    /// W240 and W241 read the loop header's branch fact instead of the
+    /// condition's text: a header the solver decides false at entry is W240,
+    /// one it decides true at every test with no executable exit is W241, and
+    /// either suppresses W242 — where the text alone can say nothing but the
+    /// hint a counter nothing modifies draws. A header it does not decide keeps
+    /// the text's verdict, and an exit anywhere the flow graph or the body's
+    /// text finds keeps a true header silent.
+    #[test]
+    fn w240_and_w241_read_the_branch_fact() {
+        // `n` is 0 at every test and `go` is 1: the branch fact decides.
+        assert_eq!(
+            loop_verdicts("set n 0\nwhile {$n} {puts \"never runs\"}\n"),
+            ["W240"]
+        );
+        assert_eq!(loop_verdicts("set go 1\nwhile {$go} {puts x}\n"), ["W241"]);
+        assert_eq!(
+            loop_verdicts("proc p {} {\n set n 0\n while {$n} {puts x}\n}\n"),
+            ["W240"]
+        );
+        assert_eq!(
+            loop_verdicts("proc p {} {\n set go 1\n while {$go} {puts x}\n}\n"),
+            ["W241"]
+        );
+        // A `for` whose counter never moves is infinite whatever its bound
+        // says; one whose first test fails never runs.
+        assert_eq!(
+            loop_verdicts("for {set i 0} {$i < 10} {} {puts hi}\n"),
+            ["W241"]
+        );
+        assert_eq!(
+            loop_verdicts("for {set i 0} {$i < 0} {incr i} {puts hi}\n"),
+            ["W240"]
+        );
+        // The literal forms decide too, with the text's own message.
+        assert_eq!(loop_verdicts("while 0 {puts hi}\n"), ["W240"]);
+        assert_eq!(loop_verdicts("while 1 {puts hi}\n"), ["W241"]);
+        // An exit the flow graph finds keeps a true header silent: `break`,
+        // `return`, `error`; and so does one it cannot see, inside a `catch`
+        // body the graph does not lower.
+        for body in ["break", "return", "error boom", "catch {break}"] {
+            assert!(
+                loop_verdicts(&format!(
+                    "proc p {{}} {{\n set go 1\n while {{$go}} {{{body}}}\n}}\n"
+                ))
+                .is_empty(),
+                "{body}"
+            );
+        }
+        // Nothing decides a parameter or an unset variable: the text's
+        // verdict stands, W242's hint for a counter nothing modifies.
+        assert_eq!(
+            loop_verdicts("proc p {n} {\n while {$n} {puts x}\n}\n"),
+            ["W242"]
+        );
+        assert_eq!(loop_verdicts("while {$x < 10} {puts hi}\n"), ["W242"]);
+        // A counter the body advances is never proven either way.
+        assert!(loop_verdicts("proc p {} {\n set i 0\n while {$i < 3} {incr i}\n}\n").is_empty());
+    }
+
+    /// A loop's own test decided false names the loop in its I230, beside the
+    /// W240 of a body that never runs; a decided `if` keeps its own wording.
+    #[test]
+    fn a_loop_test_decided_false_names_the_loop() {
+        let i230 = |src: &str| -> Vec<String> {
+            Analyser::new()
+                .analyse(src, "tcl8.6")
+                .diagnostics
+                .into_iter()
+                .filter(|d| d.code == DiagCode::I230)
+                .map(|d| d.message)
+                .collect()
+        };
+        assert_eq!(
+            i230("set n 0\nwhile {$n} {puts never}\n"),
+            ["Loop condition '$n' is never true; the loop leaves at this test"]
+        );
+        assert_eq!(
+            i230("proc p {} {\n for {set i 0} {$i < 0} {incr i} {puts never}\n}\n"),
+            ["Loop condition '$i < 0' is never true; the loop leaves at this test"]
+        );
+        assert_eq!(
+            i230("set n 0\nif {$n} {puts never}\n"),
+            ["Condition '$n' is always false; the alternate branch is unreachable"]
+        );
+    }
+
+    /// A loop inside a proc body reaches the same verdict on the per-item
+    /// path, which walks each body in isolation and grafts the candidates
+    /// back at their real positions.
+    #[test]
+    fn loop_verdicts_agree_across_the_whole_file_and_per_item_walks() {
+        let src = "proc a {} {\n set n 0\n while {$n} {puts x}\n}\n\
+                   proc b {} {\n set go 1\n while {$go} {puts y}\n}\n\
+                   proc c {n} {\n while {$n} {puts z}\n}\n\
+                   set m 0\nwhile {$m} {puts top}\n";
+        let verdicts = |per_item: bool| -> Vec<(u32, String)> {
+            let mut a = Analyser::new();
+            let result = if per_item {
+                a.analyse_per_item(src, "tcl8.6")
+            } else {
+                a.analyse(src, "tcl8.6")
+            };
+            let mut found: Vec<(u32, String)> = result
+                .diagnostics
+                .iter()
+                .filter(|d| matches!(d.code.as_str(), "W240" | "W241" | "W242"))
+                .map(|d| (d.span.start(), d.code.to_string()))
+                .collect();
+            found.sort();
+            found
+        };
+        let whole = verdicts(false);
+        let codes: Vec<&str> = whole.iter().map(|(_, code)| code.as_str()).collect();
+        assert_eq!(codes, ["W240", "W241", "W242", "W240"], "{whole:?}");
+        assert_eq!(verdicts(true), whole);
     }
 
     /// A registry whose loop vocabulary is not Tcl's: `spin` loops, `peek`
@@ -1460,6 +2132,58 @@ mod tests {
         assert_eq!(
             loop_codes("peek 1 {puts hi}", &registry),
             [] as [tcl_core_types::DiagCode; 0]
+        );
+    }
+
+    /// The W240 / W241 codes for `src`, under the catalogue plus the one
+    /// inline `stub` declaration a document states.
+    fn declared_loop_codes(stub: &str, src: &str) -> Vec<DiagCode> {
+        let declared = crate::analyser::utils::document_declared_surface(
+            &format!("# tcl-lsp: stubs-begin\n# tcl-lsp: stub {stub}\n# tcl-lsp: stubs-end\n"),
+            None,
+            "tcl8.6",
+        );
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let surface = tcl_registry::model::DocumentCommandSurface::new(registry, Some(&declared));
+        let command = sole_command(src, config()).expect("one command");
+        let name = command.texts.first().expect("a command word").clone();
+        super::loop_termination_candidate(
+            &name,
+            command.args(),
+            command.arg_tokens(),
+            super::BoundsMetadataContext::Standalone(Some(registry)),
+            Some(&surface),
+            config(),
+            &tcl_dialect::LexerGrammar::default(),
+        )
+        .and_then(|candidate| candidate.lexical_diagnostic())
+        .into_iter()
+        .map(|diagnostic| diagnostic.code)
+        .collect()
+    }
+
+    #[test]
+    fn a_document_declaration_answers_the_loop_question_for_its_name() {
+        // A stub's `-loop` is the `HAS_LOOP_BODY` a pack command states, and
+        // its `cond:expr body:body` words are the shape.
+        let spin = "spin {cond:expr body:body}";
+        assert_eq!(
+            declared_loop_codes(&format!("{spin} -loop"), "spin 1 {puts hi}"),
+            [DiagCode::W241]
+        );
+        assert_eq!(
+            declared_loop_codes(&format!("{spin} -loop"), "spin 0 {puts hi}"),
+            [DiagCode::W240]
+        );
+        assert!(declared_loop_codes(spin, "spin 1 {puts hi}").is_empty());
+        // Nearest wins: a document that redeclares `while` answers for it, so
+        // a declaration stating no loop body is not a loop, and one stating
+        // it is.
+        let redeclared = "while {cond:expr body:body}";
+        assert!(declared_loop_codes(redeclared, "while 1 {puts hi}").is_empty());
+        assert_eq!(
+            declared_loop_codes(&format!("{redeclared} -loop"), "while 1 {puts hi}"),
+            [DiagCode::W241]
         );
     }
 
@@ -1576,29 +2300,97 @@ mod tests {
             super::parse_simple_for_cond("$ns::v < 5", &tcl_dialect::LexerGrammar::default()),
             None
         );
+    }
+
+    /// A step is what the registry's integer cell update adds, run by its
+    /// route over literal words from 0: no command is read by its spelling.
+    #[test]
+    fn the_step_runs_its_route() {
+        let registry = super::default_registry();
+        let step = |text: &str| {
+            let cmd = sole_command(text, config()).expect("one command");
+            super::command_increment(
+                &cmd,
+                "i",
+                super::BoundsMetadataContext::Standalone(Some(registry)),
+                config(),
+            )
+        };
+        assert_eq!(step("incr i"), Some(1));
+        assert_eq!(step("incr i -2"), Some(-2));
+        assert_eq!(step("::incr i 3"), Some(3));
+        assert_eq!(step("set i 3"), None);
+        assert_eq!(step("incr j"), None);
+        assert_eq!(step("incr i $n"), None);
+        assert_eq!(step("append i 1"), None);
+    }
+
+    /// W241 seeds a loop's counter from its iteration plan's bound and step,
+    /// and from the integer the solver proves it starts at, so a counter
+    /// started from a variable is checked as one started from a literal is:
+    /// `set start 5` then `for {set i $start} {$i < 10} {incr i -1} {}`
+    /// never reaches 10, nor does the same counter in a `while` whose body's
+    /// one increment moves it away. A start the unit does not prove, a
+    /// counter that reaches its bound, a second write of the counter, an
+    /// increment that does not run on every pass, and a body that can leave
+    /// the loop — here by a `break` written bare, which the body scan reads
+    /// as the script it is (#2381) — each keep the loop silent; so do a
+    /// write a `[…]` word makes, a binder, and a call to a command the file
+    /// does not define, each of which the unit holding the loop knows may
+    /// write the counter.
+    #[test]
+    fn w240_seeds_from_the_iteration_plan() {
+        for src in [
+            "set start 5\nfor {set i $start} {$i < 10} {incr i -1} {}\n",
+            "set start 5\nset i $start\nwhile {$i < 10} {incr i -1}\n",
+            "set i 5\nwhile {$i < 10} {puts $i; incr i -1}\n",
+            "proc p {} {\n set n 3\n for {set i $n} {$i != 10} {incr i 2} {}\n}\n",
+        ] {
+            assert_verdicts(src, &["W241"]);
+        }
+        for src in [
+            "proc p {start} {\n set i $start\n while {$i < 10} {incr i}\n}\n",
+            "proc p {start} {\n for {set i $start} {$i < 10} {incr i -1} {}\n}\n",
+            "set start 5\nset i $start\nwhile {$i < 10} {incr i}\n",
+            "set i 5\nwhile {$i < 10} {incr i -1; if {$i < 0} {set i 20}}\n",
+            "set i 5\nwhile {$i < 10} {incr i -1; incr i -1}\n",
+            "set i 5\nwhile {$i < 10} {if {[gets stdin] eq {x}} {incr i -1}}\n",
+            "set i 5\nwhile {$i < 10} {if {$i < 0} break; incr i -1}\n",
+            "set i 5\nwhile {$i < 10} {incr i -1; set j [incr i 20]}\n",
+            "set i 5\nwhile {$i < 10} {incr i -1; foreach i {100} {}}\n",
+            "set i 5\nwhile {$i < 10} {incr i -1; foo i}\n",
+        ] {
+            assert_verdicts(src, &[]);
+        }
+        let mut analyser = Analyser::new();
+        let messages: Vec<String> = analyser
+            .analyse(
+                "set start 5\nset i $start\nwhile {$i < 10} {incr i -1}\n",
+                "tcl8.6",
+            )
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.as_str() == "W241")
+            .map(|d| d.message.clone())
+            .collect();
         assert_eq!(
-            super::parse_init_var_value("set i 5", config()),
-            Some(("i".into(), 5))
+            messages,
+            [
+                "while loop is provably infinite: counter $i starts at 5, moves by -1 per step, \
+              and compares < 10 (never reached)"
+            ]
         );
-        // A non-`set` command, extra words, or a non-integer value reject.
-        assert_eq!(super::parse_init_var_value("incr i 5", config()), None);
-        assert_eq!(super::parse_init_var_value("set i 5 6", config()), None);
-        assert_eq!(super::parse_init_var_value("set i foo", config()), None);
-        assert_eq!(
-            super::parse_step_incr("incr i", config()),
-            Some(("i".into(), 1))
-        );
-        assert_eq!(
-            super::parse_step_incr("incr i -2", config()),
-            Some(("i".into(), -2))
-        );
-        assert_eq!(super::parse_step_incr("set i 3", config()), None);
     }
 
     #[test]
     fn body_scans_are_command_structural() {
         // A write counts only in command position, not inside a string.
-        assert!(super::body_writes_var("incr i", "i", super::BoundsMetadataContext::Standalone(None), config()));
+        assert!(super::body_writes_var(
+            "incr i",
+            "i",
+            super::BoundsMetadataContext::Standalone(None),
+            config()
+        ));
         assert!(super::body_writes_var(
             "if {$c} {set i 9}",
             "i",
@@ -1611,12 +2403,21 @@ mod tests {
             super::BoundsMetadataContext::Standalone(None),
             config()
         )); // inside a string
-        assert!(!super::body_writes_var("incr index", "i", super::BoundsMetadataContext::Standalone(None), config())); // word boundary
+        assert!(!super::body_writes_var(
+            "incr index",
+            "i",
+            super::BoundsMetadataContext::Standalone(None),
+            config()
+        )); // word boundary
         // `break` / `return` / `throw` / `tailcall` likewise count only as
         // commands. `return`/`throw` resolve via the registry's
         // TERMINATES_BLOCK trait; `break`/`tailcall` are recognised without it.
         let reg = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        assert!(super::body_may_exit("break", super::BoundsMetadataContext::Standalone(Some(reg)), config()));
+        assert!(super::body_may_exit(
+            "break",
+            super::BoundsMetadataContext::Standalone(Some(reg)),
+            config()
+        ));
         assert!(super::body_may_exit(
             "if {$c} {return}",
             super::BoundsMetadataContext::Standalone(Some(reg)),
@@ -1627,11 +2428,56 @@ mod tests {
             super::BoundsMetadataContext::Standalone(Some(reg)),
             config()
         )); // now covered
-        assert!(super::body_may_exit("tailcall foo", super::BoundsMetadataContext::Standalone(Some(reg)), config()));
-        assert!(!super::body_may_exit("puts breakfast", super::BoundsMetadataContext::Standalone(Some(reg)), config())); // not a command
+        assert!(super::body_may_exit(
+            "tailcall foo",
+            super::BoundsMetadataContext::Standalone(Some(reg)),
+            config()
+        ));
+        assert!(!super::body_may_exit(
+            "puts breakfast",
+            super::BoundsMetadataContext::Standalone(Some(reg)),
+            config()
+        )); // not a command
         // `break`/`tailcall` are recognised even without a registry handle.
-        assert!(super::body_may_exit("break", super::BoundsMetadataContext::Standalone(None), config()));
-        assert!(super::body_may_exit("tailcall foo", super::BoundsMetadataContext::Standalone(None), config()));
+        assert!(super::body_may_exit(
+            "break",
+            super::BoundsMetadataContext::Standalone(None),
+            config()
+        ));
+        assert!(super::body_may_exit(
+            "tailcall foo",
+            super::BoundsMetadataContext::Standalone(None),
+            config()
+        ));
+        // A word the registry names a body is a script however it is
+        // written: `if` runs a bare or a quoted body as `{…}`, so the exit
+        // inside one counts (#2381). The same word as another command's
+        // data is no script.
+        assert!(super::body_may_exit(
+            "if {$c} break",
+            super::BoundsMetadataContext::Standalone(Some(reg)),
+            config()
+        ));
+        assert!(super::body_may_exit(
+            "if {$c} \"break\"",
+            super::BoundsMetadataContext::Standalone(Some(reg)),
+            config()
+        ));
+        assert!(super::body_may_exit(
+            "if {$c} {puts x} else return",
+            super::BoundsMetadataContext::Standalone(Some(reg)),
+            config()
+        ));
+        assert!(super::body_may_exit(
+            "if {$c} break",
+            super::BoundsMetadataContext::Standalone(None),
+            config()
+        ));
+        assert!(!super::body_may_exit(
+            "puts break",
+            super::BoundsMetadataContext::Standalone(Some(reg)),
+            config()
+        ));
     }
 
     fn idx_codes_for(src: &str, dialect: &str) -> Vec<String> {
@@ -1716,6 +2562,57 @@ mod tests {
         assert_eq!(
             idx_codes("lrange {a b c} 0 1\n"),
             [] as [std::string::String; 0]
+        );
+    }
+
+    /// The length W231 checks against is the list's value after every cell
+    /// update on it the walk can evaluate: `lappend xs a b c` after `set xs
+    /// {}` leaves three elements (#2054).
+    #[test]
+    fn w231_length_follows_the_cell_updates() {
+        assert!(code_msgs("set xs {}\nlappend xs a b c\nlset xs 2 X\n", "W231").is_empty());
+        let m = code_msgs("set xs {}\nlappend xs a b c\nlset xs 5 Y\n", "W231");
+        assert_eq!(m.len(), 1, "{m:?}");
+        assert!(m[0].contains("(list has 3 elements)"), "{}", m[0]);
+        assert!(
+            code_msgs(
+                "set xs {}\nlappend xs a\nlappend xs {b c} d\nlset xs 3 X\n",
+                "W231"
+            )
+            .is_empty()
+        );
+        let m = code_msgs(
+            "set xs {}\nlappend xs a\nlappend xs {b c} d\nlset xs 4 X\n",
+            "W231",
+        );
+        assert!(
+            m.len() == 1 && m[0].contains("(list has 3 elements)"),
+            "{m:?}"
+        );
+        // A write the walk cannot evaluate forgets the length rather than
+        // reporting against a stale one.
+        assert!(code_msgs("set xs {a b}\nlappend xs $v\nlset xs 9 X\n", "W231").is_empty());
+        assert!(code_msgs("set xs {a b}\nappend xs $v\nlset xs 9 X\n", "W231").is_empty());
+        // A string append changes the list too: `a b` then `append xs c`
+        // is `a bc`, two elements.
+        let m = code_msgs("set xs {a b}\nappend xs c\nlset xs 5 X\n", "W231");
+        assert!(
+            m.len() == 1 && m[0].contains("(list has 2 elements)"),
+            "{m:?}"
+        );
+    }
+
+    /// The walk reads a literal word as Tcl substitutes it: `append xs
+    /// "\tc"` appends a tab, so `a b<tab>c` has three elements (tclsh 8.6
+    /// to 9.1 extend it with `lset xs 3 X` and print `a b c X`). Read raw,
+    /// the list had two elements, and W231 reported a raise at index 3.
+    #[test]
+    fn w231_reads_an_appended_escape_as_tcl_substitutes_it() {
+        assert!(code_msgs("set xs {a b}\nappend xs \"\\tc\"\nlset xs 2 X\n", "W231").is_empty());
+        let m = code_msgs("set xs {a b}\nappend xs \"\\tc\"\nlset xs 5 X\n", "W231");
+        assert!(
+            m.len() == 1 && m[0].contains("(list has 3 elements)"),
+            "{m:?}"
         );
     }
 
@@ -1906,9 +2803,10 @@ mod tests {
             m[0].contains("variable 'x' in the condition is never modified"),
             "{m:?}"
         );
-        // `for` with an empty step and a body that ignores the counter.
+        // `for` with an empty step and a body that ignores the counter, over a
+        // bound nothing proves: the condition does not decide.
         assert_eq!(
-            code_msgs("for {set i 0} {$i < 10} {} {puts hi}\n", "W242").len(),
+            code_msgs("for {set i 0} {$i < $n} {} {puts hi}\n", "W242").len(),
             1
         );
     }
@@ -2130,10 +3028,260 @@ mod tests {
         );
         let no_tcl = no_tcl.with_command_store(std::sync::Arc::clone(current.commands()));
         assert!(
-            super::loop_shape("while", super::BoundsMetadataContext::Retained(&no_tcl)).is_none()
+            super::loop_shape(
+                "while",
+                &[],
+                super::BoundsMetadataContext::Retained(&no_tcl),
+                None
+            )
+            .is_none()
         );
         assert!(
-            super::loop_shape("while", super::BoundsMetadataContext::Standalone(None)).is_some()
+            super::loop_shape(
+                "while",
+                &[],
+                super::BoundsMetadataContext::Standalone(None),
+                None
+            )
+            .is_some()
         );
+    }
+
+    /// The loop-termination verdicts (W240, W241, W242) `src` draws on the
+    /// whole-file walk and on the per-item walk, each in source order.
+    fn verdicts_on_both_paths(src: &str) -> (Vec<String>, Vec<String>) {
+        let verdicts = |per_item: bool| -> Vec<String> {
+            let mut a = Analyser::new();
+            let result = if per_item {
+                a.analyse_per_item(src, "tcl8.6")
+            } else {
+                a.analyse(src, "tcl8.6")
+            };
+            let mut found: Vec<(u32, String)> = result
+                .diagnostics
+                .iter()
+                .filter(|d| matches!(d.code.as_str(), "W240" | "W241" | "W242"))
+                .map(|d| (d.span.start(), d.code.to_string()))
+                .collect();
+            found.sort();
+            found.into_iter().map(|(_, code)| code).collect()
+        };
+        (verdicts(false), verdicts(true))
+    }
+
+    /// `src` draws exactly `expected` on both paths.
+    fn assert_verdicts(src: &str, expected: &[&str]) {
+        let (whole, per_item) = verdicts_on_both_paths(src);
+        assert_eq!(whole, expected, "whole file: {src}");
+        assert_eq!(per_item, expected, "per item: {src}");
+    }
+
+    /// `src` draws neither W240 nor W241 on either path: the header is left
+    /// undecided, and the text may still draw W242's hint that nothing in the
+    /// loop modifies its counter.
+    fn assert_undecided(src: &str) {
+        let (whole, per_item) = verdicts_on_both_paths(src);
+        for (path, found) in [("whole file", &whole), ("per item", &per_item)] {
+            assert!(
+                found.iter().all(|code| code == "W242"),
+                "{path}: {src}\n{found:?}"
+            );
+        }
+        assert_eq!(per_item, whole, "{src}");
+    }
+
+    /// A `switch` the flow graph keeps as one statement — `-glob`, `-regexp`,
+    /// `-nocase`, a fall-through arm, `case` — defines every name its arms
+    /// write, so a loop an arm can end is no infinite loop. tclsh 8.4 to 9.1
+    /// with input `q`: `set go 1; while {$go} { switch -glob -- [gets stdin]
+    /// { q* { set go 0 } } }; puts done` prints `done`.
+    #[test]
+    fn a_switch_arm_that_ends_the_loop_keeps_w241_silent() {
+        for src in [
+            "set go 1; while {$go} { switch -glob -- [gets stdin] { q* { set go 0 } } }; puts done\n",
+            "set go 1\nwhile {$go} {\n switch -nocase -- [gets stdin] {\n  q { set go 0 }\n }\n}\n",
+            "set go 1\nwhile {$go} {\n switch -regexp -- [gets stdin] {\n  {^q} { set go 0 }\n }\n}\n",
+            "set go 1\nwhile {$go} {\n switch -glob -- [gets stdin] {\n  x - q* { set go 0 }\n }\n}\n",
+            "set go 1\nwhile {$go} {\n switch -glob -- [gets stdin] {\n  a* {}\n  default { set go 0 }\n }\n}\n",
+            "set go 1\nwhile {$go} {\n case [gets stdin] in {\n  q* { set go 0 }\n }\n}\n",
+            "set go 1\nfor {} {$go} {} {\n switch -glob -- [gets stdin] { q* { set go 0 } }\n}\n",
+            "proc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { set go 0 } }\n }\n}\n",
+            // A write buried in a command the arm runs, and each kind of write.
+            "set go 1\nwhile {$go} {\n switch -glob -- [gets stdin] { q* { if {[llength {a}]} { set go 0 } } }\n}\n",
+            "set n 3\nwhile {$n} {\n switch -glob -- [gets stdin] { q* { incr n -1 } }\n}\n",
+            "set l {}\nwhile {[llength $l] < 1} {\n switch -glob -- [gets stdin] { q* { lappend l x } }\n}\n",
+            "set go 1\nwhile {[info exists go]} {\n switch -glob -- [gets stdin] { q* { unset go } }\n}\n",
+            // A `global` binding an arm makes, then writes through.
+            "proc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { global go; set go 0 } }\n }\n}\n",
+        ] {
+            assert_verdicts(src, &[]);
+        }
+    }
+
+    /// What a command an arm runs does to the frame ends the loop as a write
+    /// the arm makes itself would: a callee that writes the caller's name
+    /// through `upvar`, and a command that may write any name (`namespace
+    /// eval`, `dict with`). A callee that writes only a global leaves a local
+    /// loop alone.
+    #[test]
+    fn a_command_an_arm_runs_that_ends_the_loop_keeps_w241_silent() {
+        for src in [
+            "proc zero {v} {upvar 1 $v x; set x 0}\nproc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { zero go } }\n }\n}\n",
+            "proc zero {v} {upvar 1 $v x; set x 0}\nset go 1\nwhile {$go} {\n switch -glob -- [gets stdin] { q* { zero go } }\n}\n",
+            "set go 1\nwhile {$go} {\n switch -glob -- [gets stdin] { q* { namespace eval :: {set go 0} } }\n}\n",
+            "proc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { dict with d { set go 0 } } }\n }\n}\n",
+        ] {
+            assert_undecided(src);
+        }
+        assert_verdicts(
+            "proc hit {} {global hits; incr hits}\nproc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { hit } }\n }\n}\n",
+            &["W241"],
+        );
+    }
+
+    /// The same statement leaves a loop no arm writes for alone: only a name
+    /// an arm writes stops being decided.
+    #[test]
+    fn a_switch_arm_that_writes_another_name_leaves_the_verdict() {
+        assert_verdicts(
+            "set go 1\nwhile {$go} {\n switch -glob -- [gets stdin] { q* { set other 0 } }\n}\n",
+            &["W241"],
+        );
+        assert_verdicts(
+            "proc p {} {\n set go 1\n while {$go} {\n  switch -glob -- [gets stdin] { q* { set other 0 } }\n }\n}\n",
+            &["W241"],
+        );
+    }
+
+    /// A loop nothing else sets is dead until an arm sets it: no W240 for
+    /// `set go 0; switch -glob -- [gets stdin] { q* { set go 1 } }; while
+    /// {$go} { … }`, which tclsh runs once for input `q`.
+    #[test]
+    fn a_switch_arm_that_starts_the_loop_keeps_w240_silent() {
+        for src in [
+            "set go 0\nswitch -glob -- [gets stdin] { q* { set go 1 } }\nwhile {$go} { puts x; set go 0 }\n",
+            "set go 0\nswitch -glob -- [gets stdin] { q* { set go 1 } }\nfor {} {$go} {} { puts x; set go 0 }\n",
+            "proc p {} {\n set go 0\n switch -glob -- [gets stdin] { q* { set go 1 } }\n while {$go} { puts x; set go 0 }\n}\n",
+        ] {
+            assert_verdicts(src, &[]);
+        }
+        assert_verdicts(
+            "set n 0\nswitch -glob -- [gets stdin] { q* { set other 1 } }\nwhile {$n} {puts x}\n",
+            &["W240"],
+        );
+    }
+
+    /// A callback script the module stores writes the loop's variable
+    /// without any statement of the loop saying so: `after`, `after idle`, a
+    /// variable trace, `fileevent`, `chan event`, `bind`, and a callback that
+    /// names a procedure writing the name through `::`.
+    #[test]
+    fn a_callback_that_writes_the_loop_variable_keeps_w241_silent() {
+        for src in [
+            "set done 0\nafter 100 { set done 1 }\nwhile {!$done} { update }\n",
+            "set go 1\nafter idle {set ::go 0}\nwhile {$go} {update}\n",
+            "set go 1\ntrace add variable x write { set ::go 0 ;# }\nwhile {$go} { set x 1 }\nputs done\n",
+            "set go 1\nfileevent stdin readable { set go 0 }\nwhile {$go} { update }\n",
+            "set go 1\nchan event stdin readable { set go 0 }\nwhile {$go} { update }\n",
+            "set go 1\nbind . <Key> { set go 0 }\nwhile {$go} { update }\n",
+            "proc tick {} { set ::done 1 }\nset done 0\nafter 100 tick\nwhile {!$done} { update }\n",
+            // A quoted script, and a command prefix built with `list`.
+            "set done 0\nafter 100 \"set done 1\"\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 [list set done 1]\nwhile {!$done} { update }\n",
+            "proc tick {n} { set ::done $n }\nset done 0\nafter 100 [list tick 1]\nwhile {!$done} { update }\n",
+        ] {
+            assert_undecided(src);
+        }
+    }
+
+    /// A plain top-level name is the global name, so a call to a command the
+    /// module cannot see may end the loop as it may one over `::go`, and so may
+    /// such a call over a procedure's local, which an autoloaded or
+    /// unknown-handled callee reaches with `upvar 1` (tclsh 8.4 to 9.1 end
+    /// `while {$go} {stopper}` where `auto_index(stopper)` defines `stopper`
+    /// as `upvar 1 go go; set go 0`). A procedure the module defines writes no
+    /// global.
+    #[test]
+    fn a_call_the_module_cannot_see_keeps_a_loop_silent() {
+        assert_undecided("set go 1\nwhile {$go} { foo }\n");
+        assert_undecided("set ::go 1\nwhile {$::go} { foo }\n");
+        assert_undecided("proc p {} {\n set go 1\n while {$go} { foo }\n}\n");
+        // A sourced file runs in the frame of the call, a procedure's too.
+        assert_undecided("set go 1\nwhile {$go} { source other.tcl }\n");
+        assert_undecided("proc p {} {\n set go 1\n while {$go} { source other.tcl }\n}\n");
+        assert_verdicts(
+            "proc foo {} { puts hi }\nset go 1\nwhile {$go} { foo }\n",
+            &["W241"],
+        );
+    }
+
+    /// A command the module cannot see inside the body of a `catch` the flow
+    /// graph keeps as one statement runs as one outside it does, and a
+    /// computed head is a command the module cannot see: either may end the
+    /// loop as a write to `::go` does, or to a procedure's local through
+    /// `upvar 1`. A procedure the module defines is seen, and a body that
+    /// writes another name leaves the verdict.
+    #[test]
+    fn a_catch_body_or_a_computed_head_the_module_cannot_see_keeps_a_loop_silent() {
+        for src in [
+            "set go 1\ncatch {foo}\nwhile {$go} {puts x}\n",
+            "set go 1\ncatch {foo} msg\nwhile {$go} {puts x}\n",
+            "set go 1\ncatch {if {1} {foo}}\nwhile {$go} {puts x}\n",
+            "set go 1\ncatch {puts [foo]}\nwhile {$go} {puts x}\n",
+            "set go 1\ncatch {source other.tcl}\nwhile {$go} {puts x}\n",
+            "set go 1\nif {[catch {foo}]} {puts bad}\nwhile {$go} {puts x}\n",
+            "set go 1\nset rc [catch {foo} msg]\nwhile {$go} {puts x}\n",
+            "set go 1\nwhile {$go} { if {[catch {foo}]} {puts bad} }\n",
+            "set go 1\ncatch { namespace eval :: {set go 0} }\nwhile {$go} {puts x}\n",
+            "set go 1\ncatch { if {[gets stdin] eq {q}} { set go 0 } }\nwhile {$go} {puts x}\n",
+            "set go 1\n$cmd\nwhile {$go} {puts x}\n",
+            "set go 1\nputs [$cmd]\nwhile {$go} {puts x}\n",
+            "set go 1\nwhile {$go} { $cmd }\n",
+            "proc p {} {\n set go 1\n catch { if {1} { source other.tcl } }\n while {$go} {puts x}\n}\n",
+            "proc p {} {\n set go 1\n catch { if {1} { foo } }\n while {$go} {puts x}\n}\n",
+            "proc p {} {\n set go 1\n $cmd\n while {$go} {puts x}\n}\n",
+            "proc p {} {\n set go 1\n if {[catch {foo}]} {puts bad}\n while {$go} {puts x}\n}\n",
+        ] {
+            assert_undecided(src);
+        }
+        for src in [
+            "proc foo {} { puts hi }\nset go 1\ncatch { if {1} { foo } }\nwhile {$go} {puts x}\n",
+            "set go 1\ncatch { if {[gets stdin] eq {q}} { set other 0 } }\nwhile {$go} {puts x}\n",
+        ] {
+            assert_verdicts(src, &["W241"]);
+        }
+    }
+
+    /// A callback the scan cannot read may write the loop's variable, so it
+    /// ends no verdict it could have drawn: a script spelled as several words
+    /// is read as the one they make, and a word the run time computes, a
+    /// substitution of any other command, an expansion and a command the module
+    /// cannot see are not. A callback that is only cancelled, or stores a
+    /// script that writes another name, leaves the loop alone.
+    #[test]
+    fn a_callback_the_scan_cannot_read_keeps_w241_silent() {
+        for src in [
+            "set done 0\nafter 100 set done 1\nwhile {!$done} { update }\n",
+            "set done 0\nafter idle set done 1\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 incr done\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 $script\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 finish\nwhile {!$done} { update }\n",
+            "set done 0\ninterp alias {} fin {} set done 1\nafter 100 fin\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 {*}[list set done 1]\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 [build]\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 {finish now}\nwhile {!$done} { update }\n",
+            "proc p {} {\n set done 0\n after 100 $script\n while {!$done} { update }\n}\n",
+        ] {
+            assert_undecided(src);
+        }
+        for src in [
+            "set done 0\nafter cancel {set done 1}\nwhile {!$done} { update }\n",
+            "set done 0\nafter cancel $id\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 {puts hi}\nwhile {!$done} { update }\n",
+            "set done 0\nafter 100 set other 1\nwhile {!$done} { update }\n",
+            "proc tick {} { puts hi }\nset done 0\nafter 100 tick\nwhile {!$done} { update }\n",
+        ] {
+            assert_verdicts(src, &["W241"]);
+        }
     }
 }

@@ -26,8 +26,10 @@
 //! Each handler matches the [`BuiltinFn`](crate::interp::BuiltinFn) shape:
 //! `argv[0]` is the command name (Tcl's `objv` convention).
 
+use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
+
 use crate::frame::VarError;
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, obj_bytes};
 // The transient `1` of a tower `incr` is the only fresh object left to drop
 // by hand; every other path now stores through `store_var_result`.
 use crate::interp::drop_fresh;
@@ -111,6 +113,78 @@ fn install_for_bootstrap(
     // Register the spec-backed string implementation after the ordinary
     // startup sweep so its derived intrinsic identities remain attested.
     crate::cmd_string::install(interp);
+    // With the handler table complete, attach the registry's identities to the
+    // builtins in it.
+    interp.attach_identities();
+}
+
+/// Commands that only a build with the numeric tower registers: `expr`, the
+/// expression-driven control commands, `lseq`, and the `::tcl::mathop::*` and
+/// `::tcl::mathfunc::*` families. A build without the tower registers none of
+/// them and reports them as needing it
+/// ([`tcl_runtime_api::RegisteredBacking::NeedsNumericTower`]), so a consumer
+/// of the backing report reads one answer for the registration surface whether
+/// or not libtommath was available when the runtime was built. Names are
+/// without a leading `::`.
+#[cfg(any(not(have_tommath), test))]
+pub(crate) fn tower_command_names() -> Vec<String> {
+    let mut names: Vec<String> = ["expr", "if", "while", "for", "lseq"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    names.extend(
+        mathop_names()
+            .into_iter()
+            .map(|op| format!("tcl::mathop::{op}")),
+    );
+    names.extend(
+        mathfunc_names()
+            .into_iter()
+            .map(|name| format!("tcl::mathfunc::{name}")),
+    );
+    names
+}
+
+/// Every operator spelling with a `::tcl::mathop` command form — derived from
+/// `tcl_syntax::expr::operators`, the single source of truth for which
+/// operators exist and whether they have a mathop command form at all,
+/// rather than a hand-typed list that could silently drift from the
+/// operator grammar it mirrors.
+///
+/// `BinOp`/`UnaryOp` share a spelling for `-`/`+` (`Sub`/`Neg`, `Add`/`Pos`) —
+/// one command handles both the fold and the single-argument reading, so the
+/// binary pass alone already covers them; the unary pass only contributes
+/// truly unary-only spellings (`~`, `!`).
+pub(crate) fn mathop_names() -> Vec<&'static str> {
+    let mut names: Vec<&'static str> = ALL_BIN_OPS
+        .iter()
+        .filter_map(|op| op.spec().mathop_shape.map(|_| op.spec().spelling))
+        .collect();
+    for op in ALL_UNARY_OPS {
+        if op.spec().mathop_shape.is_some() {
+            let spelling = op.spec().spelling;
+            if !names.contains(&spelling) {
+                names.push(spelling);
+            }
+        }
+    }
+    names
+}
+
+/// Every math function name — registered as `::tcl::mathfunc::<name>`. Most
+/// forward to the shared [`dispatch`]; `rand`/`srand` are handled inline
+/// (interp state).
+///
+/// Derived from `tcl_syntax::expr::mathfunc::all()` rather than a hand-typed
+/// list, so this loop cannot drift out of sync with `dispatch()` (the
+/// function it wires every one of these names up to): a function
+/// `dispatch()` implements but a stale hand-typed list omitted would report
+/// "invalid command name" instead of dispatching.
+pub(crate) fn mathfunc_names() -> Vec<&'static str> {
+    tcl_syntax::expr::mathfunc::all()
+        .into_iter()
+        .map(|spec| spec.name)
+        .collect()
 }
 
 /// Report a store through an already split array reference. This display name
@@ -149,6 +223,9 @@ pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
             .unwrap_or_default();
         return interp.var_trace_error(name, b"write", &reason);
     }
+    if e == VarError::Confined {
+        return interp.confined_store_error(name);
+    }
     let verb = match e {
         VarError::NameProtocolUnavailable => unreachable!("host refusal handled above"),
         VarError::IsArray => &b"\": variable is array"[..],
@@ -157,7 +234,7 @@ pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
         VarError::DeletedArray => &b"\": upvar refers to element in deleted array"[..],
         VarError::NoSuchNamespace => &b"\": parent namespace doesn't exist"[..],
         VarError::IsConstant => &b"\": variable is a constant"[..],
-        VarError::TraceError => unreachable!("handled above"),
+        VarError::TraceError | VarError::Confined => unreachable!("handled above"),
     };
     let mut msg = b"can't set \"".to_vec();
     msg.extend_from_slice(name);
@@ -494,7 +571,7 @@ fn exit_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// ?-options dict? ?result?` — complete with `-code` after unwinding `-level`
 /// proc/source boundaries (`Tcl_ReturnObjCmd`). A `-options` dict (as produced
 /// by `catch`) seeds the options; explicit flags override it.
-fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+pub(crate) fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     crate::return_options::command(interp, &argv[1..])
 }
 
@@ -564,6 +641,9 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Ok(parts) => parts,
             Err(error) => return var_error(interp, &name, error),
         };
+        if interp.store_escapes(&base) {
+            return interp.confined_unset_error(&name);
+        }
         // A constant cannot be unset; `-nocomplain` leaves it in place silently
         // (var-26.11/26.12), otherwise it is an error.
         if elem.is_none() && interp.is_constant(&base) {
@@ -1576,12 +1656,14 @@ mod tests {
                 .expect("explicit logical parsing");
             let dialect = interp.native_invocation_dialect();
             assert!(crate::expr::cached_expr(object.as_ptr(), dialect, None).is_none());
-            assert!(crate::expr::cached_expr(
-                object.as_ptr(),
-                dialect,
-                interp.logical_expression_parse_policy()
-            )
-            .is_some());
+            assert!(
+                crate::expr::cached_expr(
+                    object.as_ptr(),
+                    dialect,
+                    interp.logical_expression_parse_policy()
+                )
+                .is_some()
+            );
             assert_eq!(crate::interp::obj_bytes(object.as_ptr()), b"{\xff\0tail}");
             assert!(dialect.execution_point().is_none());
         });
@@ -1630,9 +1712,11 @@ mod tests {
                 &reparsed,
                 &crate::expr::cached_expr(pointer, dialect, current_policy).unwrap(),
             ));
-            assert!(interp
-                .native_compiler_cache_epochs(crate::namespace::GLOBAL)
-                .is_none());
+            assert!(
+                interp
+                    .native_compiler_cache_epochs(crate::namespace::GLOBAL)
+                    .is_none()
+            );
         });
     }
 
@@ -1656,12 +1740,14 @@ mod tests {
             super::parse_runtime_expr_cached(interp, Some(object.as_ptr()), b"IGNORED")
                 .expect("actual host byte-array materialisation and logical syntax");
             assert_eq!(crate::obj::bytes_of(object.as_ptr()), b"1+2");
-            assert!(crate::expr::cached_expr(
-                object.as_ptr(),
-                interp.native_invocation_dialect(),
-                interp.logical_expression_parse_policy()
-            )
-            .is_some());
+            assert!(
+                crate::expr::cached_expr(
+                    object.as_ptr(),
+                    interp.native_invocation_dialect(),
+                    interp.logical_expression_parse_policy()
+                )
+                .is_some()
+            );
         });
     }
 
@@ -1871,10 +1957,12 @@ mod tests {
                 interp.do_expression_subst(br"\u0000", false),
                 Ok(vec![0xc0, 0x80])
             );
-            assert!(interp
-                .native_invocation_dialect()
-                .execution_point()
-                .is_none());
+            assert!(
+                interp
+                    .native_invocation_dialect()
+                    .execution_point()
+                    .is_none()
+            );
         });
     }
 

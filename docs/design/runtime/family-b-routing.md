@@ -329,7 +329,53 @@ rung. `append` concatenates those bytes; it does not request a Unicode view.
 native representations. `binary` uses the same byte rung while keeping native
 string-to-byte conversion separate from an existing byte-array payload.
 
+### Intrinsic families
+
+The registry classifies each of its 34 `IntrinsicId` members by the state a
+fast path may reach (`IntrinsicId::family` in
+`rust/tcl-registry/src/intrinsic.rs`). A guard request must cover the selected
+member's domain.
+
+- **`Value`** (15) — `llength`, `lindex`, `lrange`, `lreplace`, `linsert`,
+  `list`, `concat`, `dict get`, the `string` functions `index`, `range`,
+  `equal`, `compare`, `replace` and `length`, and `ProcedureNoOp`. The
+  procedure member requires its independent original empty-procedure
+  admission; a value-family classification does not establish that admission.
+- **`FamilyB`** (19) — fourteen variable or channel members retain the
+  `VariableTrace` domain: `lassign`, `lset`, the `dict` updates (`set`,
+  `unset`, `incr`, `append`, `lappend`), `string is`, `regexp`, `info exists`,
+  `array exists`, `array names`, `array size` and `puts`. The lattice has no
+  channel domain, so `puts` shares this domain. `InfoCommandsResolve`,
+  `NamespaceOrigin` and `NamespaceCode` require both `CommandEnvironment`
+  and `Namespace`; `NamespaceCurrent` requires `Namespace`, and `InfoLevel`
+  requires `Interpreter`. Each member records a `GuardDomains` mask. These
+  necessary masks do not establish roster or frame freshness: contextual
+  members also require their independent original entry, activation and
+  holder proofs, and decline when those premises are unavailable.
+  The family records the widest reach under any invocation form, including
+  `string is -failindex` and `regexp` output-variable stores.
+- **`fires_traces`** marks observers that run a variable's traces: `info
+  exists` selects a read trace and the array queries select an array trace.
+  A storing member runs write traces as part of the store and is not marked.
+
+The compiler adds these domains to a guarded plan
+(`guard_domains_for_intrinsic` in `rust/tcl-compiler/src/backend_registry.rs`).
+Both runtimes' `prepare_command_guard` reject an insufficient request with
+`GuardError::DomainsInsufficient`. A `VariableTrace` guard requires no live
+variable trace, and adding a trace makes it stale; namespace, command and
+interpreter guards follow their own domain dependencies.
+
+`StringLength` has four guard-semantics variants: Tcl 8.4/8.5 BMP counting,
+Tcl 8.6 UTF-16 counting, Tcl 9 scalar counting and Jim 0.84 UTF-8 counting.
+The keys distinguish software implementation contracts. They do not establish
+original command selection, native compiler admission or an active frame.
+
 ## 4. Known contract gaps
+
+- `info exists` runs a variable's read trace in C Tcl and in `tcl-vm`.
+  `runtime/rust`'s does not: `trace add variable v read cb; info exists v`
+  leaves the callback uncalled. The array queries fire their array traces in
+  both runtimes.
 
 - The array-element methods (`get_elem`/`set_elem`/`unset_elem`/`exists_elem`)
   honour the `FrameId` they are given on both runtimes. `VarStore::array_keys`

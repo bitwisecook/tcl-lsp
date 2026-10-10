@@ -99,7 +99,8 @@ use salsa::Setter as _;
 
 use tcl_compiler::analyser::NonAsciiMode;
 use tcl_lsp_db::{
-    AnalyserConfig, SourceFile, TclDatabase, compiler_check_diagnostics, file_analysis_incremental,
+    AnalyserConfig, EvaluatorEpoch, SourceFile, TclDatabase, compiler_check_diagnostics,
+    file_analysis_incremental,
 };
 
 /// The interned structs whose key contains per-revision content — the ones the
@@ -219,8 +220,9 @@ enum InputDurability {
     /// Salsa's default, `Durability::LOW` — what production does, and the only
     /// setting under which interned slots are collectable.
     Default,
-    /// `Durability::HIGH` on every field of both inputs — the hazard, driven
-    /// deliberately so the guardrail can be shown to detect it.
+    /// `Durability::HIGH` on every field of both inputs, and on the evaluator
+    /// epoch the database creates — the hazard, driven deliberately so the
+    /// guardrail can be shown to detect it.
     RaisedToHigh,
 }
 
@@ -315,6 +317,15 @@ fn drive_edit_session(durability: InputDurability, max_edits: u32) -> Session {
     });
 
     let (file, config) = make_inputs(&db, durability);
+    if durability == InputDurability::RaisedToHigh {
+        // The third input the deep tier reads, which the database creates at
+        // `LOW`: left there, its read would stamp every key `LOW` again and
+        // the control would not leak.
+        EvaluatorEpoch::get(&db)
+            .set_generation(&mut db)
+            .with_durability(salsa::Durability::HIGH)
+            .to(0);
+    }
 
     // Cold build first: the collector cannot reclaim anything until slots have
     // had time to go stale, so the measurement starts from a populated graph.

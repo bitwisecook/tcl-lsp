@@ -1,0 +1,16 @@
+wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch $script result options"
+    while compiling
+"set own [catch $script result options]"
+    ("if" then script line 2)
+    while compiling
+"if {$has_options} {
+        set own [catch $script result options]
+        array set picked $options
+        set optcode $picked(-code)
+        set le..."
+    (compiling body of proc "observe", line 5)
+    invoked from within
+"observe empty {return}"
+    (file "/tmp/native-return-grammar378/probe.tcl" line 26)

@@ -23,7 +23,9 @@
 //!
 //! - **workspace** — the `tclLsp.specPacks` setting (mirrored in every editor
 //!   integration), plus `*.tclspec` under a `.tcl-lsp/` directory or beside a
-//!   `tclpkg.tcl` manifest.
+//!   `tclpkg.tcl` manifest. A manifest with a `spec` directive names its own
+//!   packs, and those are the packs beside it; one without keeps every
+//!   `*.tclspec` under its directory ([`crate::package_specs`]).
 //! - **user** — packs dropped in the platform config directory
 //!   (`$XDG_CONFIG_HOME/tcl-lsp/specs/` and the macOS / Windows equivalents),
 //!   loaded for every workspace. The directory comes from [`tcl_userdirs`],
@@ -33,9 +35,12 @@
 //!   packs.
 //!
 //! Discovery answers *which files*, in a deterministic order. It never reads
-//! or parses them — deciding which file belongs to which pack, and which pack
-//! wins, is [`crate::pack`]'s job, because that needs each file's `speclib`
-//! name and therefore a parse.
+//! or parses the pack files — deciding which file belongs to which pack, and
+//! which pack wins, is [`crate::pack`]'s job, because that needs each file's
+//! `speclib` name and therefore a parse. The one thing it reads beside them
+//! is the package metadata that says how far the package shipping a file sits
+//! from the workspace root ([`PackFile::dependency_tier`]), and the `spec`
+//! directive that says which files beside it are the package's packs.
 //!
 //! ## Determinism
 //!
@@ -44,10 +49,14 @@
 //! platform. That matters beyond tidiness: the merge order of a multi-file
 //! pack *is* this order, and so is the compiled-cache key.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
+use tcl_dialect::model::{DependencyTier, WorkspaceTrust};
 use tcl_lsp_core::vfs::{NativeStore, SourceStore};
+use tcl_pkg_model::lockfile::{LockFile, deserialise};
+use tcl_pkg_model::manifest::{ManifestAst, SpecDirective, load_manifest_text};
+use tcl_pkg_model::tier::{clamp_requested, dependency_tier};
 
 use crate::PACK_EXTENSION;
 
@@ -69,12 +78,27 @@ pub enum Tier {
 impl Tier {
     /// The tier's name as it appears in a notice or a log line.
     #[must_use]
-    pub fn label(self) -> &'static str {
+    pub const fn label(self) -> &'static str {
         match self {
             Tier::StudioOverride => "Spec Studio override",
             Tier::Workspace => "workspace",
             Tier::User => "user",
             Tier::Bundled => "bundled",
+        }
+    }
+
+    /// The trust a file of this tier loads under when the editor's state for
+    /// the workspace is `workspace`: the workspace tier takes it, and every
+    /// other tier is [`WorkspaceTrust::Trusted`] — the bundled and user tiers
+    /// are not the workspace's to vouch for, and a Spec Studio override is
+    /// untrusted by its own provenance whatever the editor says. One
+    /// normalisation, so a snapshot key and a merged pack never carry a trust
+    /// state their provenance does not read.
+    #[must_use]
+    pub fn trust_under(self, workspace: WorkspaceTrust) -> WorkspaceTrust {
+        match self {
+            Tier::Workspace => workspace,
+            Tier::StudioOverride | Tier::User | Tier::Bundled => WorkspaceTrust::Trusted,
         }
     }
 }
@@ -126,6 +150,19 @@ pub struct PackFile {
     pub path: PathBuf,
     /// The rule that pulled the file in.
     pub origin: Origin,
+    /// How far the package that ships this file sits from the workspace
+    /// root, read from the lockfile of the project it belongs to.
+    ///
+    /// `Some` for every file found beside a `tclpkg.tcl` in a project that
+    /// has a `tclpkg.lock`: the project's own package is the root, and any
+    /// other is what the lockfile's graph gives it, or transitive when the
+    /// graph does not place it (an unlisted package, a manifest or lockfile
+    /// that does not read). `None` for every other file — a pack no package
+    /// ships, and a file in a workspace with no project lockfile — and a pack
+    /// with no tier is not narrowed by
+    /// [`tcl_registry::model::CodegenCapability`]. Last, so a sort orders by
+    /// precedence and path first.
+    pub dependency_tier: Option<DependencyTier>,
 }
 
 /// The directory a workspace folder keeps its own packs in.
@@ -136,6 +173,10 @@ pub const STUDIO_OVERRIDE_DIR: &str = ".spec-studio";
 
 /// The package manifest whose directory is scanned for sibling packs.
 pub const PACKAGE_MANIFEST: &str = "tclpkg.tcl";
+
+/// The lockfile beside a project's root manifest: the resolved dependency
+/// graph a package's [`DependencyTier`] is read from.
+pub const PACKAGE_LOCKFILE: &str = "tclpkg.lock";
 
 /// The subdirectory of the platform config directory holding user packs.
 pub const USER_PACK_SUBDIR: &str = "specs";
@@ -206,6 +247,14 @@ pub struct DiscoveryOptions {
     /// Skip the user tier entirely (`tclLsp.specPacks.includeUserPacks:
     /// false`), for a workspace that wants only what it declares.
     pub skip_user_tier: bool,
+    /// The editor's Workspace Trust state for these folders — the one input
+    /// the trust ruling plumbs from the LSP client. It decides nothing about
+    /// *which* files exist, so the scan never reads it; every workspace-tier
+    /// file the scan finds loads under it ([`Tier::trust_under`]), which is
+    /// what the load a caller makes with these options is handed
+    /// ([`crate::bundled::load_discovered_in`]). The default, a client that
+    /// reports nothing, is [`WorkspaceTrust::Trusted`].
+    pub workspace_trust: WorkspaceTrust,
 }
 
 /// The platform default per-user pack directory:
@@ -319,15 +368,7 @@ pub fn discover_in(store: &dyn SourceStore, options: &DiscoveryOptions) -> Vec<P
             Origin::DotDir,
             &mut found,
         );
-        for dir in manifest_dirs(store, root) {
-            collect_dir(
-                store,
-                &dir,
-                Tier::Workspace,
-                Origin::BesideManifest,
-                &mut found,
-            );
-        }
+        collect_beside_manifests(store, root, &mut found);
     }
     // Folder-scoped `tclLsp.specPacks`. Resolved against its own folder and no
     // other, whether or not that folder is in `workspace_roots` — the client
@@ -389,10 +430,12 @@ pub fn discover_in(store: &dyn SourceStore, options: &DiscoveryOptions) -> Vec<P
     // One entry per path: the set is already ordered by (tier, path, origin),
     // so the first sighting of a path is its best tier.
     let mut seen: BTreeSet<PathBuf> = BTreeSet::new();
-    found
+    let mut files: Vec<PackFile> = found
         .into_iter()
         .filter(|file| seen.insert(file.path.clone()))
-        .collect()
+        .collect();
+    assign_dependency_tiers(store, &options.workspace_roots, &mut files);
+    files
 }
 
 /// Add `path` — a `.tclspec` file, or a directory to scan for them.
@@ -410,6 +453,7 @@ fn collect_path(
             tier,
             path: normalise(path),
             origin,
+            dependency_tier: None,
         });
     }
 }
@@ -426,6 +470,18 @@ fn collect_dir(
     origin: Origin,
     out: &mut BTreeSet<PackFile>,
 ) {
+    collect_dir_except(store, dir, tier, origin, &|_| false, out);
+}
+
+/// [`collect_dir`], not descending into a directory `skip` names.
+fn collect_dir_except(
+    store: &dyn SourceStore,
+    dir: &Path,
+    tier: Tier,
+    origin: Origin,
+    skip: &dyn Fn(&Path) -> bool,
+    out: &mut BTreeSet<PackFile>,
+) {
     let mut stack = vec![dir.to_path_buf()];
     while let Some(current) = stack.pop() {
         let Ok(entries) = store.read_dir(&current) else {
@@ -433,7 +489,7 @@ fn collect_dir(
         };
         for entry in entries {
             if entry.is_dir {
-                if !is_skipped_dir(&entry.path) {
+                if !is_skipped_dir(&entry.path) && !skip(&entry.path) {
                     stack.push(entry.path);
                 }
             } else if entry.is_file && is_pack_file(&entry.path) {
@@ -441,8 +497,52 @@ fn collect_dir(
                     tier,
                     path: normalise(&entry.path),
                     origin,
+                    dependency_tier: None,
                 });
             }
+        }
+    }
+}
+
+/// Add the packs that sit beside each `tclpkg.tcl` under `root`.
+///
+/// A manifest with a `spec` directive names its packs, and exactly those are
+/// its packs: no scan of its directory, so a draft or a fixture beside it
+/// stays out. One without keeps the scan of every `.tclspec` under its
+/// directory — except under a directory whose own manifest has a directive,
+/// which decides its own packs and is read through its own entry.
+fn collect_beside_manifests(store: &dyn SourceStore, root: &Path, out: &mut BTreeSet<PackFile>) {
+    let dirs = manifest_dirs(store, root);
+    let declared: HashMap<&Path, SpecDirective> = dirs
+        .iter()
+        .filter_map(|dir| {
+            let directive = list_package_files(store, dir)
+                .manifest
+                .and_then(|manifest| read_manifest(store, &manifest))?
+                .spec?;
+            Some((dir.as_path(), directive))
+        })
+        .collect();
+    for dir in &dirs {
+        match declared.get(dir.as_path()) {
+            Some(directive) => {
+                for path in crate::package_specs::pack_paths(dir, directive) {
+                    out.insert(PackFile {
+                        tier: Tier::Workspace,
+                        path: normalise(&path),
+                        origin: Origin::BesideManifest,
+                        dependency_tier: None,
+                    });
+                }
+            }
+            None => collect_dir_except(
+                store,
+                dir,
+                Tier::Workspace,
+                Origin::BesideManifest,
+                &|nested| declared.contains_key(nested),
+                out,
+            ),
         }
     }
 }
@@ -527,6 +627,190 @@ fn is_skipped_dir(path: &Path) -> bool {
 /// it has.
 fn normalise(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+/// Give every file found beside a manifest the tier of the package that
+/// ships it.
+///
+/// A package's tier is not something its own manifest can state, so the
+/// authority is found outside the package: the *project root* is the
+/// outermost directory, at or above the package and inside the workspace
+/// folder, that holds both a `tclpkg.tcl` and a `tclpkg.lock`. The outermost,
+/// not the nearest: an installed dependency's directory may hold a manifest
+/// and a lockfile of its own (its tarball can carry any file), and taking the
+/// nearest pair would let a dependency name itself the root of its own graph.
+/// The lockfile beside the workspace's own manifest lists the dependency, and
+/// nothing inside the dependency can outrank it.
+///
+/// The package a file belongs to is the one whose manifest is nearest above
+/// it. It is the *root* package when that manifest sits in the project root
+/// itself, and otherwise the tier is what the project's lockfile and root
+/// manifest give the package the file's own manifest names
+/// ([`dependency_tier`]). Below a project that has a lockfile a file is never
+/// left without a tier: a manifest that does not read, a package the lockfile
+/// does not list and a lockfile that does not read each leave it
+/// [`DependencyTier::Transitive`], the least a package gets, because nothing
+/// the package's own files say — or fail to say — may lift it. Only a
+/// workspace with no project lockfile leaves a file with no tier.
+fn assign_dependency_tiers(store: &dyn SourceStore, roots: &[PathBuf], files: &mut [PackFile]) {
+    let mut reader = TierReader::new(store, roots);
+    for file in files
+        .iter_mut()
+        .filter(|file| file.origin == Origin::BesideManifest)
+    {
+        file.dependency_tier = reader.tier_of(&file.path);
+    }
+}
+
+/// The manifest and lockfile a directory holds, when it holds them.
+#[derive(Clone, Default)]
+struct PackageFiles {
+    manifest: Option<PathBuf>,
+    lockfile: Option<PathBuf>,
+}
+
+/// The package metadata one discovery reads, kept so that the packs of one
+/// package share a listing and a parse.
+struct TierReader<'a> {
+    store: &'a dyn SourceStore,
+    /// Each workspace folder as given and as canonicalised: a discovered
+    /// path is canonical, and a folder handed in need not be.
+    roots: Vec<PathBuf>,
+    listings: HashMap<PathBuf, PackageFiles>,
+    /// A project root's manifest and lockfile, once read.
+    projects: HashMap<PathBuf, Option<(ManifestAst, LockFile)>>,
+    /// The tier of each package directory already worked out.
+    packages: HashMap<PathBuf, Option<DependencyTier>>,
+}
+
+impl<'a> TierReader<'a> {
+    fn new(store: &'a dyn SourceStore, roots: &[PathBuf]) -> Self {
+        let mut spellings: Vec<PathBuf> = Vec::new();
+        for root in roots {
+            for spelling in [root.clone(), normalise(root)] {
+                if !spellings.contains(&spelling) {
+                    spellings.push(spelling);
+                }
+            }
+        }
+        Self {
+            store,
+            roots: spellings,
+            listings: HashMap::new(),
+            projects: HashMap::new(),
+            packages: HashMap::new(),
+        }
+    }
+
+    /// The tier of the package shipping the pack file at `pack`.
+    fn tier_of(&mut self, pack: &Path) -> Option<DependencyTier> {
+        // The outermost workspace folder holding the pack, as the project
+        // rule takes the outermost pair: a folder opened inside an installed
+        // dependency would otherwise end the search at the dependency's own
+        // manifest and let it stand as a project of its own.
+        let root = self
+            .roots
+            .iter()
+            .filter(|root| pack.starts_with(root))
+            .min_by_key(|root| root.components().count())?
+            .clone();
+        // The directories from the pack's own up to the workspace folder,
+        // innermost first.
+        let chain: Vec<PathBuf> = pack
+            .parent()?
+            .ancestors()
+            .take_while(|dir| dir.starts_with(&root))
+            .map(Path::to_path_buf)
+            .collect();
+        let package = chain
+            .iter()
+            .find(|dir| self.listing(dir).manifest.is_some())?
+            .clone();
+        if let Some(known) = self.packages.get(&package) {
+            return *known;
+        }
+        let tier = self.tier_of_package(&package, &chain);
+        self.packages.insert(package, tier);
+        tier
+    }
+
+    fn tier_of_package(&mut self, package: &Path, chain: &[PathBuf]) -> Option<DependencyTier> {
+        let project = chain
+            .iter()
+            .rev()
+            .find(|dir| {
+                let files = self.listing(dir);
+                files.manifest.is_some() && files.lockfile.is_some()
+            })?
+            .clone();
+        if project == package {
+            return Some(DependencyTier::Root);
+        }
+        let manifest = self
+            .listing(package)
+            .manifest
+            .and_then(|manifest| read_manifest(self.store, &manifest));
+        let graded = manifest
+            .as_ref()
+            .and_then(|manifest| {
+                let (root, lock) = self.project(&project)?;
+                dependency_tier(root, lock, &manifest.name)
+            })
+            .unwrap_or(DependencyTier::Transitive);
+        // The package may ask for a tier further from the root than its
+        // position gives it, and never a nearer one.
+        let requested = manifest
+            .and_then(|manifest| manifest.spec)
+            .map(|spec| spec.requested_tier);
+        Some(requested.map_or(graded, |requested| clamp_requested(requested, graded)))
+    }
+
+    fn listing(&mut self, dir: &Path) -> PackageFiles {
+        let store = self.store;
+        self.listings
+            .entry(dir.to_path_buf())
+            .or_insert_with(|| list_package_files(store, dir))
+            .clone()
+    }
+
+    fn project(&mut self, dir: &Path) -> Option<&(ManifestAst, LockFile)> {
+        if !self.projects.contains_key(dir) {
+            let files = self.listing(dir);
+            let read = files
+                .manifest
+                .zip(files.lockfile)
+                .and_then(|(manifest, lockfile)| {
+                    let manifest = read_manifest(self.store, &manifest)?;
+                    let lock = deserialise(&self.store.read_to_string(&lockfile).ok()?).ok()?;
+                    Some((manifest, lock))
+                });
+            self.projects.insert(dir.to_path_buf(), read);
+        }
+        self.projects.get(dir)?.as_ref()
+    }
+}
+
+/// The manifest and the lockfile in `dir`, matched the way the manifest hunt
+/// matches a manifest: by file name, ignoring ASCII case.
+fn list_package_files(store: &dyn SourceStore, dir: &Path) -> PackageFiles {
+    let mut files = PackageFiles::default();
+    let Ok(entries) = store.read_dir(dir) else {
+        return files;
+    };
+    for entry in entries.into_iter().filter(|entry| entry.is_file) {
+        let name = entry.path.file_name().and_then(|name| name.to_str());
+        if name.is_some_and(|name| name.eq_ignore_ascii_case(PACKAGE_MANIFEST)) {
+            files.manifest = Some(entry.path);
+        } else if name.is_some_and(|name| name.eq_ignore_ascii_case(PACKAGE_LOCKFILE)) {
+            files.lockfile = Some(entry.path);
+        }
+    }
+    files
+}
+
+fn read_manifest(store: &dyn SourceStore, path: &Path) -> Option<ManifestAst> {
+    let text = store.read_to_string(path).ok()?;
+    load_manifest_text(&text, path.to_str()).ok()
 }
 
 #[cfg(test)]
@@ -744,6 +1028,7 @@ mod tests {
             user_dir: Some(root.join("no-user")),
             bundled_dir: Some(root.join("no-bundled")),
             skip_user_tier: false,
+            workspace_trust: WorkspaceTrust::Trusted,
         });
         assert!(found.is_empty());
         let _ = std::fs::remove_dir_all(&root);
@@ -836,7 +1121,7 @@ mod tests {
                 ..DiscoveryOptions::default()
             },
         );
-        let loaded = crate::bundled::load_discovered_in(&store, &found);
+        let loaded = crate::bundled::load_discovered_in(&store, &found, WorkspaceTrust::Trusted);
         let names: Vec<&str> = loaded.packs.iter().map(|p| p.name.as_str()).collect();
         assert!(names.contains(&"hostvendor"), "{names:?}");
         assert!(
@@ -858,5 +1143,488 @@ mod tests {
             ..DiscoveryOptions::default()
         });
         assert!(found.is_empty(), "{found:#?}");
+    }
+
+    // ── how far the package shipping a pack sits from the workspace root ──
+
+    /// The root manifest of the fixture workspace: `json` is required,
+    /// `tcltest` is a development requirement, and `http` is `json`'s.
+    const ROOT_MANIFEST: &str =
+        "package myapp\nversion 1.0.0\nrequire json 1.0.0\ndev-require tcltest 2.5.0\n";
+
+    /// `(name, requires, dev)` rows as the lockfile of the fixture workspace.
+    fn lockfile_text(packages: &[(&str, &[&str], bool)]) -> String {
+        use tcl_pkg_model::lockfile::{LockedPackage, SourceSpec};
+        let mut lock = LockFile::new("myapp", ">=8.6");
+        for (name, requires, dev) in packages {
+            lock.packages.push(LockedPackage {
+                name: (*name).to_owned(),
+                version: "1.0.0".to_owned(),
+                source: SourceSpec::new("tarball", ""),
+                integrity: String::new(),
+                size: 0,
+                requires: requires.iter().map(|entry| (*entry).to_owned()).collect(),
+                provides: Vec::new(),
+                license: String::new(),
+                dev: *dev,
+                spec_integrity: None,
+            });
+        }
+        tcl_pkg_model::lockfile::serialise(&lock)
+    }
+
+    /// The fixture workspace as `tcl pkg install` leaves one: the root
+    /// package's manifest, lockfile and pack, and each dependency
+    /// materialised at `lib/NAME-1.0.0` with a manifest and a pack of its own.
+    fn installed_workspace(root: &Path, dependencies: &[&str]) {
+        write(&root.join("tclpkg.tcl"), ROOT_MANIFEST);
+        write(&root.join("app.tclspec"), "speclib app 1 {}\n");
+        for name in dependencies {
+            let dir = root.join(format!("lib/{name}-1.0.0"));
+            write(
+                &dir.join("tclpkg.tcl"),
+                &format!("package {name}\nversion 1.0.0\n"),
+            );
+            write(
+                &dir.join(format!("{name}.tclspec")),
+                &format!("speclib {name} 1 {{}}\n"),
+            );
+        }
+    }
+
+    fn discover_workspace(root: &Path) -> Vec<PackFile> {
+        discover(&DiscoveryOptions {
+            workspace_roots: vec![root.to_path_buf()],
+            skip_user_tier: true,
+            bundled_dir: Some(root.join("no-such-bundled")),
+            ..DiscoveryOptions::default()
+        })
+    }
+
+    /// Each discovered pack's file stem with its tier, in name order.
+    fn tiers_by_pack(found: &[PackFile]) -> Vec<(String, Option<DependencyTier>)> {
+        let mut rows: Vec<(String, Option<DependencyTier>)> = found
+            .iter()
+            .map(|file| {
+                (
+                    file.path
+                        .file_stem()
+                        .expect("stem")
+                        .to_string_lossy()
+                        .into_owned(),
+                    file.dependency_tier,
+                )
+            })
+            .collect();
+        rows.sort();
+        rows
+    }
+
+    /// The lockfile's graph gives each package its tier: the workspace's own
+    /// pack is the root, `json` (in `require`) is direct, `http` (`json`'s
+    /// requirement) is transitive, and `tcltest` (in `dev-require`) is a
+    /// development dependency.
+    #[test]
+    fn a_packs_package_is_placed_by_the_lockfiles_graph() {
+        let root = tmpdir("tier-graph");
+        installed_workspace(&root, &["json", "http", "tcltest"]);
+        write(
+            &root.join("tclpkg.lock"),
+            &lockfile_text(&[
+                ("json", &["http@1.0.0"], false),
+                ("http", &[], false),
+                ("tcltest", &[], true),
+            ]),
+        );
+
+        let found = discover_workspace(&root);
+        assert_eq!(
+            tiers_by_pack(&found),
+            vec![
+                ("app".to_owned(), Some(DependencyTier::Root)),
+                ("http".to_owned(), Some(DependencyTier::Transitive)),
+                ("json".to_owned(), Some(DependencyTier::Direct)),
+                ("tcltest".to_owned(), Some(DependencyTier::Development)),
+            ],
+            "{found:#?}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// With no lockfile nothing is known of the graph, so no pack has a tier
+    /// and none is narrowed. Once a lockfile is there, a package it does not
+    /// list is no stranger to the gate: it is transitive, the least a package
+    /// gets, and loses what a transitive package loses.
+    #[test]
+    fn no_lockfile_means_no_tier_and_an_unlisted_package_is_transitive() {
+        let root = tmpdir("tier-none");
+        installed_workspace(&root, &["json", "stranger"]);
+        assert!(
+            discover_workspace(&root)
+                .iter()
+                .all(|file| file.dependency_tier.is_none()),
+            "no lockfile: no tier"
+        );
+
+        write(
+            &root.join("tclpkg.lock"),
+            &lockfile_text(&[("json", &[], false)]),
+        );
+        assert_eq!(
+            tiers_by_pack(&discover_workspace(&root)),
+            vec![
+                ("app".to_owned(), Some(DependencyTier::Root)),
+                ("json".to_owned(), Some(DependencyTier::Direct)),
+                ("stranger".to_owned(), Some(DependencyTier::Transitive)),
+            ]
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A dependency's directory may carry a manifest and a lockfile of its
+    /// own — its tarball can hold any file. Taking the nearest pair would let
+    /// it name itself the root of its own graph, so the outermost pair, the
+    /// one beside the workspace's own manifest, is the authority: the
+    /// dependency stays what the workspace's lockfile says it is.
+    #[test]
+    fn a_dependency_shipping_its_own_lockfile_does_not_become_a_root() {
+        let root = tmpdir("tier-spoof");
+        installed_workspace(&root, &["json", "http"]);
+        write(
+            &root.join("tclpkg.lock"),
+            &lockfile_text(&[("json", &["http@1.0.0"], false), ("http", &[], false)]),
+        );
+        // `http` claims to be a project of its own.
+        let dir = root.join("lib/http-1.0.0");
+        write(&dir.join("tclpkg.lock"), &lockfile_text(&[]));
+
+        assert_eq!(
+            tiers_by_pack(&discover_workspace(&root)),
+            vec![
+                ("app".to_owned(), Some(DependencyTier::Root)),
+                ("http".to_owned(), Some(DependencyTier::Transitive)),
+                ("json".to_owned(), Some(DependencyTier::Direct)),
+            ]
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Only a file found *beside a manifest* is placed by one. The same file
+    /// named in `tclLsp.specPacks` is the user's own choice of it, and a
+    /// pack under `.tcl-lsp/` is the workspace's.
+    #[test]
+    fn only_a_pack_beside_a_manifest_has_a_tier() {
+        let root = tmpdir("tier-origin");
+        installed_workspace(&root, &["json", "http"]);
+        write(
+            &root.join("tclpkg.lock"),
+            &lockfile_text(&[("json", &["http@1.0.0"], false), ("http", &[], false)]),
+        );
+        write(&root.join(".tcl-lsp/local.tclspec"), "speclib local 1 {}\n");
+
+        let found = discover(&DiscoveryOptions {
+            workspace_roots: vec![root.clone()],
+            configured: vec![PathBuf::from("lib/http-1.0.0/http.tclspec")],
+            skip_user_tier: true,
+            bundled_dir: Some(root.join("no-such-bundled")),
+            ..DiscoveryOptions::default()
+        });
+        assert_eq!(
+            tiers_by_pack(&found),
+            vec![
+                ("app".to_owned(), Some(DependencyTier::Root)),
+                ("http".to_owned(), None),
+                ("json".to_owned(), Some(DependencyTier::Direct)),
+                ("local".to_owned(), None),
+            ],
+            "{found:#?}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A manifest or a lockfile that does not read leaves the dependency's
+    /// pack at the floor, transitive: nothing is granted on the strength of a
+    /// file that cannot be read, and a dependency cannot lift itself by
+    /// writing one that does not. A manifest that names a package the
+    /// lockfile does not list is the same. The workspace's own pack is still
+    /// the root's, which is a fact about where its manifest sits.
+    #[test]
+    fn an_unreadable_manifest_or_lockfile_is_transitive() {
+        let root = tmpdir("tier-unreadable");
+        installed_workspace(&root, &["json"]);
+        write(&root.join("tclpkg.lock"), "{ not json");
+        assert_eq!(
+            tiers_by_pack(&discover_workspace(&root)),
+            vec![
+                ("app".to_owned(), Some(DependencyTier::Root)),
+                ("json".to_owned(), Some(DependencyTier::Transitive))
+            ]
+        );
+
+        write(
+            &root.join("tclpkg.lock"),
+            &lockfile_text(&[("json", &[], false)]),
+        );
+        write(
+            &root.join("lib/json-1.0.0/tclpkg.tcl"),
+            "not a manifest %%\n",
+        );
+        assert_eq!(
+            tiers_by_pack(&discover_workspace(&root)),
+            vec![
+                ("app".to_owned(), Some(DependencyTier::Root)),
+                ("json".to_owned(), Some(DependencyTier::Transitive))
+            ]
+        );
+
+        write(
+            &root.join("lib/json-1.0.0/tclpkg.tcl"),
+            "package anything\nversion 1.0.0\n",
+        );
+        assert_eq!(
+            tiers_by_pack(&discover_workspace(&root)),
+            vec![
+                ("app".to_owned(), Some(DependencyTier::Root)),
+                ("json".to_owned(), Some(DependencyTier::Transitive))
+            ],
+            "a manifest that names an unlisted package places nothing"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A workspace folder opened inside an installed dependency is a second
+    /// root holding the same pack. The outermost one decides, as the project
+    /// rule takes the outermost pair, so that the dependency cannot stand as
+    /// a project of its own by being the folder the search stops at, whichever
+    /// order the client lists its folders in.
+    #[test]
+    fn nested_workspace_roots_take_the_outermost_in_either_order() {
+        let root = tmpdir("tier-nested");
+        installed_workspace(&root, &["json", "http"]);
+        write(
+            &root.join("tclpkg.lock"),
+            &lockfile_text(&[("json", &["http@1.0.0"], false), ("http", &[], false)]),
+        );
+        let inner = root.join("lib/http-1.0.0");
+        write(&inner.join("tclpkg.lock"), &lockfile_text(&[]));
+
+        for roots in [
+            vec![root.clone(), inner.clone()],
+            vec![inner.clone(), root.clone()],
+        ] {
+            let found = discover(&DiscoveryOptions {
+                workspace_roots: roots.clone(),
+                skip_user_tier: true,
+                bundled_dir: Some(root.join("no-such-bundled")),
+                ..DiscoveryOptions::default()
+            });
+            let http = tiers_by_pack(&found)
+                .into_iter()
+                .find(|(name, _)| name == "http")
+                .expect("the dependency's pack");
+            assert_eq!(
+                http.1,
+                Some(DependencyTier::Transitive),
+                "roots {roots:?}: the dependency is what the outer lockfile says"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The metadata is read through the source store, like the packs are, so
+    /// a host with bytes and no filesystem places its packs the same way.
+    #[test]
+    fn a_host_filled_store_places_its_packs_too() {
+        let store = tcl_lsp_core::vfs::MemoryStore::new();
+        let root = PathBuf::from("/host/ws");
+        store.upsert(root.join("tclpkg.tcl"), ROOT_MANIFEST.as_bytes().to_vec());
+        store.upsert(
+            root.join("tclpkg.lock"),
+            lockfile_text(&[("json", &[], false)]).into_bytes(),
+        );
+        store.upsert(root.join("app.tclspec"), b"speclib app 1 {}\n".to_vec());
+        store.upsert(
+            root.join("lib/json-1.0.0/tclpkg.tcl"),
+            b"package json\nversion 1.0.0\n".to_vec(),
+        );
+        store.upsert(
+            root.join("lib/json-1.0.0/json.tclspec"),
+            b"speclib json 1 {}\n".to_vec(),
+        );
+
+        let found = discover_in(
+            &store,
+            &DiscoveryOptions {
+                workspace_roots: vec![root],
+                skip_user_tier: true,
+                bundled_dir: Some(PathBuf::from("/host/no-such-bundled")),
+                ..DiscoveryOptions::default()
+            },
+        );
+        assert_eq!(
+            tiers_by_pack(&found),
+            vec![
+                ("app".to_owned(), Some(DependencyTier::Root)),
+                ("json".to_owned(), Some(DependencyTier::Direct)),
+            ],
+            "{found:#?}"
+        );
+    }
+
+    // ── a manifest's `spec` directive: which packs sit beside it, and at
+    // what tier ──
+
+    /// The file names found, in path order.
+    fn names(found: &[PackFile]) -> Vec<String> {
+        found
+            .iter()
+            .map(|file| {
+                file.path
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect()
+    }
+
+    /// A manifest that names its packs loads those and nothing else beside
+    /// it — a draft, a fixture or a nested directory stays out — and the
+    /// scan of a manifest that names none is as it was.
+    #[test]
+    fn a_manifest_that_names_its_packs_loads_those_and_no_others() {
+        let root = tmpdir("spec-listed");
+        write(
+            &root.join("tclpkg.tcl"),
+            "package app\nversion 1.0.0\nspec {packs {app.tclspec vendor/more.tclspec}}\n",
+        );
+        for name in ["app", "draft", "vendor/more", "vendor/scratch"] {
+            write(
+                &root.join(format!("{name}.tclspec")),
+                "speclib listed 1 {}\n",
+            );
+        }
+        assert_eq!(
+            names(&discover_workspace(&root)),
+            vec!["app.tclspec", "more.tclspec"]
+        );
+
+        // The same tree with no directive keeps every pack beside the
+        // manifest.
+        write(&root.join("tclpkg.tcl"), "package app\nversion 1.0.0\n");
+        assert_eq!(
+            names(&discover_workspace(&root)),
+            vec![
+                "app.tclspec",
+                "draft.tclspec",
+                "more.tclspec",
+                "scratch.tclspec"
+            ]
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A pack the directive names that is not there is still discovered, so
+    /// the load reports it on the file instead of the author's typo loading
+    /// nothing in silence.
+    #[test]
+    fn a_listed_pack_that_is_missing_is_reported_by_the_load() {
+        let root = tmpdir("spec-missing");
+        write(
+            &root.join("tclpkg.tcl"),
+            "package app\nversion 1.0.0\nspec {packs {gone.tclspec}}\n",
+        );
+        let found = discover_workspace(&root);
+        assert_eq!(names(&found), vec!["gone.tclspec"], "{found:#?}");
+        let (sources, notices) = crate::pack::read_sources(&NativeStore, &found);
+        assert!(sources.is_empty());
+        assert_eq!(notices.len(), 1, "{notices:#?}");
+        assert!(
+            notices[0].message.contains("cannot read pack file"),
+            "{:?}",
+            notices[0]
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A directive that does not read — a pack outside the package — names
+    /// nothing, so the scan is the answer, exactly as for a manifest that
+    /// does not read at all.
+    #[test]
+    fn a_directive_that_does_not_read_leaves_the_scan_in_place() {
+        let root = tmpdir("spec-unreadable");
+        write(
+            &root.join("tclpkg.tcl"),
+            "package app\nversion 1.0.0\nspec {packs {../elsewhere.tclspec}}\n",
+        );
+        write(&root.join("app.tclspec"), "speclib app 1 {}\n");
+        write(&root.join("draft.tclspec"), "speclib draft 1 {}\n");
+        assert_eq!(
+            names(&discover_workspace(&root)),
+            vec!["app.tclspec", "draft.tclspec"]
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A dependency's own directive decides its packs, whatever the scan of
+    /// the manifest above it would have found: the workspace's scan stops at
+    /// the dependency's directory, and the dependency's list is read through
+    /// its own manifest.
+    #[test]
+    fn a_dependencys_directive_decides_its_packs_whatever_the_manifest_above_scans() {
+        let root = tmpdir("spec-nested");
+        installed_workspace(&root, &["json"]);
+        let dir = root.join("lib/json-1.0.0");
+        write(
+            &dir.join("tclpkg.tcl"),
+            "package json\nversion 1.0.0\nspec {packs {json.tclspec}}\n",
+        );
+        write(&dir.join("draft.tclspec"), "speclib draft 1 {}\n");
+        assert_eq!(
+            names(&discover_workspace(&root)),
+            vec!["app.tclspec", "json.tclspec"],
+            "the dependency's draft is not its pack"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A package may ask for a tier further from the root than the graph
+    /// puts it at, and is held at the graph's when it asks for a nearer one.
+    /// The workspace's own package takes no request: it is the root.
+    #[test]
+    fn a_dependency_may_ask_for_a_further_tier_and_never_a_nearer_one() {
+        let root = tmpdir("spec-tier");
+        write(
+            &root.join("tclpkg.tcl"),
+            &format!("{ROOT_MANIFEST}spec {{packs {{app.tclspec}} tier development}}\n"),
+        );
+        write(&root.join("app.tclspec"), "speclib app 1 {}\n");
+        write(
+            &root.join("tclpkg.lock"),
+            &lockfile_text(&[("json", &["http@1.0.0"], false), ("http", &[], false)]),
+        );
+        for (name, request) in [("json", "development"), ("http", "direct")] {
+            let dir = root.join(format!("lib/{name}-1.0.0"));
+            write(
+                &dir.join("tclpkg.tcl"),
+                &format!(
+                    "package {name}\nversion 1.0.0\nspec {{packs {{{name}.tclspec}} tier {request}}}\n"
+                ),
+            );
+            write(
+                &dir.join(format!("{name}.tclspec")),
+                &format!("speclib {name} 1 {{}}\n"),
+            );
+        }
+        assert_eq!(
+            tiers_by_pack(&discover_workspace(&root)),
+            vec![
+                ("app".to_owned(), Some(DependencyTier::Root)),
+                ("http".to_owned(), Some(DependencyTier::Transitive)),
+                ("json".to_owned(), Some(DependencyTier::Development)),
+            ],
+            "`json` is direct and asked for development; `http` is transitive and asked for direct"
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

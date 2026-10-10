@@ -72,15 +72,30 @@ const FORMS: &[FormSpec] = &[
 fn regexp_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let i = first_positional_index(REGEXP_OPTIONS, args, 0);
     let pattern = std::iter::once((i, ArgRole::Pattern));
-    let layout_has_no_match_vars = leading_option_specs(REGEXP_OPTIONS, args, 0)
-        .iter()
-        .any(|option| option.name == "-about" || option.name == "-inline");
+    // The two switches are option rows declaring their layout effect, read
+    // through the generic walk's shifts rather than by spelling: `-inline`
+    // suppresses the match-variable writes, and `-about` shrinks the
+    // reservation after the options from `exp string` to `exp` alone — with
+    // no subject there is no match data, so nothing after it is a variable.
+    let effects = crate::option_effect::option_effects_with(
+        REGEXP_OPTIONS,
+        FAMILIES,
+        InvocationArguments::literals(args),
+        0,
+        None,
+        PrefixMatching::Strict,
+    );
+    let reserved = effects
+        .reserved_trailing_words()
+        .map_or(SUBJECT_LAYOUT, usize::from);
+    let layout_has_no_match_vars =
+        effects.suppresses(ArgRole::VarWrite) || reserved < SUBJECT_LAYOUT;
     if layout_has_no_match_vars {
         return pattern
             .filter_map(|(index, role)| u8::try_from(index).ok().map(|index| (index, role)))
             .collect();
     }
-    let capture_start = i + 2; // skip pattern + string
+    let capture_start = i + reserved; // skip pattern + string
     pattern
         .chain((capture_start..args.len()).map(|index| (index, ArgRole::VarWrite)))
         .filter_map(|(index, role)| u8::try_from(index).ok().map(|index| (index, role)))
@@ -90,7 +105,7 @@ fn regexp_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// Structured native roles use only the actual prefix and cardinality.
 fn regexp_layout_roles(
     arguments: crate::InvocationArguments<'_>,
-    options: crate::resolved_invocation::InvocationOptions<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_, '_>,
 ) -> Option<Vec<(u8, ArgRole)>> {
     let count = arguments.exact_argv_len()?;
     if count > usize::from(u8::MAX) + 1 {
@@ -115,6 +130,43 @@ fn regexp_layout_roles(
     Some(roles)
 }
 
+/// The operands the layout reserves after the switches when it matches:
+/// `exp string`.
+const SUBJECT_LAYOUT: usize = 2;
+
+/// The family of the switches that reshape the operand layout rather than
+/// move an axis.
+const LAYOUT: &str = "layout";
+
+const FAMILIES: &[OptionEffectFamily] = &[OptionEffectFamily {
+    name: LAYOUT,
+    base: FamilyBase::AllOn,
+    combine: FamilyCombine::Accumulate,
+    surface: None,
+}];
+
+/// tclsh 8.4–9.1: `regexp -inline {a(b)} ab v` → this error. A match
+/// variable after `-inline` is a finding (W147), never a write.
+const INLINE_FORBIDS_MATCH_VARIABLES: OptionRelation = OptionRelation {
+    message: Some("regexp match variables not allowed when using -inline"),
+    ..Relation::forbids(OptionTerm::Option("-inline"), &[OptionTerm::Argument(2)])
+};
+
+/// A switch whose presence reshapes the operand layout.
+const fn layout_flag(
+    name: &'static str,
+    detail: &'static str,
+    kind: OptionEffectKind,
+) -> OptionSpec {
+    OptionSpec {
+        effect: Some(OptionEffect {
+            kind,
+            family: LAYOUT,
+        }),
+        ..flag(name, detail)
+    }
+}
+
 /// A boolean switch (`-flag`) — takes no value, available in all dialects.
 const fn flag(name: &'static str, detail: &'static str) -> OptionSpec {
     OptionSpec {
@@ -125,6 +177,7 @@ const fn flag(name: &'static str, detail: &'static str) -> OptionSpec {
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     }
 }
 
@@ -169,9 +222,10 @@ const REGEXP_OPTIONS: &[OptionSpec] = &[
         "-all",
         "Match as many times as possible, returning the total match count instead of 1/0; with match variables given, they end up holding the last match only.",
     ),
-    flag(
+    layout_flag(
         "-inline",
         "Return the match data as a list instead of writing match variables (illegal to combine with a matchVar/subMatchVar argument). With -all, every match's data is concatenated into one flat list.",
+        OptionEffectKind::SuppressesRole(ArgRole::VarWrite),
     ),
     flag(
         "-indices",
@@ -185,20 +239,23 @@ const REGEXP_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         surface: Some(tcl_dialect::surface![SpecSurface::core_in(
             tcl_dialect::model::Family::Tcl,
             &[("8.4", None)],
         )]),
-        ..flag(
+        ..layout_flag(
             "-about",
-            "Skip matching and instead return {subexpressionCount propertyList} describing the compiled pattern, for debugging; needs only exp — string may be omitted. Available in C Tcl; Jim 0.84 does not support this switch.",
+            "Skip matching and instead return {subexpressionCount propertyList}; needs only exp. Available in C Tcl; Jim 0.84 does not support this switch.",
+            OptionEffectKind::ReservesTrailingWords(1),
         )
     },
-    flag(
+    layout_flag(
         "--",
         "Ends switch parsing; the next word is treated as exp even if it begins with -.",
+        OptionEffectKind::EndsOptions,
     ),
 ];
 
@@ -230,6 +287,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("regexp"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // The match / conversion path is the only one that writes: a failed
         // `regexp`, and a `scan` or `binary scan` whose input runs out, leave
@@ -281,6 +339,8 @@ pub fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         options: REGEXP_OPTIONS,
+        option_effect_families: FAMILIES,
+        option_relations: &[INLINE_FORBIDS_MATCH_VARIABLES],
         hover: Some(REGEXP_HOVER),
         // `exp` is an ARE pattern — drives regex sub-tokens and
         // pattern validation.
@@ -290,6 +350,7 @@ pub fn spec() -> CommandSpec {
         arg_role_layout_resolver: Some(regexp_layout_roles),
         arg_role_resolver_roles: &[ArgRole::Pattern, ArgRole::VarWrite],
         analyser_hook: Some(crate::hooks::AnalyserHookId::RegexPatternCapture),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::regex::REGEXP),
         ..CommandSpec::DEFAULT
     }
 }
@@ -354,6 +415,63 @@ mod tests {
                 "{args:?} still has its pattern: {roles:?}"
             );
         }
+    }
+
+    /// `-inline` declares `SuppressesRole(VarWrite)`: the generic walk reports
+    /// the suppression, and the resolver gives no trailing word a write — the
+    /// words are the relation's finding instead (tclsh 8.4–9.1: `regexp
+    /// match variables not allowed when using -inline`).
+    #[test]
+    fn inline_suppresses_the_capture_var_writes() {
+        let effects = crate::option_effect::option_effects_with(
+            REGEXP_OPTIONS,
+            FAMILIES,
+            InvocationArguments::literals(&["-all", "-inline", "a(b)", "ab", "v"]),
+            0,
+            None,
+            PrefixMatching::Strict,
+        );
+        assert!(effects.suppresses(ArgRole::VarWrite), "{effects:?}");
+        let roles = regexp_arg_roles(&["-all", "-inline", "a(b)", "ab", "v"]);
+        assert_eq!(roles, vec![(2, ArgRole::Pattern)]);
+        let relation = spec()
+            .option_relations
+            .first()
+            .copied()
+            .expect("the -inline relation");
+        assert_eq!(
+            relation.message,
+            Some("regexp match variables not allowed when using -inline")
+        );
+    }
+
+    /// `-about` declares `ReservesTrailingWords(1)`: the layout after the
+    /// switches is `exp` alone, so the one reserved operand is the pattern
+    /// and nothing after it is a match variable (tclsh 8.4–9.1: `regexp
+    /// -about {(a)}` is `1 {}`).
+    #[test]
+    fn about_reserves_one_operand() {
+        let effects = crate::option_effect::option_effects_with(
+            REGEXP_OPTIONS,
+            FAMILIES,
+            InvocationArguments::literals(&["-about", "(a)"]),
+            0,
+            None,
+            PrefixMatching::Strict,
+        );
+        assert_eq!(effects.reserved_trailing_words(), Some(1));
+        assert_eq!(effects.option_end, 1);
+        assert_eq!(
+            regexp_arg_roles(&["-about", "(a)"]),
+            vec![(1, ArgRole::Pattern)]
+        );
+        // An exact-only table: `-abo` is not `-about`, so the layout keeps
+        // its two reserved operands and its match variables.
+        let abbreviated = regexp_arg_roles(&["-abo", "(a)", "s", "v"]);
+        assert!(
+            abbreviated.contains(&(3, ArgRole::VarWrite)),
+            "{abbreviated:?}"
+        );
     }
 
     /// The switch scan, not a text match, decides — so the `--` terminator and

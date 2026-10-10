@@ -97,8 +97,16 @@ impl OriginalSourcePathExpression {
                             .map(|&argument| values.get(argument)?.clone())
                             .collect::<Option<Vec<String>>>()?;
                         let result = match operation {
-                            SourcePathOperation::Join => super::path_join(&arguments),
-                            SourcePathOperation::Dirname => super::path_dirname(arguments.first()?),
+                            SourcePathOperation::Join => portable_path_value(
+                                &tcl_registry::value_transfer::path::FILE_JOIN,
+                                &arguments,
+                            )
+                            .unwrap_or_else(|| super::path_join(&arguments)),
+                            SourcePathOperation::Dirname => portable_path_value(
+                                &tcl_registry::value_transfer::path::FILE_DIRNAME,
+                                &arguments,
+                            )
+                            .unwrap_or_else(|| super::path_dirname(&arguments[0])),
                             SourcePathOperation::Normalize => {
                                 super::eval_file_normalize(arguments.first()?)?
                             }
@@ -112,6 +120,15 @@ impl OriginalSourcePathExpression {
         }
         values.into_iter().next()?
     }
+}
+
+// The selected SourcePathOperation owns this algebra. No command spelling is resolved here.
+fn portable_path_value(
+    semantics: &dyn tcl_registry::value_transfer::CommandSemantics,
+    args: &[String],
+) -> Option<String> {
+    let args = args.iter().map(String::as_str).collect::<Vec<_>>();
+    tcl_registry::value_transfer::evaluate_literal(semantics, "", None, &args, None)
 }
 
 struct Builder<'a> {

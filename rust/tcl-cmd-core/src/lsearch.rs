@@ -214,7 +214,9 @@ pub fn lsearch<O: ValueOps, E: RegexEngine>(
         |ops, compiled, subject| {
             let bytes = ops.as_bytes(subject);
             let (units, _) = decode_utf8(&bytes);
-            Ok(E::exec(compiled, &units, 0, false).is_some())
+            crate::regex::completed_matches(E::exec(compiled, &units, 0, false))
+                .map(|matches| matches.is_some())
+                .map_err(|error| LsearchError::from_command(error.into_cmd_error()))
         },
     )
 }
@@ -935,9 +937,13 @@ mod tests {
             _cps: &[i32],
             _offset: usize,
             _notbol: bool,
-        ) -> Option<Vec<RegMatch>> {
+        ) -> crate::regex::RegexpPrecision<RegMatch> {
             unreachable!()
         }
+        const IDENTITY: crate::regex::EngineIdentity = crate::regex::EngineIdentity {
+            name: "rejecting",
+            revision: 0,
+        };
     }
 
     #[test]

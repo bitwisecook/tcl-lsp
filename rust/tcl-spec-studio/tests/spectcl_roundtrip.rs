@@ -247,12 +247,14 @@ fn diffs(rendered: &Value, shipped: &Value) -> Vec<Diff> {
 
 /// Whether a notice is the loader's *policy report* rather than a degradation.
 ///
-/// Naming a lowering or codegen hook is reported by design — "this changes how
-/// the compiler translates the command, not just what the editor knows about
+/// Naming a lowering hook is reported by design — "this changes how the
+/// compiler translates the command, not just what the editor knows about
 /// it" — so a pack the renderer wrote faithfully still raises it. Every other
-/// notice means a declaration was dropped, and the gate fails on those.
+/// notice means a declaration was dropped, and the gate fails on those. (A
+/// codegen-axis stamp raises nothing here: whether it survives is the stamp
+/// rejection rule's call at a pack's load, `tcl_spectcl::stamps`.)
 fn is_policy_report(message: &str) -> bool {
-    message.contains("names a lowering hook") || message.contains("names a codegen hook")
+    message.contains("names a lowering hook")
 }
 
 /// What one command's round trip produced.
@@ -413,6 +415,292 @@ fn arity_windows_survive_the_round_trip() {
     // The plain arity is untouched by the windows beside it.
     assert_eq!(trip.reloaded["arity"]["min"], serde_json::json!(1));
     assert_eq!(trip.reloaded["arity"]["max"], serde_json::json!(1));
+}
+
+/// Codegen-axis stamp windows survive render → load → re-seed.
+///
+/// No shipped spec declares any, so the whole-surface trip cannot cover them
+/// and a renderer that dropped the rows would still pass. This drives one
+/// command and one subcommand that carry the three a pack can author, each
+/// beside its plain stamp, and the fourth — the native lowering windows — as
+/// the field a pack cannot author.
+#[test]
+fn stamp_windows_survive_the_round_trip() {
+    use tcl_registry::hooks::{CodegenHookId, InlineCodegenHookId};
+    use tcl_registry::intrinsic::IntrinsicId;
+    use tcl_registry::lifecycle::Lifecycle;
+    use tcl_registry::semantic_operation::SemanticOperationId;
+    use tcl_registry::stamp_window::StampWindow;
+
+    const CODEGEN: &[StampWindow<CodegenHookId>] = &[StampWindow {
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        value: CodegenHookId::Llength,
+    }];
+    const INLINE: &[StampWindow<InlineCodegenHookId>] = &[StampWindow {
+        lifecycle: Lifecycle::UNSPECIFIED.retired_from("9.0"),
+        value: InlineCodegenHookId::Expr,
+    }];
+    const OPERATION: &[StampWindow<SemanticOperationId>] = &[StampWindow {
+        lifecycle: Lifecycle::introduced_in("9.0").deprecated_from("9.1"),
+        value: SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+    }];
+    const SUB_CODEGEN: &[StampWindow<CodegenHookId>] = &[StampWindow {
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        value: CodegenHookId::Dict,
+    }];
+
+    let spec = tcl_registry::CommandSpec {
+        name: "probe::stamped",
+        codegen_hook: Some(CodegenHookId::Lassign),
+        codegen_hook_windows: CODEGEN,
+        inline_codegen_hook_windows: INLINE,
+        semantic_operation_windows: OPERATION,
+        subcommands: Box::leak(Box::new([tcl_registry::SubCommand {
+            name: "get",
+            codegen_hook_windows: SUB_CODEGEN,
+            ..tcl_registry::SubCommand::DEFAULT
+        }])),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    let trip = round_trip(&draft);
+
+    let rows = [
+        "codegen_hook -native Lassign\n",
+        "codegen_hook -native Llength -introduced 9.0\n",
+        "inline_codegen_hook -native Expr -retired 9.0\n",
+        "semantic_operation {Intrinsic StringLength} -introduced 9.0 -deprecated 9.1\n",
+        "subcommand get { codegen_hook -native Dict -introduced 9.0 }",
+    ];
+    for row in rows {
+        assert!(
+            trip.text.contains(row),
+            "the row `{}` is rendered:\n{}",
+            row.trim_end(),
+            trip.text
+        );
+    }
+    // The plain stamp is one row, and the windows are rows of their own.
+    assert_eq!(trip.text.matches("codegen_hook -native Lassign").count(), 1);
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+
+    let windows = |value: &Value, key: &str| -> Vec<Value> {
+        value[key]
+            .as_array()
+            .unwrap_or_else(|| panic!("the reloaded draft carries {key}"))
+            .clone()
+    };
+    let codegen = windows(&trip.reloaded, "codegen_hook_windows");
+    assert_eq!(codegen.len(), 1, "{codegen:?}\n{}", trip.text);
+    assert_eq!(codegen[0]["value"], serde_json::json!("Llength"));
+    assert_eq!(
+        codegen[0]["lifecycle"]["introduced"],
+        serde_json::json!("9.0")
+    );
+    assert_eq!(codegen[0]["lifecycle"]["retired"], Value::Null);
+    assert_eq!(trip.reloaded["codegen_hook"], serde_json::json!("Lassign"));
+
+    let inline = windows(&trip.reloaded, "inline_codegen_hook_windows");
+    assert_eq!(inline[0]["value"], serde_json::json!("Expr"));
+    assert_eq!(inline[0]["lifecycle"]["retired"], serde_json::json!("9.0"));
+    assert_eq!(trip.reloaded["inline_codegen_hook"], Value::Null);
+
+    let operation = windows(&trip.reloaded, "semantic_operation_windows");
+    assert_eq!(
+        operation[0]["value"]["kind"],
+        serde_json::json!("intrinsic")
+    );
+    assert_eq!(
+        operation[0]["lifecycle"]["deprecated"],
+        serde_json::json!("9.1")
+    );
+
+    let sub = &trip.reloaded["subcommands"][0];
+    let sub_codegen = windows(sub, "codegen_hook_windows");
+    assert_eq!(sub_codegen[0]["value"], serde_json::json!("Dict"));
+    assert_eq!(
+        sub_codegen[0]["lifecycle"]["introduced"],
+        serde_json::json!("9.0")
+    );
+}
+
+/// A native lowering window is the compiler's own fact and no pack spelling
+/// carries it: the draft says it could not recover it, and the render leaves it
+/// out rather than inventing a row.
+#[test]
+fn native_lowering_windows_are_unrecoverable_and_not_rendered() {
+    use tcl_registry::lifecycle::Lifecycle;
+    use tcl_registry::native_lowering::NativeLowering;
+    use tcl_registry::stamp_window::StampWindow;
+
+    const WINDOWS: &[StampWindow<NativeLowering>] = &[StampWindow {
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        value: NativeLowering::Generic,
+    }];
+    let spec = tcl_registry::CommandSpec {
+        name: "probe::native",
+        native_lowering_windows: WINDOWS,
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    assert!(
+        draft[draft::UNRENDERABLE_KEY]
+            .as_array()
+            .expect("the draft lists what it could not recover")
+            .iter()
+            .any(|key| key.as_str() == Some("native_lowering_windows")),
+        "{draft}"
+    );
+    let trip = round_trip(&draft);
+    assert!(!trip.text.contains("native_lowering"), "{}", trip.text);
+}
+
+/// `alias_of` survives render → load → re-seed.
+///
+/// No shipped spec declares it — it names the builtin a *pack* command is —
+/// so the whole-surface trip never meets it, as with arity windows. This
+/// drives one pack command that does.
+#[test]
+fn alias_of_survives_the_round_trip() {
+    let spec = tcl_registry::CommandSpec {
+        name: "vendor::unpack",
+        arity: tcl_registry::arity::Arity::at_least(1),
+        alias_of: Some("lassign"),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    let trip = round_trip(&draft);
+
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    assert!(trip.text.contains("alias_of lassign"), "{}", trip.text);
+    assert_eq!(
+        trip.reloaded["alias_of"],
+        serde_json::json!("lassign"),
+        "{}",
+        trip.text
+    );
+}
+
+/// `runtime_backing` is a per-command fact with five spellings; every one
+/// survives the studio round trip, and `none` — the default — writes no row.
+/// The whole-surface trips meet the `shipped-builtin` spelling on every core
+/// command, but no shipped spec declares the other three.
+#[test]
+fn runtime_backing_survives_the_round_trip() {
+    use tcl_registry::RuntimeBacking;
+
+    for backing in [
+        RuntimeBacking::shipped("lassign"),
+        RuntimeBacking::package_source("init.tcl"),
+        RuntimeBacking::HostNative,
+        RuntimeBacking::pack_text("proc p {a} {\n    return [list $a {b}]\n}"),
+        // Unbalanced braces are backslash-quoted, not braced.
+        RuntimeBacking::pack_text("puts \"{\""),
+        // The author's assertion that the body may be evaluated is part of the
+        // statement, whichever source the body has.
+        RuntimeBacking::pack_text("proc p {a} {return $a}").evaluated(),
+        RuntimeBacking::package_source("init.tcl").evaluated(),
+    ] {
+        let spec = tcl_registry::CommandSpec {
+            name: "vendor::unpack",
+            arity: tcl_registry::arity::Arity::at_least(1),
+            runtime_backing: backing,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let draft = Value::Object(draft::from_command_spec(&spec));
+        let trip = round_trip(&draft);
+
+        assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+        assert!(trip.text.contains("runtime_backing "), "{}", trip.text);
+        assert_eq!(
+            trip.reloaded["runtime_backing"], draft["runtime_backing"],
+            "{}",
+            trip.text
+        );
+    }
+
+    let spec = tcl_registry::CommandSpec {
+        name: "vendor::unpack",
+        arity: tcl_registry::arity::Arity::at_least(1),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    let trip = round_trip(&draft);
+    assert!(!trip.text.contains("runtime_backing"), "{}", trip.text);
+    assert_eq!(trip.reloaded["runtime_backing"], serde_json::json!("none"));
+}
+
+/// A declared `semantics` / `evaluate` plan is plain data — like
+/// `object_class` a level up — so it round-trips in full: no `GAPS` entry,
+/// no notice, the reloaded declaration equal to the one drafted.
+#[test]
+fn a_declared_semantics_plan_survives_the_round_trip() {
+    use tcl_registry::types::TclType;
+    use tcl_registry::value_transfer::{
+        DeclaredEffect, DeclaredEvaluation, DeclaredSemantics, DeclaredStores, DeclaredStructure,
+        EvalRoute, LanguageProfileId, OutcomeKind, SemanticType, SemanticsDeclaration,
+    };
+
+    static SEMANTICS: DeclaredSemantics = DeclaredSemantics {
+        scope: "probe::grown",
+        structure: DeclaredStructure {
+            // `no_store_writes` cannot coexist with a `stores` row (the
+            // loader drops the whole block as contradictory), so this plan
+            // pairs the *other* effect with one.
+            effects: &[DeclaredEffect::NoExternalIo],
+            result: Some(SemanticType::Tcl(TclType::String)),
+            stores: Some(DeclaredStores {
+                targets: &[1, 2],
+                outcome: OutcomeKind::WriteOrPreserve,
+            }),
+            iterate: None,
+        },
+        evaluation: DeclaredEvaluation::Route(EvalRoute::Expression {
+            language: LanguageProfileId::TclExpr,
+        }),
+        option_declines: &[],
+    };
+    let spec = tcl_registry::CommandSpec {
+        name: "probe::grown",
+        semantics: SemanticsDeclaration::Declared(&SEMANTICS),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    assert!(
+        draft[draft::UNRENDERABLE_KEY]
+            .as_array()
+            .is_none_or(|keys| !keys.iter().any(|k| k.as_str() == Some("semantics"))),
+        "a body-free, option-decline-free plan is fully recoverable: {draft}"
+    );
+    let trip = round_trip(&draft);
+
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    assert!(
+        trip.text.contains("effects {no_external_io}"),
+        "{}",
+        trip.text
+    );
+    assert!(
+        trip.text.contains("result -semantic string"),
+        "{}",
+        trip.text
+    );
+    assert!(
+        trip.text
+            .contains("stores -targets {1 2} -outcome write_or_preserve"),
+        "{}",
+        trip.text
+    );
+    assert!(
+        trip.text.contains("evaluate -expression tcl.expr"),
+        "{}",
+        trip.text
+    );
+    assert_eq!(
+        trip.reloaded["semantics"], draft["semantics"],
+        "the reloaded plan is byte-for-byte the drafted one:\n{}",
+        trip.text
+    );
 }
 
 /// Native resolver declarations and their capability sets are one contract.
@@ -729,6 +1017,52 @@ fn every_command_in_every_dialect_round_trips_through_spectcl() {
     );
 }
 
+/// Every shipped definer grammar, spelt out inline rather than named, renders
+/// and reloads as itself: every member row with its `-effect` (and a
+/// wrapper's `-shift`), every `member_option`, and the object-model rows.
+/// Seeding names a grammar whose data a shipped one equals, so the reloaded
+/// command drafts as the shipped name again — the identity the round trip
+/// relies on. The shipped commands only ever *name* these grammars, so this
+/// is what exercises the class families' inline spelling.
+#[test]
+fn every_shipped_grammar_spelt_inline_reloads_as_itself() {
+    for (name, grammar) in tcl_spectcl::SHIPPED_DEFINITION_BODIES {
+        let block = draft::definition_body_block(grammar);
+        let mut command = draft::default_command_draft();
+        command.insert("name".to_owned(), Value::from("probe::definer"));
+        command.insert("definition_body".to_owned(), block.clone());
+        let text = render_spectcl::render_pack(&[command], "probe");
+        assert!(
+            text.contains("definition_body {"),
+            "{name} is written inline:\n{text}"
+        );
+        let pack = spectcl::evaluate_pack(&text);
+        assert!(
+            pack.notices
+                .iter()
+                .all(|notice| is_policy_report(&notice.message)),
+            "{name} reloads without notices: {:#?}\n{text}",
+            pack.notices
+        );
+        let reloaded = pack
+            .command("probe::definer")
+            .and_then(|command| command.spec.definition_body)
+            .unwrap_or_else(|| panic!("{name} reloads a grammar:\n{text}"));
+        assert_eq!(
+            draft::definition_body_block(reloaded),
+            block,
+            "{name} reloads as itself:\n{text}"
+        );
+        let redrafted =
+            draft::from_command_spec(pack.command("probe::definer").expect("command").spec);
+        assert_eq!(
+            redrafted.get("definition_body"),
+            Some(&Value::from(*name)),
+            "{name}: a grammar equal to a shipped one drafts as its name"
+        );
+    }
+}
+
 /// A notice's shape — its message with the specific word stripped — so the
 /// report groups thousands of notices into a handful of causes.
 fn notice_shape(notice: &str) -> String {
@@ -760,7 +1094,7 @@ fn notice_shape(notice: &str) -> String {
 /// rendered text loads again and produces the same draft: the round-trip gate,
 /// applied to the packs the syntax was designed from.
 #[test]
-fn the_eleven_port_fixtures_render_and_reload_as_themselves() {
+fn the_twelve_port_fixtures_render_and_reload_as_themselves() {
     let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../docs/design/spec-dsl-examples");
     let mut report = String::new();
@@ -773,7 +1107,7 @@ fn the_eleven_port_fixtures_render_and_reload_as_themselves() {
         .filter(|name| name.ends_with(".tclspec"))
         .collect();
     files.sort();
-    assert_eq!(files.len(), 11, "the eleven ports: {files:?}");
+    assert_eq!(files.len(), 12, "the twelve ports: {files:?}");
 
     for file in &files {
         let source = std::fs::read_to_string(dir.join(file)).expect("a port");

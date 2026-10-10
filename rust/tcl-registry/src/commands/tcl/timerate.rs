@@ -195,6 +195,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("timerate"),
         // Tcl 8.6+ only — see the doc comment above. Narrower than the
         // sibling `time`'s `surface: Some(SpecSurface::ALL_TCL)`.
         surface: Some(SpecSurface::TCL86_PLUS),

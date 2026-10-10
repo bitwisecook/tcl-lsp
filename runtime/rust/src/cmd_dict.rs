@@ -1411,6 +1411,9 @@ fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                         Ok(name) => name,
                         Err(error) => return interp.report_cmd_error(error.into()),
                     };
+                    if interp.store_escapes(&name) {
+                        return interp.confined_unset_error(&name);
+                    }
                     interp.var_unset(&name);
                 }
             }

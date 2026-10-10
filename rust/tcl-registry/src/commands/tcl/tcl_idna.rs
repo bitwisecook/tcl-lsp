@@ -115,6 +115,9 @@ static SUBCOMMANDS: [SubCommand; 4] = [
         synopsis: "tcl::idna decode hostname",
         return_type: Some(TclType::String),
         pure: true,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -124,6 +127,9 @@ static SUBCOMMANDS: [SubCommand; 4] = [
         synopsis: "tcl::idna encode hostname",
         return_type: Some(TclType::String),
         pure: true,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -137,6 +143,9 @@ static SUBCOMMANDS: [SubCommand; 4] = [
         // `puny` selects `decode` or `encode` (idna.n: "It supports two
         // subcommands").
         sub_subcommands: IDNA_PUNY_SUBS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -146,6 +155,9 @@ static SUBCOMMANDS: [SubCommand; 4] = [
         synopsis: "tcl::idna version",
         return_type: Some(TclType::String),
         pure: true,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
 ];

@@ -263,9 +263,25 @@ impl Analyser {
         commands: &[SegmentedCommand],
         cmd_idx: usize,
     ) -> usize {
+        // registry-axis-ok: irreducible — this whole function is a
+        // switch-specific parser-repair heuristic (splicing orphaned
+        // pattern/body segments into a switch's argv when the source is
+        // missing its opening brace); no registry fact picks which
+        // command's *malformed* source this repair applies to more
+        // abstractly than its own name, and every other command's
+        // malformed source is left unrepaired; until never
         if cmd.texts.first().map_or("", String::as_str) != "switch" {
             return 0;
         }
+
+        let generation;
+        let registry: &tcl_registry::CommandRegistry =
+            if let Some(stashed) = self.registry.as_deref() {
+                stashed
+            } else {
+                generation = self.analysis_context();
+                generation.commands()
+            };
 
         // Parse switch options.
         let args = if cmd.texts.len() > 1 {
@@ -273,18 +289,7 @@ impl Analyser {
         } else {
             &[][..]
         };
-        let mut arg_start: usize = 0;
-        while arg_start < args.len() && args[arg_start].starts_with('-') {
-            if args[arg_start] == "--" {
-                arg_start += 1;
-                break;
-            }
-            if matches!(args[arg_start].as_str(), "-matchvar" | "-indexvar") {
-                arg_start += 2;
-                continue;
-            }
-            arg_start += 1;
-        }
+        let arg_start = switch_option_scan_end(args, registry);
 
         let non_option_args = if arg_start <= args.len() {
             &args[arg_start..]
@@ -323,11 +328,16 @@ impl Analyser {
         let mut builtins_owned = self.builtin_command_names_const();
         builtins_owned.extend(self.user_command_tail_names());
 
+        let fallthrough_marker = registry
+            .get("switch")
+            .and_then(|spec| spec.case_list)
+            .and_then(|cl| cl.fallthrough_body);
+
         // Count consecutive case-like commands following the
         // switch.
         let mut case_count: usize = 0;
         for follow in commands.iter().skip(cmd_idx + 1) {
-            if looks_like_switch_case(follow, &builtins_owned) {
+            if looks_like_switch_case(follow, &builtins_owned, fallthrough_marker) {
                 case_count += 1;
             } else {
                 break;
@@ -585,6 +595,46 @@ impl Analyser {
     }
 }
 
+/// Where `switch`'s own option scan ends in `args` (the command's words
+/// after `switch` itself) — past every recognised option word, honouring
+/// the one whose registry effect ends option scanning
+/// ([`tcl_registry::option_effect::OptionEffectKind::EndsOptions`]) and the
+/// value-taking flags legal only in regexp mode
+/// ([`tcl_registry::spec::CaseListSpec::value_options_require_regex`]),
+/// both read from `switch`'s own spec rather than hardcoded, so this scan
+/// stays in step with it instead of a second, drifting copy of its flag
+/// spellings.
+fn switch_option_scan_end(args: &[String], registry: &tcl_registry::CommandRegistry) -> usize {
+    let switch_spec = registry.get("switch");
+    let regex_value_flags: &[&str] = switch_spec
+        .and_then(|spec| spec.case_list)
+        .map_or(&[][..], |cl| cl.value_options_require_regex);
+
+    let mut arg_start: usize = 0;
+    while arg_start < args.len() && args[arg_start].starts_with('-') {
+        let effect_kind = switch_spec.and_then(|spec| {
+            spec.options
+                .iter()
+                .find(|opt| opt.name == args[arg_start].as_str())
+                .and_then(|opt| opt.effect)
+                .map(|effect| effect.kind)
+        });
+        if matches!(
+            effect_kind,
+            Some(tcl_registry::option_effect::OptionEffectKind::EndsOptions)
+        ) {
+            arg_start += 1;
+            break;
+        }
+        if regex_value_flags.contains(&args[arg_start].as_str()) {
+            arg_start += 2;
+            continue;
+        }
+        arg_start += 1;
+    }
+    arg_start
+}
+
 /// One replacement operation for a recovered missing-open-bracket typo.
 struct RecoveredBracketWords {
     all_start: usize,
@@ -693,9 +743,16 @@ fn find_argv_index(argv: &[Token], tok: Token) -> Option<usize> {
 /// `builtins` is the set of known command names — passed by
 /// reference so the per-command recovery loop can use O(1)
 /// lookup instead of an O(N) linear scan.
+///
+/// `fallthrough_marker` is `switch`'s own case-list descriptor's
+/// [`tcl_registry::spec::CaseListSpec::fallthrough_body`] — the exact
+/// spelling read from the registry rather than hardcoded, so a pack whose
+/// case-taking command uses a different (or no) fall-through marker isn't
+/// silently matched against `switch`'s.
 pub fn looks_like_switch_case<S: std::hash::BuildHasher>(
     cmd: &SegmentedCommand,
     builtins: &std::collections::HashSet<String, S>,
+    fallthrough_marker: Option<&str>,
 ) -> bool {
     if cmd.texts.len() != 2 {
         return false;
@@ -710,7 +767,7 @@ pub fn looks_like_switch_case<S: std::hash::BuildHasher>(
     {
         return true;
     }
-    cmd.texts.last().map(String::as_str) == Some("-")
+    fallthrough_marker.is_some_and(|marker| cmd.texts.last().map(String::as_str) == Some(marker))
 }
 
 #[cfg(test)]
@@ -799,14 +856,23 @@ mod tests {
     fn looks_like_switch_case_brace_body() {
         let source = "foo { puts hi }";
         let cmd = segment(source);
-        assert!(looks_like_switch_case(&cmd, &empty_builtins()));
+        assert!(looks_like_switch_case(&cmd, &empty_builtins(), Some("-")));
     }
 
     #[test]
     fn looks_like_switch_case_dash_fallthrough() {
         let source = "foo -";
         let cmd = segment(source);
-        assert!(looks_like_switch_case(&cmd, &empty_builtins()));
+        assert!(looks_like_switch_case(&cmd, &empty_builtins(), Some("-")));
+    }
+
+    #[test]
+    fn looks_like_switch_case_no_fallthrough_marker_rejects_dash() {
+        // When the caller has no fall-through marker (e.g. the registry
+        // lookup abstained), a bare ``-`` body is no longer recognised.
+        let source = "foo -";
+        let cmd = segment(source);
+        assert!(!looks_like_switch_case(&cmd, &empty_builtins(), None));
     }
 
     #[test]
@@ -815,21 +881,25 @@ mod tests {
         // with a switch case.
         let source = "set x";
         let cmd = segment(source);
-        assert!(!looks_like_switch_case(&cmd, &builtins_with(&["set"])));
+        assert!(!looks_like_switch_case(
+            &cmd,
+            &builtins_with(&["set"]),
+            Some("-")
+        ));
     }
 
     #[test]
     fn looks_like_switch_case_rejects_three_or_more_words() {
         let source = "foo bar baz";
         let cmd = segment(source);
-        assert!(!looks_like_switch_case(&cmd, &empty_builtins()));
+        assert!(!looks_like_switch_case(&cmd, &empty_builtins(), Some("-")));
     }
 
     #[test]
     fn looks_like_switch_case_rejects_single_word() {
         let source = "foo";
         let cmd = segment(source);
-        assert!(!looks_like_switch_case(&cmd, &empty_builtins()));
+        assert!(!looks_like_switch_case(&cmd, &empty_builtins(), Some("-")));
     }
 
     #[test]

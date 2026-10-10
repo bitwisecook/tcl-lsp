@@ -1570,6 +1570,18 @@ mod regex_patterns {
         assert!(p2.iter().all(|(pat, _)| pat == "foo"));
     }
 
+    /// A rooted `::set` still binds its constant as `set` does: the
+    /// binding reads the `CellWrite` declaration of the command the head
+    /// resolves to, never the
+    /// spelling (tclsh 8.4.20 to 9.1b0: `::set pat {^\d+$}; regexp $pat 123`
+    /// is 1).
+    #[test]
+    fn a_rooted_set_propagates_its_constant_pattern() {
+        let p = pats("::set pat {^\\d+$}\nregexp $pat $str");
+        assert_eq!(p.len(), 2);
+        assert!(p.iter().all(|(pat, _)| pat == "^\\d+$"));
+    }
+
     #[test]
     fn set_then_switch_regexp_propagates() {
         let p = pats("set pat {^hello}\nswitch -regexp $x $pat {puts matched}");
@@ -4196,16 +4208,21 @@ mod canonicalisation_matrix {
     }
 
     #[test]
-    fn w210_upvar_aliased_does_not_silence_rust_behaviour() {
+    fn w210_upvar_aliased_silences_the_name_it_links() {
         // An aliased `upvar` (`interp alias {} link {} upvar` then
-        // `link 1 caller_v local`) is not recognised by the W210-suppression
-        // path, so reading `local` DOES fire W210.
+        // `link 1 caller_v local`) reaches `upvar` through another binding,
+        // a registry command whose traits say it raises a barrier, so the
+        // flow graph lowers no frame effect for it and marks the call as one
+        // to code the module cannot see. Such a callee may create the caller's
+        // names it is handed, and `local` is one: reading it draws no W210.
+        // tclsh 8.4 to 9.1 print `5` for the procedure called after
+        // `set caller_v 5`.
         assert_eq!(
             w210_for(
                 "interp alias {} link {} upvar\nproc f {} { link 1 caller_v local; puts $local }",
                 "'local'"
             ),
-            1
+            0
         );
     }
 
@@ -6857,13 +6874,55 @@ mod class_factories {
                 .contains_key("::T::D::class")
         );
 
+        // `D*` as a regular expression matches `Dialect` (zero or more `D`
+        // from the start), so the regexp selection falls through into the
+        // creating body; tclsh 9.0 makes the class.
         let regexp = src.replace("switch -glob", "switch -regexp");
         assert!(
-            !analysis(&regexp, "tcl9.0")
+            analysis(&regexp, "tcl9.0")
                 .all_classes
                 .contains_key("::T::D::class"),
-            "unsupported regexp selection must abstain"
+            "the regexp selection reaches the creating body"
         );
+        // A pattern the regexp engine rejects is a selection nothing makes.
+        let malformed = src
+            .replace("switch -glob", "switch -regexp")
+            .replace("D* -", "{(} -");
+        assert!(
+            !analysis(&malformed, "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class"),
+            "a malformed pattern must abstain"
+        );
+    }
+
+    /// A quoted `-` body of the separate-words form reads two ways on 9.1b0
+    /// (its byte-compiled `switch` runs it as a command), so the selection
+    /// declines there and the class is not made; 9.0 reads it by value and
+    /// falls through into the creating body, and the bare spelling reads
+    /// alike everywhere.
+    #[test]
+    fn computed_creation_declines_a_delimited_fallthrough_body_on_91() {
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::Mother { superclass oo::class }\n",
+            "proc ::T::mk {name selector} {\n",
+            "    switch -glob -- $selector D* \"-\" fallback {\n",
+            "        ::T::Mother create ${name}::class {}\n",
+            "    } default {}\n",
+            "}\n",
+            "::T::mk ::T::D Dialect\n",
+        );
+        let made = |source: &str, dialect: &str| {
+            analysis(source, dialect)
+                .all_classes
+                .contains_key("::T::D::class")
+        };
+        assert!(made(src, "tcl9.0"));
+        assert!(!made(src, "tcl9.1"));
+        let bare = src.replace("\"-\"", "-");
+        assert!(made(&bare, "tcl9.0"));
+        assert!(made(&bare, "tcl9.1"));
     }
 
     #[test]
@@ -8263,12 +8322,12 @@ mod const_cmd_subst_set_rhs {
     }
 
     #[test]
-    fn a_vendor_profile_abstains_from_version_sensitive_const_substitution() {
-        // FP guard: iRules has a real Tcl runtime version, but its profile's
-        // const-fold projection is deliberately unknown until versioned
-        // folds are verified for that shell.  The version-sensitive
-        // `format %d 010` therefore must stay unresolved rather than being
-        // folded as Tcl 8.4/9.0 semantics.
+    fn a_vendor_profile_folds_a_version_sensitive_constant_only_where_its_release_was_measured() {
+        // The version-sensitive `format %d 010` is 8 under Tcl 8.4 (a leading
+        // zero is octal) and 10 under 9.0. iRules is an 8.4 fork whose release
+        // was measured, so it folds as 8.4 does; `expect` models an 8.6 base that
+        // nobody measured, so a fold under it stays unresolved rather than being
+        // folded as one release's semantics.
         let src = concat!(
             "namespace eval tc { proc setdef {a b} { return 1 } }\n",
             "proc user {} {\n",
@@ -8276,11 +8335,17 @@ mod const_cmd_subst_set_rhs {
             "    ${value}::setdef x y\n",
             "}\n",
         );
-        let r = analysis(src, "f5-irules");
+        let measured = analysis(src, "f5-irules");
         assert_eq!(
-            resolutions_of(&r, "${value}"),
+            resolutions_of(&measured, "${value}"),
+            ["::8::setdef"],
+            "a measured vendor release folds as that release"
+        );
+        let unmeasured = analysis(src, "expect");
+        assert_eq!(
+            resolutions_of(&unmeasured, "${value}"),
             ["::${value}::setdef"],
-            "a version-sensitive vendor fold must abstain"
+            "a vendor base nothing measured must abstain"
         );
     }
 
@@ -9216,5 +9281,153 @@ mod issue_1367_template_method_self_dispatch {
             "the injected view clears 'Render' and leaves the typo: {:?}",
             result.diagnostics
         );
+    }
+}
+
+// ── Pack-declared transitions and special variables ─────────────────────────
+
+mod pack_declared_transitions {
+    use super::*;
+
+    /// Load `source` as a workspace pack and return an analyser bound to the
+    /// registry generation it installs — the path the language server takes
+    /// for a document under `.tcl-lsp/`.
+    fn analyser_with_pack(source: &str) -> Analyser {
+        let packs = tcl_spectcl::pack::load_in_memory(vec![(
+            tcl_spectcl::PackFile {
+                tier: tcl_spectcl::Tier::Workspace,
+                path: std::path::PathBuf::from("/workspace/.tcl-lsp/scoped.tclspec"),
+                origin: tcl_spectcl::discovery::Origin::DotDir,
+                dependency_tier: None,
+            },
+            source.to_owned(),
+        )]);
+        let _registry = tcl_spectcl::install::registry_for_dialect_with_packs(D, &packs);
+        Analyser::new().with_pack_overlay(packs.key)
+    }
+
+    /// A command no shipped registry knows, crossing frames exactly as
+    /// `upvar` does: its `frame_effect` is `upvar`'s, and its
+    /// `state_transitions` resolver derives the alias facts from it.
+    const LINKER_PACK: &str = "speclib scoped 1.0 {\n\
+        \x20   command scoped_link {\n\
+        \x20       arity 2..\n\
+        \x20       frame_effect -level-word ArityParity -layout AliasPairs\n\
+        \x20       state_transitions {\n\
+        \x20           argument_shape Positional\n\
+        \x20           resolver from-frame-effect\n\
+        \x20           widen -operands EveryArgument -domains {VariableCells VariableTraces}\n\
+        \x20           commit MayCommitBeforeAbruptCompletion\n\
+        \x20       }\n\
+        \x20   }\n\
+        }\n";
+
+    /// The analyser binds a pack command's alias facts as it binds
+    /// `upvar`'s — it reads the invocation's transitions, never the
+    /// command's name: `scoped_link #0 counter c` defines `c` and links it to the
+    /// global cell. Negative: with a computed level word the derived
+    /// resolver abstains for the whole call (the shipped `upvar` would state
+    /// its alias with an unknown frame), so nothing binds.
+    #[test]
+    fn a_pack_declared_scope_alias_binds_its_local() {
+        let bound = analyser_with_pack(LINKER_PACK).analyse(
+            "proc p {} {\n    scoped_link #0 counter c\n    return $c\n}\n",
+            D,
+        );
+        let proc_scope = &bound.global_scope.children[0];
+        let c = proc_scope
+            .variables
+            .get("c")
+            .unwrap_or_else(|| panic!("`c` is bound: {:?}", proc_scope.variables.keys()));
+        assert_eq!(c.link_target.as_deref(), Some("::counter"));
+        assert!(!c.warn_if_unused);
+
+        let unbound = analyser_with_pack(LINKER_PACK)
+            .analyse("proc p {lvl} {\n    scoped_link $lvl counter c\n}\n", D);
+        assert!(
+            !unbound.global_scope.children[0].variables.contains_key("c"),
+            "a computed level word binds nothing"
+        );
+    }
+
+    /// A pack command whose grammar gives one clause two `LoopVarList`
+    /// slots — the shipped `catch` shape — with no `arg` rows stating them
+    /// again as flat roles, so the clause is the only place they are named.
+    const TWO_LISTS_PACK: &str = "speclib twolists 2.1 {\n\
+        \x20   command cmd {\n\
+        \x20       arity 1..3\n\
+        \x20       clause_grammar {\n\
+        \x20           head {Body} -timing protected\n\
+        \x20           tail {{LoopVarList optional} {LoopVarList optional}}\n\
+        \x20       }\n\
+        \x20   }\n\
+        }\n";
+
+    /// The generic tail binds every variable-list operand a clause fills,
+    /// not only the first: `cmd {} a b` binds `a` and `b`. Negative: the
+    /// optional second slot left unfilled binds nothing more.
+    #[test]
+    fn a_clause_with_two_variable_lists_binds_both() {
+        let both = analyser_with_pack(TWO_LISTS_PACK).analyse("cmd {} a b\n", D);
+        for name in ["a", "b"] {
+            assert!(
+                both.global_scope.variables.contains_key(name),
+                "`{name}` is bound: {:?}",
+                both.global_scope.variables.keys().collect::<Vec<_>>()
+            );
+        }
+        let one = analyser_with_pack(TWO_LISTS_PACK).analyse("cmd {} a\n", D);
+        assert!(one.global_scope.variables.contains_key("a"));
+        assert_eq!(
+            one.global_scope.variables.len(),
+            1,
+            "{:?}",
+            one.global_scope.variables.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// A pack declaring an interpreter-provided global bound at startup.
+    const HOST_PACK: &str = "speclib hosted 2.1 {\n\
+        \x20   special_var sim_home -kind Scalar -access ReadOnly -origin Dialect -startup Interpreter\n\
+        \x20   special_var sim_opts -kind Array -access ReadWrite -origin Environment\n\
+        }\n";
+
+    /// A pack's `special_var` row reaches the registry generation the
+    /// analyser walks under through the one door every reader asks
+    /// (`CommandRegistry::special_vars`), with the facts the shipped table
+    /// states: `sim_home` is readable before user code, `sim_opts` exists but
+    /// is not. Negative: the generation without the pack knows neither.
+    #[test]
+    fn a_pack_declared_special_variable_is_readable_at_startup() {
+        let packs = tcl_spectcl::pack::load_in_memory(vec![(
+            tcl_spectcl::PackFile {
+                tier: tcl_spectcl::Tier::Workspace,
+                path: std::path::PathBuf::from("/workspace/.tcl-lsp/hosted.tclspec"),
+                origin: tcl_spectcl::discovery::Origin::DotDir,
+                dependency_tier: None,
+            },
+            HOST_PACK.to_owned(),
+        )]);
+        assert!(
+            !packs.is_empty(),
+            "a pack of special variables is not empty"
+        );
+        let overlaid = tcl_spectcl::install::registry_for_dialect_with_packs(D, &packs);
+        let query = Some(tcl_dialect::model::SurfaceQuery::core(
+            tcl_dialect::model::Family::Tcl,
+            "8.6",
+        ));
+        assert!(overlaid.is_readable_at_startup("sim_home", query));
+        assert!(overlaid.special_var_in_dialect("sim_opts", query).is_some());
+        assert!(!overlaid.is_readable_at_startup("sim_opts", query));
+        // The shipped rows still answer through the same door.
+        assert!(overlaid.is_readable_at_startup("tcl_version", query));
+
+        let plain = tcl_spectcl::install::registry_for_dialect_with_packs(
+            D,
+            &tcl_spectcl::PackSet::default(),
+        );
+        assert!(plain.special_var("sim_home").is_none());
+        assert!(!plain.is_readable_at_startup("sim_home", query));
     }
 }

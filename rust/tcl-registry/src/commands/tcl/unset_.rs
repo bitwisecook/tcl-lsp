@@ -74,7 +74,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// reached prefix requires values; later names need exact argv cardinality.
 fn unset_layout_roles(
     arguments: crate::InvocationArguments<'_>,
-    _options: crate::resolved_invocation::InvocationOptions<'_>,
+    _options: crate::resolved_invocation::InvocationOptions<'_, '_>,
 ) -> Option<Vec<(u8, ArgRole)>> {
     let count = arguments.exact_argv_len()?;
     if count > usize::from(u8::MAX) + 1 {
@@ -133,6 +133,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("unset"),
         // A core variable primitive with no filesystem/process/network access,
         // present unmodified in every dialect that hosts a real Tcl core
         // (irules, iapps, tmsh, the EDA shells, expect, tk, itcl) — iRules
@@ -180,6 +181,7 @@ pub fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
                 OptionSpec {
                     name: "--",
@@ -189,6 +191,7 @@ pub fn spec() -> CommandSpec {
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
+                    effect: None,
                 },
             ]
         },

@@ -318,6 +318,11 @@ mod tests {
         );
     }
 
+    /// `expr_op_spellings()` includes the
+    /// iRules word operators (`and`/`or`/`contains`/…), and an ordinary
+    /// quoted string containing one of those words as English prose must
+    /// NOT be mistaken for a real operator token — `set myvar "salt and
+    /// pepper"` is already valid, wrapping it in `expr {…}` breaks it.
     #[test]
     fn logical_invalid_multiword_value_never_becomes_a_four_argument_set() {
         // Implementation contract: naming.refactor.logical-single-word-extraction

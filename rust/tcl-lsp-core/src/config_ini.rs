@@ -1,0 +1,766 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! INI config-file parsing and the three-layer merge, shared by every
+//! surface that reads configuration.
+//!
+//! Settings are read from three layers, lowest to highest precedence:
+//!
+//! 1. the global user config — `config.ini`, `[global]` section
+//!    (platform-native location, see [`crate::tcl_install::user_config_path`]),
+//! 2. the editor's `workspace/configuration` payload, or a surface's own
+//!    flags in that slot,
+//! 3. the per-workspace project config — `.tcl-lsp.ini`, `[project]` section.
+//!
+//! [`settings_from_ini`] parses one INI file into the *same* JSON shape the
+//! editor delivers a `tclLsp` section as, so the server's
+//! `Backend::apply_global_config` applies a file layer exactly as it applies
+//! the editor layer. [`merge_settings`] deep-merges the layers (later wins,
+//! sections merged key-by-key). The [`DEFAULT_OFF_CODES`] seed and
+//! [`parse_severity_value`] live here too; the policy step's builder
+//! ([`crate::diagnostic_policy::PolicyBuilder`]) resolves the layers per code
+//! over them, so every surface reads one parse. The contract is
+//! `docs/design/contracts/config-precedence.md`.
+
+use std::path::{Path, PathBuf};
+
+use serde_json::{Map, Value};
+use tcl_core_types::{DiagCode, Severity};
+
+/// Which precedence layer a file occupies, selecting its top-level section.
+/// A `[global]` section in a project file (or `[project]` in the global file)
+/// is ignored — the section name must match the file's role
+/// so copying a file between locations never silently changes its layer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Layer {
+    /// The user `config.ini` — top-level keys live under `[global]`.
+    Global,
+    /// A project `.tcl-lsp.ini` — top-level keys live under `[project]`.
+    Project,
+}
+
+impl Layer {
+    fn top_section(self) -> &'static str {
+        match self {
+            Layer::Global => "global",
+            Layer::Project => "project",
+        }
+    }
+}
+
+/// One parsed INI section: its name and ordered `(key, raw_value)` pairs.
+pub(crate) struct Section {
+    pub(crate) name: String,
+    pub(crate) entries: Vec<(String, String)>,
+}
+
+/// Parse INI `content` into ordered sections, joining `configparser`-style
+/// indented continuation lines with `\n`. Comment lines (`#` / `;`) and blank
+/// lines are skipped; keys before any section header are ignored.
+pub(crate) fn parse_ini(content: &str) -> Vec<Section> {
+    let mut sections: Vec<Section> = Vec::new();
+    for raw_line in content.lines() {
+        let line = raw_line.trim_end();
+        let stripped = line.trim_start();
+        if stripped.starts_with('[') && stripped.ends_with(']') {
+            let name = stripped[1..stripped.len() - 1].trim().to_owned();
+            sections.push(Section {
+                name,
+                entries: Vec::new(),
+            });
+            continue;
+        }
+        let Some(section) = sections.last_mut() else {
+            continue;
+        };
+        // Comments and blank lines are recognised *before* continuation, as
+        // configparser does: a full-line comment is any line whose stripped
+        // form starts with `#` / `;`, even when indented.  Handling this after
+        // the continuation check would absorb an indented `# …` comment inside
+        // a multi-line value, turning a commented-out entry into a live one
+        // (issue 176).
+        if stripped.is_empty() || stripped.starts_with('#') || stripped.starts_with(';') {
+            continue;
+        }
+        // Continuation: an indented, non-empty, non-comment line continues the
+        // current key's value — configparser semantics. Keys are written at the
+        // section's base (unindented) column, so an indented line is always a
+        // continuation, even when it contains `:` / `=` (e.g. a `mylib::send`
+        // command name or a regex pattern with a colon).
+        let indented = line.starts_with([' ', '\t']);
+        // No key to continue (indented line right after a header) falls through
+        // and is treated as a normal `key = value` if it parses.
+        if indented && let Some(last) = section.entries.last_mut() {
+            last.1.push('\n');
+            last.1.push_str(stripped);
+            continue;
+        }
+        // `key = value` or `key: value`.
+        if let Some(idx) = stripped.find(['=', ':']) {
+            let key = stripped[..idx].trim().to_owned();
+            let value = stripped[idx + 1..].trim().to_owned();
+            if !key.is_empty() {
+                section.entries.push((key, value));
+            }
+        }
+    }
+    sections
+}
+
+fn section_value<'a>(sections: &'a [Section], name: &str, key: &str) -> Option<&'a str> {
+    sections
+        .iter()
+        .find(|s| s.name == name)?
+        .entries
+        .iter()
+        .find(|(k, _)| k == key)
+        .map(|(_, v)| v.as_str())
+}
+
+fn has_section(sections: &[Section], name: &str) -> bool {
+    sections.iter().any(|s| s.name == name)
+}
+
+/// Split a comma-or-whitespace-separated value into tokens.
+fn parse_comma_list(raw: &str) -> Vec<String> {
+    raw.replace(',', " ")
+        .split_whitespace()
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Split a newline-list value (configparser continuation) into trimmed,
+/// non-empty lines; falls back to comma-splitting a one-liner — the rule
+/// `_read_top_level_section` uses for `libraryPaths`.
+fn parse_path_list(raw: &str) -> Vec<String> {
+    let lines: Vec<String> = raw
+        .lines()
+        .map(|l| l.trim().to_owned())
+        .filter(|l| !l.is_empty())
+        .collect();
+    if lines.len() <= 1 && raw.contains(',') {
+        return parse_comma_list(raw);
+    }
+    lines
+}
+
+fn parse_bool(value: &str) -> Option<bool> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "true" | "yes" | "1" | "on" => Some(true),
+        "false" | "no" | "0" | "off" => Some(false),
+        _ => None,
+    }
+}
+
+/// Parse one INI file's `content` into the `tclLsp`-section JSON shape the
+/// editor delivers (so the server's `Backend::apply_global_config` can apply
+/// it). `layer` selects the `[global]` vs `[project]` top-level section.
+///
+/// Mirrors `shared/user_config.py::get_all_settings`. Only keys actually
+/// present are emitted, so absent settings keep their built-in defaults.
+#[must_use]
+pub fn settings_from_ini(content: &str, layer: Layer) -> Value {
+    let sections = parse_ini(content);
+    let mut out = Map::new();
+
+    // Top-level section ([global] / [project]): dialect, extraCommands,
+    // libraryPaths.
+    let top = layer.top_section();
+    if let Some(dialect) = section_value(&sections, top, "dialect") {
+        let dialect = dialect.trim();
+        if !dialect.is_empty() {
+            out.insert("dialect".to_owned(), Value::String(dialect.to_owned()));
+        }
+    }
+    if let Some(raw) = section_value(&sections, top, "extraCommands") {
+        let cmds = parse_comma_list(raw);
+        if !cmds.is_empty() {
+            out.insert(
+                "extraCommands".to_owned(),
+                Value::Array(cmds.into_iter().map(Value::String).collect()),
+            );
+        }
+    }
+    if let Some(raw) = section_value(&sections, top, "libraryPaths") {
+        let paths = parse_path_list(raw);
+        if !paths.is_empty() {
+            out.insert(
+                "libraryPaths".to_owned(),
+                Value::Array(paths.into_iter().map(Value::String).collect()),
+            );
+        }
+    }
+    // `entryPoints` — the project's "main" files that run the `package
+    // require`s and `source` the rest. When set, W120 auto source-graph
+    // inheritance is disabled and every file inherits these entries' requires.
+    // Accepts one path per line (configparser continuation) or a comma list.
+    if let Some(raw) = section_value(&sections, top, "entryPoints") {
+        let entries = parse_path_list(raw);
+        if !entries.is_empty() {
+            out.insert(
+                "entryPoints".to_owned(),
+                Value::Array(entries.into_iter().map(Value::String).collect()),
+            );
+        }
+    }
+
+    insert_diagnostics(&sections, &mut out);
+    insert_diagnostic_severity(&sections, &mut out);
+    insert_optimiser(&sections, &mut out);
+
+    // [shimmer] / [xcDiagnostics]: enabled.
+    for sect in ["shimmer", "xcDiagnostics"] {
+        if let Some(b) = section_value(&sections, sect, "enabled").and_then(parse_bool) {
+            out.insert(sect.to_owned(), json_enabled(b));
+        }
+    }
+
+    insert_packages(&sections, &mut out);
+
+    // [features]: every key → bool.
+    if let Some(section) = sections.iter().find(|s| s.name == "features") {
+        let mut feat = Map::new();
+        for (k, v) in &section.entries {
+            if let Some(b) = parse_bool(v) {
+                feat.insert(k.clone(), Value::Bool(b));
+            }
+        }
+        if !feat.is_empty() {
+            out.insert("features".to_owned(), Value::Object(feat));
+        }
+    }
+
+    // [signatureHelp]: built-in commands whose automatic signature help is
+    // suppressed. Accept the INI-native snake_case spelling and the editor's
+    // camelCase key so exported settings can be pasted back unchanged.
+    if let Some(raw) = section_value(&sections, "signatureHelp", "disabled_commands")
+        .or_else(|| section_value(&sections, "signatureHelp", "disabledCommands"))
+    {
+        let commands = parse_comma_list(raw);
+        let mut signature_help = Map::new();
+        signature_help.insert(
+            "disabledCommands".to_owned(),
+            Value::Array(commands.into_iter().map(Value::String).collect()),
+        );
+        out.insert("signatureHelp".to_owned(), Value::Object(signature_help));
+    }
+
+    insert_formatting(&sections, &mut out);
+
+    // [style] `line_length` → the W111 threshold; `nonAscii` → the W108
+    // non-ASCII mode.  These are distinct from the formatter width above.
+    let mut style = Map::new();
+    if let Some(len) =
+        section_value(&sections, "style", "line_length").and_then(|v| v.trim().parse::<u64>().ok())
+    {
+        style.insert("lineLength".to_owned(), Value::from(len));
+    }
+    if let Some(mode) = section_value(&sections, "style", "nonAscii") {
+        let mode = mode.trim();
+        if !mode.is_empty() {
+            style.insert("nonAscii".to_owned(), Value::String(mode.to_owned()));
+        }
+    }
+    if !style.is_empty() {
+        out.insert("style".to_owned(), Value::Object(style));
+    }
+
+    insert_workspace_scan(&sections, &mut out);
+
+    insert_notifications(&sections, &mut out);
+
+    insert_iruleslx(&sections, &mut out);
+
+    Value::Object(out)
+}
+
+/// `[workspaceScan]` — the on-disk workspace scan's file budget.
+///
+/// `max_files` bounds how many Tcl files the start-up scan reads and indexes
+/// across every workspace folder, so a pathologically large tree cannot stall
+/// start-up. Open documents are indexed regardless of it. Accepts the INI
+/// `snake_case` spelling and the editor's camelCase key, so exported settings
+/// paste back unchanged (the same courtesy `[signatureHelp]` extends).
+fn insert_workspace_scan(sections: &[Section], out: &mut Map<String, Value>) {
+    if let Some(max) = section_value(sections, "workspaceScan", "max_files")
+        .or_else(|| section_value(sections, "workspaceScan", "maxFiles"))
+        .and_then(|v| v.trim().parse::<u64>().ok())
+    {
+        let mut scan = Map::new();
+        scan.insert("maxFiles".to_owned(), Value::from(max));
+        out.insert("workspaceScan".to_owned(), Value::Object(scan));
+    }
+}
+
+/// `[notifications]` — which one-time messages the server may send.
+///
+/// `environment_kind` switches off the explanation shown the first time a tool
+/// environment (Vivado, Quartus, …) is in use. It is the file form of the
+/// editor setting `tclLsp.notifications.environmentKind`, for editors that have
+/// no settings UI; the camelCase spelling is accepted too, so exported settings
+/// paste back unchanged.
+fn insert_notifications(sections: &[Section], out: &mut Map<String, Value>) {
+    if let Some(flag) = section_value(sections, "notifications", "environment_kind")
+        .or_else(|| section_value(sections, "notifications", "environmentKind"))
+        .and_then(parse_bool)
+    {
+        let mut notifications = Map::new();
+        notifications.insert("environmentKind".to_owned(), Value::Bool(flag));
+        out.insert("notifications".to_owned(), Value::Object(notifications));
+    }
+}
+
+/// `[packages]` / `[packages.provides]` — how the modelled interpreter loads
+/// packages.
+///
+/// `preferLatest` is the interpreter's starting `package prefer` mode: a
+/// config-file key rather than an inference, because the real inputs —
+/// `TCL_PKG_PREFER_LATEST` in the environment, or an unstable 9.0+ build of
+/// Tcl — belong to the interpreter the user runs, not to the server's own
+/// process or to the source tree (issue #1253).
+///
+/// `[packages.provides]` declares what loading one package also loads:
+///
+/// ```ini
+/// [packages.provides]
+/// myExtension = Tk
+/// bigWrapper = Tk, Img
+/// ```
+///
+/// Every key is a package name, so the section is read key-by-key like
+/// `[features]` rather than through a fixed key list. It exists for a
+/// **binary** extension whose C `Init` calls `Tcl_PkgRequire` or
+/// `Tk_InitStubs`: that leaves no `package require Tk` anywhere for the
+/// `pkgIndex.tcl` scan to read, so the edge can only be declared (#1813).
+fn insert_packages(sections: &[Section], out: &mut Map<String, Value>) {
+    let mut packages = Map::new();
+    if let Some(b) = section_value(sections, "packages", "preferLatest").and_then(parse_bool) {
+        packages.insert("preferLatest".to_owned(), Value::Bool(b));
+    }
+    if let Some(section) = sections.iter().find(|s| s.name == "packages.provides") {
+        let mut provides = Map::new();
+        for (package, raw) in &section.entries {
+            let loaded = parse_comma_list(raw);
+            if !package.is_empty() && !loaded.is_empty() {
+                provides.insert(
+                    package.clone(),
+                    Value::Array(loaded.into_iter().map(Value::String).collect()),
+                );
+            }
+        }
+        if !provides.is_empty() {
+            packages.insert("provides".to_owned(), Value::Object(provides));
+        }
+    }
+    if !packages.is_empty() {
+        out.insert("packages".to_owned(), Value::Object(packages));
+    }
+}
+
+/// `[iruleslx.plugins]` / `[iruleslx.rules]` — the iRulesLX plugin ↔ workspace
+/// association (issue #1707 criterion 2's "documented workspace/config
+/// mapping").
+///
+/// ```ini
+/// [iruleslx.plugins]
+/// my_plugin = workspaces/prod_ws
+///
+/// [iruleslx.rules]
+/// my_plugin = irules/http, irules/tcp
+/// ```
+///
+/// Every key is a plugin name — the `PLUGIN` word of `ILX::init` — so the
+/// sections are read key-by-key like `[features]` rather than through a fixed
+/// key list. Paths are relative to the folder the config belongs to (absolute
+/// paths are taken as given), resolved by the server at read time.
+///
+/// The source layout can only establish an *extension* name; a plugin is
+/// created from a workspace and may be named anything, so without a
+/// declaration a plugin whose name differs from its directory is not
+/// navigable. `rules` is the same admission on the caller side: a repository
+/// routinely keeps its iRules outside the workspace it builds.
+fn insert_iruleslx(sections: &[Section], out: &mut Map<String, Value>) {
+    let mut ilx = Map::new();
+    if let Some(section) = sections.iter().find(|s| s.name == "iruleslx.plugins") {
+        let mut plugins = Map::new();
+        for (plugin, path) in &section.entries {
+            let path = path.trim();
+            if !plugin.is_empty() && !path.is_empty() {
+                plugins.insert(plugin.clone(), Value::String(path.to_owned()));
+            }
+        }
+        if !plugins.is_empty() {
+            ilx.insert("plugins".to_owned(), Value::Object(plugins));
+        }
+    }
+    if let Some(section) = sections.iter().find(|s| s.name == "iruleslx.rules") {
+        let mut rules = Map::new();
+        for (plugin, raw) in &section.entries {
+            // One directory per continuation line, or a comma list — the same
+            // rule `libraryPaths` / `entryPoints` take, since these are paths
+            // and a path may legitimately contain a comma.
+            let dirs = parse_path_list(raw);
+            if !plugin.is_empty() && !dirs.is_empty() {
+                rules.insert(
+                    plugin.clone(),
+                    Value::Array(dirs.into_iter().map(Value::String).collect()),
+                );
+            }
+        }
+        if !rules.is_empty() {
+            ilx.insert("rules".to_owned(), Value::Object(rules));
+        }
+    }
+    if !ilx.is_empty() {
+        out.insert("iruleslx".to_owned(), Value::Object(ilx));
+    }
+}
+
+/// `{ "enabled": b }` — the shape the `[shimmer]` / `[xcDiagnostics]` sections
+/// map onto.
+fn json_enabled(b: bool) -> Value {
+    let mut m = Map::new();
+    m.insert("enabled".to_owned(), Value::Bool(b));
+    Value::Object(m)
+}
+
+/// `[diagnostics]`: `disabled` codes → `{CODE: false}`, then each
+/// per-code key → `{CODE: bool}` ([`insert_code_toggles`]),
+/// `generic_variable_patterns` → `genericVariablePatterns`, and `exclude`
+/// glob patterns → `exclude`.
+fn insert_diagnostics(sections: &[Section], out: &mut Map<String, Value>) {
+    if !has_section(sections, "diagnostics") {
+        return;
+    }
+    let mut diag = Map::new();
+    if let Some(raw) = section_value(sections, "diagnostics", "disabled") {
+        for code in parse_comma_list(raw) {
+            diag.insert(code, Value::Bool(false));
+        }
+    }
+    insert_code_toggles(sections, "diagnostics", &mut diag);
+    // `exclude` — glob patterns naming files that produce no diagnostics at
+    // all (#1556). One pattern per line (configparser continuation), never
+    // comma-split: brace alternation (`{a,b}`) puts commas inside a pattern.
+    if let Some(raw) = section_value(sections, "diagnostics", "exclude") {
+        let patterns: Vec<Value> = raw
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .map(|l| Value::String(l.to_owned()))
+            .collect();
+        if !patterns.is_empty() {
+            diag.insert("exclude".to_owned(), Value::Array(patterns));
+        }
+    }
+    if let Some(raw) = section_value(sections, "diagnostics", "generic_variable_patterns") {
+        let patterns: Vec<Value> = raw
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .map(|l| Value::String(l.to_owned()))
+            .collect();
+        if !patterns.is_empty() {
+            diag.insert("genericVariablePatterns".to_owned(), Value::Array(patterns));
+        }
+    }
+    if !diag.is_empty() {
+        out.insert("diagnostics".to_owned(), Value::Object(diag));
+    }
+}
+
+/// `[diagnosticSeverity]`: each `CODE = severity` entry → a `diagnosticSeverity`
+/// object of `{CODE: "severity"}`, the nested shape the policy builder reads.
+/// The severity strings are passed through verbatim; [`parse_severity_value`]
+/// validates them there (case-insensitive `error` / `warning` /
+/// `information` / `info` / `hint`) and an unknown one is no override, so an
+/// unknown value here simply leaves the code's emitted severity untouched.
+fn insert_diagnostic_severity(sections: &[Section], out: &mut Map<String, Value>) {
+    let Some(section) = sections.iter().find(|s| s.name == "diagnosticSeverity") else {
+        return;
+    };
+    let mut sev = Map::new();
+    for (code, value) in &section.entries {
+        let value = value.trim();
+        if !value.is_empty() {
+            sev.insert(code.clone(), Value::String(value.to_owned()));
+        }
+    }
+    if !sev.is_empty() {
+        out.insert("diagnosticSeverity".to_owned(), Value::Object(sev));
+    }
+}
+
+/// `[optimiser]`: `enabled`, `profile`, `disabled` codes → `{CODE: false}`,
+/// then each per-code key → `{CODE: bool}` ([`insert_code_toggles`]).
+fn insert_optimiser(sections: &[Section], out: &mut Map<String, Value>) {
+    if !has_section(sections, "optimiser") {
+        return;
+    }
+    let mut opt = Map::new();
+    if let Some(b) = section_value(sections, "optimiser", "enabled").and_then(parse_bool) {
+        opt.insert("enabled".to_owned(), Value::Bool(b));
+    }
+    if let Some(profile) = section_value(sections, "optimiser", "profile") {
+        let profile = profile.trim();
+        if !profile.is_empty() {
+            opt.insert("profile".to_owned(), Value::String(profile.to_owned()));
+        }
+    }
+    if let Some(raw) = section_value(sections, "optimiser", "disabled") {
+        for code in parse_comma_list(raw) {
+            opt.insert(code, Value::Bool(false));
+        }
+    }
+    insert_code_toggles(sections, "optimiser", &mut opt);
+    if !opt.is_empty() {
+        out.insert("optimiser".to_owned(), Value::Object(opt));
+    }
+}
+
+/// The per-code keys of `section` — `W242 = true` turns a code on,
+/// `W111 = false` turns it off — as `{CODE: bool}` entries in `into`, in file
+/// order and after the section's `disabled` list, so within one file a
+/// per-code key wins over `disabled` for its code. A layer's contribution is
+/// a per-code tri-state (`docs/design/contracts/config-precedence.md`), and
+/// this is how an INI file turns a code back on that a lower layer turned
+/// off. The key is read case-insensitively and must name a catalogued code;
+/// a value `parse_bool` rejects contributes nothing. No catalogued code is
+/// spelled like `disabled`, `exclude`, `generic_variable_patterns`,
+/// `enabled` or `profile`, so a per-code key never shadows one of them.
+fn insert_code_toggles(sections: &[Section], section: &str, into: &mut Map<String, Value>) {
+    let Some(found) = sections.iter().find(|s| s.name == section) else {
+        return;
+    };
+    for (key, raw) in &found.entries {
+        let code = key.trim().to_ascii_uppercase();
+        if code.parse::<DiagCode>().is_err() {
+            continue;
+        }
+        if let Some(on) = parse_bool(raw) {
+            into.insert(code, Value::Bool(on));
+        }
+    }
+}
+
+/// `[formatting]` → the formatter config object (camelCase editor keys). Each
+/// `snake_case` INI key maps to the matching `FormatterConfig` field the server
+/// consumes; integers, booleans, and strings are coerced per key.
+fn insert_formatting(sections: &[Section], out: &mut Map<String, Value>) {
+    let mut fmt = Map::new();
+    // Integer-valued keys → camelCase.
+    for (ini_key, json_key) in [
+        ("max_line_length", "maxLineLength"),
+        ("goal_line_length", "goalLineLength"),
+        ("indent_size", "indentSize"),
+        ("continuation_indent", "continuationIndent"),
+        ("blank_lines_between_procs", "blankLinesBetweenProcs"),
+        ("blank_lines_between_blocks", "blankLinesBetweenBlocks"),
+        ("max_consecutive_blank_lines", "maxConsecutiveBlankLines"),
+    ] {
+        if let Some(n) = section_value(sections, "formatting", ini_key)
+            .and_then(|v| v.trim().parse::<u64>().ok())
+        {
+            fmt.insert(json_key.to_owned(), Value::from(n));
+        }
+    }
+    // `max_line_length` also feeds the legacy `lineLength` the server reads for
+    // the willSaveWaitUntil resolved width.
+    if let Some(n) = fmt.get("maxLineLength").cloned() {
+        fmt.insert("lineLength".to_owned(), n);
+    }
+    // String-valued keys.
+    for (ini_key, json_key) in [
+        ("indent_style", "indentStyle"),
+        ("brace_style", "braceStyle"),
+        ("line_ending", "lineEnding"),
+    ] {
+        if let Some(s) = section_value(sections, "formatting", ini_key) {
+            let s = s.trim();
+            if !s.is_empty() {
+                fmt.insert(json_key.to_owned(), Value::String(s.to_owned()));
+            }
+        }
+    }
+    // Boolean-valued keys.
+    for (ini_key, json_key) in [
+        ("space_between_braces", "spaceBetweenBraces"),
+        ("space_after_comment_hash", "spaceAfterCommentHash"),
+        ("trim_trailing_whitespace", "trimTrailingWhitespace"),
+        ("enforce_braced_variables", "enforceBracedVariables"),
+        ("ensure_final_newline", "ensureFinalNewline"),
+        ("expand_single_line_bodies", "expandSingleLineBodies"),
+    ] {
+        if let Some(b) = section_value(sections, "formatting", ini_key).and_then(parse_bool) {
+            fmt.insert(json_key.to_owned(), Value::Bool(b));
+        }
+    }
+    if !fmt.is_empty() {
+        out.insert("formatting".to_owned(), Value::Object(fmt));
+    }
+}
+
+/// Deep-merge two `tclLsp`-shape settings objects: `high` overrides `low`, but
+/// nested objects (sections) merge key-by-key rather than replace wholesale.
+/// The port of `merge_settings_layers` — call lowest-priority first.
+#[must_use]
+pub fn merge_settings(low: &Value, high: &Value) -> Value {
+    match (low, high) {
+        (Value::Object(lo), Value::Object(hi)) => {
+            let mut out = lo.clone();
+            for (k, hv) in hi {
+                let merged = match out.get(k) {
+                    Some(lv) if lv.is_object() && hv.is_object() => merge_settings(lv, hv),
+                    _ => hv.clone(),
+                };
+                out.insert(k.clone(), merged);
+            }
+            Value::Object(out)
+        }
+        // A non-object high layer (or low not an object) replaces.
+        _ => high.clone(),
+    }
+}
+
+/// Diagnostic codes that are *default-off* (opt-in) in the catalogue: the
+/// seed of every disabled-set resolution, so an opt-in code is suppressed
+/// until `tclLsp.diagnostics.<CODE> = true` turns it on. A code-table
+/// concern rather than a policy-step constant — the table's `default_on`
+/// column declares the set, and `default_off_codes_match_the_catalogue`
+/// pins this list to it.
+pub const DEFAULT_OFF_CODES: &[DiagCode] = &[DiagCode::W242];
+
+/// How many directories above an input file's own the project-file walk
+/// climbs before giving up — the bound `tcl pkg`'s manifest walk uses.
+const PROJECT_WALK_LIMIT: usize = 20;
+
+/// The user's global `config.ini` as a `[global]` settings layer — an empty
+/// object when there is no such file, so the layer contributes nothing, and
+/// likewise when the file cannot be read, which is reported on stderr.
+///
+/// The global layer is [`crate::tcl_install::user_config_path`] on every
+/// surface (`docs/design/compiler/diagnostic-policy.md` § Configuration);
+/// the server reads the same file through its own source store.
+#[must_use]
+pub fn global_layer() -> Value {
+    crate::tcl_install::user_config_path()
+        .and_then(|path| read_layer(&path, Layer::Global))
+        .unwrap_or_else(|| Value::Object(serde_json::Map::new()))
+}
+
+/// The nearest `.tcl-lsp.ini` at or above `path`'s own directory, as a
+/// `[project]` settings layer, with the directory it was found in.
+///
+/// Per input document, not per process: `tcl diag a/x.tcl b/y.tcl` can span
+/// two projects and resolve each under its own layer. `None` when no
+/// ancestor within [`PROJECT_WALK_LIMIT`] holds the file — a document with
+/// no path (`--source`, stdin, an MCP `source` string) has no project layer
+/// at all, and the process's working directory is never a substitute.
+#[must_use]
+pub fn project_layer_for(path: &Path) -> Option<(PathBuf, Value)> {
+    let root = project_root_for(path)?;
+    Some((root.clone(), project_layer_at(&root)?))
+}
+
+/// The `.tcl-lsp.ini` in `root` as a `[project]` settings layer; `None` when
+/// it is missing, or when it cannot be read, which is reported on stderr.
+#[must_use]
+pub fn project_layer_at(root: &Path) -> Option<Value> {
+    read_layer(
+        &crate::tcl_install::project_config_path(root),
+        Layer::Project,
+    )
+}
+
+/// The directory holding the nearest `.tcl-lsp.ini` at or above `path`'s
+/// own directory, within [`PROJECT_WALK_LIMIT`].
+///
+/// Only a name that does not exist lets the walk climb: a `.tcl-lsp.ini`
+/// that exists but cannot be read — a directory in its place, a permission
+/// error — is still the nearest project file, so it ends the walk and
+/// [`project_layer_at`] reports it, rather than a grandparent's file
+/// silently deciding in its stead.
+#[must_use]
+pub fn project_root_for(path: &Path) -> Option<PathBuf> {
+    let start = path.parent()?;
+    let start = start.canonicalize().unwrap_or_else(|_| start.to_path_buf());
+    let mut current = start;
+    for _ in 0..PROJECT_WALK_LIMIT {
+        match std::fs::metadata(crate::tcl_install::project_config_path(&current)) {
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            _ => return Some(current),
+        }
+        match current.parent() {
+            Some(parent) if parent != current => current = parent.to_path_buf(),
+            _ => break,
+        }
+    }
+    None
+}
+
+/// Read the INI file at `path` into the editor-shape `tclLsp` settings JSON
+/// for `layer`; `None` when there is no such file. Any other failure — a
+/// directory in the file's place, a permission error, bytes that are not
+/// UTF-8 — is reported on stderr, because the layer would otherwise vanish
+/// in silence and every code it decides would read as the lower layers'
+/// verdict; the layer is then absent.
+fn read_layer(path: &Path, layer: Layer) -> Option<Value> {
+    match read_layer_file(path, layer) {
+        Ok(settings) => settings,
+        Err(err) => {
+            eprintln!(
+                "tcl-lsp: cannot read the configuration file {} ({err}); its settings are not applied",
+                path.display()
+            );
+            None
+        }
+    }
+}
+
+/// [`read_layer`]'s read: `Ok(None)` when the file does not exist, the
+/// parsed layer when it reads, and the I/O error otherwise.
+fn read_layer_file(path: &Path, layer: Layer) -> std::io::Result<Option<Value>> {
+    match std::fs::read_to_string(path) {
+        Ok(content) => Ok(Some(settings_from_ini(&content, layer))),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(err),
+    }
+}
+
+/// Map a `tclLsp.diagnosticSeverity.<CODE>` config value to a severity
+/// (case-insensitive). `"error"`, `"warning"`, `"information"` / `"info"`,
+/// and `"hint"` select the matching [`Severity`]; anything else — including
+/// `"default"` and `""` — yields `None`, meaning "no override" (the
+/// producer's emitted severity stands).
+#[must_use]
+pub fn parse_severity_value(s: &str) -> Option<Severity> {
+    if s.eq_ignore_ascii_case("error") {
+        Some(Severity::Error)
+    } else if s.eq_ignore_ascii_case("warning") {
+        Some(Severity::Warning)
+    } else if s.eq_ignore_ascii_case("information") || s.eq_ignore_ascii_case("info") {
+        Some(Severity::Info)
+    } else if s.eq_ignore_ascii_case("hint") {
+        Some(Severity::Hint)
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests;

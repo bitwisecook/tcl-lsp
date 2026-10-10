@@ -109,7 +109,7 @@ pub use scope::{
     qualified_name_for_var_decl, variable_alias_links,
 };
 pub use snapshot::AnalyserSnapshot;
-pub use source_integrity::{bidi_control_diagnostics, filtered_bidi_control_diagnostics};
+pub use source_integrity::bidi_control_diagnostics;
 pub use state::{Analyser, NonAsciiMode};
 pub use tcl_syntax::mro::{self, MroError, build_mro_map, tcloo_linearise};
 pub use types::{

@@ -46,6 +46,16 @@ tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-lexer = { path = "../tcl-lexer" }
+# `--static-extensions`: the host's opt-in `load` over extensions the build
+# links in. Optional because the shim's build compiles its test extension with
+# a C compiler, which an ordinary `tclvm` has no need of.
+tcl-cshim = { path = "../tcl-cshim", optional = true }
+tcl-engine-tclvm = { path = "../tcl-engine-tclvm", optional = true }
+
+[features]
+# Links the shim's test extension (`Pkga`, `rust/tcl-cshim/tests/c/pkga.c`) and
+# enables `--static-extensions`, the way a `tclsh` test build links `Tcltest`.
+static-extensions = ["dep:tcl-cshim", "dep:tcl-engine-tclvm"]
 
 [lints]
 workspace = true

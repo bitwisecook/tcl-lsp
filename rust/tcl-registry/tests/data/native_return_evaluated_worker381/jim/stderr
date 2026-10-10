@@ -1,0 +1,4 @@
+/tmp/native-return-grammar381/probe.tcl:26: Error: wrong # args: should be "interp"
+Traceback (most recent call last):
+  File "/tmp/native-return-grammar381/probe.tcl", line 26
+    interp alias {} original_return_worker {} return

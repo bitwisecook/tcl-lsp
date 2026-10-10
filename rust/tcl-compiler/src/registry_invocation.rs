@@ -26,7 +26,9 @@
 //! document is assisted under (redesign §11.2 D1).
 
 mod metadata_context;
-pub use metadata_context::InvocationMetadataContext;
+pub use metadata_context::{
+    InvocationMetadataContext, InvocationMetadataInput, OwnedInvocationMetadataContext,
+};
 pub(crate) use metadata_context::{
     retained_module_metadata_context, retained_source_metadata_context,
 };
@@ -385,8 +387,31 @@ fn original_declared_structured_invocation<'a>(
         return None;
     }
     let binding = tokens.source_binding.as_ref()?;
-    let advice = binding.declaration_operand_layout_advice(tokens)?;
-    if !advice.closed_lookup() {
+    if let Some(input) = context.source_analysis_input()
+        && binding
+            .original_lexer_config_for_tokens(tokens)?
+            .normalized()
+            != input.lexer_config().normalized()
+    {
+        return None;
+    }
+    let logical_source = context.permits_logical_source_names();
+    let advice = binding
+        .declaration_operand_layout_advice(tokens)
+        .or_else(|| {
+            logical_source
+                .then(|| binding.original_compilation_lookup_advice(tokens))
+                .flatten()
+        })?;
+    // This is conditional source structure. A positively retained Logical
+    // command world needs no physical variable frame; Native lookup keeps its
+    // independent frame gate and cannot borrow that source-only closure.
+    let closed = if logical_source {
+        advice.closed_logical_source_lookup()
+    } else {
+        advice.closed_lookup()
+    };
+    if !closed {
         return None;
     }
     resolve_original_declared_layout(registry, context, tokens, &advice)
@@ -6572,22 +6597,6 @@ pub(crate) fn resolve_command_tokens_with_metadata_context(
     )
 }
 
-fn resolve_effective_tokens(
-    registry: &CommandRegistry,
-    context: Option<SemanticContext>,
-    tokens: &CommandTokens,
-    effective: &EffectiveCommandWords,
-    dialect: Option<tcl_registry::InvocationDialect>,
-) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
-    resolve_effective_tokens_with_metadata_context(
-        registry,
-        context.map(InvocationMetadataContext::from),
-        tokens,
-        effective,
-        dialect,
-    )
-}
-
 fn resolve_effective_tokens_with_metadata_context(
     registry: &CommandRegistry,
     context: Option<InvocationMetadataContext<'_>>,
@@ -7260,6 +7269,168 @@ mod tests {
 
     use crate::ir::{SourceSite, WordOpacity};
     use crate::segmenter::segment_commands;
+
+    fn logical_source_tokens(
+        source: &str,
+        registry: &CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> CommandTokens {
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = input.lexer_config();
+        let bindings =
+            crate::command_binding::SourceCommandBindings::analyse_image_in_frame_with_options(
+                &image,
+                &crate::var_resolve::VariableExecutionFrame::Unknown,
+                config,
+                registry,
+                crate::command_binding::SourceAnalysisOptions::for_logical_source(input).unwrap(),
+            )
+            .unwrap();
+        let segment =
+            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+                .unwrap()
+                .pop()
+                .unwrap();
+        let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, &segment);
+        bindings.stamp_original_tokens(&mut tokens);
+        tokens
+    }
+
+    #[test]
+    fn logical_source_structure_uses_original_lookup_without_a_physical_frame() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional source roles remain separate from Native handler and frame entry.
+        let owner =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&owner),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let registry = owner.commands();
+        let tokens = logical_source_tokens("if {1} {set value VALUE}", registry, &input);
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let advice = binding.original_compilation_lookup_advice(&tokens).unwrap();
+        assert!(!advice.closed_lookup());
+        assert!(advice.closed_logical_source_lookup());
+        let metadata = InvocationMetadataContext::for_analysis_input(registry, &input).unwrap();
+        let shape =
+            logical_structured_invocation_with_metadata_context(registry, metadata, &tokens, None)
+                .expect("genuine Logical source body shape");
+        assert_eq!(
+            shape.lowering_hook(),
+            Some(tcl_registry::hooks::LoweringHookId::If)
+        );
+        assert!(
+            shape
+                .written_roles()
+                .contains(&(1, tcl_registry::ArgRole::Body))
+        );
+        assert!(
+            resolved_handler_invocation_with_metadata_context(registry, Some(metadata), &tokens)
+                .is_none()
+        );
+        assert!(binding.native_compilation_admission.is_none());
+    }
+
+    #[test]
+    fn logical_source_structure_refuses_old_availability_stale_grammar_and_replacements() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let owner =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&owner),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let registry = owner.commands();
+        let tokens = logical_source_tokens("try {set value VALUE}", registry, &input);
+        let current = InvocationMetadataContext::for_analysis_input(registry, &input).unwrap();
+        assert!(original_declared_structured_invocation(registry, current, &tokens).is_some());
+        let older = tcl_registry::model::ingress::resolve_environment("tcl8.4")
+            .default_context_registry()
+            .with_command_store(registry.snapshot().shared_registry());
+        let older = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(older),
+            input.lexer_config(),
+        );
+        let older = InvocationMetadataContext::for_analysis_input(registry, &older).unwrap();
+        assert!(original_declared_structured_invocation(registry, older, &tokens).is_none());
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        let stale = crate::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            config,
+        );
+        let stale = InvocationMetadataContext::for_analysis_input(registry, &stale).unwrap();
+        assert!(original_declared_structured_invocation(registry, stale, &tokens).is_none());
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let foreign = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            foreign,
+            input.lexer_config(),
+        );
+        assert!(InvocationMetadataContext::for_analysis_input(registry, &foreign).is_none());
+        let replaced = logical_source_tokens(
+            "proc try {args} {}; try {set value VALUE}",
+            registry,
+            &input,
+        );
+        assert!(original_declared_structured_invocation(registry, current, &replaced).is_none());
+        let mut missing = tokens.clone();
+        missing.source_binding = None;
+        assert!(original_declared_structured_invocation(registry, current, &missing).is_none());
+    }
+
+    #[test]
+    fn logical_source_shape_cannot_substitute_for_missing_native_entry() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let owner =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&owner),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let registry = owner.commands();
+        let tokens = logical_source_tokens("if {1} {set value VALUE}", registry, &input);
+        let native_profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
+        let native = crate::analyser::ResolvedAnalysisInput::new(
+            native_profile,
+            native_profile,
+            std::sync::Arc::clone(&owner),
+            input.lexer_config(),
+        );
+        let native = InvocationMetadataContext::for_analysis_input(registry, &native).unwrap();
+        assert!(original_declared_structured_invocation(registry, native, &tokens).is_none());
+        assert!(
+            resolved_handler_invocation_with_metadata_context(registry, Some(native), &tokens)
+                .is_none()
+        );
+        assert!(
+            tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .native_compilation_admission
+                .is_none()
+        );
+    }
 
     fn test_context() -> SemanticContext {
         SemanticContext::for_environment("tcl8.6")
@@ -8854,6 +9025,7 @@ mod tests {
                         source: source.clone()
                     }],
                     source: source.clone(),
+                    rejected: None,
                 },
                 EscapeSyntax::Tcl86,
                 WordValueRules::TCL,
@@ -8886,6 +9058,7 @@ mod tests {
                 source: source.clone(),
             }],
             source: source.clone(),
+            rejected: None,
         };
         let quoted_plain = WordExpr::Template {
             parts: vec![WordPart::Text {
@@ -8893,6 +9066,7 @@ mod tests {
                 source: source.clone(),
             }],
             source: source.clone(),
+            rejected: None,
         };
         let dynamic = WordExpr::Variable {
             spelling: "$name".to_owned(),

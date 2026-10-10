@@ -398,9 +398,6 @@ pub const RETURN_TYPE_HOOKS: &[Variant] = &[
 
 /// [`AnalyserHookId`] — the per-command analyser handler family.
 pub const ANALYSER_HOOKS: &[Variant] = &[
-    v("Set", "set"),
-    v("Variable", "variable"),
-    v("Global", "global"),
     v("Proc", "proc"),
     v("OptProc", "argparse-style proc"),
     v("Apply", "apply"),
@@ -412,15 +409,9 @@ pub const ANALYSER_HOOKS: &[Variant] = &[
     v("NamespaceForget", "namespace forget"),
     v("NamespacePath", "namespace path"),
     v("NamespaceUnknown", "namespace unknown"),
-    v("NamespaceUpvar", "namespace upvar"),
     v("Foreach", "foreach"),
-    v("For", "for"),
     v("Switch", "switch"),
     v("Catch", "catch"),
-    v("Try", "try"),
-    v("Upvar", "upvar"),
-    v("DictFor", "dict for"),
-    v("DictUpdate", "dict update"),
     v("DictWith", "dict with"),
     v("InterpAlias", "interp alias"),
     v("InterpEval", "interp eval"),
@@ -436,11 +427,273 @@ pub const ANALYSER_HOOKS: &[Variant] = &[
     v("PackageIfneeded", "package ifneeded"),
     v("PackagePrefer", "package prefer"),
     v("Source", "source"),
-    v("Append", "append"),
-    v("Lappend", "lappend"),
     v("RegexPatternCapture", "regexp capture binding"),
-    v("Incr", "incr"),
     v("Load", "load"),
+];
+
+/// [`tcl_registry::pack_hooks::ARG_ROLE_RESOLVER_NATIVE`] — `arg_role_resolver
+/// -native ID`, `SCOPE::FIELD` spelled. Every `*_NATIVE` catalogue below
+/// holds the DSL's own id, not a Rust variant name, since that is what a
+/// `-native` statement is actually matched against
+/// (`docs/design/compiler/value-evaluation.md` § *`-native ID`, and the
+/// per-family catalogues*).
+pub const ARG_ROLE_RESOLVER_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::COMMAND_PREFIX_RESOLVER_NATIVE`].
+pub const COMMAND_PREFIX_RESOLVER_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::SCRIPT_TIMING_RESOLVER_NATIVE`].
+pub const SCRIPT_TIMING_RESOLVER_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::CONST_FOLD_NATIVE`] — the shipped folders.
+pub const CONST_FOLD_NATIVE: &[Variant] = &[
+    v("string::range::const_fold", "string range"),
+    v("string::replace::const_fold", "string replace"),
+    v("regsub::const_fold", "regsub"),
+    v("scan::const_fold", "scan"),
+    v("list::const_fold", "list"),
+    v("lindex::const_fold", "lindex"),
+    v("concat::const_fold", "concat"),
+    v("llength::const_fold", "llength"),
+    v("lreverse::const_fold", "lreverse"),
+    v("join::const_fold", "join"),
+    v("split::const_fold", "split"),
+    v("lrepeat::const_fold", "lrepeat"),
+    v("lrange::const_fold", "lrange"),
+    v("dict::get::const_fold", "dict get"),
+    v("dict::exists::const_fold", "dict exists"),
+    v("dict::size::const_fold", "dict size"),
+    v("dict::keys::const_fold", "dict keys"),
+    v("dict::values::const_fold", "dict values"),
+    v("dict::create::const_fold", "dict create"),
+    v("dict::merge::const_fold", "dict merge"),
+    v("::tcl::dict::get::const_fold", "::tcl::dict::get"),
+    v("::tcl::dict::exists::const_fold", "::tcl::dict::exists"),
+    v("::tcl::dict::size::const_fold", "::tcl::dict::size"),
+    v("::tcl::dict::keys::const_fold", "::tcl::dict::keys"),
+    v("::tcl::dict::values::const_fold", "::tcl::dict::values"),
+    v("::tcl::dict::create::const_fold", "::tcl::dict::create"),
+    v("::tcl::dict::merge::const_fold", "::tcl::dict::merge"),
+    v("string::cat::const_fold", "string cat"),
+    v("string::compare::const_fold", "string compare"),
+    v("string::equal::const_fold", "string equal"),
+    v("string::first::const_fold", "string first"),
+    v("string::index::const_fold", "string index"),
+    v("string::last::const_fold", "string last"),
+    v("string::length::const_fold", "string length"),
+    v("string::map::const_fold", "string map"),
+    v("string::match::const_fold", "string match"),
+    v("string::repeat::const_fold", "string repeat"),
+    v("string::reverse::const_fold", "string reverse"),
+    v("string::tolower::const_fold", "string tolower"),
+    v("string::totitle::const_fold", "string totitle"),
+    v("string::toupper::const_fold", "string toupper"),
+    v("string::trim::const_fold", "string trim"),
+    v("string::trimleft::const_fold", "string trimleft"),
+    v("string::trimright::const_fold", "string trimright"),
+    v("namespace::qualifiers::const_fold", "namespace qualifiers"),
+    v("namespace::tail::const_fold", "namespace tail"),
+    v("subst::const_fold", "subst"),
+];
+
+/// [`tcl_registry::pack_hooks::CONST_FOLD_VERSIONED_NATIVE`].
+pub const CONST_FOLD_VERSIONED_NATIVE: &[Variant] = &[
+    v("string::is::const_fold_versioned", "string is"),
+    v("string::range::const_fold_versioned", "string range"),
+    v("format::const_fold_versioned", "format"),
+    v("regsub::const_fold_versioned", "regsub"),
+];
+
+/// [`tcl_registry::pack_hooks::TAINT_SINK_GATE_NATIVE`].
+pub const TAINT_SINK_GATE_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::CONTEXT_GATE_NATIVE`].
+pub const CONTEXT_GATE_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::LITERAL_ARGUMENT_VALIDATOR_NATIVE`].
+pub const LITERAL_ARGUMENT_VALIDATOR_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::CLAUSE_SHAPE_CHECK_NATIVE`].
+pub const CLAUSE_SHAPE_CHECK_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::OPTION_ARITY_NATIVE`].
+pub const OPTION_ARITY_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::CONSTRAINTS_NATIVE`].
+pub const CONSTRAINTS_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::STATE_TRANSITION_RESOLVER_NATIVE`] —
+/// `state_transitions { resolver -native ID }`.
+pub const STATE_TRANSITION_RESOLVER_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::SEMANTICS_NATIVE`] — `semantics -native ID`.
+pub const SEMANTICS_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::EVALUATE_NATIVE`] — `evaluate -native ID`.
+pub const EVALUATE_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::pack_hooks::FACTS_NATIVE`] — `facts -native ID`.
+pub const FACTS_NATIVE: &[Variant] = &[];
+
+/// [`tcl_registry::value_transfer::NativeEvalId::ALL`] — `evaluate -direct
+/// ID`, the Rust variant spelling (unlike the `*_NATIVE` tables above, this
+/// catalogue's own id predates `-native` and was already Rust-spelled).
+pub const NATIVE_EVAL_IDS: &[Variant] = &[
+    v("CellIncrement", "the cell increment behind incr"),
+    v("CellAppend", "the cell append behind append"),
+    v("CellListAppend", "the cell list-append behind lappend"),
+    v("CellWrite", "the exact-value write behind set"),
+    v("ConstWrite", "the constant's creation behind const"),
+    v("DictSet", "dict set"),
+    v("DictUnset", "dict unset"),
+    v("DictIncr", "dict incr"),
+    v("DictAppend", "dict append"),
+    v("DictListAppend", "dict lappend"),
+    v("StringRange", "string range"),
+    v("ListOfArgs", "list"),
+    v("FormatTemplate", "format"),
+    v("ListLength", "llength"),
+    v("StringLength", "string length"),
+    v("RegexpMatch", "regexp"),
+    v("RegsubSubstitute", "regsub"),
+    v("ScanFormat", "scan"),
+    v("BinaryScan", "binary scan"),
+    v("ListAssign", "lassign"),
+    v("ArraySet", "array set"),
+    v("BinaryFormat", "binary format"),
+    v("VariableUnset", "the unbinds behind unset"),
+    v("ErrorRaise", "the error completion behind error"),
+    v(
+        "ReturnComplete",
+        "the completion behind return, from its -code and -level",
+    ),
+    v("BreakComplete", "the break completion behind break"),
+    v(
+        "ContinueComplete",
+        "the continue completion behind continue",
+    ),
+    v(
+        "CatchProtected",
+        "the protected script's completion behind catch",
+    ),
+    v(
+        "ParameterDefault",
+        "the parameter default behind info default",
+    ),
+    v("ListSet", "lset"),
+    v("ListEdit", "ledit"),
+    v("ListPop", "lpop"),
+    v("Base64Encode", "the iRules b64encode"),
+    v("Base64Decode", "the iRules b64decode"),
+    v("Crc32Checksum", "the iRules crc32"),
+    v("Md5Digest", "the iRules md5"),
+    v("Sha1Digest", "the iRules sha1"),
+    v("Sha256Digest", "the iRules sha256"),
+    v("Sha384Digest", "the iRules sha384"),
+    v("Sha512Digest", "the iRules sha512"),
+    v("FindString", "the iRules findstr"),
+    v("StringField", "the iRules getfield"),
+    v("Substring", "the iRules substr"),
+    v("DomainLabels", "the iRules domain"),
+    v("UriBasename", "the iRules URI::basename"),
+    v("UriPath", "the iRules URI::path"),
+    v("UriQuery", "the iRules URI::query"),
+    v("UriHost", "the iRules URI::host"),
+    v("UriPort", "the iRules URI::port"),
+    v("UriProtocol", "the iRules URI::protocol"),
+    v("UriDecode", "the iRules URI::decode"),
+    v("UriEncode", "the iRules URI::encode"),
+    v("UriCompare", "the iRules URI::compare"),
+    v("IpAddrEquals", "the iRules IP::addr ... equals ..."),
+    v("PathJoin", "file join"),
+    v("PathDirname", "file dirname"),
+    v("PathTail", "file tail"),
+    v("PathExtension", "file extension"),
+    v("PathRootname", "file rootname"),
+    v("PathSplit", "file split"),
+    v("ListSplit", "split"),
+    v("StringFirst", "string first"),
+    v("StringMatch", "string match"),
+    v("Base32Encode", "base32::encode"),
+    v("Base32Decode", "base32::decode"),
+    v("Base32HexEncode", "base32::hex::encode"),
+    v("Base32HexDecode", "base32::hex::decode"),
+];
+
+/// [`tcl_registry::value_transfer::LanguageProfileId::ALL`] — `evaluate
+/// -expression ID`.
+pub const LANGUAGE_PROFILES: &[Variant] = &[
+    v(
+        "tcl.expr",
+        "Tcl expr arithmetic under the target's numeric tower",
+    ),
+    v(
+        "bpf.expr",
+        "BPF-Tcl arithmetic: fixed width, truncating division",
+    ),
+];
+
+/// [`tcl_registry::value_transfer::HostKind::ALL`] — `evaluate
+/// -implementation ID -host HOST`.
+pub const HOST_KINDS: &[Variant] = &[
+    v("bounded_tcl", "the bounded Tcl engine behind the hook host"),
+    v(
+        "wasm_extension",
+        "a compiled C extension's command on the thread's WASM extension host",
+    ),
+];
+
+/// [`tcl_registry::value_transfer::Exactness::ALL`] — an `inputs` row's
+/// mode (`arg N exact`).
+pub const EXACTNESS: &[Variant] = &[v("exact", "the operand's exact value")];
+
+/// [`tcl_registry::value_transfer::ContextDependency::WORDS`] — a `depends`
+/// row's fieldless words (`binding NAME` is not one, and is not catalogued
+/// as a fixed word for that reason).
+pub const CONTEXT_DEPENDENCIES: &[Variant] = &[
+    v("tcl_profile", "the target profile"),
+    v("implementation_identity", "the implementation identity"),
+    v("registry_generation", "the registry and overlay generation"),
+    v("evaluator_generation", "the evaluator generation"),
+];
+
+/// [`tcl_registry::value_transfer::OutcomeKind::ALL`] — a `stores` row's
+/// `-outcome`.
+pub const OUTCOME_KINDS: &[Variant] = &[
+    v(
+        "write",
+        "every target is written on every normal completion",
+    ),
+    v(
+        "write_or_preserve",
+        "each target is written or keeps its prior value and existence",
+    ),
+    v(
+        "may_write",
+        "each target may have been written; nothing more is known",
+    ),
+    v("unbind", "each target is unbound afterwards"),
+];
+
+/// [`tcl_registry::value_transfer::DeclaredEffect::ALL`] — a `semantics`
+/// block's `effects` row.
+pub const DECLARED_EFFECTS: &[Variant] = &[
+    v("no_store_writes", "the command writes no variable"),
+    v(
+        "no_external_io",
+        "the command touches nothing outside the interpreter",
+    ),
+];
+
+/// [`tcl_registry::value_transfer::OptionEvaluation::REASONS`] — an
+/// `-evaluate-reason` word.
+pub const EVALUATE_REASONS: &[Variant] = &[
+    v("form_unsupported", "NoRoute(FormUnsupported)"),
+    v("callback", "NoRoute(Callback)"),
+    v(
+        "release_ambiguous",
+        "ReleaseAmbiguous on the option's own availability axis",
+    ),
 ];
 
 /// [`Traits`] bits, generated from the authoritative registry declaration.
@@ -920,10 +1173,7 @@ mod tests {
     /// Every [`AnalyserHookId`] variant is catalogued in `ANALYSER_HOOKS`.
     fn covered_analyser(h: AnalyserHookId) -> bool {
         match h {
-            AnalyserHookId::Set
-            | AnalyserHookId::Variable
-            | AnalyserHookId::Global
-            | AnalyserHookId::Proc
+            AnalyserHookId::Proc
             | AnalyserHookId::OptProc
             | AnalyserHookId::Apply
             | AnalyserHookId::Uplevel
@@ -934,15 +1184,9 @@ mod tests {
             | AnalyserHookId::NamespaceForget
             | AnalyserHookId::NamespacePath
             | AnalyserHookId::NamespaceUnknown
-            | AnalyserHookId::NamespaceUpvar
             | AnalyserHookId::Foreach
-            | AnalyserHookId::For
             | AnalyserHookId::Switch
             | AnalyserHookId::Catch
-            | AnalyserHookId::Try
-            | AnalyserHookId::Upvar
-            | AnalyserHookId::DictFor
-            | AnalyserHookId::DictUpdate
             | AnalyserHookId::DictWith
             | AnalyserHookId::InterpAlias
             | AnalyserHookId::InterpEval
@@ -958,10 +1202,7 @@ mod tests {
             | AnalyserHookId::PackageIfneeded
             | AnalyserHookId::PackagePrefer
             | AnalyserHookId::Source
-            | AnalyserHookId::Append
-            | AnalyserHookId::Lappend
             | AnalyserHookId::RegexPatternCapture
-            | AnalyserHookId::Incr
             | AnalyserHookId::Load => true,
         }
     }
@@ -996,7 +1237,7 @@ mod tests {
         assert!(covered_lowering(LoweringHookId::Expr));
         assert!(covered_codegen(CodegenHookId::Dict));
         assert!(covered_inline(InlineCodegenHookId::Expr));
-        assert!(covered_analyser(AnalyserHookId::Set));
+        assert!(covered_analyser(AnalyserHookId::Proc));
     }
 
     #[test]
@@ -1026,6 +1267,28 @@ mod tests {
             CODEGEN_HOOKS,
             INLINE_CODEGEN_HOOKS,
             ANALYSER_HOOKS,
+            ARG_ROLE_RESOLVER_NATIVE,
+            COMMAND_PREFIX_RESOLVER_NATIVE,
+            SCRIPT_TIMING_RESOLVER_NATIVE,
+            CONST_FOLD_NATIVE,
+            CONST_FOLD_VERSIONED_NATIVE,
+            TAINT_SINK_GATE_NATIVE,
+            CONTEXT_GATE_NATIVE,
+            LITERAL_ARGUMENT_VALIDATOR_NATIVE,
+            CLAUSE_SHAPE_CHECK_NATIVE,
+            OPTION_ARITY_NATIVE,
+            CONSTRAINTS_NATIVE,
+            SEMANTICS_NATIVE,
+            EVALUATE_NATIVE,
+            FACTS_NATIVE,
+            NATIVE_EVAL_IDS,
+            LANGUAGE_PROFILES,
+            HOST_KINDS,
+            EXACTNESS,
+            CONTEXT_DEPENDENCIES,
+            OUTCOME_KINDS,
+            DECLARED_EFFECTS,
+            EVALUATE_REASONS,
             &TRAITS,
             TAINT_COLOURS.as_slice(),
             DIALECTS.as_slice(),

@@ -283,6 +283,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::class",
         native_compilation: Some(OO_NATIVE_COMPILATION),
+        runtime_backing: RuntimeBacking::shipped("oo::class"),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::IS_OO_METACLASS
             | Traits::LANGUAGE_KEYWORD
@@ -407,7 +408,7 @@ mod tests {
             }) if target.literal() == Some("::C")
         )));
 
-        let effects = invocation.effect_footprint();
+        let effects = invocation.effects();
         assert!(
             !effects
                 .accesses()

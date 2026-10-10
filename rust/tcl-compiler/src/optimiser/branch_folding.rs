@@ -49,7 +49,7 @@ use tcl_core_types::DiagCode;
 use crate::cfg::Terminator;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::expr_ast::{BinOp, ExprNode};
-use crate::sccp::ConstantBranch;
+use crate::sccp::{BranchFactKind, ConstantBranch};
 
 use super::helpers::expr_simplify::{
     OperandTypes, instcombine_expr_typed, operand_types, substitute_expr_constants_for_execution,
@@ -106,10 +106,13 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // Numeric-type context so identity rewrites (`$x + 0` → `$x`, etc.) on a
     // branch condition fire only when the dropped operand is provably numeric.
     let numeric = operand_types(fu);
+    // A `Selected` fact is no branch: its block holds a statement, and the
+    // terminator it ends in is some other condition's to fold.
     let folded: HashSet<String> = fu
         .sccp
         .constant_branches
         .iter()
+        .filter(|cb| cb.kind != BranchFactKind::Selected)
         .map(|cb| cb.block.clone())
         .collect();
 
@@ -188,7 +191,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         // literal (`if {$flag > 0}` with `flag == 1` → `1`), emit the fold in
         // preference to the partial-canonicalisation codes.
         if sub.changed
-            && let Some(folded) = try_fold_expr(&working, ctx.dialect)
+            && let Some(folded) = try_fold_expr(&working, ctx.rewrite_folds())
             && folded != inner
             && branch_execution_equivalent(ctx, inner, &folded, &constants, binding_span)
         {
@@ -338,7 +341,12 @@ fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // `constant_branches` to begin with. O102 `run_load_forwarding` is the
     // one pass that still needs its own check, since it runs an independent
     // def-use-chain scan that never consults `fu.sccp` at all.
-    for cb in &fu.sccp.constant_branches {
+    for cb in fu
+        .sccp
+        .constant_branches
+        .iter()
+        .filter(|cb| cb.kind != BranchFactKind::Selected)
+    {
         let Some(block) = fu.cfg.block_by_name(&cb.block) else {
             continue;
         };
@@ -528,6 +536,7 @@ mod tests {
             memory_ssa: None,
             dynamic_names: crate::dynamic_names::DynamicNameBarrier::default(),
             complexity_guarded: false,
+            tier: tcl_registry::value_transfer::AnalysisTier::Deep,
             base_offset: 0,
             method_facts: None,
             irules_event_body: None,
@@ -596,6 +605,9 @@ mod tests {
                 has_dynamic_trace: false,
                 traced_variables: std::collections::BTreeSet::new(),
                 has_dynamic_variable_trace: false,
+                deferred_writes: crate::ir::DeferredWrites::default(),
+                reference_bodies: crate::ir::ReferenceBodies::default(),
+                declared_frame_effects: std::collections::BTreeMap::new(),
             },
             cfg_module: crate::cfg::CfgModule {
                 top_level: fu.cfg.clone(),
@@ -610,6 +622,7 @@ mod tests {
             connection_scope: None,
             caller_scope: crate::compilation_unit::UnitCallerScope::default(),
             declared_commands: tcl_registry::model::DeclaredSurface::new(),
+            transfers: crate::interprocedural::TransferSummaries::default(),
         }
     }
 
@@ -673,6 +686,25 @@ mod tests {
         let sccp = SccpResult {
             required_math_invocations: Vec::new(),
             required_expression_preparations: Vec::new(),
+            explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
+            folded_types: HashMap::new(),
+            preserved: HashMap::new(),
+            raised: HashSet::default(),
+            template_plans: Vec::new(),
+            selections: Vec::new(),
+            existence: HashMap::new(),
+            existence_reads: HashMap::new(),
+            existence_exits: HashMap::new(),
+            existence_entries: HashMap::new(),
+            refinements: Vec::new(),
+            refinements_at: HashMap::new(),
+            value_entries: HashMap::new(),
+            query_places: Vec::new(),
+            existence_guards: Vec::new(),
+            loop_enumerations: Vec::new(),
+            reads_module: false,
+            completion: crate::sccp::RunCompletion::default(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["entry", "t"]),
             executable_edges: HashSet::default(),
@@ -683,6 +715,7 @@ mod tests {
                 value: true,
                 taken_target: "t".into(),
                 not_taken_target: "e".into(),
+                kind: crate::sccp::BranchFactKind::Applied,
             }],
         };
         let cu = compilation_unit(source, function_unit("::top", cfg, ssa, sccp));
@@ -732,6 +765,25 @@ mod tests {
         let sccp = SccpResult {
             required_math_invocations: Vec::new(),
             required_expression_preparations: Vec::new(),
+            explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
+            folded_types: HashMap::new(),
+            preserved: HashMap::new(),
+            raised: HashSet::default(),
+            template_plans: Vec::new(),
+            selections: Vec::new(),
+            existence: HashMap::new(),
+            existence_reads: HashMap::new(),
+            existence_exits: HashMap::new(),
+            existence_entries: HashMap::new(),
+            refinements: Vec::new(),
+            refinements_at: HashMap::new(),
+            value_entries: HashMap::new(),
+            query_places: Vec::new(),
+            existence_guards: Vec::new(),
+            loop_enumerations: Vec::new(),
+            reads_module: false,
+            completion: crate::sccp::RunCompletion::default(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["entry", "e"]),
             executable_edges: HashSet::default(),
@@ -742,6 +794,7 @@ mod tests {
                 value: false,
                 taken_target: "e".into(),
                 not_taken_target: "t".into(),
+                kind: crate::sccp::BranchFactKind::Applied,
             }],
         };
         let cu = compilation_unit(source, function_unit("::top", cfg, ssa, sccp));
@@ -785,6 +838,25 @@ mod tests {
         let sccp = SccpResult {
             required_math_invocations: Vec::new(),
             required_expression_preparations: Vec::new(),
+            explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
+            folded_types: HashMap::new(),
+            preserved: HashMap::new(),
+            raised: HashSet::default(),
+            template_plans: Vec::new(),
+            selections: Vec::new(),
+            existence: HashMap::new(),
+            existence_reads: HashMap::new(),
+            existence_exits: HashMap::new(),
+            existence_entries: HashMap::new(),
+            refinements: Vec::new(),
+            refinements_at: HashMap::new(),
+            value_entries: HashMap::new(),
+            query_places: Vec::new(),
+            existence_guards: Vec::new(),
+            loop_enumerations: Vec::new(),
+            reads_module: false,
+            completion: crate::sccp::RunCompletion::default(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["entry", "e"]),
             executable_edges: HashSet::default(),
@@ -795,6 +867,7 @@ mod tests {
                 value: false,
                 taken_target: "e".into(),
                 not_taken_target: "t".into(),
+                kind: crate::sccp::BranchFactKind::Applied,
             }],
         };
         let cu = compilation_unit(source, function_unit("::top", cfg, ssa, sccp));
@@ -835,6 +908,25 @@ mod tests {
         let sccp = SccpResult {
             required_math_invocations: Vec::new(),
             required_expression_preparations: Vec::new(),
+            explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
+            folded_types: HashMap::new(),
+            preserved: HashMap::new(),
+            raised: HashSet::default(),
+            template_plans: Vec::new(),
+            selections: Vec::new(),
+            existence: HashMap::new(),
+            existence_reads: HashMap::new(),
+            existence_exits: HashMap::new(),
+            existence_entries: HashMap::new(),
+            refinements: Vec::new(),
+            refinements_at: HashMap::new(),
+            value_entries: HashMap::new(),
+            query_places: Vec::new(),
+            existence_guards: Vec::new(),
+            loop_enumerations: Vec::new(),
+            reads_module: false,
+            completion: crate::sccp::RunCompletion::default(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["entry", "mid", "inner_else"]),
             executable_edges: HashSet::default(),
@@ -846,6 +938,7 @@ mod tests {
                     value: true,
                     taken_target: "mid".into(),
                     not_taken_target: "after".into(),
+                    kind: crate::sccp::BranchFactKind::Applied,
                 },
                 ConstantBranch {
                     block: "mid".into(),
@@ -854,6 +947,7 @@ mod tests {
                     value: false,
                     taken_target: "inner_else".into(),
                     not_taken_target: "inner_then".into(),
+                    kind: crate::sccp::BranchFactKind::Applied,
                 },
             ],
         };
@@ -915,6 +1009,25 @@ mod tests {
         let sccp = SccpResult {
             required_math_invocations: Vec::new(),
             required_expression_preparations: Vec::new(),
+            explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
+            folded_types: HashMap::new(),
+            preserved: HashMap::new(),
+            raised: HashSet::default(),
+            template_plans: Vec::new(),
+            selections: Vec::new(),
+            existence: HashMap::new(),
+            existence_reads: HashMap::new(),
+            existence_exits: HashMap::new(),
+            existence_entries: HashMap::new(),
+            refinements: Vec::new(),
+            refinements_at: HashMap::new(),
+            value_entries: HashMap::new(),
+            query_places: Vec::new(),
+            existence_guards: Vec::new(),
+            loop_enumerations: Vec::new(),
+            reads_module: false,
+            completion: crate::sccp::RunCompletion::default(),
             values,
             executable_blocks: id_set(&cfg, &["entry", "mid", "t", "e"]),
             executable_edges: HashSet::default(),
@@ -927,6 +1040,7 @@ mod tests {
                 value: true,
                 taken_target: "t".into(),
                 not_taken_target: "e".into(),
+                kind: crate::sccp::BranchFactKind::Applied,
             }],
         };
         let cu = compilation_unit(source, function_unit("::top", cfg, ssa, sccp));
@@ -971,6 +1085,25 @@ mod tests {
         let sccp = SccpResult {
             required_math_invocations: Vec::new(),
             required_expression_preparations: Vec::new(),
+            explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
+            folded_types: HashMap::new(),
+            preserved: HashMap::new(),
+            raised: HashSet::default(),
+            template_plans: Vec::new(),
+            selections: Vec::new(),
+            existence: HashMap::new(),
+            existence_reads: HashMap::new(),
+            existence_exits: HashMap::new(),
+            existence_entries: HashMap::new(),
+            refinements: Vec::new(),
+            refinements_at: HashMap::new(),
+            value_entries: HashMap::new(),
+            query_places: Vec::new(),
+            existence_guards: Vec::new(),
+            loop_enumerations: Vec::new(),
+            reads_module: false,
+            completion: crate::sccp::RunCompletion::default(),
             values,
             executable_blocks: id_set(&cfg, &["entry", "t", "e"]),
             executable_edges: HashSet::default(),
@@ -1007,6 +1140,25 @@ mod tests {
         let sccp = SccpResult {
             required_math_invocations: Vec::new(),
             required_expression_preparations: Vec::new(),
+            explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
+            folded_types: HashMap::new(),
+            preserved: HashMap::new(),
+            raised: HashSet::default(),
+            template_plans: Vec::new(),
+            selections: Vec::new(),
+            existence: HashMap::new(),
+            existence_reads: HashMap::new(),
+            existence_exits: HashMap::new(),
+            existence_entries: HashMap::new(),
+            refinements: Vec::new(),
+            refinements_at: HashMap::new(),
+            value_entries: HashMap::new(),
+            query_places: Vec::new(),
+            existence_guards: Vec::new(),
+            loop_enumerations: Vec::new(),
+            reads_module: false,
+            completion: crate::sccp::RunCompletion::default(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["entry", "t"]),
             executable_edges: HashSet::default(),
@@ -1017,6 +1169,7 @@ mod tests {
                 value: true,
                 taken_target: "t".into(),
                 not_taken_target: "e".into(),
+                kind: crate::sccp::BranchFactKind::Applied,
             }],
         };
         let cu = compilation_unit(source, function_unit("::top", cfg, ssa, sccp));
@@ -1056,6 +1209,25 @@ mod tests {
         let sccp = SccpResult {
             required_math_invocations: Vec::new(),
             required_expression_preparations: Vec::new(),
+            explanations: Vec::new(),
+            route_tally: crate::value_transfer::RouteTally::default(),
+            folded_types: HashMap::new(),
+            preserved: HashMap::new(),
+            raised: HashSet::default(),
+            template_plans: Vec::new(),
+            selections: Vec::new(),
+            existence: HashMap::new(),
+            existence_reads: HashMap::new(),
+            existence_exits: HashMap::new(),
+            existence_entries: HashMap::new(),
+            refinements: Vec::new(),
+            refinements_at: HashMap::new(),
+            value_entries: HashMap::new(),
+            query_places: Vec::new(),
+            existence_guards: Vec::new(),
+            loop_enumerations: Vec::new(),
+            reads_module: false,
+            completion: crate::sccp::RunCompletion::default(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["switch_probe_0", "arm_a"]),
             executable_edges: HashSet::default(),
@@ -1066,6 +1238,7 @@ mod tests {
                 value: true,
                 taken_target: "arm_a".into(),
                 not_taken_target: "switch_next_1".into(),
+                kind: crate::sccp::BranchFactKind::Applied,
             }],
         };
         let cu = compilation_unit(source, function_unit("::top", cfg, ssa, sccp));

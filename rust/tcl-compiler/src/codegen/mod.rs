@@ -354,6 +354,10 @@ pub struct CodegenCtx<'r> {
     /// Active C8.4 `Catch` body compilation checkpoints, independently of
     /// exception ranges entered by the eventual runtime instructions.
     native_speculative_compilations: Vec<std::rc::Rc<std::cell::Cell<bool>>>,
+    /// Spec-pack facts specialised operations emitted into this function rest
+    /// on ([`crate::site_claims`]). The artefact carries these beside the
+    /// bindings, and admission requires each one's stamp.
+    pub site_claim_requirements: BTreeSet<tcl_runtime_api::SiteClaim>,
     /// Suppress registry codegen hooks as well as lowering hooks.
     pub plain_command_dispatch: bool,
     /// The module's original source text, indexed by `current_span` to recover
@@ -488,6 +492,7 @@ impl<'r> CodegenCtx<'r> {
             native_compiler_pass_hazards: Vec::new(),
             compact_compiler_pass: false,
             native_speculative_compilations: Vec::new(),
+            site_claim_requirements: BTreeSet::new(),
             plain_command_dispatch: false,
             source: tcl_lexer::SourceImage::default(),
             line_index: None,
@@ -1076,6 +1081,36 @@ impl<'r> CodegenCtx<'r> {
         true
     }
 
+    /// Record one spec-pack claim a specialised operation rests on.
+    pub fn require_site_claim(&mut self, claim: &tcl_runtime_api::SiteClaim) {
+        self.site_claim_requirements.insert(claim.clone());
+    }
+
+    /// Record a site binding: the binding, and its claim when it has one.
+    pub(crate) fn require_site_binding(&mut self, site: &SiteBinding) {
+        self.require_command_binding(&site.binding);
+        if let Some(claim) = &site.claim {
+            self.require_site_claim(claim);
+        }
+    }
+
+    /// The binding a call of `cmd` specialised on `stamp` relies on: the
+    /// identity the registry answers for it
+    /// ([`ResolvedCall::stamp_identity`](tcl_registry::registry::ResolvedCall::stamp_identity)),
+    /// and the rung-2 claim when that identity reached a builtin through a
+    /// pack command's `alias_of`.
+    pub(crate) fn stamped_binding(
+        &self,
+        cmd: &str,
+        resolved: &tcl_registry::registry::ResolvedCall<'_>,
+        stamp: tcl_registry::codegen_stamp::CodegenStamp,
+    ) -> SiteBinding {
+        let binding =
+            self.command_binding_identity(cmd, resolved.stamp_identity(self.registry, stamp));
+        let claim = crate::site_claims::builtin_alias_claim(self.registry, resolved, &binding);
+        SiteBinding { binding, claim }
+    }
+
     /// Resolve a registry-described lowering specialisation for an inline
     /// emitter which operates below the normal IR lowering boundary.
     ///
@@ -1439,6 +1474,7 @@ impl<'r> CodegenCtx<'r> {
             plain_command_dispatch: self.plain_command_dispatch,
             command_bindings: self.command_binding_requirements.into_iter().collect(),
             procedure_bindings: Vec::new(),
+            site_claims: self.site_claim_requirements.into_iter().collect(),
         }
     }
 }
@@ -1452,6 +1488,15 @@ fn expression_script_dependency(
         && (dependency.compiler_prerequisite.is_some()
             || (dependency.target.registry_backed && dependency.target.prepended.is_empty())))
     .then(|| crate::registry_invocation::native_compilation_dependency(dependency))
+}
+
+/// A command binding a specialised site relies on, and the rung-2 claim that
+/// must hold beside it when the binding reached a builtin through a pack
+/// command's `alias_of` ([`crate::site_claims::builtin_alias_claim`]).
+#[derive(Debug, Clone)]
+pub(crate) struct SiteBinding {
+    pub(crate) binding: tcl_runtime_api::CommandBindingIdentity,
+    pub(crate) claim: Option<tcl_runtime_api::SiteClaim>,
 }
 
 #[cfg(test)]

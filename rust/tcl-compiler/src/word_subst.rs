@@ -86,6 +86,9 @@ pub struct LiftedCall {
     /// its word count disagreed with the argument split; a consumer that reads
     /// this must keep working without it.
     pub arg_words: Vec<WordExpr>,
+    /// The substitution's own words as [`nested_command_words`] recovers
+    /// them, the command word at `0`; `None` when it declined.
+    pub words: Option<CommandTokens>,
     /// Absolute source span of the whole `[…]`.
     pub span: Span,
 }
@@ -669,6 +672,7 @@ fn push_substitution(
         args,
         arg_spans,
         arg_words,
+        words: nested,
         span,
     });
 }
@@ -1012,17 +1016,25 @@ fn selected_lifted_expressions(
 /// `expr` concatenates its arguments, and only the single braced argument is a
 /// verbatim source slice, so any other spelling is skipped rather than guessed
 /// at — the same abstention the lowerer makes when it cannot anchor an
-/// expression's text.
+/// expression's text. A lifted call is `expr` when its resolved head carries
+/// [`Traits::EXPR_CONCATENATES_ARGS`](tcl_registry::Traits::EXPR_CONCATENATES_ARGS),
+/// not by comparing the spelling — the same resolution
+/// `optimiser::tail_call` and `optimiser::end_offset` already use.
 #[must_use]
 pub fn lifted_exprs(
     tokens: Option<&CommandTokens>,
     profile: Option<&tcl_dialect::DialectProfile>,
+    registry: &tcl_registry::CommandRegistry,
 ) -> Vec<(crate::expr_ast::ExprNode, Span)> {
     let config = tcl_lexer::LexerConfig::for_profile(profile);
     lifted_calls(tokens, config)
         .into_iter()
         .filter_map(|lifted| {
-            if lifted.command != "expr" && lifted.command != "::expr" {
+            let is_expr = registry.get(&lifted.command).is_some_and(|spec| {
+                spec.traits
+                    .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+            });
+            if !is_expr {
                 return None;
             }
             let [only] = lifted.args.as_slice() else {

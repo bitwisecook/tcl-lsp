@@ -3459,7 +3459,7 @@
     ],
     "registry_derived": true,
     "registry_owner": "foreach",
-    "notes": "argument-role resolver; executable positions, if any, are invocation-dependent"
+    "notes": "clause grammar; executable positions are invocation-dependent"
   },
   {
     "id": "foreachLine/arg[2]@bpf+spectcl+sslictcl+tcl9.0+tcl9.1+tk",
@@ -4633,7 +4633,7 @@
     ],
     "registry_derived": true,
     "registry_owner": "if",
-    "notes": "argument-role resolver; executable positions, if any, are invocation-dependent"
+    "notes": "clause grammar; executable positions are invocation-dependent"
   },
   {
     "id": "interp alias/dynamic-command-prefix@bpf+cadence-eda-tcl+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+sslictcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
@@ -5170,7 +5170,7 @@
     ],
     "registry_derived": true,
     "registry_owner": "lmap",
-    "notes": "argument-role resolver; executable positions, if any, are invocation-dependent"
+    "notes": "clause grammar; executable positions are invocation-dependent"
   },
   {
     "id": "log::lvCmd/arg[1]@bpf+expect+intel-quartus-eda-tcl+jim+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+sslictcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
@@ -7471,7 +7471,46 @@
     "notes": "static script-body position"
   },
   {
-    "id": "package unknown/arg[0]@bpf+cadence-eda-tcl+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+sslictcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "package require/dynamic-arg-role@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+sslictcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "owner": "package require",
+    "surface": "subcommand",
+    "kind": "dynamic",
+    "provenance": "Tcl manual/source (8.4-9.1 corpus)",
+    "dialects": [
+      "bpf",
+      "cadence-eda-tcl",
+      "expect",
+      "f5-bigip",
+      "f5-iapps",
+      "f5-irules",
+      "f5-tmsh",
+      "intel-quartus-eda-tcl",
+      "mentor-eda-tcl",
+      "microchip-libero-eda-tcl",
+      "spectcl",
+      "sslictcl",
+      "synopsys-eda-tcl",
+      "tcl8.4",
+      "tcl8.5",
+      "tcl8.6",
+      "tcl9.0",
+      "tcl9.1",
+      "tk",
+      "xilinx-eda-tcl"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "dynamic",
+    "appended_arity": null,
+    "callback_taint_inputs": [],
+    "forms": [
+      "package require ?-exact? package ?requirement...?"
+    ],
+    "registry_derived": true,
+    "registry_owner": "package",
+    "notes": "argument-role resolver; executable positions, if any, are invocation-dependent"
+  },
+  {
+    "id": "package unknown/arg[0]@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+sslictcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "package unknown",
     "surface": "subcommand",
     "kind": "command-prefix",
@@ -12295,7 +12334,7 @@
     ],
     "registry_derived": true,
     "registry_owner": "try",
-    "notes": "argument-role resolver; executable positions, if any, are invocation-dependent"
+    "notes": "clause grammar; executable positions are invocation-dependent"
   },
   {
     "id": "ttk::button instance instate/arg[1]@bpf+cadence-eda-tcl+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+jim+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+sslictcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",

@@ -215,6 +215,9 @@ fn crc16_cmd(variant: &'static str, synopsis: &'static [&'static str]) -> Comman
         side_effects: READS,
         tcllib_package: Some("crc16"),
         required_package: Some("crc16"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }
@@ -328,6 +331,9 @@ fn crc32_family() -> Vec<CommandSpec> {
             side_effects: READS,
             tcllib_package: Some("crc32"),
             required_package: Some("crc32"),
+            semantics: SemanticsDeclaration::Declared(
+                &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            ),
             ..CommandSpec::DEFAULT
         },
         token_cmd(
@@ -375,6 +381,9 @@ fn cksum_family() -> Vec<CommandSpec> {
             side_effects: READS,
             tcllib_package: Some("cksum"),
             required_package: Some("cksum"),
+            semantics: SemanticsDeclaration::Declared(
+                &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            ),
             ..CommandSpec::DEFAULT
         },
         token_cmd(
@@ -421,6 +430,9 @@ fn sum_cmd() -> CommandSpec {
         side_effects: READS,
         tcllib_package: Some("sum"),
         required_package: Some("sum"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

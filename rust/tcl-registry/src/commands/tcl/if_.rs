@@ -33,31 +33,26 @@ struct IfWalk {
     repair: Option<ClauseShapeRepair>,
 }
 
-impl IfWalk {
-    fn defect(
-        roles: Vec<(u8, ArgRole)>,
-        error: ClauseShapeError,
-        repair: Option<ClauseShapeRepair>,
-    ) -> Self {
-        Self {
-            roles,
-            error: Some(error),
-            repair,
-        }
-    }
-}
+/// The slots of every condition clause: `expr ?then? body`.
+const CONDITION_CLAUSE: &[ClauseSlot] = &[
+    ClauseSlot::of(ArgRole::Expr),
+    ClauseSlot::noise("then"),
+    ClauseSlot::of(ArgRole::Body),
+];
 
-/// Walk an `if` invocation's argument words against the grammar C Tcl's
-/// `Tcl_IfObjCmd` accepts: `expr ?then? body (elseif expr ?then? body)*
-/// (else body)?`. Verified word-for-word against `TclNRIfObjCmd` /
-/// `IfConditionCallback` in Tcl 9.0.4's `generic/tclCmdIL.c`, and
-/// cross-checked against tclsh 8.6 (the same algorithm, unchanged since
-/// at least Tcl 8.4).
+/// The final clause's one script word.
+const FINAL_CLAUSE: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Body)];
+
+/// `expr ?then? body (elseif expr ?then? body)* (?else? body)?`, the grammar
+/// C Tcl's `Tcl_IfObjCmd` accepts — verified word for word against
+/// `TclNRIfObjCmd` / `IfConditionCallback` in Tcl 9.0.4's
+/// `generic/tclCmdIL.c` and cross-checked against tclsh 8.6 (the same
+/// algorithm since at least Tcl 8.4).
 ///
-/// Two properties fall out of mirroring the real grammar rather than
+/// Two properties fall out of declaring the real grammar rather than
 /// keyword-matching every position:
 ///
-/// - A condition slot (`args[0]`, or the word right after `elseif`) is
+/// - A condition slot (the head's, or the word right after `elseif`) is
 ///   *never* keyword-matched — `if else {a}` and `if elseif {a}` are
 ///   structurally well-formed `if`s whose single condition happens to be
 ///   the bareword `else` / `elseif`; real Tcl evaluates it as a boolean
@@ -70,123 +65,42 @@ impl IfWalk {
 ///   Tcl's `wrong # args: extra words after "else" clause` — whether or
 ///   not an explicit `else` keyword introduced that body.
 fn walk_if(args: &[&str]) -> IfWalk {
-    walk_if_keywords(args.len(), |index| {
-        args.get(index).map(|word| word.as_bytes())
+    walk_if_arguments(crate::InvocationArguments::literals(args)).expect("literal grammar controls")
+}
+
+fn walk_if_arguments(args: crate::InvocationArguments<'_>) -> Option<IfWalk> {
+    let plan = GRAMMAR.walk_arguments(args, &[], None)?.ok()?;
+    let issue = plan.shape_issue();
+    Some(IfWalk {
+        roles: plan
+            .roles
+            .iter()
+            .filter_map(|&(index, role)| u8::try_from(index).ok().map(|index| (index, role)))
+            .collect(),
+        error: issue.map(ClauseShapeIssue::error),
+        repair: issue.and_then(ClauseShapeIssue::repair),
     })
-    .expect("literal grammar controls")
 }
 
-/// Only positions that select clause grammar require a known value. Payload
-/// conditions and bodies retain their actual unknown values and word slots.
-fn walk_if_keywords<'w>(n: usize, keyword: impl Fn(usize) -> Option<&'w [u8]>) -> Option<IfWalk> {
-    let mut roles = Vec::new();
-
-    let push_role = |roles: &mut Vec<(u8, ArgRole)>, index: usize, role: ArgRole| {
-        if let Ok(idx) = u8::try_from(index) {
-            roles.push((idx, role));
-        }
-    };
-
-    if n == 0 {
-        return Some(IfWalk::defect(
-            roles,
-            ClauseShapeError::MissingExpr { after: None },
-            None,
-        ));
-    }
-
-    // Mandatory first condition — position 0, never keyword-matched.
-    let mut i: usize = 0;
-    push_role(&mut roles, i, ArgRole::Expr);
-    i += 1;
-    if i < n && keyword(i)? == b"then" {
-        push_role(&mut roles, i, ArgRole::Keyword);
-        i += 1;
-    }
-    if i >= n {
-        return Some(IfWalk::defect(
-            roles,
-            ClauseShapeError::MissingBody { after: i - 1 },
-            None,
-        ));
-    }
-    push_role(&mut roles, i, ArgRole::Body);
-    i += 1;
-
-    loop {
-        if i >= n {
-            return Some(IfWalk {
-                roles,
-                error: None,
-                repair: None,
-            });
-        }
-        if keyword(i)? == b"elseif" {
-            let kw_idx = i;
-            push_role(&mut roles, i, ArgRole::Keyword);
-            i += 1;
-            if i >= n {
-                return Some(IfWalk::defect(
-                    roles,
-                    ClauseShapeError::MissingExpr {
-                        after: Some(kw_idx),
-                    },
-                    Some(ClauseShapeRepair::RemoveTrailingClause { keyword: kw_idx }),
-                ));
-            }
-            // The elseif's condition — position-only, never keyword-matched
-            // (see the `if elseif else {a}` case in the doc comment above).
-            push_role(&mut roles, i, ArgRole::Expr);
-            i += 1;
-            if i < n && keyword(i)? == b"then" {
-                push_role(&mut roles, i, ArgRole::Keyword);
-                i += 1;
-            }
-            if i >= n {
-                return Some(IfWalk::defect(
-                    roles,
-                    ClauseShapeError::MissingBody { after: i - 1 },
-                    Some(ClauseShapeRepair::RemoveTrailingClause { keyword: kw_idx }),
-                ));
-            }
-            push_role(&mut roles, i, ArgRole::Body);
-            i += 1;
-            continue;
-        }
-        if keyword(i)? == b"else" {
-            let kw_idx = i;
-            push_role(&mut roles, i, ArgRole::Keyword);
-            i += 1;
-            if i >= n {
-                return Some(IfWalk::defect(
-                    roles,
-                    ClauseShapeError::MissingBody { after: kw_idx },
-                    Some(ClauseShapeRepair::RemoveTrailingClause { keyword: kw_idx }),
-                ));
-            }
-            push_role(&mut roles, i, ArgRole::Body);
-            i += 1;
-            let error = (i < n).then_some(ClauseShapeError::ExtraWords { first_extra: i });
-            let repair = error.map(|_| ClauseShapeRepair::MergeTrailingWords { body: i - 1 });
-            return Some(IfWalk {
-                roles,
-                error,
-                repair,
-            });
-        }
-        // Implicit else: the first bare word is the body; anything past it
-        // is unreachable in real Tcl and a structural error here.
-        push_role(&mut roles, i, ArgRole::Body);
-        i += 1;
-        let error = (i < n).then_some(ClauseShapeError::ExtraWords { first_extra: i });
-        let repair = error.map(|_| ClauseShapeRepair::MergeTrailingWords { body: i - 1 });
-        return Some(IfWalk {
-            roles,
-            error,
-            repair,
-        });
-    }
-}
+pub const GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
+    head: ClauseRow::head(CONDITION_CLAUSE, ClauseTiming::Selected),
+    rows: &[ClauseRow::repeated(
+        "elseif",
+        CONDITION_CLAUSE,
+        ClauseTiming::Selected,
+    )],
+    tail: Some(
+        ClauseRow::once(Some("else"), FINAL_CLAUSE, ClauseTiming::Selected).optional_keyword(),
+    ),
+    fallthrough_body: None,
+    // The final body runs when no condition held, and nothing may follow it.
+    default_clause: Some(DefaultClause {
+        row: None,
+        final_only: true,
+    }),
+    selection: ClauseSelection::FirstMatch,
+    surface: None,
+};
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
@@ -211,24 +125,13 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// diagnostic can never disagree about where a clause starts.
 fn if_layout_roles(
     args: crate::InvocationArguments<'_>,
-    _options: crate::resolved_invocation::InvocationOptions<'_>,
+    _options: crate::resolved_invocation::InvocationOptions<'_, '_>,
 ) -> Option<Vec<(u8, ArgRole)>> {
     let count = args.exact_argv_len()?;
     if count > usize::from(u8::MAX) + 1 {
         return None;
     }
-    Some(walk_if_keywords(count, |index| if_keyword_bytes(args, index))?.roles)
-}
-
-// Grammar controls are ASCII. A known non-NUL byte payload can prove it is
-// not a control without being Unicode text. Counted NUL boundaries remain a
-// separate native command recipe; this source grammar cannot select them.
-fn if_keyword_bytes<'w>(args: crate::InvocationArguments<'w>, index: usize) -> Option<&'w [u8]> {
-    match args.get(index)? {
-        crate::InvocationWord::Literal(value) => Some(value.as_bytes()),
-        crate::InvocationWord::KnownBytes(value) if !value.contains(&0) => Some(value),
-        _ => None,
-    }
+    Some(walk_if_arguments(args)?.roles)
 }
 
 /// Validate an `if` invocation's structural shape.
@@ -248,9 +151,7 @@ pub(crate) fn check_if_shape(args: &[&str]) -> Option<ClauseShapeError> {
 fn check_if_shape_words(args: crate::InvocationArguments<'_>) -> Option<ClauseShapeIssue> {
     // naming.diagnostic.original-control-advice
     // docs/design/analysis/name-resolution-proofs/diagnostic-original-control-advice.md
-    let walk = walk_if_keywords(args.exact_argv_len()?, |index| {
-        if_keyword_bytes(args, index)
-    })?;
+    let walk = walk_if_arguments(args)?;
     Some(ClauseShapeIssue::with_repair(walk.error?, walk.repair))
 }
 
@@ -347,6 +248,7 @@ pub fn spec() -> CommandSpec {
             ),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("if"),
         // Present and unrestricted everywhere. `if` is a pure control-flow
         // keyword with no filesystem/process/network access, so its surface
         // carries an iRules row explicitly (`ALL_TCL.union(IRULES)`) and it
@@ -365,12 +267,13 @@ pub fn spec() -> CommandSpec {
             | Traits::BRANCH_SELECTED_BODY
             | Traits::STRUCTURALLY_CHECKED_ARITY,
         // The floor here is purely descriptive (hover / hint text): the real
-        // minimum is enforced by `clause_shape_check`, which also covers the
-        // `elseif`/`else` chain shape a plain range can't express.
+        // minimum is enforced by the clause grammar's walk, which also covers
+        // the `elseif`/`else` chain shape a plain range can't express.
         arity: Arity::at_least(2),
         arg_role_layout_resolver: Some(if_layout_roles),
         arg_role_resolver_roles: &[ArgRole::Expr, ArgRole::Body, ArgRole::Keyword],
         clause_shape_check: Some(check_if_shape_words),
+        clause_grammar: Some(&GRAMMAR),
         lowering_hook: Some(crate::hooks::LoweringHookId::If),
         native_lowering: Some(NativeLowering::Structured(crate::hooks::LoweringHookId::If)),
         return_type: Some(TclType::String),
@@ -619,11 +522,9 @@ mod tests {
         ] {
             let words: Vec<&str> = src.split_whitespace().collect();
             assert_eq!(
-                walk_if_keywords(words.len(), |index| words
-                    .get(index)
-                    .map(|word| word.as_bytes()))
-                .unwrap()
-                .roles,
+                walk_if_arguments(crate::InvocationArguments::literals(&words))
+                    .unwrap()
+                    .roles,
                 walk_if(&words).roles,
                 "src={src:?}"
             );
@@ -645,7 +546,7 @@ mod original_clause_repair_tests {
                 crate::InvocationWord::KnownBytes(body),
             ];
             let args = crate::InvocationArguments::structured(&words);
-            let walk = walk_if_keywords(2, |index| if_keyword_bytes(args, index)).unwrap();
+            let walk = walk_if_arguments(args).unwrap();
             assert_eq!(walk.roles, [(0, ArgRole::Expr), (1, ArgRole::Body)]);
             assert_eq!(walk.error, None);
             let words = [
@@ -673,7 +574,7 @@ mod original_clause_repair_tests {
         ] {
             let words = [crate::InvocationWord::Literal("1"), control];
             let args = crate::InvocationArguments::structured(&words);
-            assert!(walk_if_keywords(2, |index| if_keyword_bytes(args, index)).is_none());
+            assert!(walk_if_arguments(args).is_none());
         }
         let words = [
             crate::InvocationWord::Literal("1"),

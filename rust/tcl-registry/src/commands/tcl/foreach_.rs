@@ -42,12 +42,28 @@ fn foreach_count_arg_roles(count: usize) -> Vec<(u8, ArgRole)> {
         Vec::new()
     }
 }
+/// `foreach varlist1 list1 ?varlist2 list2 ...? body`: binder groups — the
+/// stride and the excluded trailing body are `REPEATED`'s, which the group row
+/// cites — then the body per iteration. At least one whole group is needed,
+/// so the body is the last word once there are three.
+pub const GRAMMAR: ClauseGrammarSpec = ClauseGrammarSpec {
+    head: ClauseRow::EMPTY_HEAD,
+    rows: &[ClauseRow::group(0, ClauseTiming::PerIteration)],
+    tail: Some(ClauseRow::once(None, SCRIPT, ClauseTiming::PerIteration)),
+    fallthrough_body: None,
+    default_clause: None,
+    selection: ClauseSelection::All,
+    surface: None,
+};
+/// The body script.
+const SCRIPT: &[ClauseSlot] = &[ClauseSlot::of(ArgRole::Body)];
 
 /// Command spec for `foreach`.
 /// `?varlist list?...` repeats before the trailing body: the variable specs
 /// sit at every other argument from 0, and the body — the last word — is
-/// excluded.  The role resolver marks that body; this declares the repeating
-/// head so no consumer has to re-derive the stride from the command's name.
+/// excluded.  The clause grammar's group row cites this layout and marks the
+/// body; this declares the repeating head so no consumer has to re-derive the
+/// stride from the command's name.
 static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout {
     exclude_trailing: 1,
     ..RepeatedArgLayout::strided(ArgRole::LoopVarList, 0, 2)
@@ -64,6 +80,7 @@ pub fn spec() -> CommandSpec {
             ),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("foreach"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
@@ -82,6 +99,7 @@ pub fn spec() -> CommandSpec {
         }),
         arg_role_count_resolver: Some(foreach_count_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Body],
+        clause_grammar: Some(&GRAMMAR),
         repeated_args: REPEATED,
         // Index 0 here is a fixed key, not a real source-position argument
         // index: the CFG builder lowers a `foreach` header to a synthetic
@@ -118,6 +136,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Foreach),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::iteration::FOREACH),
         ..CommandSpec::DEFAULT
     }
 }

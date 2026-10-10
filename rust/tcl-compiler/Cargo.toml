@@ -53,9 +53,23 @@ num-traits = "0.2"
 [lints]
 workspace = true
 
+# The value-transfer performance report: a plain `main` that prints
+# its tables; `cargo test --bench value_transfers` runs it at smoke sizes.
+[[bench]]
+name = "value_transfers"
+harness = false
+
 [dev-dependencies]
+# The shared reference-interpreter lookup the output witnesses compare
+# under (`witness_tclsh`), which fails a test whose release
+# `TCL_LSP_REQUIRE_TCLSH` requires and reports any other it skips.
 tcl-test-support = { path = "../tcl-test-support" }
 tcl-vm = { path = "../tcl-vm" }
 serde_json = { workspace = true }
 temp-env = "0.3"
 rayon = "1"
+# A dev-dependency cycle (`tcl-spectcl` depends on this crate), which Cargo
+# permits and `tcl-registry` already uses: the value-transfer completion test
+# loads its executable example, a `.tclspec` pack, through the pack loader
+# and the hook host, exactly as a workspace does.
+tcl-spectcl = { path = "../tcl-spectcl" }

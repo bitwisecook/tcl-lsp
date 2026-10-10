@@ -37,6 +37,13 @@
 //! write and a paired deletion over each earlier one, all sharing one
 //! group so they apply atomically.
 //!
+//! A chain may also anchor at an `append` / `lappend` whose own target the
+//! existence rung proves `Unbound` immediately before it: the release
+//! rule creates the cell in every release for both
+//! commands, so the absent start folds through the value at the last write
+//! exactly as an explicit `set var ""` would —
+//! `lappend l a; lappend l b` folds to `set l {a b}`.
+//!
 //! ## Soundness gates
 //!
 //! - The writes must be **strictly consecutive** — no statement runs
@@ -45,7 +52,12 @@
 //!   subsumed: a read between writes would be a non-write statement and
 //!   ends the run).
 //! - Every value word must be a static literal (`Esc`/`Str` single-token
-//!   word); a `$var` / `[cmd]` operand ends the run.
+//!   word), or a `$var` word the function's lattice proves constant at that
+//!   statement — the chain then folds through the lattice value (`set s
+//!   hello; set p again; append s $p` folds to `helloagain`); a `[cmd]`
+//!   operand or an unproven `$var` ends the run.
+//! - Which call extends the string and which the list is the registry's
+//!   declaration — the resolved cell update — not a command's spelling.
 //! - The variable must not **escape** (be aliased via
 //!   `global`/`upvar`/`variable` or be under a `trace`) and must not be a
 //!   cross-event iRules state variable — folding would drop a trace
@@ -56,7 +68,7 @@
 //! and a separate setter-binding guard. Native layouts remain hints because
 //! source pattern and quiet hazards do not certify Native erasure equivalence.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
 
 use tcl_lexer::LexerConfig;
@@ -121,6 +133,101 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     }
 }
 
+/// A function's SSA statements by span, with where each sits, over its
+/// shared lattice, so a `$var` value word resolves to the constant the
+/// lattice proves at that statement.
+#[derive(Default)]
+struct FunctionLattice<'a> {
+    unit: Option<&'a FunctionUnit>,
+    statements: HashMap<(u32, u32), Option<LocatedStatement>>,
+}
+
+/// One SSA statement and its place in the function: its block and its
+/// index there.
+#[derive(Clone, Copy)]
+struct LocatedStatement {
+    block: crate::cfg::BlockId,
+    index: usize,
+}
+
+impl<'a> FunctionLattice<'a> {
+    fn of(unit: &'a FunctionUnit) -> Self {
+        // A synthetic call the CFG builder emitted beside a host statement
+        // shares the host's span; the host is the statement the chain reads.
+        let mut statements = HashMap::new();
+        for (&block, ssa_block) in &unit.ssa.blocks {
+            for (index, statement) in ssa_block.statements.iter().enumerate() {
+                if statement
+                    .statement
+                    .tokens()
+                    .is_some_and(|tokens| tokens.synthetic.is_some())
+                {
+                    continue;
+                }
+                if unit.cfg.source_tokens_at(block, index).is_none() {
+                    continue;
+                }
+                let span = unit.abs_span(statement.statement.span());
+                statements
+                    .entry((span.start(), span.end()))
+                    .and_modify(|candidate| *candidate = None)
+                    .or_insert(Some(LocatedStatement { block, index }));
+            }
+        }
+        Self {
+            unit: Some(unit),
+            statements,
+        }
+    }
+
+    /// The constant `name` holds at the statement spanning `span`, when
+    /// the lattice proves one.
+    fn constant_at(&self, span: tcl_lexer::Span, word: &crate::ir::WordExpr) -> Option<String> {
+        let unit = self.unit?;
+        let located = self.statements.get(&(span.start(), span.end()))?.as_ref()?;
+        let crate::ir::WordExpr::Variable { spelling, source } = word else {
+            return None;
+        };
+        let read = crate::ssa::SsaSourceView::at_statement(&unit.ssa, located.block, located.index)
+            .read_reference(source, spelling)?;
+        let key = (read.symbol, read.version?);
+        if !unit.sccp.materialises(key) {
+            return None;
+        }
+        let crate::analyses::LatticeValue::Const(value) = unit.sccp.values.get(&key)? else {
+            return None;
+        };
+        super::helpers::literals::format_constant_with_policy(
+            value,
+            crate::tcl_expr_eval::FoldPolicy::for_profile(
+                crate::tcl_expr_eval::leading_zero_is_octal(
+                    unit.source_metadata_input()?.unit_profile(),
+                ),
+                Some(unit.source_metadata_input()?.unit_profile()),
+            ),
+        )
+    }
+
+    /// The existence fact `name`'s place holds where the statement
+    /// spanning `span` reads it — the state its own read-modify-write
+    /// observes (`incr` / `append` / `lappend` all read their target's
+    /// existence before they write it), after every clobber since the
+    /// version's definition (a non-lowered `switch` arm's clobber reaches
+    /// the statement, not the version) — or
+    /// `None` when the run computed none.
+    fn existence_at_statement(
+        &self,
+        span: tcl_lexer::Span,
+        name: &str,
+    ) -> Option<tcl_registry::value_transfer::Existence> {
+        let unit = self.unit?;
+        let located = self.statements.get(&(span.start(), span.end()))?.as_ref()?;
+        let symbol = unit.ssa.var_symbol_at(located.block, located.index, name)?;
+        unit.sccp
+            .existence_before(located.block, located.index, symbol)
+    }
+}
+
 /// One function's actual command generation and complete source grammar.
 #[derive(Clone, Copy)]
 struct ChainSourceContext<'a> {
@@ -128,6 +235,7 @@ struct ChainSourceContext<'a> {
     metadata: InvocationMetadataContext<'a>,
     config: LexerConfig,
     mutations: &'a crate::command_binding::ModuleCommandMutations,
+    lattice: &'a FunctionLattice<'a>,
 }
 
 fn fold_function(
@@ -151,11 +259,13 @@ fn fold_function(
         analyse_var_observability_with_metadata_context(&function.cfg, registry, Some(metadata))
             .escaping_var_names();
     protected.extend(cross_event.iter().cloned());
+    let lattice = FunctionLattice::of(function);
     let semantics = ChainSourceContext {
         registry,
         metadata,
         config: function.source_lexer_config(),
         mutations,
+        lattice: &lattice,
     };
     fold_script(ctx, script, &protected, semantics, 0);
 }
@@ -263,7 +373,11 @@ fn write_var(write: &Write) -> &str {
 
 /// Typed source recipe only. Frozen values of substitutions cannot stand in
 /// for static operands because removing a read could remove an observer.
-fn classify_write(tokens: &CommandTokens, semantics: ChainSourceContext<'_>) -> Option<Write> {
+fn classify_write(
+    tokens: &CommandTokens,
+    semantics: ChainSourceContext<'_>,
+    span: tcl_lexer::Span,
+) -> Option<Write> {
     use tcl_registry::SemanticOperationId::StructuredLowering;
     use tcl_registry::hooks::{AnalyserHookId, LoweringHookId};
     let binding = tokens.source_binding.as_ref()?;
@@ -299,6 +413,15 @@ fn classify_write(tokens: &CommandTokens, semantics: ChainSourceContext<'_>) -> 
             invocation
                 .effective
                 .argument_literal(index, semantics.config.escapes, rules)
+                .or_else(|| {
+                    semantics
+                        .metadata
+                        .permits_logical_source_names()
+                        .then_some(())?;
+                    semantics
+                        .lattice
+                        .constant_at(span, invocation.effective.words.get(index + 1)?)
+                })
         })
         .collect::<Option<Vec<_>>>()?
         .into_iter();
@@ -339,6 +462,25 @@ fn classify_write(tokens: &CommandTokens, semantics: ChainSourceContext<'_>) -> 
     }
 }
 
+fn replacement_setter(semantics: ChainSourceContext<'_>) -> Option<String> {
+    semantics
+        .registry
+        .command_names_for_semantic_operation(
+            tcl_registry::SemanticOperationId::StructuredLowering(
+                tcl_registry::hooks::LoweringHookId::Set,
+            ),
+        )
+        .find(|name| {
+            semantics.mutations.trusts(name)
+                && semantics
+                    .metadata
+                    .context()
+                    .resolve_spec(semantics.registry, name)
+                    .is_some()
+        })
+        .map(str::to_owned)
+}
+
 /// Attempt to fold a write-chain starting at `script.statements[start]`. Returns the
 /// number of statements consumed (the run length) when a fold fires, else
 /// `None`.
@@ -351,25 +493,36 @@ fn try_fold_chain_at(
 ) -> Option<usize> {
     let stmts = &script.statements;
     let original = script.retained_source_tokens_for_statement(&stmts[start])?;
-    let Write::Set { var, value, setter } = classify_write(original, semantics)? else {
-        return None;
+    let write = classify_write(original, semantics, stmts[start].span())?;
+    let absent = !matches!(write, Write::Set { .. })
+        && semantics
+            .lattice
+            .existence_at_statement(stmts[start].span(), write_var(&write))
+            == Some(tcl_registry::value_transfer::Existence::Unbound);
+    let (var, mut chain_value, mut elements, setter) = match write {
+        Write::Set { var, value, setter } => (var, value, None, setter),
+        Write::Append { var, pieces } if absent => {
+            (var, pieces.concat(), None, replacement_setter(semantics)?)
+        }
+        Write::Lappend { var, elements } if absent => (
+            var,
+            String::new(),
+            Some(elements),
+            replacement_setter(semantics)?,
+        ),
+        Write::Append { .. } | Write::Lappend { .. } => return None,
     };
-
-    // The proposed head has no original invocation receipt. Its binding
-    // obligation stays separate from the selected operations being folded.
     if !semantics.mutations.trusts(&setter) {
         return None;
     }
     let replacement_head = tcl_syntax::naming::qualify("::", &setter);
-    let mut chain_value = value;
-    let mut elements: Option<Vec<String>> = None;
     let mut writes = vec![start];
 
     let mut j = start + 1;
     while j < stmts.len() {
         match script
             .retained_source_tokens_for_statement(&stmts[j])
-            .and_then(|tokens| classify_write(tokens, semantics))
+            .and_then(|tokens| classify_write(tokens, semantics, stmts[j].span()))
         {
             Some(Write::Append { var: v, pieces }) if v == var && elements.is_none() => {
                 for p in pieces {
@@ -431,7 +584,7 @@ fn try_fold_chain_at(
             DiagCode::O130,
             "Fold write-only list build chain",
             "Remove dead intermediate list write",
-            render_list_word(els),
+            render_list_word(els, ctx.dialect)?,
         )
     } else {
         (
@@ -473,11 +626,17 @@ fn try_fold_chain_at(
 }
 
 /// Render `elements` as the single `set` value-word that recreates the
-/// list — join into a canonical Tcl list, then quote that as one element.
-/// The joined string never begins with a bare `#` (the join already quotes
-/// a leading `#`), so `list_element`'s first-element rule is equivalent here.
-fn render_list_word(elements: &[String]) -> String {
-    tcl_syntax::list::list_element(&tcl_syntax::list::join_list(elements))
+/// list the target builds — join into its canonical list, then quote that
+/// as one word — or `None` where the rendering is release-dependent (a
+/// first element that starts with `#`, under a profile naming no release).
+/// Under 8.4 `lappend l # b` builds `# b`, so the word is `{# b}`; from 8.5
+/// it builds `{#} b`.
+fn render_list_word(
+    elements: &[String],
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> Option<String> {
+    let list = tcl_registry::value_transfer::TargetSemantics::of(dialect).render_list(elements)?;
+    Some(tcl_syntax::list::list_element(&list))
 }
 
 #[cfg(test)]
@@ -808,6 +967,7 @@ mod tests {
                     .has_logical_source_name_context()
             );
             if dialect == "tcl8.6" {
+                let lattice = FunctionLattice::of(function);
                 let semantics = ChainSourceContext {
                     registry,
                     metadata: unit
@@ -919,6 +1079,75 @@ mod tests {
             apply("set l {}\nlappend l {a b}\nlappend l c"),
             "::set l {{a b} c}"
         );
+    }
+
+    /// A `$var` piece the lattice proves constant folds through the value
+    /// at that statement: the non-consecutive O104 chain, and its
+    /// exact-value twin (#2052).
+    #[test]
+    fn var_piece_proven_by_the_lattice_folds_the_chain() {
+        let out = apply("set s hello\nset p again\nappend s $p\nputs $s\n");
+        assert_eq!(out, "set p again\nset s helloagain\nputs $s\n");
+        let out = apply("set s hello\nset p { again}\nappend s $p\nputs $s\n");
+        assert!(
+            out.contains("hello again") && !out.contains("append"),
+            "the leading space is kept: {out:?}"
+        );
+        let out = apply("set l {}\nset e {b c}\nlappend l a $e\nputs $l\n");
+        assert_eq!(out, "set e {b c}\nset l {a {b c}}\nputs $l\n");
+    }
+
+    /// An unproven `$var` piece still ends the run.
+    #[test]
+    fn unproven_var_piece_ends_the_run() {
+        let src = "set s hello\nappend s $p\nappend s x\nputs $s\n";
+        let opts = run_pass(src);
+        assert!(
+            !opts.iter().any(|o| o.code == DiagCode::O104),
+            "an unproven `$p` cannot be folded: {opts:?}"
+        );
+    }
+
+    /// The write chain is classified by the resolved cell update, so the
+    /// qualified spelling of the same command extends it too.
+    /// [`run_pass`] under the module's own command-trust fact, as the
+    /// optimiser entry points install it.
+    fn run_pass_under_the_module_trust(source: &str) -> Vec<Optimisation> {
+        let cu = CompilationUnit::build_for(source, &registry(), false);
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.command_mutations.clone_from(&cu.command_mutations);
+        run(&mut ctx, &cu);
+        ctx.optimisations
+    }
+
+    /// A typed assignment keeps no head of its own, so the chain asks every
+    /// registry spelling of the assignment operation: with `proc set` in
+    /// scope, `set s foo` never assigns (tclsh 8.4.20 – 9.1b0: the chain's
+    /// `puts $s` prints `bar`, where the fold would store `foobar`). A
+    /// shadowed call head declines the same way, and the controls fold.
+    #[test]
+    fn a_shadowed_head_anchors_or_extends_no_chain() {
+        let chain = "set s foo\nappend s bar\nputs $s\n";
+        let folds = |src: &str| {
+            run_pass_under_the_module_trust(src)
+                .iter()
+                .any(|o| o.code == DiagCode::O104 || o.code == DiagCode::O130)
+        };
+        assert!(folds(chain), "the unshadowed chain folds");
+        assert!(
+            !folds(&format!("proc set {{args}} {{return ZZZ}}\n{chain}")),
+            "a shadowed `set` anchors no chain"
+        );
+        assert!(
+            !folds(&format!("proc append {{args}} {{return ZZZ}}\n{chain}")),
+            "a shadowed `append` extends no chain"
+        );
+    }
+
+    #[test]
+    fn qualified_spelling_of_the_cell_update_extends_the_chain() {
+        let out = apply("set s foo\n::append s bar\nputs $s\n");
+        assert_eq!(out, "set s foobar\nputs $s\n");
     }
 
     #[test]

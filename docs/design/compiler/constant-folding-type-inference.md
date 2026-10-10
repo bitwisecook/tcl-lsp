@@ -34,16 +34,146 @@ live under `rust/tcl-compiler/src/optimiser/`.
 
 Note: tclsh emits `loadStk + add` (variables could be modified by traces),
 so the O101 suggestion is a diagnostic hint, not a bytecode transformation.
-Codegen (bytecode and WASM) upholds this separation structurally — it never
-reads `fu.sccp`/`LatticeValue`; it only sees the source text it is handed.
-A traced variable is therefore at risk only from the optimiser's *suggested
-source rewrite*, which gates on `Module::traced_variables` /
-`has_dynamic_variable_trace` and memory-SSA aliasing before proposing a
-forward (`optimiser/manager.rs`, `elimination.rs`, `chain_fold.rs`).
+The Rust `tcl-compiler` codegen keeps that separation structurally. The
+`TclVM` bytecode emitter never reads `fu.sccp` or a `LatticeValue`; it only
+ever sees whatever source text it is handed, literal or not. The WASM
+pipeline reads a `LatticeValue` in exactly one place —
+`lattice_i64` (reached from `covered_shape`) in
+`rust/tcl-compiler/src/codegen/wasm/native_add.rs`, which takes a
+`Const(Int)` as typed evidence for the default-off sealed-program
+native-integer plan of
+[semantic-aot-optimisation.md](semantic-aot-optimisation.md) — and never to
+shortcut a variable read. A traced variable is therefore not independently
+at risk from codegen: the risk is confined to the optimiser's own
+*suggested source rewrite* being wrong, and the propagation passes gate on
+the trace and alias facts before proposing one. The membership test is
+`sccp::is_externally_mutable` (a `::`-qualified name, a name in the
+function's escaping set, or any dynamic variable trace); the escaping set
+comes from `var_observability::analyse_var_observability` extended with
+`var_observability::scan_module_global_names` for the top-level body and
+with the whole-module `Module::traced_variables` and
+`Module::deferred_writes` carried by `sccp::TraceInputs`. The second is the
+names the module's callback scripts write, destroy or bind — the words the
+registry states as scripts stored to run later (`CommandRegistry::
+callback_script_indices`: `after`, `fileevent`, `bind`, a variable trace's
+callback, never a definition's body, which runs in a frame of its own), what
+a procedure named as a callback writes in the global frame, and what a lambda
+a callback applies writes there, read as a procedure's body is
+(`deferred_writes.rs`); a callback the scan cannot read — one that writes a
+computed name, a computed word, a command the module does not define — makes
+every name externally mutable, as a trace on a computed name does. SCCP applies
+that test to
+every def it evaluates, so a constant branch or a folded value never
+involves a traced, aliased or callback-written name in the first place;
+`propagation::run_load_forwarding` (O102) applies it independently because
+its def-use walk never consults `fu.sccp`; and
+`propagation::run_store_to_load_forwarding` (O127) adds the memory-SSA
+half through `memory_ssa::compute_aliases` when the unit carries no
+`MemorySsaFunction`. There is no separate bytecode-level shortcut to guard.
+
+A head the module can name brings its frame effect from the registry, from
+the summary of a procedure it defines, or from the stub that declares it as a
+plain call stating its frame effect (`Module::declared_frame_effects`). A call
+to a head it cannot name — one neither the registry ships for the dialect, nor
+the document declares as a plain call, nor the module binds
+(`ModuleCommandBindings::may_dispatch_unresolved`), a binding the source-order
+timeline cannot name, a registry command reached through an alias or a rename
+whose traits say it runs code, a computed head — may write, unset or read any
+name of the frame it is called from with nothing in the script to show it: a
+plain name in the top-level script is the global `::name`, and a procedure's
+local is in the reach of a callee that runs `upvar 1` or `uplevel 1`, which an
+autoloaded or unknown-handled callee can do on every release. So may a call
+that sources a file (`Traits::SOURCES_FILE`), which runs the file in the frame
+of the call. The CFG builder puts a `SyntheticMarker::UnseenCall` statement
+where such a call runs: after the call's own head, ahead of a statement whose
+`[…]` substitution runs one (asked in Tcl's evaluation order, under the
+bindings the earlier substitutions leave; the body of a `catch` a substitution
+holds included), in front of a condition's branch and a `foreach` header, after
+an opaque `switch` whose arm does, and ahead of an opaque `catch` or `try`
+whose body does. It carries no names and widens once: the SSA gives each name
+live past it a fresh version (`SsaFunction::value_clobbers`), which the solver
+states `Overdefined` while every proof about the version before it stands, and
+whose binding is that version (`SsaFunction::binding_version`), so a read of it
+keeps the store before the call. The SSA also records the version each name
+holds where the marker stands (`SsaFunction::is_observed_by_unseen_call`): the
+code may read it, so O109 keeps a store to a recorded version, as it does for a
+`::`-qualified spelling. The existence rung treats the marker as a clobber of
+every place, so `[info exists]` after it decides nothing. A use before the call
+keeps its value, and a definition made after the call is decided again.
+
+### Command values: the registry's routes
+
+A command's value reaches the lattice through the route the registry
+declares for the resolved invocation, never through a compiler arm keyed by
+the command's name ([value-transfers.md](value-transfers.md)). The route runs
+the runtime's own core over the compile-time value model under the target's
+release, so `set x 010; incr x` is 9 under Tcl 8.6 and 11 under 9.0;
+`append`, `lappend`, `set`, and the `dict` keyed updates give their
+variable its exact new value; `string range`, `list`, `llength`, and
+`string length` give their result. A profile that names no release gets
+only the answer every release gives.
+
+`expr` is the one *expression* route: the registry assembles its argument
+words as the command specifies — one braced word is the expression text,
+any other word is substituted first, several words join with one space
+(`ExpressionSource`, `ExpressionRoute::assemble`) — and
+`tcl_expr_eval::evaluate_expression` runs the shared engine over the same
+lattice inputs, so `expr {"x"}` folds to the string `x`, not only a
+number. A nested `[…]` inside the expression resolves through the
+registry too, under an effect-free policy, and a `::tcl::mathfunc` call
+checks its binding before folding — `expr {abs(-2)}` folds under
+`tcl8.4` but declines once the module renames `::tcl::mathfunc::abs`
+(`abs_rebinding_declines`). A branch condition folds the same way,
+per member when exactly one of its reads is a finite SSA value.
+
+**Example — `set s hello; set p again; append s $p; puts $s`:**
+
+1. `s₁ = CONST("hello")`, `p₁ = CONST("again")`
+2. The `append` route reads both from the lattice: `s₂ = CONST("helloagain")`
+3. O104 folds the chain to `set s helloagain`, and O100 forwards the value
+   into `puts`
+
+### Destructuring writers and folded types
+
+`regexp`, `regsub`, `scan`, `binary scan`, `lassign` and `array set` fold
+through the same registry-owned routes: each declares its targets'
+outcomes — `Write` (the target holds exactly this value), `Preserve`
+(untouched — a no-match, or a `scan` field past the exhausted input),
+`Unbind`, `MayWrite` (the value is bounded but not exact) or
+`WriteElement` (one array element by key) — and the driver applies them
+per place in execution order, so a repeated target composes (the last
+write wins) and a no-match keeps the prior value rather than manufacturing
+one. `binary format` packs its `H*`/`a`/`i`/… fields into the bytes every
+release agrees on and constructs a byte array (`RepresentationEvidence::Constructed(ByteArray)`);
+a rewrite never spells a computed byte array's bytes into the source
+(`SccpResult::materialises`), so the optimised program still carries the
+command that built it.
+
+Beside the value, `SccpResult::folded_types` carries each definition's
+`FoldedType` — the intrep, shape and representation evidence its
+evaluation states, joined across a φ's members and forgotten at a
+barrier. This is additive to type inference below: a folded type refines
+only what the static typing in [Type inference lattice](#type-inference-lattice)
+leaves unknown, and the shimmer purity read
+(`is_pure_value`, `is_free_first_conversion`) checks representation
+before the literal rule, so a computed constant such as `binary format`'s
+byte array never hides a conversion. `tcl explore --show sccp` prints it
+beside the value (`h#1 = const('ABCDEF')` · `type: bytearray
+(constructed)`).
 
 ### When folding fails
 
+- **A declined route**: the operand is not exact, the answer differs
+  between the releases a profile can denote, or the module rebinds the
+  command's name; the definition stays `OVERDEFINED`, and
+  `tcl explore --show sccp` prints the reason (`declined:
+  release-ambiguous: numeral-grammar`, `declined: rebinding-suspected`)
 - **Loop-carried values**: `phi(CONST, ...)` from a loop → `OVERDEFINED`
+  inside the loop; past a loop the solver runs to its exit from exact state,
+  the version holds what the loop leaves (`sccp-core-analyses.md` § *Bounded
+  loops*), and a loop it cannot run — a statement no route evaluates
+  exactly, more than `DEFAULT_MAX_STATIC_LOOP_ITERS` passes — leaves the
+  widened value
 - **Impure commands**: result cannot be known at compile time
 - **Unbraced expressions**: `ExprNode::Raw` — no AST to fold
 - **Variable traces**: tclsh does not fold through variables (observable side

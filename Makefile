@@ -214,8 +214,8 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: rust-check check-all prep-pr _prep-pr-checks _prep-pr-tests _prep-pr-smoke _prep-pr-smoke-tier
 # Tests
 .PHONY: test test-ext test-ext-partition test-ext-multi-folder test-emacs test-jetbrains test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
-.PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-editor-configs xtask-gen-environment-docs xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership
-.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-vscode-test-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
+.PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-editor-configs xtask-gen-environment-docs xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership check-c-extension-wasm
+.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-value-transfers xtask-registry-axes xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-vscode-test-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust check-rust-pr _check-rust-pr rust-deny
 .PHONY: build-report-assets build-report-pyz lint-report-ts typecheck-report-ts check-report-assets lint-spec-studio-ts typecheck-spec-studio-ts
@@ -903,7 +903,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests-shard matrix and its stable rust-tests aggregate
 # (ci.yml). `xtask-check` is the CI aggregate.
-xtask-check: check-name-resolution-proofs check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-gen-editor-configs xtask-gen-environment-docs xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+xtask-check: check-name-resolution-proofs check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-value-transfers xtask-registry-axes xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-gen-editor-configs xtask-gen-environment-docs xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-extension-wasm ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
 
 check-lsp-wasi-lto: ## Verify functional WASI uses thin LTO and tags retain fat LTO
 	@bash scripts/dev/test-lsp-wasi-lto.sh
@@ -982,7 +982,7 @@ check-release-dependency-graph: ## Verify release producers overlap safely witho
 	@echo "==> Checking release dependency graph"
 	@bash scripts/dev/test-release-dependency-graph.sh
 
-xtask-runtime-stdlib: ## Verify the embedded Tcl stdlib version, provenance, hashes, and FILES table
+xtask-runtime-stdlib: ## Verify the embedded Tcl stdlib version, provenance, hashes, FILES table, and artefact revision
 	@echo "==> Checking embedded Tcl standard-library provenance (cargo xtask)"
 	cd $(ROOT) && cargo xtask runtime-stdlib
 
@@ -1026,7 +1026,7 @@ xtask-resolution-drift: ## Flag namespace-blind simple-name scans over all_procs
 	@echo "==> Checking for name-resolution drift (cargo xtask)"
 	cd $(ROOT) && cargo xtask resolution-drift
 
-xtask-retired-api-gate: ## Flag code uses of the P1-G-retired dialect/registry APIs (zero-reference gate)
+xtask-retired-api-gate: ## Flag code uses of the retired dialect/registry APIs (zero-reference gate)
 	@echo "==> Checking for retired dialect/registry API uses (cargo xtask)"
 	cd $(ROOT) && cargo xtask retired-api-gate
 
@@ -1045,6 +1045,14 @@ xtask-dialect-drift: ## Check that document text is re-read under the ingress-re
 xtask-segmentation-drift: ## Check that Tcl command/word boundaries come from the shared owner (segmentation drift gate)
 	@echo "==> Checking for command/word segmentation drift (cargo xtask)"
 	cd $(ROOT) && cargo xtask segmentation-drift
+
+xtask-value-transfers: ## Verify no consumer recognises a command by name on the value axis and the value-transfer inventory is in sync (drift gate)
+	@echo "==> Checking value-transfer ownership and the generated inventory (cargo xtask)"
+	cd $(ROOT) && cargo xtask value-transfers --check
+
+xtask-registry-axes: ## Verify no consumer compares a registry word outside the registry unreviewed, and the per-axis ledger is in sync (drift gate)
+	@echo "==> Checking registry-axis ownership and the generated ledger (cargo xtask)"
+	cd $(ROOT) && cargo xtask registry-axes --check
 
 xtask-kcs-index-links: ## Validate docs links + design/KCS index coverage
 	@echo "==> Checking docs links + index coverage (cargo xtask)"
@@ -1132,6 +1140,12 @@ check-c-api-ownership: ## Verify the C-API ownership/error contract: capi.rs exp
 	@echo "==> Checking C-API ownership contract coverage (offline)"
 	python3 $(ROOT)scripts/check_c_api_ownership.py $(if $(TCL_SOURCE),--tcl-source $(TCL_SOURCE))
 
+check-c-extension-wasm: ## Hold runtime/rust/include/tcl.h to both its hosts: declarations <-> exports (offline) and wasm32 compiles (wasi-sdk; skipped without it unless TCL_REQUIRE_WASM_LINK is set)
+	@echo "==> Running the C header checker's own regression tests"
+	python3 $(ROOT)scripts/check_c_extension_wasm.py --self-test
+	@echo "==> Checking the authored C header against both hosts"
+	python3 $(ROOT)scripts/check_c_extension_wasm.py
+
 xtask-registry-oracle: ## Audit the iRules registry against a local BIG-IP extract (IRULES_ORACLE_ROOT=/path/to/bigip-extract)
 	@test -n "$(IRULES_ORACLE_ROOT)" || (echo "Set IRULES_ORACLE_ROOT=/path/to/bigip-extract"; exit 2)
 	@echo "==> Auditing the iRules registry against the local BIG-IP source oracle (cargo xtask)"
@@ -1145,7 +1159,7 @@ tcltest-sweep-check: ## Verify the committed tcltest parity scoreboard is in syn
 	@echo "==> Checking the tcltest parity scoreboard is in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask tcltest-sweep --backend vm --check
 
-# Phase targets for parallel prep-pr execution.  (`_prep-pr-smoke` is VSIX
+# Targets for parallel prep-pr execution.  (`_prep-pr-smoke` is VSIX
 # packaging smoke + standalone-EDA verification — a different thing from the
 # `smoke` test tier below; hence the distinct `_prep-pr-smoke-tier` name.)
 _prep-pr-checks: lint-ts typecheck-ts check-editor-settings typecheck-report-ts lint-report-ts check-report-assets typecheck-spec-studio-ts lint-spec-studio-ts test-installer
@@ -1167,7 +1181,7 @@ prep-pr: format codegen ## Fast local gate (format + codegen + lint + typecheck 
 
 .PHONY: smoke smoke-p test-installer test-exhaustive fuzz test-spectcl-compat
 
-# One fail-closed compatibility lane for the complete SpecTcl contract: legacy
+# One fail-closed compatibility suite for the complete SpecTcl contract: legacy
 # 1.x sources through TclVM (20), 2.0 golden upgrades (3), live 1.x/2.0 hook
 # execution (4), shipped corpus/containment (2), and real-C-Tcl parse validity
 # (1). The installer selects release line 9.0, while tcl-dialect's manifest
@@ -1607,7 +1621,7 @@ ensure-tcl-deps: ## Install Tcl shells needed by Tcl/tclpkg tests and bytecode c
 		SKIP_TCLLIB=1 \
 		bash $(ROOT)scripts/dev/ensure-test-deps.sh
 
-# Tcl 9.0 is the shared gold-standard reference lane for the deep Rust and
+# Tcl 9.0 is the shared gold-standard reference interpreter for the deep Rust and
 # SpecTcl suites. The release manifest owns its exact patchlevel and source tag;
 # callers select only the release line through this entry point.
 ensure-tcl90-reference: ## Install the exact manifest-pinned Tcl 9.0 reference interpreter
@@ -2804,6 +2818,9 @@ RUNTIME_RUST_DIR := $(ROOT)runtime/rust
 # same trap issue #1542 documents for the real link. `ensure-tcl90-reference`
 # fetches the tree; if it is genuinely absent the build's own warning is the
 # loud part, so the variable is only exported when the directory exists.
+#
+# `--features engine` builds the runtime's engine of the extension interface
+# (`src/engine.rs`) and runs its tests (`tests/engine.rs`) beside the rest.
 runtime-rust-test: ## Run the Rust runtime port's cargo test (leak round-trip + unit/parse/eval suite)
 	@set -eu; \
 	tommath="$${TCL_TOMMATH_DIR:-$(ROOT)tmp/tcl9.0.4/libtommath}"; \
@@ -2813,7 +2830,7 @@ runtime-rust-test: ## Run the Rust runtime port's cargo test (leak round-trip + 
 		echo "         Fetch it with: make ensure-tcl90-reference"; \
 		tommath=""; \
 	fi; \
-	cd $(RUNTIME_RUST_DIR) && TCL_TOMMATH_DIR="$$tommath" cargo test --locked
+	cd $(RUNTIME_RUST_DIR) && TCL_TOMMATH_DIR="$$tommath" cargo test --locked --features engine
 
 # The companion no-bignum gate. `runtime-rust-test` above exists precisely
 # because CI's own fetch step means the standalone suite ALWAYS builds with
@@ -2856,7 +2873,7 @@ runtime-rust-test-no-tommath: ## Run the Rust runtime port's cargo test with lib
 	cd $(RUNTIME_RUST_DIR) && cargo test --locked
 
 runtime-rust-lint: ## Rust runtime port: cargo fmt --check + locked clippy -D warnings
-	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --locked --all-targets -- $(CLIPPY_LINT_FLAGS)
+	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --locked --all-targets --features engine -- $(CLIPPY_LINT_FLAGS)
 
 zed-query-check: ## Validate the generated Zed highlight queries against the pinned tree-sitter grammar
 	cd $(ROOT)rust/zed-query-check && cargo test

@@ -26,23 +26,38 @@
 
 pub mod cas;
 pub mod docker;
-pub mod errors;
 pub mod exec;
 pub mod fetchers;
 pub mod hooks;
 pub mod installer;
-pub mod json;
-pub mod lockfile;
-pub mod manifest;
 pub mod policy;
 pub mod registry;
 pub mod resolver;
 pub mod ui;
 pub mod venv;
-pub mod version;
+
+/// The manifest, lockfile, version and error modules, re-exported from the
+/// `tcl-pkg-model` leaf crate.
+///
+/// The implementation lives in `tcl-pkg-model` because the `SpecTcl` pack
+/// loader reads the same manifest and lockfile (a package's place in the
+/// lockfile's graph decides what a pack it ships may declare) and cannot
+/// reasonably depend on the package manager to do so: this crate carries the
+/// network client, the archive readers and the process sandbox, none of
+/// which builds for the browser hosts. One implementation, two consumers,
+/// and `tcl_pkg::manifest::load_manifest` still resolves for callers that
+/// expect it here.
+pub use tcl_pkg_model::{errors, json, lockfile, manifest, version};
 
 pub use errors::{Category, TclPkgError};
 pub use version::{Version, VersionError, max_version, parse_version};
+
+/// Set `lockfile`'s `generated` timestamp to now (UTC, ISO-8601, second
+/// precision, `Z` suffix). A lockfile is read and compared without a clock;
+/// only the installer that writes one stamps it.
+pub fn stamp_lockfile(lockfile: &mut lockfile::LockFile) {
+    lockfile.generated = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+}
 
 /// The per-user directory conventions, re-exported from the `tcl-userdirs`
 /// leaf crate.

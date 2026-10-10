@@ -27,6 +27,7 @@ descriptor world_effects class-factory-effects {
 }
 
 command oo::class {
+    runtime_backing shipped-builtin oo::class
     dialects tcl8.6+
     traits {NOT_PROC_FACTORY IS_OO_METACLASS LANGUAGE_KEYWORD DEFINES_PROCEDURE}
     arity 1..
@@ -120,7 +121,7 @@ $b eat    ;# error "unknown command"}
             # Emits CommandBinding::Define{name, Object} for a literal,
             # non-empty name plus ObjectDispatch::Create{Named(name), Fresh,
             # Class}.  Not authorable as data in v1 — see README.
-            resolver -native oo::class::create
+            resolver -native oo::class::create::state_transitions.resolver
             widen  -operands {Indices 1} -domains {CommandBindings Namespaces ObjectDispatch}
             covers {LegacySideEffect InterpState} -domains {InterpreterPolicy}
             commit OnOkOnly
@@ -138,7 +139,7 @@ $b eat    ;# error "unknown command"}
         state_transitions {
             composition    Extend
             argument_shape Independent
-            resolver -native oo::class::new
+            resolver -native oo::class::new::state_transitions.resolver
             covers {LegacySideEffect InterpState} -domains {InterpreterPolicy}
             commit OnOkOnly
         }
@@ -158,7 +159,7 @@ $b eat    ;# error "unknown command"}
         state_transitions {
             composition    Extend
             argument_shape Positional
-            resolver -native oo::class::createWithNamespace
+            resolver -native oo::class::createWithNamespace::state_transitions.resolver
             widen  -operands {Indices 1} -domains {CommandBindings Namespaces ObjectDispatch}
             widen  -operands {Indices 2} -domains {Namespaces VariableCells ObjectDispatch}
             covers {LegacySideEffect InterpState} -domains {InterpreterPolicy}

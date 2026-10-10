@@ -56,6 +56,33 @@ return $x
   Here `puts no` survives even though `$x` is `1` at every call —
   eliding it would silently drop the read that fires the trace.
 
+- A `finally` clause runs however its `try` body or a handler leaves — an
+  error, a `return`, a `break` out of a loop — so O107 never removes it. Only
+  a process exit nothing can stop skips the clause: in `try {exit 7} finally
+  {set g 1}` the store is removed, and in `try {exit abc} finally {set g 1}`,
+  where `exit` rejects its status and raises, it is not.
+
+- A `return` at level 0 completes where it stands rather than leaving the
+  procedure: `return -level 0 -code ok x` runs on to the next statement,
+  `-code break` and `-code continue` leave the loop around it, and `-code
+  error` raises, so the code after it stays wherever its code says it runs
+  (`proc p {} {return -level 0 -code ok x; puts after}` prints `after`).
+  Tcl 8.4 has no `-level`, and raises on it.
+
+- A `try` handler that can never run loses its own script, never the `try`
+  around it. Tcl runs the first handler whose selector matches, so the second
+  `on error` below never runs:
+
+  ```tcl
+  try {error boom} on error {} {puts first} on 1 {m} {puts second}
+  ```
+
+  becomes
+
+  ```tcl
+  try {error boom} on error {} {puts first} on 1 {m} {}
+  ```
+
 - Never fires inside a `TclOO` method body that names any command relatively.
   A method runs in the receiver's namespace, which is picked at run time and
   can shadow an unqualified command name, so the compiler does not analyse

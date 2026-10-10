@@ -1,0 +1,78 @@
+
+running 1 test
+test command_binding::declaration_preview::tests::nested_layout_visits_process_each_exact_source_world_once ... SOURCE_PHASE bytes=72 stage=initial ms=123 points=0 layouts=0
+SOURCE_PHASE bytes=72 stage=walk ms=770 points=16 layouts=8
+SOURCE_LOOKUP_PHASE bytes=72 stage=walk calls=1103 ms=37
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=0
+SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=0 outcomes=0 layouts=8
+SOURCE_DEFERRED_PHASE stage=called ms=0 roots=0 outcomes=0 layouts=8
+SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=0 visits=0 pending=8 layouts=8
+SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=42 visits=0 pending=0 layouts=8
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=8 layouts=8
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=191 visits=0 pending=7 layouts=8
+SOURCE_LAYOUT_PHASE stage=nested-drained ms=343 visits=28 pending=0 layouts=8
+SOURCE_LAYOUT_SYNTAX_SUMMARY visits=28 inputs=7 parsed_commands=7
+SOURCE_LAYOUT_PHASE stage=nested-complete ms=386 visits=0 pending=0 layouts=8
+SOURCE_DEFERRED_PHASE stage=layouts ms=386 roots=0 outcomes=0 layouts=8
+SOURCE_PHASE bytes=72 stage=deferred ms=1156 points=16 layouts=8
+SOURCE_LOOKUP_PHASE bytes=72 stage=deferred calls=1279 ms=40
+SOURCE_PHASE bytes=72 stage=complete ms=1156 points=16 layouts=8
+NESTED_LAYOUT_ORIGINAL_WORLD offset=0 rows=1 same_state=true same_variables=true same_literal_pool=true same_command_world=true epoch=Some(0) epoch_high=Some(0) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=8 rows=2 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(3) epoch_high=Some(3) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=8 rows=2 same_state=true same_variables=true same_literal_pool=true same_command_world=true epoch=Some(0) epoch_high=Some(0) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=16 rows=3 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(6) epoch_high=Some(6) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=16 rows=3 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(3) epoch_high=Some(3) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=16 rows=3 same_state=true same_variables=true same_literal_pool=true same_command_world=true epoch=Some(0) epoch_high=Some(0) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=24 rows=4 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(9) epoch_high=Some(9) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=24 rows=4 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(6) epoch_high=Some(6) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=24 rows=4 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(3) epoch_high=Some(3) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=24 rows=4 same_state=true same_variables=true same_literal_pool=true same_command_world=true epoch=Some(0) epoch_high=Some(0) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=32 rows=5 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(12) epoch_high=Some(12) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=32 rows=5 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(9) epoch_high=Some(9) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=32 rows=5 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(6) epoch_high=Some(6) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=32 rows=5 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(3) epoch_high=Some(3) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=32 rows=5 same_state=true same_variables=true same_literal_pool=true same_command_world=true epoch=Some(0) epoch_high=Some(0) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=40 rows=6 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(15) epoch_high=Some(15) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=40 rows=6 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(12) epoch_high=Some(12) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=40 rows=6 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(9) epoch_high=Some(9) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=40 rows=6 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(6) epoch_high=Some(6) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=40 rows=6 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(3) epoch_high=Some(3) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=40 rows=6 same_state=true same_variables=true same_literal_pool=true same_command_world=true epoch=Some(0) epoch_high=Some(0) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=48 rows=7 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(18) epoch_high=Some(18) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=48 rows=7 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(15) epoch_high=Some(15) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=48 rows=7 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(12) epoch_high=Some(12) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=48 rows=7 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(9) epoch_high=Some(9) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=48 rows=7 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(6) epoch_high=Some(6) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=48 rows=7 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(3) epoch_high=Some(3) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=48 rows=7 same_state=true same_variables=true same_literal_pool=true same_command_world=true epoch=Some(0) epoch_high=Some(0) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=56 rows=8 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(21) epoch_high=Some(21) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=56 rows=8 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(18) epoch_high=Some(18) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=56 rows=8 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(15) epoch_high=Some(15) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=56 rows=8 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(12) epoch_high=Some(12) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=56 rows=8 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(9) epoch_high=Some(9) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=56 rows=8 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(6) epoch_high=Some(6) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=56 rows=8 same_state=false same_variables=false same_literal_pool=false same_command_world=true epoch=Some(3) epoch_high=Some(3) contents_epoch=Some(0) contents_high=Some(0)
+NESTED_LAYOUT_ORIGINAL_WORLD offset=56 rows=8 same_state=true same_variables=true same_literal_pool=true same_command_world=true epoch=Some(0) epoch_high=Some(0) contents_epoch=Some(0) contents_high=Some(0)
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=8 layouts=8
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=310 visits=0 pending=7 layouts=8
+SOURCE_LAYOUT_PHASE stage=nested-drained ms=1242 visits=28 pending=0 layouts=8
+SOURCE_LAYOUT_SYNTAX_SUMMARY visits=28 inputs=7 parsed_commands=7
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=8 layouts=8
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=226 visits=0 pending=7 layouts=8
+SOURCE_LAYOUT_PHASE stage=nested-drained ms=914 visits=28 pending=0 layouts=8
+SOURCE_LAYOUT_SYNTAX_SUMMARY visits=28 inputs=7 parsed_commands=7
+
+thread 'command_binding::declaration_preview::tests::nested_layout_visits_process_each_exact_source_world_once' (874578) panicked at rust/tcl-compiler/src/command_binding/declaration_preview.rs:1732:9:
+assertion `left == right` failed
+  left: 28
+ right: 7
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::declaration_preview::tests::nested_layout_visits_process_each_exact_source_world_once
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8593 filtered out; finished in 3.46s
+

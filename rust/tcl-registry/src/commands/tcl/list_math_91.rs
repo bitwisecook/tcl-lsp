@@ -58,6 +58,7 @@ fn make(
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped(name),
         // Every argument here is an ordinary, already-substituted numeric
         // value (`divmod x y` / `frexp value` / `modf value` / `remquo x
         // y` — no brace-protected inner expression anywhere in any of the
@@ -86,6 +87,9 @@ fn make(
         return_type: Some(TclType::List),
         hover: Some(hover),
         forms,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

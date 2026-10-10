@@ -19,10 +19,12 @@
 //! XC-series translatability diagnostics for inline editor feedback.
 //!
 //! Walks the same IR as the translator (via [`translate_irule`]) but
-//! produces ranged [`XcDiagnostic`]s for the LSP diagnostics pipeline.
+//! produces ranged [`XcDiagnostic`]s for the LSP diagnostics pipeline, and
+//! converts each into the policy step's [`Finding`].
 
-use tcl_core_types::DiagCode;
-use tcl_lexer::LineIndex;
+use tcl_core_types::{DiagCode, Severity};
+use tcl_lexer::{LineIndex, Span};
+use tcl_lsp_core::diagnostic_policy::{Finding, Producer};
 
 use crate::model::TranslationItem;
 use crate::translator::translate_irule;
@@ -72,6 +74,27 @@ pub struct XcDiagnostic {
     pub severity: XcSeverity,
     /// Source range.
     pub range: Range,
+    /// The byte span `range` was resolved from.
+    pub span: Span,
+}
+
+impl From<XcDiagnostic> for Finding {
+    /// `Hint` and `Info` are the shared ladder's `Hint` and `Info`; a
+    /// translatability note carries no fix and no payload.
+    fn from(d: XcDiagnostic) -> Self {
+        Self {
+            code: d.code,
+            span: d.span,
+            severity: match d.severity {
+                XcSeverity::Hint => Severity::Hint,
+                XcSeverity::Info => Severity::Info,
+            },
+            message: d.message,
+            fixes: Vec::new(),
+            data: None,
+            producer: Producer::Xc,
+        }
+    }
 }
 
 /// Severity from a diagnostic-code prefix: `XC1xx` → Hint,
@@ -107,6 +130,7 @@ fn item_to_diagnostic(
         code: item.diagnostic_code,
         message,
         severity,
+        span,
         range: Range {
             start: Position {
                 line: start.line,
@@ -131,4 +155,75 @@ pub fn get_xc_diagnostics(source: &str) -> Vec<XcDiagnostic> {
         .iter()
         .filter_map(|item| item_to_diagnostic(item, &line_index, source))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every code the translator writes onto a [`TranslationItem`]. The
+    /// field is a typed [`DiagCode`], so each is catalogued by construction;
+    /// the set is pinned here against the catalogue's `xc` section and the
+    /// translator's source. The reverse direction (every catalogued XC code
+    /// has an emission site) is `cargo xtask diag-emission-check`.
+    const EMITTED: &[DiagCode] = &[
+        DiagCode::Xc100,
+        DiagCode::Xc101,
+        DiagCode::Xc102,
+        DiagCode::Xc103,
+        DiagCode::Xc105,
+        DiagCode::Xc106,
+        DiagCode::Xc107,
+        DiagCode::Xc200,
+        DiagCode::Xc201,
+        DiagCode::Xc203,
+        DiagCode::Xc250,
+        DiagCode::Xc300,
+        DiagCode::Xc301,
+    ];
+
+    #[test]
+    fn emitted_codes_are_catalogued() {
+        let section: Vec<DiagCode> = DiagCode::ALL
+            .iter()
+            .copied()
+            .filter(|c| c.diag_section() == Some(tcl_core_types::DiagSection::Xc))
+            .collect();
+        assert_eq!(section, EMITTED, "the `xc` section is the translator's set");
+        let translator = include_str!("translator.rs");
+        for code in EMITTED {
+            assert!(
+                translator.contains(&format!("DiagCode::{code:?}")),
+                "{code} is pinned here but the translator no longer emits it"
+            );
+        }
+    }
+
+    #[test]
+    fn a_diagnostic_converts_to_a_finding_with_its_byte_span() {
+        let src = "when HTTP_REQUEST {\n    pool my_pool\n}";
+        let diags = get_xc_diagnostics(src);
+        let pool = diags
+            .iter()
+            .find(|d| d.code == DiagCode::Xc100)
+            .expect("`pool` is an origin-pool mapping");
+        assert_eq!(pool.severity, XcSeverity::Hint);
+        assert_eq!(
+            &src[pool.span.start() as usize..pool.span.end() as usize],
+            "pool my_pool"
+        );
+        let finding = Finding::from(pool.clone());
+        assert_eq!(finding.code, DiagCode::Xc100);
+        assert_eq!(finding.span, pool.span);
+        assert_eq!(finding.severity, Severity::Hint);
+        assert_eq!(finding.producer, Producer::Xc);
+        assert!(finding.fixes.is_empty() && finding.data.is_none());
+        // An untranslatable event is informational.
+        let l4 = get_xc_diagnostics("when CLIENT_ACCEPTED {\n    TCP::collect\n}");
+        let event = l4
+            .iter()
+            .find(|d| d.code == DiagCode::Xc201)
+            .expect("an L4 event has no XC equivalent");
+        assert_eq!(Finding::from(event.clone()).severity, Severity::Info);
+    }
 }

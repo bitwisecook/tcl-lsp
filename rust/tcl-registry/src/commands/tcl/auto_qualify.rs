@@ -31,6 +31,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_qualify",
+        runtime_backing: RuntimeBacking::package_source("init.tcl"),
         // `surface: Some(SpecSurface::ALL_TCL)` is deliberate, not an
         // oversight: F5 iRules bans this proc (it is one of the K36322151
         // filesystem/process bans), and that ban is carried by this very
@@ -69,6 +70,9 @@ pub fn spec() -> CommandSpec {
             return_value: "A list of one or two fully qualified candidate names for cmd, in the order a command lookup would try them.",
         }),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

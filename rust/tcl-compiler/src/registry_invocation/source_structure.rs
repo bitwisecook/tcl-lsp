@@ -357,6 +357,52 @@ impl OriginalRegistryWords {
         context: &'r tcl_registry::model::ContextRegistry,
         project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
     ) -> Option<T> {
+        let arguments = self
+            .arguments
+            .iter()
+            .map(|word| source_schema_word(word.as_registry_word()))
+            .collect::<Vec<_>>();
+        self.with_source_arguments(context, &arguments, project)
+    }
+
+    /// Query the same selected source descriptor with separately supplied
+    /// advisory values on ordinary original written operands. Captured words,
+    /// expansion cardinality and the original argv stay unchanged. This does
+    /// not establish the values, a Native argv, dispatch or completion.
+    pub(crate) fn with_source_value_projection<'r, T>(
+        &'r self,
+        context: &'r tcl_registry::model::ContextRegistry,
+        values: &[(usize, &str)],
+        project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+    ) -> Option<T> {
+        let mut arguments = self
+            .arguments
+            .iter()
+            .map(|word| source_schema_word(word.as_registry_word()))
+            .collect::<Vec<_>>();
+        let mut seen = std::collections::HashSet::new();
+        for &(ordinal, value) in values {
+            if !seen.insert(ordinal)
+                || !matches!(self.origins.get(ordinal.checked_add(1)?),
+                    Some(crate::registry_invocation::InvocationWordOrigin::Written(written)) if *written > 0)
+            {
+                return None;
+            }
+            let word = self.operands.get(ordinal)?.as_ref()?.word()?;
+            if word.group().expand {
+                return None;
+            }
+            *arguments.get_mut(ordinal)? = tcl_registry::InvocationWord::Literal(value);
+        }
+        self.with_source_arguments(context, &arguments, project)
+    }
+
+    fn with_source_arguments<'r, T>(
+        &'r self,
+        context: &'r tcl_registry::model::ContextRegistry,
+        arguments: &[tcl_registry::InvocationWord<'_>],
+        project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+    ) -> Option<T> {
         if !self.matches_registry(context.commands())
             || self.context.as_ref() != Some(context.context())
             || matches!(&self.source, OriginalRegistrySource::SourceTransitions(advice) if !advice.matches_context(context))
@@ -364,14 +410,9 @@ impl OriginalRegistryWords {
         {
             return None;
         }
-        let arguments = self
-            .arguments
-            .iter()
-            .map(|word| source_schema_word(word.as_registry_word()))
-            .collect::<Vec<_>>();
         let invocation = tcl_registry::InvocationWords::structured(
             tcl_registry::InvocationWord::Literal(&self.command),
-            &arguments,
+            arguments,
         );
         let invocation = self
             .dialect

@@ -1,0 +1,18 @@
+{
+  "provider": "jim",
+  "argv": [
+    "/workspace/.proofs/native-providers/jimtcl/jimsh",
+    "/tmp/native-return-grammar381/probe.tcl"
+  ],
+  "original_source_sha256": "2718a583f6a4d1599688f886df4ffc55417179e5a2bcc81d50c3f2cada87fe83",
+  "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+  "started_utc": "2026-10-10T12:31:29.564729+00:00",
+  "elapsed_seconds": 0.009637470997404307,
+  "exit_code": 1,
+  "stdout_sha256": "45bae06855b7272178fe263d6ad183f803054ec684b65392301559fe2cffe0eb",
+  "stderr_sha256": "b532044d4527803745f18e79caf6f5fb00727f7625b8b80683445b7ad81f58c4",
+  "public_meta_rows": [
+    "META|0.84-9-g5bac7c9|1"
+  ],
+  "row_count": 0
+}

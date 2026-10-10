@@ -17,9 +17,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::rc::Rc;
+use std::sync::Arc;
 
 use tcl_bytecode::FunctionAsm;
-use tcl_runtime_api::FatalTail;
+use tcl_runtime_api::{ArtefactIdentityManifest, FatalTail};
 
 /// How bytecode entered this VM's compilation domain.
 ///
@@ -126,6 +127,11 @@ pub(crate) struct CompiledUnit {
     /// lowering's invented meaning: the clean prefix runs on entry and this is
     /// raised after it (#1829).  `None` for every body that parses whole.
     pub(crate) fatal_tail: Option<FatalTail>,
+    /// What the module this unit came from says about the world it was
+    /// compiled for, so the rungs a disagreeing field rests on are refused
+    /// again whenever the unit is re-checked. `None` for a unit no compiler
+    /// stated a manifest for: plain-dispatch children, scanner activations.
+    pub(crate) manifest: Option<Arc<ArtefactIdentityManifest>>,
 }
 
 impl CompiledUnit {
@@ -189,6 +195,7 @@ impl CompiledUnit {
             interpreter,
             compiler,
             fatal_tail: None,
+            manifest: None,
         }
     }
 
@@ -205,6 +212,12 @@ impl CompiledUnit {
         location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
     ) -> Self {
         self.source_location = location;
+        self
+    }
+
+    /// Carry the manifest of the module this unit came from.
+    pub(crate) fn with_manifest(mut self, manifest: Option<Arc<ArtefactIdentityManifest>>) -> Self {
+        self.manifest = manifest;
         self
     }
 

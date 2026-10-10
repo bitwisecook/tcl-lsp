@@ -123,6 +123,9 @@ struct ModuleEmit<'a> {
     plain_command_dispatch: bool,
     native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
     source_proofs: std::sync::Arc<crate::command_binding::BodySourceProofs>,
+    /// The pack commands' definitions the module's calls were inlined from:
+    /// each procedure binding of a function that names one is claimed.
+    references: &'a [crate::ir::ReferenceImport],
 }
 
 /// Like [`codegen_function_with_procs`] but threading the module source text so
@@ -212,7 +215,24 @@ fn codegen_function_src(
         asm.literals.retain_compiler_replay_environment(environment);
     }
     asm.body_base_line = base_line;
+    claim_reference_bodies(&mut asm, module.references);
     asm
+}
+
+/// Record, beside each procedure binding of `asm` that names a definition
+/// copied from a pack, the claim on the pack's facts and on the backing that
+/// makes the definition the command ([`crate::inlining::inline_reference_bodies`]).
+fn claim_reference_bodies(asm: &mut FunctionAsm, references: &[crate::ir::ReferenceImport]) {
+    if references.is_empty() {
+        return;
+    }
+    asm.site_claims.extend(
+        asm.procedure_bindings
+            .iter()
+            .filter_map(|binding| crate::inlining::reference::claim_for(references, binding)),
+    );
+    asm.site_claims.sort();
+    asm.site_claims.dedup();
 }
 
 /// Resolve the compile's dialect name to the profile [`ModuleEmit`] carries.
@@ -555,6 +575,7 @@ fn module_emission_context<'a>(
         plain_command_dispatch: ir_module.plain_command_dispatch,
         native_compilation: ir_module.source_entry.native_compilation,
         source_proofs: std::sync::Arc::new(source_proofs),
+        references: &ir_module.reference_bodies.imports,
     }
 }
 
@@ -617,9 +638,9 @@ fn codegen_module_with_top_context(
             provenance: HashMap::new(),
         },
     };
-    ModuleAsm {
+    let mut asm = ModuleAsm {
         profile: profile.unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
-        source: module.source.clone(),
+        source: ir_module.own_source(),
         // Lowering owns the rooted constructed form; the runtime ABI uses the
         // corresponding unrooted constructed key. Remove exactly the root
         // marker rather than reparsing a key whose first segment may be `:`.
@@ -629,7 +650,21 @@ fn codegen_module_with_top_context(
         top_level_body: top_body,
         procedures: procedures.functions,
         procedure_provenance: procedures.provenance,
-    }
+        manifest: None,
+    };
+    asm.manifest = Some(std::sync::Arc::new(module_manifest(&asm)));
+    asm
+}
+
+/// What `module` says about the world it was compiled for: the context of the
+/// profile it carries, the pack facts its sites claim, and this build's
+/// intrinsic table. The runtime's pin states the same thing in the same
+/// shape (`tcl_runtime_api::RuntimeContext::identity`), so the two compare.
+fn module_manifest(module: &ModuleAsm) -> tcl_runtime_api::ArtefactIdentityManifest {
+    tcl_registry::model::runtime_context_for_profile(module.profile).identity(
+        &module.claimed_packs(),
+        tcl_registry::intrinsic_table_hash(),
+    )
 }
 
 #[cfg(test)]

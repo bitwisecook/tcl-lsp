@@ -103,6 +103,7 @@ pub fn spec() -> CommandSpec {
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
         inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::YieldTo),
+        runtime_backing: RuntimeBacking::shipped("yieldto"),
         surface: Some(SpecSurface::TCL86_PLUS),
         // Deliberately no `TAINT_SINK`: `command` is looked up and invoked
         // by name with already-substituted argument words — ordinary

@@ -50,6 +50,32 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
             ],
         },
     ),
+    (
+        "alias_of",
+        Example {
+            code: "vendor::unpack $items first second",
+            focuses: &[focus(
+                0,
+                "vendor::unpack",
+                "a pack command declaring alias_of lassign — the one command a \
+                 bundled pack's codegen_hook Lassign may sit on, and the \
+                 specialised site records lassign's identity, never this name",
+            )],
+        },
+    ),
+    (
+        "runtime_backing",
+        Example {
+            code: "lassign $items first second",
+            focuses: &[focus(
+                0,
+                "lassign",
+                "declares shipped-builtin lassign — the runtime registers it, \
+                 so a compiled site records that builtin's identity and the \
+                 runtime can attest it",
+            )],
+        },
+    ),
     // Availability
     (
         "surface",
@@ -515,6 +541,24 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
                     0,
                     "--",
                     "is the declared end-of-options marker, keeping the dynamic pattern safe",
+                ),
+            ],
+        },
+    ),
+    (
+        "option_effect_families",
+        Example {
+            code: "lsearch -regexp $names {^a.*}",
+            focuses: &[
+                focus(
+                    0,
+                    "-regexp",
+                    "selects regex in the match family, whose base is glob",
+                ),
+                focus(
+                    0,
+                    "{^a.*}",
+                    "so the pattern operand is read as a regular expression",
                 ),
             ],
         },

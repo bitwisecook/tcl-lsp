@@ -29,11 +29,11 @@ authors.workspace = true
 
 [dependencies]
 tcl-dialect = { path = "../tcl-dialect" }
-tcl-lexer = { path = "../tcl-lexer" }
-tcl-syntax = { path = "../tcl-syntax" }
+# The manifest, lockfile, version and error types, re-exported below: the
+# pack loader reads the same ones and cannot depend on this crate.
+tcl-pkg-model = { path = "../tcl-pkg-model" }
 tcl-sandbox = { path = "../tcl-sandbox" }
 tcl-userdirs = { path = "../tcl-userdirs" }
-regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "1"

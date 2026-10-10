@@ -35,13 +35,13 @@
 //!   [`BindingKnowledge::Must`]. Ambiguity ([`BindingKnowledge::May`])
 //!   takes the conservative union of effects or abstains; it never picks
 //!   a candidate by catalogue order or provider specificity — authoring
-//!   precedence is not binding resolution (review B4).
+//!   precedence is not binding resolution.
 //! - **I5 — permutations widen.** Load-order permutations that change the
 //!   real binding (two packages exporting one name; `namespace import`
 //!   with and without `-force`) must change — or widen — the resolved
 //!   answer, never silently keep a stale `Must`.
 //!
-//! Package state is **per interpreter and temporal** (review B2): the
+//! Package state is **per interpreter and temporal**: the
 //! package table lives on the interpreter, `ifneeded`/`unknown` handlers
 //! run arbitrary scripts, a child interpreter inherits nothing, and a
 //! provided version proves nothing about the live command table — which is
@@ -285,7 +285,7 @@ pub enum PackageState {
     /// (re-entrant requires see this).
     Loading,
     /// `package provide` recorded this version. Deliberately **not** a
-    /// proof about the live command table (review B2): commands may have
+    /// proof about the live command table: commands may have
     /// been renamed away while the provision stands.
     Provided(Version),
 }

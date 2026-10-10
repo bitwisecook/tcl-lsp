@@ -24,7 +24,7 @@ use std::path::Path;
 
 use anyhow::Context;
 use tcl_cli_support::{
-    OutputTarget, combine_sources, combined_effective_dialect, read_input_documents,
+    OutputTarget, combine_sources, combine_texts, combined_effective_dialect, read_input_documents,
     registry_for_dialect, write_highlighted_output, write_text_output,
 };
 use tcl_lsp_core::formatting::{FormatterConfig, IndentStyle};
@@ -33,12 +33,11 @@ use tcl_lsp_core::minify::{
     minify_with_profile, remap_line_references, unminify_error,
 };
 
-use std::collections::HashSet;
-
-use tcl_compiler::optimiser::optimise_source_multipass_filtered;
-use tcl_compiler::optimiser::profiles::{OptimisationProfile, profile_to_disabled};
+use tcl_compiler::optimiser::profiles::OptimisationProfile;
+use tcl_lsp_core::diagnostic_report::optimise_under_policy;
 
 use crate::cli::{ColourArgs, InputArgs};
+use crate::commands::policy::{ConfigLayers, invocation_layer};
 
 /// Default tab-expansion width used on stdout (the CLI default).
 const DEFAULT_TAB_WIDTH: usize = 4;
@@ -114,14 +113,15 @@ pub fn run_format(
 
 /// `tcl opt` — run the optimiser and emit rewritten Tcl.
 ///
-/// Profile semantics: `full` (the default) is a single
-/// pass; only `aggressive` runs multi-pass to a fixpoint (max 5 iterations).
+/// Profile semantics: `full` (the default when nothing names a profile) is a
+/// single pass; only `aggressive` runs multi-pass to a fixpoint (max 5
+/// iterations).
 ///
 /// Unlike `format` and `minify`, each input is *analysed* as its own program —
-/// its own dialect, its own directives, its own optimiser pass — rather than
-/// concatenated with the others first. The rendered output is still one
-/// script, so `tcl opt src/ -o build/optimised.tcl` keeps doing what the
-/// README documents. Two files named on one command line
+/// its own dialect, its own directives, its own policy, its own optimiser
+/// pass — rather than concatenated with the others first. The rendered output
+/// is still one script, so `tcl opt src/ -o build/optimised.tcl` keeps doing
+/// what the README documents. Two files named on one command line
 /// never share a scope at run time (they are two separate `tclsh` loads), so
 /// folding a store in one across into a load in the other is simply wrong: it
 /// forwards a value the second file could never actually see, and can delete
@@ -131,9 +131,22 @@ pub fn run_format(
 /// asserting they execute in one shared frame — so it does not apply here.
 /// A user who wants several files optimised as one unit can concatenate them
 /// themselves; this verb must not do it silently.
+///
+/// A rewrite is a finding like any other (`docs/design/compiler/diagnostic-policy.md`
+/// § Adapters): only the rewrites the document's policy shows are applied,
+/// so a `# noqa` on the command, a file-wide `# tcl-lsp: disable=*`, a code
+/// the profile or a configuration layer turned off, mean to a rewrite what
+/// they mean to a squiggle. `--disable` and `--enable` are the verb's
+/// invocation layer; the global `config.ini` and each input file's own
+/// project `.tcl-lsp.ini` are the others. `--profile` is not a layer: named,
+/// it is the profile in force over both files, and omitted, the project
+/// file's `[optimiser] profile`, then the global file's, then `full` — the
+/// profile is a request parameter with a project default
+/// (`docs/design/compiler/diagnostic-policy.md` § Configuration). The profile
+/// in force decides the passes as well as the categories.
 pub fn run_opt(
     input: &InputArgs,
-    profile: &str,
+    profile: Option<&str>,
     disable: &[String],
     enable: &[String],
     colour: &ColourArgs,
@@ -141,27 +154,8 @@ pub fn run_opt(
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let explicit_dialect = input.dialect_profile()?;
 
-    let profile = OptimisationProfile::parse(profile);
-    let mut disabled: HashSet<String> = profile_to_disabled(profile)
-        .into_iter()
-        .map(str::to_owned)
-        .collect();
-    for raw in disable {
-        for code in raw.split(',') {
-            let code = code.trim();
-            if !code.is_empty() {
-                disabled.insert(code.to_ascii_uppercase());
-            }
-        }
-    }
-    for raw in enable {
-        for code in raw.split(',') {
-            let code = code.trim();
-            if !code.is_empty() {
-                disabled.remove(&code.to_ascii_uppercase());
-            }
-        }
-    }
+    let requested = profile.map(OptimisationProfile::parse);
+    let layers = ConfigLayers::new(invocation_layer(disable, enable, "optimiser"));
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     // Per-file is the unit of *analysis*, not of output. The rendered text
@@ -186,43 +180,44 @@ pub fn run_opt(
         let dialect = document.effective_dialect(explicit_dialect);
         let registry = registry_for_dialect(dialect.name);
         let source = document.analysis_source();
+        let policy = layers
+            .builder_for(document.path.as_deref())
+            .requested_profile(requested)
+            .default_profile(OptimisationProfile::Full)
+            .dialect(dialect)
+            .build();
 
         // Profile spec (`profile_spec`): only `aggressive` is multi-pass (max 5
         // iters); every other profile (including `full`) is a single pass.
-        // Both honour the disabled set on every pass (matching
-        // `optimise_source_multipass(disabled=…)`).
-        let (optimised, optimisations, _iterations) = optimise_source_multipass_filtered(
+        // Every pass applies only the rewrites the policy shows.
+        let out = optimise_under_policy(
             &source,
             &registry,
             Some(dialect),
-            profile.max_iterations(),
-            &disabled,
+            policy.optimiser.profile.max_iterations(),
+            &policy,
         );
-        total_rewrites += optimisations.len();
+        total_rewrites += out.applied.len();
         per_file.push((
             document.label.clone(),
-            optimisations
+            out.applied
                 .iter()
                 .map(|o| format!("# {}  {}", o.code, o.message))
                 .collect(),
         ));
-        sections.push(optimised);
+        sections.push(out.text);
     }
 
     // A single input keeps the pre-#2120 bytes exactly — no trim, no join.
     let mut rendered = if multi_file {
-        sections
-            .iter()
-            .map(|s| s.trim_end_matches('\n'))
-            .collect::<Vec<_>>()
-            .join("\n\n")
+        combine_texts(sections.iter().map(String::as_str))
     } else {
         sections.into_iter().next().unwrap_or_default()
     };
 
-    // On stdout a comment block summarising the rewrites is appended. With
-    // several inputs each file's rewrites are listed under its own `# file:`
-    // line, inside the comment block.
+    // On stdout a comment block summarising the rewrites *applied* is
+    // appended. With several inputs each file's rewrites are listed under its
+    // own `# file:` line, inside the comment block.
     if target.is_stdout() && total_rewrites > 0 {
         let mut lines = vec![
             "\n\n# -------------".to_owned(),

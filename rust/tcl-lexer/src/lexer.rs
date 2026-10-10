@@ -3810,7 +3810,7 @@ mod tests {
                 "{d}"
             );
         }
-        // 9.x runtimes nest — bpf embeds Tcl 9.0 (D7).
+        // 9.x runtimes nest — bpf embeds Tcl 9.0.
         for d in ["tcl9.0", "tcl9.1", "bpf"] {
             assert_eq!(
                 LexerConfig::for_dialect(d).braced_var,

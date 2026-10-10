@@ -73,6 +73,17 @@ pub(crate) const fn authoring_native_compilation()
     }
 }
 
+/// Resolve the exact requested analysis generation. A missing supplied overlay
+/// remains unavailable; its pack key never selects the un-overlaid generation.
+pub(crate) fn analysis_registry(
+    environment: &DocumentEnvironment,
+    keyed: &tcl_registry::model::KeyedVersions,
+    overlay: u64,
+) -> Result<std::sync::Arc<tcl_registry::model::ContextRegistry>, tcl_registry::model::OverlayMiss>
+{
+    environment.context_registry(keyed, overlay)
+}
+
 /// Intern `name` as a `&'static str` — transitional plumbing for the
 /// version-gate axis, whose `Package` arm predates the model's
 /// `Arc<str>` package names. Bounded by the compiled placement
@@ -330,16 +341,26 @@ mod tests {
     #[test]
     fn context_registries_carry_the_expected_stores() {
         let environment = resolve_environment("tcl8.5");
-        let generation = environment.context_registry(&KeyedVersions::default(), 0);
+        let generation = environment.plain_context_registry(&KeyedVersions::default());
         assert_eq!(
             generation.context().environment.id.as_str(),
             "tcl8.5",
             "the generation answers under the resolved environment"
         );
-        // An uninstalled pack overlay falls back to the un-overlaid
-        // generation.
-        let fallback = environment.context_registry(&KeyedVersions::default(), 0xDEAD);
-        assert!(Arc::ptr_eq(generation.commands(), fallback.commands()));
+    }
+
+    /// A supplied missing overlay stays unavailable to analysis and compilation.
+    #[test]
+    fn an_analysis_preserves_the_missing_overlay() {
+        let environment = resolve_environment("tcl8.5");
+        let keyed = KeyedVersions::default();
+        assert_eq!(
+            analysis_registry(&environment, &keyed, 0xDEAD).err(),
+            environment.context_registry(&keyed, 0xDEAD).err(),
+        );
+        let plain = environment.plain_context_registry(&keyed);
+        let read = analysis_registry(&environment, &keyed, 0).unwrap();
+        assert!(Arc::ptr_eq(read.commands(), plain.commands()));
     }
 
     #[test]

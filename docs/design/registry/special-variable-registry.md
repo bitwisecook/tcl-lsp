@@ -99,18 +99,20 @@ The crate exposes name + dialect queries; consumers never hold their own list:
   not imply an initial value.
 - `is_readable_at_startup(name, dialect)` — the lifecycle-aware W210 entry
   fact, applied only to the initial global SSA version by `tcl-compiler`.
-- `special_vars_for_dialect(dialect)` — also the abstention set for
-  `tcl-compiler`'s `[info exists X]` / `[array exists X]` fold
-  (`sccp::existence_constant_branches`). In the **initial global frame** that
-  body is the interpreter's global namespace, so a recognised special variable
-  the body never assigns is not provably absent: it may be startup-bound
-  (`argv`), materialised by a later runtime event (`errorInfo` after a `catch`,
-  `auto_index` after an auto-load), or read-traced (`tcl_precision` on Tcl
-  8.x). These names join the scope-alias / object-state abstentions rather than
-  folding, which keeps I230 quiet and stops the optimiser rewriting
-  `if {[info exists argv]} …` to `if {0} …`. Inside a procedure the same
-  spelling is an ordinary fresh local and still folds; an explicit `global`
-  alias there is already covered by the scope-alias skip.
+- `special_vars_for_dialect(dialect)` — the dialect's whole set. The
+  existence rung (`ExistenceRun` in `tcl-compiler`'s `sccp.rs`, inside the
+  fixed point that decides `[info exists X]` / `[array exists X]`) reads the
+  same registry through `special_var_in_dialect` and `is_initially_bound`.
+  In the **initial global frame** the body is the interpreter's global
+  namespace, so a recognised special variable the body never assigns is not
+  provably absent: it may be startup-bound (`argv`), materialised by a later
+  runtime event (`errorInfo` after a `catch`, `auto_index` after an
+  auto-load), or read-traced (`tcl_precision` on Tcl 8.x). It enters
+  `MayBound`, or `Bound` where the registry says it is initially bound,
+  rather than `Unbound`, which keeps I230 quiet and stops the optimiser
+  rewriting `if {[info exists argv]} …` to `if {0} …`. Inside a procedure
+  the same spelling is an ordinary fresh local and folds; an explicit
+  `global` alias there enters `MayBound` as every scope alias does.
 - `is_externally_read(name, dialect)` — dead-store (W220) and unused-variable
   (W211) suppression.
 - `special_var_write_effect(name, dialect)` — `classify_variable_assignment`
@@ -124,6 +126,49 @@ The crate exposes name + dialect queries; consumers never hold their own list:
 - `special_var_in_dialect` / `special_vars_for_dialect` — the LSP hover provider
   (`tcl-lsp-core`) renders a variable's summary, dialect-gated array keys, and
   the iRules CMP-safety note.
+
+The registry face of these queries is `CommandRegistry::special_vars()` —
+the rows loaded packs declared, then the shipped table — with
+`special_var`, `special_var_in_dialect`, `special_vars_for_dialect`,
+`is_readable_at_startup`, `is_initially_bound`, `is_lazily_readable` and
+`is_externally_read` beside it. A consumer holding the registry
+generation it walks under (the analyser's `set auto_path` / `lappend
+auto_path` record, which reads `auto_path`'s `VarAccess` there) asks the
+registry, so a pack's row answers as a shipped one does. The free functions
+above read the shipped table alone, for the consumers that hold no
+registry; W210's startup read, the existence rung's entry state, the
+`[info exists]` fold and the taint seed read the registry's faces.
+
+## Declaring one in a pack
+
+A `SpecTcl` pack declares a special variable with a pack-level statement:
+
+```tcl
+special_var NAME -kind K -access A -origin O ?-dialects {…}? ?-startup B?
+```
+
+- `-kind` is `Scalar`, `Array` or `Namespace`; `-access` is `ReadOnly` or
+  `ReadWrite`; `-origin` is `Interpreter`, `AutoLoader`, `Platform`,
+  `Environment` or `Dialect`. All three are required: a row missing one is
+  dropped with a notice rather than defaulted, since a guessed kind or
+  access would state a fact the pack never made.
+- `-dialects` gates the variable's existence exactly as a command's
+  `dialects` row does; a row naming none takes the pack's `default
+  dialects`, else every Tcl release, and a row whose `-dialects` names
+  nothing this build knows is dropped rather than widened.
+- `-startup` is the lifecycle event that makes the variable readable before
+  user code: `None` (the default), `Interpreter`, `TclInit`, `TclMain`,
+  `AppInit` — each binding it on the row's own dialects
+  (`initially_bound`) — or `ReadTrace`, a core read trace materialising it
+  on first read (`lazily_readable`).
+- The row's other facts take the shipped table's empty values: no known
+  array keys, no runtime-observed write, no write effect, no read taint, no
+  hover summary.
+
+The loader builds a `SpecialVarSpec` from the row and the installer adds it
+to the pack's registry generation (`CommandRegistry::insert_special_var`);
+a row naming a variable the shipped table has shadows the shipped row in
+that generation. Two rows for one name keep the first, with a notice.
 
 ## Extending the table
 

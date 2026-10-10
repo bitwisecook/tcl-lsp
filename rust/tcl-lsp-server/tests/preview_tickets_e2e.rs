@@ -29,6 +29,9 @@
 //!   republishes the on-disk file's diagnostics rather than clearing them.
 //! * `lassign $point x y z` writes list *elements*, so the targets must
 //!   not inherit `lassign`'s `List` return type and fire S100 in `[expr]`.
+//! * A member spelling only a workspace pack declares reaches document
+//!   symbols, hover and go-to-definition through its row's effect, and the
+//!   same row with `-effect configuration` declares nothing.
 //!
 //! Driven over real JSON-RPC against the `tower-lsp` service.
 
@@ -1146,10 +1149,10 @@ async fn classmethod_dispatch_on_class_and_inheriting_subclass_resolves_e2e() {
 
 /// TP, the `self method` half: stock
 /// `TclOO`'s own spelling of a class-level method (`self method NAME ARGS
-/// BODY`) needs an `apply_oo_subcommand` arm so it is visible to
-/// `class_methods` and its body is walked. It is NOT inherited by a
-/// subclass with no override the way `ooutil`'s `classmethod` is (tclsh
-/// 9.0 confirms: `Gadget make` raises `unknown method "make"`).
+/// BODY`) lands in `class_methods` because its row's receiver is the type
+/// object, and its body is walked. It is NOT inherited by a subclass with no
+/// override the way `ooutil`'s `classmethod` is (tclsh 9.0 confirms:
+/// `Gadget make` raises `unknown method "make"`).
 #[tokio::test]
 async fn self_method_dispatch_resolves_but_is_not_inherited_e2e() {
     let (mut reader, mut writer, server) = start_session().await;
@@ -1238,4 +1241,244 @@ async fn apply_namespace_override_resolves_bareword_to_the_lambdas_own_namespace
         .unwrap();
     drop(writer);
     server.abort();
+}
+
+/// A workspace pack declaring a definer of its own: one `mymethod` member
+/// whose row says what it declares (`-effect`), and a `create` manufacturer.
+fn member_effect_pack(effect: &str) -> String {
+    format!(
+        "speclib mydefs 1 {{\n\
+         \x20   command mydefs::klass {{\n\
+         \x20       arity 2\n\
+         \x20       arg 1 -role Body\n\
+         \x20       body_kind Structural\n\
+         \x20       definition_body {{\n\
+         \x20           family Snit\n\
+         \x20           member mymethod -roles {{0 Name 1 ParamList 2 Body}} -effect {effect}\n\
+         \x20           manufacturer create -names-instance-at 1 -constructor-args-from 2\n\
+         \x20       }}\n\
+         \x20   }}\n\
+         }}\n"
+    )
+}
+
+/// The document the pack's definer is used in: `greet` declared on line 1,
+/// called through an instance on line 4.
+const MEMBER_EFFECT_DOC: &str = "mydefs::klass Dog {\n    mymethod greet {name} { return \"hi $name\" }\n}\nDog create rex\nrex greet you\n";
+
+/// Start a server rooted at `root`, so it discovers the workspace packs there.
+async fn start_session_at(
+    root: &std::path::Path,
+) -> (
+    BufReader<tokio::io::ReadHalf<tokio::io::DuplexStream>>,
+    tokio::io::WriteHalf<tokio::io::DuplexStream>,
+    tokio::task::JoinHandle<()>,
+) {
+    let (client_side, server_side) = tokio::io::duplex(1 << 20);
+    let (server_read, server_write) = tokio::io::split(server_side);
+    let (client_read, mut client_write) = tokio::io::split(client_side);
+    let (service, socket) = LspService::new(Backend::new);
+    let server = tokio::spawn(async move {
+        Server::new(server_read, server_write, socket)
+            .serve(service)
+            .await;
+    });
+    let mut reader = BufReader::new(client_read);
+    let root_uri = format!("file://{}", root.display());
+    let init = format!(
+        r#"{{"jsonrpc":"2.0","id":1,"method":"initialize","params":{{"rootUri":"{root_uri}","workspaceFolders":[{{"uri":"{root_uri}","name":"ws"}}],"capabilities":{{}}}}}}"#
+    );
+    client_write
+        .write_all(frame(&init).as_bytes())
+        .await
+        .unwrap();
+    let _ = read_until_id(&mut reader, "\"id\":1").await;
+    let initialized = r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#;
+    client_write
+        .write_all(frame(initialized).as_bytes())
+        .await
+        .unwrap();
+    (reader, client_write, server)
+}
+
+/// Poll `tcl-lsp.getEffectiveConfig` until the server reports the `name`
+/// pack as loaded — the settle signal for a workspace pack.
+async fn await_pack_loaded(
+    reader: &mut BufReader<tokio::io::ReadHalf<tokio::io::DuplexStream>>,
+    writer: &mut tokio::io::WriteHalf<tokio::io::DuplexStream>,
+    name: &str,
+) -> bool {
+    let deadline = tokio::time::Instant::now() + ANALYSIS_BACKSTOP;
+    let mut id = 100;
+    while tokio::time::Instant::now() < deadline {
+        id += 1;
+        let req = format!(
+            r#"{{"jsonrpc":"2.0","id":{id},"method":"workspace/executeCommand","params":{{"command":"tcl-lsp.getEffectiveConfig","arguments":[""]}}}}"#
+        );
+        writer.write_all(frame(&req).as_bytes()).await.unwrap();
+        let Some(resp) = read_until_id(reader, &format!("\"id\":{id}")).await else {
+            return false;
+        };
+        let loaded = serde_json::from_str::<serde_json::Value>(&resp)
+            .ok()
+            .and_then(|v| v["result"]["spec_packs_loaded"].as_array().cloned())
+            .is_some_and(|packs| packs.iter().any(|p| p["name"] == name));
+        if loaded {
+            return true;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    false
+}
+
+/// Send `method` for the document at `uri`, positioned at `line`:`character`
+/// when given, and return the response frame.
+async fn document_request(
+    reader: &mut BufReader<tokio::io::ReadHalf<tokio::io::DuplexStream>>,
+    writer: &mut tokio::io::WriteHalf<tokio::io::DuplexStream>,
+    id: u32,
+    method: &str,
+    uri: &str,
+    position: Option<(u32, u32)>,
+) -> serde_json::Value {
+    let position = position.map_or(String::new(), |(line, character)| {
+        format!(r#","position":{{"line":{line},"character":{character}}}"#)
+    });
+    let req = format!(
+        r#"{{"jsonrpc":"2.0","id":{id},"method":"{method}","params":{{"textDocument":{{"uri":"{uri}"}}{position}}}}}"#
+    );
+    writer.write_all(frame(&req).as_bytes()).await.unwrap();
+    let resp = read_until_id(reader, &format!("\"id\":{id}"))
+        .await
+        .unwrap_or_else(|| panic!("no {method} response"));
+    serde_json::from_str::<serde_json::Value>(&resp)
+        .unwrap_or_else(|e| panic!("{method} response is not JSON ({e}): {resp}"))["result"]
+        .clone()
+}
+
+/// Every symbol name in a `documentSymbol` result, depth first, with its kind.
+fn symbol_names(node: &serde_json::Value, out: &mut Vec<(String, u64)>) {
+    for item in node.as_array().into_iter().flatten() {
+        if let (Some(name), Some(kind)) = (item["name"].as_str(), item["kind"].as_u64()) {
+            out.push((name.to_owned(), kind));
+        }
+        symbol_names(&item["children"], out);
+    }
+}
+
+/// Open the member-effect document in a workspace whose pack declares
+/// `mymethod` with `effect`, and answer the three providers: the document's
+/// symbols, hover on the declared name, and go-to-definition from the call.
+async fn member_effect_providers(
+    name: &str,
+    effect: &str,
+) -> (Vec<(String, u64)>, serde_json::Value, serde_json::Value) {
+    let root = std::env::temp_dir().join(format!(
+        "tcl-lsp-member-effect-{name}-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join(".tcl-lsp")).unwrap();
+    let root = std::fs::canonicalize(&root).unwrap();
+    std::fs::write(
+        root.join(".tcl-lsp/mydefs.tclspec"),
+        member_effect_pack(effect),
+    )
+    .unwrap();
+    let doc = root.join("app.tcl");
+    std::fs::write(&doc, MEMBER_EFFECT_DOC).unwrap();
+    let uri = format!("file://{}", doc.display());
+
+    let (mut reader, mut writer, server) = start_session_at(&root).await;
+    assert!(
+        await_pack_loaded(&mut reader, &mut writer, "mydefs").await,
+        "the workspace pack was never reported as loaded",
+    );
+    did_open(&mut writer, &uri, MEMBER_EFFECT_DOC).await;
+    assert!(
+        await_analysed(&mut reader, &[uri.as_str()]).await,
+        "server never published diagnostics for the opened document",
+    );
+    let mut symbols = Vec::new();
+    symbol_names(
+        &document_request(
+            &mut reader,
+            &mut writer,
+            20,
+            "textDocument/documentSymbol",
+            &uri,
+            None,
+        )
+        .await,
+        &mut symbols,
+    );
+    // `greet` in `mymethod greet {name} …` (line 1).
+    let hover = document_request(
+        &mut reader,
+        &mut writer,
+        21,
+        "textDocument/hover",
+        &uri,
+        Some((1, 15)),
+    )
+    .await;
+    // `greet` in `rex greet you` (line 4).
+    let definition = document_request(
+        &mut reader,
+        &mut writer,
+        22,
+        "textDocument/definition",
+        &uri,
+        Some((4, 6)),
+    )
+    .await;
+    writer
+        .write_all(frame(r#"{"jsonrpc":"2.0","method":"exit","params":null}"#).as_bytes())
+        .await
+        .unwrap();
+    drop(writer);
+    server.abort();
+    let _ = std::fs::remove_dir_all(&root);
+    (symbols, hover, definition)
+}
+
+/// TP: a member spelling no consumer names reaches every provider through its
+/// row. A workspace pack declares a private definer whose one member,
+/// `mymethod`, is a callable on the instances; the class outline lists the
+/// method it declares, hover on its declared name describes it, and
+/// go-to-definition from a call through an instance lands on it — with no
+/// edit to the analyser or the providers.
+#[tokio::test]
+async fn a_pack_declared_member_spelling_reaches_every_provider() {
+    let (symbols, hover, definition) =
+        member_effect_providers("callable", "{callable -receiver instance -role method}").await;
+    // `SymbolKind::Method` is 6.
+    assert!(
+        symbols.contains(&("greet".to_owned(), 6)),
+        "the outline lists `greet` as a method: {symbols:?}",
+    );
+    assert!(
+        hover.to_string().contains("greet"),
+        "hover on the declared name describes the method: {hover}",
+    );
+    assert!(
+        definition.to_string().contains(r#""line":1"#),
+        "`rex greet` resolves to the declaration on line 1: {definition}",
+    );
+}
+
+/// TN: the same member row with `-effect configuration` declares nothing, so
+/// no provider sees a method called `greet`.
+#[tokio::test]
+async fn a_pack_declared_configuration_member_declares_no_method() {
+    let (symbols, _hover, definition) =
+        member_effect_providers("configuration", "configuration").await;
+    assert!(
+        !symbols.iter().any(|(name, _)| name == "greet"),
+        "a configuration member declares no method: {symbols:?}",
+    );
+    assert!(
+        !definition.to_string().contains(r#""line":1"#),
+        "`rex greet` resolves to nothing: {definition}",
+    );
 }

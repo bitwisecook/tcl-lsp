@@ -417,18 +417,22 @@ fn build_cfg(funcs: &[Value], post: bool) -> Vec<ViewNode> {
             let a = &f["analysis"];
             let mut asub = Vec::new();
             for br in arr(a, "constantBranches") {
-                asub.push(ViewNode::leaf(
-                    format!(
-                        "const branch {}: always {}",
-                        s(br, "block"),
-                        pystr(&br["value"])
-                    ),
-                    vec![
-                        det("condition", s(br, "condition")),
-                        det("take", s(br, "takenTarget")),
-                    ],
-                    Some("blue"),
-                ));
+                asub.push(if s(br, "kind") == "selected" {
+                    unreached_arm_leaf(br)
+                } else {
+                    ViewNode::leaf(
+                        format!(
+                            "const branch {}: always {}",
+                            s(br, "block"),
+                            pystr(&br["value"])
+                        ),
+                        vec![
+                            det("condition", s(br, "condition")),
+                            det("take", s(br, "takenTarget")),
+                        ],
+                        Some("blue"),
+                    )
+                });
             }
             for ds in arr(a, "deadStores") {
                 asub.push(ViewNode::leaf(
@@ -524,11 +528,126 @@ fn build_dominators(d: &Value) -> Vec<ViewNode> {
     }
 }
 
+/// One selection record's leaf: the arm each member selects, the
+/// arm whose body runs, and the statement's line.
+fn selection_leaf(selection: &Value) -> ViewNode {
+    ViewNode::leaf(
+        format!("selection: {}", join_str_array(&selection["selected"])),
+        vec![
+            det("bodies", join_str_array(&selection["bodies"])),
+            det(
+                "line",
+                selection["range"]["startLine"]
+                    .as_u64()
+                    .map_or_else(|| "?".to_owned(), |line| (line + 1).to_string()),
+            ),
+        ],
+        Some("blue"),
+    )
+}
+
+/// The leaf of a `Selected` branch fact: an arm of an opaque `switch` whose
+/// body no member of the subject runs — the pattern, and the block holding
+/// the statement.
+fn unreached_arm_leaf(fact: &Value) -> ViewNode {
+    ViewNode::leaf(
+        format!("arm never selected: {}", s(fact, "condition")),
+        vec![det("block", s(fact, "block"))],
+        Some("blue"),
+    )
+}
+
+/// One statement's route record of the SCCP view: the answer, the line, and
+/// what the statement stores on each completion path.
+fn route_leaf(route: &Value) -> ViewNode {
+    let answer = s(route, "answer");
+    let colour = if answer.starts_with("evaluated") {
+        "green"
+    } else if answer.starts_with("pending") {
+        "yellow"
+    } else {
+        "magenta"
+    };
+    let mut details = vec![
+        det("answer", answer),
+        det(
+            "line",
+            route["range"]["startLine"]
+                .as_u64()
+                .map_or_else(|| "?".to_owned(), |line| (line + 1).to_string()),
+        ),
+    ];
+    for path in arr(route, "paths") {
+        let stores = arr(path, "stores")
+            .iter()
+            .filter_map(|store| store.as_str())
+            .collect::<Vec<_>>();
+        details.push(det(
+            &format!("path {}", s(path, "completion")),
+            if stores.is_empty() {
+                "no stores".to_owned()
+            } else {
+                stores.join("; ")
+            },
+        ));
+    }
+    ViewNode::leaf(
+        format!("route {}: {}", s(route, "command"), s(route, "route")),
+        details,
+        Some(colour),
+    )
+}
+
+/// One edge refinement of the SCCP view: the place, the fact, its version,
+/// edge and domain.
+fn refinement_leaf(refinement: &Value) -> ViewNode {
+    ViewNode::leaf(
+        format!(
+            "refinement {} = {}",
+            s(refinement, "variable"),
+            s(refinement, "fact")
+        ),
+        vec![
+            det("version", s(refinement, "version")),
+            det(
+                "edge",
+                format!("{} → {}", s(refinement, "from"), s(refinement, "to")),
+            ),
+            det("domain", s(refinement, "domain")),
+        ],
+        Some("magenta"),
+    )
+}
+
+/// One loop the solver ran to its exit: its passes, how it left, the block it
+/// leaves to and each value it published.
+fn enumerated_loop_leaf(record: &Value) -> ViewNode {
+    let mut details = vec![det("exit block", s(record, "exitBlock"))];
+    details.extend(
+        arr(record, "published")
+            .iter()
+            .map(|value| det(&s(value, "variable"), s(value, "lattice"))),
+    );
+    ViewNode::leaf(
+        format!(
+            "enumerated loop: {} iterations, {}",
+            pystr(&record["iterations"]),
+            s(record, "exit")
+        ),
+        details,
+        Some("magenta"),
+    )
+}
+
 fn build_sccp(d: &Value) -> Vec<ViewNode> {
     let mut out = Vec::new();
     for f in arr(d, "sccp") {
         let mut children = Vec::new();
         for value in arr(f, "values") {
+            let detail = value["type"]
+                .as_str()
+                .map(|folded| vec![det("type", folded)])
+                .unwrap_or_default();
             children.push(ViewNode::leaf(
                 format!(
                     "{}#{} = {}",
@@ -536,7 +655,7 @@ fn build_sccp(d: &Value) -> Vec<ViewNode> {
                     s(value, "version"),
                     s(value, "lattice")
                 ),
-                Vec::new(),
+                detail,
                 Some("green"),
             ));
         }
@@ -554,16 +673,35 @@ fn build_sccp(d: &Value) -> Vec<ViewNode> {
             )],
             Some("cyan"),
         ));
+        let tally = &f["routeTally"];
+        children.push(ViewNode::leaf(
+            format!(
+                "routes entered: direct {} · expression {} · implementation {}",
+                tally["direct"].as_u64().unwrap_or(0),
+                tally["expression"].as_u64().unwrap_or(0),
+                tally["implementation"].as_u64().unwrap_or(0),
+            ),
+            Vec::new(),
+            Some("cyan"),
+        ));
         for branch in arr(f, "constantBranches") {
-            children.push(ViewNode::leaf(
-                format!("branch {}: {}", s(branch, "block"), pystr(&branch["value"])),
-                vec![
-                    det("condition", s(branch, "condition")),
-                    det("take", s(branch, "takenTarget")),
-                ],
-                Some("blue"),
-            ));
+            children.push(if s(branch, "kind") == "selected" {
+                unreached_arm_leaf(branch)
+            } else {
+                ViewNode::leaf(
+                    format!("branch {}: {}", s(branch, "block"), pystr(&branch["value"])),
+                    vec![
+                        det("condition", s(branch, "condition")),
+                        det("take", s(branch, "takenTarget")),
+                    ],
+                    Some("blue"),
+                )
+            });
         }
+        children.extend(arr(f, "refinements").iter().map(refinement_leaf));
+        children.extend(arr(f, "enumeratedLoops").iter().map(enumerated_loop_leaf));
+        children.extend(arr(f, "selections").iter().map(selection_leaf));
+        children.extend(arr(f, "routes").iter().map(route_leaf));
         out.push(ViewNode::branch(
             format!("function {}", s(f, "name")),
             Vec::new(),
@@ -975,6 +1113,13 @@ fn build_interproc(d: &Value) -> Vec<ViewNode> {
             if !seeds.is_empty() {
                 detail.push(det("param constants", seeds));
             }
+            detail.push(det(
+                "transfer",
+                p["transfer"].as_str().map_or_else(
+                    || "none — a call is a barrier".to_owned(),
+                    ToOwned::to_owned,
+                ),
+            ));
             detail.push(det("flags", flags(p)));
             out.push(ViewNode::leaf(
                 format!("{} arity={}", s(p, "name"), s(p, "arity")),
@@ -1674,6 +1819,164 @@ fn build_world_ssa(d: &Value) -> Vec<ViewNode> {
         .collect()
 }
 
+// --- AOT plan ---
+
+/// The AOT plan: what the WASM emitter selected, the guarded candidates each
+/// invocation considered, and every premise the sealed native addition
+/// rejected.
+fn build_aot(d: &Value) -> Vec<ViewNode> {
+    let plan = &d["aot"];
+    if !plan.is_object() {
+        return Vec::new();
+    }
+    let mut children = Vec::new();
+    let decline = &plan["semanticDecline"];
+    if decline.is_object() {
+        children.push(ViewNode::leaf(
+            format!("semantic decline: {}", s(decline, "kind")),
+            vec![det("reason", s(decline, "detailKind"))],
+            Some("yellow"),
+        ));
+    }
+    children.push(aot_regions(plan));
+    children.push(aot_native_add(plan));
+    let detail = [
+        ("operation", s(plan, "operation")),
+        ("region plan", s(plan, "regionPlanStatus")),
+    ]
+    .into_iter()
+    .filter(|(_, value)| !value.is_empty())
+    .map(|(key, value)| det(key, value))
+    .collect();
+    vec![ViewNode::branch(
+        format!("plan: {}", s(plan, "kind")),
+        detail,
+        children,
+        Some("cyan"),
+    )]
+}
+
+fn aot_regions(plan: &Value) -> ViewNode {
+    let regions: Vec<ViewNode> = arr(plan, "regions")
+        .iter()
+        .map(|region| {
+            let candidates: Vec<ViewNode> = arr(region, "candidates")
+                .iter()
+                .map(aot_candidate)
+                .collect();
+            let operation = jstr(&region["operation"]["id"]);
+            ViewNode::branch(
+                format!(
+                    "region {} · {}",
+                    jstr(&region["node"]),
+                    s(region, "selectedKind")
+                ),
+                if operation.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![det("operation", operation)]
+                },
+                candidates,
+                None,
+            )
+        })
+        .collect();
+    ViewNode::branch(
+        format!("regions ({})", regions.len()),
+        Vec::new(),
+        regions,
+        Some("blue"),
+    )
+}
+
+fn aot_candidate(candidate: &Value) -> ViewNode {
+    if s(candidate, "decision") == "selected" {
+        return ViewNode::leaf(
+            format!("{}: selected", s(candidate, "kind")),
+            Vec::new(),
+            Some("green"),
+        );
+    }
+    ViewNode::leaf(
+        format!(
+            "{}: declined, {}",
+            s(candidate, "kind"),
+            s(candidate, "reason")
+        ),
+        Vec::new(),
+        Some("dim"),
+    )
+}
+
+fn aot_native_add(plan: &Value) -> ViewNode {
+    let native = &plan["nativeI64Add"];
+    if native.is_object() {
+        return ViewNode::leaf(
+            "native i64 add: selected",
+            vec![
+                det("callee", s(native, "callee")),
+                det("operands", jstr(&native["operands"])),
+                det("boundary", jstr(&native["boundaryOperation"]["id"])),
+                det(
+                    "closed program statements",
+                    s(native, "closedProgramStatements"),
+                ),
+            ],
+            Some("green"),
+        );
+    }
+    let premises: Vec<ViewNode> = arr(plan, "nativeDeclines")
+        .iter()
+        .map(aot_native_decline)
+        .collect();
+    ViewNode::branch(
+        format!("native i64 add: declined ({} premises)", premises.len()),
+        Vec::new(),
+        premises,
+        Some("yellow"),
+    )
+}
+
+/// One rejected premise. The label carries the premise, its pass when it is
+/// one, and the reason; the rows carry what the label does not.
+fn aot_native_decline(decline: &Value) -> ViewNode {
+    let detail = &decline["detail"];
+    let subject = match detail.get("pass").and_then(Value::as_str) {
+        Some(pass) => format!("{} {pass}", s(decline, "premise")),
+        None => s(decline, "premise"),
+    };
+    let mut rows: Vec<(String, String)> = detail
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter(|(key, _)| key.as_str() != "pass")
+        .map(|(key, value)| det(key, jstr(value)))
+        .collect();
+    rows.extend(
+        arr(decline, "sites")
+            .iter()
+            .map(|site| det("site", aot_site_label(site))),
+    );
+    ViewNode::leaf(
+        format!("{subject}: {}", s(decline, "reason")),
+        rows,
+        Some("yellow"),
+    )
+}
+
+fn aot_site_label(site: &Value) -> String {
+    let nested = match site["nestedArgument"].as_u64() {
+        Some(argument) => format!(", argument {argument}"),
+        None => String::new(),
+    };
+    format!(
+        "{} block {} statement {}{nested}",
+        s(site, "function"),
+        s(site, "block"),
+        s(site, "statementIndex")
+    )
+}
+
 /// Build the [`ViewNode`] forest for `view` from serialised `data`.
 /// An unknown view id yields an empty forest.
 #[must_use]
@@ -1683,6 +1986,7 @@ pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
         "cfg" => build_cfg(arr(data, "cfgPreSsa"), false),
         "ssa" => build_cfg(arr(data, "cfgPostSsa"), true),
         "worldSsa" => build_world_ssa(data),
+        "aot" => build_aot(data),
         "dominators" => build_dominators(data),
         "sccp" => build_sccp(data),
         "liveness" => build_liveness(data),
@@ -1914,6 +2218,45 @@ mod tests {
                 .children
                 .iter()
                 .any(|n| n.label.starts_with("header"))
+        );
+    }
+
+    /// A selected native addition reads as a selection, with what it proved,
+    /// rather than as an empty list of rejected premises.
+    #[test]
+    fn aot_view_names_a_selected_native_add() {
+        let d = serde_json::json!({ "aot": {
+            "kind": "native-i64-add",
+            "operation": "intrinsic",
+            "semanticDecline": null,
+            "regionPlanStatus": "available",
+            "regions": [],
+            "nativeDeclines": [],
+            "nativeI64Add": {
+                "callee": "::add",
+                "operands": [2, 4],
+                "boundaryOperation": { "kind": "intrinsic", "id": "channel-write" },
+                "frameElided": true,
+                "closedProgramStatements": 4,
+            },
+        } });
+        let nodes = build_view("aot", &d);
+        let labels: Vec<&str> = nodes[0]
+            .children
+            .iter()
+            .map(|child| child.label.as_str())
+            .collect();
+        assert_eq!(labels, ["regions (0)", "native i64 add: selected"]);
+        let selected = &nodes[0].children[1];
+        assert!(
+            selected
+                .detail
+                .contains(&("callee".to_owned(), "::add".to_owned()))
+        );
+        assert!(
+            selected
+                .detail
+                .contains(&("boundary".to_owned(), "channel-write".to_owned()))
         );
     }
 

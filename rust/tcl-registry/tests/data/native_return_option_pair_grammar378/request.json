@@ -1,0 +1,252 @@
+{
+  "question": "Which exact pair grammar, last-value validation order, completion codes, levels and accepted options does original return source execution expose in C Tcl 8.4-9.1 and current Jim?",
+  "channel": "original ASCII Tcl source passed to independently versioned fresh interpreter CLI; each literal script is executed by catch, no object/header/table or compiled-entry claim",
+  "cases": [
+    {
+      "label": "empty",
+      "source": "return"
+    },
+    {
+      "label": "result",
+      "source": "return RESULT"
+    },
+    {
+      "label": "ordinary_pair",
+      "source": "return foo bar"
+    },
+    {
+      "label": "ordinary_pair_result",
+      "source": "return foo bar RESULT"
+    },
+    {
+      "label": "ordinary_pairs",
+      "source": "return foo bar baz quux"
+    },
+    {
+      "label": "lone_code",
+      "source": "return -code"
+    },
+    {
+      "label": "lone_level",
+      "source": "return -level"
+    },
+    {
+      "label": "lone_options",
+      "source": "return -options"
+    },
+    {
+      "label": "lone_dashdash",
+      "source": "return --"
+    },
+    {
+      "label": "dashdash_pair",
+      "source": "return -- VALUE"
+    },
+    {
+      "label": "code_ok",
+      "source": "return -code ok RESULT"
+    },
+    {
+      "label": "code_error",
+      "source": "return -code error RESULT"
+    },
+    {
+      "label": "code_return",
+      "source": "return -code return RESULT"
+    },
+    {
+      "label": "code_break",
+      "source": "return -code break RESULT"
+    },
+    {
+      "label": "code_continue",
+      "source": "return -code continue RESULT"
+    },
+    {
+      "label": "code_signal",
+      "source": "return -code signal RESULT"
+    },
+    {
+      "label": "code_exit",
+      "source": "return -code exit RESULT"
+    },
+    {
+      "label": "code_eval",
+      "source": "return -code eval RESULT"
+    },
+    {
+      "label": "code_prefix",
+      "source": "return -code o RESULT"
+    },
+    {
+      "label": "code_010",
+      "source": "return -code 010 RESULT"
+    },
+    {
+      "label": "code_uintmax",
+      "source": "return -code 4294967295 RESULT"
+    },
+    {
+      "label": "code_negative_uintmax",
+      "source": "return -code -4294967295 RESULT"
+    },
+    {
+      "label": "code_over_uintmax",
+      "source": "return -code 4294967296 RESULT"
+    },
+    {
+      "label": "code_intmin",
+      "source": "return -code -2147483648 RESULT"
+    },
+    {
+      "label": "code_bad_then_ok",
+      "source": "return -code BAD -code ok RESULT"
+    },
+    {
+      "label": "code_ok_then_bad",
+      "source": "return -code ok -code BAD RESULT"
+    },
+    {
+      "label": "level_zero",
+      "source": "return -level 0 RESULT"
+    },
+    {
+      "label": "level_two",
+      "source": "return -level 2 RESULT"
+    },
+    {
+      "label": "level_negative",
+      "source": "return -level -1 RESULT"
+    },
+    {
+      "label": "level_010",
+      "source": "return -level 010 RESULT"
+    },
+    {
+      "label": "level_intmax",
+      "source": "return -level 2147483647 RESULT"
+    },
+    {
+      "label": "level_over_intmax",
+      "source": "return -level 2147483648 RESULT"
+    },
+    {
+      "label": "level_uintmax",
+      "source": "return -level 4294967295 RESULT"
+    },
+    {
+      "label": "level_bad_then_zero",
+      "source": "return -level BAD -level 0 RESULT"
+    },
+    {
+      "label": "level_negative_then_zero",
+      "source": "return -level -1 -level 0 RESULT"
+    },
+    {
+      "label": "errorcode_valid",
+      "source": "return -code error -errorcode {A B} RESULT"
+    },
+    {
+      "label": "errorcode_bad",
+      "source": "return -errorcode \\{ RESULT"
+    },
+    {
+      "label": "errorcode_bad_then_good",
+      "source": "return -errorcode \\{ -errorcode {A B} RESULT"
+    },
+    {
+      "label": "errorinfo_any",
+      "source": "return -errorinfo \\{ RESULT"
+    },
+    {
+      "label": "errorstack_odd",
+      "source": "return -errorstack {INNER} RESULT"
+    },
+    {
+      "label": "errorstack_even",
+      "source": "return -errorstack {INNER command} RESULT"
+    },
+    {
+      "label": "errorstack_bad",
+      "source": "return -errorstack \\{ RESULT"
+    },
+    {
+      "label": "errorstack_bad_then_good",
+      "source": "return -errorstack \\{ -errorstack {INNER command} RESULT"
+    },
+    {
+      "label": "custom_dash",
+      "source": "return -custom VALUE RESULT"
+    },
+    {
+      "label": "custom_bare",
+      "source": "return custom VALUE RESULT"
+    },
+    {
+      "label": "custom_dynamic_value",
+      "source": "set value V; return -custom $value RESULT"
+    },
+    {
+      "label": "options_empty",
+      "source": "return -options {} RESULT"
+    },
+    {
+      "label": "options_code_ok",
+      "source": "return -options {-code ok -level 0} RESULT"
+    },
+    {
+      "label": "options_odd",
+      "source": "return -options {-code} RESULT"
+    },
+    {
+      "label": "options_bad_code",
+      "source": "return -options {-code BAD} RESULT"
+    },
+    {
+      "label": "options_bad_overridden",
+      "source": "return -options {-code BAD} -code ok RESULT"
+    },
+    {
+      "label": "options_bad_level_overridden",
+      "source": "return -options {-level -1} -level 0 RESULT"
+    },
+    {
+      "label": "options_overrides_bad_code",
+      "source": "return -code BAD -options {-code ok} RESULT"
+    },
+    {
+      "label": "options_nested",
+      "source": "return -options {-options {-code ok -level 0}} RESULT"
+    },
+    {
+      "label": "options_code_key_bare",
+      "source": "return -options {code error} RESULT"
+    },
+    {
+      "label": "code_return_level_zero",
+      "source": "return -code return -level 0 RESULT"
+    },
+    {
+      "label": "code_return_level_two",
+      "source": "return -code return -level 2 RESULT"
+    },
+    {
+      "label": "code_break_level_zero",
+      "source": "return -code break -level 0 RESULT"
+    },
+    {
+      "label": "nul_key_code",
+      "source": "set key [binary format H* 2d636f6465007461696c]; return $key error RESULT"
+    },
+    {
+      "label": "nul_code_ok",
+      "source": "set value [binary format H* 6f6b007461696c]; return -code $value RESULT"
+    },
+    {
+      "label": "nul_custom_key",
+      "source": "set key [binary format H* 637573746f6d007461696c]; return $key VALUE RESULT"
+    }
+  ],
+  "source_sha256": "8e1f3bf055ed864b3e574904b29e40e9951ffd3dcc6246e93a679777a404efb9",
+  "created_utc": "2026-10-10T12:20:18.400377+00:00"
+}

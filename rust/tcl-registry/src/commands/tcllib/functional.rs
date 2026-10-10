@@ -56,8 +56,9 @@ fn lambda_specs() -> Vec<CommandSpec> {
             // `DEFERS_BODY`: a lambda *constructor* — it returns a command
             // prefix, it does not run the body. tclsh 8.6.16 / 9.0.4,
             // byte-identical: `proc p {} { lambda {} {error stop}; set
-            // ::reached 1 }` sets `::reached`.
-            traits: Traits::DEFERS_BODY,
+            // ::reached 1 }` sets `::reached`. The body is a definition, and
+            // runs in a frame of its own.
+            traits: Traits::DEFERS_BODY.union(Traits::BODY_RUNS_IN_OWN_FRAME),
             hover: Some(HoverSnippet {
                 summary: "Construct an anonymous procedure (a lambda term).",
                 synopsis: &["lambda arguments body ?arg ...?"],
@@ -81,7 +82,7 @@ fn lambda_specs() -> Vec<CommandSpec> {
             body_kind: BodyKind::Structural,
             // `DEFERS_BODY`, for the same reason as `lambda` above and proved
             // the same way on both oracles.
-            traits: Traits::DEFERS_BODY,
+            traits: Traits::DEFERS_BODY.union(Traits::BODY_RUNS_IN_OWN_FRAME),
             hover: Some(HoverSnippet {
                 summary: "Construct an anonymous procedure that runs in a namespace.",
                 synopsis: &["lambda@ namespace arguments body ?arg ...?"],
@@ -186,6 +187,7 @@ fn tie_specs() -> Vec<CommandSpec> {
             }),
             tcllib_package: Some("tie"),
             required_package: Some("tie"),
+            semantics: SemanticsDeclaration::Declared(&crate::value_transfer::tcllib::TIE),
             ..CommandSpec::DEFAULT
         },
         CommandSpec {
@@ -199,6 +201,7 @@ fn tie_specs() -> Vec<CommandSpec> {
             )),
             tcllib_package: Some("tie"),
             required_package: Some("tie"),
+            semantics: SemanticsDeclaration::Declared(&crate::value_transfer::tcllib::UNTIE),
             ..CommandSpec::DEFAULT
         },
         CommandSpec {
@@ -248,6 +251,9 @@ fn base32_core_specs() -> Vec<CommandSpec> {
             )),
             tcllib_package: Some("base32::core"),
             required_package: Some("base32::core"),
+            semantics: SemanticsDeclaration::Declared(
+                &crate::value_transfer::tcllib::WRITES_UNAUTHORED,
+            ),
             ..CommandSpec::DEFAULT
         },
         CommandSpec {
@@ -261,6 +267,9 @@ fn base32_core_specs() -> Vec<CommandSpec> {
             )),
             tcllib_package: Some("base32::core"),
             required_package: Some("base32::core"),
+            semantics: SemanticsDeclaration::Declared(
+                &crate::value_transfer::tcllib::WRITES_UNAUTHORED,
+            ),
             ..CommandSpec::DEFAULT
         },
     ]

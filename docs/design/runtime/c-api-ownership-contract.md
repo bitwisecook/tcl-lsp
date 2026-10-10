@@ -55,26 +55,27 @@ honour the documented rc=0 convention exactly, because extension source is
 written to it. We tag every C-API constructor `fresh_zero` to make the
 distinction impossible to miss.
 
-#### Open: single-decref of a fresh obj, and the macro / `TclFreeObj` path
+#### The reference-count macros and `TclFreeObj`
 
-Two related unresolved questions, both of which an extension can hit:
+The header (`runtime/rust/include/tcl.h`) defines `Tcl_IncrRefCount`,
+`Tcl_DecrRefCount` and `Tcl_IsShared` as macros over the `refCount` field, as
+Tcl's own header does, so an extension compiled against it calls no exported
+function for them:
 
-1. **`Tcl_DecrRefCount` on an rc-0 `fresh_zero` obj.** The shipped `tcl.h` macro
-   is `if ((objPtr)->refCount-- <= 1) TclFreeObj(objPtr);`, so a *single* decref
-   of a fresh (rc 0) object **frees it** — and the idiom
-   `o = Tcl_NewObj(); …; Tcl_DecrRefCount(o);` appears in real extension code.
-   The current Rust `Tcl_DecrRefCount` treats decref-at-rc-0 as a counted
-   double-free (the leak-guard) and refuses to free. Decide whether to (a) match
-   the macro (free at rc≤1, dropping the guard for this path) or (b) require the
-   `fresh_zero` "incr-before-decr" discipline and confirm it against the
-   unmodified extension source we intend to run.
-2. **`Tcl_DecrRefCount`/`Tcl_IncrRefCount` are macros**, so a C extension
-   compiled against `tcl.h` never calls our exported functions — it inlines the
-   refcount test and calls `TclFreeObj` directly. `TclFreeObj` is **not** in the
-   current export surface; settle how extension-side decrefs reach this
-   allocator's free path — export `TclFreeObj`, or ship the refcount ops as
-   real functions. Until it is settled, an extension's decrefs do not reach
-   this allocator at all.
+- `Tcl_IncrRefCount(o)` is `++o->refCount`.
+- `Tcl_DecrRefCount(o)` is `if (o->refCount-- <= 1) TclFreeObj(o);`. A *single*
+  decref of a fresh (rc 0) object therefore frees it, and
+  `o = Tcl_NewObj(); …; Tcl_DecrRefCount(o);` is as valid as it is in Tcl.
+- `TclFreeObj` is where an extension's decref reaches the host's allocator. The
+  runtime and the shim both export it; it frees an object whatever count the
+  macro left, so the runtime's `TclObj` and the shim's `Obj` both keep the
+  header's `Tcl_Obj` layout (`refCount`, `bytes`, `length`, `typePtr`, then the
+  internal representation) for the macros and for `objPtr->bytes`.
+
+The exported `Tcl_IncrRefCount` and `Tcl_DecrRefCount` functions are for a host
+that calls through the symbol, not for compiled extension code. The function
+`Tcl_DecrRefCount` keeps a leak guard the macro has no place for: at rc 0 it
+counts a double free and refuses to free again.
 
 ---
 
@@ -85,7 +86,7 @@ Two related unresolved questions, both of which an extension can hit:
 | Category | Meaning |
 |---|---|
 | `borrowed` | Caller keeps its reference; the function must not release it. It may retain temporarily for the call's duration but must release before returning. |
-| `consumed` | Caller transfers a reference to the function (the function will store or release it). The only consumer in the shipped surface is `Tcl_DecrRefCount`. |
+| `consumed` | Caller transfers a reference to the function (the function will store or release it). The only consumers in the shipped surface are `Tcl_DecrRefCount` and `TclFreeObj`. |
 | `borrowed→stored` | Borrowed for refcount purposes, but the function **retains its own reference** into a structure that outlives the call (interp result, list element, …). The caller's reference is unaffected; combined with `fresh_zero` this is how a freshly created object becomes owned solely by the structure. |
 | `n/a` | The function takes no `Tcl_Obj` handle (string/scalar/struct/opaque only). |
 
@@ -135,7 +136,8 @@ no per-call error channel, hence `no-error` for constructors.
 
 | Function | Obj args | Return | Errors | Notes |
 |---|---|---|---|---|
-| `Tcl_CreateObjCommand` | n/a | `token` (`Tcl_Command`) | `no-error` | `proc` is a shared-table index (§4.5); `clientData` opaque, freed by `deleteProc`. |
+| `Tcl_CreateObjCommand` | n/a | `token` (`Tcl_Command`) | `no-error` | `proc` is a shared-table index (§4.5); `clientData` opaque, freed by `deleteProc`. The runtime answers NULL, binding nothing, for a NULL interpreter, name or `proc`; replacing a name deletes the old command. |
+| `Tcl_DeleteCommand` | n/a | `status` | `no-error` | `0` when the command existed, `-1` when not (`rename name {}`). Runs the command's `deleteProc` when its last handle drops: at once for an idle command, and when the call returns for one that deletes itself, so its `clientData` stays live while its own procedure runs. |
 | `Tcl_CreateObjCommand2` | n/a | `token` | `no-error` | Tcl 9 `Tcl_Size`-arity variant. |
 | `Tcl_CreateObjTrace2` | n/a | `token` (`Tcl_Trace`) | `no-error` | Trace proc is a shared-table index. |
 | `Tcl_NRCreateCommand` | n/a | `token` | `no-error` | NRE variant; both `proc`/`nreProc` are table indices. |
@@ -148,7 +150,9 @@ no per-call error channel, hence `no-error` for constructors.
 |---|---|---|---|---|
 | `Tcl_NewObj` | n/a | `fresh_zero` | `no-error` | Empty string obj, rc=0. |
 | `Tcl_NewStringObj` | n/a | `fresh_zero` | `no-error` | Copies the bytes (length −1 ⇒ `strlen`). |
-| `Tcl_NewWideIntObj` | n/a | `fresh_zero` | `no-error` | `Tcl_NewIntObj` is a macro over this. |
+| `Tcl_NewWideIntObj` | n/a | `fresh_zero` | `no-error` | Tcl 9's own header makes `Tcl_NewIntObj` and `Tcl_NewLongObj` macros over this; the authored header declares them as functions. |
+| `Tcl_NewIntObj` | n/a | `fresh_zero` | `no-error` | An integer object from a C `int`. |
+| `Tcl_NewLongObj` | n/a | `fresh_zero` | `no-error` | An integer object from a C `long`: 32 bits on `wasm32`, 64 on an LP64 host. |
 | `Tcl_NewDoubleObj` | n/a | `fresh_zero` | `no-error` | |
 | `Tcl_NewBooleanObj` | n/a | `fresh_zero` | `no-error` | |
 | `Tcl_NewListObj` | `objv[]` `borrowed→stored` | `fresh_zero` | `no-error` | Retains each element into the new list. |
@@ -159,8 +163,9 @@ no per-call error channel, hence `no-error` for constructors.
 
 | Function | Obj args | Return | Errors | Notes |
 |---|---|---|---|---|
-| `Tcl_IncrRefCount` | `objPtr` `borrowed` | `void` | `no-error` | +1. Internal analogue: `tcl_obj_retain`. |
-| `Tcl_DecrRefCount` | `objPtr` `consumed` | `void` | `no-error` | −1; frees at 0. Internal analogue: `tcl_obj_release`. **Null-safe** per Tcl macro. |
+| `Tcl_IncrRefCount` | `objPtr` `borrowed` | `void` | `no-error` | +1. A macro over `refCount` in the header; this row is the exported function. Internal analogue: `tcl_obj_retain`. |
+| `Tcl_DecrRefCount` | `objPtr` `consumed` | `void` | `no-error` | −1; frees at 0. A macro in the header that frees through `TclFreeObj` at a count of one or less; this row is the exported function, which counts a decrement at rc 0 as a double free. Internal analogue: `tcl_obj_release`. **Null-safe** per Tcl macro. |
+| `TclFreeObj` | `objPtr` `consumed` | `void` | `no-error` | Frees an object whose count the header's `Tcl_DecrRefCount` macro has lowered to zero or below — a fresh object's single decrement included: the type's free proc, the string rep, the header. **Null-safe.** |
 
 ### Object accessors (arg `borrowed`; may shimmer)
 
@@ -172,10 +177,12 @@ mutate `internalRep`/`bytes` but **not** the logical value, so a `borrowed`
 |---|---|---|---|---|
 | `Tcl_GetString` | `objPtr` `borrowed` | `char* borrowed-rep` | `no-error` | Forces the string rep; valid until the obj is modified/freed. |
 | `Tcl_GetStringFromObj` | `objPtr` `borrowed` | `char* borrowed-rep` | `no-error` | As above + writes length out. |
-| `Tcl_GetIntFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | Shimmers to int; on failure sets `expected integer…`. |
+| `Tcl_GetIntFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | Shimmers to int; on failure sets `expected integer…`. Reads a `long` as `Tcl_GetLongFromObj` does and takes `INT_MIN` to `UINT_MAX` of it on every host, an unsigned value truncated, as C Tcl does; past it, `integer value too large to represent` with `ARITH IOVERFLOW` and the message. |
+| `Tcl_GetLongFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | `LONG_MIN` to `ULONG_MAX`, truncated, where `long` is 32 bits (`wasm32`); any wide integer where it is 64, and an integer past the wide range that fits 64 bits unsigned taken modulo 2^64, as C Tcl takes it (`18446744073709551615` reads -1). |
 | `Tcl_GetWideIntFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | |
 | `Tcl_GetDoubleFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | |
 | `Tcl_GetBooleanFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | |
+| `Tcl_GetIndexFromObjStruct` | `objPtr` `borrowed` | `status` | `sets-result` | Resolves the word against a NULL-terminated table by unique prefix (`TCL_EXACT` asks for an exact match); on failure `bad`/`ambiguous … must be …` with `TCL LOOKUP INDEX`. Keeps the matched entry on the word's internal rep, unless `TCL_INDEX_TEMP_TABLE`, so `Tcl_WrongNumArgs` spells an abbreviation in full; the table must outlive the word. `Tcl_GetIndexFromObj` is a macro over this. |
 | `Tcl_GetBignumFromObj` | `objPtr` `borrowed` | `status` | `sets-result` | Writes an `mp_int` through `void* value` (caller-owned, caller `mp_clear`s). |
 | `Tcl_NumUtfChars` | n/a | `Tcl_Size` | `no-error` | Pure reader over a `char*`. |
 | `Tcl_UtfNcmp` | n/a | `int` | `no-error` | Pure reader. |
@@ -186,6 +193,7 @@ mutate `internalRep`/`bytes` but **not** the logical value, so a `borrowed`
 |---|---|---|---|---|
 | `Tcl_ListObjAppendElement` | `listPtr` `borrowed` (mutated), `objPtr` `borrowed→stored` | `status` | `sets-result` | Retains `objPtr` into the list; `listPtr` must be unshared to mutate in place (else shimmers/dup). |
 | `Tcl_ListObjGetElements` | `listPtr` `borrowed` | `status` (out: `Tcl_Obj*** objvPtr`) | `sets-result` | Returned array + its element handles are `borrowed` (owned by the list); valid until the list is modified. |
+| `Tcl_ListObjLength` | `listPtr` `borrowed` | `status` (out: `Tcl_Size* lengthPtr`) | `sets-result` | Shimmers a string to a list; a string that is not one is the list parser's error. |
 
 ### `Tcl_ObjType` registration
 
@@ -200,8 +208,12 @@ mutate `internalRep`/`bytes` but **not** the logical value, so a `borrowed`
 |---|---|---|---|---|
 | `Tcl_SetObjResult` | `resultObjPtr` `borrowed→stored` | `void` | `no-error` | Interp **retains** the obj (+1) and releases the prior result. A `fresh_zero` obj thereby becomes interp-owned with no explicit refcount call. |
 | `Tcl_GetObjResult` | n/a | `Tcl_Obj* borrowed` | `no-error` | The interp's current result; valid until the next result-changing call; `Tcl_IncrRefCount` to keep. |
-| `Tcl_WrongNumArgs` | `objv[]` `borrowed` | `void` | `sets-result` | Builds and sets the `wrong # args` message. |
-| `Tcl_AppendResult` | n/a (varargs `char*`) | `void` | `no-error` | Appends strings to the (string) result; NULL-terminated varargs. |
+| `Tcl_ResetResult` | n/a | `void` | `no-error` | An empty result, and no error or pending `return` in flight. |
+| `Tcl_WrongNumArgs` | `objv[]` `borrowed` | `void` | `sets-result` | Builds and sets the `wrong # args` message, `-errorcode TCL WRONGARGS`. |
+| `Tcl_SetObjErrorCode` | `errorObjPtr` `borrowed→stored` | `void` | `no-error` | The `-errorcode` of the error the command returns. The runtime keeps the code's text, so a `fresh_zero` code object is freed by the call, as storing and dropping it would. `Tcl_SetErrorCode` is an inline function over this in the header. |
+| `Tcl_AppendResult` | n/a (varargs `char*`) | `void` | `no-error` | Appends strings to the (string) result; NULL-terminated varargs. An inline function in the header over `TclHost_AppendResultString`. |
+| `TclHost_AppendResultString` | n/a | `void` | `no-error` | The fixed-arity export behind the header's inline `Tcl_AppendResult`: one piece. |
+| `TclHost_SetResultString` | n/a | `void` | `no-error` | The fixed-arity export behind the header's inline `Tcl_SetResult`: a copy of the string; the inline function resolves the freeing convention. |
 | `Tcl_GetErrorLine` | n/a | `int` | `no-error` | Reader. |
 
 ### Eval

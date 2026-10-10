@@ -118,6 +118,10 @@ fn upvar_transitions_for_layout(
                     variable,
                 },
                 writes_value: false,
+                words: crate::state_transition::AliasWords {
+                    local: other_index + 1,
+                    target: other_index,
+                },
             },
         ));
     }
@@ -170,6 +174,7 @@ pub fn spec() -> CommandSpec {
             crate::completion::CompletionCode::Ok,
             crate::completion::CompletionCode::Error,
         ])),
+        runtime_backing: RuntimeBacking::shipped("upvar"),
         // A pure variable-scoping primitive — no filesystem, process, or
         // network access — so every dialect that hosts a real Tcl core carries
         // it unmodified, the same reasoning `global`/`variable` use for their
@@ -223,7 +228,6 @@ pub fn spec() -> CommandSpec {
         codegen_hook: Some(CodegenHookId::Upvar),
         forms: FORMS,
         xc_translatable: Some(false),
-        analyser_hook: Some(crate::hooks::AnalyserHookId::Upvar),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(UPVAR_TRANSITIONS),
         ..CommandSpec::DEFAULT

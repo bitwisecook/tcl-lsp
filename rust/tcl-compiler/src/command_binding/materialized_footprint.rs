@@ -198,7 +198,21 @@ impl OriginalSourceMaterializedFootprint<'_> {
         self.read_footprint(false)
     }
 
+    /// Possible names of this selected original command, including templates
+    /// re-evaluated under its own retained source lookup and grammar.
+    pub(crate) fn invocation_footprint(&self) -> crate::ir_helpers::VariableWriteEffects {
+        self.command_footprint(true, true)
+    }
+
     fn read_footprint(&self, include_invocation: bool) -> crate::ir_helpers::VariableWriteEffects {
+        self.command_footprint(include_invocation, false)
+    }
+
+    fn command_footprint(
+        &self,
+        include_invocation: bool,
+        include_writes: bool,
+    ) -> crate::ir_helpers::VariableWriteEffects {
         let Some((command, tokens)) = self.binding.original_recorded_command() else {
             return crate::ir_helpers::VariableWriteEffects {
                 opaque: true,
@@ -237,6 +251,16 @@ impl OriginalSourceMaterializedFootprint<'_> {
             };
         }
         let words = crate::ir_helpers::footprint_command_words(&map, config, &command);
+        if include_writes {
+            return crate::ir_helpers::command_possible_footprint_with_metadata_context(
+                &words,
+                self.registry,
+                self.state,
+                &crate::ir::ExecutionNamespace::SourceContext(self.namespace.clone()),
+                self.metadata,
+                self.config,
+            );
+        }
         crate::ir_helpers::command_possible_reads_with_metadata_context(
             &words,
             self.registry,

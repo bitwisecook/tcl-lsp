@@ -48,8 +48,8 @@ use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 
 use super::hints::{
-    ShimmerExpectation, invocation_shimmer_expectation, is_numeric_compatible,
-    is_uncommitted_first_conversion,
+    ShimmerExpectation, invocation_shimmer_expectation, is_free_first_conversion,
+    is_numeric_compatible, is_uncommitted_first_conversion,
 };
 use super::span::def_range_map;
 use super::{ShimmerWarning, type_name};
@@ -61,37 +61,24 @@ use super::{ShimmerWarning, type_name};
 /// [`ShimmerWarning`] for each type mismatch where the variable's known
 /// type differs from what the command requires.
 #[must_use]
-#[cfg(test)]
-pub(crate) fn find_use_site_shimmers(
-    cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<BlockId>,
-    registry: &CommandRegistry,
-    values: &HashMap<ValueKey, LatticeValue>,
-    facts: &super::ShimmerFacts,
-) -> Vec<ShimmerWarning> {
-    find_use_site_shimmers_with_context(
-        cfg,
-        ssa,
-        types,
-        executable_blocks,
-        super::ShimmerContext::standalone(registry),
-        values,
-        facts,
-    )
-}
-
 pub(crate) fn find_use_site_shimmers_with_context(
     cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    types: &HashMap<ValueKey, TypeLattice>,
-    executable_blocks: &HashSet<BlockId>,
-    context: super::ShimmerContext<'_>,
-    values: &HashMap<ValueKey, LatticeValue>,
+    commit_ctx: &super::commit::CommitCtx<'_>,
+    (executable_blocks, in_force): (
+        &HashSet<BlockId>,
+        &HashMap<(BlockId, ValueKey), TypeLattice>,
+    ),
     facts: &super::ShimmerFacts,
 ) -> Vec<ShimmerWarning> {
-    let registry = context.registry();
+    let super::commit::CommitCtx {
+        registry,
+        ssa,
+        types,
+        values,
+        folded,
+        context,
+        source: _,
+    } = *commit_ctx;
     let loop_blocks = &facts.loop_blocks;
     let def_map = def_range_map(ssa);
     // Loop-invariance facts for the S101→S100 downgrade — only needed when
@@ -104,14 +91,6 @@ pub(crate) fn find_use_site_shimmers_with_context(
     // conflation the S102 pass already guards. Reuse its exclusion so S100 /
     // S101 don't false-positive on independent array elements.
     let array_syms = super::thunking::array_element_symbols(cfg, ssa);
-    let commit_ctx = super::commit::CommitCtx {
-        registry,
-        context,
-        ssa,
-        source: crate::ssa::SsaSourceView::unpositioned(ssa),
-        types,
-        values,
-    };
     let mut out: Vec<ShimmerWarning> = Vec::new();
 
     for block_id in cfg_order(cfg) {
@@ -130,14 +109,15 @@ pub(crate) fn find_use_site_shimmers_with_context(
         // The committed-intrep walker replays the commit transfer function in
         // step with this walk, so each statement's checks see the state *just
         // before* it executes.
-        let mut commit_walker = facts.commit.walker(&commit_ctx, block_id);
+        let mut commit_walker = facts.commit.walker(commit_ctx, block_id);
         for (index, ss) in ssa_block.statements.iter().enumerate() {
             let mut ctx = UseSiteCtx {
-                types,
+                types: super::BlockTypes::at(types, in_force, block_id),
                 registry,
                 context,
                 def_map: &def_map,
                 values,
+                folded,
                 loop_facts: &loop_facts,
 
                 source: crate::ssa::SsaSourceView::at_statement(ssa, block_id, index),
@@ -159,11 +139,15 @@ pub(crate) fn find_use_site_shimmers_with_context(
 /// through the use-site shimmer walk.  `in_loop` / `already_coerced` are
 /// per-block; `out` accumulates across the whole function.
 struct UseSiteCtx<'a> {
-    types: &'a HashMap<ValueKey, TypeLattice>,
+    /// The type lattice as the block reads it.
+    types: super::BlockTypes<'a>,
     registry: &'a CommandRegistry,
     context: super::ShimmerContext<'a>,
     def_map: &'a HashMap<ValueKey, Span>,
     values: &'a HashMap<ValueKey, LatticeValue>,
+    /// The folded types SCCP's evaluations state: a use of a computed value
+    /// reads the representation its route constructed.
+    folded: &'a HashMap<ValueKey, crate::value_transfer::FoldedType>,
     loop_facts: &'a LoopFacts,
     source: crate::ssa::SsaSourceView<'a>,
     /// Array-base symbols excluded from shimmer reporting (FP-SH-13) — a
@@ -176,6 +160,21 @@ struct UseSiteCtx<'a> {
     in_loop: bool,
     already_coerced: &'a mut HashSet<(Symbol, u32, TclType)>,
     out: &'a mut Vec<ShimmerWarning>,
+}
+
+impl UseSiteCtx<'_> {
+    /// The representation the evaluation that produced `(sym, ver)` states
+    /// it constructed, when it says.
+    fn representation(
+        &self,
+        sym: Symbol,
+        ver: u32,
+    ) -> tcl_registry::value_transfer::RepresentationEvidence {
+        self.folded.get(&(sym, ver)).map_or(
+            tcl_registry::value_transfer::RepresentationEvidence::Unknown,
+            |folded| folded.representation,
+        )
+    }
 }
 
 /// Loop-invariance facts used to refine the in-loop shimmer classification.
@@ -407,7 +406,7 @@ fn resolve_tracked_var_use(
     }
     let lattice = ctx
         .types
-        .get(&(sym, ver))
+        .get((sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
     if lattice.kind() != TypeKind::Known {
@@ -517,10 +516,11 @@ fn check_argument(ctx: &mut UseSiteCtx<'_>, site: &InvocationSite<'_>, i: usize)
             .get(&sym)
             .is_some_and(|targets| targets.len() >= 2);
     if !multi_target_in_loop
-        && is_uncommitted_first_conversion(
+        && is_free_first_conversion(
             current,
             expected,
             ctx.values.get(&(sym, ver)),
+            ctx.representation(sym, ver),
             ctx.commit.numbers(),
             ctx.commit.word_rules(),
         )
@@ -796,7 +796,7 @@ fn check_incr_read(
     }
     let lattice = ctx
         .types
-        .get(&(sym, ver))
+        .get((sym, ver))
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
     if lattice.kind() != TypeKind::Known {
@@ -828,10 +828,11 @@ fn check_incr_read(
         // incr n`, `set n 5; incr n`) promotes to `Int` for free — no shimmer.
         // A non-integer pure string (`set n hello; incr n`) is *not* a valid
         // instance, so it still fires: that conversion fails at runtime.
-        if is_uncommitted_first_conversion(
+        if is_free_first_conversion(
             current,
             TclType::Int,
             ctx.values.get(&(sym, ver)),
+            ctx.representation(sym, ver),
             ctx.commit.numbers(),
             ctx.commit.word_rules(),
         ) {
@@ -1053,6 +1054,7 @@ mod tests {
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
             values: &fu.sccp.values,
+            folded: &fu.sccp.folded_types,
         };
         let facts = super::super::ShimmerFacts {
             commit: super::super::commit::compute_commit_facts(
@@ -1063,15 +1065,47 @@ mod tests {
             ),
             loop_blocks: super::super::graph::loop_body_blocks(&fu.cfg),
         };
+        let in_force = crate::type_infer::types_in_force(&fu.types, &fu.sccp);
         find_use_site_shimmers(
             &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            registry,
-            &fu.sccp.values,
+            &ctx,
+            (&fu.sccp.executable_blocks, &in_force),
             &facts,
         )
+    }
+
+    /// A computed constant never hides a conversion
+    /// (`docs/design/compiler/value-transfers-examples.md` § S100–S110):
+    /// `[string length $s]` and `incr` build an int, whatever the lattice
+    /// knows of its string, so reading it as a list re-represents it — the
+    /// value's representation evidence, not the literal rule, decides. tclsh
+    /// 8.6, 9.0 and 9.1 agree (`tcl::unsupported::representation`: `int`
+    /// before the `lindex`, `list` after). A literal of the same spelling
+    /// is a pure string whose first list conversion is free, and stays
+    /// silent.
+    #[test]
+    fn a_computed_constant_never_hides_a_conversion() {
+        let r = registry();
+        let src = "proc computed {} {\n    set s abc\n    set n [string length $s]\n    \
+                   lindex $n 0\n}\nproc counted {} {\n    set i 0\n    incr i\n    \
+                   lindex $i 0\n}\nproc literal {} {\n    set n 3\n    lindex $n 0\n}\n";
+        let cu = CompilationUnit::build_for(src, &r, false);
+        let shimmers = |name: &str| use_site_shimmers(cu.function(name).unwrap(), &r);
+        for (name, var) in [("::computed", "n"), ("::counted", "i")] {
+            let found = shimmers(name);
+            assert!(
+                found.iter().any(|w| w.variable == var
+                    && w.command == "lindex"
+                    && w.from_type == TclType::Int
+                    && w.to_type == TclType::List),
+                "{name}: {found:?}"
+            );
+        }
+        assert!(
+            shimmers("::literal").is_empty(),
+            "{:?}",
+            shimmers("::literal")
+        );
     }
 
     /// A String variable passed to `incr` triggers S100.
@@ -2186,4 +2220,17 @@ mod tests {
             "a varName-less regsub returns the substituted string: {on_out:?}"
         );
     }
+}
+
+#[cfg(test)]
+pub(crate) fn find_use_site_shimmers(
+    cfg: &CfgFunction,
+    commit_ctx: &super::commit::CommitCtx<'_>,
+    (executable_blocks, in_force): (
+        &HashSet<BlockId>,
+        &HashMap<(BlockId, ValueKey), TypeLattice>,
+    ),
+    facts: &super::ShimmerFacts,
+) -> Vec<ShimmerWarning> {
+    find_use_site_shimmers_with_context(cfg, commit_ctx, (executable_blocks, in_force), facts)
 }

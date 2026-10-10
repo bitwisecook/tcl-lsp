@@ -72,6 +72,9 @@ pub fn spec() -> CommandSpec {
         taint_transform: Some(TaintColour::REGEX_LITERAL),
         taint_double_encode_colour: Some(TaintColour::REGEX_LITERAL),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

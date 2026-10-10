@@ -435,6 +435,44 @@ mod tests {
     }
 
     #[test]
+    fn original_command_mutation_history_excludes_initial_cells_and_keeps_restored_slots() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // These table-owner operations test software mutation history. They
+        // assert no Native invocation, publication or Normal completion.
+        let (_owner, unit, context) = native_fixture("set result VALUE");
+        let cfg = &unit.top_level.cfg;
+        let tokens = CommandBindingSites::unanimous_statement_source_tokens(
+            &cfg.command_binding_sites,
+            &cfg.blocks[&cfg.entry].statements[0],
+        )
+        .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let input = binding.original_head_name_input(tokens).unwrap();
+        let mut state = super::super::cfg_entry_state(cfg, context.commands());
+        assert!(state.changed_command_spellings().next().is_none());
+        let (key, original) = state
+            .original_occupied_command_for_input(&binding.lookup_namespace_key, &input)
+            .unwrap();
+        let implementations = original.iter().cloned().collect::<Vec<_>>();
+        let [implementation] = implementations.as_slice() else {
+            panic!("one captured original command table implementation");
+        };
+        let implementation = implementation.clone();
+        state.remove(key.clone());
+        assert_eq!(
+            state.bindings.get(&key),
+            Some(&super::super::BTreeSet::from([MayBinding::Missing]))
+        );
+        state.install(key.clone(), implementation);
+        assert_eq!(state.bindings.get(&key), Some(&original));
+        let changed = state
+            .changed_command_spellings()
+            .collect::<super::super::HashSet<_>>();
+        assert_eq!(changed, super::super::HashSet::from(["::set".to_owned()]));
+    }
+
+    #[test]
     fn original_cfg_lookup_refuses_missing_foreign_and_changed_source_metadata() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
@@ -493,8 +531,11 @@ mod tests {
 
         let mut erased = cfg.clone();
         erased.command_binding_sites.clear();
-        assert!(erased.namespace_context.is_some());
         assert!(erased.executed_source.is_some());
+        assert!(matches!(
+            &erased.metadata_context,
+            crate::cfg_builder::CfgMetadataContext::SuppliedSource(_)
+        ));
         assert_eq!(
             analyse_command_binding(&erased, context.commands(), &[])
                 .binding_at(erased.entry, 0, "set")

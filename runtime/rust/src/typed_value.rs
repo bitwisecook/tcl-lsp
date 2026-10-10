@@ -340,7 +340,7 @@ pub(crate) fn scalar_number(
         return Ok(None);
     };
     if policy == NativeScalarNumericInputPolicy::NulTerminatedJim084 {
-        use tcl_syntax::expr::mathfunc::{jim_numeric_operand, NumValue};
+        use tcl_syntax::expr::mathfunc::{NumValue, jim_numeric_operand};
         let Some(number) = jim_numeric_operand::<tcl_syntax::expr::mathfunc::NoBig>(&parsed) else {
             return Ok(None);
         };
@@ -410,6 +410,42 @@ pub(crate) fn boolean_in(
         }
     }
     Ok(boolean(value, dialect))
+}
+
+/// Read `obj` as C Tcl reads a 64-bit `long` (`Tcl_GetLongFromObj` on an LP64
+/// host): a wide integer, or an integer past the wide range that is not
+/// negative and fits 64 bits unsigned, taken modulo 2^64 as C's `(long)` of an
+/// `unsigned long` takes it, so `18446744073709551615` reads -1. Past 64 bits,
+/// or below the wide range, it is the overflow [`wide_int`] reports.
+pub(crate) fn wide_int_modulo_unsigned(obj: *mut TclObj) -> Result<i64, TypedError> {
+    match wide_int(obj) {
+        Err(error) if error.code == b"ARITH IOVERFLOW" => unsigned_past_wide(obj).ok_or(error),
+        read => read,
+    }
+}
+
+/// The bits of `obj`'s integer spelling as an `i64`, when the value is past the
+/// wide range, not negative, and fits 64 bits unsigned.
+fn unsigned_past_wide(obj: *mut TclObj) -> Option<i64> {
+    let bytes = obj::bytes_of(obj);
+    let text = core::str::from_utf8(&bytes).ok()?;
+    match tcl_syntax::number::parse_whole(text)? {
+        tcl_syntax::number::Number::Big {
+            negative: false,
+            radix,
+            digits,
+        } => u64::from_str_radix(&digits, radix as u32)
+            .ok()
+            // C's `(long)` of an `unsigned long`: the same 64 bits.
+            .map(|value| value as i64),
+        _ => None,
+    }
+}
+
+/// Read `obj` as a Tcl double — `Tcl_GetDoubleFromObj`. An integer or bignum
+/// widens; `NaN` is a value here (the boolean context is where it is an error).
+pub(crate) fn double(obj: *mut TclObj) -> Result<f64, TypedError> {
+    read_double(obj).ok_or_else(|| TypedError::expected("floating-point number", obj))
 }
 
 /// Numeric truth for the expression evaluator's operand adapter.
@@ -816,24 +852,28 @@ mod tests {
             obj::internal_rep(value.as_ptr())
         );
         assert_eq!(obj::bytes_of(duplicate.as_ptr()), b"::opaque\0\xff");
-        assert!(obj::install_native_command_name_cache(
-            value.as_ptr(),
-            cache.clone(),
-            tcl_registry::InvocationDialect::for_version(TclVersion::V8_6)
-        )
-        .is_err());
+        assert!(
+            obj::install_native_command_name_cache(
+                value.as_ptr(),
+                cache.clone(),
+                tcl_registry::InvocationDialect::for_version(TclVersion::V8_6)
+            )
+            .is_err()
+        );
         assert_eq!(obj::native_command_name_cache(alias.as_ptr()), Some(cache));
         assert_eq!(unsafe { (*alias.as_ptr()).bytes }, original_bytes);
         obj::retire_native_command_name_cache(value.as_ptr()).unwrap();
         assert!(obj::native_command_name_cache(alias.as_ptr()).is_none());
         assert_eq!(unsafe { (*alias.as_ptr()).bytes }, original_bytes);
         let plain = obj::Owned::fresh(obj::new_wide_int_obj(7));
-        assert!(obj::install_native_command_name_cache(
-            plain.as_ptr(),
-            command_cache(version, b"7"),
-            dialect
-        )
-        .is_err());
+        assert!(
+            obj::install_native_command_name_cache(
+                plain.as_ptr(),
+                command_cache(version, b"7"),
+                dialect
+            )
+            .is_err()
+        );
         assert!(!obj::has_string_rep(plain.as_ptr()));
     }
     const WIDE: [&str; 5] = [
@@ -1341,9 +1381,11 @@ mod tests {
         let bits = 0xfff8_0000_0000_0042;
         let value = obj::Owned::fresh(obj::new_double_obj(f64::from_bits(bits)));
         assert!(!obj::has_string_rep(value.as_ptr()));
-        assert!(native_scalar_probe(value.as_ptr(), dialect, Kind::Int)
-            .unwrap()
-            .is_err());
+        assert!(
+            native_scalar_probe(value.as_ptr(), dialect, Kind::Int)
+                .unwrap()
+                .is_err()
+        );
         assert!(!obj::has_string_rep(value.as_ptr()));
         assert_eq!(obj::double_of(value.as_ptr()).to_bits(), bits);
         assert!(matches!(
@@ -1433,12 +1475,14 @@ mod tests {
             } else {
                 TclVersion::V9_0
             };
-            assert!(obj::native_character_count(
-                copied.as_ptr(),
-                NativeStringProtocol::C(other),
-                representation
-            )
-            .is_err());
+            assert!(
+                obj::native_character_count(
+                    copied.as_ptr(),
+                    NativeStringProtocol::C(other),
+                    representation
+                )
+                .is_err()
+            );
         }
     }
 }

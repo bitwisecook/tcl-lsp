@@ -154,6 +154,28 @@ pub(crate) fn stmt_gen_with_metadata_context(
     let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
         return;
     };
+    // Opaque switch arms remain in the statement. Their original declarations
+    // contribute possible hazards under the same retained availability.
+    if matches!(stmt, Statement::Switch { .. }) {
+        for script in crate::ir_helpers::nested_bodies(stmt) {
+            crate::ir::for_each_statement(script, &mut |inner| {
+                stmt_gen_with_metadata_context(inner, state, registry, Some(context));
+            });
+        }
+        return;
+    }
+    stmt_gen_direct_with_metadata_context(stmt, state, registry, Some(context));
+}
+
+fn stmt_gen_direct_with_metadata_context(
+    stmt: &Statement,
+    state: &mut State,
+    registry: &CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) {
+    let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
+        return;
+    };
     if let Some(normal) = stmt.tokens().and_then(|tokens| {
         crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
             registry,
@@ -1033,6 +1055,7 @@ mod tests {
                     local: variable.clone(),
                     target: VariableAliasTarget::Global { variable },
                     writes_value: false,
+                    words: tcl_registry::AliasWords::same(0),
                 },
             ));
         }
@@ -1247,5 +1270,20 @@ mod tests {
             !baseline_folds.is_empty(),
             "control: an unmodified global value remains eligible for forwarding",
         );
+    }
+
+    /// A `global` an arm of an opaque `switch` holds binds its name in this
+    /// frame whenever that arm runs, and the arms stay inside the statement:
+    /// the name is marked from the switch on, and a name no arm binds is not.
+    #[test]
+    fn a_global_bound_in_an_opaque_switch_arm_marks_the_name() {
+        let c = cu(
+            "proc ::p {s} { set x 1\nswitch -glob -- $s { q* { global g; set g 2 } }\nputs $g }",
+        );
+        let fu = c.function("::p").unwrap();
+        let reg = registry();
+        let obs = analyse_var_observability(&fu.cfg, &reg);
+        assert!(obs.escaping_var_names().contains("g"));
+        assert!(!obs.escaping_var_names().contains("x"));
     }
 }

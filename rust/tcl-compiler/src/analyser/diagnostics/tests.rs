@@ -578,8 +578,12 @@ fn w305_analyser_is_silent_on_ordinary_rtl_and_directional_marks() {
     }
 }
 
+/// W305 is emitted raw like every other finding: a disabled code is the
+/// analyser's production skip, and an inline `# noqa` is a directive fact
+/// the policy step reads, never a filter inside the producer — so the
+/// finding stays in the analysis, and its line is in `suppressed_lines`.
 #[test]
-fn w305_analyser_honours_code_and_line_suppression() {
+fn w305_analyser_skips_a_disabled_code_and_leaves_a_noqa_to_the_policy() {
     let disabled = ["W305".to_owned()].into_iter().collect();
     let result = crate::analyser::Analyser::with_disabled_diagnostics(disabled)
         .analyse("puts \"\u{202e}x\"\n", "tcl9.0");
@@ -600,7 +604,7 @@ fn w305_analyser_honours_code_and_line_suppression() {
         "file suppression failed: {result:?}"
     );
 
-    for (src, suppressed) in [
+    for (src, recorded) in [
         ("# noqa: W305\nputs \"\u{202e}x\"\n", true),
         ("# noqa: W108\nputs \"\u{202e}x\"\n", false),
     ] {
@@ -609,9 +613,15 @@ fn w305_analyser_honours_code_and_line_suppression() {
             result
                 .diagnostics
                 .iter()
-                .all(|d| d.code != tcl_core_types::DiagCode::W305),
-            suppressed,
-            "line-local suppression mismatch for {src:?}"
+                .filter(|d| d.code == tcl_core_types::DiagCode::W305)
+                .count(),
+            1,
+            "the producer keeps the finding under {src:?}"
+        );
+        assert_eq!(
+            crate::analyser::line_suppressed("W305", 1, &result.suppressed_lines),
+            recorded,
+            "the directive fact for {src:?}"
         );
     }
 }
@@ -923,6 +933,74 @@ puts $result
         unknown.len(),
         0,
         "the lambda's parameter list is not a command: {unknown:?}"
+    );
+}
+
+/// A `W123` whose call the flow graph widens — it marks the call as one to
+/// code the module cannot see — ends with the sentence that says so and names
+/// the stub that keeps the variables: at the top level, in a `namespace eval`
+/// body, in a procedure, a method and a lambda. A report whose call the graph
+/// does not widen where it is written, as in an `uplevel #0` body, ends as it
+/// was. The top-level `$g == 5` after `db_query x` draws no `I230`: the
+/// sentence stands where the widening does.
+#[test]
+fn w123_says_the_call_widens_where_it_does() {
+    let src = "proc p {} {\n    set g 5\n    db_query {select 1}\n    strng length abc\n    \
+               namespace eval ns { db_ns_call }\n    uplevel #0 { db_up_call }\n    \
+               apply {{} { db_lambda_call }}\n    puts $g\n}\n\
+               oo::class create C { method m {} { db_method_call } }\n\
+               set g 5\ndb_query x\nif {$g == 5} {puts five} else {puts other}\n";
+    let mut a = crate::analyser::Analyser::new();
+    let diagnostics = a.analyse(src, "tcl8.6").diagnostics;
+    assert!(
+        !diagnostics.iter().any(|d| d.code == DiagCode::I230),
+        "the top-level call widens `g`: {diagnostics:?}"
+    );
+    let unknown: Vec<(u32, String)> = diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W123)
+        .map(|d| (d.span.start(), d.message.clone()))
+        .collect();
+    let hint = |name: &str| {
+        format!(
+            "The call widens the variables held at it, in a procedure's own frame its locals; a \
+             `# tcl-lsp: stub {name} {{…}} -frame own` (or `-frame none`) declaration keeps them \
+             when every argument is a value, name, pattern or channel and no flag but `-pure` or \
+             `-unsafe` is set."
+        )
+    };
+    let message_at = |needle: &str, nth: usize| {
+        let offset = src.match_indices(needle).nth(nth).expect("the head").0;
+        unknown
+            .iter()
+            .find(|(start, _)| *start as usize == offset)
+            .map(|(_, message)| message.clone())
+            .expect("a W123")
+    };
+    for (head, nth) in [
+        ("db_query", 0),
+        ("db_ns_call", 0),
+        ("db_lambda_call", 0),
+        ("db_method_call", 0),
+        ("db_query", 1),
+    ] {
+        assert_eq!(
+            message_at(head, nth),
+            format!("Unknown command '{head}'. {}", hint(head)),
+            "{head} #{nth}"
+        );
+    }
+    assert_eq!(
+        message_at("strng", 0),
+        format!(
+            "Unknown command 'strng'; did you mean 'string'? {}",
+            hint("strng")
+        )
+    );
+    assert_eq!(
+        message_at("db_up_call", 0),
+        "Unknown command 'db_up_call'",
+        "an `uplevel #0` body is not lowered where it is written"
     );
 }
 
@@ -1819,6 +1897,277 @@ fn w004_skips_option_value_that_looks_like_a_flag() {
     );
 }
 
+/// The literal-only checks read proven words: each program's
+/// checked word is a variable the lattice proves at the call, and the check
+/// reports there — at the word the user wrote, once — where it had
+/// abstained; the same call over an unknown value (a parameter) draws
+/// nothing. W147 reports over the conflicting options, from the first to
+/// the proven one, as the literal form reports over its pair, and the index
+/// checks at the literal index a proven list or string makes checkable.
+/// One row of [`literal_only_checks_read_proven_words`]: the code, the
+/// dialect, the program whose checked word is proven, the same call over an
+/// unknown value, and the text the finding lands on.
+type ProvenRow = (
+    DiagCode,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+);
+
+/// The rows of [`literal_only_checks_read_proven_words`].
+const PROVEN_ROWS: [ProvenRow; 14] = [
+    (
+        DiagCode::W121,
+        "f5-irules",
+        "when CLIENT_ACCEPTED {\n    set ip [IP::client_addr]\n    set m 255.0\n    \
+             append m .255.0\n    IP::addr $ip mask $m\n}\n",
+        "when CLIENT_ACCEPTED {\n    set ip [IP::client_addr]\n    \
+             IP::addr $ip mask [IP::client_addr]\n}\n",
+        "$m",
+    ),
+    (
+        DiagCode::W127,
+        "tk",
+        "proc p {} {\n    set r bogus\n    button .b -relief $r\n}\n",
+        "proc p {r} {\n    button .b -relief $r\n}\n",
+        "$r",
+    ),
+    (
+        DiagCode::W137,
+        "tcl8.6",
+        "proc p {config} {\n    set c dict\n    string is $c $config\n}\n",
+        "proc p {c config} {\n    string is $c $config\n}\n",
+        "$c",
+    ),
+    (
+        DiagCode::W138,
+        "tcl8.5",
+        "proc p {mask} {\n    set f {flags: %b}\n    format $f $mask\n}\n",
+        "proc p {f mask} {\n    format $f $mask\n}\n",
+        "$f",
+    ),
+    (
+        DiagCode::W141,
+        "tcl8.6",
+        "proc p {path} {\n    set es {CALL load extra}\n    \
+             return -code error -errorstack $es \"cannot read $path\"\n}\n",
+        "proc p {path es} {\n    return -code error -errorstack $es \"cannot read $path\"\n}\n",
+        "$es",
+    ),
+    (
+        DiagCode::W145,
+        "tcl8.6",
+        "proc p {l} {\n    set o -in\n    lsort $o $l\n}\n",
+        "proc p {o l} {\n    lsort $o $l\n}\n",
+        "$o",
+    ),
+    (
+        DiagCode::W146,
+        "tcl8.6",
+        "proc logChange {args} {}\nproc p {} {\n    set ops {read rename write}\n    \
+             trace add variable ::config(port) $ops logChange\n}\n",
+        "proc logChange {args} {}\nproc p {ops} {\n    \
+             trace add variable ::config(port) $ops logChange\n}\n",
+        "$ops",
+    ),
+    (
+        DiagCode::W147,
+        "tcl9.0",
+        "proc p {} {\n    set o -path\n    glob -directory root $o prefix *.tcl\n}\n",
+        "proc p {o} {\n    glob -directory root $o prefix *.tcl\n}\n",
+        "-directory root $o",
+    ),
+    (
+        DiagCode::W152,
+        "tcl8.6",
+        "package require http\nproc p {cb} {\n    set opt -queryprogress\n    \
+             ::http::geturl http://example.invalid/ $opt $cb\n}\n",
+        "package require http\nproc p {opt cb} {\n    \
+             ::http::geturl http://example.invalid/ $opt $cb\n}\n",
+        "$opt",
+    ),
+    (
+        DiagCode::W200,
+        "tcl8.4",
+        "proc p {} {\n    set t cu\n    binary format $t 5\n}\n",
+        "proc p {t} {\n    binary format $t 5\n}\n",
+        "$t",
+    ),
+    (
+        DiagCode::W202,
+        "tcl8.4",
+        "proc p {b} {\n    set t t\n    binary scan $b $t v\n}\n",
+        "proc p {b t} {\n    binary scan $b $t v\n}\n",
+        "$t",
+    ),
+    (
+        DiagCode::W230,
+        "tcl8.6",
+        "proc p {} {\n    set l {a b c}\n    lindex $l 9\n}\n",
+        "proc p {l} {\n    lindex $l 9\n}\n",
+        "9",
+    ),
+    (
+        DiagCode::W232,
+        "tcl8.6",
+        "proc p {} {\n    set s abc\n    string index $s 9\n}\n",
+        "proc p {s} {\n    string index $s 9\n}\n",
+        "9",
+    ),
+    (
+        DiagCode::W303,
+        "tcl8.6",
+        "proc p {s} {\n    set re {(a+)+$}\n    regexp $re $s\n}\n",
+        "proc p {re s} {\n    regexp $re $s\n}\n",
+        "$re",
+    ),
+];
+
+#[test]
+fn literal_only_checks_read_proven_words() {
+    for (code, dialect, proven, unknown, word) in PROVEN_ROWS {
+        let reported = |src: &str| -> Vec<String> {
+            Analyser::new()
+                .analyse(src, dialect)
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == code)
+                .map(|d| src[d.span.as_range()].to_owned())
+                .collect()
+        };
+        assert_eq!(reported(proven), [word], "{code}: {proven}");
+        assert_eq!(reported(unknown), Vec::<String>::new(), "{code}: {unknown}");
+    }
+}
+
+/// A call that writes one bad word and reads a proven one reports each once:
+/// the walk the written word, the proven-word pass the proven one.
+#[test]
+fn a_proven_word_is_reported_once_beside_a_written_one() {
+    let both = "proc p {} {\n    set m 255.0.255.0\n    list 255.0.255.0 $m\n}\n";
+    let reported: Vec<String> = Analyser::new()
+        .analyse(both, "tcl8.6")
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W121 && d.span.start() > 20)
+        .map(|d| both[d.span.as_range()].to_owned())
+        .collect();
+    assert_eq!(reported, ["255.0.255.0", "255.0.255.0", "$m"], "{both}");
+}
+
+/// The source text each `code` finding of `src` is anchored at.
+fn index_findings(src: &str, code: DiagCode) -> Vec<String> {
+    Analyser::new()
+        .analyse(src, "tcl8.6")
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == code)
+        .map(|d| src[d.span.as_range()].to_owned())
+        .collect()
+}
+
+/// A `$var` index the interval checks bound is theirs, anchored at the
+/// statement; the proven-word re-run reports only the sites they cannot
+/// bound — a `split` list, a statement-level `string index`.
+#[test]
+fn an_index_site_is_reported_once() {
+    let rows: [(&str, DiagCode, &str); 6] = [
+        (
+            "set l {a b c}\nset i 9\nlindex $l $i\n",
+            DiagCode::W230,
+            "lindex $l $i",
+        ),
+        (
+            "set l [list a b c]\nset i 9\nlindex $l $i\n",
+            DiagCode::W230,
+            "lindex $l $i",
+        ),
+        (
+            "set l {a b c}\nset i 9\nputs [lindex $l $i]\n",
+            DiagCode::W230,
+            "puts [lindex $l $i]",
+        ),
+        (
+            "set l [split a,b,c ,]\nset i 9\nlindex $l $i\n",
+            DiagCode::W230,
+            "$i",
+        ),
+        (
+            "set s abc\nset i 9\nstring index $s $i\n",
+            DiagCode::W232,
+            "$i",
+        ),
+        (
+            "set s abc\nset i 9\nputs [string index $s $i]\n",
+            DiagCode::W232,
+            "puts [string index $s $i]",
+        ),
+    ];
+    for (src, code, anchor) in rows {
+        assert_eq!(index_findings(src, code), [anchor], "{code}: {src}");
+    }
+}
+
+/// A call nested in a command substitution is checked over the value its
+/// host proves, wherever the host sits: a call's words, an assignment's, a
+/// branch condition or a `return` value.
+#[test]
+fn a_nested_index_reads_the_proven_container() {
+    let rows: [(&str, DiagCode); 9] = [
+        ("set l {a b c}\nputs [lindex $l 9]\n", DiagCode::W230),
+        ("set l [list a b c]\nputs [lindex $l 9]\n", DiagCode::W230),
+        (
+            "set l [split a,b,c ,]\nputs [lindex $l 9]\n",
+            DiagCode::W230,
+        ),
+        (
+            "set l {}\nlappend l a b c\nputs [lindex $l 9]\n",
+            DiagCode::W230,
+        ),
+        ("set l {a b c}\nset x [lindex $l 9]\n", DiagCode::W230),
+        (
+            "set l {a b c}\nif {[lindex $l 9] eq {}} {puts e}\n",
+            DiagCode::W230,
+        ),
+        (
+            "proc p {} {\n    set l {a b c}\n    return [lindex $l 9]\n}\n",
+            DiagCode::W230,
+        ),
+        ("set s abc\nputs [string index $s 9]\n", DiagCode::W232),
+        (
+            "set s abc\nputs \"at [string index $s 9]\"\n",
+            DiagCode::W232,
+        ),
+    ];
+    for (src, code) in rows {
+        assert_eq!(index_findings(src, code), ["9"], "{code}: {src}");
+    }
+}
+
+/// No finding where the call is not run by the substitution — a braced
+/// word, a script run later — or where an earlier substitution in the same
+/// command writes the variable the word reads: `$i` is 0 there, in range.
+#[test]
+fn a_nested_index_reads_only_what_the_substitution_sees() {
+    for src in [
+        "set l {a b c}\nputs {[lindex $l 9]}\n",
+        "set l {a b c}\nafter 100 {puts [lindex $l 9]}\n",
+        "set i 9\nlindex {{a b} c} [set i 0] $i\n",
+        "set i 9\nputs [lindex {{a b} c} [set i 0] $i]\n",
+        "set l {a b c}\nputs [lindex [set l {a b c d e f g h i j k}] 0][lindex $l 9]\n",
+        "proc p {} {\n    set l {a b c}\n    \
+             return [lindex [set l {a b c d e f g h i j k}] 0][lindex $l 9]\n}\n",
+        "set l {a b c}\nif {[set l {a b c d e f g h i j k}] ne {} && [lindex $l 9] eq {}} {puts e}\n",
+    ] {
+        assert_eq!(
+            index_findings(src, DiagCode::W230),
+            Vec::<String>::new(),
+            "{src}"
+        );
+    }
+}
+
 #[test]
 fn w127_fires_on_invalid_option_enum_value() {
     // `-relief` carries a closed Tk value set; a literal outside it is W127.
@@ -2278,6 +2627,58 @@ fn w147_reports_registry_declared_mutually_exclusive_options() {
             .any(|diagnostic| diagnostic.code == DiagCode::W147),
         "Tcl 9-only relationship must not leak into Tcl 8.6"
     );
+}
+
+/// `subst`'s two switch families cannot be combined (tclsh 9.1b0:
+/// `cannot combine positive and negative options`): the registry declares the
+/// exclusion as option relations, so the existing relation check reports it
+/// as W147 at the call site — no `subst` logic in the analyser.
+#[test]
+fn w147_reports_mixed_subst_switch_families() {
+    let w147 = |src: &str, dialect: &str| -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W147)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    let mixed = w147("subst -nocommands -variables $x\n", "tcl9.1");
+    assert_eq!(mixed.len(), 1, "{mixed:?}");
+    assert!(
+        mixed[0].contains("cannot combine positive and negative options"),
+        "{mixed:?}"
+    );
+    // One family alone is legal, and below 9.1 the positive switches are not
+    // options at all, so there is no family to mix.
+    assert!(w147("subst -nocommands -novariables $x\n", "tcl9.1").is_empty());
+    assert!(w147("subst -variables -commands $x\n", "tcl9.1").is_empty());
+    assert!(w147("subst -nocommands -variables $x\n", "tcl9.0").is_empty());
+}
+
+/// `regexp -inline` returns the match data and rejects a match variable
+/// (tclsh 8.4–9.1: `regexp match variables not allowed when using
+/// -inline`): the trailing word is the relation's finding, never a write.
+#[test]
+fn w147_reports_a_match_variable_after_regexp_inline() {
+    let w147 = |src: &str| -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W147)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    let found = w147("regexp -inline {a(b)} ab v\n");
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(
+        found[0].contains("regexp match variables not allowed when using -inline"),
+        "{found:?}"
+    );
+    assert!(w147("set t {a b}\nregexp -all -inline {\\S+} $t\n").is_empty());
+    assert!(w147("regexp {a(b)} ab v\n").is_empty());
 }
 
 #[test]
@@ -4934,7 +5335,7 @@ fn emit_cfg_ssa_diagnostics_runs_without_panicking_on_empty_source() {
     );
 }
 
-/// Slice 4: a memoised `CompilationUnit` (built via `build_for_memoized`
+/// A memoised `CompilationUnit` (built via `build_for_memoized`
 /// and fed through the `cu_override` seam) must yield **byte-identical**
 /// diagnostics to the whole-file path — both on a cold cache (all misses,
 /// proving the refactor) and a warm cache (all hits, proving the cache key
@@ -5019,6 +5420,7 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                     let trace_facts = crate::compilation_unit::ModuleTraceFacts {
                         traced_variables: &traced_variables,
                         has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+                        deferred_writes: &req.analysis_context.deferred_writes,
                     };
                     let fu = FunctionUnit::build_with_param_constants_and_classes(
                         req.qname,
@@ -7088,6 +7490,314 @@ fn i230_message_keeps_braced_var_spelling() {
     );
 }
 
+/// The existence branch fact is stored once, with its kind
+/// (`docs/design/compiler/value-transfers.md` § *Branch facts*). The
+/// solver decides `[info exists X]` inside the fixed
+/// point, so the unit stores it as an `Applied` fact like any decided
+/// branch — reachability follows it — and I230 reports each stored fact
+/// once. Under iRules `[info exists ans_cleared]` in one event is not
+/// decided when another event sets the variable, which enters `MayBound`
+/// there, and a name no handler binds still is.
+#[test]
+fn the_existence_branch_fact_is_stored_once() {
+    use crate::sccp::BranchFactKind;
+    let src = "proc f {a} {\n    if {[info exists b]} { puts hi }\n    if {1} { puts one }\n}\n";
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let unit = crate::compilation_unit::CompilationUnit::build_for(src, &registry, false);
+    let function = unit.function("::f").expect("the procedure");
+    let kinds: Vec<(&str, BranchFactKind)> = function
+        .sccp
+        .constant_branches
+        .iter()
+        .map(|branch| (branch.condition.as_str(), branch.kind))
+        .collect();
+    assert!(
+        kinds.contains(&("[info exists b]", BranchFactKind::Applied))
+            && kinds.contains(&("1", BranchFactKind::Applied)),
+        "{kinds:?}"
+    );
+    let decided = function
+        .sccp
+        .constant_branches
+        .iter()
+        .find(|branch| branch.condition == "[info exists b]")
+        .expect("the existence branch");
+    assert!(
+        function
+            .cfg
+            .block_id(&decided.not_taken_target)
+            .is_some_and(|id| !function.sccp.executable_blocks.contains(&id)),
+        "the dead arm is unreachable"
+    );
+    assert_eq!(
+        codes_for(src).iter().filter(|code| *code == "I230").count(),
+        2,
+        "one I230 per stored fact"
+    );
+
+    let irule = "when HTTP_REQUEST {\n    set ans_cleared 1\n}\nwhen HTTP_RESPONSE {\n    \
+                 if {[info exists ans_cleared]} { log local0. cleared }\n    \
+                 if {[info exists never_set]} { log local0. never }\n}\n";
+    let result = Analyser::new().analyse(irule, "f5-irules");
+    let reported: Vec<&str> = result
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::I230)
+        .map(|d| d.message.as_str())
+        .collect();
+    assert!(
+        reported.len() == 1 && reported[0].contains("never_set"),
+        "{reported:?}"
+    );
+}
+
+/// I231 on an opaque `switch` reports each arm whose body no member of the
+/// proven subject runs, at its pattern, from the unit's `Selected` branch
+/// facts: the arm a pattern selects, the arms a `-` body passes through to a
+/// running body and the final `default` are not reported; a subject the
+/// lattice does not prove, code that cannot run and a form a release does
+/// not have report nothing. Each selection is tclsh 8.6's.
+#[test]
+fn an_opaque_switch_reports_the_arms_it_never_selects() {
+    let reported = |source: &str, dialect: &str| -> Vec<u32> {
+        let mut starts: Vec<u32> = Analyser::new()
+            .analyse(source, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::I231)
+            .map(|d| d.span.start())
+            .collect();
+        starts.sort_unstable();
+        starts
+    };
+    let at = |source: &str, words: &[&str]| -> Vec<u32> {
+        words
+            .iter()
+            .map(|word| u32::try_from(source.find(word).expect("an arm")).expect("an offset"))
+            .collect()
+    };
+    let arms = "-glob -- $s {\n a* {puts A}\n b* {puts B}\n c* {puts C}\n default {puts D}\n }";
+    let with = |subject: &str| format!("proc p {{}} {{\n set s {subject}\n switch {arms}\n}}\n");
+    let selects_a = with("abc");
+    assert_eq!(
+        reported(&selects_a, "tcl8.6"),
+        at(&selects_a, &["b*", "c*"])
+    );
+    let selects_default = with("zzz");
+    assert_eq!(
+        reported(&selects_default, "tcl8.6"),
+        at(&selects_default, &["a*", "b*", "c*"])
+    );
+
+    // `a1 -` passes its body on to `a2`'s: the group runs when either matches.
+    let group = |subject: &str| {
+        format!(
+            "proc p {{}} {{\n set s {subject}\n switch -glob -- $s {{\n a1 - a2 {{puts S}}\n b {{puts B}}\n default {{puts D}}\n }}\n}}\n"
+        )
+    };
+    let runs = group("a2");
+    assert_eq!(reported(&runs, "tcl8.6"), at(&runs, &["b {"]));
+    let skips = group("zzz");
+    assert_eq!(reported(&skips, "tcl8.6"), at(&skips, &["a1", "a2", "b {"]));
+
+    // A finite subject: an arm any member reaches is not reported.
+    let finite = "proc p {c} {\n if {$c} {set t a} else {set t b}\n switch -glob -- $t {\n a {puts A}\n b {puts B}\n c {puts C}\n default {puts D}\n }\n}\n";
+    assert_eq!(reported(finite, "tcl8.6"), at(finite, &["c {"]));
+
+    // `case` reads its own contract, and is gone from 9.0.
+    let case = "proc p {} {\n case abc in a* {puts A} b* {puts B} default {puts D}\n}\n";
+    assert_eq!(reported(case, "tcl8.6"), at(case, &["b*"]));
+    assert!(reported(case, "tcl9.0").is_empty());
+
+    // Nothing is proven about a parameter, and dead code is not analysed.
+    let unknown = "proc p {s} {\n switch -glob -- $s {a* {puts A} b* {puts B}}\n}\n";
+    assert!(reported(unknown, "tcl8.6").is_empty());
+    let dead = "proc p {} {\n return\n switch -glob -- abc {a* {puts A} b* {puts B}}\n}\n";
+    assert!(reported(dead, "tcl8.6").is_empty());
+
+    // A quoted `-` body of the separate-words form reads two ways on 9.1b0,
+    // and `abc` selects the arm that has one: no selection there, so nothing
+    // is reported; 9.0 reads it by value and falls through into `b*`'s body.
+    let quoted = "proc p {} {\n set s abc\n switch -glob -- $s a* \"-\" b* {puts B} c* {puts C} default {puts D}\n}\n";
+    assert_eq!(reported(quoted, "tcl9.0"), at(quoted, &["c*"]));
+    assert!(reported(quoted, "tcl9.1").is_empty());
+}
+
+/// I231 on an opaque case list names the command the statement is spelled
+/// with: a `case` statement's arm is a `Case` arm, a `switch` statement's a
+/// `Switch` arm, on the whole-file walk and the per-item walk alike.
+#[test]
+fn i231_names_the_command_of_the_case_list() {
+    let switch = "proc p {} {\n set s abc\n switch -glob -- $s {a* {puts A} b* {puts B} default {puts D}}\n}\n";
+    let case = "proc p {} {\n case abc in a* {puts A} b* {puts B} default {puts D}\n}\n";
+    assert_eq!(
+        i231_messages(switch, "tcl8.6"),
+        ["Switch arm 'b*' is never selected; this arm is unreachable"]
+    );
+    for dialect in ["tcl8.4", "tcl8.6", "f5-irules"] {
+        assert_eq!(
+            i231_messages(case, dialect),
+            ["Case arm 'b*' is never selected; this arm is unreachable"],
+            "{dialect}"
+        );
+    }
+    // A statement spelled with its namespace reads as the command it names.
+    let qualified = "proc p {} {\n ::case abc in a* {puts A} b* {puts B} default {puts D}\n ::switch -glob -- abc {a* {puts A} b* {puts B}}\n}\n";
+    assert_eq!(
+        i231_messages(qualified, "tcl8.6"),
+        [
+            "Case arm 'b*' is never selected; this arm is unreachable",
+            "Switch arm 'b*' is never selected; this arm is unreachable"
+        ]
+    );
+}
+
+/// The I231 messages `source` draws under `dialect`, which the whole-file walk
+/// and the per-item walk must draw alike.
+fn i231_messages(source: &str, dialect: &str) -> Vec<String> {
+    let collect = |result: crate::analyser::types::AnalysisResult| -> Vec<String> {
+        result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::I231)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    let whole = collect(Analyser::new().analyse(source, dialect));
+    let per_item = collect(Analyser::new().analyse_per_item(source, dialect));
+    assert_eq!(whole, per_item, "{dialect}: the two walks agree\n{source}");
+    whole
+}
+
+/// `source` as the body of a procedure, which the per-item walk analyses on
+/// its own.
+fn in_proc(source: &str) -> String {
+    format!("proc p {{}} {{\n{source}\n}}\n")
+}
+
+/// I231 reads the words of a flattened `switch` by their values: each program
+/// selects its `hit` arm whichever way its subject and pattern are spelled, so
+/// the one claim is that the default after it is unreachable. The dispatch
+/// chain compared the subject's spelling — `a\nb` is four characters there —
+/// to the decoded pattern and reported the `hit` arm unreachable. The opaque
+/// `-glob` form reads the same words and reports no arm. Each program prints
+/// `hit` under tclsh 8.4 to 9.1.
+#[test]
+fn i231_reads_a_switch_words_by_their_values() {
+    let programs = [
+        r#"switch -- a\nb {"a\nb" {puts hit} default {puts miss}}"#,
+        r#"switch -exact -- "a\tb" {a\tb {puts hit} default {puts miss}}"#,
+        r#"switch a\nb {"a\nb" {puts hit} default {puts miss}}"#,
+        r#"switch "a\nb" {a\nb {puts hit} default {puts miss}}"#,
+        r#"switch "a\tb" {a\tb {puts hit} default {puts miss}}"#,
+        r#"switch a\tb {"a\tb" {puts hit} default {puts miss}}"#,
+        r#"switch "a\\b" {{a\b} {puts hit} default {puts miss}}"#,
+        r#"switch {a\b} {"a\\b" {puts hit} default {puts miss}}"#,
+        "switch \"a\\nb\" {{a\nb} {puts hit} default {puts miss}}",
+        "switch {a\nb} {\"a\\nb\" {puts hit} default {puts miss}}",
+        "switch {a\\\nb} {{a b} {puts hit} default {puts miss}}",
+        r#"switch "a\tb" a\tb {puts hit} default {puts miss}"#,
+        r#"switch a\tb "a\tb" {puts hit} default {puts miss}"#,
+        r"switch a\$b {a\$b {puts hit} default {puts miss}}",
+        r"switch a\[b {a\[b {puts hit} default {puts miss}}",
+    ];
+    for source in programs {
+        for program in [source.to_owned(), in_proc(source)] {
+            for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+                let reported = i231_messages(&program, dialect);
+                assert!(
+                    matches!(reported.as_slice(), [one] if one.contains("is always true here")),
+                    "{dialect}: {program}\n{reported:?}"
+                );
+            }
+        }
+    }
+    // A variable subject is read by the lattice, and is flattened from 8.5.
+    let variable = "set s \"a\\nb\"\nswitch $s {a\\nb {puts hit} default {puts miss}}";
+    for program in [variable.to_owned(), in_proc(variable)] {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let reported = i231_messages(&program, dialect);
+            assert!(
+                matches!(reported.as_slice(), [one] if one.contains("is always true here")),
+                "{dialect}: {program}\n{reported:?}"
+            );
+        }
+    }
+    let glob = r#"switch -glob -- a\nb {"a\nb" {puts hit} default {puts miss}}"#;
+    for source in [variable, glob] {
+        for program in [source.to_owned(), in_proc(source)] {
+            for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+                let reported = i231_messages(&program, dialect);
+                assert!(
+                    reported.iter().all(|one| !one.contains("always false")),
+                    "{dialect}: {program}\n{reported:?}"
+                );
+            }
+        }
+    }
+    assert!(i231_messages(glob, "tcl8.6").is_empty());
+}
+
+/// Before 8.5 `switch` reads every leading word that starts with `-` as an
+/// option, however many words follow, so the subject below is one: tclsh 8.4
+/// rejects the program with `bad option`, where 8.5 to 9.1 select the `-glob`
+/// arm and print `G`. A release that may be 8.4 — `tcl8.4`, the iRules base, a
+/// profile that names no release — reports nothing of the statement; from 8.5
+/// the arm is reported as the one selected. `--` ends the run, so the claim is
+/// made under every release, and a subject that does not start with `-` keeps
+/// the verdict of the statement's own record, which names the arm never
+/// selected.
+#[test]
+fn i231_never_reports_a_switch_over_a_subject_a_release_may_read_as_an_option() {
+    let bare = "set x -glob\nswitch $x {-glob {puts G} default {puts D}}\n";
+    let ended = "set x -glob\nswitch -- $x {-glob {puts G} default {puts D}}\n";
+    let escaped = "switch \\x2dglob {-glob {puts G} default {puts D}}\n";
+    let plain = "set x a\nswitch $x {a {puts A} b {puts B} default {puts D}}\n";
+    for wrap in [str::to_owned, in_proc] {
+        for dialect in ["tcl8.4", "f5-irules", "tk"] {
+            let reported = i231_messages(&wrap(bare), dialect);
+            assert!(reported.is_empty(), "{dialect}: {reported:?}");
+        }
+        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+            let reported = i231_messages(&wrap(bare), dialect);
+            assert!(
+                matches!(reported.as_slice(), [one] if one.contains("is always true here")),
+                "{dialect}: {reported:?}"
+            );
+        }
+        for dialect in ["tcl8.4", "tcl8.6", "tk"] {
+            assert_eq!(
+                i231_messages(&wrap(ended), dialect).len(),
+                1,
+                "{dialect}: `--` ends the options"
+            );
+        }
+        assert!(i231_messages(&wrap(escaped), "tcl8.4").is_empty());
+        assert_eq!(i231_messages(&wrap(escaped), "tcl8.6").len(), 1);
+        for dialect in ["tcl8.4", "tk"] {
+            let reported = i231_messages(&wrap(plain), dialect);
+            assert!(
+                matches!(reported.as_slice(), [one] if one.contains("'b' is never selected")),
+                "{dialect}: {reported:?}"
+            );
+        }
+        // With pattern and body words the subject is inside the scan on every
+        // release: tclsh rejects `words`, and the arm a plain value never
+        // selects is reported from its record alone.
+        let words = "set x -glob\nswitch $x a {puts A} default {puts D}\n";
+        let words_plain = "set x a\nswitch $x a {puts A} b {puts B} default {puts D}\n";
+        for dialect in ["tcl8.4", "f5-irules", "tk", "tcl8.5", "tcl8.6", "tcl9.0"] {
+            let reported = i231_messages(&wrap(words), dialect);
+            assert!(reported.is_empty(), "{dialect}: {reported:?}");
+            let reported = i231_messages(&wrap(words_plain), dialect);
+            assert!(
+                matches!(reported.as_slice(), [one] if one.contains("'b' is never selected")),
+                "{dialect}: {reported:?}"
+            );
+        }
+    }
+}
+
 /// Execute the fixture's source analysis under an independently captured native entry.
 /// Declared body metadata alone cannot establish an actual existence-fold receipt.
 fn native_existence_result(src: &str, dialect: &str) -> crate::analyser::AnalysisResult {
@@ -7318,6 +8028,21 @@ fn info_exists_does_not_fold_unset_parameter() {
         branches[0].message.contains("always false"),
         "unset parameter must not fold true; got {branches:?}",
     );
+}
+
+#[test]
+fn info_exists_folds_an_unset_parameter_false() {
+    // A parameter that is `unset` before the check no longer exists: the
+    // existence rung reads the `unset`, so the guard folds always false and
+    // never the parameter's entry "always true" — tclsh 8.4.20 to 9.1b0:
+    // `proc f {a} { unset a; info exists a }; f 1` → 0.
+    let msgs = i230_messages("proc f {a} { unset a; if {[info exists a]} { puts hi } }");
+    assert_eq!(
+        msgs.len(),
+        1,
+        "an unset parameter's guard folds once; got {msgs:?}"
+    );
+    assert!(msgs[0].contains("always false"), "got {msgs:?}");
 }
 
 #[test]
@@ -10460,6 +11185,51 @@ fn w210_matchable_regexp_scan_silent() {
     );
 }
 
+/// W210 reads the preserve outcome: a match variable a `regexp` leaves
+/// untouched holds its prior
+/// version (`SccpResult::preserved`), so a read of one no earlier statement
+/// set is a read before set, reported at the read — a `return` and a
+/// condition's no-match arm included — and a read of one an earlier
+/// statement set is not. tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1b0:
+/// `regexp {(x)(y)} zz a b; puts $a` fails with `can't read "a": no such
+/// variable` (and `return $b` with `can't read "b"`), the matching subject
+/// prints `xy`, and `set a before` first prints `before`, where the private
+/// prover reported that read too.
+#[test]
+fn w210_reads_a_no_match_preserve_outcome() {
+    let reads = |src: &str| -> Vec<String> {
+        Analyser::new()
+            .analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W210)
+            .map(|d| src[d.span.as_range()].to_owned())
+            .collect()
+    };
+    assert_eq!(
+        reads("proc f {} {\n    regexp {(x)(y)} zz a b\n    puts $a\n}\n"),
+        ["$a"]
+    );
+    // The return pass and the def-use pass each report a `return` read of
+    // an undefined version, as they do after an `unset`.
+    let returned = reads("proc g {} {\n    regexp {(x)(y)} zz a b\n    return $b\n}\n");
+    assert!(
+        !returned.is_empty() && returned.iter().all(|read| read.contains("$b")),
+        "{returned:?}"
+    );
+    assert_eq!(
+        reads("proc n {} {\n    if {![regexp {x} y -> v]} { puts $v }\n}\n"),
+        ["$v"]
+    );
+    for silent in [
+        "proc h {} {\n    regexp {(x)(y)} xy a b\n    puts $a\n}\n",
+        "proc k {} {\n    set a before\n    regexp {(x)(y)} zz a b\n    puts $a\n}\n",
+        "proc m {} {\n    set v before\n    if {![regexp {x} y -> v]} { puts $v }\n}\n",
+    ] {
+        assert_eq!(reads(silent), Vec::<String>::new(), "{silent}");
+    }
+}
+
 #[test]
 fn w210_incr_on_uninit_is_silent() {
     // `incr z` initialises z to 0 (Tcl 8.5+) — not read-before-set.
@@ -10574,6 +11344,80 @@ fn w210_empty_dict_with_return_fires_but_known_key_silent() {
         0,
         "unknown dict-with return must be silent; got {unknown:?}"
     );
+}
+
+/// The `dict with` / `dict update` key harvest reads the registry's body
+/// plan. A key path descends before the keys bind: `dict with d a
+/// {}` over `{a {x 1}}` binds `x`, not `a` (tclsh 8.5 to 9.1 return `1`,
+/// and raise `can't read "y"` for a key the path does not hold); a key path
+/// over a dictionary the analysis does not know leaves the shape unknown;
+/// the qualified spelling is the same plan; and a `dict update` variable is
+/// bound only when the dictionary holds its key (`can't read "v"`
+/// otherwise).
+#[test]
+fn w210_dict_body_keys_come_from_the_plan() {
+    let path = w210_codes("proc f {} { set d {a {x 1}}\n dict with d a {}\n return $x }");
+    assert!(path.is_empty(), "a key path's keys bind; got {path:?}");
+    let beside = w210_codes("proc f {} { set d {a {x 1}}\n dict with d a {}\n return $y }");
+    assert!(
+        beside.iter().any(|m| m.contains("'y'")),
+        "a key the path does not hold is unbound; got {beside:?}"
+    );
+    let unknown = w210_codes("proc f {d} { dict with d a {}\n return $x }");
+    assert!(
+        unknown.is_empty(),
+        "an unknown dictionary's key path is unknown shape; got {unknown:?}"
+    );
+    let qualified = w210_codes("proc f {} { set d {a 1}\n ::tcl::dict::with d {}\n return $a }");
+    assert!(
+        qualified.is_empty(),
+        "the qualified spelling binds; got {qualified:?}"
+    );
+    let qualified_missing =
+        w210_codes("proc f {} { set d {a 1}\n ::tcl::dict::with d {}\n return $b }");
+    assert!(
+        qualified_missing.iter().any(|m| m.contains("'b'")),
+        "the qualified spelling binds only its keys; got {qualified_missing:?}"
+    );
+    let present = w210_codes("proc f {} { set d {k 1}\n dict update d k v {}\n return $v }");
+    assert!(present.is_empty(), "a present key binds; got {present:?}");
+    let absent = w210_codes("proc f {} { set d {j 1}\n dict update d k v {}\n return $v }");
+    assert!(
+        absent.iter().any(|m| m.contains("'v'")),
+        "an absent key leaves its variable unbound; got {absent:?}"
+    );
+}
+
+/// W307 reads the element and body bindings from outcomes, the lattice and
+/// the plan: a `dict with` key path binds the nested dictionary's
+/// keys (the spelling harvest read the outer dictionary's); an `array set`
+/// over a lattice-constant list binds its elements; and in a function with
+/// a barrier, which widens every value it holds, a literal `array set` or
+/// `set arr(k)` still states its element write. A dispatch on a known
+/// command is silent and one on a non-command still fires.
+#[test]
+fn w307_reads_element_and_body_bindings() {
+    let w307 = |src: &str| {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W307)
+            .count()
+    };
+    let path = "proc f {d} { dict with d a { $cmd hi } }\n";
+    assert_eq!(w307(&format!("{path}f {{a {{cmd puts}}}}\n")), 0);
+    assert_eq!(w307(&format!("{path}f {{a {{cmd notACommand}}}}\n")), 1);
+    let pairs = |value: &str| {
+        format!("proc f {{}} {{ set pairs {{run {value}}}\n array set h $pairs\n $h(run) hello }}")
+    };
+    assert_eq!(w307(&pairs("puts")), 0);
+    assert_eq!(w307(&pairs("notACommand")), 1);
+    let barrier = |write: &str| format!("proc f {{x}} {{ {write}\n eval $x\n $h(run) hello }}");
+    assert_eq!(w307(&barrier("array set h {run puts}")), 0);
+    assert_eq!(w307(&barrier("array set h {run notACommand}")), 1);
+    assert_eq!(w307(&barrier("set h(run) puts")), 0);
+    assert_eq!(w307(&barrier("set h(run) notACommand")), 1);
 }
 
 #[test]
@@ -11636,6 +12480,39 @@ fn w102_advice_never_mixes_switch_families() {
     );
 }
 
+/// W102 reads the lattice's template-word plan: `set opt
+/// -novariables; subst $opt $x` warns of `[cmd]` alone and advises
+/// `-nocommands`, exactly as `subst -novariables $x` does (tclsh 8.4 to 9.1,
+/// `set x {[set y 1]$y}`: both run the command and leave `$y`), where the
+/// computed switch word had made the call unreadable; a switch the lattice
+/// does not prove — a parameter — keeps every kind and advises nothing; and
+/// proven switches that turn both kinds off warn of nothing.
+#[test]
+fn w102_narrows_a_proven_switch_word() {
+    let w102 = |src: &str| -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W102)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    let literal = w102("proc f {x} { subst -novariables $x }\n");
+    let proven = w102("proc f {x} { set opt -novariables\n subst $opt $x }\n");
+    assert_eq!(proven, literal);
+    assert_eq!(proven.len(), 1, "{proven:?}");
+    assert!(proven[0].contains("any [cmd] in the string"), "{proven:?}");
+    assert!(proven[0].contains("Add -nocommands to limit"), "{proven:?}");
+    let unproven = w102("proc f {opt x} { subst $opt $x }\n");
+    assert_eq!(unproven.len(), 1, "{unproven:?}");
+    assert!(
+        unproven[0].contains("any [cmd] and $var") && !unproven[0].contains("Add "),
+        "{unproven:?}"
+    );
+    assert!(w102("proc f {x} { set opt -nocommands\n subst $opt -novariables $x }\n").is_empty());
+}
+
 #[test]
 fn w103_open_pipeline() {
     // `|`-pipeline with substitution → WARNING (injection).
@@ -11834,6 +12711,27 @@ fn var_binding_binary_scan_defines_targets() {
             .any(|diagnostic| diagnostic.code == DiagCode::W210),
         "an existing capture remains defined when binary scan consumes no fields"
     );
+}
+
+#[test]
+fn var_binding_a_nested_loop_command_binds_its_loop_variables_in_the_enclosing_scope() {
+    // A loop command nested in a `[…]` substitution binds its loop variables
+    // in the scope the substitution runs in, through the same role binder as
+    // the top-level path.
+    let mut a = Analyser::new();
+    let r = a.analyse(
+        "proc f {l d} {\n    set r [lmap x $l {string length $x}]\n    \
+         set s [foreach y $l {}]\n    set t [dict for {k v} $d {}]\n    \
+         return [list $r $s $t $x $y $k $v]\n}\n",
+        "tcl8.6",
+    );
+    for name in ["x", "y", "k", "v"] {
+        assert!(
+            r.all_variables.contains_key(&format!("f::{name}")),
+            "{name} must be bound in `f`; got {:?}",
+            r.all_variables.keys().collect::<Vec<_>>()
+        );
+    }
 }
 
 #[test]
@@ -14402,7 +15300,7 @@ fn irules_stays_subtractive_under_the_profile() {
             "f5-irules: {banned:?} is banned and must draw W002, got {codes:?}"
         );
     }
-    // 8.5+/8.6 core: never present at ANY BIG-IP version (D3).
+    // 8.5+/8.6 core: never present at ANY BIG-IP version.
     for versioned in ["dict get {a 1} a", "lmap x {1 2} {set x}"] {
         let codes = codes_for_dialect(versioned, "f5-irules");
         assert!(
@@ -14523,7 +15421,7 @@ fn tmsh_first_class_resolves_its_surface_and_gates_later_core() {
 
 #[test]
 fn bpf_precise_mask_keeps_90_core_and_drops_8x_relics() {
-    // D7: bpf = TCL90|BPF — a genuine Tcl 9.0 base.
+    // bpf = TCL90|BPF — a genuine Tcl 9.0 base.
     // TN: 9.0 core (including 8.5/8.6 additions carried into 9.0) resolves.
     for ok in [
         "dict get {a 1} a",
@@ -14590,7 +15488,7 @@ fn w003_irules_alias_gates_like_the_canonical_profile() {
 
 #[test]
 fn w003_bpf_accepts_both_tips_on_its_tcl_9_runtime() {
-    // bpf embeds Tcl 9.0 (D7): `in`/`ni` (TIP 201) and `lt`/`le`/`gt`/`ge`
+    // bpf embeds Tcl 9.0: `in`/`ni` (TIP 201) and `lt`/`le`/`gt`/`ge`
     // (TIP 461) are all grammatical — no W003.
     assert_eq!(
         w003_hits("expr {2 in {1 2 3}}", "bpf"),
@@ -15602,21 +16500,23 @@ fn w144_core_subcommand_lifecycle_uses_registry_safe_fix() {
 /// registry); `analyse` itself clears the run state on exit.
 #[test]
 fn analyser_hook_selection_requires_binding_proof() {
-    let args = vec!["{ }".to_string(), "finally".to_string(), "{ }".to_string()];
+    // `oo::define` is 8.6+ (`try`, also 8.6+, carries no analyser hook, so
+    // it cannot serve here).
+    let args = vec!["Foo".to_string(), "{ }".to_string()];
     let mut old = crate::analyser::Analyser::new();
     let _ = old.resolve_walk_environment("tcl8.4");
     old.registry = Some(old.profile_registry());
     assert!(
-        old.resolve_analyser_hook("try", &args).is_none(),
-        "`try` is 8.6+: under tcl8.4 the binding is Absent, so no analyser \
-         hook may specialise (I4)"
+        old.resolve_analyser_hook("oo::define", &args).is_none(),
+        "`oo::define` is 8.6+: under tcl8.4 the binding is Absent, so no \
+         analyser hook may specialise (I4)"
     );
     let mut new = crate::analyser::Analyser::new();
     let _ = new.resolve_walk_environment("tcl9.0");
     new.registry = Some(new.profile_registry());
     assert_eq!(
-        new.resolve_analyser_hook("try", &args),
-        Some(tcl_registry::hooks::AnalyserHookId::Try),
+        new.resolve_analyser_hook("oo::define", &args),
+        Some(tcl_registry::hooks::AnalyserHookId::OoDefine),
         "a proved binding keeps its hook"
     );
 }
@@ -15774,6 +16674,51 @@ fn original_option_diagnostics_share_alias_ordinals_and_stop_at_unknown_layout()
                 .iter()
                 .any(|diagnostic| diagnostic.code == DiagCode::W004),
             "{source}"
+        );
+    }
+}
+
+/// W100's produced set is the fact `brace_expr_hints` reads
+/// for O111, so it must cover every unbraced expression argument — one
+/// finding, at the expression word's own span, for each EXPR-role form.
+#[test]
+fn w100_marks_every_unbraced_expression() {
+    fn w100_texts(src: &str) -> Vec<String> {
+        let mut a = crate::analyser::Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W100)
+            .map(|d| src[d.span.start() as usize..d.span.end() as usize].to_string())
+            .collect()
+    }
+
+    for (src, word) in [
+        ("expr $a+1\n", "$a+1"),
+        ("expr \"$a + 1\"\n", "\"$a + 1"),
+        ("if \"$x\" {puts hi}\n", "\"$x\""),
+        ("while $c {}\n", "$c"),
+        ("for {} $c {} {}\n", "$c"),
+        ("set y [expr $x+1]\n", "$x+1"),
+    ] {
+        assert_eq!(
+            w100_texts(src),
+            vec![word.to_string()],
+            "expected exactly one W100 at {word:?} for {src:?}"
+        );
+    }
+
+    for src in [
+        "expr {$a+1}\n",
+        "expr {$a + 1}\n",
+        "if {$x} {puts hi}\n",
+        "while {$c} {}\n",
+        "for {} {$c} {} {}\n",
+        "set y [expr {$x+1}]\n",
+    ] {
+        assert!(
+            w100_texts(src).is_empty(),
+            "the braced form must draw no W100 for {src:?}"
         );
     }
 }
@@ -16678,5 +17623,579 @@ fn w216_public_value_capture_keeps_whole_provider_rows() {
     ] {
         assert_eq!(stdout, expected, "{provider}");
         assert!(stderr.is_empty(), "{provider}");
+    }
+}
+
+/// The lifecycle diagnostics a program draws, as `(code, message)`.
+fn lifecycle_findings(src: &str) -> Vec<(DiagCode, String)> {
+    Analyser::new()
+        .analyse(src, "tcl8.6")
+        .diagnostics
+        .into_iter()
+        .filter(|d| matches!(d.code, DiagCode::W210 | DiagCode::W213))
+        .map(|d| (d.code, d.message))
+        .collect()
+}
+
+/// A second `unset` after the first killed the version reads an unbound
+/// place, so its W213 is definite: tclsh 8.4 to 9.1 raise `can't
+/// unset "x": no such variable` there.
+#[test]
+fn a_second_unset_is_a_definite_w213() {
+    let found = lifecycle_findings("proc f {} {\n    set x 1\n    unset x\n    unset x\n}\n");
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].0, DiagCode::W213);
+    assert!(found[0].1.contains("does not exist"), "{found:?}");
+}
+
+/// An `unset` on one path leaves the read after the merge may-unbound, so
+/// it draws W210; tclsh raises `can't read "x"` when `c` is true.
+#[test]
+fn a_conditional_unset_gives_w210() {
+    let found =
+        lifecycle_findings("proc f {c} {\n    set x 1\n    if {$c} {unset x}\n    puts $x\n}\n");
+    assert!(
+        found
+            .iter()
+            .any(|(code, message)| *code == DiagCode::W210 && message.contains("'x'")),
+        "{found:?}"
+    );
+}
+
+/// `unset -nocomplain` raises nothing, whatever the place holds, so it
+/// draws neither W213 nor W210.
+#[test]
+fn nocomplain_never_reports_w213() {
+    for src in [
+        "proc f {} {\n    unset -nocomplain x\n}\n",
+        "proc f {} {\n    set x 1\n    unset x\n    unset -nocomplain x\n}\n",
+        "proc f {c} {\n    if {$c} {set x 1}\n    unset -nocomplain x\n}\n",
+    ] {
+        let found = lifecycle_findings(src);
+        assert!(found.is_empty(), "{src}: {found:?}");
+    }
+}
+
+/// W210 is one per variable: a `return` of a variable an `unset` killed is
+/// reported once, where the read pass and the `return` pass had each
+/// reported it.
+#[test]
+fn a_killed_return_read_reports_once() {
+    let found = lifecycle_findings("proc f {} {set v 1; unset v; return $v}\n");
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].0, DiagCode::W210);
+}
+
+/// A write a condition's command substitution makes suppresses the reads
+/// after it, not the ones before: the first `puts $x` runs before the
+/// `catch` sets `x` and raises in every release, the second does not.
+#[test]
+fn a_read_before_the_conditions_write_still_reports() {
+    let found = lifecycle_findings(
+        "proc g {} {\n    puts $x\n    if {[catch {set x 1}]} {}\n    puts $x\n}\n",
+    );
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].0, DiagCode::W210);
+    let expr = lifecycle_findings(
+        "proc h {} {\n    puts $t\n    set e [expr {[catch {error x} t] || $t}]\n    puts $t\n}\n",
+    );
+    assert_eq!(expr.len(), 1, "{expr:?}");
+}
+
+/// The script a concatenating command runs writes a name only through a
+/// command the document's registry knows: `lassign` exists from 8.5, so
+/// `eval lassign {1 2} a b` binds `a` under a Tcl 8.6 profile and binds
+/// nothing under 8.4, where tclsh raises `invalid command name "lassign"`
+/// and the read after it is a read before set.
+#[test]
+fn a_concatenated_script_writes_through_the_documents_registry() {
+    let src = "proc p {} {\n    eval lassign {1 2} a b\n    puts $a\n}\n";
+    let w210 = |dialect: &str| {
+        Analyser::new()
+            .analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W210)
+            .count()
+    };
+    assert_eq!(w210("tcl8.6"), 0, "8.6: lassign writes a");
+    assert_eq!(w210("tcl8.4"), 1, "8.4: lassign is no command");
+}
+
+/// An existence read and an unbind are uses of their place: a
+/// variable only asked about or unset draws no W211, and a parameter only
+/// asked about or unset — its entry state read — draws no W214.
+#[test]
+fn an_existence_read_or_an_unbind_is_a_use() {
+    let codes_of = |src: &str| -> Vec<DiagCode> {
+        Analyser::new()
+            .analyse(src, "tcl8.6")
+            .diagnostics
+            .into_iter()
+            .map(|d| d.code)
+            .collect()
+    };
+    for src in [
+        "proc f {} {\n    set x 1\n    if {[info exists x]} {puts yes}\n}\n",
+        "proc f {} {\n    set x 1\n    puts [array exists x]\n}\n",
+        "proc f {} {\n    set x 1\n    unset x\n}\n",
+    ] {
+        assert!(!codes_of(src).contains(&DiagCode::W211), "{src}");
+    }
+    for src in [
+        "proc f {a} {\n    if {[info exists a]} {puts yes}\n}\n",
+        "proc f {a} {\n    unset a\n}\n",
+    ] {
+        assert!(!codes_of(src).contains(&DiagCode::W214), "{src}");
+    }
+}
+
+/// A nested unbind reads its place's existence: the store `puts
+/// [unset x]` observes is used, so no W211, and the read is no value read,
+/// so an unbind of a never-set name — `-nocomplain` or not — draws no W210.
+#[test]
+fn a_nested_unbind_is_an_existence_read() {
+    let codes_of = |src: &str| -> Vec<DiagCode> {
+        Analyser::new()
+            .analyse(src, "tcl8.6")
+            .diagnostics
+            .into_iter()
+            .map(|d| d.code)
+            .collect()
+    };
+    for src in [
+        "proc f {} {\n    set x 1\n    puts [unset x]\n}\n",
+        "proc f {} {\n    set x 1\n    set y [unset x]\n    return $y\n}\n",
+    ] {
+        assert!(!codes_of(src).contains(&DiagCode::W211), "{src}");
+    }
+    for src in [
+        "proc f {} {\n    puts [unset x]\n}\n",
+        "proc f {} {\n    puts [unset -nocomplain x]\n}\n",
+    ] {
+        assert!(!codes_of(src).contains(&DiagCode::W210), "{src}");
+    }
+}
+
+/// A guard's refinement narrows the read under `&&` too: `x` set on one
+/// path reads bound on the true edge of `[info exists x] &&
+/// $flag`, so no W210; the read past the `if` still draws one.
+/// The guarded read of a global draws no W210 although the existence rung
+/// never refines an externally mutable place: the qualified-name and
+/// scope-alias filters keep `if {[info exists ::errorInfo]} {puts
+/// $::errorInfo}` silent at the top level and in a procedure, and so does
+/// the `global` spelling.
+#[test]
+fn the_guarded_global_idiom_draws_no_w210() {
+    for src in [
+        "if {[info exists ::errorInfo]} {puts $::errorInfo}\n",
+        "proc f {} {\n    if {[info exists ::errorInfo]} {puts $::errorInfo}\n}\n",
+        "proc f {} {\n    global errorInfo\n    if {[info exists errorInfo]} {puts $errorInfo}\n}\n",
+    ] {
+        let found = lifecycle_findings(src);
+        assert!(found.is_empty(), "{src}: {found:?}");
+    }
+}
+
+/// A guard holds over the region its edge enters where the existence rung
+/// refines nothing: a callback the module cannot read (`after idle [list
+/// $cmd 1]`) may write any name, so the rung refines none in the file, and
+/// `return $x` after `if {![info exists x]} {set x 0}` still draws no W210 —
+/// tclsh 8.4 to 9.1 return 0 for `p 0` — while the same shape without the
+/// `set` still draws one, `q 0` raising `can't read "y"`.
+#[test]
+fn a_guard_holds_where_the_rung_refines_nothing() {
+    let found = lifecycle_findings(
+        "proc p {c} {\n    if {$c} {set x 1}\n    if {![info exists x]} {set x 0}\n    return $x\n}\n\
+         proc q {c} {\n    if {$c} {set y 1}\n    if {![info exists y]} {puts none}\n    return $y\n}\n\
+         proc cb {cmd} {\n    after idle [list $cmd 1]\n}\n",
+    );
+    assert_eq!(
+        found,
+        vec![(
+            DiagCode::W210,
+            "Variable 'y' is read before it is set".to_owned()
+        )]
+    );
+}
+
+#[test]
+fn a_guard_under_and_narrows_the_read() {
+    let found = lifecycle_findings(
+        "proc f {c flag} {\n    if {$c} {set x 1}\n    if {[info exists x] && $flag} {puts $x}\n}\n",
+    );
+    assert!(found.is_empty(), "{found:?}");
+    let past = lifecycle_findings(
+        "proc f {c flag} {\n    if {$c} {set x 1}\n    if {[info exists x] && $flag} {puts $x}\n    puts $x\n}\n",
+    );
+    assert_eq!(past.len(), 1, "{past:?}");
+    assert_eq!(past[0].0, DiagCode::W210);
+}
+
+/// The I230 messages `src` draws on the whole-file path and on the per-item
+/// path, in emission order.
+fn i230_on_both_paths(src: &str) -> (Vec<String>, Vec<String>) {
+    let messages = |per_item: bool| -> Vec<String> {
+        let mut a = Analyser::new();
+        let result = if per_item {
+            a.analyse_per_item(src, "tcl8.6")
+        } else {
+            a.analyse(src, "tcl8.6")
+        };
+        result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::I230)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    (messages(false), messages(true))
+}
+
+/// No I230 for any of `sources`, on either path.
+fn assert_no_i230(sources: &[&str]) {
+    for src in sources {
+        let (whole, per_item) = i230_on_both_paths(src);
+        assert!(whole.is_empty(), "whole file: {src}\n{whole:?}");
+        assert_eq!(per_item, whole, "per item: {src}");
+    }
+}
+
+/// A `switch` the flow graph keeps as one statement writes what its arms
+/// write, so the condition after it is no constant: tclsh 8.4 to 9.1 print `b`
+/// for `set go 1; switch -glob -- abc { a* { set go 0 } }; if {$go} {puts a}
+/// else {puts b}`, not the `a` the earlier value gave. A name no arm writes
+/// stays decided.
+#[test]
+fn i230_never_reports_a_condition_over_a_name_a_switch_arm_may_write() {
+    assert_no_i230(&[
+        "set go 1\nswitch -glob -- [gets stdin] { q* { set go 0 } }\nif {$go} {puts a} else {puts b}\n",
+        "set go 1\nswitch -nocase -- [gets stdin] { q { set go 0 } }\nif {$go} {puts a} else {puts b}\n",
+        "set go 1\nswitch -regexp -- [gets stdin] { {^q} { set go 0 } }\nif {$go} {puts a} else {puts b}\n",
+        "set go 1\nswitch -glob -- [gets stdin] { x - q* { set go 0 } }\nif {$go} {puts a} else {puts b}\n",
+        "set go 1\ncase [gets stdin] in { q* { set go 0 } }\nif {$go} {puts a} else {puts b}\n",
+        "proc p {} {\n set go 1\n switch -glob -- [gets stdin] { q* { set go 0 } }\n if {$go} {puts a} else {puts b}\n}\n",
+        "proc p {s} {\n set go 1\n switch -glob -- $s { q* { incr go -1 } default { set other 1 } }\n if {$go} {puts a} else {puts b}\n}\n",
+        // A command an arm runs that may write any name, and a callee that
+        // writes the caller's name through `upvar`.
+        "set go 1\nswitch -glob -- [gets stdin] { q* { namespace eval :: {set go 0} } }\nif {$go} {puts a} else {puts b}\n",
+        "proc p {s} {\n set go 1\n switch -glob -- $s { q* { dict with d { set go 0 } } }\n if {$go} {puts a} else {puts b}\n}\n",
+        "proc zero {v} {upvar 1 $v x; set x 0}\nproc p {s} {\n set go 1\n switch -glob -- $s { q* { zero go } }\n if {$go} {puts a} else {puts b}\n}\n",
+        "proc zero {v} {upvar 1 $v x; set x 0}\nset go 1\nswitch -glob -- [gets stdin] { q* { zero go } }\nif {$go} {puts a} else {puts b}\n",
+    ]);
+    let (whole, per_item) = i230_on_both_paths(
+        "proc hit {} {global hits; incr hits}\nproc p {s} {\n set n 5\n switch -glob -- $s { q* { hit } }\n if {$n} {puts a} else {puts b}\n}\n",
+    );
+    assert_eq!(
+        whole.len(),
+        1,
+        "a global writer leaves a local alone: {whole:?}"
+    );
+    assert_eq!(per_item, whole);
+    let (whole, per_item) = i230_on_both_paths(
+        "set go 1\nswitch -glob -- [gets stdin] { q* { set other 0 } }\nif {$go} {puts a} else {puts b}\n",
+    );
+    assert_eq!(whole.len(), 1, "{whole:?}");
+    assert!(whole[0].contains("always true"), "{whole:?}");
+    assert_eq!(per_item, whole);
+}
+
+/// A callback script the module stores writes the name after the registering
+/// code has run: tclsh prints `b` for the variable-trace program, whose write
+/// happens inside `set x 1`.
+#[test]
+fn i230_never_reports_a_condition_over_a_name_a_callback_writes() {
+    assert_no_i230(&[
+        "set go 1\ntrace add variable x write { set ::go 0 ;# }\nset x 1\nif {$go} {puts a} else {puts b}\n",
+        "set go 1\nafter idle {set ::go 0}\nupdate\nif {$go} {puts a} else {puts b}\n",
+        "set done 0\nafter 100 { set done 1 }\nvwait done\nif {$done} {puts a} else {puts b}\n",
+        "proc tick {} { set ::go 0 }\nset go 1\nafter 100 tick\nupdate\nif {$go} {puts a} else {puts b}\n",
+    ]);
+}
+
+/// A plain top-level name is the global name a command the module cannot see
+/// may write, as it may `::g`, and a procedure's local is in the reach of such
+/// a command too: an autoloaded or unknown-handled callee runs `upvar 1` into
+/// the frame that called it, on every release (tclsh 8.4 to 9.1 return
+/// `changed` from `proc p {} {set x 5; missing; if {$x == 5} {return stale}
+/// {return changed}}` where `auto_index(missing)` defines `missing` as `upvar
+/// 1 x x; set x 6`). A procedure the module defines that writes no global
+/// changes nothing.
+#[test]
+fn i230_never_reports_a_condition_across_a_call_the_module_cannot_see() {
+    assert_no_i230(&[
+        "set g 5\nfoo\nif {$g} {puts a} else {puts b}\n",
+        "set ::g 5\nfoo\nif {$::g} {puts a} else {puts b}\n",
+        "set g 5\nputs [foo]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nwhile {[foo]} { puts x }\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nswitch -glob -- [gets stdin] { q* { foo } }\nif {$g} {puts a} else {puts b}\n",
+        "proc p {} {\n set g 5\n foo\n if {$g} {puts a} else {puts b}\n}\n",
+    ]);
+    let src = "proc foo {} { puts hi }\nset g 5\nfoo\nif {$g} {puts a} else {puts b}\n";
+    let (whole, per_item) = i230_on_both_paths(src);
+    assert_eq!(whole.len(), 1, "{src}: {whole:?}");
+    assert!(whole[0].contains("always true"), "{src}: {whole:?}");
+    assert_eq!(per_item, whole, "{src}");
+}
+
+/// A sourced file runs in the frame of the call, so it may write the name the
+/// condition reads: a top-level name, and a procedure's local too.
+#[test]
+fn i230_never_reports_a_condition_across_a_sourced_file() {
+    assert_no_i230(&[
+        "set g 5\nsource other.tcl\nif {$g} {puts a} else {puts b}\n",
+        "proc p {} {\n set g 5\n source other.tcl\n if {$g} {puts a} else {puts b}\n}\n",
+        "proc p {s} {\n set g 5\n switch -glob -- $s { q* { source other.tcl } }\n if {$g} {puts a} else {puts b}\n}\n",
+    ]);
+}
+
+/// A name only an arm of a `switch` the flow graph keeps as one statement
+/// sets may be unset after it, so the read draws W210 — as it does after a
+/// plain `if` — whatever the option: tclsh raises `can't read "x"` when no
+/// arm matches. A name set before the switch draws none.
+#[test]
+fn a_read_after_an_opaque_switch_only_an_arm_sets_draws_w210() {
+    for arm in [
+        "-glob -- $s { a* { set x 1 } }",
+        "-nocase -- $s { a { set x 1 } }",
+        "-regexp -- $s { {^a} { set x 1 } }",
+        "-glob -- $s { a* - b* { set x 1 } }",
+    ] {
+        let src = format!("proc p {{s}} {{\n switch {arm}\n puts $x\n}}\n");
+        let found = lifecycle_findings(&src);
+        assert_eq!(found.len(), 1, "{src}: {found:?}");
+        assert_eq!(found[0].0, DiagCode::W210, "{src}");
+    }
+    let found = lifecycle_findings(
+        "proc p {s} {\n set x 0\n switch -glob -- $s { a* { set x 1 } }\n puts $x\n}\n",
+    );
+    assert!(found.is_empty(), "{found:?}");
+    // The name only a callee an arm calls writes (through `upvar`) is unset
+    // when no arm runs, too.
+    let src = "proc zero {v} {upvar 1 $v x; set x 0}\nproc p {s} {\n switch -glob -- $s { a* { zero y } }\n puts $y\n}\n";
+    let found = lifecycle_findings(src);
+    assert_eq!(found.len(), 1, "{src}: {found:?}");
+    assert_eq!(found[0].0, DiagCode::W210, "{src}");
+}
+
+/// A call to a command the module cannot see inside the body of a `catch`, or
+/// through a computed head, may write a plain top-level name as it may `::g`,
+/// and a procedure's local through `upvar 1`, and what the body writes on some
+/// path is a name the statement may leave as it was: tclsh prints `b` where
+/// the `foo` of a sourced file sets `g` to 0, and `5` where the body writes
+/// nothing.
+#[test]
+fn i230_never_reports_a_condition_across_a_catch_body_or_a_computed_head() {
+    assert_no_i230(&[
+        "set g 5\ncatch {foo}\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\ncatch {foo} msg\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\ncatch {if {1} {foo}}\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\ncatch {puts [foo]}\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\ncatch {source other.tcl}\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nif {[catch {foo}]} {puts bad}\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset rc [catch {foo} msg]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nwhile {[catch {if {1} {foo}}]} {break}\nif {$g} {puts a} else {puts b}\n",
+        "set ::g 5\ncatch {foo}\nif {$::g} {puts a} else {puts b}\n",
+        "set g 5\n$cmd\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nputs [$cmd]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nwhile {[$cmd]} {puts x}\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\ncatch { if {[gets stdin] eq {q}} { set g 0 } }\nif {$g} {puts a} else {puts b}\n",
+        "set go 1\ncatch { namespace eval :: {set go 0} }\nif {$go} {puts a} else {puts b}\n",
+        "proc zero {v} {upvar 1 $v x; set x 0}\nproc p {} {\n set go 1\n catch { if {1} { zero go } }\n if {$go} {puts a} else {puts b}\n}\n",
+        "proc p {c} {\n catch { if {$c} { set x 1 } }\n if {[info exists x]} {puts yes} else {puts no}\n}\n",
+        "proc p {} {\n set g 5\n catch { if {1} {foo} }\n if {$g} {puts a} else {puts b}\n}\n",
+        "proc p {} {\n set g 5\n $cmd\n if {$g} {puts a} else {puts b}\n}\n",
+        "proc p {} {\n set g 5\n if {[catch {foo}]} {puts bad}\n if {$g} {puts a} else {puts b}\n}\n",
+    ]);
+    for src in [
+        "proc foo {} { puts hi }\nset g 5\ncatch {foo}\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\ncatch { set other 1 }\nif {$g} {puts a} else {puts b}\n",
+    ] {
+        let (whole, per_item) = i230_on_both_paths(src);
+        assert_eq!(whole.len(), 1, "{src}: {whole:?}");
+        assert!(whole[0].contains("always true"), "{src}: {whole:?}");
+        assert_eq!(per_item, whole, "{src}");
+    }
+}
+
+/// A command the module cannot see runs inside a body that is no body of the
+/// frame the substitution is written in — a lambda's, a `namespace eval` or
+/// `uplevel` body, the text a `subst` substitutes, an expression word of a
+/// body — and may write a plain top-level name as it may `::g`: tclsh prints
+/// `b` where the `foo` of a sourced file sets `g` to 0. A body with nothing
+/// unseen in it leaves the condition decided.
+#[test]
+fn i230_never_reports_a_condition_across_unseen_code_in_a_body_a_substitution_runs() {
+    assert_no_i230(&[
+        "set g 5\nset x [apply {{} {foo}}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [namespace eval ns {foo}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [uplevel #0 {foo}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [subst {[foo]}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [catch {apply {{} {foo}}}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [catch {if {[foo]} {puts a}}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nputs [apply {{} {foo}}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nif {[apply {{} {foo}}]} {puts x}\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [apply $lambda]\nif {$g} {puts a} else {puts b}\n",
+    ]);
+    for src in [
+        "set g 5\nset x [apply {{} {set y 1}}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [namespace eval ns {set y 1}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [uplevel #0 {set y 1}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [subst {[set y 1]}]\nif {$g} {puts a} else {puts b}\n",
+        "set g 5\nset x [catch {apply {{} {set y 1}}}]\nif {$g} {puts a} else {puts b}\n",
+    ] {
+        let (whole, per_item) = i230_on_both_paths(src);
+        assert_eq!(whole.len(), 1, "{src}: {whole:?}");
+        assert!(whole[0].contains("always true"), "{src}: {whole:?}");
+        assert_eq!(per_item, whole, "{src}");
+    }
+}
+
+/// A name only the body of an opaque `catch` sets may be unset after it, so
+/// the read draws W210 — as it does after an inlined `catch`, whose exception
+/// edge leaves from before the body — and a name set before it draws none.
+#[test]
+fn a_read_after_an_opaque_catch_only_its_body_sets_draws_w210() {
+    let src = "proc p {c} {\n catch { if {$c} { set x 1 } }\n puts $x\n}\n";
+    let found = lifecycle_findings(src);
+    assert_eq!(found.len(), 1, "{src}: {found:?}");
+    assert_eq!(found[0].0, DiagCode::W210, "{src}");
+    let found =
+        lifecycle_findings("proc p {c} {\n set x 0\n catch { if {$c} { set x 1 } }\n puts $x\n}\n");
+    assert!(found.is_empty(), "{found:?}");
+    // The result variable the call assigns however the body ends is defined.
+    let found =
+        lifecycle_findings("proc p {c} {\n catch { if {$c} { set x 1 } } msg\n puts $msg\n}\n");
+    assert!(found.is_empty(), "{found:?}");
+}
+
+/// The names the W210 diagnostics of `src` report, on the whole-file path and
+/// on the per-item path.
+fn w210_names_on_both_paths(src: &str) -> (Vec<String>, Vec<String>) {
+    let names = |per_item: bool| -> Vec<String> {
+        let mut a = Analyser::new();
+        let result = if per_item {
+            a.analyse_per_item(src, "tcl8.6")
+        } else {
+            a.analyse(src, "tcl8.6")
+        };
+        result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W210)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    (names(false), names(true))
+}
+
+/// Code the module cannot see — a sourced file, a command it does not define, a
+/// computed head, the body of a `catch` that holds one — may set a global the
+/// file has not set by then, so a read of the name after it is no read before
+/// it is set. A read the code does not precede on every path is one (no code
+/// ahead of it, code after it, code on one branch only), and so is a read in a
+/// procedure after a call it is not handed by name: a callee the module cannot
+/// see reaches a local through `upvar 1` under the name it is given, which the
+/// per-name abstention answers, while a sourced file runs in the procedure's
+/// frame and may set any of its names.
+#[test]
+fn a_read_after_code_the_module_cannot_see_is_no_read_before_set() {
+    for src in [
+        "source other.tcl\nputs $g\n",
+        "foo\nputs $g\n",
+        "set cmd foo\n$cmd\nputs $g\n",
+        "catch {foo}\nputs $g\n",
+        "set x [foo]\nputs $g\n",
+        "puts [foo]\nputs $g\n",
+        "if {[foo]} {puts yes}\nputs $g\n",
+        "foo\nset a 1\nputs $g\n",
+        "foo\nputs $g\nset g 1\n",
+        "foo\nif {$argc} {puts $g}\n",
+        "proc p {} {\n source other.tcl\n puts $g\n}\n",
+        "proc p {} {\n foo g\n puts $g\n}\n",
+    ] {
+        let (whole, per_item) = w210_names_on_both_paths(src);
+        assert!(whole.is_empty(), "whole file: {src}\n{whole:?}");
+        assert_eq!(per_item, whole, "per item: {src}");
+    }
+    for src in [
+        "puts $g\n",
+        "set a 1\nputs $g\n",
+        "puts $g\nfoo\n",
+        "foo $g\n",
+        "proc foo {} {}\nfoo\nputs $g\n",
+        "if {$argc} {foo}\nputs $g\n",
+        "if {$argc} {set g 1}\nfoo\nputs $g\n",
+        "proc p {} {\n foo\n puts $g\n}\n",
+    ] {
+        let (whole, per_item) = w210_names_on_both_paths(src);
+        assert_eq!(whole.len(), 1, "whole file: {src}\n{whole:?}");
+        assert!(whole[0].contains("'g'"), "{src}: {whole:?}");
+        assert_eq!(per_item, whole, "per item: {src}");
+    }
+}
+
+/// The `(code, message)` of each W220 and W211 hint a program draws.
+type Hints = Vec<(DiagCode, String)>;
+
+/// The W220 and W211 hints a program draws on the whole-file path and on the
+/// per-item path.
+fn dead_store_hints_on_both_paths(src: &str) -> (Hints, Hints) {
+    let hints = |per_item: bool| -> Hints {
+        let mut a = Analyser::new();
+        let result = if per_item {
+            a.analyse_per_item(src, "tcl8.6")
+        } else {
+            a.analyse(src, "tcl8.6")
+        };
+        result
+            .diagnostics
+            .into_iter()
+            .filter(|d| matches!(d.code, DiagCode::W220 | DiagCode::W211))
+            .map(|d| (d.code, d.message))
+            .collect()
+    };
+    (hints(false), hints(true))
+}
+
+/// A call to a command the module cannot see may read a name the store before
+/// it leaves, as it may read `::g`, and a procedure's local through `upvar 1`,
+/// so the store is no dead one (W220) and the name no unused one (W211): the
+/// optimiser's O109 and O126 already said so. A procedure the module defines
+/// is seen, and a store nothing reads before the next is still dead.
+#[test]
+fn a_store_a_call_the_module_cannot_see_may_read_draws_neither_w220_nor_w211() {
+    for src in [
+        "set g 5\nfoo\nset g 6\nputs $g\n",
+        "set g 5\n$cmd\nset g 6\nputs $g\n",
+        "set g 5\ncatch {foo}\nset g 6\nputs $g\n",
+        "set g 5\nputs [foo]\nset g 6\nputs $g\n",
+        "set h 6\nsource other.tcl\n",
+        "set h 6\nputs [foo]\n",
+        "proc p {} {\n set h 6\n source other.tcl\n}\n",
+        "proc p {} {\n set g 5\n foo\n set g 6\n return $g\n}\n",
+    ] {
+        let (whole, per_item) = dead_store_hints_on_both_paths(src);
+        assert!(whole.is_empty(), "whole file: {src}\n{whole:?}");
+        assert_eq!(per_item, whole, "per item: {src}");
+    }
+    for (src, code) in [
+        (
+            "proc foo {} { puts hi }\nset g 5\nfoo\nset g 6\nputs $g\n",
+            DiagCode::W220,
+        ),
+        ("set g 5\nset g 6\nputs $g\n", DiagCode::W220),
+        // The store after the last such call has no call to read it.
+        ("set h 6\nfoo\nset h 7\n", DiagCode::W220),
+        ("proc p {} {\n set h 6\n}\n", DiagCode::W211),
+        ("proc foo {} { puts hi }\nset h 6\nfoo\n", DiagCode::W211),
+    ] {
+        let (whole, per_item) = dead_store_hints_on_both_paths(src);
+        assert_eq!(
+            whole.iter().map(|(found, _)| *found).collect::<Vec<_>>(),
+            [code],
+            "{src}: {whole:?}"
+        );
+        assert_eq!(per_item, whole, "per item: {src}");
     }
 }

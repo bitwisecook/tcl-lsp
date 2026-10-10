@@ -46,8 +46,11 @@ use tcl_dialect::DialectProfile;
 use tcl_registry::registry::CommandRegistry;
 
 use crate::hooks;
-use crate::pack::{PackSet, installs_over};
+use crate::loader::PackCommand;
+use crate::pack::{MergedPack, PackSet, installs_over};
+use tcl_registry::pack_origin::PackOrigin;
 use tcl_registry::security_floor::SecurityFloor;
+use tcl_registry::spec::CommandSpec;
 
 /// The registry for `profile` with `packs` installed.
 ///
@@ -78,8 +81,7 @@ pub fn registry_with_packs(
     // Resolved BEFORE entering the overlay builder: the builder's closure
     // runs with the registry cache's lock held, and resolving a document
     // context takes that same lock to reach the un-overlaid store — doing
-    // it inside the closure deadlocks (found in P1-G when the vendor gate
-    // moved from `ProfileQueries` to the context).
+    // it inside the closure deadlocks.
     let context = tcl_registry::model::ingress::static_document_context_for_profile(profile);
     tcl_registry::registry_for_profile_with_overlay(profile, packs.key, |registry| {
         install_into(registry, packs, context);
@@ -137,7 +139,24 @@ fn install_into(
         for ambient in &pack.ambient_packages {
             registry.insert_ambient_package(ambient.name, ambient.version);
         }
+        // Special variables likewise: each row carries its own dialect
+        // gate, which every reader applies at the query.
+        for special in &pack.special_vars {
+            registry.insert_special_var(special.spec);
+        }
+        let provenance = pack.provenance();
         for command in &pack.commands {
+            // The gates run where a set is assembled (`pack::load_sources`,
+            // and the studio's own set): no codegen-axis stamp reaches a
+            // registry from a provenance, or a package, whose gate refuses
+            // one, and no declaration from a package whose capability holds
+            // neither.
+            debug_assert!(
+                passed_the_gates(command, provenance),
+                "`{}` from a {} pack reached an install past a gate it fails",
+                command.spec.name,
+                tcl_registry::model::provenance_label(provenance),
+            );
             if context.required_package_available(command.spec.required_package)
                 && installs_over(command, registry)
             {
@@ -147,16 +166,50 @@ fn install_into(
                 // strip `exec`'s TAINT_SINK and silence taint diagnostics
                 // about the repository that shipped the pack. The floor is not
                 // keyed on the tier: see `security_floor`'s module docs.
-                match registry.get(specialised.name) {
+                let installed = match registry.get(specialised.name) {
                     Some(shipped) => {
                         let mut merged = specialised.clone();
                         SecurityFloor::of(shipped).apply(&mut merged);
-                        registry.insert(merged);
+                        merged
                     }
-                    None => registry.insert(specialised.clone()),
+                    None => specialised.clone(),
+                };
+                let installed: &'static CommandSpec = Box::leak(Box::new(installed));
+                registry.insert_static(installed);
+                // Which pack it came from: a site specialised on it stamps
+                // these facts, and a VM admits the site only while it holds
+                // the same ones (`PackSet::fact_stamps`).
+                registry.insert_pack_origin(installed, pack_origin(pack, command));
+                // The body a `-package-source` backing named, as the load read
+                // it: the compiler has no file to go to.
+                if let Some(text) = &command.reference_text {
+                    registry.insert_reference_text(installed, std::sync::Arc::clone(text));
                 }
             }
         }
+    }
+}
+
+/// Whether `command` left the load as its gates would have it: a codegen-axis
+/// stamp only from a provenance and a package that admit one, and `alias_of`
+/// or a `runtime_backing` only from a tier whose capability holds them.
+/// [`install_into`] asserts it.
+fn passed_the_gates(command: &PackCommand, provenance: tcl_dialect::model::Provenance) -> bool {
+    (crate::stamps::stamps_admitted(provenance, command.dependency_tier)
+        || !crate::stamps::carries_stamp(command.spec))
+        && crate::stamps::declaration_refusals(command.spec, command.dependency_tier).is_empty()
+}
+
+/// The origin `command` of `pack` installs with — the pack's name, the
+/// content hash of the source that declared it, and the vocabulary it was
+/// read under. [`PackSet::fact_stamps`] builds a VM's held facts from the
+/// same answer, so a site's stamp and the facts held for its pack set agree
+/// by construction.
+pub(crate) fn pack_origin(pack: &MergedPack, command: &PackCommand) -> PackOrigin {
+    PackOrigin {
+        pack: pack.name.clone(),
+        content_hash: command.content_hash,
+        vocabulary_version: crate::VOCABULARY_VERSION.to_owned(),
     }
 }
 
@@ -193,6 +246,7 @@ mod tests {
             tier: Tier::Workspace,
             path,
             origin: Origin::DotDir,
+            dependency_tier: None,
         }])
     }
 
@@ -246,6 +300,41 @@ mod tests {
             .expect("the effective index includes the installed pack command");
         assert_eq!(facts.traits(), spec.traits);
         assert_eq!(facts.lowering_hook(), spec.lowering_hook);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The assertion at the install holds the capability gate as well as the
+    /// stamp gate. A command that dodged the load's gate — a transitive
+    /// dependency's `alias_of` — fails it, and the same declaration from a
+    /// direct dependency, the root or a pack no package ships passes.
+    #[test]
+    fn the_install_assertion_holds_the_capability_gate_too() {
+        use tcl_dialect::model::DependencyTier::{Development, Direct, Root, Transitive};
+        let _cache = cache_guard();
+        let dir = tmpdir("gates");
+        let packs = pack_set(
+            &dir,
+            "aliased.tclspec",
+            "speclib aliased 1 {\n  command aliased::unpack {\n    arity 2..\n    \
+             alias_of lassign\n  }\n}\n",
+        );
+        let pack = &packs.packs[0];
+        let mut command = pack.commands[0].clone();
+        assert!(command.spec.alias_of.is_some(), "the declaration loaded");
+        for (tier, passes) in [
+            (None, true),
+            (Some(Root), true),
+            (Some(Direct), true),
+            (Some(Transitive), false),
+            (Some(Development), false),
+        ] {
+            command.dependency_tier = tier;
+            assert_eq!(
+                passed_the_gates(&command, pack.provenance()),
+                passes,
+                "{tier:?}"
+            );
+        }
         let _ = std::fs::remove_dir_all(&dir);
     }
 

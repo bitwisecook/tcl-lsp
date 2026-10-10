@@ -118,6 +118,7 @@ const CONVERTFROM_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-failindex",
@@ -131,6 +132,7 @@ const CONVERTFROM_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 
@@ -152,6 +154,7 @@ const CONVERTTO_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
     OptionSpec {
         name: "-failindex",
@@ -165,6 +168,7 @@ const CONVERTTO_OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: None,
     },
 ];
 
@@ -251,6 +255,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "encoding names",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -280,6 +287,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "encoding profiles",
         pure: true,
         return_type: Some(TclType::List),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -292,6 +302,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "encoding user",
         pure: true,
         return_type: Some(TclType::String),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::PLATFORM_DECIDED,
+        ),
         ..SubCommand::DEFAULT
     },
 ];
@@ -307,6 +320,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("encoding"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(1),

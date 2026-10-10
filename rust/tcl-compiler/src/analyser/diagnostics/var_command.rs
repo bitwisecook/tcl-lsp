@@ -1876,37 +1876,46 @@ fn dispatch_table_head(
     Some(value)
 }
 
-fn harvest_array_element_set_constants(
+/// Harvest the element writes each statement states itself into the
+/// constset map keyed by `arr(key)`: a literal `set arr(k) v` (the lowering's
+/// `AssignConst` / `AssignValue` to an element name), and each element a
+/// call's registry route writes over its literal words (`array set arr {k v
+/// …}`, [`crate::value_transfer::literal_element_writes`]). The lattice
+/// holds these in a function without a barrier and loses them in one with
+/// a barrier, which widens every value the function holds; the W307
+/// callback-array suppression reads the statement's own write either way
+/// (FP-OBJ-10 SCCP-evidence override).
+fn harvest_element_writes(
     cu: &crate::compilation_unit::CompilationUnit,
     out: &mut HashMap<String, HashSet<String>>,
+    registry: &tcl_registry::CommandRegistry,
 ) {
     use crate::ir::Statement;
     let is_literal = |s: &str| !s.contains('$') && !s.contains('[');
-    // `TclObjLookupVarEx`'s element rule, from the one owner rather than a
-    // local re-spelling of its two char tests.
-    let is_array_elem = |name: &str| tcl_syntax::naming::split_element_ref(name).is_some();
+    // `TclObjLookupVarEx`'s element rule, from the one owner.
+    let is_element = |name: &str| tcl_syntax::naming::split_element_ref(name).is_some();
     let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
     for fu in units {
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
                 match stmt {
-                    Statement::AssignValue { name, value, .. }
-                        if is_array_elem(name) && is_literal(value) =>
-                    {
+                    Statement::AssignConst { name, value, .. } if is_element(name) => {
                         out.entry(name.clone()).or_default().insert(value.clone());
                     }
-                    Statement::AssignConst { name, value, .. } if is_array_elem(name) => {
+                    Statement::AssignValue { name, value, .. }
+                        if is_element(name) && is_literal(value) =>
+                    {
                         out.entry(name.clone()).or_default().insert(value.clone());
                     }
                     Statement::Call { command, args, .. }
-                        if command == "set"
-                            && args.len() == 2
-                            && is_array_elem(&args[0])
-                            && is_literal(&args[1]) =>
-                    {
-                        out.entry(args[0].clone())
-                            .or_default()
-                            .insert(args[1].clone());
+                    | Statement::Barrier { command, args, .. } => {
+                        for (array, key, value) in
+                            crate::value_transfer::literal_element_writes(registry, command, args)
+                        {
+                            out.entry(format!("{array}({key})"))
+                                .or_default()
+                                .insert(value);
+                        }
                     }
                     _ => {}
                 }
@@ -2007,14 +2016,10 @@ fn harvest_dict_with_constants(
                 else {
                     continue;
                 };
-                let items = crate::tcl_expr_eval::split_tcl_list(dict_text, rules);
-                if !items.len().is_multiple_of(2) {
-                    continue;
-                }
-                for pair in items.as_chunks::<2>().0 {
-                    out.entry(pair[0].clone())
-                        .or_default()
-                        .insert(pair[1].clone());
+                for binder in binders {
+                    if let DictBinder::Key { name, value } = binder {
+                        out.entry(name).or_default().insert(value);
+                    }
                 }
             }
         }
@@ -2083,9 +2088,9 @@ fn build_tainted_by_scope(
 }
 
 /// Aggregate constant-string knowledge (var name → flat CONST/CONSTSET value
-/// set) across the top level, every proc, and every method body of `cu`, then
-/// fold in `array set` / array-element / `dict with` literal constants.  Used
-/// by the W307 non-literal-command-name check.
+/// set) across the top level, every proc, and every method body of `cu`,
+/// then fold in the element writes each statement states and the keys a
+/// `dict with` binds.  Used by the W307 non-literal-command-name check.
 fn aggregate_constsets(
     cu: &crate::compilation_unit::CompilationUnit,
     rules: tcl_syntax::word_rules::WordValueRules,

@@ -113,6 +113,9 @@ fn normalize(
         }),
         tcllib_package: Some("unicode"),
         required_package: Some("unicode"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }
@@ -133,6 +136,9 @@ fn soundex_cmd() -> CommandSpec {
         }),
         tcllib_package: Some("soundex"),
         required_package: Some("soundex"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }
@@ -173,6 +179,9 @@ fn stringprep_specs() -> Vec<CommandSpec> {
             }),
             tcllib_package: Some("stringprep"),
             required_package: Some("stringprep"),
+            semantics: SemanticsDeclaration::Declared(
+                &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            ),
             ..CommandSpec::DEFAULT
         },
         CommandSpec {
@@ -189,6 +198,9 @@ fn stringprep_specs() -> Vec<CommandSpec> {
             }),
             tcllib_package: Some("stringprep"),
             required_package: Some("stringprep"),
+            semantics: SemanticsDeclaration::Declared(
+                &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            ),
             ..CommandSpec::DEFAULT
         },
     ]
@@ -211,6 +223,9 @@ fn unicode_specs() -> Vec<CommandSpec> {
             }),
             tcllib_package: Some("unicode"),
             required_package: Some("unicode"),
+            semantics: SemanticsDeclaration::Declared(
+                &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            ),
             ..CommandSpec::DEFAULT
         },
         CommandSpec {
@@ -227,6 +242,9 @@ fn unicode_specs() -> Vec<CommandSpec> {
             }),
             tcllib_package: Some("unicode"),
             required_package: Some("unicode"),
+            semantics: SemanticsDeclaration::Declared(
+                &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+            ),
             ..CommandSpec::DEFAULT
         },
         normalize(

@@ -26,7 +26,7 @@
 //! sits underneath:
 //!
 //! ```text
-//!   C extension  (compiled against include/tclshim.h)
+//!   C extension  (compiled against runtime/rust/include/tcl.h)
 //!  ---------------- this crate ----------------
 //!   ffi.rs   the exported Tcl_* symbols, panic-guarded
 //!   obj.rs   Tcl_Obj: refcounted, dual-rep, typed across the boundary
@@ -49,8 +49,10 @@
 //! [`Value::Int`], a `Tcl_NewListObj` as [`Value::List`]; text is only used
 //! where the C code made text authoritative. See [`obj`].
 
+mod doors;
 pub mod ffi;
 mod index_table;
+pub mod load;
 pub mod obj;
 pub mod state;
 
@@ -59,12 +61,17 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
 use tcl_core_types::NameBytes;
+use tcl_dialect::model::Provenance;
 use tcl_engine_api::{
-    CommandPublicationKey, CommandPublicationService, CommandRegistrar, CompileUnit, Engine,
-    EngineError, HostCommand, PreparedCommandPublication, Value,
+    CommandPublicationKey, CommandPublicationService, CommandRegistrar, CompileUnit,
+    CompletionCode, Engine, EngineError, HostCommand, HostOutcome, PreparedCommandPublication,
+    Value,
 };
+use tcl_registry::model::DeclaredCommand;
 
+pub use load::StaticExtensions;
 pub use obj::{Obj, ObjRef, TclError};
+use state::DoorRef;
 pub use state::{CommandChange, InitProc, InterpState};
 
 /// What a `<Pkg>_Init` call left behind.
@@ -74,6 +81,30 @@ pub struct Loaded {
     pub commands: Vec<NameBytes>,
     /// The packages it provided, `(name, version)` in provision order.
     pub packages: Vec<(NameBytes, Vec<u8>)>,
+}
+
+impl Loaded {
+    /// The commands the entry point registered, as the analyser would have them
+    /// declared: each at the conservative default for a command native code
+    /// registers (`tcl_registry::extension_default`), because nothing the shim
+    /// is given says what a C command does to state.
+    ///
+    /// This is the third source an extension is described from, beside a scan of
+    /// its C source and a probe of a shell that requires it: the one for a host
+    /// that loads the extension in-process and so knows exactly which commands
+    /// it registered. The provenance is [`Provenance::User`], the host's own
+    /// configuration, since [`Interp::load_static`] is the host's act.
+    #[must_use]
+    pub fn declared_surface(&self) -> Vec<DeclaredCommand> {
+        self.commands
+            .iter()
+            .filter_map(|name| {
+                name.try_utf8().ok().map(|name| {
+                    DeclaredCommand::extension(name.to_owned(), Vec::new(), Provenance::User)
+                })
+            })
+            .collect()
+    }
 }
 
 /// Why [`Interp::load_static`] failed.
@@ -213,22 +244,29 @@ impl HostCommand for ShimCommand {
 
     /// With the engine's door open, changes the C code made to the command
     /// table are published before the calling script's next statement — so
-    /// `factory x; x` works. An engine that does not open the door leaves
-    /// them to [`Interp::sync`].
+    /// `factory x; x` works — and the C code can read, write and unset the
+    /// variables of the frame that called it and evaluate a script there
+    /// (`Tcl_GetVar2Ex`, `Tcl_ObjSetVar2`, `Tcl_UnsetVar2`, `Tcl_EvalObjEx`). An
+    /// engine that does not open the door leaves the first to [`Interp::sync`]
+    /// and gives the second nothing to reach.
     fn invoke_with_registrar(
         &self,
         registrar: &mut dyn CommandRegistrar,
         arguments: &[Value],
-    ) -> Result<Value, EngineError> {
+    ) -> Result<HostOutcome, EngineError> {
         let service = registrar.command_publication_service()?;
         let previous = self.state.replace_publication_service(Some(service));
-        let answer = self.invoke(arguments);
+        let answer = {
+            let mut door = DoorRef::new(&mut *registrar);
+            let _open = self.state.open_door(&mut door);
+            self.invoke(arguments)
+        };
         self.state.replace_publication_service(previous);
         Self::publish(&self.state, registrar)?;
         answer
     }
 
-    fn invoke(&self, arguments: &[Value]) -> Result<Value, EngineError> {
+    fn invoke(&self, arguments: &[Value]) -> Result<HostOutcome, EngineError> {
         let completion = self.invoke_objects(arguments, None)?;
         if completion.code == tcl_core_types::Code::Error {
             return Err(EngineError::ScriptBytes {
@@ -237,7 +275,17 @@ impl HostCommand for ShimCommand {
                 options: Some(self.state.return_options(ffi::TCL_ERROR).bytes()),
             });
         }
-        normal_callback_result(completion).and_then(|result| result.snapshot())
+        let code = CompletionCode::from_int(
+            i32::try_from(completion.code.as_int()).expect("native C completion code"),
+        )
+        .ok_or_else(|| {
+            EngineError::ExecutionRefusal("error completion requires error transport".into())
+        })?;
+        Ok(HostOutcome {
+            value: completion.result.snapshot()?,
+            code,
+            options: completion.options.snapshot()?,
+        })
     }
 
     fn invoke_original_objects_with_registrar(
@@ -252,9 +300,12 @@ impl HostCommand for ShimCommand {
         }
         let service = registrar.command_publication_service()?;
         let previous = self.state.replace_publication_service(Some(service));
-        let answer = self
-            .invoke_objects(&[], Some(arguments))
-            .and_then(normal_callback_result);
+        let answer = {
+            let mut door = DoorRef::new(&mut *registrar);
+            let _open = self.state.open_door(&mut door);
+            self.invoke_objects(&[], Some(arguments))
+                .and_then(normal_callback_result)
+        };
         self.state.replace_publication_service(previous);
         Self::publish(&self.state, registrar)?;
         answer
@@ -271,7 +322,11 @@ impl HostCommand for ShimCommand {
         }
         let service = registrar.command_publication_service()?;
         let previous = self.state.replace_publication_service(Some(service));
-        let answer = self.invoke_objects(&[], Some(arguments));
+        let answer = {
+            let mut door = DoorRef::new(&mut *registrar);
+            let _open = self.state.open_door(&mut door);
+            self.invoke_objects(&[], Some(arguments))
+        };
         self.state.replace_publication_service(previous);
         Self::publish(&self.state, registrar)?;
         answer
@@ -353,13 +408,23 @@ impl ShimCommand {
         if let Some(panic) = ffi::take_panic() {
             return Err(EngineError::Crashed(panic));
         }
+        if let Some(fatal) = self.state.take_fatal() {
+            return Err(fatal);
+        }
         drop(objv);
         if let Some(refusal) = self.state.take_host_refusal() {
             return Err(refusal);
         }
 
         let result = self.state.result();
-        let options = ObjRef::new(self.state.return_options(code));
+        let options = if code == ffi::TCL_RETURN {
+            match self.state.take_return_options() {
+                Some(options) => ObjRef::new(Obj::from_value(&options)?),
+                None => ObjRef::new(self.state.return_options(code)),
+            }
+        } else {
+            ObjRef::new(self.state.return_options(code))
+        };
         let mut graph = obj::OriginalObjectGraph::default();
         let result = graph.export(result.get(), false)?;
         let options = graph.export(options.get(), false)?;
@@ -430,6 +495,98 @@ impl<E: Engine> CommandRegistrar for EngineDoor<'_, E> {
     fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
         self.0.remove_command(name)
     }
+
+    fn provide_package(&mut self, name: &str, version: &str) -> Result<(), EngineError> {
+        self.0.provide_package(name, version)
+    }
+
+    fn library_loaded(&mut self, file_name: &str, prefix: &str) -> Result<(), EngineError> {
+        self.0.library_loaded(file_name, prefix)
+    }
+
+    fn variable(&mut self, name: &str) -> Result<Value, EngineError> {
+        self.0.variable(name)
+    }
+
+    fn set_variable(&mut self, name: &str, value: Value) -> Result<(), EngineError> {
+        self.0.set_variable(name, value)
+    }
+
+    fn unset_variable(&mut self, name: &str) -> Result<(), EngineError> {
+        self.0.unset_variable(name)
+    }
+
+    fn eval_in_invocation(&mut self, script: &str) -> Result<HostOutcome, EngineError> {
+        self.0.eval_in_invocation(script)
+    }
+}
+
+/// Call `init` against `state` and publish what it registered through
+/// `registrar`: the part of a load that does not depend on who owns the engine,
+/// so [`Interp::load_static`] (the engine in hand) and the `load` command
+/// ([`StaticExtensions`], the engine's registration door in hand) share it.
+///
+/// # Safety
+///
+/// As [`Interp::load_static`].
+pub(crate) unsafe fn run_init(
+    state: &Rc<InterpState>,
+    registrar: &mut dyn CommandRegistrar,
+    init: InitProc,
+) -> Result<Loaded, LoadError> {
+    let service = registrar.command_publication_service()?;
+    let previous = state.replace_publication_service(Some(service));
+    struct Restore<'a>(&'a InterpState, Option<Rc<dyn CommandPublicationService>>);
+    impl Drop for Restore<'_> {
+        fn drop(&mut self) {
+            self.0.replace_publication_service(self.1.take());
+        }
+    }
+    let _restore = Restore(state, previous);
+    let extension = Rc::new(state::StaticExtensionLifetime::new(init));
+    let state_ptr = Rc::as_ptr(state).cast_mut();
+    state.reset_result();
+    let code = {
+        let mut door = DoorRef::new(&mut *registrar);
+        let _open = state.open_door(&mut door);
+        // SAFETY: the caller vouches for `init`; `state_ptr` is live.
+        state.with_static_extension(Some(extension), || {
+            catch_unwind(AssertUnwindSafe(|| unsafe { init(state_ptr) }))
+        })
+    };
+    let code = match code {
+        Ok(code) => code,
+        Err(payload) => return Err(LoadError::Crashed(panic_text(payload.as_ref()))),
+    };
+    if let Some(panic) = ffi::take_panic() {
+        return Err(LoadError::Crashed(panic));
+    }
+    if let Some(fatal) = state.take_fatal() {
+        return Err(LoadError::Engine(fatal));
+    }
+    if let Some(refusal) = state.take_host_refusal() {
+        return Err(LoadError::Engine(refusal));
+    }
+    if code != ffi::TCL_OK {
+        return Err(LoadError::InitFailed {
+            code,
+            message: state.result().get().bytes(),
+        });
+    }
+    let mut commands: Vec<NameBytes> = ShimCommand::publish(state, registrar)?
+        .into_iter()
+        .filter_map(|change| match change {
+            CommandChange::Created(publication) => {
+                Some(NameBytes::from(publication.original.as_ref()))
+            }
+            CommandChange::Deleted(_) => None,
+        })
+        .collect();
+    commands.sort();
+    Ok(Loaded {
+        commands,
+        packages: state.provided_packages(),
+    })
 }
 
 /// A shim interpreter: an engine plus the `Tcl_Interp` state C code sees.
@@ -447,7 +604,7 @@ impl<E: Engine> Interp<E> {
     pub fn new(engine: E) -> Self {
         Self {
             engine,
-            state: Rc::new(InterpState::new()),
+            state: InterpState::new_shared(),
         }
     }
 
@@ -462,59 +619,42 @@ impl<E: Engine> Interp<E> {
     /// # Safety
     ///
     /// `init` must be a package entry point written against
-    /// `include/tclshim.h`: the shim contains Rust panics, not C undefined
+    /// `runtime/rust/include/tcl.h`: the shim contains Rust panics, not C undefined
     /// behaviour. Calling this is the act of trusting native code.
     /// The extension's code and non-temporary Index tables must remain valid
     /// through every retained object/cache, even after command or interpreter
     /// retirement. This static loader does not support unloading a library.
     pub unsafe fn load_static(&mut self, init: InitProc) -> Result<Loaded, LoadError> {
-        let service = self.engine.command_publication_service()?;
-        self.state.replace_publication_service(Some(service));
-        let state_ptr = self.raw();
-        self.state.reset_result();
-        // SAFETY: the caller vouches for `init`; `state_ptr` is live.
-        let extension = Rc::new(state::StaticExtensionLifetime::new(init));
-        let code = self.state.with_static_extension(Some(extension), || {
-            catch_unwind(AssertUnwindSafe(|| unsafe { init(state_ptr) }))
-        });
-        let code = match code {
-            Ok(code) => code,
-            Err(payload) => return Err(LoadError::Crashed(panic_text(payload.as_ref()))),
-        };
-        if let Some(panic) = ffi::take_panic() {
-            return Err(LoadError::Crashed(panic));
-        }
-        if let Some(refusal) = self.state.take_host_refusal() {
-            return Err(LoadError::Engine(refusal));
-        }
-        if code != ffi::TCL_OK {
-            return Err(LoadError::InitFailed {
-                code,
-                message: self.state.result().get().bytes(),
-            });
-        }
-        let mut commands: Vec<NameBytes> = self
-            .sync()?
-            .into_iter()
-            .filter_map(|change| match change {
-                CommandChange::Created(publication) => {
-                    Some(NameBytes::from(publication.original.as_ref()))
-                }
-                CommandChange::Deleted(_) => None,
-            })
-            .collect();
-        commands.sort();
-        Ok(Loaded {
-            commands,
-            packages: self.state.provided_packages(),
-        })
+        // SAFETY: the caller vouches for `init`.
+        unsafe { run_init(&self.state, &mut EngineDoor(&mut self.engine), init) }
+    }
+
+    /// Give the engine a `load` command over `extensions`, the extensions the
+    /// host has linked in and vouched for ([`StaticExtensions`]), sharing this
+    /// interpreter's state: the commands a script loads appear in
+    /// [`Self::commands`] and the packages they provide in
+    /// [`Self::provided_packages`].
+    ///
+    /// The opt-in is the host's: nothing a script, a pack or a hook body can
+    /// say registers it. An engine that also runs untrusted bodies must not
+    /// be given one, since [`Engine::restrict_commands`] keeps what
+    /// [`Engine::define_command`] registered.
+    pub fn enable_static_extensions(
+        &mut self,
+        extensions: StaticExtensions,
+    ) -> Result<(), EngineError> {
+        self.engine.define_command(
+            load::COMMAND,
+            Rc::new(extensions.sharing(Rc::clone(&self.state))),
+        )
     }
 
     /// Apply the command-table changes C code has made since the last sync
     /// to the engine, returning them.
     ///
-    /// [`Self::load_static`] calls this, and [`Self::eval`] does afterwards
-    /// as a backstop. During an invocation the engine's registration door
+    /// [`Self::load_static`] publishes what the entry point registered the
+    /// same way, and [`Self::eval`] calls this afterwards as a backstop.
+    /// During an invocation the engine's registration door
     /// ([`CommandRegistrar`]) publishes changes as they happen, so a host
     /// driving the engine directly only needs this after a change made
     /// outside any invocation.
@@ -567,9 +707,16 @@ mod tests {
     use std::ffi::{c_int, c_void};
     use std::rc::Rc;
 
-    use tcl_engine_api::{Budget, Engine, EngineError, HostCommand, Value};
+    use tcl_dialect::model::Provenance;
+    use tcl_engine_api::{
+        Budget, CommandRegistrar, CompletionCode, Engine, EngineError, HostCommand, HostOutcome,
+        Value,
+    };
 
-    use super::{CommandChange, Interp, InterpState, LoadError, Obj, ffi};
+    use super::{
+        CommandChange, EngineDoor, InitProc, Interp, InterpState, LoadError, Loaded, Obj,
+        StaticExtensions, ffi,
+    };
 
     /// `echo ?arg …?` — answers with its arguments as a list.
     unsafe extern "C" fn echo(
@@ -612,6 +759,28 @@ mod tests {
         ffi::TCL_OK
     }
 
+    /// `completes code` — answers "done" and returns the integer `code`, as a C
+    /// command returns the completion code it means.
+    unsafe extern "C" fn completes(
+        _client_data: *mut c_void,
+        interp: *mut InterpState,
+        word_count: c_int,
+        words: *const *mut Obj,
+    ) -> c_int {
+        // SAFETY: as in `echo`.
+        unsafe {
+            let mut code: c_int = 0;
+            if word_count != 2
+                || ffi::tcl_get_int_from_obj(interp, *words.add(1), &raw mut code) != ffi::TCL_OK
+            {
+                ffi::tcl_wrong_num_args(interp, 1, words, c"code".as_ptr());
+                return ffi::TCL_ERROR;
+            }
+            ffi::tcl_set_obj_result(interp, ffi::tcl_new_string_obj(c"done".as_ptr(), 4));
+            code
+        }
+    }
+
     unsafe extern "C" fn panicking(
         _client_data: *mut c_void,
         _interp: *mut InterpState,
@@ -641,8 +810,52 @@ mod tests {
                 std::ptr::null_mut(),
                 None,
             );
+            ffi::tcl_create_obj_command(
+                interp,
+                c"completes".as_ptr(),
+                completes,
+                std::ptr::null_mut(),
+                None,
+            );
             ffi::tcl_pkg_provide_ex(interp, c"demo".as_ptr(), c"1.0".as_ptr(), std::ptr::null())
         }
+    }
+
+    /// `peek name` — answers the variable `name` as `Tcl_GetVar2Ex` reads it, or
+    /// the error that call left.
+    unsafe extern "C" fn peek(
+        _client_data: *mut c_void,
+        interp: *mut InterpState,
+        word_count: c_int,
+        words: *const *mut Obj,
+    ) -> c_int {
+        // SAFETY: the shim passes a live interpreter and `word_count` live
+        // objects.
+        unsafe {
+            if word_count != 2 {
+                ffi::tcl_wrong_num_args(interp, 1, words, c"name".as_ptr());
+                return ffi::TCL_ERROR;
+            }
+            let value = ffi::tcl_get_var2_ex(
+                interp,
+                ffi::tcl_get_string(*words.add(1)),
+                std::ptr::null(),
+                ffi::TCL_LEAVE_ERR_MSG,
+            );
+            if value.is_null() {
+                return ffi::TCL_ERROR;
+            }
+            ffi::tcl_set_obj_result(interp, value);
+        }
+        ffi::TCL_OK
+    }
+
+    unsafe extern "C" fn peek_init(interp: *mut InterpState) -> c_int {
+        // SAFETY: the shim passes a live interpreter.
+        unsafe {
+            ffi::tcl_create_obj_command(interp, c"peek".as_ptr(), peek, std::ptr::null_mut(), None);
+        }
+        ffi::TCL_OK
     }
 
     unsafe extern "C" fn failing_init(interp: *mut InterpState) -> c_int {
@@ -659,7 +872,7 @@ mod tests {
         removed: Vec<String>,
     }
 
-    struct RecordingPublicationService;
+    pub(crate) struct RecordingPublicationService;
 
     impl tcl_engine_api::CommandPublicationService for RecordingPublicationService {
         fn observed_presence(
@@ -776,11 +989,297 @@ mod tests {
         }
     }
 
+    /// An engine that implements the twins of the door's methods and records
+    /// what each is asked, answering a budget to an evaluation.
+    #[derive(Default)]
+    struct TwinEngine {
+        log: Vec<String>,
+        /// What an evaluation answers; a budget when none is set.
+        eval: Option<HostOutcome>,
+    }
+
+    impl Engine for TwinEngine {
+        type Handle = ();
+
+        fn command_publication_service(
+            &mut self,
+        ) -> Result<Rc<dyn CommandPublicationService>, EngineError> {
+            Ok(Rc::new(RecordingPublicationService))
+        }
+
+        fn define_prepared_command(
+            &mut self,
+            publication: tcl_engine_api::PreparedCommandPublication,
+            command: Rc<dyn HostCommand>,
+        ) -> Result<(), EngineError> {
+            let name = std::str::from_utf8(&publication.key.simple).map_err(|_| {
+                EngineError::ExecutionRefusal("test engine requires Unicode".into())
+            })?;
+            self.define_command(name, command)
+        }
+
+        fn remove_prepared_command(
+            &mut self,
+            publication: tcl_engine_api::PreparedCommandPublication,
+        ) -> Result<bool, EngineError> {
+            let name = std::str::from_utf8(&publication.key.simple).map_err(|_| {
+                EngineError::ExecutionRefusal("test engine requires Unicode".into())
+            })?;
+            self.remove_command(name)
+        }
+
+        fn name(&self) -> &'static str {
+            "twin"
+        }
+
+        fn define_command(
+            &mut self,
+            name: &str,
+            _command: Rc<dyn HostCommand>,
+        ) -> Result<(), EngineError> {
+            self.log.push(format!("define {name}"));
+            Ok(())
+        }
+
+        fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
+            self.log.push(format!("remove {name}"));
+            Ok(true)
+        }
+
+        fn provide_package(&mut self, name: &str, version: &str) -> Result<(), EngineError> {
+            self.log.push(format!("provide {name} {version}"));
+            Ok(())
+        }
+
+        fn library_loaded(&mut self, file_name: &str, prefix: &str) -> Result<(), EngineError> {
+            self.log.push(format!("library {file_name} {prefix}"));
+            Ok(())
+        }
+
+        fn variable(&mut self, name: &str) -> Result<Value, EngineError> {
+            self.log.push(format!("read {name}"));
+            Ok(Value::Int(3))
+        }
+
+        fn set_variable(&mut self, name: &str, value: Value) -> Result<(), EngineError> {
+            self.log.push(format!("write {name} {value:?}"));
+            Ok(())
+        }
+
+        fn unset_variable(&mut self, name: &str) -> Result<(), EngineError> {
+            self.log.push(format!("unset {name}"));
+            Ok(())
+        }
+
+        fn eval_in_invocation(&mut self, script: &str) -> Result<HostOutcome, EngineError> {
+            self.log.push(format!("eval {script}"));
+            self.eval.clone().ok_or(EngineError::BudgetExceeded(
+                tcl_engine_api::BudgetKind::Commands,
+            ))
+        }
+
+        fn restrict_commands(&mut self, _allowed: &[&str]) -> Result<(), EngineError> {
+            Ok(())
+        }
+
+        fn compile(
+            &mut self,
+            _unit: tcl_engine_api::CompileUnit<'_>,
+        ) -> Result<Self::Handle, EngineError> {
+            Ok(())
+        }
+
+        fn invoke(&mut self, _handle: &(), _arguments: &[Value]) -> Result<Value, EngineError> {
+            Ok(Value::Empty)
+        }
+
+        fn set_budget(&mut self, _budget: Budget) -> Result<(), EngineError> {
+            Ok(())
+        }
+
+        fn commands_spent(&self) -> Option<u64> {
+            None
+        }
+    }
+
+    #[test]
+    fn the_door_of_an_engine_in_hand_forwards_each_method_to_its_twin() {
+        let mut engine = TwinEngine::default();
+        let mut door = EngineDoor(&mut engine);
+        door.provide_package("p", "1.0").expect("provides");
+        door.library_loaded("/lib.so", "Lib").expect("records");
+        assert!(matches!(door.variable("v"), Ok(Value::Int(3))));
+        door.set_variable("w", Value::Int(4)).expect("writes");
+        door.unset_variable("x").expect("unsets");
+        assert_eq!(
+            door.eval_in_invocation("body")
+                .expect_err("the engine's answer"),
+            EngineError::BudgetExceeded(tcl_engine_api::BudgetKind::Commands)
+        );
+        assert_eq!(
+            engine.log,
+            [
+                "provide p 1.0",
+                "library /lib.so Lib",
+                "read v",
+                "write w Int(4)",
+                "unset x",
+                "eval body"
+            ]
+        );
+    }
+
+    /// An entry point that evaluates a script, ignores how that went and answers
+    /// `TCL_OK`.
+    unsafe extern "C" fn evaluating_init(interp: *mut InterpState) -> c_int {
+        // SAFETY: the shim passes a live interpreter.
+        unsafe {
+            let script = ffi::tcl_new_string_obj(c"loop".as_ptr(), 4);
+            let _ = ffi::tcl_eval_obj_ex(interp, script, 0);
+        }
+        ffi::TCL_OK
+    }
+
+    /// `evalret script ?code?` — evaluates `script` and answers the code it had, or
+    /// `code` when one is given.
+    unsafe extern "C" fn evalret(
+        _client_data: *mut c_void,
+        interp: *mut InterpState,
+        word_count: c_int,
+        words: *const *mut Obj,
+    ) -> c_int {
+        // SAFETY: the shim passes a live interpreter and `word_count` live
+        // objects.
+        unsafe {
+            let evaluated = ffi::tcl_eval_obj_ex(interp, *words.add(1), 0);
+            let mut code = evaluated;
+            if word_count == 3 {
+                ffi::tcl_get_int_from_obj(interp, *words.add(2), &raw mut code);
+            }
+            code
+        }
+    }
+
+    unsafe extern "C" fn evalret_init(interp: *mut InterpState) -> c_int {
+        // SAFETY: the shim passes a live interpreter.
+        unsafe {
+            ffi::tcl_create_obj_command(
+                interp,
+                c"evalret".as_ptr(),
+                evalret,
+                std::ptr::null_mut(),
+                None,
+            );
+        }
+        ffi::TCL_OK
+    }
+
+    fn evaluating(answer: HostOutcome) -> (Interp<TwinEngine>, Rc<dyn HostCommand>) {
+        let mut interp = Interp::new(TwinEngine {
+            eval: Some(answer),
+            ..TwinEngine::default()
+        });
+        // SAFETY: `evalret_init` is written against the shim's own exports.
+        unsafe { interp.load_static(evalret_init) }.expect("loads");
+        // The engine here has no command table, so the command is the one the
+        // state holds, run through the door of the engine in hand.
+        let command: Rc<dyn HostCommand> = Rc::new(super::ShimCommand {
+            state: Rc::clone(&interp.state),
+            name: "evalret".to_owned(),
+        });
+        (interp, command)
+    }
+
+    #[test]
+    fn a_tcl_return_carries_the_options_of_the_return_the_last_evaluation_ended_in() {
+        let options = Value::string("-code 1 -level 1 -errorcode {X Y}");
+        let (mut interp, command) = evaluating(HostOutcome::returning(
+            Value::string("msg"),
+            options.clone(),
+        ));
+        let outcome = command
+            .invoke_with_registrar(
+                &mut EngineDoor(interp.engine_mut()),
+                &[Value::string("return -code error -errorcode {X Y} msg")],
+            )
+            .expect("completes");
+        assert_eq!(outcome.code, CompletionCode::Return);
+        assert_eq!(outcome.value.as_str(), Some("msg"));
+        assert_eq!(outcome.options.as_str(), options.as_str());
+
+        let next = command
+            .invoke_with_registrar(
+                &mut EngineDoor(interp.engine_mut()),
+                &[Value::string("again")],
+            )
+            .expect("completes");
+        assert_eq!(
+            next.options.as_str(),
+            options.as_str(),
+            "each call evaluates and so has its own"
+        );
+    }
+
+    #[test]
+    fn a_code_that_is_not_a_return_carries_no_options_whatever_the_evaluation_left() {
+        let (mut interp, command) = evaluating(HostOutcome::returning(
+            Value::string("msg"),
+            Value::string("-code 1 -level 1"),
+        ));
+        for (code, expected) in [
+            (ffi::TCL_OK, CompletionCode::Ok),
+            (ffi::TCL_BREAK, CompletionCode::Break),
+            (7, CompletionCode::Other(7)),
+        ] {
+            let outcome = command
+                .invoke_with_registrar(
+                    &mut EngineDoor(interp.engine_mut()),
+                    &[Value::string("script"), Value::Int(i64::from(code))],
+                )
+                .expect("completes");
+            assert_eq!(outcome.code, expected);
+            assert!(outcome.options.is_empty(), "{:?}", outcome.options);
+        }
+    }
+
+    #[test]
+    fn an_evaluation_that_did_not_end_in_a_return_leaves_no_options_for_a_later_one() {
+        let (mut interp, command) = evaluating(HostOutcome::ok(Value::string("v")));
+        let outcome = command
+            .invoke_with_registrar(
+                &mut EngineDoor(interp.engine_mut()),
+                &[
+                    Value::string("script"),
+                    Value::Int(i64::from(ffi::TCL_RETURN)),
+                ],
+            )
+            .expect("completes");
+        assert_eq!(outcome.code, CompletionCode::Return);
+        assert!(
+            outcome.options.is_empty(),
+            "a return of the command's own is a plain one"
+        );
+    }
+
+    #[test]
+    fn a_budget_an_entry_point_swallows_fails_the_load() {
+        let mut interp = Interp::new(TwinEngine::default());
+        // SAFETY: `evaluating_init` is written against the shim's own exports.
+        let error = unsafe { interp.load_static(evaluating_init) }.expect_err("fails");
+        assert_eq!(
+            error,
+            LoadError::Engine(EngineError::BudgetExceeded(
+                tcl_engine_api::BudgetKind::Commands
+            ))
+        );
+        assert_eq!(interp.engine().log, ["eval loop"]);
+    }
+
     fn loaded() -> Interp<RecordingEngine> {
         let mut interp = Interp::new(RecordingEngine::default());
         // SAFETY: `init` is written against the shim's own exports.
         let loaded = unsafe { interp.load_static(init) }.expect("loads");
-        assert_eq!(loaded.commands, ["boom", "echo", "twice"]);
+        assert_eq!(loaded.commands, ["boom", "completes", "echo", "twice"]);
         assert_eq!(
             loaded.packages,
             [(tcl_core_types::NameBytes::from("demo"), b"1.0".to_vec())]
@@ -805,7 +1304,7 @@ mod tests {
         let answer = echo
             .invoke(&[Value::string("a b"), Value::Int(3)])
             .expect("ok");
-        let items = answer.as_list().expect("a typed list, not text");
+        let items = answer.value.as_list().expect("a typed list, not text");
         assert_eq!(items[0].as_str(), Some("a b"));
         assert!(
             matches!(items[1], Value::Int(3)),
@@ -813,14 +1312,68 @@ mod tests {
         );
 
         let twice = command(&interp, "twice");
-        assert!(matches!(
-            twice.invoke(&[Value::Int(21)]),
-            Ok(Value::Int(42))
-        ));
-        assert!(matches!(
-            twice.invoke(&[Value::string("0x10")]),
-            Ok(Value::Int(32))
-        ));
+        let doubled = twice.invoke(&[Value::Int(21)]).expect("ok");
+        assert!(matches!(doubled.value, Value::Int(42)));
+        assert_eq!(doubled.code, CompletionCode::Ok);
+        let parsed = twice.invoke(&[Value::string("0x10")]).expect("ok");
+        assert!(matches!(parsed.value, Value::Int(32)));
+    }
+
+    #[test]
+    fn a_c_command_returning_break_is_a_break_completion() {
+        let interp = loaded();
+        let completes = command(&interp, "completes");
+        for (code, expected) in [
+            (0, CompletionCode::Ok),
+            (ffi::TCL_RETURN, CompletionCode::Return),
+            (ffi::TCL_BREAK, CompletionCode::Break),
+            (ffi::TCL_CONTINUE, CompletionCode::Continue),
+        ] {
+            let outcome = completes
+                .invoke(&[Value::Int(i64::from(code))])
+                .expect("ok");
+            assert_eq!(outcome.code, expected, "TCL code {code}");
+            assert_eq!(
+                outcome.value.as_str(),
+                Some("done"),
+                "the result is carried with the code"
+            );
+        }
+        let error = completes
+            .invoke(&[Value::Int(i64::from(ffi::TCL_ERROR))])
+            .expect_err("an error");
+        assert_eq!(error.script_message_bytes(), Some(b"done".as_slice()));
+        assert_eq!(error.script_code_bytes(), None);
+        let own = completes
+            .invoke(&[Value::Int(9)])
+            .expect("a code of its own");
+        assert_eq!(own.code, CompletionCode::Other(9));
+        assert_eq!(own.value.as_str(), Some("done"));
+    }
+
+    #[test]
+    fn a_command_an_engine_runs_without_a_door_reaches_no_variable() {
+        let mut interp = Interp::new(RecordingEngine::default());
+        // SAFETY: `peek_init` is written against the shim's own exports.
+        unsafe { interp.load_static(peek_init) }.expect("loads");
+        let peek = command(&interp, "peek");
+        let error = peek.invoke(&[Value::string("x")]).expect_err("no door");
+        assert!(
+            error
+                .script_message_bytes()
+                .is_some_and(|message| message.starts_with(b"no engine door is open")),
+            "{error:?}"
+        );
+
+        let error = peek
+            .invoke_with_registrar(&mut EngineDoor(interp.engine_mut()), &[Value::string("x")])
+            .expect_err("a door with no variable door");
+        assert_eq!(
+            error.script_message_bytes(),
+            Some(b"unsupported by this engine: reading a variable".as_slice()),
+            "the engine's refusal is the command's error, not an empty value"
+        );
+        assert_eq!(error.script_code_bytes(), None);
     }
 
     #[test]
@@ -853,9 +1406,79 @@ mod tests {
         let error = boom.invoke(&[]).expect_err("crashes");
         assert!(matches!(&error, EngineError::Crashed(text) if text.contains("NULL Tcl_Obj")));
         assert!(
-            command(&interp, "echo").invoke(&[]).unwrap().as_bytes() == Some(b"".as_slice()),
+            command(&interp, "echo")
+                .invoke(&[])
+                .unwrap()
+                .value
+                .as_bytes()
+                == Some(b"".as_slice()),
             "the interpreter is still usable"
         );
+    }
+
+    #[test]
+    fn a_loaded_report_declares_every_command_at_the_default_fact() {
+        use tcl_registry::CommandSpec;
+
+        let mut interp = Interp::new(RecordingEngine::default());
+        // SAFETY: `init` is written against the shim's own exports.
+        let loaded = unsafe { interp.load_static(init) }.expect("loads");
+        let declared = loaded.declared_surface();
+        let names: Vec<&str> = declared.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, ["boom", "completes", "echo", "twice"]);
+        let default = CommandSpec::extension_default("");
+        for command in &declared {
+            assert_eq!(command.traits, default.traits, "{}", command.name);
+            assert_eq!(
+                command.side_effects, default.side_effects,
+                "{}",
+                command.name
+            );
+            assert_eq!(command.provenance(), Provenance::User);
+            assert!(command.arguments.is_empty(), "no argument is known");
+        }
+    }
+
+    #[test]
+    fn a_load_that_registered_nothing_declares_nothing() {
+        let mut interp = Interp::new(RecordingEngine::default());
+        // SAFETY: as above.
+        assert!(unsafe { interp.load_static(failing_init) }.is_err());
+        let empty = Loaded {
+            commands: Vec::new(),
+            packages: Vec::new(),
+        };
+        assert!(empty.declared_surface().is_empty());
+    }
+
+    #[test]
+    fn the_host_load_registers_with_the_engine_and_shares_the_interpreters_state() {
+        static TABLE: &[(&str, InitProc)] = &[("Demo", init)];
+        let mut interp = Interp::new(RecordingEngine::default());
+        // SAFETY: `init` is written against the shim's own exports.
+        let extensions = unsafe { StaticExtensions::new(TABLE) };
+        interp
+            .enable_static_extensions(extensions)
+            .expect("registers");
+        assert!(interp.commands().is_empty(), "nothing is loaded yet");
+
+        let load = command(&interp, "load");
+        load.invoke_with_registrar(
+            &mut EngineDoor(interp.engine_mut()),
+            &[Value::string(""), Value::string("Demo")],
+        )
+        .expect("loads");
+        assert_eq!(
+            interp.commands(),
+            ["boom", "completes", "echo", "twice"].map(NameBytes::from)
+        );
+        assert_eq!(
+            interp.provided_packages(),
+            [(NameBytes::from("demo"), b"1.0".to_vec())]
+        );
+        for name in ["boom", "completes", "echo", "twice"] {
+            command(&interp, name);
+        }
     }
 
     #[test]

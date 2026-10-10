@@ -81,9 +81,12 @@ body and condition:
   done
 ```
 
-`Function::loop_nodes` records each `for` loop's exit block → `LoopNode`,
-which is what the bottom-tested reordering and SCCP's static-loop summary
-both read.
+`Function::loop_nodes` records each `for`, `while` and `foreach` loop's exit
+block → `LoopNode`, naming the block the loop starts in and the one whose
+exit state its passes start from (the end of a `for`'s start script): SCCP
+runs a bounded loop to its exit from there and states what it leaves on the
+edges into the exit block, and I230 knows a loop's own test as the branch
+whose false edge enters it.
 
 ### `foreach` (opaque vs inlined)
 
@@ -149,14 +152,20 @@ body. The lowerer marks it `SwitchArm.fallthrough = true` with a `None` body.
 ### `catch` / `try`
 
 **IR**: `Statement::Catch` / `Statement::Try` with `Vec<TryHandler>`.
-**CFG**: `catch` is always emitted opaquely by `emit_opaque_catch` — a
-`Statement::Call` whose `defs` cover the body's writes plus the result and
-options variables.  `try` is lowered by `cfg_lower::lower_try` into
-`try_body`, `try_handler`, `try_ok`, `try_finally`, `try_after_finally`,
+**CFG**: a `catch` in a procedure whose script is straight-line statements is
+lowered into blocks by `cfg_lower::lower_catch`, ending at a statement that
+defines the result and options variables (the analysis build keeps the `catch`
+as written beside it, in `Function::catch_ends`); every other `catch` is
+emitted opaquely by `emit_opaque_catch` — a `Statement::Call` whose `defs` are
+the result and options variables, with what the body writes stated as
+may-definitions of a marker ahead of the call (the body stops at its first
+error).  `try` is lowered by `cfg_lower::lower_try`
+into `try_body`, `try_handler`, `try_ok`, `try_finally`, `try_after_finally`,
 and `try_end` blocks, except when loop inlining is off for the body (the
 top level under `defer_top_level`), where `lower_try_dispatch` defers it to
-an opaque `Statement::Call` carrying the union of the body's, handlers', and
-`finally` clause's defs.
+an opaque `Statement::Call` with the union of the body's, handlers', and
+`finally` clause's writes, and the handlers' variables, as may-definitions of
+a marker ahead of it.
 
 Because a single-successor terminator cannot express a throw, analysis
 builds record body→handler edges in `Function::exception_edges` instead;

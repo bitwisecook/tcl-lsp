@@ -132,6 +132,7 @@ pub fn spec() -> CommandSpec {
             body: crate::native_compilation::NativeBodyCompilation::Uplevel,
         }),
         codegen_hook: Some(crate::hooks::CodegenHookId::Uplevel),
+        runtime_backing: RuntimeBacking::shipped("uplevel"),
         // Present and unrestricted — `uplevel` carries an iRules row
         // explicitly (`ALL_TCL.union(IRULES)`), resolving under the bare
         // `IRULES` mask — a pure control-flow primitive with no

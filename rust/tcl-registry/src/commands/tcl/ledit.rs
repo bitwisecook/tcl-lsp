@@ -52,6 +52,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("ledit"),
         // `ledit` reads the list variable's current value, replaces a
         // range, and writes the result back — a read-before-write of
         // `listVar`, like `lappend`/`append`/`incr` and unlike `lset`'s
@@ -115,6 +116,7 @@ pub fn spec() -> CommandSpec {
                 },
             ),
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::list_update::LEDIT),
         ..CommandSpec::DEFAULT
     }
 }

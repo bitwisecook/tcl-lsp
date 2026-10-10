@@ -41,6 +41,18 @@ A source build fetches the exact patchlevel this project pins for that release
 line. An 8.6 image installs the base image's own Tcl package, so its patchlevel
 is whatever that distribution ships.
 
+### Native extensions
+
+A `.tclspec` pack in the project (under `.tcl-lsp/` or beside a `tclpkg.tcl`)
+can declare a command `runtime_backing host-native`: the host registers it
+natively, so it exists only where the extension providing it is installed.
+`create` lists the Tcl package behind each such command, and the generated
+Dockerfile ends with a check that loads each one with `package require`, so the
+build stops, naming the extension, if it is missing. It does not install the
+extension: install it above the check, for example with `--extra-package`. A
+host-native command whose pack names no providing package (`provides`, or a
+`required_package`) is reported on standard error and listed for nobody.
+
 ### Choosing the release
 
 The Dockerfile pins the release as a build argument, defaulting to the one the

@@ -284,6 +284,8 @@ pub enum Command {
         input: InputArgs,
         #[command(flatten)]
         diag: DiagArgs,
+        #[command(flatten)]
+        report: ReportArgs,
     },
 
     /// Run lint diagnostics across all resolved inputs.
@@ -292,6 +294,8 @@ pub enum Command {
         input: InputArgs,
         #[command(flatten)]
         diag: DiagArgs,
+        #[command(flatten)]
+        report: ReportArgs,
     },
 
     /// Validate source (error-level diagnostics only).
@@ -533,14 +537,20 @@ pub enum Command {
     Opt {
         #[command(flatten)]
         input: InputArgs,
-        /// Optimisation profile.
-        #[arg(long, default_value = "full", value_name = "PROFILE",
+        /// Optimisation profile. Named, it is the profile in force over every
+        /// configuration file; omitted, an input file's own .tcl-lsp.ini
+        /// `[optimiser] profile` applies, then the global config.ini's, then
+        /// `full`.
+        #[arg(long, value_name = "PROFILE",
               value_parser = ["off", "readability", "standard", "full", "aggressive"])]
-        profile: String,
-        /// Disable specific optimisation codes (repeatable).
+        profile: Option<String>,
+        /// Disable optimisation codes (comma-separated, repeatable) on top of the
+        /// profile. With --enable this is the invocation layer: over the
+        /// global config.ini, under an input file's own .tcl-lsp.ini.
         #[arg(long = "disable", value_name = "CODE")]
         disable: Vec<String>,
-        /// Enable specific optimisation codes (repeatable).
+        /// Enable optimisation codes the profile turns off (comma-separated,
+        /// repeatable).
         #[arg(long = "enable", value_name = "CODE")]
         enable: Vec<String>,
         #[command(flatten)]
@@ -688,6 +698,40 @@ pub enum SpecCommand {
     /// total and contraction is never attempted — a program is not recovered
     /// from its expansion.
     Export(SpecExportArgs),
+
+    /// Hold a pack's declared facts to the Tcl package they describe.
+    ///
+    /// The package is required in a real shell — under the package manager's
+    /// opt-in policy, because that runs the package's own code — and every
+    /// command the pack declares is asked what the pack says of it: that the
+    /// package defines it, its arity against the shell's `wrong # args`, each
+    /// `example` row against the answer and the declared `return_type`, a
+    /// Tcl-body reference body against the command on the same inputs, and a
+    /// `pure` command against a write trace on every variable of every
+    /// namespace and the variables it created. One row is printed per
+    /// divergence, and the exit status is 1 if there is any, or if the shell
+    /// stopped before it had asked every command. The policy that opts the
+    /// package in is the operator's project's, found from the working
+    /// directory. Nothing here runs at editor load.
+    Test(SpecTestArgs),
+}
+
+/// Flags of `tcl spec test`.
+#[derive(Debug, Args)]
+pub struct SpecTestArgs {
+    /// The `.tclspec` file to test.
+    #[arg(value_name = "PACK")]
+    pub pack: PathBuf,
+
+    /// The Tcl shell that runs the package: the `tclsh` of `TCL_VENV`, or the
+    /// newest on `PATH`, when absent. Reach the package with `TCLLIBPATH`.
+    #[arg(long, value_name = "PATH")]
+    pub tclsh: Option<PathBuf>,
+
+    /// The Tcl package to `package require` first. Absent, it is the package
+    /// every command of the pack names with `required_package`.
+    #[arg(long, value_name = "NAME")]
+    pub package: Option<String>,
 }
 
 /// Flags of `tcl spec export`.
@@ -796,6 +840,44 @@ pub struct SpecImportArgs {
     #[arg(long = "list-tags", requires = "github")]
     pub list_tags: bool,
 
+    /// Describe a C extension from its source instead of a Tcl package's
+    /// releases: scan every `.c`, `.h`, `.cc`, `.cpp`, `.cxx` and `.hpp` file
+    /// under DIR (repeatable) for the commands it registers and the package
+    /// it provides. Each command is a row at the conservative default for a
+    /// command native code registers, carrying the provenance `c-scan` and
+    /// the evidence for whatever the source states of it.
+    #[arg(
+        long = "c-source",
+        value_name = "DIR",
+        conflicts_with_all = ["snapshot", "github"]
+    )]
+    pub c_source: Vec<PathBuf>,
+
+    /// The extension to describe when the `--c-source` sources hold several:
+    /// the prefix its entry point is named by, `PREFIX_Init` (`--entry Pkga`).
+    /// The description is then the commands, packages and unreadable calls in
+    /// the functions that entry point reaches. Sources that define more than one
+    /// entry point are refused without it, with the list of them.
+    #[arg(long = "entry", value_name = "PREFIX", requires = "c_source")]
+    pub entry: Option<String>,
+
+    /// Describe an extension by requiring PACKAGE in a real shell and listing
+    /// the commands it adds. The package runs, so it is held to the package
+    /// manager's policy (`[build] allow-build-scripts` and `tcl pkg trust`),
+    /// as `tcl spec test` is. Rows carry the provenance `probe`; with
+    /// `--c-source`, a command both found carries both.
+    #[arg(
+        long = "probe",
+        value_name = "PACKAGE",
+        conflicts_with_all = ["snapshot", "github"]
+    )]
+    pub probe: Option<String>,
+
+    /// The `tclsh` `--probe` requires the package in. Default: the one
+    /// `TCL_VENV` names, else the newest on `PATH`.
+    #[arg(long, value_name = "PATH", requires = "probe")]
+    pub tclsh: Option<PathBuf>,
+
     /// Dialect profile every snapshot is analysed as.
     #[arg(
         long,
@@ -854,12 +936,28 @@ pub struct DiagArgs {
     /// Emit diagnostics as JSON.
     #[arg(long)]
     pub json: bool,
-    /// Disable specific diagnostic codes (repeatable).
+    /// Disable diagnostic codes (comma-separated, repeatable). The flags are
+    /// the invocation layer: over the global config.ini, under an input
+    /// file's own .tcl-lsp.ini; inline `# noqa` and top-of-file directives
+    /// win over all three.
     #[arg(long = "disable", value_name = "CODE")]
     pub disable: Vec<String>,
-    /// Enable specific diagnostic codes (repeatable).
+    /// Enable diagnostic codes (comma-separated, repeatable), including a
+    /// default-off code such as W242.
     #[arg(long = "enable", value_name = "CODE")]
     pub enable: Vec<String>,
+}
+
+/// `--show-suppressed`, shared by `diag` / `lint` (not `validate`, which
+/// lists errors only).
+#[derive(Debug, Args)]
+pub struct ReportArgs {
+    /// Also list what the policy hides — every suppressed finding with its
+    /// reason, every code a layer or a top-of-file directive turned off, and
+    /// the optimiser this verb never runs, as one row per reason — so a
+    /// missing diagnostic has an answer.
+    #[arg(long = "show-suppressed")]
+    pub show_suppressed: bool,
 }
 
 /// Flags shared by most `pkg` sub-actions.

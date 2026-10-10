@@ -85,8 +85,10 @@ descriptor, or a typed hook ID the consumer dispatches on (`hooks.rs`,
 `side_effects`, `taint_*`, `arg_role_resolver`, `definition_body`) — rather
 than teaching a consumer about the command by name. Argument roles,
 definition-body grammars (TclOO, snit, and itcl are pure data over
-`MemberKind`; a new class system is a `DefinitionBodyGrammar` plus a
-`DefinerFamily` arm, not walker code), taint, side effects, const-fold,
+`MemberKind` and each member's `MemberEffect`; a new class system is a
+`DefinitionBodyGrammar` plus a `DefinerFamily` arm, not walker code, and a
+consumer routes a member by `DefinitionBodyGrammar::member_row`'s effect,
+never its keyword), taint, side effects, const-fold,
 lowering, and codegen all take this shape. Migration debt is tracked, not
 grandfathered: a hardcoded name moves into the registry, never multiplies. The
 irreducible analyser-local semantics (routing a member to its `ClassDef`
@@ -103,15 +105,21 @@ sites and are not debt.
   ([spec-packs.md](docs/design/registry/spec-packs.md)). Edit the
   `.tclspec`, not Rust.
 - Add a command's `CommandSpec` and its WASM runtime backing in the same
-  change (see *WASM command parity*).
-- Argument roles resolve `arg_role_resolver` → `arg_roles` →
-  `assigns_variable_at`; the resolver is authoritative. Compound commands
+  change (see *WASM command parity*), and declare the spec's
+  `runtime_backing` to match: `cargo xtask command-backing` holds a core
+  command's declaration to what the runtime reports registering.
+- Argument roles resolve `clause_grammar` → `arg_role_resolver` →
+  `arg_roles` → `assigns_variable_at`; a clause grammar states where a
+  chain's keywords, conditions and scripts sit, and the resolver is
+  authoritative for the rest. Compound commands
   (`dict for`, `namespace upvar`) are a base command plus a subcommand word,
-  handled by registry `SubCommand` entries and by hook IDs in the analyser,
-  lowering, and codegen — check the spec's hook IDs before hunting for a
-  missing branch. A document's own `# tcl-lsp: stub` declarations widen that
-  same query through `DocumentCommandSurface`, and travel to lowering and the
-  interprocedural scan on `UnitBuildOptions::declared_commands`
+  handled by registry `SubCommand` entries, whose roles, clause grammar and
+  state transitions the analyser reads generically, and by hook IDs in
+  lowering, codegen, and the analyser's short residue; check the
+  subcommand's descriptors and hook IDs before hunting for a missing branch.
+  A document's own `# tcl-lsp: stub` declarations answer that same query
+  nearest-wins through `DocumentCommandSurface`, and travel to lowering and
+  the interprocedural scan on `UnitBuildOptions::declared_commands`
   ([dialect-stubs.md](docs/design/contracts/dialect-stubs.md)) — so a role a
   consumer reads from the registry it also reads from a stub.
 - Two drift gates in `make xtask-check` keep the spec surface honest:
@@ -144,14 +152,20 @@ owner-shaped implementation without updating the contract and its gate.
 ### WASM command parity
 
 Every command in `tcl-registry` needs backing in `runtime/rust/` — a handler,
-an interpreter-fallback path, or an explicit not-required classification.
-`cargo xtask command-backing --check` cross-checks the two, writes
-[wasm-command-backing.md](docs/generated/wasm-command-backing.md), and fails
-on an unclassified command; a real gap goes on `KNOWN_UNBACKED` in
-`rust/xtask/src/command_backing.rs` until it gains a handler. The
-`wasm_stdlib` feature embeds Tcl scripts and the Tcl-level `tcltest` package
-in the runtime VFS; it is not a port of the C `test*` commands and does not
-bundle package-driven extensions. Pipeline:
+a definition in the Tcl library the runtime embeds, or a declaration that
+nothing executes it there. The spec says which, in its `runtime_backing`;
+the runtimes say what they registered, through `Interp::backing_report`
+(`runtime/rust`) and `Vm::backing_report` (`tcl-vm`). `cargo xtask
+command-backing --check` asks both, holds every core command's declaration
+to the WASM runtime's answer, writes
+[wasm-command-backing.md](docs/generated/wasm-command-backing.md) from the
+two, and fails on a disagreement; a real gap goes on `KNOWN_UNBACKED` in
+`rust/xtask/src/command_backing.rs` until it gains a handler, and it is the
+only list. A runtime built without libtommath reports the handlers that need
+it as needing it, so the gate answers the same either way. The `wasm_stdlib`
+feature embeds Tcl scripts and the Tcl-level `tcltest` package in the runtime
+VFS; it is not a port of the C `test*` commands and does not bundle
+package-driven extensions. Pipeline:
 [wasm-codegen.md](docs/design/compiler/wasm-codegen.md); extensions:
 [wasm-extensions.md](docs/design/compiler/wasm-extensions.md).
 
@@ -216,10 +230,3 @@ glossary, and screenshot updates in the same PR
 - The embedded SslicTcl trust-store data is refreshed only deliberately
   (`make update-source-data`, then `make check-source-data`):
   [sslictcl-source-data.md](docs/design/contracts/sslictcl-source-data.md).
-
-## Long-running lanes
-
-A lane keeps a tracking document under `docs/design/lanes/`, commits each
-coherent, compiling state as `wip(<lane>):` with explicitly staged paths,
-never pushes (the orchestrator does), and waits rather than deleting
-`.git/index.lock`. Rules: [lanes/README.md](docs/design/lanes/README.md).

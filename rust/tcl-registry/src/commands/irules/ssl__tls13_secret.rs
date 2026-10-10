@@ -54,6 +54,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::Client,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -83,6 +84,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
             connection_side: ConnectionSide::Server,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
 ];

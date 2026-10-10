@@ -42,6 +42,7 @@
 
 pub mod embedded;
 pub mod live;
+mod pure_functions;
 pub mod session;
 pub mod sim;
 pub mod topology;

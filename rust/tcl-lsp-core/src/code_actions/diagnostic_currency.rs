@@ -21,12 +21,19 @@ pub struct DiagnosticEditSource<'a> {
 }
 
 impl<'a> DiagnosticEditSource<'a> {
+    pub(super) fn analysis(&self) -> &AnalysisResult {
+        self.analysis
+    }
+
     /// Capture exact current Document bytes, complete config and Registry.
     /// Existing analysis is required; no profile label reconstructs its owner.
     #[must_use]
     pub fn for_analysis(source: &'a str, analysis: &'a AnalysisResult) -> Option<Self> {
         // Implementation contract: naming.editor.original-diagnostic-edit-currency
         // docs/design/analysis/name-resolution-proofs/original-diagnostic-edit-currency.md
+        if analysis.analysis_context_unavailable.is_some() {
+            return None;
+        }
         let context = WorkspaceDiagnosticSourceContext::for_analysis(analysis)?;
         let input = analysis.resolved_input.as_ref()?;
         if context.image() != &SourceImage::document(source)
@@ -53,6 +60,21 @@ impl<'a> DiagnosticEditSource<'a> {
     #[must_use]
     pub fn contains_span(&self, span: Span) -> bool {
         self.source.get(span.as_range()).is_some()
+    }
+
+    /// Report conversion preserves the original issuer and its current source.
+    #[must_use]
+    pub fn matches_finding(&self, finding: &crate::diagnostic_policy::Finding) -> bool {
+        if let Some(original) = finding.original_analyser_diagnostic() {
+            return self.matches_analyser_diagnostic(original);
+        }
+        if let Some(original) = finding.original_compiler_diagnostic() {
+            return self.matches_compiler_diagnostic(original);
+        }
+        matches!(
+            finding.producer,
+            crate::diagnostic_policy::Producer::SourceStyle
+        ) && self.contains_span(finding.span)
     }
 
     /// A published fix must occur independently in the current analyser set.
@@ -109,6 +131,15 @@ mod tests {
             ))
             .analyse(source, profile.name)
     }
+    fn report_of(rows: &[Diagnostic]) -> crate::diagnostic_policy::Report {
+        crate::diagnostic_policy::apply(
+            rows.iter()
+                .cloned()
+                .map(crate::diagnostic_policy::Finding::from)
+                .collect(),
+            &crate::diagnostic_policy::Policy::unrestricted(),
+        )
+    }
     fn all() -> LspRange {
         LspRange {
             start_line: 0,
@@ -135,7 +166,12 @@ mod tests {
                         .any(|fix| fix.span == Span::new(10, 10) && fix.new_text == "]")),
             "the real comment-boundary issuer supplies the exact closer insertion"
         );
-        let actions = code_actions(source, all(), Some(&current), &current.diagnostics);
+        let actions = code_actions(
+            source,
+            all(),
+            Some(&current),
+            &report_of(&current.diagnostics),
+        );
         let fixes: Vec<_> = actions
             .iter()
             .filter(|action| action.kind == ActionKind::QuickFix)
@@ -155,7 +191,7 @@ mod tests {
                 "set y [foo\n# tail",
                 all(),
                 Some(&current),
-                &current.diagnostics
+                &report_of(&current.diagnostics)
             )
             .is_empty()
         );
@@ -164,7 +200,7 @@ mod tests {
                 &format!("{source} "),
                 all(),
                 Some(&current),
-                &current.diagnostics
+                &report_of(&current.diagnostics)
             )
             .is_empty()
         );
@@ -173,7 +209,7 @@ mod tests {
                 source,
                 all(),
                 Some(&AnalysisResult::default()),
-                &current.diagnostics
+                &report_of(&current.diagnostics)
             )
             .is_empty()
         );
@@ -181,7 +217,7 @@ mod tests {
         for row in &mut published {
             row.message = "counterfactual presentation".to_owned();
         }
-        let changed_titles = code_actions(source, all(), Some(&current), &published);
+        let changed_titles = code_actions(source, all(), Some(&current), &report_of(&published));
         assert_eq!(
             changed_titles
                 .iter()
@@ -197,7 +233,7 @@ mod tests {
             }
         }
         assert!(
-            !code_actions(source, all(), Some(&current), &foreign)
+            !code_actions(source, all(), Some(&current), &report_of(&foreign))
                 .iter()
                 .any(|a| a.kind == ActionKind::QuickFix)
         );
@@ -208,7 +244,13 @@ mod tests {
             .unwrap()
             .expand_syntax = false;
         assert!(
-            code_actions(source, all(), Some(&changed_config), &current.diagnostics).is_empty()
+            code_actions(
+                source,
+                all(),
+                Some(&changed_config),
+                &report_of(&current.diagnostics)
+            )
+            .is_empty()
         );
     }
 
@@ -250,21 +292,22 @@ incr x
 incr x
 ";
         let foreign = analysis(foreign_source, &registry, config);
-        let other = DiagnosticEditSource::for_analysis(foreign_source, &foreign).unwrap();
+        let other =
+            DiagnosticEditSource::for_analysis(foreign_source, &report_of(&foreign)).unwrap();
         assert!(
             check_diagnostic_actions(&other, all(), &checks, &disabled, &suppressed).is_empty()
         );
         let mut foreign_config = config;
         foreign_config.expand_syntax = !config.expand_syntax;
         let foreign = analysis(source, &registry, foreign_config);
-        let other = DiagnosticEditSource::for_analysis(source, &foreign).unwrap();
+        let other = DiagnosticEditSource::for_analysis(source, &report_of(&foreign)).unwrap();
         assert!(
             check_diagnostic_actions(&other, all(), &checks, &disabled, &suppressed).is_empty()
         );
         let mut foreign_registry = CommandRegistry::build_default();
         foreign_registry.load_irules();
         let foreign = analysis(source, &foreign_registry, config);
-        let other = DiagnosticEditSource::for_analysis(source, &foreign).unwrap();
+        let other = DiagnosticEditSource::for_analysis(source, &report_of(&foreign)).unwrap();
         assert!(
             check_diagnostic_actions(&other, all(), &checks, &disabled, &suppressed).is_empty()
         );

@@ -1,0 +1,245 @@
+{
+  "scope": "Current independent byte association of captured CLI executable hashes, not a new native run or compiler receipt.",
+  "providers": {
+    "8.4.20": {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "executable_sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+      "bytes": 907648,
+      "reported_versions": [
+        "8.4.20",
+        "8.4.20",
+        "8.4.20",
+        "8.4.20",
+        "8.4.20",
+        "8.4.20"
+      ],
+      "receipt_associations": [
+        {
+          "experiment": 378,
+          "receipt_sha256": "3ed12c1757d4517d3a5cef559bb48d196abe7f669092dc87fa8425552a8de75b"
+        },
+        {
+          "experiment": 379,
+          "receipt_sha256": "759b90afbfeb838c9ab97844b6597e6992f0ed3249ae4a7ce577a0185fdf9741"
+        },
+        {
+          "experiment": 380,
+          "receipt_sha256": "8966490614ae19ee296c6911e7dd48de6d55fe8c4b55f52dd3a129fb092a01f4"
+        },
+        {
+          "experiment": 381,
+          "receipt_sha256": "740247b74e4ea97c5663e18f2c066b32f11d0dbe14ee1e526e364ac310c895ca"
+        },
+        {
+          "experiment": 382,
+          "receipt_sha256": "363a70dfb5386d3fdf3a02a27e0f4ea2f9c0b69d44e8ab7446396099278afdcb"
+        },
+        {
+          "experiment": 383,
+          "receipt_sha256": "9f4362d22ac793e9206304fcbb2eb51eed6f648ec686eea4578e0ea4b04d857f"
+        }
+      ],
+      "scope": "Independent current byte audit matches each recorded executable SHA. Original compiler, library, environment, flags and source revision are not supplied by these CLI receipts. This does not establish a portable executable distribution."
+    },
+    "8.5.19": {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "executable_sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+      "bytes": 1294480,
+      "reported_versions": [
+        "8.5.19",
+        "8.5.19",
+        "8.5.19",
+        "8.5.19",
+        "8.5.19",
+        "8.5.19"
+      ],
+      "receipt_associations": [
+        {
+          "experiment": 378,
+          "receipt_sha256": "755475ba04f310db08cdd92eebab2a95d97729e8de4372e566521ff6682019cc"
+        },
+        {
+          "experiment": 379,
+          "receipt_sha256": "95daededfbf99c9b796c189d650625096d8fe45507a8a561122914f741c7e7f7"
+        },
+        {
+          "experiment": 380,
+          "receipt_sha256": "cc681478a6a10fba36264352f9f5f03396dba5dfe8bd91ea0436a5c26507acf4"
+        },
+        {
+          "experiment": 381,
+          "receipt_sha256": "8fc193b41ceb535cf69a7a81111760e4a4e162fc05f5d58de5a646b455781abb"
+        },
+        {
+          "experiment": 382,
+          "receipt_sha256": "af056cc81ec87b4a78287c9c4befd4a4a07a4611659e9fc6eae5ef5039f3926c"
+        },
+        {
+          "experiment": 383,
+          "receipt_sha256": "57e74d56273a1b89f817b80e5094f03869027476886378069c8a3897e3261f74"
+        }
+      ],
+      "scope": "Independent current byte audit matches each recorded executable SHA. Original compiler, library, environment, flags and source revision are not supplied by these CLI receipts. This does not establish a portable executable distribution."
+    },
+    "8.6.18": {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "executable_sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+      "bytes": 1915376,
+      "reported_versions": [
+        "8.6.18",
+        "8.6.18",
+        "8.6.18",
+        "8.6.18",
+        "8.6.18",
+        "8.6.18"
+      ],
+      "receipt_associations": [
+        {
+          "experiment": 378,
+          "receipt_sha256": "6da7275a8b7ea0b9349747e2e38af01efd32dc97f16dd26026e4613afb1d5a70"
+        },
+        {
+          "experiment": 379,
+          "receipt_sha256": "6471888664373f7d9642f3c216210b0a1bbef0a82bcc177c3d372eca2ed7d9c5"
+        },
+        {
+          "experiment": 380,
+          "receipt_sha256": "a6a227a05ef2ffab89bf58b855c9db6fb0737a5d134ac94b21878f344f434d65"
+        },
+        {
+          "experiment": 381,
+          "receipt_sha256": "0a6ec09a1839c6de9a2946528c4cfaa1d7b97980bc5db761ead9ef598ddea7c6"
+        },
+        {
+          "experiment": 382,
+          "receipt_sha256": "366fa3a25ee45d00bf950540a3a10f597fbe0795a6a0117648ef627718a6810a"
+        },
+        {
+          "experiment": 383,
+          "receipt_sha256": "c94215499c7b0fd44514d42b0de3afce59352fabc2a883eb89bae339fa76dc58"
+        }
+      ],
+      "scope": "Independent current byte audit matches each recorded executable SHA. Original compiler, library, environment, flags and source revision are not supplied by these CLI receipts. This does not establish a portable executable distribution."
+    },
+    "9.0.4": {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "executable_sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+      "bytes": 3471033,
+      "reported_versions": [
+        "9.0.4",
+        "9.0.4",
+        "9.0.4",
+        "9.0.4",
+        "9.0.4",
+        "9.0.4"
+      ],
+      "receipt_associations": [
+        {
+          "experiment": 378,
+          "receipt_sha256": "1f395ddf482a334b0bf1f8085256e33a95984752970350ced711d92540ff5b05"
+        },
+        {
+          "experiment": 379,
+          "receipt_sha256": "65ec149f54cc65458cb2e89dbeabcb485b4974118f09f77a6dfea19e3ce27993"
+        },
+        {
+          "experiment": 380,
+          "receipt_sha256": "40844e83039ae10e5f97d85c7bba23449c856feeb68acfedee51c49a323bd579"
+        },
+        {
+          "experiment": 381,
+          "receipt_sha256": "1ae6729f023f9734850db19b509a497dbf2dfd24331011b352e871508131314d"
+        },
+        {
+          "experiment": 382,
+          "receipt_sha256": "19dbabf6f737240d9a238a4dc81747124ae0a6e6794fe8e032d80f440e8f7801"
+        },
+        {
+          "experiment": 383,
+          "receipt_sha256": "b4909322cd1270bee08731ad65177682cf08972044b7216258dfbb9804785191"
+        }
+      ],
+      "scope": "Independent current byte audit matches each recorded executable SHA. Original compiler, library, environment, flags and source revision are not supplied by these CLI receipts. This does not establish a portable executable distribution."
+    },
+    "9.1.0": {
+      "original_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+      "bytes": 3717328,
+      "reported_versions": [
+        "9.1.0",
+        "9.1.0",
+        "9.1.0",
+        "9.1.0",
+        "9.1.0",
+        "9.1.0"
+      ],
+      "receipt_associations": [
+        {
+          "experiment": 378,
+          "receipt_sha256": "3ea161b16f6f3bfbcd625897a3693d5392b6f6a07d47ffabce020589fb15acf5"
+        },
+        {
+          "experiment": 379,
+          "receipt_sha256": "e42cafc1a0d5d7cb88a6e58afaca66a57b085d27f2e98be1c1f42389787c4401"
+        },
+        {
+          "experiment": 380,
+          "receipt_sha256": "1d5bd363d79eb2d9d012ade7feb9eae348a16dd70aaf653e9ef0e0968edb3b51"
+        },
+        {
+          "experiment": 381,
+          "receipt_sha256": "7e51fb3cfa5b42cffbe7d61c513541234d731e4c2375b6420a498dc328595764"
+        },
+        {
+          "experiment": 382,
+          "receipt_sha256": "a2ee38111f2b5b6057bf173474f6282068b2eb3d405a4cedf858eda326ff9e99"
+        },
+        {
+          "experiment": 383,
+          "receipt_sha256": "2984c0f6e42bec069bd49d3f94af5020434cdcd3afc6fa26972c5eaf302a31b5"
+        }
+      ],
+      "scope": "Independent current byte audit matches each recorded executable SHA. Original compiler, library, environment, flags and source revision are not supplied by these CLI receipts. This does not establish a portable executable distribution."
+    },
+    "jim": {
+      "original_path": "/workspace/.proofs/native-providers/jimtcl/jimsh",
+      "executable_sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "bytes": 438632,
+      "reported_versions": [
+        "0.84-9-g5bac7c9",
+        "0.84-9-g5bac7c9",
+        "0.84-9-g5bac7c9",
+        "0.84-9-g5bac7c9",
+        "0.84-9-g5bac7c9",
+        "0.84-9-g5bac7c9"
+      ],
+      "receipt_associations": [
+        {
+          "experiment": 378,
+          "receipt_sha256": "a55afb7834362a80872adecc55f0a545aaa3573655babab8a4e61c616be78396"
+        },
+        {
+          "experiment": 379,
+          "receipt_sha256": "763aff70e65a5f1c625556b861d5a58c61f333704c1038aca0df98495ddab5d0"
+        },
+        {
+          "experiment": 380,
+          "receipt_sha256": "d9e7aff880a980ccb8e0016f69c850a4fabb25eb4f5d9cbcdaf0cfbf3db4bdf4"
+        },
+        {
+          "experiment": 381,
+          "receipt_sha256": "26dcd82c938c48dc1694c6c2c4016af668f82c4f33382045c15ebecb580a6708"
+        },
+        {
+          "experiment": 382,
+          "receipt_sha256": "b0a4aa4fbc31e6f78c1d946d2d2657a93e419804a36a0586e550bcc615b14351"
+        },
+        {
+          "experiment": 383,
+          "receipt_sha256": "508be3e36c55449270d59db39ddbba70c9ce5ea0345fe9a2939a1fcc65c09ca1"
+        }
+      ],
+      "scope": "Independent current byte audit matches each recorded executable SHA. Original compiler, library, environment, flags and source revision are not supplied by these CLI receipts. This does not establish a portable executable distribution."
+    }
+  }
+}

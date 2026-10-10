@@ -118,6 +118,7 @@ const TRAITS: Traits = Traits::LANGUAGE_KEYWORD
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "callback",
+        runtime_backing: RuntimeBacking::shipped("callback"),
         traits: TRAITS,
         surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(1),
@@ -134,6 +135,7 @@ pub fn spec() -> CommandSpec {
 pub fn mymethod_spec() -> CommandSpec {
     CommandSpec {
         name: "mymethod",
+        runtime_backing: RuntimeBacking::shipped("mymethod"),
         traits: TRAITS,
         surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(1),

@@ -60,6 +60,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("coroinject"),
         traits: Traits::EVALUATES_CODE | Traits::COROUTINE_PRIMITIVE,
         surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(2),

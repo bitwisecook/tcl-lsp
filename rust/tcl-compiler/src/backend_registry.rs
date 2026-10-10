@@ -35,7 +35,7 @@ use std::collections::{BTreeMap, btree_map::Entry};
 
 use tcl_registry::{
     CompletionDescriptor, DispatchDependencies, DispatchDependencyDomain, EffectFootprint,
-    InvocationFacts, SemanticOperationId, StateTransitionKnowledge,
+    IntrinsicId, InvocationFacts, SemanticOperationId, StateTransitionKnowledge,
 };
 use tcl_runtime_api::guard::{GuardDomain, GuardDomains};
 
@@ -275,6 +275,20 @@ pub fn guard_domains_for_dispatch(dependencies: DispatchDependencies) -> GuardDo
         .fold(GuardDomains::EMPTY, |domains, dependency| {
             domains.with(guard_domain(dependency))
         })
+}
+
+/// The guard domains a guarded plan for `intrinsic` requests: the dispatch
+/// dependencies' and its family's.
+///
+/// A runtime refuses a request that omits a domain the member's family
+/// requires, so the domains come from the family here and never from the
+/// caller.
+#[must_use]
+pub fn guard_domains_for_intrinsic(
+    intrinsic: IntrinsicId,
+    dependencies: DispatchDependencies,
+) -> GuardDomains {
+    guard_domains_for_dispatch(dependencies).union(intrinsic.family().guard_domains())
 }
 
 fn guards_cover_dispatch(
@@ -1327,6 +1341,28 @@ mod tests {
             dependencies,
             GuardDomains::one(GuardDomain::CommandEnvironment)
         ));
+    }
+
+    #[test]
+    fn an_intrinsics_guard_domains_add_its_familys_to_its_dispatch_dependencies() {
+        let dependencies = DispatchDependencies::BASE;
+        let dispatch = guard_domains_for_dispatch(dependencies);
+        assert!(!dispatch.contains(GuardDomain::VariableTrace));
+        for &member in IntrinsicId::ALL {
+            let domains = guard_domains_for_intrinsic(member, dependencies);
+            assert!(domains.covers(dispatch), "{member:?}");
+            assert_eq!(
+                domains.contains(GuardDomain::VariableTrace),
+                member.family() != tcl_registry::IntrinsicFamily::Value,
+                "{member:?}: only a Family-B member asks for the variable-trace domain"
+            );
+            assert!(
+                domains.covers(IntrinsicId::required_guard_domains(
+                    tcl_runtime_api::guard::GuardIdentity::registry_intrinsic(member.stable_id())
+                )),
+                "{member:?}: the compiler's request must satisfy the runtime's requirement"
+            );
+        }
     }
 
     #[test]

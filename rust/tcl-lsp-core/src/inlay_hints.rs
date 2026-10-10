@@ -190,11 +190,33 @@ pub fn inlay_hints_in_program(
     let mut out = Vec::new();
 
     if type_hints && let Some(registry) = registry {
-        collect_type_hints(source, analysis, registry, range, &line_index, &mut out);
+        let Some(cu) =
+            crate::original_invocation::source_compilation_unit(source, analysis, registry)
+        else {
+            return out;
+        };
+        collect_type_hints(
+            source,
+            analysis,
+            registry,
+            &cu,
+            range,
+            &line_index,
+            &mut out,
+        );
         // Format-string specifier labels are registry-driven too (which
         // words carry a conversion string, and in which mini-language), so
         // they need the registry the same way the type hints do.
-        collect_format_string_hints(source, dialect, analysis, range, &line_index, &mut out);
+        collect_format_string_hints(
+            source,
+            dialect,
+            analysis,
+            registry,
+            &cu,
+            range,
+            &line_index,
+            &mut out,
+        );
     }
 
     if parameter_hints {
@@ -321,6 +343,7 @@ fn collect_type_hints(
     source: &str,
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
+    cu: &CompilationUnit,
     range: LspRange,
     line_index: &LineIndex,
     out: &mut Vec<InlayHint>,
@@ -328,22 +351,6 @@ fn collect_type_hints(
     let Some(config) = analysis.body_lexer_config else {
         return;
     };
-    let Some(input) = analysis.resolved_input.as_ref() else {
-        return;
-    };
-    let cu = CompilationUnit::build_with_analysis_input(
-        source,
-        tcl_compiler::compilation_unit::UnitBuildOptions {
-            registry,
-            defer_top_level: false,
-            config,
-            dialect: Some(input.unit_profile()),
-            external_call_sites: None,
-            declared_commands: None,
-        },
-        None,
-        input,
-    );
     if !analysis.allows_lexical_declaration_advice() {
         let image = tcl_lexer::SourceImage::document(source);
         if !analysis.matches_original_source_image(&image, config) {
@@ -812,11 +819,16 @@ fn push_format_hint(
     });
 }
 
-/// Collect format-string specifier hints for the whole document.
+/// Collect format-string specifier hints for the whole document. `cu` is the
+/// same [`CompilationUnit`] the caller built for the type hints: a
+/// format word with no literal content of its own falls back to the
+/// lattice's proven value for it, read off `cu`.
 fn collect_format_string_hints(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    cu: &CompilationUnit,
     range: LspRange,
     line_index: &LineIndex,
     out: &mut Vec<InlayHint>,
@@ -834,6 +846,25 @@ fn collect_format_string_hints(
     for seg in &segments {
         for (operand, kind) in format_args(source, analysis, seg) {
             let Some(template) = FormatTemplate::from_operand(source, &operand) else {
+                let Some(word) = operand.original.word.as_ref() else {
+                    continue;
+                };
+                let Some(content) =
+                    crate::original_invocation::known_word_contents(cu, registry, word.span())
+                else {
+                    continue;
+                };
+                for (_, label) in format_specifier_labels(&content, kind, profile) {
+                    // Computed contents have no per-character source mapping.
+                    push_format_hint(
+                        label,
+                        word.span().end() as usize,
+                        range,
+                        source,
+                        line_index,
+                        out,
+                    );
+                }
                 continue;
             };
             for (offset, label) in format_specifier_labels(&template.content, kind, profile) {
@@ -2008,6 +2039,23 @@ mod tests {
     }
 
     #[test]
+    fn inlay_hints_label_a_computed_format_string() {
+        // A literal `format "%d" 1` already labels its specifier;
+        // the lattice proves the same text when it reaches the word
+        // through a variable, so the computed spelling must not go blind
+        // (there is no in-place span of its own, so the label anchors at
+        // the `$fmt` token's own end instead of a content offset).
+        let labels = type_labels("set fmt \"%d\"\nformat $fmt 1\n");
+        let names: Vec<&str> = labels.iter().map(|(_, l)| l.as_str()).collect();
+        assert!(names.contains(&"int"), "{labels:?}");
+
+        // Negative: an unproven `$fmt` (a bare parameter, never assigned a
+        // literal) proves nothing, so no hint is fabricated.
+        let labels = type_labels("proc p {fmt} {\n    format $fmt 1\n}\n");
+        assert!(labels.is_empty(), "{labels:?}");
+    }
+
+    #[test]
     fn binary_q_and_q_hints_are_owned_by_shared_spec_table() {
         let labels = type_labels_for_dialect(
             "binary format \"q Q\" 1 2\n",
@@ -2270,11 +2318,17 @@ mod original_hint_tests {
         // docs/design/analysis/name-resolution-proofs/core-original-format-hint-producer.md
         let hints = |source: &str| {
             let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+            let registry = analysis.resolved_registry().unwrap();
+            let unit =
+                crate::original_invocation::source_compilation_unit(source, &analysis, registry)
+                    .unwrap();
             let mut out = Vec::new();
             collect_format_string_hints(
                 source,
                 crate::profile_for_dialect("tcl8.6"),
                 &analysis,
+                registry,
+                &unit,
                 LspRange {
                     start_line: 0,
                     start_character: 0,

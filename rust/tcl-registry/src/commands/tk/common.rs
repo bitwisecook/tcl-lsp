@@ -343,6 +343,9 @@ macro_rules! ttk_widget_class {
                 pure: true,
                 return_type: Some(TclType::String),
                 side_effects: $crate::commands::tk::common::TTK_WIDGET_READS,
+                semantics: SemanticsDeclaration::Declared(
+                    &$crate::value_transfer::builtins::STATE_DECIDED,
+                ),
                 ..SubCommand::DEFAULT
             },
             SubCommand {
@@ -362,6 +365,9 @@ macro_rules! ttk_widget_class {
                 pure: true,
                 return_type: Some(TclType::String),
                 side_effects: $crate::commands::tk::common::TTK_WIDGET_READS,
+                semantics: SemanticsDeclaration::Declared(
+                    &$crate::value_transfer::builtins::STATE_DECIDED,
+                ),
                 ..SubCommand::DEFAULT
             },
             SubCommand {
@@ -392,6 +398,9 @@ macro_rules! ttk_widget_class {
                 pure: true,
                 return_type: Some(TclType::String),
                 side_effects: $crate::commands::tk::common::TTK_WIDGET_READS,
+                semantics: SemanticsDeclaration::Declared(
+                    &$crate::value_transfer::builtins::STATE_DECIDED,
+                ),
                 ..SubCommand::DEFAULT
             },
             $($extra),*

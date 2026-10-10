@@ -220,6 +220,29 @@ procedure or bytecode. The `CommandId` arena retains exact command generations
 alongside reporting names, so a recreated namespace or same-name replacement
 cannot capture an existing command handle.
 
+A rename does change the *compiled* command environment, which is a
+different mechanism, and it does so per token.  The intrinsic guard table
+(`guarded_commands`) is keyed by command token generation, and a
+generation follows its command through `move_bound_command`, hide and
+expose, so a rename moves the attestation with the builtin: a guard over
+`string` resolves the name `string` afresh on every check and finds no
+attestation once `string` has been renamed away, and finds it again if the
+command is renamed back.  Nothing about a rename touches another command's
+guard, and neither `move_bound_command` nor `delete_bound_command` moves a
+guard domain's epoch; `invalidate_command_environment` is for the events
+that change the lookup environment itself: `namespace path`, `namespace
+export`, `namespace unknown`, `namespace delete`, a `namespace forget` that
+removes an imported command, the creation of a `TclOO` class or object,
+`oo::copy`'s copy of an object's namespace, `interp invokehidden` with
+`-namespace` or `-global` (whether or not the namespace it names exists yet),
+and the creation and deletion of a child interpreter (`namespace import` and a
+`namespace eval` that creates a namespace are not among them).  A compiled
+artefact's binding identities are a third mechanism again: they are
+re-resolved at admission rather than cached, so a rename changes what they
+resolve to and not whether they are checked
+([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *Codegen and the registry today*).
+
 ## 4. ``interp alias``
 
 ### 4.1 The alias record

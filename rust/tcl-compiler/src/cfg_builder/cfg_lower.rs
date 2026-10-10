@@ -23,12 +23,18 @@
 //! with terminators, returning the name of the "continuation" block
 //! (or `None` if control doesn't fall through).
 
-use tcl_lexer::Span;
+use tcl_lexer::{LexerConfig, Span};
 
 use crate::cfg::{LoopNode, Terminator};
 use crate::expr_ast::{BinOp, ExprNode};
-use crate::ir::{Statement, SwitchMode};
+use crate::ir::Statement;
 use crate::ir_helpers::expr_has_command;
+use crate::lowering::structured::parse_switch_options;
+use crate::value_transfer::recorded_word_value;
+use tcl_dialect::TclVersion;
+use tcl_registry::CommandRegistry;
+use tcl_registry::value_transfer::TargetSemantics;
+use tcl_registry::value_transfer::completion::{HandlerChain, HandlerLink};
 
 use super::CfgBuilder;
 
@@ -194,13 +200,21 @@ fn literal_true_expr() -> ExprNode {
 /// keeps the `Raw` form, whose codegen has dedicated scalar-load arms and so
 /// never involves `exprStk`.
 ///
-/// `String` folds where `Raw` did not, but not *here*: branch folding skips any
-/// `StrEq` terminator as a switch dispatch
+/// The analysis reads that `Raw` subject as the variable it names, and only
+/// where the variable-name owner proves the text is exactly one reference
+/// under the document's `${…}` close rule with none of `{`, `}` or `\` in
+/// the name (`sccp::with_whole_variable_operands` over
+/// `value_transfer::whole_variable_operand`): the dispatch then
+/// decides per arm from the lattice, so a dead arm draws I231 and O107
+/// removes its unreachable body. Any other `Raw` text stays undecided.
+///
+/// Neither form is rewritten as a branch: branch folding skips any `StrEq`
+/// terminator as a switch dispatch
 /// (`optimiser::branch_folding::is_switch_dispatch_cond`), and codegen's
 /// `fold_const_branch` only folds a whole-condition literal, never a `Binary`.
-/// So the arm-pruning behaviour is unchanged, and an unsubstituted subject word
-/// can never be compared as if it were its own literal text.
-fn switch_subject_operand(subject: &str, braced: bool) -> ExprNode {
+/// So an unsubstituted subject word can never be compared as if it were its
+/// own literal text.
+fn switch_subject_operand(subject: &str, braced: bool, config: &LexerConfig) -> ExprNode {
     // A braced subject is a literal: its `$` and `[` are data. `ExprNode::String`
     // carries *source text including delimiters* — that is its documented
     // contract — so the braces go back on and `emit_expr_string` recognises the
@@ -223,9 +237,72 @@ fn switch_subject_operand(subject: &str, braced: bool) -> ExprNode {
             text: subject.to_owned(),
         };
     }
-    ExprNode::CompiledWord {
-        text: subject.to_owned(),
-        braced,
+    word_operand(subject, braced, config)
+}
+
+/// A `switch` word, the subject or a pattern, as an operand of the flattened
+/// dispatch: by its value where the statement states one
+/// ([`recorded_word_value`], the decoder the selection reads its arguments
+/// by), braced so nothing reads it a second time, and by its spelling where
+/// the word substitutes, which the evaluators decline to fold. The recorded
+/// text is a spelling, not a value: a bare or quoted `a\nb` is a letter, a
+/// newline and a letter, which is what a braced arm list's element holding a
+/// newline compares against. A word whose value is its spelling keeps the
+/// operand it always had.
+fn word_operand(text: &str, braced: bool, config: &LexerConfig) -> ExprNode {
+    match recorded_word_value(text, braced, config) {
+        Some(value) if braced || value != text => ExprNode::CompiledWord {
+            text: value.into_owned(),
+            braced: true,
+        },
+        _ => ExprNode::CompiledWord {
+            text: text.to_owned(),
+            braced,
+        },
+    }
+}
+
+/// Whether the subject of the exact `switch` `stmt` may be read as an option
+/// by the release that runs it. Before 8.5 `switch` scans every leading word
+/// that starts with `-`, however many words follow; from 8.5 the scan stops
+/// with two words left, which leaves the subject outside it only where the
+/// arms are one list word — with pattern and body words the subject is inside
+/// it on every release. A subject whose value starts with `-` is then an
+/// option — a mode, or an error — unless `--` ended the run. The registry's
+/// selection reads the same rule (`tcl_registry::value_transfer::selection`)
+/// and leaves such a subject to the runtime. The chain cannot state a
+/// whole-variable subject's value, so that subject stays one opaque statement,
+/// whose selection does; a literal one is decided by its decoded value. A
+/// release the registry's profile does not declare is as if before 8.5, and a
+/// registry with no profile reads no release at all.
+pub(super) fn subject_may_scan_as_option(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    config: &LexerConfig,
+) -> bool {
+    let Some(profile) = registry.profile() else {
+        return false;
+    };
+    let bounded = TargetSemantics::of(Some(profile))
+        .release
+        .is_some_and(|release| release >= TclVersion::V8_5);
+    let Statement::Switch {
+        subject,
+        subject_braced,
+        raw_args,
+        patterns_braced,
+        ..
+    } = stmt
+    else {
+        return false;
+    };
+    let (.., ended) = parse_switch_options(raw_args);
+    if (bounded && *patterns_braced) || ended {
+        return false;
+    }
+    match recorded_word_value(subject, *subject_braced, config) {
+        Some(value) => value.starts_with('-'),
+        None => is_whole_var_ref(subject),
     }
 }
 
@@ -474,7 +551,7 @@ impl CfgBuilder<'_> {
         // so a body-assigned variable read after the loop is no longer a false
         // read-before-set. `break`/`continue` stay real edges (partial-def exits
         // remain sound); `loop_nodes` + the init exit versions are unchanged, so
-        // the optimiser's IR-level static-for summary is unaffected.
+        // the solver enumerates the loop from the same state.
         let rotate = self.faithful_exceptions && self.for_runs_at_least_once(stmt);
         let step_tail = self.lower_script(next, &step_block);
         if let Some(step_tail) = step_tail {
@@ -507,17 +584,34 @@ impl CfgBuilder<'_> {
         }
 
         let entry_block = self.bid(block_name);
+        let start = self.bid(&init_tail);
         self.loop_nodes.insert(
             end_block.clone(),
             LoopNode {
                 executed_source: self.current_source.clone(),
                 entry_block,
+                start,
                 span: *span,
-                for_stmt: stmt.clone(),
+                statement: stmt.clone(),
             },
         );
 
         Some(end_block)
+    }
+
+    /// Record the loop `stmt`, which starts in `block_name` and leaves to
+    /// `end_block`, for the solver's enumeration ([`LoopNode`]).
+    fn record_loop(&mut self, stmt: &Statement, block_name: &str, end_block: &str) {
+        let entry_block = self.bid(block_name);
+        self.loop_nodes.insert(
+            end_block.to_owned(),
+            LoopNode {
+                entry_block,
+                start: entry_block,
+                span: stmt.span(),
+                statement: stmt.clone(),
+            },
+        );
     }
 
     // while
@@ -575,6 +669,7 @@ impl CfgBuilder<'_> {
             self.ensure_goto(&tail, &header, Some(*body_span));
         }
 
+        self.record_loop(stmt, block_name, &end_block);
         end_block
     }
 
@@ -722,6 +817,7 @@ impl CfgBuilder<'_> {
             self.ensure_goto(&tail, &header, Some(*body_span));
         }
 
+        self.record_loop(stmt, block_name, &end_block);
         end_block
     }
 
@@ -757,6 +853,11 @@ impl CfgBuilder<'_> {
     fn lower_opaque_switch(&mut self, stmt: &Statement, block_name: &str) -> String {
         use crate::cfg_builder::Completion;
         self.push_statement(block_name, stmt.clone());
+        // A command an arm runs is inside the statement, so the scans of the
+        // statements the graph lowers never reach it.
+        for effect in self.opaque_arm_effects(stmt) {
+            self.block_mut(block_name).statements.push(effect);
+        }
         if !self.faithful_exceptions {
             return block_name.to_owned();
         }
@@ -917,8 +1018,6 @@ impl CfgBuilder<'_> {
             arms,
             default_body,
             default_span,
-            mode,
-            nocase,
             ..
         } = stmt
         else {
@@ -948,12 +1047,15 @@ impl CfgBuilder<'_> {
         // generically rather than compiling a jump table; codegen emits a
         // generic `switch` invoke for the opaque statement. SSA reads of the
         // subject + arm/default bodies are recovered by `ssa::uses_of`'s
-        // `Statement::Switch` arm; the switch contributes no defs.
+        // `Statement::Switch` arm, and what they write by
+        // `ssa::switch_may_defs` and the statements `opaque_arm_effects` puts
+        // after the switch.
         // A `-nocase` exact switch must also stay opaque: the flattened form
         // builds a `STR_EQ`/JUMP_TABLE dispatch that is case-sensitive, so the
         // case-insensitive match has to run through the generic `switch`
-        // command (the VM/runtime `cmd_switch`).
-        if *mode != SwitchMode::Exact || *nocase || arms.iter().any(|arm| arm.fallthrough) {
+        // command (the VM/runtime `cmd_switch`). So must one whose subject a
+        // release's option scan may read (`switch_is_flattened`).
+        if !super::switch_is_flattened(stmt, self.registry, &self.config) {
             return self.lower_opaque_switch(stmt, block_name);
         }
 
@@ -994,7 +1096,11 @@ impl CfgBuilder<'_> {
             // table.
             let cond = ExprNode::Binary {
                 op: BinOp::StrEq,
-                left: Box::new(switch_subject_operand(subject, *subject_braced)),
+                left: Box::new(switch_subject_operand(
+                    subject,
+                    *subject_braced,
+                    &self.config,
+                )),
                 // The pattern is a *word value* too — the arm list's decoded
                 // element — so it takes the same operand shape as the subject.
                 // A `Literal` slot would read its text back as expression
@@ -1004,10 +1110,7 @@ impl CfgBuilder<'_> {
                 // Per arm, not per switch: a single braced arm list holds
                 // literal elements, but the multi-word form is a word each,
                 // where `{${x}}` is literal and a bare `$pat` substitutes.
-                right: Box::new(ExprNode::CompiledWord {
-                    text: arm.pattern.clone(),
-                    braced: arm.pattern_braced,
-                }),
+                right: Box::new(word_operand(&arm.pattern, arm.pattern_braced, &self.config)),
             };
             let true_id = self.bid(&final_targets[i]);
             let false_id = self.bid(&next_dispatch);
@@ -1071,22 +1174,25 @@ impl CfgBuilder<'_> {
     ///   (version-0) with the body-exit state.
     fn push_try_handler_exception_edges(
         &mut self,
-        group: &[&crate::ir::TryHandler],
-        handler_block: &str,
-        block_name: &str,
+        (chain, group): (&HandlerChain, &[usize]),
+        (handler_block, block_name, body_block): (&str, &str, &str),
         body_tail: Option<&str>,
-        body_throw_blocks: &[String],
-        body_terminal: Option<&str>,
+        (body_throw_blocks, split_points): (&[String], &[super::SplitPoint]),
+        (body_terminal, first): (Option<&str>, Option<&Statement>),
     ) {
         if !self.faithful_exceptions || group.is_empty() {
             return;
         }
         // `group` is every handler whose match runs this block's body: a `-`
         // handler's own block is empty, so the body it shares is reached only
-        // through the edges of the handler that owns it.
+        // through the edges of the handler that owns it. It runs after the
+        // body completes normally alone when every member selects `ok` — the
+        // registry's completion-code parse, so `0` is `ok` too. `try` declares
+        // no default clause: `ok` is a value of the pattern word, not "no
+        // handler matched".
         let is_on_ok = group
             .iter()
-            .all(|handler| handler.kind == "on" && handler.match_arg == "ok");
+            .all(|&member| chain.takes(member, tcl_core_types::Code::Ok));
         if is_on_ok {
             if let Some(tail) = body_tail {
                 self.exception_edges
@@ -1117,14 +1223,51 @@ impl CfgBuilder<'_> {
             throw_sources.retain(|src| {
                 group
                     .iter()
-                    .any(|handler| !self.handler_misses_completion(handler, src))
+                    .any(|&member| !self.handler_misses_completion(chain, member, src))
             });
             for src in throw_sources {
                 self.exception_edges.push((src, handler_block.to_owned()));
             }
+            // A body that never rests still starts somewhere: a first command
+            // other than a literal assignment may fail before it stores, and
+            // the handler then sees the state before the body, over the region
+            // entry the solver opens there, as for a body that rests below —
+            // unless the body's first block completes with a code the registry
+            // knows exactly and no member takes, as the throw sources above
+            // are filtered. A literal assignment needs no entry: it raises
+            // only where its own place holds an array, whose scalar value
+            // nothing reads, and leaves every other place as the point after
+            // it does. Without the entry the handler took what the first block
+            // left: `try {lassign {x y} a b; error boom} on error {} {}` gave it
+            // `b` as `lassign` wrote it where `a` may be an array, and `set b
+            // old` before it went as dead.
+            let entry = (block_name.to_owned(), handler_block.to_owned());
+            let first_may_fail = first.is_some_and(|first| {
+                !self.leaves_from_the_state_before(first)
+                    && super::NextFailure::of(first) == super::NextFailure::Any
+            });
+            let reached = group
+                .iter()
+                .any(|&member| !self.handler_misses_completion(chain, member, body_block));
+            if first_may_fail && reached && !self.exception_edges.contains(&entry) {
+                self.exception_edges.push(entry);
+                self.region_entries.push((
+                    block_name.to_owned(),
+                    handler_block.to_owned(),
+                    body_block.to_owned(),
+                ));
+            }
+            self.push_split_failure_edges(handler_block, split_points, |code| {
+                group.iter().any(|&member| !chain.misses(member, code))
+            });
         } else {
             self.exception_edges
                 .push((block_name.to_owned(), handler_block.to_owned()));
+            self.region_entries.push((
+                block_name.to_owned(),
+                handler_block.to_owned(),
+                body_block.to_owned(),
+            ));
             if let Some(tail) = body_tail
                 && tail != block_name
             {
@@ -1145,6 +1288,109 @@ impl CfgBuilder<'_> {
                         .push((tb.clone(), handler_block.to_owned()));
                 }
             }
+            self.push_split_failure_edges(handler_block, split_points, |code| {
+                group.iter().any(|&member| !chain.misses(member, code))
+            });
+        }
+    }
+
+    /// Record an exception edge into `target` from each point a throw may
+    /// leave the body from for it, where the edge is not there already. The
+    /// state at the point is the one a statement before it completes with when
+    /// it leaves abnormally after its own stores, with any code, and the one
+    /// the next statement fails with when it fails before it stores — an error
+    /// alone from a literal assignment, for which `takes` says whether the
+    /// target may take it. A codegen build records none.
+    fn push_split_failure_edges(
+        &mut self,
+        target: &str,
+        points: &[super::SplitPoint],
+        takes: impl Fn(tcl_core_types::Code) -> bool,
+    ) {
+        if !self.faithful_exceptions {
+            return;
+        }
+        for point in points {
+            if !point.after_stores && !point.next_fails_for(&takes) {
+                continue;
+            }
+            let edge = (point.block.clone(), target.to_owned());
+            if !self.exception_edges.contains(&edge) {
+                self.exception_edges.push(edge);
+            }
+        }
+    }
+
+    /// Record the ways a failure of the body reaches the `finally` clause when
+    /// no handler takes it: from each point a throw may leave the body from,
+    /// and from the block before the body, an edge that opens where the body's
+    /// first command can fail before it stores (a region entry). A command
+    /// may fail with any code and no handler takes every code, so a handler
+    /// stands in for a point only where the failure is an error a handler
+    /// certainly takes ([`HandlerChain::first_taking`]). A first statement
+    /// that completes with its code from the state before it — `error boom`,
+    /// `exit 7` — leaves by its own block, which the clause is wired from
+    /// already, and one that runs a clause of its own first leaves through it.
+    /// Without these edges the clause ran over the state the body ends in
+    /// alone: `try {set x 2; foo; set x 3} finally {puts $x}` printed `3`
+    /// once optimised where tclsh prints `2` when `foo` raises.
+    fn push_finally_failure_edges(
+        &mut self,
+        (end_block, chain): (&str, &HandlerChain),
+        (block_name, body_block, first): (&str, &str, Option<&Statement>),
+        points: &[super::SplitPoint],
+    ) {
+        if !self.faithful_exceptions {
+            return;
+        }
+        let escapes = |code| chain.first_taking(code).is_none();
+        let entry = (block_name.to_owned(), end_block.to_owned());
+        let first_fails = first.is_some_and(|first| {
+            !self.leaves_from_the_state_before(first)
+                && match super::NextFailure::of(first) {
+                    super::NextFailure::Intercepted => false,
+                    super::NextFailure::Error => escapes(tcl_core_types::Code::Error),
+                    super::NextFailure::Any => true,
+                }
+        });
+        if first_fails && !self.exception_edges.contains(&entry) {
+            self.exception_edges.push(entry);
+            self.region_entries.push((
+                block_name.to_owned(),
+                end_block.to_owned(),
+                body_block.to_owned(),
+            ));
+        }
+        self.push_split_failure_edges(end_block, points, escapes);
+    }
+
+    /// Hand the ways the body of a `try` with no `finally` can leave to the
+    /// region around it: a completion none of its handlers takes leaves the
+    /// `try` from where the body left, so each of the body's points is a way
+    /// out of the enclosing body too. A `try` with a `finally` runs it first,
+    /// and the clause's own blocks are the enclosing region's.
+    fn escape_to_the_region_around(
+        &mut self,
+        points: &[super::SplitPoint],
+        throw_blocks: &[String],
+        ends: [Option<&str>; 2],
+    ) {
+        if !self.split_region.is_some_and(super::SplitRegion::nested) {
+            return;
+        }
+        let ways_out = throw_blocks
+            .iter()
+            .map(String::as_str)
+            .chain(ends.into_iter().flatten())
+            .map(|block| super::SplitPoint::any(block.to_owned()));
+        for point in points.iter().cloned().chain(ways_out) {
+            if !self
+                .split_points
+                .iter()
+                .any(|known| known.block == point.block)
+            {
+                self.split_points.push(point);
+            }
         }
     }
 
@@ -1159,12 +1405,11 @@ impl CfgBuilder<'_> {
     /// the `return` alone in `if_end`, but `$c` may raise first, and a failure
     /// in an earlier block has no edge of its own — the terminal block carries
     /// it (found in review). So only `entry`, the construct's own first block,
-    /// qualifies.
+    /// qualifies — with the steps an analysis build splits the construct's
+    /// first statements into after it, whose statements are read as one run
+    /// ([`Self::entry_run_statements`]).
     fn block_completion_code(&self, block: &str, entry: &str) -> Option<tcl_core_types::Code> {
-        if block != entry {
-            return None;
-        }
-        let statements = &self.blocks.get(block)?.statements;
+        let statements = self.entry_run_statements(block, entry)?;
         if self.plain_return_blocks.contains(block) {
             return statements
                 .is_empty()
@@ -1187,6 +1432,25 @@ impl CfgBuilder<'_> {
         });
         (before.is_empty() || (code == tcl_core_types::Code::Error && only_errors_before))
             .then_some(code)
+    }
+
+    /// The statements of `block` and of the blocks before it on the straight
+    /// run of split steps that begins at `entry`, in order: the construct's
+    /// first statements, which an analysis build gives a block each. `None`
+    /// when `block` is not on that run — a compound statement ends it, so in
+    /// `if {$c} {}; return ok` the `return` is past a block `$c` may raise in.
+    fn entry_run_statements(&self, block: &str, entry: &str) -> Option<Vec<&Statement>> {
+        let mut run = vec![block];
+        let mut at = block;
+        while at != entry {
+            at = self.split_parent.get(at)?;
+            run.push(at);
+        }
+        let mut statements = Vec::new();
+        for name in run.iter().rev() {
+            statements.extend(self.blocks.get(*name)?.statements.iter());
+        }
+        Some(statements)
     }
 
     /// The completion code of whatever ended `block`, when it is known: a
@@ -1233,70 +1497,33 @@ impl CfgBuilder<'_> {
         )
     }
 
-    /// Whether a handler can never run because an earlier one always takes
-    /// its completions first: Tcl runs only the first matching handler, so
-    /// after `on error {} {set x 1}` a second `on error` is dead, and giving
-    /// it edges drew W210 on a `finally` that always sees `x` set (found in
-    /// review). Only an earlier unconditional handler (not `trap`, but a `-`
-    /// one counts) with the same decoded code proves it, and never for the
-    /// target of a `-` chain, whose block holds the body the earlier `-`
-    /// handlers run.
-    fn handler_shadowed(
-        &self,
-        earlier: &[crate::ir::TryHandler],
-        handler: &crate::ir::TryHandler,
-    ) -> bool {
-        if earlier.last().is_some_and(|h| h.fallthrough) {
-            return false;
-        }
-        let Some(code) = self.handler_code(handler) else {
-            return false;
-        };
-        // A `-` handler still selects its code — only its body is delegated —
-        // so it pre-empts a later match as surely as any other.
-        earlier.iter().any(|h| {
-            h.kind != "trap" && h.trap_pattern.is_none() && self.handler_code(h) == Some(code)
-        })
+    /// The handlers of a `try` as the registry reads them
+    /// ([`HandlerChain`]): each selector decoded with the target's own numeral
+    /// grammar, so `on 010` is code 8 in Tcl 8.x and 10 in 9.0 (decoding it as
+    /// 9.0 dropped a live 8.x handler — found in review). Which handler a
+    /// completion reaches, which can never run and which scripts a `-` handler
+    /// shares are the chain's answers; nothing here reads the list again.
+    fn handler_chain(&self, handlers: &[crate::ir::TryHandler]) -> HandlerChain {
+        HandlerChain::new(
+            handlers.iter().map(|handler| HandlerLink {
+                matches: handler.kind,
+                selector: &handler.match_arg,
+                falls_through: handler.fallthrough,
+            }),
+            self.command_classes.source_numbers(self.config),
+        )
     }
 
-    /// The handlers whose match runs handler `index`'s block: the owner with
-    /// the `-` handlers that hand it their match, save a member an earlier
-    /// handler always pre-empts. Empty for a `-` handler, whose own block is
-    /// never run — an edge into it and on to `try_end` let a match skip the
-    /// body it shares (found in review) — and for a group every member of
-    /// which is pre-empted.
-    fn live_handler_group<'h>(
-        &self,
-        handlers: &'h [crate::ir::TryHandler],
-        index: usize,
-    ) -> Vec<&'h crate::ir::TryHandler> {
-        if handlers[index].fallthrough {
-            return Vec::new();
-        }
-        let start = handlers[..index]
-            .iter()
-            .rposition(|earlier| !earlier.fallthrough)
-            .map_or(0, |owner| owner + 1);
-        handlers[start..=index]
-            .iter()
-            .filter(|member| !self.handler_shadowed(&handlers[..start], member))
-            .collect()
-    }
-
-    /// Whether `block` ends in a statement whose completion code `handler` is
-    /// known not to select: both codes decoded by the registry — the handler's
-    /// through its completion-code selector (`trap` is an error) — and
-    /// different. Either one unknown answers `false`, keeping the edge.
-    fn handler_misses_completion(&self, handler: &crate::ir::TryHandler, block: &str) -> bool {
-        let Some(code) = self
-            .try_entry
+    /// Whether `block` ends in a statement whose completion code handler
+    /// `member` is known not to select: the block's code known exactly
+    /// ([`Self::block_completion_code`]), and the handler's selector naming
+    /// another ([`HandlerChain::misses`]). Either one unknown answers `false`,
+    /// keeping the edge.
+    fn handler_misses_completion(&self, chain: &HandlerChain, member: usize, block: &str) -> bool {
+        self.try_entry
             .as_deref()
             .and_then(|entry| self.block_completion_code(block, entry))
-        else {
-            return false;
-        };
-        self.handler_code(handler)
-            .is_some_and(|selected| selected != code)
+            .is_some_and(|code| chain.misses(member, code))
     }
 
     /// Record the analysis-only edges that keep a `finally` clause reachable
@@ -1346,7 +1573,7 @@ impl CfgBuilder<'_> {
         post_body: &str,
         body_block: &str,
         first_body_id: usize,
-        handlers: &[crate::ir::TryHandler],
+        chain: &HandlerChain,
         handler_blocks: &[String],
     ) -> (Vec<String>, bool) {
         if !self.faithful_exceptions {
@@ -1400,7 +1627,7 @@ impl CfgBuilder<'_> {
                     crate::cfg::Terminator::Return { .. } | crate::cfg::Terminator::Complete { .. },
                 ) => {
                     if !intercepted.contains(name.as_str())
-                        && !self.caught_by_handler(name, body_block, handlers, handler_blocks)
+                        && !self.caught_by_handler(name, body_block, chain, handler_blocks)
                         && !((name == body_block || handler_blocks.contains(name))
                             && matches!(block.statements.as_slice(), [only]
                                 if self.command_classes.exits_process(only, &resolve_head)))
@@ -1474,12 +1701,80 @@ impl CfgBuilder<'_> {
         (targets, unwinds)
     }
 
+    /// Lower the body of the `try` `stmt` from `body_block` and send a body that
+    /// falls through on to `post_body`, returning what its handlers and its
+    /// `finally` clause are wired from. With no `finally`, the body's points
+    /// are ways out of the region around it too.
+    fn lower_try_body(&mut self, stmt: &Statement, body_block: &str, post_body: &str) -> TryBody {
+        let Statement::Try {
+            body,
+            body_span,
+            finally_body,
+            ..
+        } = stmt
+        else {
+            unreachable!("lower_try_body called with non-Try");
+        };
+        // Install a fresh throw-block list around the body so on-error edges
+        // are sourced from each explicit `error`/`throw` point (where the
+        // body's prior defs are live), not the pre-`try` block. Restore the
+        // outer list afterwards so a nested `try`'s throws aren't attributed
+        // to this handler.
+        let outer_throw_blocks = self.throw_blocks.take();
+        self.throw_blocks = Some(Vec::new());
+        // Any command of the body, at any depth, may fail, and what the body
+        // has stored when it does is what a handler or the `finally` clause
+        // runs over: in an analysis build each statement of the body and of
+        // the scripts it holds ends a block an exception edge leaves from.
+        let outer_region = std::mem::replace(
+            &mut self.split_region,
+            self.faithful_exceptions.then_some(super::SplitRegion::Try),
+        );
+        let outer_split_points = std::mem::take(&mut self.split_points);
+        let raw_body_tail = self.lower_script(body, body_block);
+        // Capture the body's terminating block *before* the handler bodies are
+        // lowered below (each overwrites `last_terminal_block`).  Used to source
+        // an on-error edge from a body that ended without an explicit
+        // `error`/`throw` (a bare `return`).
+        let body_terminal = self.last_terminal_block.take();
+        let split_points = std::mem::replace(&mut self.split_points, outer_split_points);
+        self.split_region = outer_region;
+        let body_throw_blocks = self.throw_blocks.take().unwrap_or_default();
+        self.throw_blocks = outer_throw_blocks;
+        // `lower_script` now always returns the resting block, so distinguish
+        // *normal fall-through* from a
+        // terminated body via `body_terminal` (set iff the body did not fall
+        // through — the former `body_tail.is_none()` signal). A terminated body
+        // must not edge to `post_body`, and the handler's on-error edge must be
+        // sourced from the throw block(s), not the pre-`try` block.
+        let body_tail = if body_terminal.is_none() {
+            raw_body_tail
+        } else {
+            None
+        };
+        if let Some(tail) = &body_tail {
+            self.ensure_goto(tail, post_body, Some(*body_span));
+        }
+        if finally_body.is_none() {
+            self.escape_to_the_region_around(
+                &split_points,
+                &body_throw_blocks,
+                [body_terminal.as_deref(), body_tail.as_deref()],
+            );
+        }
+        TryBody {
+            body_tail,
+            body_terminal,
+            body_throw_blocks,
+            split_points,
+        }
+    }
+
     /// Flatten `Statement::Try` into body → handlers → finally → end CFG.
     pub(super) fn lower_try(&mut self, stmt: &Statement, block_name: &str) -> String {
         let Statement::Try {
             span,
             body,
-            body_span,
             handlers,
             finally_body,
             finally_span,
@@ -1502,36 +1797,13 @@ impl CfgBuilder<'_> {
             self.new_block("try_ok")
         };
 
-        // Install a fresh throw-block list around the body so on-error edges
-        // are sourced from each explicit `error`/`throw` point (where the
-        // body's prior defs are live), not the pre-`try` block. Restore the
-        // outer list afterwards so a nested `try`'s throws aren't attributed
-        // to this handler.
-        let outer_throw_blocks = self.throw_blocks.take();
-        self.throw_blocks = Some(Vec::new());
         let first_body_id = self.block_ids.len();
-        let raw_body_tail = self.lower_script(body, &body_block);
-        // Capture the body's terminating block *before* the handler bodies are
-        // lowered below (each overwrites `last_terminal_block`).  Used to source
-        // an on-error edge from a body that ended without an explicit
-        // `error`/`throw` (a bare `return`).
-        let body_terminal = self.last_terminal_block.take();
-        let body_throw_blocks = self.throw_blocks.take().unwrap_or_default();
-        self.throw_blocks = outer_throw_blocks;
-        // `lower_script` now always returns the resting block, so distinguish
-        // *normal fall-through* from a
-        // terminated body via `body_terminal` (set iff the body did not fall
-        // through — the former `body_tail.is_none()` signal). A terminated body
-        // must not edge to `post_body`, and the handler's on-error edge must be
-        // sourced from the throw block(s), not the pre-`try` block.
-        let body_tail = if body_terminal.is_none() {
-            raw_body_tail
-        } else {
-            None
-        };
-        if let Some(tail) = &body_tail {
-            self.ensure_goto(tail, &post_body, Some(*body_span));
-        }
+        let TryBody {
+            body_tail,
+            body_terminal,
+            body_throw_blocks,
+            split_points,
+        } = self.lower_try_body(stmt, &body_block, &post_body);
 
         // A `-` (fallthrough) handler shares the next non-`-` handler's body.
         // Tcl binds the *matching* handler's variables when running that shared
@@ -1545,6 +1817,7 @@ impl CfgBuilder<'_> {
         let first_handler_id = self.block_ids.len();
         let mut handler_blocks: Vec<String> = Vec::new();
         let outer_entry = self.try_entry.replace(body_block.clone());
+        let chain = self.handler_chain(handlers);
 
         // Each handler reachable from body failure.
         for (index, handler) in handlers.iter().enumerate() {
@@ -1554,14 +1827,13 @@ impl CfgBuilder<'_> {
 
             // Record throw edges into the handler (analysis builds only):
             // `block_name` already gotos `try_body`.
-            let live_group = self.live_handler_group(handlers, index);
+            let live_group = chain.live_group(index);
             self.push_try_handler_exception_edges(
-                &live_group,
-                &handler_block,
-                block_name,
+                (&chain, &live_group),
+                (&handler_block, block_name, &body_block),
                 body_tail.as_deref(),
-                &body_throw_blocks,
-                body_terminal.as_deref(),
+                (&body_throw_blocks, &split_points),
+                (body_terminal.as_deref(), body.statements.first()),
             );
 
             let var_defs = handler_var_defs(handler, &mut pending_fallthrough_defs);
@@ -1573,15 +1845,18 @@ impl CfgBuilder<'_> {
         }
 
         self.try_entry = outer_entry;
-        if self.caught_by_handler(&body_block, &body_block, handlers, &handler_blocks) {
-            self.handler_caught.insert(body_block.clone());
+        // A split body's last step, where it leaves in a straight line, is the
+        // block a handler may catch whole.
+        let run_end = body_terminal.clone().unwrap_or_else(|| body_block.clone());
+        if self.caught_by_handler(&run_end, &body_block, &chain, &handler_blocks) {
+            self.handler_caught.insert(run_end);
         }
         // Success path reaches end.
         if !handlers.is_empty() {
             self.ensure_goto(&post_body, &end_block, Some(*span));
         }
         self.route_caught_loop_jumps(
-            handlers,
+            &chain,
             &handler_blocks,
             &body_block,
             first_body_id,
@@ -1606,8 +1881,13 @@ impl CfgBuilder<'_> {
             &post_body,
             &body_block,
             first_body_id,
-            handlers,
+            &chain,
             &handler_blocks,
+        );
+        self.push_finally_failure_edges(
+            (&end_block, &chain),
+            (block_name, &body_block, body.statements.first()),
+            &split_points,
         );
         self.finish_try_finally(
             fb,
@@ -1680,13 +1960,13 @@ impl CfgBuilder<'_> {
     /// jump to the body it shares.
     fn route_caught_loop_jumps(
         &mut self,
-        handlers: &[crate::ir::TryHandler],
+        chain: &HandlerChain,
         handler_blocks: &[String],
         body_block: &str,
         first_body_id: usize,
         first_handler_id: usize,
     ) {
-        if !self.faithful_exceptions || handlers.is_empty() {
+        if !self.faithful_exceptions || chain.is_empty() {
             return;
         }
         let body_block_id = self.bid(body_block);
@@ -1727,19 +2007,8 @@ impl CfgBuilder<'_> {
             ) {
                 continue;
             }
-            for (i, handler) in handlers.iter().enumerate() {
-                match self.handler_code(handler) {
-                    None => break,
-                    Some(code) if code != jump => {}
-                    Some(_) => {
-                        let shared = handlers[i..]
-                            .iter()
-                            .position(|h| !h.fallthrough)
-                            .map_or(i, |offset| i + offset);
-                        retargets.push((name.clone(), handler_blocks[shared].clone()));
-                        break;
-                    }
-                }
+            if let Some(first) = chain.first_taking(jump) {
+                retargets.push((name.clone(), handler_blocks[chain.owner(first)].clone()));
             }
         }
         retargets.sort();
@@ -1767,25 +2036,19 @@ impl CfgBuilder<'_> {
         &self,
         block: &str,
         body_block: &str,
-        handlers: &[crate::ir::TryHandler],
+        chain: &HandlerChain,
         handler_blocks: &[String],
     ) -> bool {
         let Some(code) = self.block_completion_code(block, body_block) else {
             return false;
         };
         // A `-` handler's match runs its owner's block.
-        handlers.iter().enumerate().any(|(index, handler)| {
-            let owner = handlers[index..]
-                .iter()
-                .position(|h| !h.fallthrough)
-                .map_or(index, |offset| index + offset);
-            handler.kind != "trap"
-                && handler.trap_pattern.is_none()
-                && self.handler_code(handler) == Some(code)
+        (0..chain.len()).any(|index| {
+            chain.takes(index, code)
                 && self
                     .exception_edges
                     .iter()
-                    .any(|(from, to)| from == block && *to == handler_blocks[owner])
+                    .any(|(from, to)| from == block && *to == handler_blocks[chain.owner(index)])
         })
     }
 
@@ -1985,10 +2248,6 @@ impl CfgBuilder<'_> {
             span,
             body,
             body_span,
-            result_var,
-            options_var,
-            raw_args,
-            tokens,
             ..
         } = stmt
         else {
@@ -2009,6 +2268,15 @@ impl CfgBuilder<'_> {
         // keeps a nested `catch`'s throws attributed to its own region.
         let outer_throw_blocks = self.throw_blocks.take();
         self.throw_blocks = Some(Vec::new());
+        // Any command of the body may fail, and what the body has stored when
+        // it does is the handler's state, so in an analysis build each
+        // statement ends a block an exception edge leaves from.
+        let outer_region = std::mem::replace(
+            &mut self.split_region,
+            self.faithful_exceptions
+                .then_some(super::SplitRegion::Catch),
+        );
+        let outer_split_points = std::mem::take(&mut self.split_points);
         let (raw_body_tail, body_terminal) = if self.faithful_exceptions {
             // The same captured-completion owner handles package lifecycle
             // phases and catch bodies. Captured return/break/continue must
@@ -2021,6 +2289,8 @@ impl CfgBuilder<'_> {
                 self.last_terminal_block.take(),
             )
         };
+        let split_points = std::mem::replace(&mut self.split_points, outer_split_points);
+        self.split_region = outer_region;
         let body_throw_blocks = self.throw_blocks.take().unwrap_or_default();
         self.throw_blocks = outer_throw_blocks;
 
@@ -2050,11 +2320,8 @@ impl CfgBuilder<'_> {
         // rename, where the truth is `safe` or `risky`. `lower_try` gets
         // this from `ensure_goto(block_name, &handler_block, …)`; a `catch`
         // has no handler block to edge to, so it is recorded here.
-        let mut throw_sources: Vec<String> = if self.faithful_exceptions {
-            Vec::new()
-        } else {
-            vec![block_name.to_owned()]
-        };
+        let mut throw_sources: Vec<String> = vec![block_name.to_owned()];
+        throw_sources.extend(split_points.into_iter().map(|point| point.block));
         for tb in &body_throw_blocks {
             if !throw_sources.contains(tb) {
                 throw_sources.push(tb.clone());
@@ -2073,16 +2340,76 @@ impl CfgBuilder<'_> {
         for src in throw_sources {
             self.exception_edges.push((src, end_block.clone()));
         }
+        if self.faithful_exceptions {
+            self.region_entries.push((
+                block_name.to_owned(),
+                end_block.clone(),
+                body_block.clone(),
+            ));
+        }
         self.total_interceptors.insert(end_block.clone());
 
-        // The result and options variables are defined however the body ended,
-        // so they belong at the merge rather than on one path.
+        self.end_flattened_catch(stmt, (block_name, &end_block));
+
+        end_block
+    }
+
+    /// The statement that ends a flattened `catch` region: it defines the
+    /// result and options variables however the body ended, so they belong at
+    /// the merge rather than on one path, and the script's last command's
+    /// stores are observed there, since `catch` stores that command's value in
+    /// the result variable — a store nothing else reads is not a dead one, and
+    /// deleting it changes what the result variable holds.
+    ///
+    /// The statement has no words, so the code generator skips it; the
+    /// analysis build keeps the `catch` as written beside it, for the solver to
+    /// evaluate over the state before the body.
+    fn end_flattened_catch(&mut self, stmt: &Statement, (block_name, end_block): (&str, &str)) {
+        let Statement::Catch {
+            span,
+            body,
+            result_var,
+            options_var,
+            raw_args,
+            tokens,
+            ..
+        } = stmt
+        else {
+            unreachable!("end_flattened_catch called with non-Catch");
+        };
+        if result_var.is_some()
+            && let Some(last) = body.statements.last()
+        {
+            self.alias_observed_vars
+                .extend(crate::ssa::defs_of_with_registry(last, Some(self.registry)));
+        }
         let mut defs = Vec::new();
         if let Some(rv) = result_var {
             defs.push(rv.clone());
         }
         if let Some(ov) = options_var {
             defs.push(ov.clone());
+        }
+        if defs.is_empty() {
+            return;
+        }
+        if self.faithful_exceptions {
+            self.catch_ends.push((
+                block_name.to_owned(),
+                end_block.to_owned(),
+                Statement::Call {
+                    span: *span,
+                    command: "catch".into(),
+                    canonical_command: None,
+                    args: raw_args.clone(),
+                    defs: defs.clone(),
+                    reads: vec![],
+                    reads_own_defs: false,
+                    safe_on_uninit: false,
+                    tokens: tokens.clone(),
+                    foreach_groups: None,
+                },
+            ));
         }
         let mut output_tokens = tokens.clone().unwrap_or_else(|| {
             crate::ir::CommandTokens::marker(crate::ir::SyntheticMarker::CapturedCatchOutputs)
@@ -2094,7 +2421,7 @@ impl CfgBuilder<'_> {
             .cloned()
             .unwrap_or_default();
         self.push_statement(
-            &end_block,
+            end_block,
             Statement::Call {
                 span: *span,
                 command,
@@ -2108,9 +2435,20 @@ impl CfgBuilder<'_> {
                 foreach_groups: None,
             },
         );
-
-        end_block
     }
+}
+
+/// What lowering a `try` body leaves for its handlers and its `finally`
+/// clause to be wired from.
+struct TryBody {
+    /// The block the body rests in, when it falls through.
+    body_tail: Option<String>,
+    /// The block the body ended in, when it did not fall through.
+    body_terminal: Option<String>,
+    /// The blocks an explicit `error` or `throw` of the body ends.
+    body_throw_blocks: Vec<String>,
+    /// The points a throw may leave the body from, in an analysis build.
+    split_points: Vec<super::SplitPoint>,
 }
 
 /// The names a `try` handler binds at the top of its block.
@@ -2147,7 +2485,7 @@ mod tests {
     use crate::cfg_builder::{
         CfgCommandClasses, build_cfg_function as build_cfg_function_for_registry,
     };
-    use crate::ir::{ForeachIterator, Script, SwitchArm, TryHandler};
+    use crate::ir::{ForeachIterator, Script, SwitchArm, SwitchMode, TryHandler};
     use tcl_lexer::Span;
     use tcl_registry::CommandRegistry;
 
@@ -2265,6 +2603,7 @@ mod tests {
                 name: "i".into(),
                 name_braced: false,
                 amount: None,
+                amount_braced: false,
                 safe_on_uninit: false,
             }]),
             next_span: Span::new(23, 31),
@@ -2349,6 +2688,8 @@ mod tests {
         let script = Script::from_statements(vec![Statement::Switch {
             subject_braced: false,
             raw_arg_braced: Vec::new(),
+            raw_arg_quoted: Vec::new(),
+            command: "switch".into(),
             span: Span::new(0, 50),
             subject: "$x".into(),
             subject_span: Span::new(7, 9),
@@ -2389,6 +2730,8 @@ mod tests {
         Script::from_statements(vec![Statement::Switch {
             subject_braced: false,
             raw_arg_braced: Vec::new(),
+            raw_arg_quoted: Vec::new(),
+            command: "switch".into(),
             span: Span::new(0, 40),
             subject: "$x".into(),
             subject_span: Span::new(7, 9),
@@ -2460,6 +2803,160 @@ mod tests {
         );
     }
 
+    /// The operands of the first dispatch branch of the `switch` in `source`,
+    /// lowered and built under `dialect`'s own registry; `None` where the
+    /// statement stayed one opaque statement.
+    fn dispatch_operands(source: &str, dialect: &str) -> Option<(ExprNode, ExprNode)> {
+        use tcl_registry::model::ingress::{resolve_environment, static_context_for};
+        let registry = static_context_for(dialect).commands();
+        let profile = resolve_environment(dialect).analyser_profile();
+        let module = crate::lowering::lower_to_ir_with_dialect(
+            source,
+            registry,
+            LexerConfig::for_profile(registry.profile()),
+            Some(profile),
+        );
+        let func =
+            build_cfg_function_for_registry("::test", &module.top_level, false, registry, false);
+        match &func.blocks[&func.entry].terminator {
+            Some(Terminator::Branch {
+                condition:
+                    ExprNode::Binary {
+                        op: BinOp::StrEq,
+                        left,
+                        right,
+                    },
+                ..
+            }) => Some(((**left).clone(), (**right).clone())),
+            _ => None,
+        }
+    }
+
+    /// The chain compares the values of a `switch`'s words, carried braced so
+    /// nothing reads them again: a bare or quoted word is its escapes decoded,
+    /// a braced one its content with the continuation collapsed, and an escaped
+    /// `$` is data. A word that substitutes stays its spelling, which no
+    /// evaluator folds, and a word whose value is its spelling keeps the
+    /// operand it always had.
+    #[test]
+    fn the_chain_compares_the_values_of_a_switch_words() {
+        let value = |text: &str| ExprNode::CompiledWord {
+            text: text.into(),
+            braced: true,
+        };
+        for (source, subject, pattern) in [
+            (r#"switch a\nb {"a\nb" {puts hit}}"#, "a\nb", "a\nb"),
+            (r#"switch "a\tb" a\tb {puts hit}"#, "a\tb", "a\tb"),
+            (r#"switch {a\b} {"a\\b" {puts hit}}"#, r"a\b", r"a\b"),
+            ("switch {a\\\nb} {{a b} {puts hit}}", "a b", "a b"),
+            (r"switch a\$b {a\$b {puts hit}}", "a$b", "a$b"),
+        ] {
+            let (left, right) = dispatch_operands(source, "tcl8.6").expect("a dispatch chain");
+            assert_eq!((left, right), (value(subject), value(pattern)), "{source}");
+        }
+        let (left, right) =
+            dispatch_operands("switch a${x} {abc {puts hit}}", "tcl8.6").expect("a dispatch chain");
+        assert_eq!(
+            left,
+            ExprNode::CompiledWord {
+                text: "a${x}".into(),
+                braced: false
+            }
+        );
+        assert_eq!(right, value("abc"));
+        let (left, _) =
+            dispatch_operands("switch abc {abc {puts hit}}", "tcl8.6").expect("a dispatch chain");
+        assert_eq!(
+            left,
+            ExprNode::CompiledWord {
+                text: "abc".into(),
+                braced: false
+            }
+        );
+    }
+
+    /// Before 8.5 `switch` reads every leading word that starts with `-` as an
+    /// option, however many words follow, so a subject whose value may start
+    /// that way — a variable, or a literal whose escape decodes to `-` — is not
+    /// flattened under a release that may be before 8.5, unless `--` ended the
+    /// run; any other subject is, and so is every subject from 8.5. From 8.5
+    /// the scan stops with two words left, which a pattern and its body fill,
+    /// so with the arms as words the subject is inside it on every release. A
+    /// profile that names no release is read as one that may be 8.4.
+    #[test]
+    fn a_subject_a_release_may_read_as_an_option_stays_one_statement() {
+        for (dialect, chained) in [
+            ("tcl8.4", false),
+            ("f5-irules", false),
+            ("tk", false),
+            ("tcl8.5", true),
+            ("tcl8.6", true),
+            ("tcl9.0", true),
+        ] {
+            for source in [
+                "switch $x {a {puts A}}",
+                "switch -exact $x {a {puts A}}",
+                r"switch \x2dglob {a {puts A}}",
+            ] {
+                assert_eq!(
+                    dispatch_operands(source, dialect).is_some(),
+                    chained,
+                    "{dialect}: {source}"
+                );
+            }
+        }
+        for dialect in ["tcl8.4", "f5-irules", "tk", "tcl8.5", "tcl8.6", "tcl9.0"] {
+            for source in [
+                "switch $x a {puts A} b {puts B}",
+                "switch -exact $x a {puts A}",
+                r"switch \x2dglob a {puts A} b {puts B}",
+            ] {
+                assert!(
+                    dispatch_operands(source, dialect).is_none(),
+                    "{dialect}: {source}"
+                );
+            }
+            for source in [
+                "switch -- $x a {puts A} b {puts B}",
+                "switch abc a {puts A} b {puts B}",
+                "switch [gets stdin] a {puts A} b {puts B}",
+            ] {
+                assert!(
+                    dispatch_operands(source, dialect).is_some(),
+                    "{dialect}: {source}"
+                );
+            }
+        }
+        for dialect in ["tcl8.4", "f5-irules", "tk", "tcl8.6"] {
+            for source in [
+                "switch -- $x {a {puts A}}",
+                "switch -exact -- $x {a {puts A}}",
+                "switch abc {a {puts A}}",
+                "switch [gets stdin] {a {puts A}}",
+                "switch {$x} {a {puts A}}",
+            ] {
+                assert!(
+                    dispatch_operands(source, dialect).is_some(),
+                    "{dialect}: {source}"
+                );
+            }
+        }
+    }
+
+    /// A registry with no profile declares no target at all, so the rule reads
+    /// no release there and the statement is flattened.
+    #[test]
+    fn a_registry_with_no_profile_reads_no_release_for_the_option_scan() {
+        let registry = CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir("switch $x {a {puts A}}", &registry);
+        let func =
+            build_cfg_function_for_registry("::test", &module.top_level, false, &registry, false);
+        assert!(matches!(
+            func.blocks[&func.entry].terminator,
+            Some(Terminator::Branch { .. })
+        ));
+    }
+
     #[test]
     fn try_finally_creates_finally_block() {
         let script = Script::from_statements(vec![Statement::Try {
@@ -2500,7 +2997,7 @@ mod tests {
             body: Script::new(),
             body_span: Span::new(4, 6),
             handlers: vec![TryHandler {
-                kind: "on".into(),
+                kind: crate::ir::HandlerMatch::CompletionCode,
                 match_arg: "error".into(),
                 trap_pattern: None,
                 var_name: Some("e".into()),

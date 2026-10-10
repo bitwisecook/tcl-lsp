@@ -32,7 +32,9 @@
 //!   no substitution; a `"…"` run is decomposed as one region. Real Tcl rejects
 //!   anything welded to either (`extra characters after close-brace`); the
 //!   analyser accepts it so the braced part still gets diagnosed, and that
-//!   leniency is a word-boundary rule, not a decomposition one.
+//!   leniency is a word-boundary rule, not a decomposition one. The word
+//!   records C's message in [`WordExpr::Template`]'s `rejected`, for the
+//!   consumer that must not run past a parse error.
 //! - **Substitution boundaries** — where a `$` reference or `[…]` ends, which
 //!   `$` is data, where C stops parsing — are the owner's, under the document's
 //!   [`LexerConfig`] so the `${…}` close rule, the array-index source mask and
@@ -216,6 +218,8 @@ fn build(
     };
     // Start of the bare run being accumulated, if one is open.
     let mut run_start: Option<usize> = None;
+    // What C reports first for content welded to a closing brace or quote.
+    let mut rejected: Option<&'static str> = None;
     let mut i = 0;
     while i < fragments.len() {
         let tok = fragments[i];
@@ -229,6 +233,9 @@ fn build(
             });
             regions.count += 1;
             i += 1;
+            if i < fragments.len() {
+                rejected.get_or_insert(tcl_lexer::EXTRA_AFTER_CLOSE_BRACE);
+            }
             continue;
         }
         if tok.kind == TokenType::Esc && tok.content_offset == 1 && opener == Some(b'"') {
@@ -242,6 +249,9 @@ fn build(
             i += 1;
             while i < fragments.len() && at(fragments[i].span.end()) <= end {
                 i += 1;
+            }
+            if i < fragments.len() && config.quote_termination.is_strict() {
+                rejected.get_or_insert(tcl_lexer::EXTRA_AFTER_CLOSE_QUOTE);
             }
             continue;
         }
@@ -279,6 +289,7 @@ fn build(
         _ => WordExpr::Template {
             parts: regions.parts,
             source: SourceSite::source(word_span),
+            rejected,
         },
     };
     Ok(word)

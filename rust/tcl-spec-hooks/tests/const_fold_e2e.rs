@@ -186,3 +186,65 @@ fn a_thread_without_the_host_abstains_rather_than_folding() {
         "with no host installed the thunk must answer its family's silence"
     );
 }
+
+/// A pack body that folds to the release it is told, and abstains when told none.
+const RELEASE_BODY: &str = r"
+    set release [dict get $ctx tcl-version]
+    if {$release eq {}} { return }
+    fold $release
+";
+
+/// The `tcl-version` a versioned fold body is given is the profile's evaluation
+/// point: a Tcl release gives its own, a vendor fork whose release was measured
+/// gives that release, and a profile nothing measured gives none, so the body
+/// abstains and the call is left as it was.
+#[test]
+fn a_versioned_pack_fold_is_told_the_profiles_evaluation_point() {
+    let host = Rc::new(tclvm_host());
+    let installed = host.install_pack_hooks(PackPrograms::new("mylib").with(HookProgram::new(
+        "mylib::release",
+        HookFamily::ConstFoldVersioned,
+        RELEASE_BODY,
+    )));
+    assert!(
+        installed[0].declined.is_none(),
+        "{:?}",
+        installed[0].declined
+    );
+    pack_hooks::install_host(host);
+    let slot = installed[0].slot.expect("the hook claimed a slot");
+    let versioned = pack_hooks::const_fold_versioned_fn(slot).expect("a versioned fold thunk");
+    let mut registry = CommandRegistry::build_default();
+    registry.insert(CommandSpec {
+        name: "mylib::release",
+        arity: Arity::exact(0),
+        const_fold_versioned: Some(versioned),
+        ..CommandSpec::DEFAULT
+    });
+    for (dialect, want) in [
+        ("tcl8.6", Some("8.6")),
+        ("tcl9.0", Some("9.0")),
+        ("f5-irules", Some("8.4")),
+        ("f5-iapps", Some("8.4")),
+        ("f5-tmsh", Some("8.4")),
+        ("expect", None),
+        ("synopsys-eda-tcl", None),
+        ("tcl", None),
+    ] {
+        let folded: Vec<String> = optimise_raw(
+            "proc ::f {} {\n    set y [mylib::release]\n}\n",
+            &registry,
+            Some(dialect),
+        )
+        .into_iter()
+        .filter(|optimisation| optimisation.code.as_str() == "O129")
+        .map(|optimisation| optimisation.replacement)
+        .collect();
+        assert_eq!(
+            folded.first().map(String::as_str),
+            want,
+            "{dialect}: {folded:?}"
+        );
+    }
+    pack_hooks::clear_host();
+}

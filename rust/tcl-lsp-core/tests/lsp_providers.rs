@@ -62,6 +62,23 @@ use tcl_lsp_core::linked_editing_range::{WORD_PATTERN, linked_editing_ranges};
 use tcl_lsp_core::type_definition::type_definition;
 use tcl_lsp_core::type_hierarchy::prepare as type_hierarchy_prepare;
 
+/// The analyser's diagnostics as a report that shows every one of them — a
+/// host with no configuration, which is what this test stands in for.
+fn report_of(
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+) -> tcl_lsp_core::diagnostic_policy::Report {
+    use tcl_lsp_core::diagnostic_policy::{Finding, Policy, apply};
+    apply(
+        analysis
+            .diagnostics
+            .iter()
+            .cloned()
+            .map(Finding::from)
+            .collect(),
+        &Policy::unrestricted(),
+    )
+}
+
 // Shared helpers.
 
 fn analyse(source: &str) -> AnalysisResult {
@@ -570,7 +587,15 @@ fn whole_line(line: u32) -> LspRange {
 
 #[test]
 fn code_actions_none_analysis_is_empty() {
-    assert!(code_actions("catch { puts hi }\n", whole_line(0), None, &[]).is_empty());
+    assert!(
+        code_actions(
+            "catch { puts hi }\n",
+            whole_line(0),
+            None,
+            &tcl_lsp_core::diagnostic_policy::Report::default()
+        )
+        .is_empty()
+    );
 }
 
 #[test]
@@ -590,7 +615,7 @@ fn code_actions_catch_without_result_var_offers_fix() {
         "expected a W302 diagnostic; got {:?}",
         analysis.diagnostics,
     );
-    let actions = code_actions(src, whole_line(0), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(src, whole_line(0), Some(&analysis), &report_of(&analysis));
     let titles: Vec<&str> = actions.iter().map(|a| a.title.as_str()).collect();
     assert!(
         titles.iter().any(|t| t.contains("result")),
@@ -623,7 +648,7 @@ fn code_actions_catch_with_result_var_offers_no_w302_fix() {
     // silent-swallow, so no W302 and no catch-result quick-fix.
     let src = "catch { puts hi } result\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, whole_line(0), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(src, whole_line(0), Some(&analysis), &report_of(&analysis));
     assert!(
         !actions.iter().any(|a| a.title.contains("catch result")),
         "no catch-result fix expected; got {:?}",
@@ -649,7 +674,7 @@ fn code_actions_unset_possibly_undef_offers_nocomplain() {
     // The W213 diag is on line 0 (narrowed to the `xs` variable word); the
     // whole-line request range still overlaps it and the `unset` keyword.
     let (l, _c) = pos_of(src, "unset", 1);
-    let actions = code_actions(src, whole_line(l), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(src, whole_line(l), Some(&analysis), &report_of(&analysis));
     let nocomplain = actions
         .iter()
         .find(|a| a.title.contains("-nocomplain"))
@@ -670,7 +695,7 @@ fn code_actions_clean_script_outside_diag_offers_no_quickfix() {
     // (refactor/source actions may still appear, but no `quickfix`).
     let src = "set x 1\nset y 2\n";
     let analysis = analyse(src);
-    let actions = code_actions(src, whole_line(0), Some(&analysis), &analysis.diagnostics);
+    let actions = code_actions(src, whole_line(0), Some(&analysis), &report_of(&analysis));
     assert!(
         !actions.iter().any(|a| a.kind == ActionKind::QuickFix),
         "no quick-fix expected on a clean line; got {:?}",
@@ -682,7 +707,7 @@ fn code_actions_clean_script_outside_diag_offers_no_quickfix() {
 fn code_actions_degenerate_inputs_do_not_panic() {
     for src in ["", "   ", "\n", "catch {"] {
         let analysis = analyse(src);
-        let _ = code_actions(src, whole_line(0), Some(&analysis), &analysis.diagnostics);
+        let _ = code_actions(src, whole_line(0), Some(&analysis), &report_of(&analysis));
     }
 }
 

@@ -48,6 +48,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("cd"),
         // Universal core Tcl 8.4-9.1 (identical `cd ?dirName?` synopsis and
         // behaviour on every fetched manpage). Excluded from `f5-irules` (no
         // real per-request filesystem there) by this explicit

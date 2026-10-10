@@ -233,6 +233,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("scan"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // The match / conversion path is the only one that writes: a failed
         // `regexp`, and a `scan` or `binary scan` whose input runs out, leave
@@ -259,6 +260,7 @@ pub fn spec() -> CommandSpec {
         // must not be typed `Int`.
         var_write_typing: VarWriteTyping::Destructured,
         const_fold: Some(fold_scan),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::destructure::SCAN),
         hover: Some(HoverSnippet {
             summary: "Parse string using conversion specifiers in the style of sscanf",
             synopsis: &["scan string format ?varName varName ...?"],

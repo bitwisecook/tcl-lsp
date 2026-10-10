@@ -19,7 +19,7 @@
 //! Native lowering: the target-neutral projection of the executable semantic
 //! IR into the native lowered IR (NLIR), the representation and cell-storage
 //! lattices over it, and the framing-elision decisions — plan §3.3–§3.5 and
-//! §7 row P3.
+//! §3.3.
 //!
 //! The pipeline is:
 //!

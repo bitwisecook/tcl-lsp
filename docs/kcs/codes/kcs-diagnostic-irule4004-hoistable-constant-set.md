@@ -45,6 +45,13 @@ when RULE_INIT {
 }
 ```
 
+## Limits
+
+The warning needs the assignment to be the variable's only write in the rule.
+A second write in a branch the analyser proves never runs does not count, so
+`set svc "foo"; if {0} { set svc "bar" }` still draws it; a second write that
+can run, in this event or another, does not.
+
 ## How to suppress
 
 Add `# noqa: IRULE4004` on the line **above** the offending command.

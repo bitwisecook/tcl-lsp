@@ -54,6 +54,12 @@ when HTTP_REQUEST {
 }
 ```
 
+## Limits
+
+A `respond` or `redirect` in a branch the analyser proves never runs is not a
+response, so it is neither the second one nor the first one a later response
+follows. One in a branch that might run still counts.
+
 ## How to suppress
 
 Add `# noqa: IRULE1202` on the line **above** the offending command.

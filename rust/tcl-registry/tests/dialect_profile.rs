@@ -30,6 +30,7 @@
 //! These tests pin that banned surface stays banned and the retired
 //! `NON_IRULES_OPERATORS` union never creeps back as a gate.
 
+use tcl_dialect::model::PackageFloor;
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::model::{Family, SurfaceLayer};
@@ -367,7 +368,7 @@ fn bpf_registry_is_stamped_with_its_tcl90_embedding() {
     assert_eq!(registry.profile(), Some(profile));
     assert_eq!(
         profile.surface_query(),
-        SurfaceQuery::core(Family::Tcl, "9.0").with_packages(&["bpf"])
+        SurfaceQuery::core(Family::Tcl, "9.0").with_packages(&[PackageFloor::named("bpf")])
     );
     assert_eq!(registry.runtime_version(), Some(TclVersion::V9_0));
     assert_eq!(registry.numbers(), NumberSyntax::Tcl90);

@@ -64,7 +64,7 @@ use crate::types::TclType;
 /// The type `[<spec's command> args…]` produces, for a spec carrying `hook`.
 ///
 /// `args` excludes the command name. The `match` is exhaustive, so adding a
-/// [`ReturnTypeHookId`] variant is a compile error until its arm lands here.
+/// [`ReturnTypeHookId`] variant requires a corresponding arm here.
 #[must_use]
 pub(crate) fn resolve(
     hook: ReturnTypeHookId,
@@ -86,7 +86,7 @@ pub(crate) fn resolve(
 pub(crate) fn resolve_arguments(
     hook: ReturnTypeHookId,
     args: crate::InvocationArguments<'_>,
-    options: crate::resolved_invocation::InvocationOptions<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_, '_>,
 ) -> Option<TclType> {
     let count = args.exact_argv_len()?;
     let available = options.available().cloned().collect::<Vec<_>>();

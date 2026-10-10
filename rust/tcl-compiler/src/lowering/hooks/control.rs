@@ -101,34 +101,60 @@ pub fn try_lower_expr(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     })
 }
 
-/// Lower `return` to [`Statement::Return`], or to
-/// [`Statement::Barrier`] when the command form is not the simple
-/// `return ?value?` shape (option-bearing or `{*}`-expanded).
+/// Lower `return ?value?` to [`Statement::Return`], and a `return` with
+/// options as the registry decodes them
+/// ([`tcl_registry::CommandRegistry::return_completion`]). One that
+/// completes at its own level with `ok`, `error`, `break` or `continue`, or
+/// whose options the release rejects, is left to the default call lowering
+/// (`None`), whose call the CFG reads through the same decoding: a normal
+/// completion runs on, an error raises and a `break` or `continue` leaves
+/// the loop. One that leaves the procedure (`TCL_RETURN`), or whose
+/// completion is not known, is the `return with options`
+/// [`Statement::Barrier`], a procedure exit, as a `{*}`-expanded one is the
+/// `return with expansion` barrier.
 #[must_use]
 pub fn try_lower_return(
     cmd: &LoweringCommand<'_>,
     aliases: &CommandAliasMap,
     registry: &tcl_registry::CommandRegistry,
     context: Option<&tcl_registry::model::ResolvedContext>,
-) -> Statement {
+) -> Option<Statement> {
+    let barrier = |reason: &str| Statement::Barrier {
+        span: cmd.span,
+        reason: reason.into(),
+        command: cmd.name.into(),
+        canonical_command: None,
+        args: cmd.args.to_vec(),
+        tokens: cmd.tokens.clone(),
+    };
     if has_expansion(cmd) {
-        return Statement::Barrier {
-            span: cmd.span,
-            reason: "return with expansion".into(),
-            command: cmd.name.into(),
-            canonical_command: None,
-            args: cmd.args.to_vec(),
-            tokens: cmd.tokens.clone(),
-        };
+        return Some(barrier("return with expansion"));
     }
+    // While two words remain they are an option and its value; a last word
+    // on its own is the result, whatever it starts with.
     if cmd.args.len() > 1 {
-        return Statement::Barrier {
-            span: cmd.span,
-            reason: "return with options".into(),
-            command: cmd.name.into(),
-            canonical_command: None,
-            args: cmd.args.to_vec(),
-            tokens: cmd.tokens.clone(),
+        use tcl_registry::completion::CompletionCode;
+        use tcl_registry::value_transfer::completion::ReturnDecoding;
+        let words = return_words(cmd);
+        return match registry
+            .return_completion(tcl_registry::InvocationArguments::structured(&words))
+        {
+            ReturnDecoding::Rejects => None,
+            ReturnDecoding::Completes(returned)
+                if returned.level == 0
+                    && matches!(
+                        returned.code,
+                        CompletionCode::Ok
+                            | CompletionCode::Error
+                            | CompletionCode::Break
+                            | CompletionCode::Continue
+                    ) =>
+            {
+                None
+            }
+            ReturnDecoding::Completes(_) | ReturnDecoding::Unknown(_) => {
+                Some(barrier("return with options"))
+            }
         };
     }
 
@@ -148,7 +174,7 @@ pub fn try_lower_return(
         braced,
     } = lower_return_value(cmd, aliases, registry, context);
 
-    Statement::Return {
+    Some(Statement::Return {
         span: cmd.span,
         tokens: cmd.tokens.clone(),
         value,
@@ -157,7 +183,7 @@ pub fn try_lower_return(
         expr_base,
         command_binding,
         braced,
-    }
+    })
 }
 
 #[derive(Default)]
@@ -251,6 +277,33 @@ fn lower_return_value(
         command_binding,
         braced,
     }
+}
+
+/// The words of a `return` as the registry reads them: each word's own
+/// tokens where the lowering has them, the hook view's literal test where it
+/// does not, and a substitution's word is never its spelling.
+fn return_words<'c>(cmd: &'c LoweringCommand<'_>) -> Vec<tcl_registry::InvocationWord<'c>> {
+    if let Some(tokens) = &cmd.tokens
+        && tokens.word_exprs.len() == cmd.args.len() + 1
+    {
+        return tokens
+            .word_exprs
+            .iter()
+            .skip(1)
+            .map(crate::registry_invocation::invocation_word)
+            .collect();
+    }
+    cmd.args
+        .iter()
+        .enumerate()
+        .map(|(at, text)| {
+            if cmd.arg_is_static_literal(at) {
+                tcl_registry::InvocationWord::Literal(text)
+            } else {
+                tcl_registry::InvocationWord::Dynamic
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -457,6 +510,61 @@ mod tests {
         }
     }
 
+    /// The first statement of procedure `p` in `source` lowered under
+    /// `dialect`.
+    fn lowered_in_p(source: &str, dialect: &str) -> Statement {
+        let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+        let m = lower_to_ir(source, registry);
+        m.procedures
+            .get("::p")
+            .and_then(|p| p.body.statements.first())
+            .cloned()
+            .expect("the procedure's first statement")
+    }
+
+    /// A `return` with options lowers as the registry decodes it: at its own
+    /// level `ok`, `error`, `break` and `continue` are a call the CFG reads
+    /// through the same decoding, and options 8.4 rejects are one too; one
+    /// that leaves the procedure is the `return with options` barrier, as one
+    /// whose release is not named is, and a lone last word is the result
+    /// whatever it starts with.
+    #[test]
+    fn return_options_lower_as_the_registry_decodes_them() {
+        let call = |statement: &Statement| matches!(statement, Statement::Call { command, .. } if command == "return");
+        let barrier = |statement: &Statement| matches!(statement, Statement::Barrier { reason, .. } if reason == "return with options");
+        for body in [
+            "return -level 0 -code ok x",
+            "return -level 0 -code error boom",
+            "return -level 0 -code break",
+            "return -level 0 -code 4",
+            "return -code ok -level 0 x",
+        ] {
+            let source = format!("proc p {{}} {{{body}}}");
+            assert!(call(&lowered_in_p(&source, "tcl8.6")), "{body}");
+        }
+        for body in [
+            "return -code error boom",
+            "return -level 1 -code ok x",
+            "return -level 0 -code return x",
+            "return -level 0 -code 5 x",
+            "return -level $l -code ok x",
+            "return a b",
+        ] {
+            let source = format!("proc p {{}} {{{body}}}");
+            assert!(barrier(&lowered_in_p(&source, "tcl8.6")), "{body}");
+        }
+        assert!(call(&lowered_in_p(
+            "proc p {} {return -level 0 -code ok x}",
+            "tcl8.4"
+        )));
+        let m = lower_to_ir("proc p {} {return -level 0 -code ok x}", &reg());
+        assert!(barrier(&m.procedures["::p"].body.statements[0]));
+        match lowered_in_p("proc p {} {return -code}", "tcl8.6") {
+            Statement::Return { value, .. } => assert_eq!(value.as_deref(), Some("-code")),
+            other => panic!("expected Return, got {other:?}"),
+        }
+    }
+
     #[test]
     fn return_with_expansion_emits_barrier() {
         // Native evaluation reads args before dispatch. An absent operand
@@ -575,12 +683,12 @@ mod tests {
         let registry = reg();
         let cmd = make_cmd("return", &args, &single, &kinds, None);
         match try_lower_return(&cmd, &aliases, &registry, None) {
-            Statement::Return {
+            Some(Statement::Return {
                 value,
                 expr,
                 braced,
                 ..
-            } => {
+            }) => {
                 assert_eq!(value.as_deref(), Some("$result"));
                 assert!(expr.is_none());
                 assert!(!braced);
@@ -598,7 +706,7 @@ mod tests {
         let registry = reg();
         let cmd = make_cmd("return", &args, &single, &kinds, None);
         match try_lower_return(&cmd, &aliases, &registry, None) {
-            Statement::Return { value, .. } => assert!(value.is_none()),
+            Some(Statement::Return { value, .. }) => assert!(value.is_none()),
             other => panic!("expected Return, got {other:?}"),
         }
     }
@@ -615,7 +723,7 @@ mod tests {
         );
         assert!(matches!(
             try_lower_return(&cmd, &CommandAliasMap::new(), &reg(), None),
-            Statement::Barrier { args: retained, .. } if retained == args
+            None
         ));
     }
 
@@ -629,7 +737,7 @@ mod tests {
         let cmd = make_cmd("return", &args, &single, &kinds, None);
         assert!(matches!(
             try_lower_return(&cmd, &aliases, &registry, None),
-            Statement::Barrier { .. }
+            Some(Statement::Barrier { .. })
         ));
     }
 
@@ -643,7 +751,7 @@ mod tests {
         let registry = reg();
         let cmd = make_cmd("return", &args, &single, &kinds, Some(&expand));
         match try_lower_return(&cmd, &aliases, &registry, None) {
-            Statement::Barrier { reason, .. } => {
+            Some(Statement::Barrier { reason, .. }) => {
                 assert_eq!(reason, "return with expansion");
             }
             other => panic!("expected Barrier, got {other:?}"),
@@ -659,7 +767,7 @@ mod tests {
         let registry = reg();
         let cmd = make_cmd("return", &args, &single, &kinds, None);
         match try_lower_return(&cmd, &aliases, &registry, None) {
-            Statement::Return { braced, .. } => assert!(braced),
+            Some(Statement::Return { braced, .. }) => assert!(braced),
             other => panic!("expected Return, got {other:?}"),
         }
     }

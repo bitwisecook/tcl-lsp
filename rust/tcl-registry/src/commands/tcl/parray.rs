@@ -74,6 +74,7 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "parray",
+        runtime_backing: RuntimeBacking::package_source("parray.tcl"),
         traits: Traits::WHOLE_ARRAY_ARG | Traits::OVERRIDABLE_LIBRARY_PROC,
         surface: Some(SpecSurface::ALL_TCL),
         // Real 8.5+ ceiling (`arrayName ?pattern?`); Tcl 8.4's SYNOPSIS is

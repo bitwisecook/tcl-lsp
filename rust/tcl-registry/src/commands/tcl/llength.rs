@@ -55,8 +55,10 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::ListLength),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("llength"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         const_fold: Some(crate::const_fold::fold_llength),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::LIST_LENGTH),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::PURE

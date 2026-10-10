@@ -22,10 +22,9 @@ use crate::interp::{Code, Interp};
 use crate::obj::{self, TclObj};
 use std::collections::BTreeMap;
 use tcl_dialect::{
-    compare_versions_bytes_for, select_package_version_bytes_for,
+    PackagePrefer, TclVersion, compare_versions_bytes_for, select_package_version_bytes_for,
     select_package_version_exact_bytes_for, validate_requirement_bytes_for,
     validate_version_bytes_for, version_matches_exact_bytes_for, version_satisfies_bytes_for,
-    PackagePrefer, TclVersion,
 };
 use tcl_registry::native_package::{NativePackageProtocol, PackageDispatch};
 use tcl_syntax::value::ValueOps;
@@ -331,6 +330,40 @@ fn jim_require(interp: &mut Interp, name: &[u8]) -> Code {
     jim_load_error(interp, name, b"")
 }
 
+/// Host package provision uses the same selected C package protocol and keeps
+/// the interpreter result unchanged on success.
+pub(crate) fn provide_package(interp: &mut Interp, name: &[u8], version: &[u8]) -> Code {
+    let Some(protocol) = interp.native_invocation_dialect().native_package_protocol() else {
+        return interp.refuse_host_command("package provision protocol");
+    };
+    let NativePackageProtocol::C(release) = protocol else {
+        return interp.refuse_host_command("C API package provision protocol");
+    };
+    if !validate_version_bytes_for(version, release) {
+        return invalid_version(interp, protocol, version);
+    }
+    let existing = interp.packages.borrow().provided.get(name).cloned();
+    if let Some(existing) = existing {
+        if compare_versions_bytes_for(&existing, version, release) != core::cmp::Ordering::Equal {
+            let message = [
+                b"conflicting versions provided for package \"".as_slice(),
+                name,
+                b"\": ",
+                &existing,
+                b", then ",
+                version,
+            ]
+            .concat();
+            return interp.error_with_code(&message, b"TCL PACKAGE VERSIONCONFLICT");
+        }
+        return Code::Ok;
+    }
+    let mut state = interp.packages.borrow_mut();
+    state.entry_order.insert(name);
+    state.provided.insert(name.to_vec(), version.to_vec());
+    Code::Ok
+}
+
 fn jim_load_error(interp: &mut Interp, name: &[u8], prior: &[u8]) -> Code {
     interp.set_error(
         &[
@@ -487,7 +520,7 @@ fn package_lookup(
                     tcl_registry::native_package::NativePackageFailure::PresentMissing,
                     &name,
                 ),
-            )
+            );
         }
         None => {}
     }
@@ -613,7 +646,7 @@ fn package_lookup(
                             tcl_registry::native_package::NativePackageFailure::LoaderMissing,
                             &name,
                         ),
-                    )
+                    );
                 }
             }
         }
@@ -1205,11 +1238,13 @@ mod tests {
         assert_eq!(run(&mut interp, b"package require recursive"), b"1.0");
         assert_eq!(run(&mut interp, b"set ::recursiveVersion"), b"");
         assert_eq!(interp.eval_str(b"package require bad"), Code::Error);
-        assert!(!interp
-            .packages
-            .borrow()
-            .provided
-            .contains_key(b"bad".as_slice()));
+        assert!(
+            !interp
+                .packages
+                .borrow()
+                .provided
+                .contains_key(b"bad".as_slice())
+        );
         assert_eq!(run(&mut interp, b"retainedSideEffect"), b"yes");
         assert_eq!(interp.eval_str(b"package provide plain"), Code::Error);
         std::fs::remove_dir_all(directory).expect("remove fixtures");
@@ -1217,8 +1252,7 @@ mod tests {
 
     #[test]
     fn package_option_word_resolves_like_tcl_get_index_from_obj() {
-        const MUST: &str =
-            "must be files, forget, ifneeded, names, prefer, present, provide, require, unknown, \
+        const MUST: &str = "must be files, forget, ifneeded, names, prefer, present, provide, require, unknown, \
                             vcompare, versions, or vsatisfies";
         leak_free(|i| {
             let err = |i: &mut Interp, script: &[u8]| {

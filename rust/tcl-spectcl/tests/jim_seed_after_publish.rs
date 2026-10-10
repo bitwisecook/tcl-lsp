@@ -50,6 +50,7 @@ fn seeding_after_a_publication_keeps_the_published_rosters() {
         tier: Tier::Bundled,
         path: PathBuf::from("restated.tclspec"),
         origin: Origin::Bundled,
+        dependency_tier: None,
     };
     let source =
         format!("speclib restated 2.0 {{\n include from tcl into jim {{set {NOT_IN_JIM}}}\n}}");

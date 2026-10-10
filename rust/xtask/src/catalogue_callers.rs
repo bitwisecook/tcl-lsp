@@ -113,6 +113,10 @@ const ALLOWED: &[(&str, &str)] = &[
         "tests: the ingress agrees with every catalogue profile",
     ),
     (
+        "rust/tcl-registry/src/model/runtime_context.rs",
+        "tests: a runtime context agrees with every catalogue profile",
+    ),
+    (
         "rust/tcl-registry/src/model/semantic.rs",
         "tests: the semantic handle agrees with every catalogue profile",
     ),
@@ -145,8 +149,16 @@ const ALLOWED: &[(&str, &str)] = &[
         "`could_collide` asks every profile's context whether two packages coexist",
     ),
     (
+        "rust/tcl-vm/tests/cross_version_command_surface_e2e.rs",
+        "tests: the VM's profile pin agrees with every catalogue profile",
+    ),
+    (
         "rust/xtask/src/callback_inventory.rs",
         "the callback inventory is computed per catalogue profile",
+    ),
+    (
+        "rust/xtask/src/value_transfers.rs",
+        "the value-transfer inventory is computed per catalogue profile",
     ),
 ];
 

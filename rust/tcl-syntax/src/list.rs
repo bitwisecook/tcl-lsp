@@ -56,7 +56,8 @@
 use std::borrow::Cow;
 use std::ops::Range;
 
-use tcl_lexer::backslash_subst;
+use tcl_dialect::EscapeSyntax;
+use tcl_lexer::{backslash_subst, backslash_subst_in};
 
 /// Materialise native Tcl concatenation without parsing or re-quoting lists.
 /// Whitespace-only operands disappear; other operands are separated by one
@@ -181,6 +182,24 @@ impl ListError {
             ListError::BraceFollowedByJunk => "list element in braces followed by",
             ListError::QuoteFollowedByJunk => "list element in quotes followed by",
         }
+    }
+
+    /// The failure `message` is the complete message of: the fixed texts,
+    /// or a `…followed by "X" instead of space` one.
+    #[must_use]
+    pub fn from_message(message: &str) -> Option<Self> {
+        let fixed = [Self::UnmatchedBrace, Self::UnmatchedQuote];
+        let junk = [Self::BraceFollowedByJunk, Self::QuoteFollowedByJunk];
+        fixed
+            .into_iter()
+            .find(|error| message == error.message())
+            .or_else(|| {
+                junk.into_iter().find(|error| {
+                    message.strip_prefix(error.message()).is_some_and(|rest| {
+                        rest.starts_with(" \"") && rest.ends_with("\" instead of space")
+                    })
+                })
+            })
     }
 
     /// Tcl's structured `-errorcode` for this list syntax failure.
@@ -454,6 +473,14 @@ pub fn find_element_bytes(bytes: &[u8], start: usize) -> Result<Option<Element>,
 /// escapes in bare/quoted elements. Literal elements borrow `s`; collapsed ones
 /// own a fresh `String`.
 pub fn split_list(s: &str) -> Result<Vec<Cow<'_, str>>, ListError> {
+    split_list_in(s, EscapeSyntax::default())
+}
+
+/// [`split_list`] collapsing the backslashes under the escape grammar of the
+/// release the list is read by: before Tcl 8.6 a `\x` takes every hex digit
+/// that follows and keeps the last two, so the element `a\x41b` is `a` and
+/// U+001B there and `aAb` from 8.6.
+pub fn split_list_in(s: &str, escapes: EscapeSyntax) -> Result<Vec<Cow<'_, str>>, ListError> {
     let mut out = Vec::new();
     let mut pos = 0;
     while let Some(el) = find_element(s, pos)? {
@@ -463,7 +490,7 @@ pub fn split_list(s: &str) -> Result<Vec<Cow<'_, str>>, ListError> {
         } else {
             // backslash_subst returns Borrowed when there is nothing to do, but
             // a non-literal element always contains a backslash, so this owns.
-            Cow::Owned(backslash_subst(raw).into_owned())
+            Cow::Owned(backslash_subst_in(raw, escapes).into_owned())
         });
         pos = el.next;
     }
@@ -1100,6 +1127,35 @@ mod tests {
             .collect()
     }
 
+    /// `from_message` names the failure `full_message` builds the message of,
+    /// and none for a text that merely starts or ends alike.
+    #[test]
+    fn a_list_error_message_is_recognised_whole() {
+        for (error, source) in [
+            (ListError::UnmatchedBrace, "{a"),
+            (ListError::UnmatchedQuote, "\"a"),
+            (ListError::BraceFollowedByJunk, "{b}x"),
+            (ListError::QuoteFollowedByJunk, "\"b\"x"),
+        ] {
+            assert_eq!(
+                ListError::from_message(&error.full_message(source)),
+                Some(error)
+            );
+        }
+        for text in [
+            "",
+            "bad index",
+            "unmatched open brace",
+            "unmatched open brace in list.",
+            "list element in braces followed by",
+            "list element in braces followed by \"x\"",
+            "list element in braces followed by x instead of space",
+            "list element in braces followed by x\" instead of space",
+        ] {
+            assert_eq!(ListError::from_message(text), None, "{text:?}");
+        }
+    }
+
     /// The junk-fragment cap counts **bytes**, so it can land inside a
     /// multi-byte character. C copies raw bytes there; a `&str` slice cannot,
     /// and `str::get` on a mid-character index returns `None` — which silently
@@ -1204,6 +1260,30 @@ mod tests {
         // a backslash escapes a would-be terminator
         assert_eq!(split("a\\ b"), ["a b"]);
         assert_eq!(split("\"a\\\"b\""), ["a\"b"]);
+    }
+
+    /// A bare or quoted element collapses its backslashes under the escape
+    /// grammar given: before Tcl 8.6 a `\x` takes every hex digit that follows
+    /// and keeps the last two. A braced element is verbatim under any.
+    #[test]
+    fn a_bare_or_quoted_element_collapses_under_the_given_escape_grammar() {
+        let split = |list: &str, escapes| -> Vec<String> {
+            split_list_in(list, escapes)
+                .unwrap()
+                .into_iter()
+                .map(Cow::into_owned)
+                .collect()
+        };
+        for list in [r#""a\x41b" c"#, r"a\x41b c"] {
+            assert_eq!(split(list, EscapeSyntax::Tcl84), ["a\u{1b}", "c"], "{list}");
+            assert_eq!(split(list, EscapeSyntax::Tcl86), ["aAb", "c"], "{list}");
+            assert_eq!(split(list, EscapeSyntax::Tcl90), ["aAb", "c"], "{list}");
+        }
+        assert_eq!(split(r"{a\x41b}", EscapeSyntax::Tcl84), [r"a\x41b"]);
+        assert_eq!(
+            split_list(r"a\x41b").unwrap(),
+            split_list_in(r"a\x41b", EscapeSyntax::default()).unwrap()
+        );
     }
 
     #[test]

@@ -62,6 +62,11 @@ pub const ARTIFACT_COVERAGE: &[ArtifactCoverage] = &[
         exclusion: None,
     },
     ArtifactCoverage {
+        artifact: "CompilationUnit::transfers",
+        view: Some("interproc"),
+        exclusion: None,
+    },
+    ArtifactCoverage {
         artifact: "CompilationUnit::connection_scope",
         view: Some("connectionScope"),
         exclusion: None,
@@ -128,6 +133,11 @@ pub const ARTIFACT_COVERAGE: &[ArtifactCoverage] = &[
     },
     ArtifactCoverage {
         artifact: "FunctionUnit::complexity_guarded",
+        view: Some("semantic"),
+        exclusion: None,
+    },
+    ArtifactCoverage {
+        artifact: "FunctionUnit::tier",
         view: Some("semantic"),
         exclusion: None,
     },

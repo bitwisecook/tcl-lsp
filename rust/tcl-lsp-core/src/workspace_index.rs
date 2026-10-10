@@ -81,6 +81,7 @@ use crate::workspace_symbols::{
     IndexedWorkspaceSymbol, WorkspaceSymbolKind, matches_query, namespace_of,
 };
 use tcl_compiler::analyser::{AnalysisResult, MemberRetractionRecord, MemberSide};
+use tcl_compiler::ir::MethodKind;
 use tcl_lexer::Span;
 use tcl_syntax::naming::{key_holder_and_tail, root_unrooted_key, unroot_rooted_key};
 
@@ -283,7 +284,7 @@ impl WorkspaceClass {
     pub fn instance_method(&self, name: &str) -> Option<&WorkspaceMethod> {
         self.methods
             .iter()
-            .find(|m| m.name == name && m.kind != "classmethod")
+            .find(|m| m.name == name && m.kind != CLASS_METHOD)
     }
 
     /// The typed record for the *class-receiver* member `name` — a
@@ -293,7 +294,7 @@ impl WorkspaceClass {
     pub fn class_method(&self, name: &str) -> Option<&WorkspaceMethod> {
         self.methods
             .iter()
-            .find(|m| m.name == name && m.kind == "classmethod")
+            .find(|m| m.name == name && m.kind == CLASS_METHOD)
     }
 }
 
@@ -302,7 +303,7 @@ impl WorkspaceClass {
 /// named once so the member fold and the tombstone lookup agree on it.
 #[must_use]
 fn method_side(m: &WorkspaceMethod) -> MemberSide {
-    if m.kind == "classmethod" {
+    if m.kind == CLASS_METHOD {
         MemberSide::ClassObject
     } else {
         MemberSide::Instance
@@ -2067,8 +2068,8 @@ impl DocumentRecords {
                     .map(|m| WorkspaceMethod {
                         name: m.name.clone(),
                         kind: m.kind.clone(),
-                        exported: m.visibility == "public",
-                        private: m.visibility == "private",
+                        exported: m.visibility == PUBLIC,
+                        private: m.visibility == PRIVATE,
                         is_self_method: m.is_self_method,
                         name_span: m.name_span,
                     })
@@ -2077,9 +2078,9 @@ impl DocumentRecords {
                             .into_iter()
                             .map(|m| WorkspaceMethod {
                                 name: m.name.clone(),
-                                kind: "classmethod".to_string(),
-                                exported: m.visibility == "public",
-                                private: m.visibility == "private",
+                                kind: CLASS_METHOD.to_string(),
+                                exported: m.visibility == PUBLIC,
+                                private: m.visibility == PRIVATE,
                                 is_self_method: m.is_self_method,
                                 name_span: m.name_span,
                             }),
@@ -4558,7 +4559,7 @@ impl WorkspaceIndex {
                     let names = self
                         .effective_members(x)
                         .into_iter()
-                        .filter(|m| m.method.kind != "classmethod" && !m.method.private)
+                        .filter(|m| m.method.kind != CLASS_METHOD && !m.method.private)
                         .map(|m| m.name.to_owned())
                         .collect();
                     member_names.insert(x.clone(), names);
@@ -7937,7 +7938,7 @@ p\uD801";
                         index
                             .effective_members(x)
                             .into_iter()
-                            .filter(|m| m.method.kind != "classmethod" && !m.method.private)
+                            .filter(|m| m.method.kind != CLASS_METHOD && !m.method.private)
                             .map(|m| m.name.to_owned()),
                     );
                 }

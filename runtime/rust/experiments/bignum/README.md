@@ -1,19 +1,25 @@
-# EXP-BIGNUM — the numeric tower's bignum representation (evidence)
+# Bignum representation and libtommath build probes
 
-Throwaway probes for the bignum-rep decision (EXP-BIGNUM). Run against the
+Layout and arithmetic probes for the numeric tower. Run against the
 reference libtommath bundled in `tmp/tcl9.0.4/libtommath` with its Tcl wrapper
 header `tmp/tcl9.0.4/generic/tclTomMath.h`.
 
 ## `lt_layout.c` — the `mp_int` ABI layout across targets
 
 ```sh
-cd tmp/tcl9.0.4
-# native (defaults to MP_64BIT on a 64-bit host)
-clang -Igeneric -Ilibtommath runtime/.../lt_layout.c -o /tmp/lt_n && /tmp/lt_n
-# wasm32 default (libtommath picks MP_32BIT off the 32-bit pointer)
-clang --target=wasm32-wasi -Igeneric -Ilibtommath lt_layout.c -o a.wasm && wasmtime a.wasm
-# wasm32 + forced MP_64BIT (the chosen, wasm-matched config)
-clang --target=wasm32-wasi -DMP_64BIT -Igeneric -Ilibtommath lt_layout.c -o a.wasm && wasmtime a.wasm
+# Run from the repository root. Native 64-bit hosts default to MP_64BIT.
+cc -Itmp/tcl9.0.4/generic -Itmp/tcl9.0.4/libtommath \
+    runtime/rust/experiments/bignum/lt_layout.c -o /tmp/lt-layout-native
+/tmp/lt-layout-native
+
+# Use the provisioned wasi-sdk clang for the two wasm32 layouts.
+"$WASI_SDK_PATH/bin/clang" -Itmp/tcl9.0.4/generic -Itmp/tcl9.0.4/libtommath \
+    runtime/rust/experiments/bignum/lt_layout.c -o /tmp/lt-layout.wasm
+wasmtime /tmp/lt-layout.wasm
+"$WASI_SDK_PATH/bin/clang" -DMP_64BIT -Itmp/tcl9.0.4/generic \
+    -Itmp/tcl9.0.4/libtommath runtime/rust/experiments/bignum/lt_layout.c \
+    -o /tmp/lt-layout-64.wasm
+wasmtime /tmp/lt-layout-64.wasm
 ```
 
 Result:
@@ -34,7 +40,7 @@ heap digit array widens to 8-byte/60-bit limbs) → native-i64 arithmetic with t
 Computes `2**100`, inspects `used`/`fits_i64`, and shows raw `mp_div(-7,2)`
 (C-truncation → q=-3 r=-1; Tcl floor-adjusts to q=-4 r=1).
 
-### The build recipe (solved)
+### Build recipe
 
 Tcl's bundled libtommath is wired into Tcl's stubs (`tclTomMath.h` renames every
 `mp_*` to `TclBN_*` and tangles the `MP_INIT_INT` code-gen templates when its own
@@ -43,14 +49,19 @@ Tcl's bundled libtommath is wired into Tcl's stubs (`tclTomMath.h` renames every
 `tommath.h` and skips the `TclBN_*` renaming) and `-DLTM_ALL` (enables every
 file's `BN_*_C` guard):
 
-```sh
-cd tmp/tcl9.0.4
-SRCS=$(ls libtommath/*.c | grep -vE 'bn_deprecated|rand|prime')   # 139 files
-# native (defaults to MP_64BIT) — `mp_*` symbols, no stubs:
-clang -DTCL_WITH_EXTERNAL_TOMMATH -DLTM_ALL -Ilibtommath lt_arith.c $SRCS -o a && ./a
-# wasm32, forcing 60-bit limbs:
-clang --target=wasm32-wasi -DTCL_WITH_EXTERNAL_TOMMATH -DLTM_ALL -DMP_64BIT \
-    -Ilibtommath lt_arith.c $SRCS -o a.wasm && wasmtime a.wasm
+```bash
+# Run from the repository root.
+mapfile -t bignum_sources < <(
+    rg --files tmp/tcl9.0.4/libtommath -g '*.c' | rg -v 'bn_deprecated|rand|prime'
+)
+cc -DTCL_WITH_EXTERNAL_TOMMATH -DLTM_ALL -Itmp/tcl9.0.4/libtommath \
+    runtime/rust/experiments/bignum/lt_arith.c "${bignum_sources[@]}" \
+    -o /tmp/lt-arith-native
+/tmp/lt-arith-native
+"$WASI_SDK_PATH/bin/clang" -DTCL_WITH_EXTERNAL_TOMMATH -DLTM_ALL -DMP_64BIT \
+    -Itmp/tcl9.0.4/libtommath runtime/rust/experiments/bignum/lt_arith.c \
+    "${bignum_sources[@]}" -o /tmp/lt-arith.wasm
+wasmtime /tmp/lt-arith.wasm
 ```
 
 Both print `2**100 = 1267650600228229401496703205376` with **2 limbs**

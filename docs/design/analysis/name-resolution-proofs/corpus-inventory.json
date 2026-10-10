@@ -76463,6 +76463,1042 @@
       "reason": "Original SDK/source/library/header/build/environment queue selected by the exact retained runner; independent per-provider receipts identify actual launched processes."
     },
     {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/8.4.20/receipt.json",
+      "sha256": "740247b74e4ea97c5663e18f2c066b32f11d0dbe14ee1e526e364ac310c895ca",
+      "bytes": 684,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/8.4.20/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/8.4.20/stdout",
+      "sha256": "b108f8ef73a9dc699f3cfe99b0884c591345f163168466a06a581a9bfb592379",
+      "bytes": 12267,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/8.5.19/receipt.json",
+      "sha256": "8fc193b41ceb535cf69a7a81111760e4a4e162fc05f5d58de5a646b455781abb",
+      "bytes": 684,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/8.5.19/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/8.5.19/stdout",
+      "sha256": "647d9838c127f5746d7cec7efcf59c0902878d9139d84fa5336d8fc991b95d3f",
+      "bytes": 19262,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/8.6.18/receipt.json",
+      "sha256": "0a6ec09a1839c6de9a2946528c4cfaa1d7b97980bc5db761ead9ef598ddea7c6",
+      "bytes": 684,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/8.6.18/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/8.6.18/stdout",
+      "sha256": "b53949700ee604e80a0e424ad73a9bbc76d88e142a970aaf63438c2242af3ad8",
+      "bytes": 32194,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/9.0.4/receipt.json",
+      "sha256": "1ae6729f023f9734850db19b509a497dbf2dfd24331011b352e871508131314d",
+      "bytes": 681,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/9.0.4/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/9.0.4/stdout",
+      "sha256": "89842f8b23a89af4cde423d62b9ba692d7d81d2da4f2858413f9ff22a77450a2",
+      "bytes": 34986,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/9.1.0/receipt.json",
+      "sha256": "7e51fb3cfa5b42cffbe7d61c513541234d731e4c2375b6420a498dc328595764",
+      "bytes": 681,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/9.1.0/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/9.1.0/stdout",
+      "sha256": "68f24fc950e11c7f1438bddb7882e89db5e5145eb48b5ff692a14bd1f5563561",
+      "bytes": 34926,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/capture.py",
+      "sha256": "178f7872da81744a09b2e822232ca04b0d22eaf10c60c7d9d5f6be0689758cdd",
+      "bytes": 2039,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/jim/receipt.json",
+      "sha256": "26dcd82c938c48dc1694c6c2c4016af668f82c4f33382045c15ebecb580a6708",
+      "bytes": 694,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/jim/stderr",
+      "sha256": "b532044d4527803745f18e79caf6f5fb00727f7625b8b80683445b7ad81f58c4",
+      "bytes": 230,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/jim/stdout",
+      "sha256": "45bae06855b7272178fe263d6ad183f803054ec684b65392301559fe2cffe0eb",
+      "bytes": 23,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/probe.tcl",
+      "sha256": "2718a583f6a4d1599688f886df4ffc55417179e5a2bcc81d50c3f2cada87fe83",
+      "bytes": 7136,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker381/request.json",
+      "sha256": "6303227c0822970e133763a9dbc552587a7febdf5471044ef5607f90d46537ec",
+      "bytes": 15297,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact unchanged experiment request."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/8.4.20/receipt.json",
+      "sha256": "363a70dfb5386d3fdf3a02a27e0f4ea2f9c0b69d44e8ab7446396099278afdcb",
+      "bytes": 684,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/8.4.20/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/8.4.20/stdout",
+      "sha256": "b108f8ef73a9dc699f3cfe99b0884c591345f163168466a06a581a9bfb592379",
+      "bytes": 12267,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/8.5.19/receipt.json",
+      "sha256": "af056cc81ec87b4a78287c9c4befd4a4a07a4611659e9fc6eae5ef5039f3926c",
+      "bytes": 684,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/8.5.19/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/8.5.19/stdout",
+      "sha256": "647d9838c127f5746d7cec7efcf59c0902878d9139d84fa5336d8fc991b95d3f",
+      "bytes": 19262,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/8.6.18/receipt.json",
+      "sha256": "366fa3a25ee45d00bf950540a3a10f597fbe0795a6a0117648ef627718a6810a",
+      "bytes": 684,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/8.6.18/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/8.6.18/stdout",
+      "sha256": "b53949700ee604e80a0e424ad73a9bbc76d88e142a970aaf63438c2242af3ad8",
+      "bytes": 32194,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/9.0.4/receipt.json",
+      "sha256": "19dbabf6f737240d9a238a4dc81747124ae0a6e6794fe8e032d80f440e8f7801",
+      "bytes": 681,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/9.0.4/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/9.0.4/stdout",
+      "sha256": "89842f8b23a89af4cde423d62b9ba692d7d81d2da4f2858413f9ff22a77450a2",
+      "bytes": 34986,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/9.1.0/receipt.json",
+      "sha256": "a2ee38111f2b5b6057bf173474f6282068b2eb3d405a4cedf858eda326ff9e99",
+      "bytes": 681,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/9.1.0/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/9.1.0/stdout",
+      "sha256": "68f24fc950e11c7f1438bddb7882e89db5e5145eb48b5ff692a14bd1f5563561",
+      "bytes": 34926,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/capture.py",
+      "sha256": "6428c73d6be52ae3c6070895e23dbf8d0f923e29adda78130be17553b7f9b41c",
+      "bytes": 2039,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/jim/receipt.json",
+      "sha256": "b0a4aa4fbc31e6f78c1d946d2d2657a93e419804a36a0586e550bcc615b14351",
+      "bytes": 693,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/jim/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/jim/stdout",
+      "sha256": "9fc8c672b6aae05a9d80e9f72fa4c1a5a1fc028158a38f4550af14f2509ff514",
+      "bytes": 33199,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/probe.tcl",
+      "sha256": "43e30c5448ee489f127d128f90fb2f16a730c34a5a5a28d5c923eae54ec67b29",
+      "bytes": 7145,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker382/request.json",
+      "sha256": "5167a9fafb9a767c49563975f790dbab980174a2f8050dd31e53289513facab9",
+      "bytes": 15452,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact unchanged experiment request."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/8.4.20/receipt.json",
+      "sha256": "9f4362d22ac793e9206304fcbb2eb51eed6f648ec686eea4578e0ea4b04d857f",
+      "bytes": 684,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/8.4.20/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/8.4.20/stdout",
+      "sha256": "532188d6b14c25acbbf7b54281159513eab8d471825d7a7569110e580efc820e",
+      "bytes": 11905,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/8.5.19/receipt.json",
+      "sha256": "57e74d56273a1b89f817b80e5094f03869027476886378069c8a3897e3261f74",
+      "bytes": 684,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/8.5.19/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/8.5.19/stdout",
+      "sha256": "531aa900314dc63d1cc429fb62cf5ae6fba92ea1dce1e98d900e7338fed75f98",
+      "bytes": 17276,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/8.6.18/receipt.json",
+      "sha256": "c94215499c7b0fd44514d42b0de3afce59352fabc2a883eb89bae339fa76dc58",
+      "bytes": 684,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/8.6.18/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/8.6.18/stdout",
+      "sha256": "3afed0fa5948090e5fa814fd703b7769cfcbadccb931e5bae35fb1a64b3fbf75",
+      "bytes": 28774,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/9.0.4/receipt.json",
+      "sha256": "b4909322cd1270bee08731ad65177682cf08972044b7216258dfbb9804785191",
+      "bytes": 680,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/9.0.4/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/9.0.4/stdout",
+      "sha256": "26167deea72a103c811215dbc501a71bcf4756ace65553c0ad99e0dbc3bee73f",
+      "bytes": 31566,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/9.1.0/receipt.json",
+      "sha256": "2984c0f6e42bec069bd49d3f94af5020434cdcd3afc6fa26972c5eaf302a31b5",
+      "bytes": 680,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/9.1.0/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/9.1.0/stdout",
+      "sha256": "e508a9d810daef0200e18d6d10ade3b89e83f76d5ef95f72e10a9ce9dcf97af5",
+      "bytes": 31512,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/capture.py",
+      "sha256": "0fdaeee3f96dc35ad64914bb45fdfdc366dc8c952cb221b5a72498d7b06e809e",
+      "bytes": 2039,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/decoded-public-fields.json",
+      "sha256": "c0da2df72dab588b22c0542186e75c1ecd5739c9eb54604c03debd70457deaf8",
+      "bytes": 696084,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/jim/receipt.json",
+      "sha256": "508be3e36c55449270d59db39ddbba70c9ce5ea0345fe9a2939a1fcc65c09ca1",
+      "bytes": 695,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/jim/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/jim/stdout",
+      "sha256": "07317641e1590074c16ac5f501edbe0c3b718a155f5e12f9da1fa4c7100f1f9e",
+      "bytes": 31273,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/probe.tcl",
+      "sha256": "068b1df3b1d2505d7a6a4196c9a6e8c87aada3e0ed614ffa162c1f6eaa6d6900",
+      "bytes": 7097,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_evaluated_worker383/request.json",
+      "sha256": "7fa3c83f0275883f2a27188702bc6bcbfe70c523416f5dc1ad9bc2c2b4553e4b",
+      "bytes": 15299,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact unchanged experiment request."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/8.4.20/receipt.json",
+      "sha256": "3ed12c1757d4517d3a5cef559bb48d196abe7f669092dc87fa8425552a8de75b",
+      "bytes": 683,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/8.4.20/stderr",
+      "sha256": "7d6b2e5e88fbc9a9cf2e8e8a0dde16e508d188dab721f3069f58710dea0e9ae6",
+      "bytes": 525,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/8.4.20/stdout",
+      "sha256": "572d86b8e3b39f4c99040642793d516b34353f4cb64aad013ec0c39f2ebeb8de",
+      "bytes": 14,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/8.5.19/receipt.json",
+      "sha256": "755475ba04f310db08cdd92eebab2a95d97729e8de4372e566521ff6682019cc",
+      "bytes": 684,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/8.5.19/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/8.5.19/stdout",
+      "sha256": "ae66e0a604cebf7f8164c5267f3e537a8aa18a8ef1f4eea004fbc3979c459366",
+      "bytes": 12634,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/8.6.18/receipt.json",
+      "sha256": "6da7275a8b7ea0b9349747e2e38af01efd32dc97f16dd26026e4613afb1d5a70",
+      "bytes": 683,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/8.6.18/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/8.6.18/stdout",
+      "sha256": "d74a11cf5ce8e436b02467f7b1d376a979e652d9654b09b83b56f7ba26162370",
+      "bytes": 20830,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/9.0.4/receipt.json",
+      "sha256": "1f395ddf482a334b0bf1f8085256e33a95984752970350ced711d92540ff5b05",
+      "bytes": 681,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/9.0.4/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/9.0.4/stdout",
+      "sha256": "ed0dc179eeef26b755ae4e0cf2329db09d5172c3ccbda454235d35a742c150a9",
+      "bytes": 21957,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/9.1.0/receipt.json",
+      "sha256": "3ea161b16f6f3bfbcd625897a3693d5392b6f6a07d47ffabce020589fb15acf5",
+      "bytes": 680,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/9.1.0/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/9.1.0/stdout",
+      "sha256": "eb16db9d8535b3f7efd754d9c6785339d5319b4a841ea4d79f31e41b7219fc3e",
+      "bytes": 21931,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/capture.py",
+      "sha256": "a9cc5cf633f0e412557a0cd3cf79634f77236b1bba891f58ed3f76052dbe9a26",
+      "bytes": 2039,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/jim/receipt.json",
+      "sha256": "a55afb7834362a80872adecc55f0a545aaa3573655babab8a4e61c616be78396",
+      "bytes": 695,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/jim/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/jim/stdout",
+      "sha256": "d13694a15e208f9fe3653441d6ba83f16e161eeb31c51ed4efc156d59c05d3ba",
+      "bytes": 20858,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/probe.tcl",
+      "sha256": "8e1f3bf055ed864b3e574904b29e40e9951ffd3dcc6246e93a679777a404efb9",
+      "bytes": 4446,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar378/request.json",
+      "sha256": "617ce56e0f9efa38b29fcc7a243080f79951d7a3fc566925aef5fa76323f67bf",
+      "bytes": 6418,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact unchanged experiment request."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/8.4.20/receipt.json",
+      "sha256": "759b90afbfeb838c9ab97844b6597e6992f0ed3249ae4a7ce577a0185fdf9741",
+      "bytes": 684,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/8.4.20/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/8.4.20/stdout",
+      "sha256": "f31611cc4a3f15bc8bee6d81210babb3f66a879a3850f20aac401926e0649dde",
+      "bytes": 9032,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/8.5.19/receipt.json",
+      "sha256": "95daededfbf99c9b796c189d650625096d8fe45507a8a561122914f741c7e7f7",
+      "bytes": 684,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/8.5.19/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/8.5.19/stdout",
+      "sha256": "a839f502d0d7039660a2e11e323fdae856a0bebd5ee9756e0f89838fb98f3bb4",
+      "bytes": 11176,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/8.6.18/receipt.json",
+      "sha256": "6471888664373f7d9642f3c216210b0a1bbef0a82bcc177c3d372eca2ed7d9c5",
+      "bytes": 683,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/8.6.18/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/8.6.18/stdout",
+      "sha256": "53096ea6161a48354898207ad6e2349ba7799a0a1829610fb3bbb2d87281ae11",
+      "bytes": 17232,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/9.0.4/receipt.json",
+      "sha256": "65ec149f54cc65458cb2e89dbeabcb485b4974118f09f77a6dfea19e3ce27993",
+      "bytes": 680,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/9.0.4/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/9.0.4/stdout",
+      "sha256": "4c6163d3991e9c5a50e8c2cad5fa3ac91ddde1ca204558cc510f03aaab46dda7",
+      "bytes": 18107,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/9.1.0/receipt.json",
+      "sha256": "e42cafc1a0d5d7cb88a6e58afaca66a57b085d27f2e98be1c1f42389787c4401",
+      "bytes": 681,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/9.1.0/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/9.1.0/stdout",
+      "sha256": "8316cc9aaaa43dde5ed5487f97e6fe74ef41d69b4b096cdb4a3ed3a432cca157",
+      "bytes": 18081,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/capture.py",
+      "sha256": "279bfe51cc19ec5e340f82dce0602d55a95106a7c85fb7edc92a813304ba3e4d",
+      "bytes": 2039,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/decoded-public-fields.json",
+      "sha256": "5e52ed269fc72267d813c7407ef5bb09234645def28c4f52f614f9d1d813f609",
+      "bytes": 382687,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/jim/receipt.json",
+      "sha256": "763aff70e65a5f1c625556b861d5a58c61f333704c1038aca0df98495ddab5d0",
+      "bytes": 695,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/jim/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/jim/stdout",
+      "sha256": "abb53698e07d0124c0fc4c620fddefa8829b8ca2da26b0d15e5b2546cdc8805d",
+      "bytes": 20858,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/probe.tcl",
+      "sha256": "ff89eb4cc642ed4c4613f67be106ca6fbd62cadd9944ec10459d162e218ba2d5",
+      "bytes": 4458,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar379/request.json",
+      "sha256": "a391beb1846240dbc1601e327569a3d4618c98658239335ff9727a2db48f6201",
+      "bytes": 6628,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact unchanged experiment request."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/8.4.20/receipt.json",
+      "sha256": "8966490614ae19ee296c6911e7dd48de6d55fe8c4b55f52dd3a129fb092a01f4",
+      "bytes": 684,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/8.4.20/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/8.4.20/stdout",
+      "sha256": "dce7493e3eb5df5e65b5ab538b6724a33ecd29f87416b432a9c4c47a97023084",
+      "bytes": 2887,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/8.5.19/receipt.json",
+      "sha256": "cc681478a6a10fba36264352f9f5f03396dba5dfe8bd91ea0436a5c26507acf4",
+      "bytes": 683,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/8.5.19/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/8.5.19/stdout",
+      "sha256": "de4dd83021b211e0f1963a716e996dfe488de1997d1441dfa12b3fcc46673231",
+      "bytes": 5158,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/8.6.18/receipt.json",
+      "sha256": "a6a227a05ef2ffab89bf58b855c9db6fb0737a5d134ac94b21878f344f434d65",
+      "bytes": 683,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/8.6.18/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/8.6.18/stdout",
+      "sha256": "4a1a43b9489f02c3023715f591803cb5316e9ad1175085ff10f5f49d7c29bff5",
+      "bytes": 8682,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/9.0.4/receipt.json",
+      "sha256": "40844e83039ae10e5f97d85c7bba23449c856feeb68acfedee51c49a323bd579",
+      "bytes": 680,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/9.0.4/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/9.0.4/stdout",
+      "sha256": "8df571b26d8ab185e2a4a493897c67559dfaeba4d1a35b183c837d247852a87f",
+      "bytes": 10310,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/9.1.0/receipt.json",
+      "sha256": "1d5bd363d79eb2d9d012ade7feb9eae348a16dd70aaf653e9ef0e0968edb3b51",
+      "bytes": 681,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/9.1.0/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/9.1.0/stdout",
+      "sha256": "4fa7278d94668688eb559b5824e7e6ee29c795b0f81f54ca849d425fc4a992b1",
+      "bytes": 10296,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/capture.py",
+      "sha256": "fc887e6358f3421cb171d5f4f721b877951261db3c43271e828663c2651974fa",
+      "bytes": 2039,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/jim/receipt.json",
+      "sha256": "d9e7aff880a980ccb8e0016f69c850a4fabb25eb4f5d9cbcdaf0cfbf3db4bdf4",
+      "bytes": 695,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/jim/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/jim/stdout",
+      "sha256": "437bba34f8d537220cd58e0efb340d6f0c18d69af0779bb923e76ff66c846062",
+      "bytes": 9186,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/probe.tcl",
+      "sha256": "75615c12e07e9779af5cbddcf6e88623ea5652941787345c97c9d011b1b70d61",
+      "bytes": 2252,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_option_pair_grammar380/request.json",
+      "sha256": "874e9f5c923708b515d1f267f542edb523d3ed97531cb9215aeff6079a091e2b",
+      "bytes": 2560,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar"
+      ],
+      "reason": "Exact unchanged experiment request."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.4.20/provider.elf",
+      "sha256": "f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a",
+      "bytes": 907648,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.5.19/provider.elf",
+      "sha256": "e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a",
+      "bytes": 1294480,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/8.6.18/provider.elf",
+      "sha256": "9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff",
+      "bytes": 1915376,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/9.0.4/provider.elf",
+      "sha256": "f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1",
+      "bytes": 3471033,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/9.1.0/provider.elf",
+      "sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+      "bytes": 3717328,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/audit.json",
+      "sha256": "eb68dcf36d1f966323a20561652ce171dbf2dcd6fccd4eef893ec8beed42eb09",
+      "bytes": 9310,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.completion.return-option-pair-grammar",
+        "naming.completion.return-evaluated-argument-worker-grammar"
+      ],
+      "reason": "Exact whole recorded process receipt or explicit derived audit/field projection from unchanged counted public streams; no compiler or additional native execution claim."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_return_provider_executable_audit387/jim/provider.elf",
+      "sha256": "e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806",
+      "bytes": 438632,
+      "candidate": false
+    },
+    {
       "path": "rust/tcl-registry/tests/data/native_return_single_result/manifest.json",
       "sha256": "acde11a63fdfc6c6c97c31d383c44ef7b3f7f0a7ec3252bf687eba682ed29000",
       "bytes": 1886,

@@ -281,7 +281,7 @@ the "opening `index.html` straight off disk still works" promise needs.
 
 ## The open-command strip
 
-A pack is many commands and one deliverable, so a strip above the workbench
+A pack contains many commands in one file, so a strip above the workbench
 tabs holds the commands that are open: two specs can be compared, or an option
 table copied across, without a round trip through the browser.
 `web/src/openTabs.ts` decides what it holds — opening, focus, eviction,
@@ -630,8 +630,8 @@ what makes the studio a *browser* of the registry as well as an editor.
 Some fields hold a function pointer (`arg_role_resolver`, `arg_role_count_resolver`,
 `arg_role_layout_resolver`, `const_fold`,
 `taint_sink_gate`, …) or a reference to a **named** registry descriptor or
-constant (`definition_body`, `case_list`, `body_scope`, `frame_effect`,
-`bpf_op`, `event_requires`, `event_requirement_forms`, `data_collection`,
+constant (`case_list`, `body_scope`, `frame_effect`, `bpf_op`,
+`event_requires`, `event_requirement_forms`, `data_collection`,
 `side_switch_target`, `event_handler_priority`, and `command_forms`). Rust
 can observe that such a field is set, but not recover the expression — the
 constant's path — that set it.
@@ -673,6 +673,30 @@ spec. `object_class` is the same case one level deeper — a class name, a
 flag, superclass names, and a method table that *is* `&[SubCommand]` — so it
 is seeded as a JSON object whose methods are ordinary subcommand drafts and
 rendered as `object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }`.
+
+`definition_body` and `semantic_operation` left the unrecoverable list
+together. A definer grammar is plain
+data once every member row states its `MemberEffect`, so seeding writes the
+name of the shipped grammar whose data it equals (`tcloo`, `snit`, … — a
+`const` has no single address, so the match is by data, not by pointer) or
+the whole grammar, and both renderers write it back out: `definition_body
+NAME` or the inline block with `-effect` on every member row, and
+`Some(&crate::definer::TCLOO_GRAMMAR)` or the full `DefinitionBodyGrammar`
+literal. `semantic_operation` is a closed vocabulary seeded as `{kind,
+detail}` from `SemanticOperationId::kind_str` / `detail_str` and written
+`semantic_operation Invoke|{Intrinsic ID}|{StructuredLowering ID}`. The form
+picks a shipped grammar by name and shows an inline grammar's rows read-only,
+as it does a clause grammar's; the semantic operation is a picker over the
+vocabulary. A form-level (`refine`) `semantic_operation` stays native — no
+shipped form sets one.
+
+Built-in object methods retain their native `operation` in the draft and
+the Rust struct literal. That field also participates in shipped-grammar
+equality: a grammar without the original operation cannot acquire it by
+matching the other rows. SpecTcl carries such operations only through an
+exact shipped grammar name. A custom inline grammar that retains a native
+operation is omitted with an explicit `definition_body` gap; its remaining
+rows cannot stand in for the complete native descriptor.
 
 One unrecoverable expression is not a top-level field. `OptionArity::Hook`
 holds a function pointer inside an *option row*, so it gets a `hook fn` text
@@ -872,13 +896,25 @@ each `proc` into a draft:
 |---|---|
 | `arity` | the parameter list — defaults are optional, trailing `args` is variadic |
 | `arg_roles` | `ProcArgTrait` from [proc-arg-trait inference](proc-arg-traits.md), deep pass enabled |
-| `traits` | the same trait observations |
+| `traits` | the same trait observations, and `PURE` as a proposal when the body is side-effect free |
+| `side_effects`, `return_type` | proposals from the compiler's summary of the body: the state outside its frame it writes or reads through a command, and the type every path answers |
 | `hover`, `forms` | the `proc`'s doc comment and parameter list |
 | `required_package`, `introduced_version` | `package provide` |
 
 `ProcArgTrait::DynamicNameLocal` maps to **no** role: it is callee-local, so
 passing a literal does not consume the caller's variable and marking it
 `VarWrite` would be wrong.
+
+What a body states comes from `infer::infer_from_body(params, body, dialect)`,
+which reads the interprocedural summary of a procedure built from the parameter
+list and the body (a name the list binds is local and any other is not), and the
+analyser's parameter traits for the parameters the body invokes as commands. Each
+fact is a proposal: a body is evidence of what the command does today, and whether
+a fact is part of its contract is the author's call, so each is added with its line
+of evidence and nothing the draft already states is replaced. The summary does
+not record a read of a global through a variable substitution, so a body that
+only reads one is still proposed `PURE`: the trait says side-effect free, not
+deterministic.
 
 Every inferred draft carries `Inferred::notes` — one line of evidence per
 guess, surfaced in the UI. **Inference reports its reasoning, never a bare
@@ -982,6 +1018,14 @@ loader rejects these rows as semantic exclusions, and Studio marks their draft
 unrecovered instead of silently exporting the inherited parent contract.
 
 Nested `SubSubCommand::native_compilation` is deliberately excluded from pack authoring. The loader rejects `sub_subcommand NAME -native_compilation CONTRACT` as a semantic exclusion. Studio marks the nested draft incomplete and both renderers preserve an explicit omission; the SpecTcl renderer records `nested_native_compilation` in `GAPS`. Recovered names, availability and options do not establish a native worker's compiler identity.
+
+Value-transfer statements (`semantics`, `evaluate`, `facts`; DSL 2.2) share
+`EvaluatorCapability` and `DeclaredSemantics`, `loader/semantics.rs`, the
+SpecTcl renderer's `semantics_block`, and Studio's route and body fields in
+"Effects and purity". A body unavailable from a compiled hook slot is an
+explicit `DraftOpaque` placeholder tracked by `GAPS`; option-level `-evaluate`
+declines also retain a `GAPS` entry. See
+[value-evaluation.md](../compiler/value-evaluation.md) for the parity contract.
 
 ## Publishing
 

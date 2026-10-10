@@ -46,6 +46,7 @@ pub fn spec() -> CommandSpec {
             ),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("expr"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
@@ -56,6 +57,7 @@ pub fn spec() -> CommandSpec {
             | Traits::EXPR_CONCATENATES_ARGS,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Expr)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::EXPR),
         return_type: Some(TclType::Numeric),
         representation_effect: Some(
             crate::representation::RepresentationEffect::CoerceExpressionValues {

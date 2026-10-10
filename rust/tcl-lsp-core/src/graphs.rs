@@ -556,12 +556,12 @@ fn build_nodes(
 /// document's own command declarations in force.
 ///
 /// The graph verbs take source text, not a path, so only an inline
-/// `# tcl-lsp: stubs-begin` block is reachable here — a sidecar's roles can
-/// only widen the answer, never narrow it. Declaring the surface is what lets
-/// a stubbed command's `body` / `var` argument roles reach lowering and the
-/// interprocedural call scan exactly as a shipped `CommandSpec`'s do, so a
-/// `stub db_eval {sql script:body}` contributes the same call-graph edge a
-/// registry body command does.
+/// `# tcl-lsp: stubs-begin` block is reachable here — a command only a
+/// sidecar declares answers as the catalogue has it. Declaring the surface is
+/// what lets a stubbed command's `body` / `var` argument roles reach lowering
+/// and the interprocedural call scan exactly as a shipped `CommandSpec`'s do,
+/// so a `stub db_eval {sql script:body}` contributes the same call-graph edge
+/// a registry body command does.
 fn document_unit(
     source: &str,
     registry: &CommandRegistry,
@@ -858,6 +858,7 @@ fn collect_taint_warnings(
             &fu.cfg,
             &fu.ssa,
             taints,
+            Some(&fu.sccp.values),
             &fu.sccp.executable_blocks,
             Some(profile),
         ) {
@@ -1024,6 +1025,7 @@ fn dataflow_graph_for_input(
     let module_traces = tcl_compiler::compilation_unit::ModuleTraceFacts {
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+        deferred_writes: &cu.ir_module.deferred_writes,
     };
     let taint_ctx = TaintWarnCtx {
         registry,

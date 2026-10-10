@@ -75,6 +75,9 @@ pub fn spec() -> CommandSpec {
             examples: "namespace path {::tcl::mathop ::tcl::mathfunc}\nset total [+ 1 2 3]\nset inRange [<= 1 $x 10]\nset found [in $needle $haystack]",
             return_value: "A number for the arithmetic and bit-wise operators (+ - * / % ** & | ^ ~ << >>); 1 or 0 (true or false) for boolean negation and the comparison, equality, and list-membership operators (! == != eq ne < <= > >= in ni, plus lt/le/gt/ge from Tcl 9.0).",
         }),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

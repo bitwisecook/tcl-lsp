@@ -118,6 +118,9 @@ pub fn md4() -> CommandSpec {
         side_effects: READS,
         tcllib_package: Some("md4"),
         required_package: Some("md4"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }
@@ -142,6 +145,9 @@ pub fn hmac() -> CommandSpec {
         side_effects: READS,
         tcllib_package: Some("md4"),
         required_package: Some("md4"),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

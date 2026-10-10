@@ -4,7 +4,7 @@
 > implementations target, and the rule that introspection (`info`, `trace
 > info`) reads live state. Runtime-specific gaps are called out below. Builds on
 > [runtime-variable-frame-model.md](runtime-variable-frame-model.md); the
-> as-built dispatch is
+> runtime dispatch is
 > [runtime/trace-implementation.md](../runtime/trace-implementation.md). The
 > reference is `tmp/tcl9.0.4/generic/tclTrace.c` (`TclCallVarTraces`, the
 > `done:` label) and `tclVar.c`, cross-checked against `tmp/tcl8.6.16/`.
@@ -232,6 +232,6 @@ interpreter can't see by name can't be traced.
 - [compiled-scope-and-name-lowering.md](compiled-scope-and-name-lowering.md) —
   why a traced var can't be a raw slot and why `info` is a live query.
 - [runtime/trace-implementation.md](../runtime/trace-implementation.md) —
-  as-built variable + command/execution trace dispatch.
+  runtime variable + command/execution trace dispatch.
 - [parser-and-aot-interpret-boundary.md](parser-and-aot-interpret-boundary.md)
   — the eval path a trace callback is evaluated through.

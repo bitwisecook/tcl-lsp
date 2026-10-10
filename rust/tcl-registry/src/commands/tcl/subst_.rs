@@ -60,6 +60,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(negated(SubstitutionKind::Backslashes)),
     },
     OptionSpec {
         name: "-nocommands",
@@ -69,6 +70,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(negated(SubstitutionKind::Commands)),
     },
     OptionSpec {
         name: "-novariables",
@@ -78,6 +80,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(negated(SubstitutionKind::Variables)),
     },
     // Tcl 9.1 adds positive forms that enable *only* the named
     // substitution, defaulting every other kind off. Positive and negated
@@ -90,6 +93,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(positive(SubstitutionKind::Backslashes)),
     },
     OptionSpec {
         name: "-commands",
@@ -99,6 +103,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(positive(SubstitutionKind::Commands)),
     },
     OptionSpec {
         name: "-variables",
@@ -108,6 +113,7 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
+        effect: Some(positive(SubstitutionKind::Variables)),
     },
 ];
 
@@ -150,6 +156,82 @@ const NATIVE_FORMS: &[crate::forms::CommandForm] = &[crate::forms::CommandForm {
     }),
     ..crate::forms::CommandForm::DEFAULT
 }];
+/// `subst`'s two switch families: the negated one (every release) starts
+/// from every kind and the positive one (Tcl 9.1) from none, and both
+/// accumulate — a switch may repeat.
+const FAMILIES: &[OptionEffectFamily] = &[
+    OptionEffectFamily {
+        name: NEGATED,
+        base: FamilyBase::AllOn,
+        combine: FamilyCombine::Accumulate,
+        surface: None,
+    },
+    OptionEffectFamily {
+        name: POSITIVE,
+        base: FamilyBase::AllOff,
+        combine: FamilyCombine::Accumulate,
+        surface: Some(SpecSurface::TCL91),
+    },
+];
+
+const NEGATED: &str = "negated";
+const POSITIVE: &str = "positive";
+
+/// A negated-family switch: it turns its own kind off.
+const fn negated(kind: SubstitutionKind) -> OptionEffect {
+    OptionEffect {
+        kind: OptionEffectKind::Disables(EffectAxis::Substitution(kind)),
+        family: NEGATED,
+    }
+}
+
+/// A positive-family switch: it turns its own kind on.
+const fn positive(kind: SubstitutionKind) -> OptionEffect {
+    OptionEffect {
+        kind: OptionEffectKind::Selects(EffectAxis::Substitution(kind)),
+        family: POSITIVE,
+    }
+}
+
+/// The final `string` operand is never an option candidate (see the spec).
+const RESERVED_TRAILING_WORDS: usize = 1;
+
+/// tclsh 9.1b0's error for a call using both families.
+const MIXED_FAMILIES: &str = "cannot combine positive and negative options";
+
+const POSITIVE_SWITCHES: &[OptionTerm] = &[
+    OptionTerm::Option("-backslashes"),
+    OptionTerm::Option("-commands"),
+    OptionTerm::Option("-variables"),
+];
+
+/// A negated switch forbids every positive one — the family exclusion as
+/// three directional relations, since a relation's terms are one flat set
+/// (a single `MutuallyExclusive` over all six would reject
+/// `-nocommands -novariables`). Reported as W147 at the call site.
+const fn forbids_positive(negated: &'static str) -> OptionRelation {
+    OptionRelation {
+        surface: Some(SpecSurface::TCL91),
+        message: Some(MIXED_FAMILIES),
+        ..Relation::forbids(OptionTerm::Option(negated), POSITIVE_SWITCHES)
+    }
+}
+
+const RELATIONS: &[OptionRelation] = &[
+    forbids_positive("-nobackslashes"),
+    forbids_positive("-nocommands"),
+    forbids_positive("-novariables"),
+];
+
+/// The template-word plan over this command's own switch table
+/// (`docs/design/compiler/value-transfers.md` § *The template-word plan*).
+static TEMPLATE: crate::value_transfer::template::TemplateSemantics =
+    crate::value_transfer::template::TemplateSemantics::new(
+        "template:subst",
+        OPTIONS,
+        FAMILIES,
+        RESERVED_TRAILING_WORDS,
+    );
 
 /// Fold a literal `subst string`.
 ///
@@ -163,7 +245,7 @@ const NATIVE_FORMS: &[crate::forms::CommandForm] = &[crate::forms::CommandForm {
 /// the `[command]` caller-bail could decide).  The option forms
 /// (`-nobackslashes` / …) change which substitutions apply, so the
 /// multi-arg form bails too.
-fn fold_subst(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_subst(args: &[&str]) -> Option<String> {
     let [s] = args else {
         return None;
     };
@@ -181,13 +263,21 @@ fn fold_subst(args: &[&str]) -> Option<String> {
 /// hover snippet recommends — correctly does not trip the code-injection
 /// sink it exists to avoid.
 ///
-/// One projection of [`crate::substitution::subst_substitutions`], which
-/// owns both switch families and the unreadable-call answer: this is that
-/// answer's `commands` field and nothing more, so the taint gate and the
-/// consumers of [`crate::CommandRegistry::substitutions_performed`] can
-/// never disagree about the same call.
+/// One projection of [`crate::option_effect::substitution_kinds`] over this
+/// command's own switch table, which owns both families and the
+/// unreadable-call answer: this is that answer's `commands` field and nothing
+/// more, so the taint gate and the consumers of
+/// [`crate::CommandRegistry::substitutions_performed`] can never disagree
+/// about the same call.
 fn subst_evaluates_commands(args: &[&str]) -> bool {
-    crate::substitution::subst_substitutions(args).commands
+    crate::option_effect::substitution_kinds(
+        OPTIONS,
+        FAMILIES,
+        InvocationArguments::literals(args),
+        RESERVED_TRAILING_WORDS,
+        None,
+    )
+    .commands
 }
 
 pub fn spec() -> CommandSpec {
@@ -200,6 +290,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("subst"),
         // Present and unrestricted: its `dialects` group carries the
         // `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`), so it resolves
         // under the bare `IRULES` availability mask; every dialect hosting
@@ -216,9 +307,11 @@ pub fn spec() -> CommandSpec {
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::TAINT_SINK | Traits::IS_UNESCAPE | Traits::PERFORMS_SUBSTITUTION,
         // Which of the three substitutions a call actually runs is decided by
-        // the switches above, so the trait alone would tell a consumer only
-        // that *some* substitution happens.
-        substitution_resolver: Some(crate::substitution::subst_substitutions),
+        // the switches above — each option row's effect, in its family — so
+        // the trait alone would tell a consumer only that *some* substitution
+        // happens.
+        option_effect_families: FAMILIES,
+        option_relations: RELATIONS,
         // Exactly one trailing `string` is mandatory; 0 or more recognised
         // switch words may precede it with no fixed ceiling (a switch may
         // legally repeat — `subst -nocommands -nocommands $s` is valid,
@@ -233,7 +326,7 @@ pub fn spec() -> CommandSpec {
         // `-commands` for `puts [subst -commands]` rather than rejecting a
         // 9.1-only option, and rejects `subst -- -nocommands` with `bad
         // option "--"` because `subst` has no `--` terminator to fall back on.
-        reserved_trailing_words: 1,
+        reserved_trailing_words: RESERVED_TRAILING_WORDS,
         return_type: Some(TclType::String),
         const_fold: Some(fold_subst),
         hover: Some(HoverSnippet {
@@ -252,6 +345,7 @@ pub fn spec() -> CommandSpec {
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
         taint_sink_gate: Some(subst_evaluates_commands),
+        semantics: SemanticsDeclaration::Declared(&TEMPLATE),
         ..CommandSpec::DEFAULT
     }
 }

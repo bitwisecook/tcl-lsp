@@ -43,6 +43,15 @@ tcl-compiler = { path = "../tcl-compiler" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-userdirs = { path = "../tcl-userdirs" }
+# `PackFactStamp` only: the facts an embedder's VM holds for a pack set
+# (`PackSet::fact_stamps`), in the runtime's own vocabulary.
+tcl-runtime-api = { path = "../tcl-runtime-api" }
+# The manifest and lockfile model only, to read a package's place in the
+# dependency graph beside its packs (`discovery::PackFile::dependency_tier`).
+# Not `tcl-pkg`: that crate carries the network client, the archive readers
+# and the process sandbox, and none of them builds for the browser hosts that
+# load packs.
+tcl-pkg-model = { path = "../tcl-pkg-model" }
 rustc-hash = { workspace = true }
 xxhash-rust = { workspace = true }
 
@@ -55,6 +64,10 @@ xxhash-rust = { workspace = true }
 tcl-engine-api = { path = "../tcl-engine-api" }
 tcl-engine-tclvm = { path = "../tcl-engine-tclvm" }
 tcl-test-support = { path = "../tcl-test-support" }
+# `tests/codegen_stamps.rs` compiles against a pack-installed registry and
+# runs the module on the VM, so the identity a stamp records is checked by
+# the VM's own admission rather than asserted about it.
+tcl-vm = { path = "../tcl-vm" }
 
 [lints]
 workspace = true

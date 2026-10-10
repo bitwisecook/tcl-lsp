@@ -39,8 +39,30 @@ check runs, `[info exists handle]` is always false, and the re-use branch is
 dead. Re-entrancy does not change this: a new call (from APM, an ILX callback,
 or anywhere) is a new frame with empty locals.
 
-The fold needs a body that never writes the name: a `set handle …` anywhere
-in the procedure is enough for the analyser to abstain.
+The fold reads a flow-sensitive fact: whether the variable is provably set,
+provably unset, or uncertain at the exact point the check runs, tracking
+every assignment and every `unset` on the way there — not merely whether the
+name is ever written anywhere in the procedure. A `set handle …` earlier in
+the body does not block the fold by itself:
+
+```tcl
+proc reset {} {
+    set handle 1
+    unset handle
+    if {[info exists handle]} {   ;# I230: always false
+        return $handle
+    }
+    return [ILX::init Access-Plugin Access-Extension]
+}
+```
+
+`handle` is written and then removed before the check, so it is provably
+unset there and the re-use branch is dead — even though the procedure
+contains a `set handle`. A `set` that runs before the check with nothing
+between them that undoes it makes the check certainly true, and `I230`
+reports it as always true. What stops the fold is an assignment that
+**reaches** the check on some paths and not others: `if {$c} {set handle
+1}` leaves the check genuinely undecided, and no `I230` is reported.
 
 The analyser folds the check to its constant value and reports **`I230`** on the
 condition. The optimiser can then drop the dead branch
@@ -124,6 +146,153 @@ follows suit and leaves both branches in place, because folding away a branch
 that really runs would change the program.
 
 Spell the name out to get the fold (and the diagnostic) back.
+
+## Where a write the analyser cannot place stops the fold
+
+A condition is folded only over a value no write the analyser cannot place can
+have replaced. Three kinds of write leave the variable undecided, and no
+`I230` is reported:
+
+```tcl
+set go 1
+switch -glob -- [gets stdin] { q* { set go 0 } }   ;# an arm may run
+if {$go} { puts a } else { puts b }                ;# no I230
+
+set go 1
+trace add variable x write { set ::go 0 ;# }       ;# a callback writes it
+set x 1
+if {$go} { puts a } else { puts b }                ;# no I230 (tclsh prints b)
+
+set g 5
+foo                                                ;# a command the file never defines
+if {$g} { puts a } else { puts b }                 ;# no I230, as for $::g
+```
+
+- An arm of a `switch` the flow graph keeps as one statement (`-glob`,
+  `-regexp`, `-nocase`, a fall-through arm, `case`) defines every name it
+  writes or binds, or that a command it runs writes into the same frame (a
+  procedure that sets the caller's variable through `upvar`, `namespace eval`,
+  `dict with`); the name holds its earlier value only on the paths where no
+  arm runs.
+- A callback script stored anywhere in the file (`after`, `fileevent`,
+  `bind`, a variable trace's callback, a procedure named as one, a lambda one
+  applies, a command prefix built with `list`, a script spelled as several words such as `after
+  100 set done 1`) runs outside the registering code, so a name it writes is
+  never a constant, in the top-level script or in any procedure. A callback
+  the analyser cannot read — `after 100 $script`, a command the file does not
+  define, an `interp alias`, a `{*}` expansion — may write any variable, so no
+  name is decided anywhere in the file.
+- A call to a command the file does not define may write, unset or read a
+  name of the frame it is called from: a plain name in the top-level script is
+  the global `::name`, and a procedure's local is in its reach through `upvar
+  1` — a procedure an autoloader or the unknown handler brings in can do so on
+  every release. So the name is undecided after such a call, as a `$::g` is. So
+  it is after a call whose command is computed (`$cmd`), and a call inside the
+  body of a `catch`, whether the `catch` is a command of its own or one a
+  condition runs (`if {[catch {foo}]} …`), and a call inside any body a `[…]`
+  substitution runs, whatever frame the body runs in: a lambda's (`[apply {{}
+  {foo}}]`), a `namespace eval` or `uplevel` body, the text a `[subst
+  {[foo]}]` substitutes and an expression word inside a body (`[catch {if
+  {[foo]} …}]`). A name the body of a `catch` writes on some path is undecided
+  afterwards too, since the body stops at its first error. A `source` runs its
+  file in the frame of the call, so no name is safe across one either; a
+  procedure the file defines is read for what it writes. A command a
+  [stub](../kcs-howto-annotate-commands-with-stubs.md) declares is one the file
+  does not define until the stub states what it does to the caller's frame: a
+  plain stub (every argument a value, name, pattern or channel, no flag but
+  `-pure` or `-unsafe`) with `-frame own` or `-frame none` changes no variable
+  of the frame it is called from, so a name keeps its value across the call;
+  one with `-frame caller` may set any variable of that frame, as `argparse`
+  does, so no name in the procedure is decided.
+
+## A test inside another test's arm
+
+A comparison that holds proves something about its variable for the code it
+guards. Inside the arm of `if {$x eq "a"}`, `x` is `a`, so a test there that
+`a` never passes is constant:
+
+```tcl
+proc route {x} {
+    if {$x eq "a"} {
+        if {$x eq "b"} {      ;# I230: always false
+            puts never
+        }
+    }
+}
+```
+
+The same holds on the false edge of `ne`, inside `if {$x in {a b c}}`, where a
+test is decided when every member answers it alike, and in each arm of an
+exact `switch`. It holds only where every path crosses the test: past the `if`,
+where its arms meet, `x` is undecided again, and so it is from a command that
+runs a script the analyser cannot read, such as `eval $script`, which may set
+`x` itself.
+
+A numeric `==` proves a number, never a string: `1.0 == 1` is true, so inside
+`if {$x == 1}` the string `x` holds may still be `1.0`, ` 1` or `01`, and a test
+of its spelling there is not decided. A `::`-qualified name, a `global`,
+`variable` or `upvar` alias, a traced variable, and every variable of a
+procedure that computes a variable name are never narrowed: a call, a trace or
+the computed name may change them between the test and the code it guards.
+
+A plain name in top-level code is the global of that name, and it is narrowed
+as a procedure's local is, on the same terms as the constant the analyser
+propagates for it: a call to a command the file does not define gives it a
+fresh, unknown value, and a name one of the file's procedures declares
+`global` is never narrowed. A write through the qualified spelling in the same
+code is not read as a write to the plain name, though, so a test of `z` made
+before `set ::z c` still holds for `z` after it, as the constant a `set z`
+before it gave still stands (#2370):
+
+```tcl
+set z [gets stdin]
+if {$z eq "a"} {
+    set ::z c
+    if {$z eq "c"} { puts changed }   ;# I230: always false, though tclsh prints changed
+}
+```
+
+## A test after a loop
+
+Where the analyser knows exactly what a loop starts from — every variable it
+reads holds a known value there, and every one it writes is a plain local, or
+a plain name in top-level code, that nothing else can change — it runs the
+loop to its end, and what the loop leaves holds after it:
+
+```tcl
+proc count {} {
+    set n 0
+    foreach x {a b c} { incr n }
+    if {$n == 3} { return three }   ;# I230: always true
+    return other
+}
+```
+
+The same holds after `for` and `while`, after a `break` or a `continue`
+(`for {set i 0} {$i < 10} {incr i} {if {$i == 3} break}` leaves `i` at 3), and
+after a `catch` whose body raises part-way through a loop (`catch {for {set i
+0} {$i < 5} {incr i} {if {$i == 2} {error x}}}` leaves `i` at 2). Inside the
+loop nothing is decided from the run, since each pass sees a different value.
+
+A loop is not run, and the test after it is decided only as it is without
+the run, when it would run more than 4096 passes, reads a value the analyser
+does not know (`for {set i 0} {$i < $n} {incr i} {}` with `n` a parameter),
+runs a command the analyser does not evaluate (`puts`, a procedure), or
+writes a `global`, traced or array variable. A command substitution in the
+loop runs over the loop's values when the command registry gives its command
+an evaluation, and only where it has no effect: `incr n [string length $s]`,
+`incr x [expr {$b / $a}]` and `$i < [llength $l]` are run, while a
+substitution whose script sets a variable (`incr n [incr k]`) or does not
+complete normally stops the run, and so does one whose command has no
+evaluation (`[string toupper $x]`).
+
+A loop's own condition is never reported as always true: `while 1 { … }`
+loops on purpose. That is the condition that leaves the loop when it is
+false; an `if` inside the loop's body, or right after the loop, is reported
+like any other. A loop's condition that is never true is reported naming the
+loop — `Loop condition '$n' is never true; the loop leaves at this test` —
+beside [W240](kcs-diagnostic-w240-loop-constant-false.md) where the body never
+runs.
 
 ## Fix
 

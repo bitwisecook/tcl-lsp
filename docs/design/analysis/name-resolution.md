@@ -400,11 +400,12 @@ one storage cell** — one variable with two names. Identical 8.4 → 9.1; only
 ### 4.1 The analyser's link model
 
 `VarDef::link_target` holds the qualified cell name, mirroring `VAR_LINK`.
-It is populated by `handle_global_command` (`::v`),
-`handle_variable_command` (`<current-ns>::v`), and
-`handle_namespace_upvar_command` (`<ns>::otherVar`) — each keeping the
-**full qualified path**, so a relative `variable child::v` targets
-`<ns>::child::v` and `namespace upvar ::a b::c local` targets `::a::b::c`.
+It is populated by `apply_state_transitions`, from the
+`VariableCellAliasTransition` each invocation states — `global` (`::v`),
+`variable` (`<current-ns>::v`), `namespace upvar` (`<ns>::otherVar`), and a
+pack command's alias facts alike — each keeping the **full qualified
+path**, so a relative `variable child::v` targets `<ns>::child::v` and
+`namespace upvar ::a b::c local` targets `::a::b::c`.
 `definition::linked_var_reference_spans` walks the scope tree and unions the
 uses of every `VarDef` sharing one cell, wired into references, rename, and
 document highlight, and surviving the incremental graft. Two same-named
@@ -455,7 +456,7 @@ EDA shells follow their embedded cores; an unknown base takes the stricter
 Three layers honour it:
 
 - **VM** — a `RuntimeVersion` knob (default `V9_0`, inherited by
-  `fork_child`, exposed as `tclvm --tcl-version`) gates `locate_from` for
+  `fork_child`, exposed as `tclvm --tcl-version`) gates variable-place resolution for
   reads, writes, `unset`, `incr`, and `info exists`.
 - **Runtime** — `Namespaces.ns_var_global_fallback` gates `ns_scope_fallback`
   in `classify`. A declared-but-unset `variable` installs a **self-link
@@ -629,6 +630,8 @@ retain the selected member/body context, authentic operand geometry and current
 class identity; reporting names cannot replace those owners. References and
 code-lens counts consume the common reference inventory, while rename additionally
 requires its complete original selection, visibility and edit coverage.
+`references::class_references` consumes these references for Find All References
+and rename, while the canonical declarations retain their original source owners.
 
 ### 5.6 Object→class binding is a lattice — and the ⊤ taxonomy
 

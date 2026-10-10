@@ -33,6 +33,19 @@ build.
    the CFG without changing the closed module context. After rebasing, a memo
    result is reusable only when its CFG equals the current procedure CFG;
    otherwise the ordinary fresh build supplies the current timeline effects.
+   Two other memo results are never reused, both built fresh: a procedure
+   whose flow graph carries module-derived instance-option writes, which its
+   body alone cannot rebuild, and a lattice that read another procedure of
+   the module — the default `info default` names, a callee's transfer
+   summary — which its key cannot carry. The second marks itself
+   (`SccpResult::reads_module`, set wherever the driver could have read the
+   module's procedures, also in the memoised build that holds none: there,
+   at a call whose head may name a procedure a summary answers for — at the
+   deep tier, in a module that rebinds no builtin, a head no registry
+   command answers to under the run's trust), and
+   the fresh build runs with the module's procedures in hand; every other
+   reader of the per-procedure memo — the checks, the rewrites, the taint
+   cascade — takes the unit's lattice for such a procedure too.
 3. **Top-level parity.** Top-level and procedure units keep the same fact
    shape (`cfg`, `ssa`, `sccp`, `types`, …) so consumers need no
    mode-specific paths.

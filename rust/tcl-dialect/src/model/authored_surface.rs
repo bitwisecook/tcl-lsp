@@ -108,8 +108,7 @@ impl SpecSurface {
 /// `8.5-9.2`, because the bitmask it replaces was a union of the five
 /// *known* line bits and could not mean "and every line added later". A
 /// spec that genuinely wants open-ended availability writes
-/// [`SpecSurface::core_in`] with a `None` upper bound; the migration did
-/// not widen any spec on its own.
+/// [`SpecSurface::core_in`] with a `None` upper bound.
 impl SpecSurface {
     /// Every Tcl release the ladder has — 8.4 through 9.1.
     pub const ALL_TCL: &'static [Self] = &[Self::core_in(Family::Tcl, &W_ALL_TCL)];
@@ -192,6 +191,44 @@ macro_rules! surface {
         const ROWS: &[$crate::model::SpecSurface] = &[$($row),*];
         ROWS
     }};
+}
+
+/// A package a query's context carries, and the release of it the context
+/// guarantees.
+///
+/// `version` is a **floor** on the package's own axis — the lowest release
+/// the context promises, not the single release it runs. A row windowed on
+/// the package's axis is asked about that floor, the way a lifecycle is asked
+/// about a target release: `introduced <= floor < retired`. `None` is a
+/// package the context carries and names no release of, which admits every
+/// window rather than none — a floor nobody stated cannot rule a row out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PackageFloor<'a> {
+    /// The package, spelled as a [`SpecProvider::Package`] row spells it.
+    pub name: &'a str,
+    /// The lowest release of the package the context guarantees, if one is
+    /// stated.
+    pub version: Option<&'a str>,
+}
+
+impl<'a> PackageFloor<'a> {
+    /// `name`, carried with no floor stated.
+    #[must_use]
+    pub const fn named(name: &'a str) -> Self {
+        Self {
+            name,
+            version: None,
+        }
+    }
+
+    /// `name`, guaranteed at `version` or later.
+    #[must_use]
+    pub const fn at(name: &'a str, version: &'a str) -> Self {
+        Self {
+            name,
+            version: Some(version),
+        }
+    }
 }
 
 /// One core point of a [`SurfaceQuery`]: a family and, when one is pinned,
@@ -301,8 +338,9 @@ pub struct SurfaceQuery<'a> {
     /// the mask said by setting every ladder bit, which a context with no
     /// resolved primary still needs to say.
     pub core: CorePoints<'a>,
-    /// The packages active in the context.
-    pub packages: &'a [&'a str],
+    /// The packages active in the context, each with the floor the context
+    /// guarantees of it.
+    pub packages: &'a [PackageFloor<'a>],
 }
 
 impl<'a> SurfaceQuery<'a> {
@@ -346,8 +384,37 @@ impl<'a> SurfaceQuery<'a> {
 
     /// A query carrying `packages` as well as this one's core.
     #[must_use]
-    pub const fn with_packages(self, packages: &'a [&'a str]) -> Self {
+    pub const fn with_packages(self, packages: &'a [PackageFloor<'a>]) -> Self {
         Self { packages, ..self }
+    }
+
+    /// The floor this query carries for `name`, if the package is active.
+    #[must_use]
+    pub fn package(&self, name: &str) -> Option<&PackageFloor<'a>> {
+        self.packages.iter().find(|carried| carried.name == name)
+    }
+
+    /// Whether the package `name` is active in this query's context,
+    /// whatever floor it carries.
+    #[must_use]
+    pub fn carries(&self, name: &str) -> bool {
+        self.package(name).is_some()
+    }
+
+    /// Whether `other` is the same point: the same core and the same
+    /// packages, **whatever floors they carry**.
+    ///
+    /// A floor refines a package that is already part of the point, so a
+    /// registry's query, which carries the floors its packs declared, is
+    /// still its profile's own point; `==` would call the two different.
+    #[must_use]
+    pub fn same_point(&self, other: &SurfaceQuery<'_>) -> bool {
+        self.core == other.core
+            && self.packages.len() == other.packages.len()
+            && self
+                .packages
+                .iter()
+                .all(|carried| other.carries(carried.name))
     }
 }
 
@@ -368,29 +435,53 @@ impl SpecSurface {
                 .core
                 .iter()
                 .position(|(asked, release)| asked == family && self.covers(release)),
-            // A package row's window is on the package's own axis, which a
-            // query carries no point on: the resolved context narrows by the
-            // placement floor instead.
-            SpecProvider::Package(package) => query.packages.contains(&package).then_some(0),
+            // A package row's window is on the package's own axis, and the
+            // query's point on it is the floor the context guarantees of the
+            // package: a row introduced after the floor is not there yet.
+            SpecProvider::Package(package) => query
+                .package(package)
+                .is_some_and(|carried| self.covers(carried.version))
+                .then_some(0),
         }
     }
 
-    /// Whether `release` falls in one of this row's windows. An unstated
-    /// release asks about the whole ladder, which any window meets.
+    /// Whether `point` falls in one of this row's windows — a release on the
+    /// provider's ladder for a core row, a package's floor for a package
+    /// row. An unstated point asks about the whole axis, which any window
+    /// meets.
     ///
     /// Asked on every registry lookup, once per authored row, so it hands the
     /// bounds to [`crate::version::version_in_any_window`] rather than
     /// `format!`-ing a `"from-until"` requirement per window and re-parsing
-    /// `release` behind each one (issue #2021).
-    fn covers(&self, release: Option<&str>) -> bool {
+    /// `point` behind each one (issue #2021).
+    fn covers(&self, point: Option<&str>) -> bool {
         if self.windows.is_empty() {
             return true;
         }
-        let Some(release) = release else {
+        let Some(point) = point else {
             return true;
         };
-        crate::version::version_in_any_window(release, self.windows)
+        crate::version::version_in_any_window(point, self.windows)
     }
+
+    /// Whether some release of the provider falls in a window of both this
+    /// row and `other` — the two rows name the same package and their
+    /// windows meet. An empty list of windows is every release.
+    fn windows_meet(&self, other: &Self) -> bool {
+        if self.windows.is_empty() || other.windows.is_empty() {
+            return true;
+        }
+        self.windows.iter().any(|&(from, until)| {
+            other.windows.iter().any(|&(other_from, other_until)| {
+                precedes(from, other_until) && precedes(other_from, until)
+            })
+        })
+    }
+}
+
+/// Whether `start` is before `end`, where no `end` is the end of the axis.
+fn precedes(start: &str, end: Option<&str>) -> bool {
+    end.is_none_or(|end| crate::version::compare_versions(start, end).is_lt())
 }
 
 /// Whether any row admits `query`.
@@ -512,9 +603,10 @@ pub fn surfaces_overlap(left: &[SpecSurface], right: &[SpecSurface]) -> bool {
                         let release = Some(release.as_str());
                         a.covers(release) && b.covers(release)
                     }),
-                    // A package row carries no point on the package's axis
-                    // here, so naming the same package is the whole answer.
-                    SpecProvider::Package(_) => true,
+                    // A package has no ladder to walk, so the windows
+                    // themselves are compared: two rows for one package
+                    // meet where both name a release.
+                    SpecProvider::Package(_) => a.windows_meet(b),
                 }
         })
     })
@@ -523,6 +615,147 @@ pub fn surfaces_overlap(left: &[SpecSurface], right: &[SpecSurface]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const FROM_8_6: &[SpecWindow] = &[("8.6", None)];
+    const THROUGH_8_6: &[SpecWindow] = &[("8.5", Some("9.0"))];
+    const TWO_TRAINS: &[SpecWindow] = &[("1.0", Some("2.0")), ("3.0", None)];
+
+    const TK_ONLY: &[PackageFloor<'static>] = &[PackageFloor::named("Tk")];
+    const TK_AT_9_0: &[PackageFloor<'static>] = &[PackageFloor::at("Tk", "9.0")];
+    const TK_AND_EXPECT: &[PackageFloor<'static>] =
+        &[PackageFloor::named("Tk"), PackageFloor::named("expect")];
+    const TK_AND_IAPPS: &[PackageFloor<'static>] =
+        &[PackageFloor::named("Tk"), PackageFloor::named("iapps")];
+    const EXPECT_5_45_TK_8_6: &[PackageFloor<'static>] = &[
+        PackageFloor::at("expect", "5.45"),
+        PackageFloor::at("Tk", "8.6"),
+    ];
+    const ITCL_9_0_TK_8_5: &[PackageFloor<'static>] = &[
+        PackageFloor::at("Itcl", "9.0"),
+        PackageFloor::at("Tk", "8.5"),
+    ];
+
+    fn tk(windows: &'static [SpecWindow]) -> SpecSurface {
+        SpecSurface::package_in("Tk", windows)
+    }
+
+    fn admitted_at(row: SpecSurface, floor: &[PackageFloor<'_>]) -> bool {
+        row.admits(&SurfaceQuery::any_release(Family::Tcl).with_packages(floor))
+    }
+
+    #[test]
+    fn a_package_row_is_asked_about_the_floor_its_query_carries() {
+        let from_8_6 = tk(FROM_8_6);
+        for (floor, admitted) in [
+            ("8.5", false),
+            ("8.5.19", false),
+            ("8.6", true),
+            ("8.6.13", true),
+            ("9.0", true),
+        ] {
+            assert_eq!(
+                admitted_at(from_8_6, &[PackageFloor::at("Tk", floor)]),
+                admitted,
+                "a row from 8.6, asked at a floor of {floor}"
+            );
+        }
+        let through_8_6 = tk(THROUGH_8_6);
+        for (floor, admitted) in [("8.4", false), ("8.5", true), ("8.6", true), ("9.0", false)] {
+            assert_eq!(
+                admitted_at(through_8_6, &[PackageFloor::at("Tk", floor)]),
+                admitted,
+                "a row retired at 9.0, asked at a floor of {floor}"
+            );
+        }
+        let two_trains = tk(TWO_TRAINS);
+        for (floor, admitted) in [("1.5", true), ("2.0", false), ("2.5", false), ("3.0", true)] {
+            assert_eq!(
+                admitted_at(two_trains, &[PackageFloor::at("Tk", floor)]),
+                admitted,
+                "a row with a gap, asked at a floor of {floor}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_package_the_query_carries_without_a_floor_admits_every_window() {
+        assert!(admitted_at(tk(FROM_8_6), &[PackageFloor::named("Tk")]));
+        assert!(admitted_at(tk(THROUGH_8_6), &[PackageFloor::named("Tk")]));
+        assert!(admitted_at(tk(TWO_TRAINS), &[PackageFloor::named("Tk")]));
+    }
+
+    #[test]
+    fn a_package_the_query_does_not_carry_admits_no_row_whatever_its_windows() {
+        for row in [SpecSurface::package("Tk"), tk(FROM_8_6), tk(THROUGH_8_6)] {
+            assert!(!admitted_at(row, &[]));
+            assert!(!admitted_at(row, &[PackageFloor::at("Itcl", "4.0")]));
+        }
+    }
+
+    #[test]
+    fn a_row_with_no_window_admits_a_carried_package_at_any_floor() {
+        for floor in ["0.1", "8.4", "99.0"] {
+            assert!(admitted_at(
+                SpecSurface::package("Tk"),
+                &[PackageFloor::at("Tk", floor)]
+            ));
+        }
+    }
+
+    #[test]
+    fn a_package_floor_does_not_move_a_core_row() {
+        let query = SurfaceQuery::core(Family::Tcl, "8.5").with_packages(TK_AT_9_0);
+        assert!(!SpecSurface::core_in(Family::Tcl, FROM_8_6).admits(&query));
+        assert!(SpecSurface::core_in(Family::Tcl, THROUGH_8_6).admits(&query));
+    }
+
+    #[test]
+    fn the_floor_a_row_is_asked_about_is_the_one_named_for_its_package() {
+        let query = SurfaceQuery::any_release(Family::Tcl).with_packages(ITCL_9_0_TK_8_5);
+        assert!(!tk(FROM_8_6).admits(&query));
+        assert!(SpecSurface::package_in("Itcl", FROM_8_6).admits(&query));
+    }
+
+    #[test]
+    fn a_query_is_the_same_point_whatever_floors_it_carries() {
+        let named = SurfaceQuery::core(Family::Tcl, "8.6").with_packages(TK_AND_EXPECT);
+        let floored = SurfaceQuery::core(Family::Tcl, "8.6").with_packages(EXPECT_5_45_TK_8_6);
+        assert!(named.same_point(&floored));
+        assert!(floored.same_point(&named));
+        assert_ne!(named, floored, "equality still sees the floors");
+
+        let other_release = SurfaceQuery::core(Family::Tcl, "9.0").with_packages(TK_AND_EXPECT);
+        let fewer = SurfaceQuery::core(Family::Tcl, "8.6").with_packages(TK_ONLY);
+        let other_package = SurfaceQuery::core(Family::Tcl, "8.6").with_packages(TK_AND_IAPPS);
+        for different in [other_release, fewer, other_package] {
+            assert!(!named.same_point(&different));
+            assert!(!different.same_point(&named));
+        }
+    }
+
+    #[test]
+    fn two_rows_for_one_package_meet_where_their_windows_do() {
+        let meets = |a: &'static [SpecWindow], b: &'static [SpecWindow]| {
+            surfaces_overlap(&[tk(a)], &[tk(b)])
+        };
+        assert!(meets(&[], FROM_8_6));
+        assert!(meets(FROM_8_6, THROUGH_8_6));
+        assert!(meets(THROUGH_8_6, FROM_8_6));
+        assert!(
+            !meets(&[("8.4", Some("8.6"))], FROM_8_6),
+            "ends where the other starts"
+        );
+        assert!(!meets(FROM_8_6, &[("8.4", Some("8.6"))]));
+        assert!(meets(TWO_TRAINS, &[("1.5", Some("1.6"))]));
+        assert!(
+            !meets(TWO_TRAINS, &[("2.0", Some("3.0"))]),
+            "inside the gap"
+        );
+        assert!(!surfaces_overlap(
+            &[tk(FROM_8_6)],
+            &[SpecSurface::package_in("Itcl", FROM_8_6)]
+        ));
+    }
 
     const JIM_FROM_080: &[SpecSurface] = &[SpecSurface::core_in(Family::Jim, &[("0.80", None)])];
 
@@ -580,7 +813,7 @@ mod tests {
 
     #[test]
     fn a_query_with_one_core_point_ranks_every_admitted_row_alike() {
-        let query = SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["Tk"]);
+        let query = SurfaceQuery::core(Family::Tcl, "8.6").with_packages(TK_ONLY);
         assert_eq!(surface_nearness(SpecSurface::TCL86, &query), Some(0));
         assert_eq!(surface_nearness(SpecSurface::ALL_TCL, &query), Some(0));
         assert_eq!(surface_nearness(SpecSurface::TK, &query), Some(0));

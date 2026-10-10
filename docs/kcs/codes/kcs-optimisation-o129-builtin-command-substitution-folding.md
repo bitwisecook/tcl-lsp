@@ -22,8 +22,15 @@ deterministic result with no side effects, the optimiser can evaluate it at
 compile time and replace the call with the resulting string literal. This
 eliminates the command-dispatch overhead at runtime and makes the intent of the
 code clearer. Commands covered include `string length`, `string toupper`,
-`string tolower`, `join`, `format`, `dict get`, `dict size`, `list`, and
-similar pure builtins.
+`string tolower`, `join`, `format`, `dict get`, `dict size`, `list`, `split`,
+the name operations of `file` (`join`, `dirname`, `tail`, `extension`,
+`rootname`, `split`) on names every platform reads alike, tcllib's
+`base32::encode` and `base32::hex::encode`, and similar pure builtins. A
+command the registry gives a direct route folds through that route — the same
+evaluator the analysis runs — so the folded value is the one the runtime
+computes, and the fold declines wherever the route does; a decoding that
+builds bytes (`base32::decode`) is a byte array, which no source spelling
+holds, so it stays a call.
 
 ## Before
 
@@ -43,8 +50,8 @@ puts 5
   variable references, no nested command substitutions whose values are
   unknown).
 - The command must be a known pure builtin — user-defined procs and commands
-  with observable side effects (such as `clock`, `rand`, `file`) are not
-  folded.
+  with observable side effects (such as `clock`, `rand`, or a `file`
+  operation that reads the filesystem) are not folded.
 - Skipped when the command substitution appears inside an unbraced expression
   that is itself not constant.
 - The special cases `[list …]` and `[lindex …]` with all-constant arguments
@@ -52,7 +59,14 @@ puts 5
   [O118](kcs-optimisation-o118-lindex-folding.md) respectively; those codes
   take precedence over O129 for those commands.
 - Skipped when the command has been renamed, aliased, or redefined anywhere in
-  the file — the call site can no longer be trusted to run the builtin.
+  the file — the call site can no longer be trusted to run the builtin. A
+  package's command counts the same way: `proc base32::encode`, or `proc
+  encode` inside `namespace eval base32`, is the command every caller runs,
+  so `[base32::encode abc]` is never folded to the package's answer there.
+- A command substitution that is a whole word is folded whole or not at all:
+  where its route declines (`[string match -nocase {a]€} {€a}]`, whose
+  case-folding over `€` the route does not answer), the word stays as
+  written.
 
 ## How to disable
 

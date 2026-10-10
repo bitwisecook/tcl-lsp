@@ -21,8 +21,6 @@
 //! These are standalone helpers with no emitter state — used by every
 //! other codegen submodule.
 
-use super::statements::has_unescaped_subst;
-
 /// Tcl 9.0 default trim characters — pushed when `string trim` is
 /// called without an explicit chars argument.  Includes ASCII
 /// whitespace, NUL, and all Unicode category Zs space separators.
@@ -1103,28 +1101,6 @@ mod tests {
         );
     }
 
-    /// The fold decodes under the *document's* escape grammar, and that
-    /// grammar changes the answer. `\x` runs unbounded before 8.6
-    /// (`TclParseHex` gets the whole remaining input as its digit budget), so
-    /// `\x4142` is the single byte `B` there and `A` + a literal `42` from 8.6
-    /// on — measured on `tclsh8.4`/`tclsh8.5` (`1:B`) and
-    /// `tclsh8.6`/`tclsh9.0` (`3:A42`).
-    ///
-    /// Worth a test of its own because this fold is reached from the optimiser
-    /// (`sccp::fold_builtin_call`) as well as codegen, so folding under one
-    /// grammar for every document put the wrong constant in front of an editor
-    /// — `A42` at `--dialect tcl8.4`.
-    #[test]
-    fn format_fold_decodes_under_the_documents_escape_grammar() {
-        let fold = |escapes| try_format_fold(r#"[format %s "\x4142"]"#, escapes);
-        assert_eq!(fold(EscapeSyntax::Tcl84), Some("B".into()));
-        assert_eq!(fold(EscapeSyntax::default()), Some("A42".into()));
-        // The bare-word arm decodes through the same axis as the quoted one.
-        let bare = |escapes| try_format_fold(r"[format %s \x4142]", escapes);
-        assert_eq!(bare(EscapeSyntax::Tcl84), Some("B".into()));
-        assert_eq!(bare(EscapeSyntax::default()), Some("A42".into()));
-    }
-
     #[test]
     fn subst_template_octal_escape() {
         // `\101` must decode to `A`, not be emitted as the literal text
@@ -1214,148 +1190,5 @@ mod tests {
     #[test]
     fn regexp_to_glob_without_braces() {
         assert_eq!(regexp_to_glob("^abc$"), Some("abc".into()));
-    }
-
-    // fold_cmd_args / fold_list_cmd / fold_dict_create_cmd.
-
-    /// The two delimiter states gate each other. A brace inside a quoted word
-    /// opens no group, and a quote inside a braced word opens no quoted
-    /// region — get the second wrong and the `}` that closes the brace is
-    /// skipped, `depth` never returns to 0, and every later `$` looks
-    /// protected. Both directions are asserted because fixing only the first
-    /// is what introduced the second.
-    #[test]
-    fn fold_declines_when_a_marker_is_live_under_either_delimiter() {
-        let tcl = tcl_syntax::word_rules::WordValueRules::TCL;
-        // Quoted word, live marker inside braces that are only content.
-        assert_eq!(fold_list_cmd(r#"[list "{$x}"]"#, tcl), None);
-        assert_eq!(fold_list_cmd(r#"[list "{[cmd]}"]"#, tcl), None);
-        // Braced word containing a quote: the brace still closes, so the `$x`
-        // after it is unprotected and the fold declines. Folding it would
-        // freeze the literal `{$x}` where both oracles substitute.
-        assert_eq!(fold_list_cmd(r#"[list {"} $x]"#, tcl), None);
-        // A braced word really does protect its own markers.
-        assert_eq!(
-            fold_list_cmd("[list {a$b}]", tcl),
-            Some("{a$b}".into()),
-            "a braced word's markers are data and still fold"
-        );
-    }
-
-    #[test]
-    fn fold_list_cmd_basic() {
-        assert_eq!(
-            fold_list_cmd("[list a b c]", tcl_syntax::word_rules::WordValueRules::TCL),
-            Some("a b c".into())
-        );
-    }
-
-    #[test]
-    fn fold_list_cmd_braced() {
-        assert_eq!(
-            fold_list_cmd(
-                "[list {hello world} b]",
-                tcl_syntax::word_rules::WordValueRules::TCL
-            ),
-            Some("{hello world} b".into())
-        );
-    }
-
-    #[test]
-    fn fold_list_cmd_substitution() {
-        // Contains $ → cannot fold
-        assert_eq!(
-            fold_list_cmd("[list $x b]", tcl_syntax::word_rules::WordValueRules::TCL),
-            None
-        );
-    }
-
-    #[test]
-    fn fold_list_cmd_no_match() {
-        assert_eq!(
-            fold_list_cmd("not a list", tcl_syntax::word_rules::WordValueRules::TCL),
-            None
-        );
-    }
-
-    #[test]
-    fn fold_dict_create_basic() {
-        assert_eq!(
-            fold_dict_create_cmd(
-                "[dict create a 1 b 2]",
-                tcl_syntax::word_rules::WordValueRules::TCL
-            ),
-            Some("a 1 b 2".into())
-        );
-    }
-
-    // try_format_fold.
-
-    #[test]
-    fn format_fold_simple_s() {
-        assert_eq!(
-            try_format_fold("[format \"%s world\" hello]", EscapeSyntax::default()),
-            Some("hello world".into())
-        );
-    }
-
-    #[test]
-    fn format_fold_simple_d() {
-        assert_eq!(
-            try_format_fold("[format \"%d\" 42]", EscapeSyntax::default()),
-            Some("42".into())
-        );
-    }
-
-    #[test]
-    fn format_fold_percent_escape() {
-        assert_eq!(
-            try_format_fold("[format \"100%%\"]", EscapeSyntax::default()),
-            Some("100%".into())
-        );
-    }
-
-    #[test]
-    fn format_fold_no_match() {
-        assert_eq!(try_format_fold("not format", EscapeSyntax::default()), None);
-    }
-
-    #[test]
-    fn format_fold_bails_on_variable_arg() {
-        // A `$var` argument is a runtime substitution, not a constant — folding
-        // it would freeze the literal text `$cmd` into the result.
-        assert_eq!(
-            try_format_fold("[format {x %s} $cmd]", EscapeSyntax::default()),
-            None
-        );
-        assert_eq!(
-            try_format_fold("[format {%s} $cmd]", EscapeSyntax::default()),
-            None
-        );
-    }
-
-    #[test]
-    fn format_fold_bails_on_command_sub_arg() {
-        assert_eq!(
-            try_format_fold("[format {%s} [id]]", EscapeSyntax::default()),
-            None
-        );
-    }
-
-    #[test]
-    fn format_fold_bails_on_quoted_subst() {
-        assert_eq!(
-            try_format_fold("[format {%s} \"$x\"]", EscapeSyntax::default()),
-            None
-        );
-    }
-
-    #[test]
-    fn format_fold_multiline_template_constant_args() {
-        // A multi-line braced template with constant args still folds.
-        assert_eq!(
-            try_format_fold("[format {a\n%s} hi]", EscapeSyntax::default()),
-            Some("a\nhi".into())
-        );
     }
 }

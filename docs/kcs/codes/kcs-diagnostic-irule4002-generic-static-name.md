@@ -42,6 +42,11 @@ Prefix the variable with the iRule name or a unique namespace:
 when RULE_INIT { set static::myirule_debug 0 }
 ```
 
+## Limits
+
+A generic `static::` name written only in a branch the analyser proves never
+runs is not reported; the warning lands on the first write that can run.
+
 ## How to suppress
 
 Add `# noqa: IRULE4002` on the line **above** the offending command.

@@ -16,30 +16,65 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Every hook family's calling convention, end to end on the real VM.
+//! Every hook family's calling convention, end to end on each engine a pack
+//! runs on: the bytecode VM, and the runtime (`tcl_runtime::engine`).
 //!
 //! One test per family, each entered through the **registry's own function
 //! pointer** rather than the host's API — that is the surface the analyser,
 //! the optimiser, and `hover.rs` call, so testing anything else would prove
 //! the wrong thing. Each asserts the family's emitter verb, its `ctx` keys,
-//! and its silence.
+//! and its silence, and runs once per engine (`NAME::tclvm`,
+//! `NAME::runtime`), so a body answers the same on both.
 //!
 //! The tests share one process-wide host (installed per test thread), so each
 //! builds its own pack and clears the host afterwards.
 
 use std::rc::Rc;
 
+use tcl_engine_api::Engine;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::clause_shape::ClauseShapeError;
 use tcl_registry::hover::ScriptTiming;
 use tcl_registry::invocation_words::{CommandPrefixArguments, InvocationArguments, InvocationWord};
 use tcl_registry::literal_validation::{LiteralArgumentIssueReason, LiteralArgumentValidation};
 use tcl_registry::pack_hooks::{self, HookFamily, HookInputs};
-use tcl_spec_hooks::{HookProgram, PackPrograms, tclvm_host};
+use tcl_runtime::engine::RuntimeEngine;
+use tcl_spec_hooks::{HookHost, HookProgram, PackPrograms};
 
-/// Install a one-hook pack and return its slot.
-fn one_hook(program: HookProgram) -> pack_hooks::HookSlot {
-    let host = Rc::new(tclvm_host());
+/// A host running its packs on the runtime.
+fn runtime_host() -> HookHost<RuntimeEngine> {
+    HookHost::new(RuntimeEngine::new)
+}
+
+/// One test, run on each engine: `$host` names the host's constructor in the
+/// body, and the body runs once with each.
+macro_rules! on_both_engines {
+    ($(#[$meta:meta])* fn $name:ident($host:ident) $body:block) => {
+        $(#[$meta])*
+        mod $name {
+            use super::*;
+
+            fn body<E: Engine + 'static>($host: fn() -> HookHost<E>) $body
+
+            #[test]
+            fn tclvm() {
+                body(tcl_spec_hooks::tclvm_host);
+            }
+
+            #[test]
+            fn runtime() {
+                body(runtime_host);
+            }
+        }
+    };
+}
+
+/// Install a one-hook pack on a host `host` builds and return its slot.
+fn one_hook<E: Engine + 'static>(
+    host: fn() -> HookHost<E>,
+    program: HookProgram,
+) -> pack_hooks::HookSlot {
+    let host = Rc::new(host());
     let installed = host.install_pack_hooks(PackPrograms::new("mylib").with(program));
     assert!(
         installed[0].declined.is_none(),
@@ -50,103 +85,710 @@ fn one_hook(program: HookProgram) -> pack_hooks::HookSlot {
     installed[0].slot.expect("a slot")
 }
 
-#[test]
-fn arg_role_resolver_emits_the_complete_index_role_map() {
-    let slot = one_hook(
-        HookProgram::new(
-            "mylib::with_var",
+on_both_engines! {
+    fn arg_role_resolver_emits_the_complete_index_role_map(host) {
+        let slot = one_hook(host,
+            HookProgram::new(
+                "mylib::with_var",
+                HookFamily::ArgRoleResolver,
+                "role 0 VarWrite\nrole 1 Body\n",
+            )
+            .with_inputs(HookInputs::parse(&["nwords", "kinds"])),
+        );
+        let resolver = pack_hooks::arg_role_resolver_fn(slot).expect("a resolver thunk");
+        assert_eq!(
+            resolver(&["v", "{puts hi}"]),
+            vec![(0, ArgRole::VarWrite), (1, ArgRole::Body)]
+        );
+        // Shape-cacheable: the declared inputs exclude the words themselves, so a
+        // second call of the same shape never re-enters the VM.
+        let before = pack_hooks::cache_stats();
+        let _ = resolver(&["other", "{other body}"]);
+        let after = pack_hooks::cache_stats();
+        assert_eq!(after.hits, before.hits + 1);
+        pack_hooks::clear_host();
+    }
+}
+
+on_both_engines! {
+    fn a_silent_resolver_falls_back_to_the_declared_roles(host) {
+        let slot = one_hook(host, HookProgram::new(
+            "mylib::quiet",
             HookFamily::ArgRoleResolver,
-            "role 0 VarWrite\nrole 1 Body\n",
-        )
-        .with_inputs(HookInputs::parse(&["nwords", "kinds"])),
-    );
-    let resolver = pack_hooks::arg_role_resolver_fn(slot).expect("a resolver thunk");
-    assert_eq!(
-        resolver(&["v", "{puts hi}"]),
-        vec![(0, ArgRole::VarWrite), (1, ArgRole::Body)]
-    );
-    // Shape-cacheable: the declared inputs exclude the words themselves, so a
-    // second call of the same shape never re-enters the VM.
-    let before = pack_hooks::cache_stats();
-    let _ = resolver(&["other", "{other body}"]);
-    let after = pack_hooks::cache_stats();
-    assert_eq!(after.hits, before.hits + 1);
-    pack_hooks::clear_host();
+            "if {[llength $words] < 99} { return }\nrole 0 VarWrite\n",
+        ));
+        let resolver = pack_hooks::arg_role_resolver_fn(slot).expect("a resolver thunk");
+        assert!(resolver(&["v"]).is_empty(), "silence means no roles");
+        pack_hooks::clear_host();
+    }
 }
 
-#[test]
-fn a_silent_resolver_falls_back_to_the_declared_roles() {
-    let slot = one_hook(HookProgram::new(
-        "mylib::quiet",
-        HookFamily::ArgRoleResolver,
-        "if {[llength $words] < 99} { return }\nrole 0 VarWrite\n",
-    ));
-    let resolver = pack_hooks::arg_role_resolver_fn(slot).expect("a resolver thunk");
-    assert!(resolver(&["v"]).is_empty(), "silence means no roles");
-    pack_hooks::clear_host();
+on_both_engines! {
+    fn command_prefix_resolver_emits_positions_and_appended_arity(host) {
+        let slot = one_hook(host, HookProgram::new(
+            "mylib::trace",
+            HookFamily::CommandPrefixResolver,
+            "prefix 2 {Exactly 4}\n",
+        ));
+        let resolver = pack_hooks::command_prefix_resolver_fn(slot).expect("a prefix thunk");
+        let words = ["add", "execution", "cb"];
+        assert_eq!(
+            resolver(CommandPrefixArguments::literals(&words)),
+            vec![(2, AppendedArity::Exactly(4))]
+        );
+        pack_hooks::clear_host();
+    }
 }
 
-#[test]
-fn command_prefix_resolver_emits_positions_and_appended_arity() {
-    let slot = one_hook(HookProgram::new(
-        "mylib::trace",
-        HookFamily::CommandPrefixResolver,
-        "prefix 2 {Exactly 4}\n",
-    ));
-    let resolver = pack_hooks::command_prefix_resolver_fn(slot).expect("a prefix thunk");
-    let words = ["add", "execution", "cb"];
-    assert_eq!(
-        resolver(CommandPrefixArguments::literals(&words)),
-        vec![(2, AppendedArity::Exactly(4))]
-    );
-    pack_hooks::clear_host();
+on_both_engines! {
+    fn script_timing_resolver_preserves_the_exact_enum_spelling(host) {
+        let slot = one_hook(host, HookProgram::new(
+            "mylib::send",
+            HookFamily::ScriptTimingResolver,
+            "if {[lindex $words 0] eq \"-async\"} {\n\
+                 timing 2 Deferred\n\
+             } else {\n\
+                 timing 1 SameInvocation\n\
+             }",
+        ));
+        let resolver = pack_hooks::script_timing_resolver_fn(slot).expect("a timing thunk");
+        assert_eq!(
+            resolver(InvocationArguments::literals(&["other", "work"])),
+            vec![(1, ScriptTiming::SameInvocation)]
+        );
+        assert_eq!(
+            resolver(InvocationArguments::literals(&["-async", "other", "work"])),
+            vec![(2, ScriptTiming::Deferred)]
+        );
+        pack_hooks::clear_host();
+    }
 }
 
-#[test]
-fn script_timing_resolver_preserves_the_exact_enum_spelling() {
-    let slot = one_hook(HookProgram::new(
-        "mylib::send",
-        HookFamily::ScriptTimingResolver,
-        "if {[lindex $words 0] eq \"-async\"} {\n\
-             timing 2 Deferred\n\
-         } else {\n\
-             timing 1 SameInvocation\n\
-         }",
-    ));
-    let resolver = pack_hooks::script_timing_resolver_fn(slot).expect("a timing thunk");
-    assert_eq!(
-        resolver(InvocationArguments::literals(&["other", "work"])),
-        vec![(1, ScriptTiming::SameInvocation)]
-    );
-    assert_eq!(
-        resolver(InvocationArguments::literals(&["-async", "other", "work"])),
-        vec![(2, ScriptTiming::Deferred)]
-    );
-    pack_hooks::clear_host();
+on_both_engines! {
+    fn script_timing_resolver_can_emit_reference_only(host) {
+        let slot = one_hook(host, HookProgram::new(
+            "mylib::trace",
+            HookFamily::ScriptTimingResolver,
+            "timing 3 ReferenceOnly",
+        ));
+        let resolver = pack_hooks::script_timing_resolver_fn(slot).expect("a timing thunk");
+        assert_eq!(
+            resolver(InvocationArguments::literals(&["remove", "variable", "name", "callback"])),
+            vec![(3, ScriptTiming::ReferenceOnly)]
+        );
+        pack_hooks::clear_host();
+    }
 }
 
-#[test]
-fn script_timing_resolver_can_emit_reference_only() {
-    let slot = one_hook(HookProgram::new(
-        "mylib::trace",
-        HookFamily::ScriptTimingResolver,
-        "timing 3 ReferenceOnly",
-    ));
-    let resolver = pack_hooks::script_timing_resolver_fn(slot).expect("a timing thunk");
-    assert_eq!(
-        resolver(InvocationArguments::literals(&[
-            "remove", "variable", "name", "callback"
-        ])),
-        vec![(3, ScriptTiming::ReferenceOnly)]
+on_both_engines! {
+    fn a_versioned_fold_reads_the_tcl_version_from_ctx(host) {
+        let slot = one_hook(host, HookProgram::new(
+            "mylib::release",
+            HookFamily::ConstFoldVersioned,
+            "fold [dict get $ctx tcl-version]",
+        ));
+        let folder = pack_hooks::const_fold_versioned_fn(slot).expect("a versioned fold thunk");
+        assert_eq!(
+            folder(&["x"], Some(tcl_dialect::TclVersion::V9_0)),
+            Some("9.0".to_owned())
+        );
+        // No release named: the key is present and empty, and a body that needs a
+        // release can abstain on it.
+        assert_eq!(folder(&["x"], None), Some(String::new()));
+        pack_hooks::clear_host();
+    }
+}
+
+on_both_engines! {
+    /// A release-pinned hook runs on an engine pinned to the release the call
+    /// is analysed under, one engine per profile: `expr {010 + 0}` is 8 on
+    /// tclsh 8.4 to 8.6 — and so under `f5-irules`, whose engine is 8.4's — and
+    /// 10 on 9.0 and 9.1. A call that names no release abstains rather than
+    /// run at an engine's default, and a profile no engine can pin abstains
+    /// with one error-log line.
+    fn a_release_pinned_hook_runs_under_the_calls_release(host) {
+        let host = Rc::new(host());
+        let installed = host.install_pack_hooks(
+            PackPrograms::new("mylib").with(
+                HookProgram::new(
+                    "mylib::octal",
+                    HookFamily::ConstFoldVersioned,
+                    "fold [expr {010 + 0}]",
+                )
+                .pinned_to_release(),
+            ),
+        );
+        assert!(
+            installed[0].declined.is_none(),
+            "{:?}",
+            installed[0].declined
+        );
+        let slot = installed[0].slot.expect("a slot");
+        pack_hooks::install_host(host.clone());
+        let fold = pack_hooks::const_fold_versioned_fn(slot).expect("a versioned fold thunk");
+        for (dialect, want) in [
+            (Some("tcl8.6"), Some("8")),
+            (Some("tcl9.0"), Some("10")),
+            (Some("f5-irules"), Some("8")),
+            (Some("tcl8.6"), Some("8")),
+            (None, None),
+            (Some("tcl"), None),
+            (Some("tcl"), None),
+        ] {
+            let _scope = pack_hooks::DialectScope::enter(dialect);
+            assert_eq!(fold(&[], None).as_deref(), want, "{dialect:?}");
+        }
+        let log = host.error_log();
+        assert_eq!(log.len(), 1, "{log:?}");
+        assert!(
+            log[0].contains("no engine pinned to tcl"),
+            "the unpinnable profile is logged once: {log:?}"
+        );
+        pack_hooks::clear_host();
+    }
+}
+
+on_both_engines! {
+    fn a_taint_sink_gate_keeps_the_finding_alive_unless_it_says_otherwise(host) {
+        let slot = one_hook(host, HookProgram::new(
+            "mylib::log",
+            HookFamily::TaintSinkGate,
+            "if {[lindex $words 0] eq \"-safe\"} { sink-suppressed }\n",
+        ));
+        let gate = pack_hooks::taint_sink_gate_fn(slot).expect("a sink thunk");
+        assert!(gate(&["untrusted"]), "silence means the sink applies");
+        assert!(!gate(&["-safe"]), "an explicit suppression turns it off");
+        pack_hooks::clear_host();
+    }
+}
+
+on_both_engines! {
+    fn a_context_gate_rejects_with_a_message_and_reads_in_event_body(host) {
+        let slot = one_hook(host, HookProgram::new(
+            "mylib::return",
+            HookFamily::ContextGate,
+            "if {[dict get $ctx in-event-body] && [llength $words] > 0} {\n\
+             reject {only the bare form is allowed in an event body}\n}\n",
+        ));
+        let gate = pack_hooks::context_gate_fn(slot).expect("a gate thunk");
+        assert_eq!(gate(&["value"], false), None, "silence allows the call");
+        assert_eq!(
+            gate(&["value"], true),
+            Some("only the bare form is allowed in an event body")
+        );
+        pack_hooks::clear_host();
+    }
+}
+
+on_both_engines! {
+    fn a_literal_validator_sees_kinds_and_reports_a_typed_issue(host) {
+        let slot = one_hook(host, HookProgram::new(
+            "mylib::cipher",
+            HookFamily::LiteralArgumentValidator,
+            "if {[lindex [dict get $ctx kinds] 0] ne \"literal\"} {\n\
+             abstain non-literal-argument\n return\n}\n\
+             if {[lindex $words 0] eq \"NULL\"} {\n\
+             invalid -index 0 -subject {cipher suite} -reason invalid-members \
+             -members NULL -allowed {AES CHACHA20}\n}\n",
+        ));
+        let validator = pack_hooks::literal_argument_validator_fn(slot).expect("a validator thunk");
+
+        assert_eq!(
+            validator(InvocationArguments::literals(&["AES"])),
+            LiteralArgumentValidation::Valid,
+            "silence means valid"
+        );
+
+        let dynamic = [InvocationWord::Dynamic];
+        assert!(
+            matches!(
+                validator(InvocationArguments::structured(&dynamic)),
+                LiteralArgumentValidation::Abstain(_)
+            ),
+            "a dynamic word is visible in kinds and declines"
+        );
+
+        let LiteralArgumentValidation::Invalid(issue) =
+            validator(InvocationArguments::literals(&["NULL"]))
+        else {
+            panic!("the body reports an invalid member");
+        };
+        assert_eq!(issue.argument_index, 0);
+        assert_eq!(issue.subject, "cipher suite");
+        assert_eq!(issue.allowed_values, ["AES", "CHACHA20"]);
+        assert_eq!(
+            issue.reason,
+            LiteralArgumentIssueReason::InvalidMembers(vec!["NULL".to_owned()])
+        );
+        pack_hooks::clear_host();
+    }
+}
+
+on_both_engines! {
+    fn a_clause_shape_check_reports_the_first_structural_defect(host) {
+        // naming.diagnostic.original-control-advice
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-control-advice.md
+        let slot = one_hook(host, HookProgram::new(
+            "mylib::if",
+            HookFamily::ClauseShapeCheck,
+            "if {[llength $words] == 0} { missing-expr\n return }\n\
+             if {[llength $words] == 1} { missing-body 0 }\n",
+        ));
+        let check = pack_hooks::clause_shape_check_fn(slot).expect("a shape thunk");
+        assert_eq!(check(InvocationArguments::literals(&["1", "{body}"])), None, "silence accepts the shape");
+        assert_eq!(
+            check(InvocationArguments::literals(&[])).map(tcl_registry::ClauseShapeIssue::error),
+            Some(ClauseShapeError::MissingExpr { after: None })
+        );
+        assert_eq!(
+            check(InvocationArguments::literals(&["1"])).map(tcl_registry::ClauseShapeIssue::error),
+            Some(ClauseShapeError::MissingBody { after: 0 })
+        );
+        assert_eq!(
+            check(InvocationArguments::literals(&["1"])).unwrap().repair(),
+            None,
+            "pack defect reports do not borrow stock clause proposals"
+        );
+        pack_hooks::clear_host();
+    }
+}
+
+on_both_engines! {
+    fn an_option_arity_hook_reads_its_option_keys_and_consumes(host) {
+        let slot = one_hook(host, HookProgram::new(
+            "mylib::return",
+            HookFamily::OptionArity,
+            "set start [dict get $ctx option-value-start]\n\
+             set value [lindex $words $start]\n\
+             if {$value eq \"\"} { consume 0\n return }\n\
+             if {![string is list $value]} {\n\
+             consume 1 -invalid \"bad -errorstack value\"\n return\n}\n\
+             consume 1\n",
+        ));
+        let hook = pack_hooks::option_arity_fn(slot).expect("an option-arity thunk");
+
+        let outcome = hook(&["-errorstack", "{CALL a}"], 1);
+        assert_eq!(outcome.words, 1);
+        assert_eq!(outcome.invalid, None);
+
+        let missing = hook(&["-errorstack"], 1);
+        assert_eq!(missing.words, 0, "consume 0 is a report, not an abstention");
+
+        let bad = hook(&["-errorstack", "{unbalanced"], 1);
+        assert_eq!(bad.words, 1);
+        assert_eq!(bad.invalid, Some("bad -errorstack value"));
+        pack_hooks::clear_host();
+    }
+}
+
+on_both_engines! {
+    fn a_body_that_reaches_for_a_denied_command_abstains(host) {
+        let slot = one_hook(host, HookProgram::new(
+            "mylib::sneaky",
+            HookFamily::ConstFold,
+            "set data [open /etc/passwd]\nfold $data",
+        ));
+        let folder = pack_hooks::const_fold_fn(slot).expect("a fold thunk");
+        assert_eq!(
+            folder(&["x"]),
+            None,
+            "the sandbox denies it, so it abstains"
+        );
+        pack_hooks::clear_host();
+    }
+}
+
+on_both_engines! {
+    fn foldlist_is_available_and_quotes_like_the_shipped_list_fold(host) {
+        let slot = one_hook(host, HookProgram::new(
+            "mylib::pair",
+            HookFamily::ConstFold,
+            "fold [foldlist [lindex $words 0] [lindex $words 1]]",
+        ));
+        let folder = pack_hooks::const_fold_fn(slot).expect("a fold thunk");
+        assert_eq!(
+            folder(&["a b", "c"]),
+            tcl_registry::const_fold::fold_list(&["a b", "c"])
+        );
+        pack_hooks::clear_host();
+    }
+}
+
+on_both_engines! {
+    /// **The E-R14 escape hatch, end to end** — a `constraints` body reading the
+    /// whole invocation through its four reading verbs and reporting through
+    /// `invalid SLOT MESSAGE ?-conflict?`.
+    ///
+    /// The rule below is deliberately one no declarative relation can express: a
+    /// *numeric comparison* between two option values. That is what the hatch is
+    /// for; everything the vocabulary can say is checked natively instead.
+    fn constraints_reads_the_invocation_and_reports_through_invalid(host) {
+        let slot = one_hook(host,
+            HookProgram::new(
+                "mylib::window",
+                HookFamily::Constraints,
+                "if {![dict get $ctx complete]} { abstain }\n\
+                 if {![option-present -min] || ![option-present -max]} { return }\n\
+                 set lo [option-value -min]\n\
+                 set hi [option-value -max]\n\
+                 if {$lo eq {} || $hi eq {}} { abstain }\n\
+                 if {$lo > $hi} { invalid -min \"-min $lo exceeds -max $hi\" }\n",
+            )
+            .with_inputs(HookInputs::parse(&["invocation"])),
+        );
+        let hook = pack_hooks::constraints_fn(slot).expect("a constraints thunk");
+
+        let facts = |min: &'static str, max: &'static str| {
+            ([("-min", Some(min)), ("-max", Some(max))], [Some("body")])
+        };
+
+        let (options, positionals) = facts("9", "2");
+        let bad = hook(&tcl_registry::OptionFacts {
+            options: &options,
+            positionals: &positionals,
+            complete: true,
+        });
+        assert_eq!(bad.len(), 1, "{bad:?}");
+        assert_eq!(bad[0].slot, tcl_registry::ConstraintSlot::Option("-min"));
+        assert_eq!(bad[0].message, "-min 9 exceeds -max 2");
+        assert!(!bad[0].conflict, "the default report is W152, not W147");
+
+        let (options, positionals) = facts("2", "9");
+        assert!(
+            hook(&tcl_registry::OptionFacts {
+                options: &options,
+                positionals: &positionals,
+                complete: true,
+            })
+            .is_empty(),
+            "an ordered window is silent"
+        );
+
+        // Abstention: an invocation the analyser could not read to its end is
+        // judged by nobody, exactly as the `types` hook contract requires.
+        let (options, positionals) = facts("9", "2");
+        assert!(
+            hook(&tcl_registry::OptionFacts {
+                options: &options,
+                positionals: &positionals,
+                complete: false,
+            })
+            .is_empty(),
+            "an incomplete invocation abstains rather than accusing"
+        );
+        pack_hooks::clear_host();
+    }
+}
+
+on_both_engines! {
+    /// **The P-B cache discipline** (redesign §0.05): a `constraints` hook that
+    /// declared `-inputs {invocation}` is content-cached, so re-analysing a
+    /// document after an edit elsewhere never re-runs it for an unchanged call
+    /// site — while a call site whose own words changed does re-run.
+    fn a_constraints_verdict_is_reused_when_the_call_site_did_not_change(host) {
+        let slot = one_hook(host,
+            HookProgram::new(
+                "mylib::cached",
+                HookFamily::Constraints,
+                "if {[option-present -min]} { invalid -min {reported} }\n",
+            )
+            .with_inputs(HookInputs::parse(&["invocation"])),
+        );
+        assert_eq!(
+            pack_hooks::cache_mode(slot),
+            pack_hooks::CacheMode::Content,
+            "declaring `invocation` earns content caching"
+        );
+        let hook = pack_hooks::constraints_fn(slot).expect("a constraints thunk");
+        let judge = |min: &'static str| {
+            let options = [("-min", Some(min))];
+            let positionals = [Some("body")];
+            hook(&tcl_registry::OptionFacts {
+                options: &options,
+                positionals: &positionals,
+                complete: true,
+            })
+        };
+
+        pack_hooks::clear_cache();
+        let first = judge("1");
+        assert_eq!(first.len(), 1);
+        let cold = pack_hooks::cache_stats();
+        assert_eq!((cold.hits, cold.misses), (0, 1), "the first call is cold");
+
+        // The same call site, re-analysed after an edit somewhere else in the
+        // document: identical content, so the verdict is reused and the VM is
+        // never entered.
+        for _ in 0..5 {
+            assert_eq!(judge("1").len(), 1);
+        }
+        let warm = pack_hooks::cache_stats();
+        assert_eq!(
+            (warm.hits, warm.misses),
+            (5, 1),
+            "an unchanged call site is answered from the cache"
+        );
+
+        // Editing *this* call site changes its content hash, so it is re-judged.
+        assert_eq!(judge("2").len(), 1);
+        let edited = pack_hooks::cache_stats();
+        assert_eq!(
+            (edited.hits, edited.misses),
+            (5, 2),
+            "a changed call site re-runs, and only it"
+        );
+        pack_hooks::clear_host();
+    }
+}
+
+on_both_engines! {
+    /// An **undeclared** `constraints` hook stays uncacheable: it made no claim
+    /// about what it reads, so nothing may be hashed on its behalf. The
+    /// abstention is conservative, not a caching bug.
+    fn an_undeclared_constraints_hook_is_not_cached(host) {
+        let slot = one_hook(host, HookProgram::new(
+            "mylib::undeclared",
+            HookFamily::Constraints,
+            "invalid command {always}\n",
+        ));
+        assert_eq!(pack_hooks::cache_mode(slot), pack_hooks::CacheMode::None);
+        let hook = pack_hooks::constraints_fn(slot).expect("a constraints thunk");
+        pack_hooks::clear_cache();
+        let options: [(&'static str, Option<&str>); 0] = [];
+        let positionals: [Option<&str>; 0] = [];
+        for _ in 0..3 {
+            let reports = hook(&tcl_registry::OptionFacts {
+                options: &options,
+                positionals: &positionals,
+                complete: true,
+            });
+            assert_eq!(reports[0].slot, tcl_registry::ConstraintSlot::Command);
+        }
+        let stats = pack_hooks::cache_stats();
+        assert_eq!((stats.hits, stats.misses), (0, 0), "never cached at all");
+        pack_hooks::clear_host();
+    }
+}
+
+/// An `evaluate` body on the real VM, entered as the registry's dispatch
+/// does: its parameters are the declared inputs, and the call carries the
+/// declared store targets. Each program runs under `tcl8.6`, the release it
+/// is pinned to.
+fn evaluate_under<E: Engine + 'static>(
+    host: &HookHost<E>,
+    body: &str,
+    input: &str,
+    targets: &[usize],
+) -> pack_hooks::HookAnswer {
+    use pack_hooks::PackHookHost as _;
+    let program = HookProgram {
+        parameters: vec!["s".to_owned()],
+        inputs: HookInputs::declared([pack_hooks::HookInput::Words]),
+        ..HookProgram::new("mylib::split", HookFamily::Evaluate, body)
+    }
+    .pinned_to_release();
+    let installed = host.install_pack_hooks(PackPrograms::new("mylib").with(program));
+    assert!(
+        installed[0].declined.is_none(),
+        "{:?}",
+        installed[0].declined
     );
-    pack_hooks::clear_host();
+    let words = [pack_hooks::HookWord {
+        value: input,
+        kind: tcl_registry::InvocationWordKind::Literal,
+    }];
+    host.invoke(
+        installed[0].slot.expect("a slot"),
+        &pack_hooks::HookCall {
+            words: &words,
+            version: Some(tcl_dialect::TclVersion::V8_6),
+            in_event_body: false,
+            option: None,
+            constraints: None,
+            dialect: Some("tcl8.6"),
+            targets,
+            budget: tcl_registry::value_transfer::ImplementationBudget::default(),
+            depends: &[],
+        },
+    )
+}
+
+on_both_engines! {
+    /// The `evaluate` family's protocol (`value-evaluation.md` § *The body
+    /// verbs*): a body that speaks for every declared target answers with its
+    /// fold and its stores in call order; one that writes target 1 and says
+    /// nothing of target 2 declines the whole answer, because silence is not a
+    /// `preserve`; and a body that calls no verb declines. With no declared
+    /// targets, a fold alone answers.
+    fn a_silent_target_declines_the_whole_answer(host) {
+        let host = host();
+        assert_eq!(
+            evaluate_under(
+                &host,
+                "lassign [split $s :] a b; write 1 $a; preserve 2; fold 1",
+                "x:y",
+                &[1, 2],
+            ),
+            pack_hooks::HookAnswer::Evaluation(pack_hooks::EvaluationAnswer {
+                result: Some("1".to_owned()),
+                stores: vec![(1, Some("x".to_owned())), (2, None)],
+            })
+        );
+        assert_eq!(
+            evaluate_under(
+                &host,
+                "lassign [split $s :] a b; write 1 $a; fold 1",
+                "x:y",
+                &[1, 2],
+            ),
+            pack_hooks::HookAnswer::Abstain,
+            "target 2 is unstated"
+        );
+        assert_eq!(
+            evaluate_under(&host, "set unused $s", "x:y", &[]),
+            pack_hooks::HookAnswer::Abstain,
+            "silence establishes nothing"
+        );
+        assert_eq!(
+            evaluate_under(&host, "fold [string cat tenant: $s]", "acme", &[]),
+            pack_hooks::HookAnswer::Evaluation(pack_hooks::EvaluationAnswer {
+                result: Some("tenant:acme".to_owned()),
+                stores: Vec::new(),
+            })
+        );
+    }
+}
+
+on_both_engines! {
+    /// A `write` or `preserve` naming anything but a declared target raises, and
+    /// the raise is the body's error: the answer declines and the error log says
+    /// which index was not a target.
+    fn a_write_to_a_non_target_raises(host) {
+        let host = host();
+        assert_eq!(
+            evaluate_under(&host, "write 3 $s; write 1 $s; fold 1", "x", &[1, 2]),
+            pack_hooks::HookAnswer::Abstain
+        );
+        assert_eq!(
+            evaluate_under(&host, "preserve 0; fold 1", "x", &[1]),
+            pack_hooks::HookAnswer::Abstain
+        );
+        let log = host.error_log();
+        assert!(
+            log.iter()
+                .any(|line| line.contains("write: 3 is not a declared target")),
+            "{log:?}"
+        );
+        assert!(
+            log.iter()
+                .any(|line| line.contains("preserve: 0 is not a declared target")),
+            "{log:?}"
+        );
+    }
+}
+
+on_both_engines! {
+    /// The `state_transitions` resolver family, entered through the registry's
+    /// own function pointer: a body states variable-cell alias facts by word
+    /// index — `alias LOCAL TARGET ?-level LEVEL?` against the frame a level
+    /// word selects, `namespace-variable NAME` against the current namespace —
+    /// and a fact naming a computed word abstains and widens rather than naming
+    /// a cell. A body reaching for any other family's fact has no verb to call:
+    /// `command-binding` is not defined in its sandbox, so the body raises
+    /// `invalid command name` on its first call and states nothing at all, not
+    /// even the alias after it (negative).
+    fn a_state_transition_body_emits_alias_facts_only(host) {
+        use tcl_registry::state_transition::{
+            AliasWords, CallerFrameSelection, StateTransition, TransitionSubject, VariableAliasTarget,
+            VariableCellAliasTransition,
+        };
+        let literal = |word: &str| TransitionSubject::Literal(word.to_owned());
+        let slot = one_hook(host, HookProgram::new(
+            "mylib::link",
+            HookFamily::StateTransitionResolver,
+            "alias 2 1 -level 0\nnamespace-variable 3\nnamespace-variable 4\n",
+        ));
+        let resolver = pack_hooks::state_transition_resolver_fn(slot).expect("a resolver thunk");
+        let words = [
+            InvocationWord::Literal("#0"),
+            InvocationWord::Literal("total"),
+            InvocationWord::Literal("sum"),
+            InvocationWord::Literal("::app::count"),
+            InvocationWord::Dynamic,
+        ];
+        let transitions = resolver(InvocationArguments::structured(&words));
+        let facts: Vec<&StateTransition> = transitions
+            .facts()
+            .iter()
+            .map(|fact| &fact.transition)
+            .collect();
+        assert_eq!(facts.len(), 3, "{facts:#?}");
+        assert_eq!(
+            facts[0],
+            &StateTransition::VariableCellAlias(VariableCellAliasTransition {
+                local: literal("sum"),
+                target: VariableAliasTarget::CallerSelectedFrame {
+                    frame: CallerFrameSelection::Explicit(literal("#0")),
+                    variable: literal("total"),
+                },
+                writes_value: false,
+                words: AliasWords {
+                    local: 2,
+                    target: 1,
+                },
+            })
+        );
+        assert_eq!(
+            facts[1],
+            &StateTransition::VariableCellAlias(VariableCellAliasTransition {
+                local: literal("count"),
+                target: VariableAliasTarget::CurrentNamespace {
+                    variable: literal("::app::count"),
+                },
+                writes_value: false,
+                words: AliasWords::same(3),
+            })
+        );
+        assert!(
+            matches!(facts[2], StateTransition::Widen(widening)
+                if widening.domains == tcl_registry::state_transition::VARIABLE_ALIAS_DOMAINS),
+            "the computed word's fact widens: {facts:#?}"
+        );
+        pack_hooks::clear_host();
+
+        let host = Rc::new(host());
+        let installed = host.install_pack_hooks(PackPrograms::new("mylib").with(HookProgram::new(
+            "mylib::bind",
+            HookFamily::StateTransitionResolver,
+            "command-binding define 0\nalias 1 0\n",
+        )));
+        pack_hooks::install_host(Rc::clone(&host) as Rc<dyn pack_hooks::PackHookHost>);
+        let resolver = installed[0]
+            .slot
+            .and_then(pack_hooks::state_transition_resolver_fn)
+            .expect("the body installs: the verb is looked up when it runs");
+        let words = [InvocationWord::Literal("f"), InvocationWord::Literal("g")];
+        assert!(
+            resolver(InvocationArguments::structured(&words))
+                .facts()
+                .is_empty(),
+            "a body that reaches for a command-binding fact states nothing"
+        );
+        let log = host.error_log();
+        assert!(
+            log.iter()
+                .any(|line| line.contains("invalid command name \"command-binding\"")),
+            "{log:?}"
+        );
+        pack_hooks::clear_host();
+    }
 }
 
 #[test]
 fn script_timing_resolver_retains_structured_payload_kinds() {
     // naming.source.original-structured-script-timing
     // docs/design/analysis/name-resolution-proofs/original-structured-script-timing.md
-    let slot = one_hook(HookProgram::new(
+    let slot = one_hook(tcl_spec_hooks::tclvm_host, HookProgram::new(
         "mylib::timed", HookFamily::ScriptTimingResolver,
         "if {[dict get $ctx nwords] == 2 && [lindex [dict get $ctx kinds] 1] eq \"dynamic\"} { timing 1 Deferred }",
     ).with_inputs(HookInputs::parse(&["nwords", "kinds"])));
@@ -166,355 +808,5 @@ fn script_timing_resolver_retains_structured_payload_kinds() {
         .is_empty()
     );
     assert!(resolver(InvocationArguments::literals(&["known", ""])).is_empty());
-    pack_hooks::clear_host();
-}
-
-#[test]
-fn a_versioned_fold_reads_the_tcl_version_from_ctx() {
-    let slot = one_hook(HookProgram::new(
-        "mylib::release",
-        HookFamily::ConstFoldVersioned,
-        "fold [dict get $ctx tcl-version]",
-    ));
-    let folder = pack_hooks::const_fold_versioned_fn(slot).expect("a versioned fold thunk");
-    assert_eq!(
-        folder(&["x"], Some(tcl_dialect::TclVersion::V9_0)),
-        Some("9.0".to_owned())
-    );
-    // No release named: the key is present and empty, and a body that needs a
-    // release can abstain on it.
-    assert_eq!(folder(&["x"], None), Some(String::new()));
-    pack_hooks::clear_host();
-}
-
-#[test]
-fn a_taint_sink_gate_keeps_the_finding_alive_unless_it_says_otherwise() {
-    let slot = one_hook(HookProgram::new(
-        "mylib::log",
-        HookFamily::TaintSinkGate,
-        "if {[lindex $words 0] eq \"-safe\"} { sink-suppressed }\n",
-    ));
-    let gate = pack_hooks::taint_sink_gate_fn(slot).expect("a sink thunk");
-    assert!(gate(&["untrusted"]), "silence means the sink applies");
-    assert!(!gate(&["-safe"]), "an explicit suppression turns it off");
-    pack_hooks::clear_host();
-}
-
-#[test]
-fn a_context_gate_rejects_with_a_message_and_reads_in_event_body() {
-    let slot = one_hook(HookProgram::new(
-        "mylib::return",
-        HookFamily::ContextGate,
-        "if {[dict get $ctx in-event-body] && [llength $words] > 0} {\n\
-         reject {only the bare form is allowed in an event body}\n}\n",
-    ));
-    let gate = pack_hooks::context_gate_fn(slot).expect("a gate thunk");
-    assert_eq!(
-        gate(
-            tcl_registry::InvocationArguments::literals(&["value"]),
-            false
-        ),
-        None,
-        "silence allows the call"
-    );
-    assert_eq!(
-        gate(
-            tcl_registry::InvocationArguments::literals(&["value"]),
-            true
-        ),
-        Some("only the bare form is allowed in an event body")
-    );
-    pack_hooks::clear_host();
-}
-
-#[test]
-fn a_literal_validator_sees_kinds_and_reports_a_typed_issue() {
-    let slot = one_hook(HookProgram::new(
-        "mylib::cipher",
-        HookFamily::LiteralArgumentValidator,
-        "if {[lindex [dict get $ctx kinds] 0] ne \"literal\"} {\n\
-         abstain non-literal-argument\n return\n}\n\
-         if {[lindex $words 0] eq \"NULL\"} {\n\
-         invalid -index 0 -subject {cipher suite} -reason invalid-members \
-         -members NULL -allowed {AES CHACHA20}\n}\n",
-    ));
-    let validator = pack_hooks::literal_argument_validator_fn(slot).expect("a validator thunk");
-
-    assert_eq!(
-        validator(InvocationArguments::literals(&["AES"])),
-        LiteralArgumentValidation::Valid,
-        "silence means valid"
-    );
-
-    let dynamic = [InvocationWord::Dynamic];
-    assert!(
-        matches!(
-            validator(InvocationArguments::structured(&dynamic)),
-            LiteralArgumentValidation::Abstain(_)
-        ),
-        "a dynamic word is visible in kinds and declines"
-    );
-
-    let LiteralArgumentValidation::Invalid(issue) =
-        validator(InvocationArguments::literals(&["NULL"]))
-    else {
-        panic!("the body reports an invalid member");
-    };
-    assert_eq!(issue.argument_index, 0);
-    assert_eq!(issue.subject, "cipher suite");
-    assert_eq!(issue.allowed_values, ["AES", "CHACHA20"]);
-    assert_eq!(
-        issue.reason,
-        LiteralArgumentIssueReason::InvalidMembers(vec!["NULL".to_owned()])
-    );
-    pack_hooks::clear_host();
-}
-
-#[test]
-fn a_clause_shape_check_reports_the_first_structural_defect() {
-    // naming.diagnostic.original-control-advice
-    // docs/design/analysis/name-resolution-proofs/diagnostic-original-control-advice.md
-    let slot = one_hook(HookProgram::new(
-        "mylib::if",
-        HookFamily::ClauseShapeCheck,
-        "if {[llength $words] == 0} { missing-expr\n return }\n\
-         if {[llength $words] == 1} { missing-body 0 }\n",
-    ));
-    let check = pack_hooks::clause_shape_check_fn(slot).expect("a shape thunk");
-    assert_eq!(
-        check(tcl_registry::InvocationArguments::literals(&[
-            "1", "{body}"
-        ])),
-        None,
-        "silence accepts the shape"
-    );
-    assert_eq!(
-        check(tcl_registry::InvocationArguments::literals(&[]))
-            .map(tcl_registry::ClauseShapeIssue::error),
-        Some(ClauseShapeError::MissingExpr { after: None })
-    );
-    assert_eq!(
-        check(tcl_registry::InvocationArguments::literals(&["1"]))
-            .map(tcl_registry::ClauseShapeIssue::error),
-        Some(ClauseShapeError::MissingBody { after: 0 })
-    );
-    assert_eq!(
-        check(tcl_registry::InvocationArguments::literals(&["1"]))
-            .unwrap()
-            .repair(),
-        None,
-        "pack defect reports do not borrow stock clause proposals"
-    );
-    pack_hooks::clear_host();
-}
-
-#[test]
-fn an_option_arity_hook_reads_its_option_keys_and_consumes() {
-    let slot = one_hook(HookProgram::new(
-        "mylib::return",
-        HookFamily::OptionArity,
-        "set start [dict get $ctx option-value-start]\n\
-         set value [lindex $words $start]\n\
-         if {$value eq \"\"} { consume 0\n return }\n\
-         if {![string is list $value]} {\n\
-         consume 1 -invalid \"bad -errorstack value\"\n return\n}\n\
-         consume 1\n",
-    ));
-    let hook = pack_hooks::option_arity_fn(slot).expect("an option-arity thunk");
-
-    let outcome = hook(&["-errorstack", "{CALL a}"], 1);
-    assert_eq!(outcome.words, 1);
-    assert_eq!(outcome.invalid, None);
-
-    let missing = hook(&["-errorstack"], 1);
-    assert_eq!(missing.words, 0, "consume 0 is a report, not an abstention");
-
-    let bad = hook(&["-errorstack", "{unbalanced"], 1);
-    assert_eq!(bad.words, 1);
-    assert_eq!(bad.invalid, Some("bad -errorstack value"));
-    pack_hooks::clear_host();
-}
-
-#[test]
-fn a_body_that_reaches_for_a_denied_command_abstains() {
-    let slot = one_hook(HookProgram::new(
-        "mylib::sneaky",
-        HookFamily::ConstFold,
-        "set data [open /etc/passwd]\nfold $data",
-    ));
-    let folder = pack_hooks::const_fold_fn(slot).expect("a fold thunk");
-    assert_eq!(
-        folder(&["x"]),
-        None,
-        "the sandbox denies it, so it abstains"
-    );
-    pack_hooks::clear_host();
-}
-
-#[test]
-fn foldlist_is_available_and_quotes_like_the_shipped_list_fold() {
-    let slot = one_hook(HookProgram::new(
-        "mylib::pair",
-        HookFamily::ConstFold,
-        "fold [foldlist [lindex $words 0] [lindex $words 1]]",
-    ));
-    let folder = pack_hooks::const_fold_fn(slot).expect("a fold thunk");
-    assert_eq!(
-        folder(&["a b", "c"]),
-        tcl_registry::const_fold::fold_list(&["a b", "c"])
-    );
-    pack_hooks::clear_host();
-}
-
-/// **The E-R14 escape hatch, end to end** — a `constraints` body reading the
-/// whole invocation through its four reading verbs and reporting through
-/// `invalid SLOT MESSAGE ?-conflict?`.
-///
-/// The rule below is deliberately one no declarative relation can express: a
-/// *numeric comparison* between two option values. That is what the hatch is
-/// for; everything the vocabulary can say is checked natively instead.
-#[test]
-fn constraints_reads_the_invocation_and_reports_through_invalid() {
-    let slot = one_hook(
-        HookProgram::new(
-            "mylib::window",
-            HookFamily::Constraints,
-            "if {![dict get $ctx complete]} { abstain }\n\
-             if {![option-present -min] || ![option-present -max]} { return }\n\
-             set lo [option-value -min]\n\
-             set hi [option-value -max]\n\
-             if {$lo eq {} || $hi eq {}} { abstain }\n\
-             if {$lo > $hi} { invalid -min \"-min $lo exceeds -max $hi\" }\n",
-        )
-        .with_inputs(HookInputs::parse(&["invocation"])),
-    );
-    let hook = pack_hooks::constraints_fn(slot).expect("a constraints thunk");
-
-    let facts = |min: &'static str, max: &'static str| {
-        ([("-min", Some(min)), ("-max", Some(max))], [Some("body")])
-    };
-
-    let (options, positionals) = facts("9", "2");
-    let bad = hook(&tcl_registry::OptionFacts {
-        options: &options,
-        positionals: &positionals,
-        complete: true,
-    });
-    assert_eq!(bad.len(), 1, "{bad:?}");
-    assert_eq!(bad[0].slot, tcl_registry::ConstraintSlot::Option("-min"));
-    assert_eq!(bad[0].message, "-min 9 exceeds -max 2");
-    assert!(!bad[0].conflict, "the default report is W152, not W147");
-
-    let (options, positionals) = facts("2", "9");
-    assert!(
-        hook(&tcl_registry::OptionFacts {
-            options: &options,
-            positionals: &positionals,
-            complete: true,
-        })
-        .is_empty(),
-        "an ordered window is silent"
-    );
-
-    // Abstention: an invocation the analyser could not read to its end is
-    // judged by nobody, exactly as the `types` hook contract requires.
-    let (options, positionals) = facts("9", "2");
-    assert!(
-        hook(&tcl_registry::OptionFacts {
-            options: &options,
-            positionals: &positionals,
-            complete: false,
-        })
-        .is_empty(),
-        "an incomplete invocation abstains rather than accusing"
-    );
-    pack_hooks::clear_host();
-}
-
-/// **The P-B cache discipline** (redesign §0.05): a `constraints` hook that
-/// declared `-inputs {invocation}` is content-cached, so re-analysing a
-/// document after an edit elsewhere never re-runs it for an unchanged call
-/// site — while a call site whose own words changed does re-run.
-#[test]
-fn a_constraints_verdict_is_reused_when_the_call_site_did_not_change() {
-    let slot = one_hook(
-        HookProgram::new(
-            "mylib::cached",
-            HookFamily::Constraints,
-            "if {[option-present -min]} { invalid -min {reported} }\n",
-        )
-        .with_inputs(HookInputs::parse(&["invocation"])),
-    );
-    assert_eq!(
-        pack_hooks::cache_mode(slot),
-        pack_hooks::CacheMode::Content,
-        "declaring `invocation` earns content caching"
-    );
-    let hook = pack_hooks::constraints_fn(slot).expect("a constraints thunk");
-    let judge = |min: &'static str| {
-        let options = [("-min", Some(min))];
-        let positionals = [Some("body")];
-        hook(&tcl_registry::OptionFacts {
-            options: &options,
-            positionals: &positionals,
-            complete: true,
-        })
-    };
-
-    pack_hooks::clear_cache();
-    let first = judge("1");
-    assert_eq!(first.len(), 1);
-    let cold = pack_hooks::cache_stats();
-    assert_eq!((cold.hits, cold.misses), (0, 1), "the first call is cold");
-
-    // The same call site, re-analysed after an edit somewhere else in the
-    // document: identical content, so the verdict is reused and the VM is
-    // never entered.
-    for _ in 0..5 {
-        assert_eq!(judge("1").len(), 1);
-    }
-    let warm = pack_hooks::cache_stats();
-    assert_eq!(
-        (warm.hits, warm.misses),
-        (5, 1),
-        "an unchanged call site is answered from the cache"
-    );
-
-    // Editing *this* call site changes its content hash, so it is re-judged.
-    assert_eq!(judge("2").len(), 1);
-    let edited = pack_hooks::cache_stats();
-    assert_eq!(
-        (edited.hits, edited.misses),
-        (5, 2),
-        "a changed call site re-runs, and only it"
-    );
-    pack_hooks::clear_host();
-}
-
-/// An **undeclared** `constraints` hook stays uncacheable: it made no claim
-/// about what it reads, so nothing may be hashed on its behalf. The
-/// abstention is conservative, not a caching bug.
-#[test]
-fn an_undeclared_constraints_hook_is_not_cached() {
-    let slot = one_hook(HookProgram::new(
-        "mylib::undeclared",
-        HookFamily::Constraints,
-        "invalid command {always}\n",
-    ));
-    assert_eq!(pack_hooks::cache_mode(slot), pack_hooks::CacheMode::None);
-    let hook = pack_hooks::constraints_fn(slot).expect("a constraints thunk");
-    pack_hooks::clear_cache();
-    let options: [(&'static str, Option<&str>); 0] = [];
-    let positionals: [Option<&str>; 0] = [];
-    for _ in 0..3 {
-        let reports = hook(&tcl_registry::OptionFacts {
-            options: &options,
-            positionals: &positionals,
-            complete: true,
-        });
-        assert_eq!(reports[0].slot, tcl_registry::ConstraintSlot::Command);
-    }
-    let stats = pack_hooks::cache_stats();
-    assert_eq!((stats.hits, stats.misses), (0, 0), "never cached at all");
     pack_hooks::clear_host();
 }

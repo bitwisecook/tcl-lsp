@@ -75,6 +75,7 @@ pub fn spec() -> CommandSpec {
             ),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("lappend"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
@@ -124,7 +125,6 @@ pub fn spec() -> CommandSpec {
         native_lowering: Some(NativeLowering::CellReadModifyWrite(CellUpdate::ListAppend)),
         codegen_hook: Some(CodegenHookId::Lappend),
         forms: FORMS,
-        analyser_hook: Some(crate::hooks::AnalyserHookId::Lappend),
         ..CommandSpec::DEFAULT
     }
 }

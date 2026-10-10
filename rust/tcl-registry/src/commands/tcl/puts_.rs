@@ -74,7 +74,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// uncertain; channel and output payload values do not otherwise select shape.
 pub(super) fn puts_layout_roles(
     args: crate::InvocationArguments<'_>,
-    options: crate::resolved_invocation::InvocationOptions<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_, '_>,
 ) -> Option<Vec<(u8, ArgRole)>> {
     let count = args.exact_argv_len()?;
     if count < 2 {
@@ -99,6 +99,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("puts"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::TAINT_SINK,
         // Positional count only (1 = string, 2 = channelId string) — the
@@ -131,6 +132,7 @@ pub fn spec() -> CommandSpec {
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
+                effect: None,
             }]
         },
         hover: Some(HoverSnippet {

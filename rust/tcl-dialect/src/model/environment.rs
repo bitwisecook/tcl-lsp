@@ -271,7 +271,7 @@ pub enum Provenance {
     /// A live Spec Studio override.
     StudioOverride,
     /// The document under analysis declared this itself — an inline
-    /// `# tcl-lsp: stub` block (gap ruling R1). The lowest trust class
+    /// `# tcl-lsp: stub` block. The lowest trust class
     /// there is: it is scoped to one buffer, it may improve assistance
     /// inside that buffer, and it can never weaken a shipped analysis
     /// fact or reach another document.
@@ -354,6 +354,76 @@ impl EnvironmentKind {
         [Self::Language, Self::Packages]
             .into_iter()
             .find(|kind| kind.word() == word)
+    }
+}
+
+/// The editor's Workspace Trust state for the folders it opened — the one
+/// input that decides whether a workspace-authored definition is
+/// [`Provenance::WorkspaceTrusted`] or [`Provenance::WorkspaceUntrusted`]
+/// (§6.4; `registry-consumer-contracts.md` § *Ruling — trust gates
+/// execution, not authority*).
+///
+/// A second axis beside the discovery tier, never folded into it: the tier
+/// says where a file was found and orders precedence, the trust says what
+/// the editor thinks of the folder it was found in. A client that reports
+/// nothing is [`WorkspaceTrust::Trusted`], which is what the workspace tier
+/// was before the state was plumbed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub enum WorkspaceTrust {
+    /// The editor trusts the workspace, or does not say.
+    #[default]
+    Trusted,
+    /// The editor has not marked the workspace trusted.
+    Untrusted,
+}
+
+impl WorkspaceTrust {
+    /// The provenance of a workspace-authored definition under this state.
+    #[must_use]
+    pub const fn workspace_provenance(self) -> Provenance {
+        match self {
+            Self::Trusted => Provenance::WorkspaceTrusted,
+            Self::Untrusted => Provenance::WorkspaceUntrusted,
+        }
+    }
+}
+
+/// How far a package sits from the workspace root — the fact a pack shipped
+/// by a package inherits, which the discovery tier cannot express
+/// (`registry-consumer-contracts.md` § *Dialects and packages*).
+///
+/// The package manager computes it from the lockfile's dependency graph
+/// (`tcl-pkg-model`), and a manifest cannot claim a nearer one; the pack
+/// loader reads it beside the file's discovery tier
+/// (`tcl_spectcl::PackFile::dependency_tier`), and
+/// `tcl_registry::model::CodegenCapability` says what a pack at each tier may
+/// declare. It is a second axis beside [`Provenance`], never folded into it:
+/// the provenance says whose content a definition is, the tier says how
+/// far down the graph the package that shipped it sits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum DependencyTier {
+    /// The workspace's own package — the pack the author is editing.
+    Root,
+    /// Named in the root manifest's `require` directives.
+    Direct,
+    /// Reached only through another package's requirements.
+    Transitive,
+    /// Named in the root manifest's `dev-require` directives only, or
+    /// reached only through a package that is.
+    Development,
+}
+
+impl DependencyTier {
+    /// The tier as a notice names it, without an article: `direct
+    /// dependency`.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Root => "root package",
+            Self::Direct => "direct dependency",
+            Self::Transitive => "transitive dependency",
+            Self::Development => "development dependency",
+        }
     }
 }
 
@@ -1799,13 +1869,23 @@ mod tests {
         }
     }
 
-    /// A workspace is trusted until the editor's trust state is plumbed
-    /// (ledger item O9) — the fact the `EvalOptions::tier` doc comment used
-    /// to deny.
+    /// A workspace is trusted until the editor says otherwise — the fact the
+    /// `EvalOptions::tier` doc comment used to deny — and a client that says
+    /// nothing leaves it trusted.
     #[test]
     fn a_workspace_is_trusted_until_the_editor_says_otherwise_issue_2139() {
         assert!(!Provenance::WorkspaceTrusted.is_untrusted());
         assert!(Provenance::WorkspaceUntrusted.is_untrusted());
+        assert_eq!(WorkspaceTrust::default(), WorkspaceTrust::Trusted);
+        assert!(
+            !WorkspaceTrust::Trusted
+                .workspace_provenance()
+                .is_untrusted()
+        );
+        assert_eq!(
+            WorkspaceTrust::Untrusted.workspace_provenance(),
+            Provenance::WorkspaceUntrusted
+        );
     }
 
     #[test]

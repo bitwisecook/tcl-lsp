@@ -36,11 +36,12 @@ use serde_json::{Value, json};
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LexerConfig, LineIndex};
+use tcl_lsp_core::SourceSyntaxStructure;
 use tcl_lsp_core::refactor::{
     OriginalExactSwitchSource, extract_to_datagroup, original_exact_switch_source_at_analysis,
     scalar_variable_source_syntax,
 };
-use tcl_lsp_core::SourceSyntaxStructure;
+use tcl_registry::{ArgRole, CommandRegistry};
 
 const DIALECT: &str = "f5-irules";
 
@@ -114,7 +115,7 @@ fn suggest_for_analysis(source: &str, analysis: &AnalysisResult) -> Vec<Value> {
         let mut cand = original_exact_switch_source_at_analysis(source, analysis, cursor)
             .and_then(|original| analyse_switch(&original, line, config));
         if cand.is_none() && command.texts.first().is_some_and(|head| head == "if") {
-            cand = analyse_if_chain(&command.texts, line, config);
+            cand = analyse_if_chain(&command.texts, line, registry, config);
         }
         if let Some(c) = cand.as_mut() {
             c.has_static_extraction = analysis.allows_lexical_declaration_advice()
@@ -273,6 +274,8 @@ fn parse_eq(cond: &str, config: LexerConfig) -> Option<(String, String, bool)> {
         && let Some(subject) = scalar_variable_source_syntax(m.get(3)?.as_str().trim(), config)
     {
         let op = m.get(2)?.as_str();
+        // registry-axis-ok: irreducible — same expr-operator text; until
+        // never
         let is_ne = op == "ne" || op == "!=";
         let value = m.get(1)?.as_str().trim().to_owned();
         return Some((subject.name().to_owned(), value, negated ^ is_ne));
@@ -328,9 +331,14 @@ fn parse_set_or_return(text: &str, config: LexerConfig) -> Option<SetOrReturn> {
         return None;
     }
     let texts = &commands[0].texts;
+    // registry-axis-ok: irreducible — `set` and `return` are recognised as
+    // Tcl's own primitive syntax for this one-command-body shape, not as a
+    // pack-authorable command; until never
     if texts[0] == "set" && texts.len() == 3 {
         return Some(SetOrReturn::Set(texts[1].clone()));
     }
+    // registry-axis-ok: irreducible — same primitive-syntax reason; until
+    // never
     if texts[0] == "return" && texts.len() == 2 {
         return Some(SetOrReturn::Return);
     }
@@ -397,9 +405,21 @@ fn confidence_for(shape: &str) -> &'static str {
 // ── Pattern analysis ──────────────────────────────────────────────────
 
 /// Analyse an `if`/`elseif` chain (or single OR-chain condition) comparing one
-/// variable to literals.
-fn analyse_if_chain(texts: &[String], line: u32, config: LexerConfig) -> Option<Candidate> {
+/// variable to literals — through `if`'s own clause grammar rather than
+/// comparing keyword spellings by hand.
+fn analyse_if_chain(
+    texts: &[String],
+    line: u32,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Option<Candidate> {
     if texts.len() < 3 {
+        return None;
+    }
+    let args: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
+    let resolved = registry.resolve_call("if", &args, None)?;
+    let plan = resolved.clause_plan(&args, None)?;
+    if plan.defect.is_some() {
         return None;
     }
 
@@ -412,23 +432,14 @@ fn analyse_if_chain(texts: &[String], line: u32, config: LexerConfig) -> Option<
         values = or_values;
         bodies.push(texts[2].clone());
     } else {
-        let mut i = 1;
-        while i < texts.len() {
-            let word = &texts[i];
-            if word == "elseif" || word == "then" {
-                i += 1;
-                continue;
-            }
-            if word == "else" {
+        for clause in &plan.clauses {
+            if clause.is_default {
                 break;
             }
-            if i + 1 >= texts.len() {
-                break;
-            }
-            let body = texts[i + 1].clone();
-            i += 2;
+            let body = args[clause.operand(ArgRole::Body)?].to_owned();
+            let condition = args[clause.operand(ArgRole::Expr)?];
 
-            let (var, value, negated) = parse_eq(word, config)?;
+            let (var, value, negated) = parse_eq(condition, config)?;
             if negated {
                 return None;
             }

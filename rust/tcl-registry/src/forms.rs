@@ -45,6 +45,7 @@ use crate::side_effects::SideEffect;
 use crate::spec::OptionRelation;
 use crate::state_transition::StateTransitionDescriptor;
 use crate::traits::Traits;
+use crate::value_transfer::SemanticsDeclaration;
 use crate::world_effect::WorldEffectDescriptor;
 use tcl_dialect::model::SpecSurface;
 
@@ -230,6 +231,11 @@ pub struct CommandForm {
     /// `TclVM` bytecode codegen hook identifier for this form. See
     /// [`crate::CommandSpec::codegen_hook`].
     pub codegen_hook: Option<CodegenHookId>,
+
+    /// The value-transfer specialisation declared at form scope. See
+    /// [`crate::CommandSpec::semantics`]; the innermost declaration or
+    /// abstention wins.
+    pub semantics: SemanticsDeclaration,
 }
 
 impl CommandForm {
@@ -263,6 +269,7 @@ impl CommandForm {
         literal_argument_validator: None,
         lowering_hook: None,
         codegen_hook: None,
+        semantics: SemanticsDeclaration::Inherited,
     };
 }
 

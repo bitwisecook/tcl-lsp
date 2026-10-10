@@ -100,7 +100,7 @@ const TRANSLATIONS: &[(&str, &str)] = &[
     // `SpecSurface::TCL8X` bit has always meant.
     ("tcl8.x", "tcl 8.4-9.0"),
     ("f5-irules", "f5-irules"),
-    // Review B11: Tk is a package on its own axis, never a Tcl release.
+    // Tk is a package on its own axis, never a Tcl release.
     ("tk", "package Tk"),
 ];
 
@@ -151,7 +151,7 @@ pub struct UpgradeOptions {
     /// one identical row in every command) to a pack-level `provides`.
     /// Off by default — it changes shape, not spelling.
     pub infer_provides: bool,
-    /// `--restyle` (ledger D13): once the rows are rewritten, re-emit the
+    /// `--restyle`: once the rows are rewritten, re-emit the
     /// whole pack in **canonical** form through the same renderer `tcl spec
     /// export` uses — straight-line registration calls at the house
     /// layout, comments and author layout dropped. Off by default: the
@@ -190,12 +190,12 @@ pub struct Translated {
     pub after: String,
 }
 
-/// One row left in place for a later phase, with the reason.
+/// One row the upgrader cannot translate, with the reason.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Deferred {
     /// 1-based line of the row.
     pub line: u32,
-    /// The token that could not be translated yet.
+    /// The token that could not be translated.
     pub token: String,
     /// Why, in one line.
     pub reason: String,
@@ -218,7 +218,7 @@ pub enum UpgradeStatus {
     AlreadyCurrent,
     /// Every row translated and the version word moved.
     Upgraded,
-    /// Rows translated, but at least one is left for a later phase, so the
+    /// Some rows translated, but at least one remains unchanged, so the
     /// version word stays where it was (U1).
     Partial,
     /// Nothing to translate, but `--restyle` re-emitted the file in
@@ -242,7 +242,7 @@ pub struct UpgradeOutcome {
     pub declared_version: Option<String>,
     /// Rows translated, in source order.
     pub translated: Vec<Translated>,
-    /// Rows left for a later phase, in source order.
+    /// Rows the upgrader could not translate, in source order.
     pub deferred: Vec<Deferred>,
     /// Why the file was refused, when it was.
     pub refusals: Vec<Refusal>,
@@ -383,7 +383,7 @@ pub fn upgrade_source(source: &str, options: &UpgradeOptions) -> UpgradeOutcome 
     outcome
 }
 
-/// D13: re-emit the (rewritten) file in canonical form, or say why not.
+/// Re-emit the (rewritten) file in canonical form, or say why not.
 fn restyle(source: &str, outcome: &mut UpgradeOutcome) {
     match outcome.status {
         UpgradeStatus::Upgraded | UpgradeStatus::AlreadyCurrent => {}
@@ -1362,7 +1362,7 @@ mod tests {
         assert_eq!(
             outcome.source,
             "# a comment the rewriter must not touch\n\
-             speclib probe 2.1 {\n\
+             speclib probe 2.2 {\n\
              \x20   command demo {\n\
              \x20       arity 1..\n\
              \x20       available {tcl 8.6-} {f5-irules}\n\
@@ -1383,7 +1383,7 @@ mod tests {
         );
     }
 
-    /// D13: `--restyle` re-emits the upgraded pack in canonical form —
+    /// `--restyle` re-emits the upgraded pack in canonical form —
     /// comments and author layout gone, rows at the house margins — and the
     /// restyled pack loads to the same snapshot as the plain rewrite.
     #[test]
@@ -1428,7 +1428,7 @@ mod tests {
              }\n\
              \n\
              }\n"
-            .replace("probe 1.1", "probe 2.1")
+            .replace("probe 1.1", "probe 2.2")
         );
         assert!(
             restyled.above_target.is_empty(),
@@ -1467,7 +1467,7 @@ mod tests {
     /// translated either — the whole file is refused, byte-identical.
     #[test]
     fn restyle_refuses_a_programmed_pack() {
-        let source = "speclib probe 2.1 {\n\
+        let source = "speclib probe 2.2 {\n\
                       set version 1.0\n\
                       foreach name {alpha beta} {\n\
                       \x20   command $name { arity 0 }\n\
@@ -1503,15 +1503,15 @@ mod tests {
     #[test]
     fn restyle_refuses_a_computed_word_at_any_depth() {
         let programmed = [
-            "speclib probe 2.1 {\n command demo [list arity 1]\n}\n",
-            "speclib probe 2.1 {\n\
+            "speclib probe 2.2 {\n command demo [list arity 1]\n}\n",
+            "speclib probe 2.2 {\n\
              set flag -nocase\n\
              command demo {\n\
              \x20   arity 1\n\
              \x20   option $flag -takes none\n\
              }\n\
              }\n",
-            "speclib probe 2.1 {\n\
+            "speclib probe 2.2 {\n\
              command demo {\n\
              \x20   arity 1\n\
              \x20   subcommand sub {\n\
@@ -1519,7 +1519,7 @@ mod tests {
              \x20   }\n\
              }\n\
              }\n",
-            "speclib probe 2.1 {\n\
+            "speclib probe 2.2 {\n\
              set x 1\n\
              command demo {\n\
              \x20   arity \"$x..\"\n\
@@ -1551,7 +1551,7 @@ mod tests {
         }
         // Braced bodies at every level are verbatim data, so a canonical pack
         // with nested blocks and braced prose still restyles.
-        let canonical = "speclib probe 2.1 {\n\
+        let canonical = "speclib probe 2.2 {\n\
                          command demo {\n\
                          \x20   arity 1\n\
                          \x20   hover { summary {Costs $5 [really].} }\n\
@@ -1576,7 +1576,7 @@ mod tests {
         );
     }
 
-    /// D13: a partial upgrade keeps its markers and is not restyled, while
+    /// A partial upgrade keeps its markers and is not restyled, while
     /// the row rewrite still goes ahead and says why the restyle waited.
     #[test]
     fn restyle_is_skipped_on_a_partial_upgrade() {
@@ -1603,11 +1603,11 @@ mod tests {
         );
     }
 
-    /// D13: an already-current pack with nothing to translate is still
+    /// An already-current pack with nothing to translate is still
     /// restyled when asked, and reports as such.
     #[test]
     fn restyle_of_a_current_pack_reports_restyled() {
-        let source = "speclib probe 2.1 {\n  command demo {\n      arity 1\n  }\n}\n";
+        let source = "speclib probe 2.2 {\n  command demo {\n      arity 1\n  }\n}\n";
         let outcome = upgrade_source(
             source,
             &UpgradeOptions {
@@ -1619,7 +1619,7 @@ mod tests {
         assert!(outcome.restyled);
         assert_eq!(
             outcome.source,
-            "speclib probe 2.1 {\n\ncommand demo {\n    arity 1\n}\n\n}\n"
+            "speclib probe 2.2 {\n\ncommand demo {\n    arity 1\n}\n\n}\n"
         );
     }
 
@@ -2006,7 +2006,7 @@ mod tests {
     /// is finished, and its bytes are untouched.
     #[test]
     fn an_already_current_pack_is_left_alone() {
-        let source = "speclib probe 2.1 {\n command demo {\n arity 1\n \
+        let source = "speclib probe 2.2 {\n command demo {\n arity 1\n \
                       available {tcl 8.6-}\n }\n}\n";
         let outcome = upgrade_source(source, &UpgradeOptions::default());
         assert_eq!(outcome.status, UpgradeStatus::AlreadyCurrent);

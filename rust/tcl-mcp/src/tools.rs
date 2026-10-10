@@ -26,8 +26,18 @@ use std::collections::HashSet;
 
 use serde_json::{Map, Value, json};
 use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};
-use tcl_lexer::{LineIndex, SourceMap, Span, Utf16Col};
+use tcl_dialect::DialectProfile;
+use tcl_lexer::{LexerConfig, LineIndex, SourceMap, Span, Utf16Col};
+use tcl_lsp_core::config_ini;
 use tcl_lsp_core::definition::LspRange;
+use tcl_lsp_core::diagnostic_policy::{
+    Directives, Finding, Policy, PolicyBuilder, PolicyLayer, Reason, Report, Shown,
+};
+use tcl_lsp_core::diagnostic_report::{
+    DocumentSource, SourcePass, StandaloneDocument, document_report_with_analysis,
+    optimise_under_policy, standalone_findings,
+};
+use tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH;
 use tcl_registry::CommandRegistry;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
@@ -156,7 +166,129 @@ fn refactoring_json(source: &str, r: &tcl_lsp_core::refactor::Refactoring) -> Va
     result
 }
 
-/// Analyse `source` under `dialect` (fresh analyser per call, like the facades).
+/// The configuration layers one tool call resolves its policy under
+/// (`docs/design/compiler/diagnostic-policy.md` § Configuration): the user's
+/// global `config.ini`, and the call's `disable` / `enable` arguments as its
+/// invocation layer in the editor layer's slot. An MCP `source` string has no
+/// path, so there is no project layer at all. The `optimize` tool's
+/// `profile` is not a layer but the request's own ([`optimize_with`]).
+struct PolicyInputs {
+    global: Value,
+    invocation: Value,
+}
+
+impl PolicyInputs {
+    /// The layers for a call with `args`, over `section` (`diagnostics` for
+    /// the diagnostics tools, `optimiser` for `optimize`).
+    fn for_call(args: &Value, section: &str) -> Self {
+        Self {
+            global: config_ini::global_layer(),
+            invocation: invocation_layer(args, section),
+        }
+    }
+
+    /// A builder with the layers applied, lowest first.
+    ///
+    /// `[features]` configures the language server's features
+    /// (`docs/design/contracts/xdg-config.md` § `[features]`); a tool
+    /// reports whatever it is asked to, so neither whole-document gate
+    /// reaches it: reporting is on, and nothing is excluded.
+    fn builder(&self) -> PolicyBuilder {
+        PolicyBuilder::new()
+            .reporting(true)
+            .layer(PolicyLayer::Global, &self.global)
+            .layer(PolicyLayer::Invocation, &self.invocation)
+    }
+}
+
+/// The `disable` / `enable` arguments (comma-separated codes) as one settings
+/// layer over `section`. A later `enable` turns a code back on, which is what
+/// reaches a default-off code such as W242.
+fn invocation_layer(args: &Value, section: &str) -> Value {
+    let mut codes = Map::new();
+    for (key, on) in [("disable", false), ("enable", true)] {
+        for code in arg_str(args, key).split(',') {
+            let code = code.trim();
+            if !code.is_empty() {
+                codes.insert(code.to_ascii_uppercase(), Value::Bool(on));
+            }
+        }
+    }
+    let mut layer = Map::new();
+    layer.insert(section.to_owned(), Value::Object(codes));
+    Value::Object(layer)
+}
+
+/// One source analysed as `tcl diag` analyses a document — the analyser and
+/// the compiler checks over one unit (`standalone_findings`) — and the
+/// policy its findings are decided under.
+struct Analysed {
+    /// The call's `source`, as the client sent it — what W118 reads.
+    source: String,
+    /// Its analysis form (a lone `\r` rewritten to `\n`, the same length):
+    /// what every producer reads, and the text the rewrites and the code
+    /// actions are computed over, as `tcl opt` and the editor compute them.
+    analysis_text: String,
+    /// The source's dialect.
+    dialect: &'static DialectProfile,
+    /// The analysis, for the tools that read its facts beside the report.
+    analysis: AnalysisResult,
+    /// The analyser's findings, then the compiler checks', converted.
+    produced: Vec<Finding>,
+    policy: Policy,
+}
+
+impl Analysed {
+    /// What `analyze`, `validate`, `review` and `find-legacy` render: the
+    /// report `tcl diag` builds for the same text — the analyser, the
+    /// compiler checks, the source-style pass and, for a `sslictcl` source,
+    /// the loader — with the optimiser off, as `tcl diag` has it: the
+    /// rewrites are `optimize`'s, so an O-code a check emits is an
+    /// `OptimiserOff` suppression rather than a finding that never existed,
+    /// and one only the optimiser emits is in the optimiser's not-run entry
+    /// for the same reason.
+    fn diagnostics_report(&self) -> Report {
+        let mut policy = self.policy.clone();
+        policy.optimiser.enabled = false;
+        let mut report = self.report_under(self.produced.clone(), &policy);
+        report.declare_optimiser_skip(&policy);
+        report
+    }
+
+    /// What `code_actions` reads: the producers' findings and the optimiser's
+    /// `rewrites`, under the policy as the layers resolve it, the optimiser
+    /// switch included — the editor's lightbulb decides the same way.
+    fn actions_report(&self, rewrites: Vec<Finding>) -> Report {
+        let mut produced = self.produced.clone();
+        produced.extend(rewrites);
+        self.report_under(produced, &self.policy)
+    }
+
+    /// `produced` with the report's own producers under `policy`, the
+    /// analyser's skip declared.
+    fn report_under(&self, produced: Vec<Finding>, policy: &Policy) -> Report {
+        let mut report = document_report_with_analysis(
+            &DocumentSource {
+                text: &self.source,
+                analysis_text: &self.analysis_text,
+                decode: None,
+                dialect: self.dialect,
+                pass: SourcePass::Tcl {
+                    line_length: DEFAULT_LINE_LENGTH,
+                },
+            },
+            produced,
+            policy,
+            Some(&self.analysis),
+        );
+        report.declare_analyser_skip(policy);
+        report
+    }
+}
+
+/// Analyse `source` under `dialect` (fresh analyser per call, like the facades)
+/// for a tool that reads the analysis's facts — symbols, scopes, docstrings —
+/// and reports no diagnostic. A diagnostics tool uses [`analyse_under`].
 ///
 /// [`registry`] first, then the overlay key it built: the analyser resolves its
 /// own registry from the dialect profile, so without the key it would miss the
@@ -166,6 +298,46 @@ pub(crate) fn analyse(source: &str, dialect: &str) -> AnalysisResult {
     Analyser::new()
         .with_pack_overlay(tcl_spectcl::bundled::packs().key)
         .analyse(source, dialect)
+}
+
+/// [`analyse`] for a diagnostics tool: the producer run `tcl diag` makes
+/// (`standalone_findings`) — the analyser, with the policy's production skip
+/// that `inputs` resolve, exactly as the editor's `file_analysis` is handed
+/// it, and the compiler checks over the same unit — whose findings are then
+/// decided under the analysis's own directives.
+///
+/// [`registry`] first, as [`analyse`] does, so the bundled loadables the
+/// overlay key names are installed; the analysis form of the source (a lone
+/// `\r` rewritten) is what the producers read, as on every other surface.
+fn analyse_under(source: &str, dialect: &str, inputs: &PolicyInputs) -> Analysed {
+    let registry = registry(dialect);
+    let profile = crate::environment::profile_for_dialect(dialect);
+    let skip = inputs.builder().dialect(profile).build().production_skip();
+    let analysis_text = tcl_lexer::normalise_lone_cr(source).into_owned();
+    let standalone = standalone_findings(
+        &StandaloneDocument {
+            source: &analysis_text,
+            file_path: None,
+            dialect: profile,
+            registry: &registry,
+            pack_overlay: tcl_spectcl::bundled::packs().key,
+            external_call_sites: None,
+        },
+        &skip,
+    );
+    let policy = inputs
+        .builder()
+        .dialect(profile)
+        .directives(Directives::from_analysis(&standalone.analysis, source))
+        .build();
+    Analysed {
+        source: source.to_owned(),
+        analysis_text,
+        dialect: profile,
+        analysis: standalone.analysis,
+        produced: standalone.produced,
+        policy,
+    }
 }
 
 /// `"true"`/`"1"`/`"yes"` (case-insensitive) or a JSON `true` — else `false`.
@@ -198,18 +370,20 @@ fn lsp_range_json(r: &LspRange) -> Value {
     })
 }
 
-/// Serialise one analyser diagnostic to `{code, severity, message, range,
-/// category, fixes?}` (the `_facade_diagnostic_to_dict` wire shape).
-fn diag_to_json(d: &Diagnostic, sm: &SourceMap<'_>) -> Value {
+/// Serialise one shown finding to `{code, severity, message, range,
+/// category, fixes?}` (the `_facade_diagnostic_to_dict` wire shape), at the
+/// severity the policy resolved.
+fn diag_to_json(shown: &Shown<'_>, sm: &SourceMap<'_>) -> Value {
+    let d = shown.finding;
     let code = d.code.as_str();
     let mut obj = json!({
         "code": code,
-        "severity": d.severity.as_str(),
+        "severity": shown.severity.as_str(),
         "message": d.message,
         "range": byte_range(sm, d.span),
         "category": crate::diag_meta::meta().categorise(code),
     });
-    if let Some(subject) = tcl_lsp_core::diagnostic_subject::diagnostic_subject_data(d) {
+    if let Some(subject) = d.structured_data() {
         obj["data"] = subject;
     }
     if !d.fixes.is_empty() {
@@ -229,6 +403,67 @@ fn diag_to_json(d: &Diagnostic, sm: &SourceMap<'_>) -> Value {
             .insert("fixes".to_owned(), Value::Array(fixes));
     }
     obj
+}
+
+/// One suppressed finding as `{code, range, reason, message}`
+/// (`docs/design/compiler/diagnostic-policy.md` § Adapters, MCP JSON).
+/// `message` is added beside the page's three keys: without it a suppressed
+/// W210 does not say which variable.
+fn suppressed_to_json(finding: &Finding, reason: Reason, sm: &SourceMap<'_>) -> Value {
+    json!({
+        "code": finding.code.as_str(),
+        "range": byte_range(sm, finding.span),
+        "reason": reason.to_string(),
+        "message": finding.message,
+    })
+}
+
+/// The `suppressed` array a diagnostics tool payload gains: every suppressed
+/// finding `keep` allows through [`suppressed_to_json`], then every declared
+/// gap but the default-off seed (`null` range and message), then one entry
+/// per producer the tool did not run and reason, `{producer, codes, range,
+/// reason, message}` — its codes listed together, not an entry each: like
+/// the seed, they are the same on every call and would bury the answer.
+/// `keep` restricts every part (a not-run entry keeps the codes that pass,
+/// and goes when none does), so an agent can see that a finding exists and
+/// was suppressed rather than concluding the code is clean.
+fn suppressed_json(report: &Report, sm: &SourceMap<'_>, keep: impl Fn(&str) -> bool) -> Vec<Value> {
+    let mut out: Vec<Value> = report
+        .suppressed()
+        .filter(|(finding, _)| keep(finding.code.as_str()))
+        .map(|(finding, reason)| suppressed_to_json(finding, reason, sm))
+        .collect();
+    out.extend(
+        report
+            .gaps()
+            .filter(|(code, reason)| !matches!(reason, Reason::DefaultOff) && keep(code.as_str()))
+            .map(|(code, reason)| {
+                json!({
+                    "code": code.as_str(),
+                    "range": Value::Null,
+                    "reason": reason.to_string(),
+                    "message": Value::Null,
+                })
+            }),
+    );
+    out.extend(report.not_run().into_iter().filter_map(|row| {
+        let codes: Vec<&str> = row
+            .codes
+            .iter()
+            .map(|code| code.as_str())
+            .filter(|code| keep(code))
+            .collect();
+        (!codes.is_empty()).then(|| {
+            json!({
+                "producer": row.producer.as_str(),
+                "codes": codes,
+                "range": Value::Null,
+                "reason": row.reason.to_string(),
+                "message": row.message(),
+            })
+        })
+    }));
+    out
 }
 
 /// Serialise a control-flow document symbol tree (nested-range shape).
@@ -448,26 +683,47 @@ fn format_source(args: &Value) -> Value {
 }
 
 fn optimize(args: &Value) -> Value {
-    use tcl_compiler::optimiser::optimise_source_multipass_filtered;
-    use tcl_compiler::optimiser::profiles::{OptimisationProfile, profile_to_disabled};
+    optimize_with(args, &PolicyInputs::for_call(args, "optimiser"))
+}
 
-    let source = arg_str(args, "source");
-    let dialect = resolve_dialect(args, source);
-    let profile = OptimisationProfile::parse({
-        let p = arg_str(args, "profile");
-        if p.is_empty() { "full" } else { p }
-    });
-    let disabled: std::collections::HashSet<String> = profile_to_disabled(profile)
-        .into_iter()
-        .map(str::to_owned)
-        .collect();
-    let (optimised, opts, iterations) = optimise_source_multipass_filtered(
+/// [`optimize`] under `inputs`: the rewrites the policy shows are applied,
+/// on every pass, so a `# noqa`, a file-wide directive or a code the profile
+/// or a layer turned off keeps a rewrite off exactly as it keeps a squiggle
+/// off (`docs/design/compiler/diagnostic-policy.md` § Adapters).
+///
+/// A non-empty `profile` argument is the profile in force over the global
+/// file's `[optimiser] profile`, which applies only when the call names none,
+/// and `full` when neither does: the profile is a request parameter with a
+/// project default (§ Configuration). The profile in force sets the passes.
+///
+/// The loop reads the analysis form of the source (a lone `\r` rewritten to
+/// `\n`), as `tcl opt` does, so `optimized_source` and every range are on the
+/// client's line model, and `changed` says whether a rewrite applied.
+fn optimize_with(args: &Value, inputs: &PolicyInputs) -> Value {
+    use tcl_compiler::optimiser::profiles::OptimisationProfile;
+
+    let raw = arg_str(args, "source");
+    let dialect = resolve_dialect(args, raw);
+    let analysis_text = tcl_lexer::normalise_lone_cr(raw);
+    let source: &str = &analysis_text;
+    let named = arg_str(args, "profile");
+    let requested = (!named.is_empty()).then(|| OptimisationProfile::parse(named));
+    let dialect_profile = crate::environment::profile_for_dialect(&dialect);
+    let policy = inputs
+        .builder()
+        .requested_profile(requested)
+        .default_profile(OptimisationProfile::Full)
+        .dialect(dialect_profile)
+        .build();
+    let profile = policy.optimiser.profile;
+    let optimised = optimise_under_policy(
         source,
         &registry(&dialect),
-        Some(crate::environment::profile_for_dialect(&dialect)),
+        Some(dialect_profile),
         profile.max_iterations(),
-        &disabled,
+        &policy,
     );
+    let (optimised, opts, iterations) = (optimised.text, optimised.applied, optimised.iterations);
 
     let line_index = LineIndex::new(source);
     let pos = |offset: u32| {
@@ -594,94 +850,134 @@ fn brace_expr(args: &Value) -> Value {
 
 // ── Diagnostics tools ─────────────────────────────────────────────────
 
+// Each diagnostics tool reads the report's shown set and keeps its own
+// grouping — the `diag_meta` categories, the security / taint / thread
+// split, the convertible-code table — which is presentation and stays here
+// (`docs/design/compiler/diagnostic-policy.md` § Adapters). The `_with`
+// forms take the layers explicitly, so a test can resolve under layers of
+// its own rather than under the machine's `config.ini`.
+
 fn analyze(args: &Value) -> Value {
+    analyze_with(args, &PolicyInputs::for_call(args, "diagnostics"))
+}
+
+fn analyze_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let analysis = analyse(source, &dialect);
+    let analysed = analyse_under(source, &dialect, inputs);
+    let report = analysed.diagnostics_report();
     let sm = SourceMap::new(source);
-    let diagnostics: Vec<Value> = analysis
-        .diagnostics
-        .iter()
-        .map(|d| diag_to_json(d, &sm))
-        .collect();
+    let diagnostics: Vec<Value> = report.shown().map(|d| diag_to_json(&d, &sm)).collect();
     let symbols: Vec<Value> =
-        tcl_lsp_core::document_symbols::document_symbols_from_analysis(source, &analysis)
+        tcl_lsp_core::document_symbols::document_symbols_from_analysis(source, &analysed.analysis)
             .iter()
             .map(doc_symbol_to_json)
             .collect();
     json!({
+        "analysis_context_unavailable": report.analysis_context_status_data(),
+        "diagnostic_count": diagnostics.len(),
         "diagnostics": diagnostics,
-        "diagnostic_count": analysis.diagnostics.len(),
         "symbols": symbols,
-        "events": detect_events(source,&analysis),
-        "event_order": event_order_list(source,&analysis),
+        "events": detect_events(source),
+        "event_order": event_order_list(source),
+        "suppressed": suppressed_json(&report, &sm, |_| true),
     })
 }
 
 fn validate(args: &Value) -> Value {
+    validate_with(args, &PolicyInputs::for_call(args, "diagnostics"))
+}
+
+fn validate_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let analysis = analyse(source, &dialect);
+    let analysed = analyse_under(source, &dialect, inputs);
+    let report = analysed.diagnostics_report();
     let sm = SourceMap::new(source);
     let meta = crate::diag_meta::meta();
     let mut categories = Map::new();
     for (key, label) in &meta.category_order {
-        let items: Vec<Value> = analysis
-            .diagnostics
-            .iter()
-            .filter(|d| meta.categorise(d.code.as_str()) == key)
-            .map(|d| diag_to_json(d, &sm))
+        let items: Vec<Value> = report
+            .shown()
+            .filter(|d| meta.categorise(d.finding.code.as_str()) == key)
+            .map(|d| diag_to_json(&d, &sm))
             .collect();
         if !items.is_empty() {
             categories.insert(key.clone(), json!({ "label": label, "items": items }));
         }
     }
-    json!({ "categories": Value::Object(categories), "total": analysis.diagnostics.len() })
+    json!({
+        "categories": Value::Object(categories),
+        "total": report.shown().count(),
+        "suppressed": suppressed_json(&report, &sm, |_| true),
+    })
 }
 
 fn review(args: &Value) -> Value {
+    review_with(args, &PolicyInputs::for_call(args, "diagnostics"))
+}
+
+fn review_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let analysis = analyse(source, &dialect);
+    let analysed = analyse_under(source, &dialect, inputs);
+    let report = analysed.diagnostics_report();
     let sm = SourceMap::new(source);
     let meta = crate::diag_meta::meta();
     let filt = |set: &std::collections::HashSet<String>| -> Vec<Value> {
-        analysis
-            .diagnostics
-            .iter()
-            .filter(|d| set.contains(d.code.as_str()))
-            .map(|d| diag_to_json(d, &sm))
+        report
+            .shown()
+            .filter(|d| set.contains(d.finding.code.as_str()))
+            .map(|d| diag_to_json(&d, &sm))
             .collect()
     };
     let security = filt(&meta.security_codes);
     let taint = filt(&meta.taint_codes);
     let thread = filt(&meta.thread_codes);
     let total = security.len() + taint.len() + thread.len();
-    json!({ "security": security, "taint": taint, "thread_safety": thread, "total": total })
+    let suppressed = suppressed_json(&report, &sm, |code| {
+        meta.security_codes.contains(code)
+            || meta.taint_codes.contains(code)
+            || meta.thread_codes.contains(code)
+    });
+    json!({
+        "security": security,
+        "taint": taint,
+        "thread_safety": thread,
+        "total": total,
+        "suppressed": suppressed,
+    })
 }
 
 fn find_legacy(args: &Value) -> Value {
+    find_legacy_with(args, &PolicyInputs::for_call(args, "diagnostics"))
+}
+
+fn find_legacy_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let analysis = analyse(source, &dialect);
+    let analysed = analyse_under(source, &dialect, inputs);
+    let report = analysed.diagnostics_report();
     let sm = SourceMap::new(source);
     // Shared with `tcl-cli`'s `find-legacy` verb (`tcl_cli::CONVERTIBLE_CODES`/
     // `conversion_for`) rather than a second hand-duplicated copy of the same
     // 6-code table.
-    let patterns: Vec<Value> = analysis
-        .diagnostics
-        .iter()
-        .filter(|d| tcl_cli::CONVERTIBLE_CODES.contains(&d.code.as_str()))
+    let patterns: Vec<Value> = report
+        .shown()
+        .filter(|d| tcl_cli::CONVERTIBLE_CODES.contains(&d.finding.code.as_str()))
         .map(|d| {
-            let mut obj = diag_to_json(d, &sm);
-            let conversion = tcl_cli::conversion_for(d.code.as_str());
+            let mut obj = diag_to_json(&d, &sm);
+            let conversion = tcl_cli::conversion_for(d.finding.code.as_str());
             obj.as_object_mut()
                 .expect("json object")
                 .insert("conversion".to_owned(), json!(conversion));
             obj
         })
         .collect();
-    json!({ "total": patterns.len(), "patterns": patterns })
+    let suppressed = suppressed_json(&report, &sm, |code| {
+        tcl_cli::CONVERTIBLE_CODES.contains(&code)
+    });
+    json!({ "total": patterns.len(), "patterns": patterns, "suppressed": suppressed })
 }
 
 #[cfg(test)]
@@ -855,13 +1151,12 @@ const SOURCE_URI: &str = "file:///source.tcl";
 fn symbols(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let syms: Vec<Value> = tcl_lsp_core::document_symbols::document_symbols(
-        source,
-        tcl_lsp_core::profile_for_dialect(&dialect),
-    )
-    .iter()
-    .map(doc_symbol_to_json)
-    .collect();
+    let analysis = analyse(source, &dialect);
+    let syms: Vec<Value> =
+        tcl_lsp_core::document_symbols::document_symbols_from_analysis(source, &analysis)
+            .iter()
+            .map(doc_symbol_to_json)
+            .collect();
     json!({ "symbols": syms })
 }
 
@@ -984,9 +1279,19 @@ fn rename(args: &Value) -> Value {
 }
 
 fn code_actions(args: &Value) -> Value {
+    code_actions_with(args, &PolicyInputs::for_call(args, "diagnostics"))
+}
+
+/// [`code_actions`] under `inputs`: one report over the analyser's
+/// findings, the compiler checks and the optimiser's rewrites, so a fix is
+/// offered for a finding the document shows and for no other — and a shown
+/// rewrite is an offerable action, not only a diagnostic payload.
+fn code_actions_with(args: &Value, inputs: &PolicyInputs) -> Value {
+    use tcl_compiler::optimiser::optimise_with_dialect;
+
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let analysis = analyse(source, &dialect);
+    let analysed = analyse_under(source, &dialect, inputs);
     let range = LspRange {
         start_line: arg_u32(args, "start_line"),
         start_character: arg_u32(args, "start_character"),
@@ -994,12 +1299,25 @@ fn code_actions(args: &Value) -> Value {
         end_character: arg_u32(args, "end_character"),
     };
     // The MCP tool analyses one standalone source string with no workspace
-    // behind it, so the analyser's own diagnostics *are* the published set.
+    // behind it, so the analysed set — the analyser's and the compiler
+    // checks' findings — is the published set; the rewrites join it under
+    // the same policy, whose optimiser switch stays the layers'. Both run
+    // over the analysis form, as the editor's lightbulb does, so a lone-`\r`
+    // source's ranges are on the client's line model.
+    let rewrites: Vec<Finding> = optimise_with_dialect(
+        &analysed.analysis_text,
+        &registry(&dialect),
+        Some(analysed.dialect),
+    )
+    .into_iter()
+    .map(Finding::from)
+    .collect();
+    let report = analysed.actions_report(rewrites);
     let actions: Vec<Value> = tcl_lsp_core::code_actions::code_actions(
-        source,
+        &analysed.analysis_text,
         range,
-        Some(&analysis),
-        &analysis.diagnostics,
+        Some(&analysed.analysis),
+        &report,
     )
     .iter()
         .map(|a| {
@@ -1377,6 +1695,16 @@ type Param = (&'static str, &'static str, &'static str);
 /// catalogue per tool.
 const DIALECT_PARAM: &str = "dialect";
 
+/// [`spectcl_check`](crate::spectcl::spectcl_check)'s discovery-tier
+/// parameter. [`input_schema`] gives it a closed `enum`, the four
+/// [`tcl_spectcl::Tier`] spellings.
+const TIER_PARAM: &str = "tier";
+
+/// [`spectcl_check`](crate::spectcl::spectcl_check)'s Workspace Trust
+/// parameter. [`input_schema`] gives it a closed `enum`, the two
+/// [`tcl_dialect::model::WorkspaceTrust`] spellings.
+const TRUST_PARAM: &str = "trust";
+
 /// Every selectable environment's canonical id, in selectable order, read from
 /// the live registry.
 fn dialect_names() -> Vec<String> {
@@ -1409,10 +1737,48 @@ fn dialect_schema(desc: &str) -> Value {
 }
 
 const SRC: Param = ("source", "string", "Tcl or iRules source code");
+const DISABLE: Param = (
+    "disable",
+    "string",
+    "Comma-separated diagnostic codes to turn off for this call — the invocation \
+     layer, over the user's global config.ini",
+);
+const ENABLE: Param = (
+    "enable",
+    "string",
+    "Comma-separated diagnostic codes to turn on for this call, including a \
+     default-off code such as W242",
+);
+const OPT_DISABLE: Param = (
+    "disable",
+    "string",
+    "Comma-separated optimisation codes to turn off on top of the profile",
+);
+const OPT_ENABLE: Param = (
+    "enable",
+    "string",
+    "Comma-separated optimisation codes to turn on that the profile turns off",
+);
 const DIALECT: Param = (
     DIALECT_PARAM,
     "string",
     "Language dialect; auto-detected if empty",
+);
+const TIER: Param = (
+    TIER_PARAM,
+    "string",
+    "Discovery tier to preview this pack loading at — bundled, user, workspace, or \
+     studio-override; defaults to workspace, the tier a .tclspec file actually installs \
+     at. Governs untrusted_tier_refusal (never raised for bundled or user, which no trust \
+     state makes untrusted) and, with trust, dormant_hooks and stamp_refusals; never which \
+     commands, notices, or hooks are reported — the pack is always evaluated as trusted",
+);
+const TRUST: Param = (
+    TRUST_PARAM,
+    "string",
+    "Workspace Trust state to preview this pack loading under — trusted or untrusted; \
+     defaults to trusted. With tier, decides dormant_hooks (a workspace hook body stays \
+     dormant only when untrusted)",
 );
 const LINE: Param = ("line", "integer", "0-based line of the cursor");
 const CHAR: Param = ("character", "integer", "0-based character of the cursor");
@@ -1534,15 +1900,22 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "optimize",
-        description: "Find optimisation opportunities and produce rewritten source.",
+        description: "Find optimisation opportunities and produce rewritten source. Only the \
+                      rewrites the source's policy shows are applied: a `# noqa` on a command, a \
+                      top-of-file `# tcl-lsp: disable=`, the profile and the global config.ini \
+                      keep a rewrite off exactly as they keep a diagnostic off.",
         params: &[
             SRC,
             DIALECT,
             (
                 "profile",
                 "string",
-                "off | readability | standard | full | aggressive",
+                "off | readability | standard | full | aggressive. Named, it wins over the \
+                 global config.ini's [optimiser] profile; omitted, that profile applies, \
+                 else full",
             ),
+            OPT_DISABLE,
+            OPT_ENABLE,
         ],
         required: &["source"],
         handler: optimize,
@@ -1585,29 +1958,44 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "analyze",
-        description: "Full analysis: diagnostics (+category), document symbols, detected events, and event firing order.",
-        params: &[SRC, DIALECT],
+        description: "Full analysis: diagnostics (+category), document symbols, detected events, and event firing order. \
+                      Diagnostics are the source's shown set, including the compiler checks (S1xx, T1xx, \
+                      IRULE1xxx–5xxx) and the source-style pass (W111, W112, W115, W118) — inline `# noqa`, \
+                      top-of-file `# tcl-lsp: disable=`, the global config.ini and the call's disable/enable \
+                      arguments all apply, as in the editor; and a `suppressed` array: every finding the policy \
+                      hides, with its reason.",
+        params: &[SRC, DIALECT, DISABLE, ENABLE],
         required: &["source"],
         handler: analyze,
     },
     ToolDef {
         name: "validate",
-        description: "Diagnostics grouped by category (security, taint, thread-safety, control-flow, performance, style, …).",
-        params: &[SRC, DIALECT],
+        description: "Diagnostics grouped by category (security, taint, thread-safety, control-flow, performance, style, …), \
+                      from the source's shown set, including the compiler checks (S1xx, T1xx, IRULE1xxx–5xxx) and \
+                      the source-style pass (W111, W112, W115, W118) (directives, the global config.ini and \
+                      disable/enable apply); and a `suppressed` array: every finding the policy hides, with its \
+                      reason.",
+        params: &[SRC, DIALECT, DISABLE, ENABLE],
         required: &["source"],
         handler: validate,
     },
     ToolDef {
         name: "review",
-        description: "Security, taint, and thread-safety diagnostics for a focused review.",
-        params: &[SRC, DIALECT],
+        description: "Security, taint, and thread-safety diagnostics for a focused review, from the source's shown set, \
+                      including the compiler checks (S1xx, T1xx, IRULE1xxx–5xxx) and the source-style pass (W111, \
+                      W112, W115, W118) (directives, the global config.ini and disable/enable apply); and a \
+                      `suppressed` array: every finding the policy hides, with its reason.",
+        params: &[SRC, DIALECT, DISABLE, ENABLE],
         required: &["source"],
         handler: review,
     },
     ToolDef {
         name: "find-legacy",
-        description: "Auto-convertible legacy patterns with a modernisation hint per finding.",
-        params: &[SRC, DIALECT],
+        description: "Auto-convertible legacy patterns with a modernisation hint per finding, from the source's shown set, \
+                      including the compiler checks (S1xx, T1xx, IRULE1xxx–5xxx) and the source-style pass (W111, \
+                      W112, W115, W118) (directives, the global config.ini and disable/enable apply); and a \
+                      `suppressed` array: every finding the policy hides, with its reason.",
+        params: &[SRC, DIALECT, DISABLE, ENABLE],
         required: &["source"],
         handler: find_legacy,
     },
@@ -1686,8 +2074,11 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "code_actions",
-        description: "Code actions (quick-fixes + refactors) for a selection range.",
-        params: &[SRC, START_LINE, START_CHAR, END_LINE, END_CHAR, DIALECT],
+        description: "Code actions (quick-fixes + refactors) for a selection range: a fix for every finding the source \
+                      shows — analyser, compiler-check and optimiser rewrite alike — and for no other.",
+        params: &[
+            SRC, START_LINE, START_CHAR, END_LINE, END_CHAR, DIALECT, DISABLE, ENABLE,
+        ],
         required: &[
             "source",
             "start_line",
@@ -1958,7 +2349,7 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "spectcl_check",
-        description: "Validate a SpecTcl (.tclspec) pack by evaluating it in the deterministic sandbox (no clock/IO, budgets, transactional registration — safe on generated packs). Returns per-command draft fields, loader notices (dropped/unknown words), hooks with family and cacheability, hooks reading past their `-inputs`, and collisions with the shipped registry; plus `load_error` (determinism denial, budget, or Tcl error — nothing loads), `target_dependent` (`available?` was queried), and `untrusted_tier_refusal`. Use spectcl_expand to see what a templated pack registered.",
+        description: "Validate a SpecTcl (.tclspec) pack by evaluating it in the deterministic sandbox (no clock/IO, budgets, transactional registration — safe on generated packs). Returns per-command draft fields, loader notices (dropped/unknown words), hooks with family and cacheability, hooks reading past their `-inputs`, and collisions with the shipped registry; plus `load_error` (determinism denial, budget, or Tcl error — nothing loads), `target_dependent` (`available?` was queried), `provenance` (what `tier`/`trust` resolve to), `untrusted_tier_refusal` (what an untrusted install at `tier` would refuse the pack for), `dormant_hooks` (hook bodies that stay dormant under that provenance — declarative facts install regardless; empty when that provenance refuses the pack, since nothing of it loads), and `stamp_refusals` (codegen_hook, inline_codegen_hook, or semantic_operation Intrinsic rows that install drops: only a bundled pack may stamp, and only as its `alias_of` target's own). Use spectcl_expand to see what a templated pack registered.",
         params: &[
             (
                 "source",
@@ -1970,6 +2361,8 @@ const TOOLS: &[ToolDef] = &[
                 "string",
                 "Dialect whose shipped registry to check names against; defaults to the session dialect",
             ),
+            TIER,
+            TRUST,
         ],
         required: &["source"],
         handler: crate::spectcl::spectcl_check,
@@ -2015,6 +2408,21 @@ const TOOLS: &[ToolDef] = &[
     },
 ];
 
+/// The four discovery-tier spellings [`TIER`] advertises — each tier's own
+/// label, owned beside the argument's reader in `spectcl.rs`.
+const TIER_VALUES: [&str; 4] = crate::spectcl::TIER_ARGUMENTS;
+
+/// The two [`tcl_dialect::model::WorkspaceTrust`] spellings [`TRUST`]
+/// advertises.
+const TRUST_VALUES: [&str; 2] = ["trusted", "untrusted"];
+
+/// The schema for a property whose value is one of a fixed, small word list —
+/// a JSON-Schema `enum`, the same shape [`dialect_schema`] gives the dialect
+/// property, without that property's dynamic catalogue lookup.
+fn closed_string_schema(desc: &str, values: &[&str]) -> Value {
+    json!({ "type": "string", "description": desc, "enum": values })
+}
+
 /// The JSON-Schema input-schema object (`{type, properties, required}`) for a
 /// tool's parameters.
 fn input_schema(t: &ToolDef) -> Value {
@@ -2022,6 +2430,10 @@ fn input_schema(t: &ToolDef) -> Value {
     for (name, ty, desc) in t.params {
         let schema = if *name == DIALECT_PARAM {
             dialect_schema(desc)
+        } else if *name == TIER_PARAM {
+            closed_string_schema(desc, &TIER_VALUES)
+        } else if *name == TRUST_PARAM {
+            closed_string_schema(desc, &TRUST_VALUES)
         } else {
             json!({ "type": ty, "description": desc })
         };
@@ -2250,6 +2662,806 @@ mod source_integrity_tests {
         assert_eq!(names, ["CLIENT_ACCEPTED", "HTTP_REQUEST"]);
         assert_eq!(result[0]["index"], 1);
         assert_eq!(result[1]["index"], 2);
+    }
+}
+
+#[cfg(test)]
+mod policy_tests {
+    //! The diagnostics tools, `optimize` and `code_actions` read one report
+    //! under the global file and the call's own arguments
+    //! (`docs/design/compiler/diagnostic-policy.md` § Adapters). Every test
+    //! resolves under a global layer of its own, parsed from INI text exactly
+    //! as the user's `config.ini` is — never under the machine's.
+
+    use super::*;
+    use tcl_lsp_core::config_ini::{Layer, settings_from_ini};
+
+    /// A read of a variable nothing set: W210.
+    const UNSET_READ: &str = "puts $y\n";
+
+    /// A `while` whose counter the body never touches, against a bound the
+    /// solver cannot decide (a parameter, so no header fact settles it): W242,
+    /// the one code the catalogue declares default-off. Against a literal
+    /// bound the header is decided true at every test and the loop draws W241
+    /// instead.
+    const UNPROVABLE_LOOP: &str =
+        "proc p {n} {\n    set i 0\n    while {$i < $n} {\n        puts $i\n    }\n}\n";
+
+    /// A constant expression O101 folds; a global stays a live store.
+    const FOLDING: &str = "set x [expr {1 + 2}]\n";
+
+    /// The layers a call with `args` resolves under, over `section`, with
+    /// `global_ini` as the user's `config.ini`.
+    fn inputs(args: &Value, section: &str, global_ini: &str) -> PolicyInputs {
+        PolicyInputs {
+            global: settings_from_ini(global_ini, Layer::Global),
+            invocation: invocation_layer(args, section),
+        }
+    }
+
+    /// `analyze`'s diagnostics under `global_ini`.
+    fn analyzed(args: &Value, global_ini: &str) -> Vec<Value> {
+        analyze_with(args, &inputs(args, "diagnostics", global_ini))["diagnostics"]
+            .as_array()
+            .expect("diagnostics array")
+            .clone()
+    }
+
+    fn has_code(diagnostics: &[Value], code: &str) -> bool {
+        diagnostics.iter().any(|d| d["code"] == code)
+    }
+
+    /// `analyze`'s `suppressed` array under `global_ini`.
+    fn analyze_suppressed(args: &Value, global_ini: &str) -> Vec<Value> {
+        analyze_with(args, &inputs(args, "diagnostics", global_ini))["suppressed"]
+            .as_array()
+            .expect("suppressed array")
+            .clone()
+    }
+
+    #[test]
+    fn analyze_honours_an_inline_noqa() {
+        let plain = json!({ "source": UNSET_READ, "dialect": "tcl9.0" });
+        let shown = analyzed(&plain, "");
+        assert!(
+            has_code(&shown, "W210"),
+            "the control reports W210: {shown:?}"
+        );
+
+        let marked = json!({
+            "source": format!("# noqa: W210\n{UNSET_READ}"),
+            "dialect": "tcl9.0",
+        });
+        let hidden = analyzed(&marked, "");
+        assert!(
+            !has_code(&hidden, "W210"),
+            "a `# noqa` on the command silences it: {hidden:?}"
+        );
+    }
+
+    #[test]
+    fn analyze_honours_disable_enable_and_the_global_file() {
+        let disabled = json!({ "source": UNSET_READ, "dialect": "tcl9.0", "disable": "W210" });
+        assert!(!has_code(&analyzed(&disabled, ""), "W210"));
+
+        let plain = json!({ "source": UNSET_READ, "dialect": "tcl9.0" });
+        let global = "[diagnostics]\ndisabled = W210\n";
+        assert!(
+            !has_code(&analyzed(&plain, global), "W210"),
+            "the global file reaches the tool"
+        );
+        let enabled = json!({ "source": UNSET_READ, "dialect": "tcl9.0", "enable": "W210" });
+        assert!(
+            has_code(&analyzed(&enabled, global), "W210"),
+            "`enable` sits above the global file"
+        );
+    }
+
+    #[test]
+    fn analyze_seeds_the_default_off_codes_and_enable_reaches_them() {
+        let plain = json!({ "source": UNPROVABLE_LOOP, "dialect": "tcl9.0" });
+        let seeded = analyzed(&plain, "");
+        assert!(
+            !has_code(&seeded, "W242"),
+            "W242 is default-off and must not fire unasked: {seeded:?}"
+        );
+        let enabled = json!({ "source": UNPROVABLE_LOOP, "dialect": "tcl9.0", "enable": "W242" });
+        let shown = analyzed(&enabled, "");
+        assert!(
+            has_code(&shown, "W242"),
+            "`enable: W242` reaches a default-off code: {shown:?}"
+        );
+    }
+
+    #[test]
+    fn the_features_toggle_is_an_editor_setting() {
+        let args = json!({ "source": UNSET_READ, "dialect": "tcl9.0" });
+        let shown = analyzed(&args, "[features]\ndiagnostics = false\n");
+        assert!(
+            has_code(&shown, "W210"),
+            "`[features] diagnostics = false` is the editor's alone: {shown:?}"
+        );
+    }
+
+    /// The codes `review` groups under `section` for `source` in `dialect`.
+    fn reviewed(source: &str, dialect: &str, section: &str) -> Vec<String> {
+        let args = json!({ "source": source, "dialect": dialect });
+        review_with(&args, &inputs(&args, "diagnostics", ""))[section]
+            .as_array()
+            .expect("review section")
+            .iter()
+            .filter_map(|d| d["code"].as_str().map(str::to_owned))
+            .collect()
+    }
+
+    /// #2061's three programs: the compiler checks fill `review`'s taint,
+    /// security and thread-safety sections, which the analyser alone never
+    /// could.
+    #[test]
+    fn review_reports_the_compiler_check_families() {
+        let taint = reviewed("set cmd [gets stdin]\neval $cmd\n", "tcl9.0", "taint");
+        assert!(taint.iter().any(|c| c == "T100"), "{taint:?}");
+        let security = reviewed(
+            "when HTTP_REQUEST {\n  set host [HTTP::host]\n  HTTP::respond 200 content \"<h1>$host</h1>\"\n}\n",
+            "f5-irules",
+            "security",
+        );
+        assert!(security.iter().any(|c| c == "IRULE3001"), "{security:?}");
+        let thread = reviewed(
+            "when RULE_INIT { set static::debug 0 }\n",
+            "f5-irules",
+            "thread_safety",
+        );
+        assert!(thread.iter().any(|c| c == "IRULE4002"), "{thread:?}");
+        let untainted = reviewed("set cmd safe\neval $cmd\n", "tcl9.0", "taint");
+        assert!(untainted.is_empty(), "no tainted source: {untainted:?}");
+    }
+
+    /// #2061's lead reproduction: on #2020's own fixture `analyze` reports
+    /// what `tcl diag` reports (`diag_honours_noqa_directives_the_way_the_editor_does`)
+    /// — each `# noqa` silences its command, analyser code and compiler-check
+    /// code alike, and the unmarked findings stand.
+    #[test]
+    fn analyze_honours_the_noqa_fixture_as_tcl_diag_does() {
+        let fixture = include_str!("../../tcl-cli/tests/fixtures/noqaSuppression.tcl");
+        let args = json!({ "source": fixture, "dialect": "tcl9.0" });
+        let shown = analyzed(&args, "");
+        let mentions = |needle: &str| {
+            shown
+                .iter()
+                .any(|d| d["message"].as_str().is_some_and(|m| m.contains(needle)))
+        };
+        for silenced in ["suppressedByCode", "suppressedByBareNoqa", "dictValue"] {
+            assert!(!mentions(silenced), "{silenced} is silenced: {shown:?}");
+        }
+        for reported in ["reportedWithoutAMarker", "reportedBesideProse", "otherDict"] {
+            assert!(mentions(reported), "{reported} is reported: {shown:?}");
+        }
+        assert!(
+            has_code(&shown, "S100"),
+            "the compiler checks run: {shown:?}"
+        );
+    }
+
+    #[test]
+    fn analyze_reports_the_source_style_pass() {
+        let trailing = "set x 1   \n";
+        let plain = json!({ "source": trailing, "dialect": "tcl9.0" });
+        assert!(has_code(&analyzed(&plain, ""), "W112"));
+        let disabled = json!({ "source": trailing, "dialect": "tcl9.0", "disable": "W112" });
+        assert!(!has_code(&analyzed(&disabled, ""), "W112"));
+    }
+
+    /// The loader's findings reach a `sslictcl` source, and the loader owns
+    /// W123 there document-wide — the overlap the editor applies.
+    #[test]
+    fn analyze_reports_the_sslictcl_loader() {
+        let args = json!({
+            "source": "sslictcl 1\nunknown-declaration {a b}\n",
+            "dialect": "sslictcl",
+        });
+        let shown = analyzed(&args, "");
+        assert!(has_code(&shown, "SSLIC1101"), "{shown:?}");
+        assert!(!has_code(&shown, "W123"), "{shown:?}");
+    }
+
+    /// An O-code a compiler check emits is in the report, hidden because the
+    /// diagnostics tools run with the optimiser off — not missing.
+    #[test]
+    fn a_check_emitted_rewrite_is_suppressed_not_missing() {
+        let source = "if {1} { set x 1 } else { set y 2 }\n";
+        let args = json!({ "source": source, "dialect": "tcl9.0" });
+        assert!(!has_code(&analyzed(&args, ""), "O100"));
+        let report =
+            analyse_under(source, "tcl9.0", &inputs(&args, "diagnostics", "")).diagnostics_report();
+        assert!(
+            report.suppressed().any(|(finding, reason)| {
+                finding.code == tcl_compiler::compiler_checks::DiagCode::O100
+                    && reason == tcl_lsp_core::diagnostic_policy::Reason::OptimiserOff
+            }),
+            "O100 stands in the report as an `OptimiserOff` suppression: {report:?}"
+        );
+        // The payload's own `suppressed` array carries the same half.
+        let suppressed = analyze_suppressed(&args, "");
+        assert!(
+            suppressed
+                .iter()
+                .any(|s| s["code"] == "O100" && s["reason"] == "optimiser-off"),
+            "{suppressed:?}"
+        );
+    }
+
+    /// Each diagnostics tool's payload gains a `suppressed` array
+    /// (`docs/design/compiler/diagnostic-policy.md` § Adapters, MCP JSON):
+    /// an inline `# noqa` and `disable` both explain a hidden finding, and a
+    /// tool's own restriction to its code set still applies to the array.
+    #[test]
+    fn the_diagnostics_tools_list_what_the_policy_hides() {
+        let marked = json!({ "source": "# noqa: W210\nputs $y\n", "dialect": "tcl9.0" });
+        let suppressed = analyze_suppressed(&marked, "");
+        let w210 = suppressed
+            .iter()
+            .find(|s| s["code"] == "W210")
+            .unwrap_or_else(|| panic!("no suppressed W210: {suppressed:?}"));
+        assert_eq!(w210["reason"], "inline-directive", "{w210}");
+        assert_eq!(w210["range"]["start"]["line"], 1, "{w210}");
+
+        let disabled = json!({ "source": "puts $y\n", "dialect": "tcl9.0", "disable": "W210" });
+        let suppressed = analyze_suppressed(&disabled, "");
+        let w210 = suppressed
+            .iter()
+            .find(|s| s["code"] == "W210")
+            .unwrap_or_else(|| panic!("no suppressed W210: {suppressed:?}"));
+        assert_eq!(w210["range"], Value::Null, "{w210}");
+        assert_eq!(w210["reason"], "disabled:invocation", "{w210}");
+
+        let review_args = json!({
+            "source": "set x hello\n# noqa: S100\nincr x\n",
+            "dialect": "tcl9.0",
+        });
+        let review_suppressed = review_with(&review_args, &inputs(&review_args, "diagnostics", ""))
+            ["suppressed"]
+            .as_array()
+            .expect("suppressed array")
+            .clone();
+        assert!(
+            !review_suppressed.iter().any(|s| s["code"] == "S100"),
+            "S100 is not a review code: {review_suppressed:?}"
+        );
+    }
+
+    /// The optimiser the diagnostics tools never run is one `suppressed`
+    /// entry per reason, listing its `codes`, rather than an entry per code
+    /// (`docs/design/compiler/diagnostic-policy.md` § Adapters); a code the
+    /// compiler checks or the O111 producer emit is not among them, since
+    /// those producers ran, and a tool's own code set restricts the list,
+    /// dropping the entry it empties.
+    #[test]
+    fn the_diagnostics_tools_collapse_the_optimiser_into_one_entry() {
+        use tcl_compiler::compiler_checks::DiagCode;
+        use tcl_lsp_core::diagnostic_policy::PRODUCED_WITHOUT_THE_OPTIMISER;
+
+        let only_the_optimisers: Vec<&str> = DiagCode::ALL
+            .iter()
+            .copied()
+            .filter(|code| code.is_optimisation() && !PRODUCED_WITHOUT_THE_OPTIMISER.contains(code))
+            .map(DiagCode::as_str)
+            .collect();
+        let args = json!({ "source": UNSET_READ, "dialect": "tcl9.0" });
+        let suppressed = analyze_suppressed(&args, "");
+        let not_run: Vec<&Value> = suppressed
+            .iter()
+            .filter(|s| s.get("codes").is_some())
+            .collect();
+        assert_eq!(not_run.len(), 1, "{suppressed:?}");
+        let entry = not_run[0];
+        assert_eq!(entry["producer"], "optimiser", "{entry}");
+        assert_eq!(entry["reason"], "optimiser-off", "{entry}");
+        assert_eq!(
+            entry["message"], "optimiser not run on this surface",
+            "{entry}"
+        );
+        assert_eq!(entry["range"], Value::Null, "{entry}");
+        assert_eq!(entry["codes"], json!(only_the_optimisers), "{entry}");
+        assert!(
+            !suppressed
+                .iter()
+                .any(|s| s["code"].as_str().is_some_and(|code| code.starts_with('O'))),
+            "no O-code has an entry of its own: {suppressed:?}"
+        );
+
+        let review_suppressed = review_with(&args, &inputs(&args, "diagnostics", ""))["suppressed"]
+            .as_array()
+            .expect("suppressed array")
+            .clone();
+        assert!(
+            !review_suppressed.iter().any(|s| s.get("codes").is_some()),
+            "no O-code is a review code, so the entry goes: {review_suppressed:?}"
+        );
+    }
+
+    #[test]
+    fn analyze_reports_the_resolved_severity() {
+        let args = json!({ "source": UNSET_READ, "dialect": "tcl9.0" });
+        let shown = analyzed(&args, "[diagnosticSeverity]\nW210 = error\n");
+        let w210 = shown
+            .iter()
+            .find(|d| d["code"] == "W210")
+            .unwrap_or_else(|| panic!("no W210 in {shown:?}"));
+        assert_eq!(w210["severity"], "error");
+    }
+
+    #[test]
+    fn the_grouping_tools_read_the_shown_set() {
+        let unmarked = "proc check {a b} {\n    set total [expr $a + $b]\n    return $total\n}\n";
+        let marked = "proc check {a b} {\n    # noqa: W100\n    set total [expr $a + $b]\n    return $total\n}\n";
+        let legacy = |source: &str| {
+            let args = json!({ "source": source, "dialect": "tcl9.0" });
+            find_legacy_with(&args, &inputs(&args, "diagnostics", ""))
+        };
+        let control = legacy(unmarked);
+        assert!(
+            control["patterns"]
+                .as_array()
+                .expect("patterns")
+                .iter()
+                .any(|p| p["code"] == "W100"),
+            "the control reports W100: {control}"
+        );
+        let silenced = legacy(marked);
+        assert!(
+            silenced["patterns"]
+                .as_array()
+                .expect("patterns")
+                .iter()
+                .all(|p| p["code"] != "W100"),
+            "a `# noqa: W100` silences the pattern: {silenced}"
+        );
+
+        let args = json!({ "source": marked, "dialect": "tcl9.0" });
+        let grouped = validate_with(&args, &inputs(&args, "diagnostics", ""));
+        let categories = grouped["categories"].as_object().expect("categories");
+        assert!(
+            categories.values().all(|group| {
+                group["items"]
+                    .as_array()
+                    .is_none_or(|items| items.iter().all(|d| d["code"] != "W100"))
+            }),
+            "validate groups only the shown set: {grouped}"
+        );
+    }
+
+    /// `optimize` under `global_ini` for `args`.
+    fn optimized(args: &Value, global_ini: &str) -> Value {
+        optimize_with(args, &inputs(args, "optimiser", global_ini))
+    }
+
+    #[test]
+    fn optimize_applies_only_the_rewrites_the_directives_leave_shown() {
+        let plain = json!({ "source": FOLDING, "dialect": "tcl9.0" });
+        let folded = optimized(&plain, "");
+        assert_eq!(folded["optimized_source"], "set x 3\n", "{folded}");
+        assert!(
+            folded["optimizations"]
+                .as_array()
+                .expect("optimizations")
+                .iter()
+                .any(|o| o["code"] == "O101"),
+            "{folded}"
+        );
+
+        let marked = format!("# noqa: O101\n{FOLDING}");
+        let kept = optimized(&json!({ "source": marked, "dialect": "tcl9.0" }), "");
+        assert_eq!(
+            kept["optimized_source"],
+            marked.as_str(),
+            "a `# noqa` on the command keeps the fold off: {kept}"
+        );
+        assert_eq!(kept["total"], 0, "{kept}");
+
+        let whole = format!("# tcl-lsp: disable=*\n{FOLDING}");
+        let untouched = optimized(&json!({ "source": whole, "dialect": "tcl9.0" }), "");
+        assert_eq!(untouched["changed"], false, "{untouched}");
+    }
+
+    #[test]
+    fn optimize_honours_the_profile_the_overrides_and_the_global_file() {
+        let readability = optimized(
+            &json!({ "source": FOLDING, "dialect": "tcl9.0", "profile": "readability" }),
+            "",
+        );
+        assert_eq!(
+            readability["changed"], false,
+            "readability turns constant folding off: {readability}"
+        );
+        let enabled = optimized(
+            &json!({
+                "source": FOLDING,
+                "dialect": "tcl9.0",
+                "profile": "readability",
+                "enable": "O101",
+            }),
+            "",
+        );
+        assert_eq!(
+            enabled["optimized_source"], "set x 3\n",
+            "`enable` overrides the profile: {enabled}"
+        );
+        let disabled = optimized(
+            &json!({ "source": FOLDING, "dialect": "tcl9.0", "disable": "O101" }),
+            "",
+        );
+        assert_eq!(disabled["changed"], false, "{disabled}");
+
+        let plain = json!({ "source": FOLDING, "dialect": "tcl9.0" });
+        let global_off = optimized(&plain, "[optimiser]\ndisabled = O101\n");
+        assert_eq!(
+            global_off["changed"], false,
+            "the global file reaches a rewrite: {global_off}"
+        );
+        let switched_off = optimized(&plain, "[optimiser]\nenabled = false\n");
+        assert_eq!(
+            switched_off["changed"], false,
+            "the optimiser master switch reaches a rewrite: {switched_off}"
+        );
+    }
+
+    /// The owner's ruling on the MCP surface: a named `profile` is the
+    /// profile in force over the global file's `[optimiser] profile`, which
+    /// is the default only when the call names none — an MCP `source` has no
+    /// project layer, so the global file is the whole of that default — and
+    /// the pass count is the profile in force's.
+    #[test]
+    fn optimize_a_named_profile_overrules_the_global_file() {
+        let named = json!({ "source": FOLDING, "dialect": "tcl9.0", "profile": "full" });
+        let plain = json!({ "source": FOLDING, "dialect": "tcl9.0" });
+        let readability = "[optimiser]\nprofile = readability\n";
+
+        let full = optimized(&named, readability);
+        assert_eq!(full["optimized_source"], "set x 3\n", "{full}");
+        assert_eq!(full["profile"], "full", "{full}");
+        let defaulted = optimized(&plain, readability);
+        assert_eq!(
+            defaulted["changed"], false,
+            "with no `profile` the global `readability` runs: {defaulted}"
+        );
+        assert_eq!(defaulted["profile"], "readability", "{defaulted}");
+
+        let aggressive = "[optimiser]\nprofile = aggressive\n";
+        let fixpoint = optimized(&plain, aggressive);
+        assert_eq!(fixpoint["multi_pass"], true, "{fixpoint}");
+        assert_eq!(
+            fixpoint["iterations"], 2,
+            "the global `aggressive` runs a second pass that finds nothing: {fixpoint}"
+        );
+        let single = optimized(&named, aggressive);
+        assert_eq!(single["multi_pass"], false, "{single}");
+        assert_eq!(
+            single["iterations"], 1,
+            "a named `full` is one pass over the global `aggressive`: {single}"
+        );
+    }
+
+    /// #2062's own program: a `# noqa: O109` over a dead store keeps it
+    /// through `optimize`, where the unmarked control eliminates it.
+    #[test]
+    fn optimize_keeps_a_store_a_noqa_o109_marks() {
+        let marked = "proc f {} {\n    # noqa: O109\n    set x 1\n    set x 2\n    return $x\n}\n";
+        let kept = optimized(
+            &json!({ "source": marked, "dialect": "tcl9.0", "profile": "full" }),
+            "",
+        );
+        assert_eq!(kept["total"], 0, "{kept}");
+        assert_eq!(kept["optimized_source"], marked, "{kept}");
+        let plain = marked.replace("    # noqa: O109\n", "");
+        let control = optimized(
+            &json!({ "source": plain, "dialect": "tcl9.0", "profile": "full" }),
+            "",
+        );
+        assert!(
+            control["optimizations"]
+                .as_array()
+                .expect("optimizations")
+                .iter()
+                .any(|o| o["code"] == "O109"),
+            "{control}"
+        );
+    }
+
+    /// `code_actions` over the whole of `line` in `source`, under
+    /// `global_ini`.
+    fn actions_on_line(source: &str, line: u32, global_ini: &str) -> Vec<Value> {
+        let args = json!({
+            "source": source,
+            "dialect": "tcl9.0",
+            "start_line": line,
+            "start_character": 0,
+            "end_line": line,
+            "end_character": 80,
+        });
+        code_actions_with(&args, &inputs(&args, "diagnostics", global_ini))["actions"]
+            .as_array()
+            .expect("actions array")
+            .clone()
+    }
+
+    /// A lone-`\r` source is read in its analysis form by the rewrite tools,
+    /// as `tcl opt` and the editor read it: `optimize` and `code_actions`
+    /// answer for it exactly as for its `\n` twin.
+    #[test]
+    fn a_lone_cr_source_optimises_and_acts_like_its_lf_twin() {
+        let lf = "proc p {} {\n    return [expr {1 + 2}]\n}\nputs [p]\n";
+        let cr = lf.replace('\n', "\r");
+        let opt = |source: &str| optimized(&json!({ "source": source, "dialect": "tcl9.0" }), "");
+        let (from_lf, from_cr) = (opt(lf), opt(&cr));
+        assert!(
+            from_lf["total"].as_u64().is_some_and(|n| n > 0),
+            "the `\\n` form folds: {from_lf}"
+        );
+        assert_eq!(from_cr["optimizations"], from_lf["optimizations"]);
+        assert_eq!(from_cr["optimized_source"], from_lf["optimized_source"]);
+        assert_eq!(from_cr["changed"], from_lf["changed"]);
+        let full = "[optimiser]\nprofile = full\n";
+        let lf_actions = actions_on_line(lf, 1, full);
+        assert!(!lf_actions.is_empty(), "the `\\n` form offers actions");
+        assert_eq!(actions_on_line(&cr, 1, full), lf_actions);
+    }
+
+    #[test]
+    fn code_actions_offer_nothing_for_a_silenced_finding() {
+        let brace = |actions: &[Value]| {
+            actions
+                .iter()
+                .any(|a| a["title"] == "Brace expr for safety and performance")
+        };
+        let control = actions_on_line("set a 1\nset b [expr $a + 1]\n", 1, "");
+        assert!(
+            brace(&control),
+            "the control offers the refactor: {control:?}"
+        );
+        let marked = actions_on_line("set a 1\n# noqa: W100\nset b [expr $a + 1]\n", 2, "");
+        assert!(
+            !brace(&marked),
+            "a `# noqa: W100` line offers no brace refactor: {marked:?}"
+        );
+        let disabled = actions_on_line(
+            "set a 1\nset b [expr $a + 1]\n",
+            1,
+            "[diagnostics]\ndisabled = W100\n",
+        );
+        assert!(
+            !brace(&disabled),
+            "a code the global file disables offers no refactor: {disabled:?}"
+        );
+    }
+
+    #[test]
+    fn code_actions_offer_a_shown_rewrite_as_a_quickfix() {
+        // The fold rewrites the whole statement it proved constant.
+        let fold = |actions: &[Value]| {
+            actions.iter().any(|a| {
+                a["kind"] == "quickfix"
+                    && a["edits"]
+                        .as_array()
+                        .is_some_and(|edits| edits.iter().any(|e| e["new_text"] == "set x 3"))
+            })
+        };
+        let full = "[optimiser]\nprofile = full\n";
+        let offered = actions_on_line(FOLDING, 0, full);
+        assert!(
+            fold(&offered),
+            "a shown O101 rewrite is a quick-fix: {offered:?}"
+        );
+        let marked = actions_on_line(&format!("# noqa: O101\n{FOLDING}"), 1, full);
+        assert!(
+            !fold(&marked),
+            "a silenced rewrite is not offered: {marked:?}"
+        );
+        let profile_off = actions_on_line(FOLDING, 0, "");
+        assert!(
+            !fold(&profile_off),
+            "the default profile keeps constant folding off: {profile_off:?}"
+        );
+    }
+
+    // The diagnostic-policy truth table's rows, run through the MCP tools
+    // (`docs/design/compiler/diagnostic-policy.md` § The truth table).
+
+    /// `analyze`'s `diagnostics` and `suppressed` arrays, as observations:
+    /// `range` is 0-based (`byte_range`), so a line is `range.start.line`
+    /// plus one; a gap's `range` is `null`, and a not-run entry is one
+    /// observation per code it lists.
+    fn observed_from_analyze(
+        result: &Value,
+    ) -> Vec<tcl_lsp_core::diagnostic_policy::truth_table::Observed> {
+        use tcl_compiler::analyser::Severity;
+        use tcl_compiler::compiler_checks::DiagCode;
+        use tcl_lsp_core::diagnostic_policy::truth_table::{Observed, ObservedState};
+
+        fn severity_of(label: &str) -> Option<Severity> {
+            match label {
+                "hint" => Some(Severity::Hint),
+                "suggestion" => Some(Severity::Suggestion),
+                "info" => Some(Severity::Info),
+                "warning" => Some(Severity::Warning),
+                "error" => Some(Severity::Error),
+                _ => None,
+            }
+        }
+        let line_of = |range: &Value| -> Option<u32> {
+            let line = range.get("start")?.get("line")?.as_u64()?;
+            Some(u32::try_from(line).ok()? + 1)
+        };
+
+        let mut observed: Vec<Observed> = result["diagnostics"]
+            .as_array()
+            .expect("diagnostics array")
+            .iter()
+            .filter_map(|d| {
+                Some(Observed {
+                    code: d["code"].as_str()?.parse::<DiagCode>().ok()?,
+                    line: line_of(&d["range"]),
+                    state: ObservedState::Shown(d["severity"].as_str().and_then(severity_of)),
+                })
+            })
+            .collect();
+        for s in result["suppressed"].as_array().expect("suppressed array") {
+            let reason = s["reason"].as_str().unwrap_or_default().to_owned();
+            if let Some(codes) = s["codes"].as_array() {
+                let producer = s["producer"].as_str().unwrap_or_default();
+                observed.extend(codes.iter().filter_map(|code| {
+                    Some(Observed {
+                        code: code.as_str()?.parse::<DiagCode>().ok()?,
+                        line: None,
+                        state: ObservedState::NotRun {
+                            producer: producer.to_owned(),
+                            reason: reason.clone(),
+                        },
+                    })
+                }));
+            } else if let Some(code) = s["code"]
+                .as_str()
+                .and_then(|code| code.parse::<DiagCode>().ok())
+            {
+                observed.push(Observed {
+                    code,
+                    line: line_of(&s["range"]),
+                    state: ObservedState::Suppressed(reason),
+                });
+            }
+        }
+        observed
+    }
+
+    /// Every row `analyze` can realise renders its shown and suppressed
+    /// codes exactly as `Surface::Mcp` expects — the global layer from
+    /// `Row::ini`, the slot as the call's `disable` / `enable` arguments.
+    #[test]
+    fn every_row_renders_through_analyze() {
+        use tcl_lsp_core::diagnostic_policy::truth_table::{ROWS, Row, Surface, check};
+
+        let mut failures: Vec<String> = Vec::new();
+        for row in ROWS.iter().filter(|row| row.runs_on(Surface::Mcp)) {
+            let (text, _) = row.text();
+            let flags = row.slot_flags();
+            let args = json!({
+                "source": text,
+                "dialect": row.dialect,
+                "disable": flags.disable.join(","),
+                "enable": flags.enable.join(","),
+            });
+            let global_ini = Row::ini(row.global);
+            let result = analyze_with(&args, &inputs(&args, "diagnostics", &global_ini));
+            if let Err(failure) = check(row, Surface::Mcp, &observed_from_analyze(&result)) {
+                failures.push(failure);
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    /// `code_actions` over the whole document offers a subject's fix exactly
+    /// when the row shows it — the same three subjects the server's
+    /// lightbulb pass judges (W100's brace refactor, S100's `# noqa`
+    /// quick-fix, O101's fold).
+    #[test]
+    fn every_row_offers_fixes_for_shown_findings_only() {
+        use tcl_lsp_core::diagnostic_policy::truth_table::{
+            ActionView, Observed, ObservedState, ROWS, Row, Surface, check, offered,
+        };
+
+        let mut failures: Vec<String> = Vec::new();
+        for row in ROWS.iter().filter(|row| row.runs_on(Surface::McpActions)) {
+            let (text, _) = row.text();
+            let end_line = u32::try_from(text.lines().count()).expect("a small program");
+            let flags = row.slot_flags();
+            let args = json!({
+                "source": text,
+                "dialect": row.dialect,
+                "disable": flags.disable.join(","),
+                "enable": flags.enable.join(","),
+                "start_line": 0,
+                "start_character": 0,
+                "end_line": end_line,
+                "end_character": 0,
+            });
+            let global_ini = Row::ini(row.global);
+            let result = code_actions_with(&args, &inputs(&args, "diagnostics", &global_ini));
+            let views: Vec<ActionView<'_>> = result["actions"]
+                .as_array()
+                .expect("actions array")
+                .iter()
+                .map(|action| ActionView {
+                    title: action["title"].as_str().unwrap_or(""),
+                    kind: action["kind"].as_str().unwrap_or(""),
+                    edits: action["edits"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|edit| {
+                            let line = edit["range"]["start"]["line"].as_u64()?;
+                            let line = u32::try_from(line).ok()? + 1;
+                            Some((line, edit["new_text"].as_str()?))
+                        })
+                        .collect(),
+                })
+                .collect();
+            let observed: Vec<Observed> = row
+                .expected(Surface::McpActions)
+                .iter()
+                .filter_map(|expect| {
+                    let line = expect.line?;
+                    Some(Observed {
+                        code: expect.code,
+                        line: Some(line),
+                        state: ObservedState::Offered(offered(expect.code, line, &views)),
+                    })
+                })
+                .collect();
+            if let Err(failure) = check(row, Surface::McpActions, &observed) {
+                failures.push(failure);
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    /// `optimize` applies the fold exactly when the row shows it — the
+    /// slot's `profile` and per-code keys as the call's own arguments.
+    #[test]
+    fn every_rewrite_row_renders_through_optimize() {
+        use tcl_lsp_core::diagnostic_policy::truth_table::{
+            Observed, ObservedState, ROWS, Row, Surface, check,
+        };
+
+        let mut failures: Vec<String> = Vec::new();
+        for row in ROWS.iter().filter(|row| row.runs_on(Surface::McpRewrite)) {
+            let (text, _) = row.text();
+            let flags = row.slot_flags();
+            let args = json!({
+                "source": text,
+                "dialect": row.dialect,
+                "profile": flags.profile.clone().unwrap_or_default(),
+                "disable": flags.disable.join(","),
+                "enable": flags.enable.join(","),
+            });
+            let global_ini = Row::ini(row.global);
+            let result = optimized(&args, &global_ini);
+            let applied = result["optimized_source"]
+                .as_str()
+                .is_some_and(|source| source.contains("set x 3"));
+            let observed: Vec<Observed> = row
+                .expected(Surface::McpRewrite)
+                .iter()
+                .map(|expect| Observed {
+                    code: expect.code,
+                    line: expect.line,
+                    state: ObservedState::Applied(applied),
+                })
+                .collect();
+            if let Err(failure) = check(row, Surface::McpRewrite, &observed) {
+                failures.push(failure);
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 }
 

@@ -28,9 +28,9 @@
 //!
 //! A handful of spec fields hold a function pointer (`arg_role_resolver`,
 //! `const_fold`, `taint_sink_gate`, …) or a reference to a **named** `&'static`
-//! descriptor the registry shares between commands (`definition_body`,
-//! `case_list`, `body_scope`, `frame_effect`, `bpf_op`,
-//! `event_requires`, `command_forms`, and the semantic/effect descriptors).
+//! descriptor the registry shares between commands (`case_list`,
+//! `body_scope`, `frame_effect`, `bpf_op`, `event_requires`,
+//! `command_forms`, and the effect descriptors).
 //! Rust can tell that such a field is set, but not recover the *expression* —
 //! the constant's path — that set it.
 //! Seeding records those keys under [`UNRENDERABLE_KEY`] so the form can flag
@@ -47,12 +47,20 @@
 //! `object_class` is the same case one level deeper — a class name, a flag,
 //! superclass names, and a method table that *is* `&[SubCommand]` — so it is
 //! seeded as a JSON object whose methods are ordinary subcommand drafts.
+//! `definition_body` is too: a grammar is plain data once every member states
+//! its effect, so it is seeded as the name of the shipped grammar it equals, or
+//! as the whole grammar. `semantic_operation` is a closed vocabulary seeded as
+//! `{kind, detail}`.
 
 use serde_json::{Map, Value, json};
 use tcl_registry::BodyInterpreter;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::Arity;
-use tcl_registry::definer::ManufacturerMethod;
+use tcl_registry::clause_grammar::{ClauseGrammarSpec, ClauseRow, ClauseRowShape, ClauseSlot};
+use tcl_registry::definer::{
+    BuiltinObjectMethod, DeclaredMemberVisibility, DefinitionBodyGrammar, ManufacturerMethod,
+    MemberBodyCommand, MemberEffect, MemberReceiver, MemberSpec, OptionalMemberArgument,
+};
 use tcl_registry::deprecation::{DeprecationFixHook, DeprecationFixSafety};
 use tcl_registry::forms::CommandForm;
 use tcl_registry::handle_binding::{
@@ -64,10 +72,14 @@ use tcl_registry::hover::{
     OptionValue,
 };
 use tcl_registry::lifecycle::Lifecycle;
+use tcl_registry::option_effect::{
+    EffectAxis, FamilyBase, OptionEffect, OptionEffectFamily, OptionEffectKind,
+};
 use tcl_registry::presentation::ArgPresentation;
 use tcl_registry::remote_method::{MethodWord, RemoteDispatch, RemoteFamily, RemoteMethodRole};
 use tcl_registry::repeated::RepeatedArgLayout;
 use tcl_registry::representation::RepresentationEffect;
+use tcl_registry::semantic_operation::SemanticOperationId;
 use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::{
     BytePayloadSpec, CommandSpec, ObjectClassSpec, OoContextFact, OptionRelation, SubCommand,
@@ -77,6 +89,9 @@ use tcl_registry::symbol_def::SymbolDef;
 use tcl_registry::taint::{SetterConstraint, TaintColour};
 use tcl_registry::traits::Traits;
 use tcl_registry::types::{ReturnElements, VarElementsEffect, VarWriteTyping};
+use tcl_registry::value_transfer::{
+    DeclaredEvaluation, DeclaredSemantics, EvalRoute, SemanticType, SemanticsDeclaration,
+};
 
 use crate::catalogue;
 use crate::render_rs::rust_string;
@@ -238,6 +253,35 @@ pub(crate) fn arity_windows(windows: &[tcl_registry::arity::ArityWindow]) -> Val
             })
             .collect::<Vec<_>>(),
     )
+}
+
+/// One list of [`tcl_registry::stamp_window::StampWindow`]s as a draft value —
+/// the stamps a command or subcommand carries over spans of the Tcl releases,
+/// each as the value the plain stamp's own draft key holds.
+pub(crate) fn stamp_windows<T: Copy>(
+    windows: &[tcl_registry::stamp_window::StampWindow<T>],
+    value: impl Fn(T) -> Value,
+) -> Value {
+    Value::Array(
+        windows
+            .iter()
+            .map(|window| {
+                json!({
+                    "value": value(window.value),
+                    "lifecycle": {
+                        "introduced": opt_str(window.lifecycle.introduced),
+                        "deprecated": opt_str(window.lifecycle.deprecated),
+                        "retired": opt_str(window.lifecycle.retired),
+                    },
+                })
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
+/// A hook id as the draft holds it: its catalogue variant's name.
+fn hook_name<T: std::fmt::Debug + Copy + 'static>(hook: T) -> Value {
+    json!(catalogue::variant_name(&hook))
 }
 
 fn appended_arity(value: AppendedArity) -> Value {
@@ -487,6 +531,50 @@ fn deprecation_fix_value(hook: Option<DeprecationFixHook>) -> (Value, bool) {
     }
 }
 
+/// The draft form of one [`EffectAxis`]: its axis word, and its value word
+/// when the axis carries one (`case-sensitivity` does not).
+fn insert_axis(d: &mut Map<String, Value>, axis: EffectAxis) {
+    d.insert("axis".into(), json!(axis.axis_word()));
+    d.insert(
+        "value".into(),
+        axis.value_word().map_or(Value::Null, |word| json!(word)),
+    );
+}
+
+/// The draft form of an [`OptionSpec::effect`]: `null`, or a flat tagged
+/// object naming the kind, its own payload (an axis and value, a role, or a
+/// count), and the family — the option-row form's own two controls, the
+/// inverse of `render_spectcl.rs`'s `option_effect_kind`.
+fn option_effect(effect: Option<OptionEffect>) -> Value {
+    let Some(OptionEffect { kind, family }) = effect else {
+        return Value::Null;
+    };
+    let mut d = Map::new();
+    d.insert("family".into(), json!(family));
+    match kind {
+        OptionEffectKind::Disables(axis) => {
+            d.insert("kind".into(), json!("disables"));
+            insert_axis(&mut d, axis);
+        }
+        OptionEffectKind::Selects(axis) => {
+            d.insert("kind".into(), json!("selects"));
+            insert_axis(&mut d, axis);
+        }
+        OptionEffectKind::SuppressesRole(role) => {
+            d.insert("kind".into(), json!("suppresses-role"));
+            d.insert("role".into(), json!(catalogue::variant_name(&role)));
+        }
+        OptionEffectKind::ReservesTrailingWords(n) => {
+            d.insert("kind".into(), json!("reserves-trailing-words"));
+            d.insert("n".into(), json!(n));
+        }
+        OptionEffectKind::EndsOptions => {
+            d.insert("kind".into(), json!("ends-options"));
+        }
+    }
+    Value::Object(d)
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct OptionDraftCompleteness {
     pub(crate) arity_hook: bool,
@@ -550,6 +638,7 @@ pub(crate) fn option_spec(opt: &OptionSpec) -> (Value, OptionDraftCompleteness) 
             OPTION_DEPRECATION_FIX_UNRECOVERABLE_KEY: !deprecation_fix_hook,
             "min_abbrev": opt_index(opt.min_abbrev),
             "value": value,
+            "effect": option_effect(opt.effect),
         }),
         OptionDraftCompleteness {
             arity_hook,
@@ -600,6 +689,232 @@ fn manufacturer_method(method: &ManufacturerMethod) -> Value {
         "names_instance_at": method.names_instance_at,
         "definition_body_at": method.definition_body_at,
         "constructor_args_from": method.constructor_args_from,
+    })
+}
+
+/// Seed the `definition_body` value: `null`, the name of the shipped grammar
+/// whose data this is (`tcloo`, `snit`, … —
+/// [`tcl_spectcl::SHIPPED_DEFINITION_BODIES`], the names a pack may write), or
+/// the whole grammar.
+///
+/// The shipped grammar is recognised by its data rather than its address: a
+/// `const` has no single address (every `&TCLOO_GRAMMAR` is its own promoted
+/// allocation), and a pack that spells a shipped grammar out inline — the
+/// snit port — describes exactly the grammar the name does.
+pub(crate) fn definition_body(grammar: Option<&'static DefinitionBodyGrammar>) -> Value {
+    let Some(grammar) = grammar else {
+        return Value::Null;
+    };
+    let block = definition_body_block(grammar);
+    tcl_spectcl::SHIPPED_DEFINITION_BODIES
+        .iter()
+        .find(|(_, shipped)| definition_body_block(shipped) == block)
+        .map_or(block, |(name, _)| json!(name))
+}
+
+/// A grammar as data, field for field — the inline `definition_body` value.
+/// The bare-word construction hint is a function pointer, so the draft records
+/// only whether one is set.
+#[must_use]
+pub fn definition_body_block(grammar: &DefinitionBodyGrammar) -> Value {
+    let DefinitionBodyGrammar {
+        family,
+        members,
+        implicit_vars,
+        member_body_namespace_path,
+        builtin_type_methods,
+        builtin_object_methods,
+        builtin_terminating_methods,
+        member_body_commands,
+        bare_word_construction,
+        bare_word_construction_hint,
+        dynamic_method_dispatch,
+        manufacturers,
+        unknown_dispatch_method,
+        property_accessor_methods,
+    } = grammar;
+    json!({
+        "family": catalogue::variant_name(family),
+        "members": Value::Array(members.iter().map(member_spec).collect()),
+        "implicit_vars": str_list(implicit_vars),
+        "member_body_namespace_path": str_list(member_body_namespace_path),
+        "builtin_type_methods": str_list(builtin_type_methods),
+        "builtin_object_methods": Value::Array(
+            builtin_object_methods.iter().map(builtin_object_method).collect()
+        ),
+        "builtin_terminating_methods": str_list(builtin_terminating_methods),
+        "member_body_commands": Value::Array(
+            member_body_commands.iter().map(member_body_command).collect()
+        ),
+        "bare_word_construction": bare_word_construction,
+        "bare_word_construction_hint": bare_word_construction_hint.is_some(),
+        "dynamic_method_dispatch": dynamic_method_dispatch,
+        "manufacturers": Value::Array(manufacturers.iter().map(manufacturer_method).collect()),
+        "unknown_dispatch_method": unknown_dispatch_method,
+        "property_accessor_methods": str_list(property_accessor_methods),
+    })
+}
+
+/// One member row: its keyword and layout, what it declares, and what it does
+/// to the members it names.
+fn member_spec(member: &MemberSpec) -> Value {
+    json!({
+        "keyword": member.keyword,
+        "arg_roles": role_map(member.arg_roles),
+        "optional_argument": member.optional_argument.map_or(Value::Null, optional_member_argument),
+        "all_args_var": member.all_args_var,
+        "all_args_ref": member.all_args_ref.map(|kind| catalogue::variant_name(&kind)),
+        "kind": catalogue::variant_name(&member.kind),
+        "wrapper_block_body": member.wrapper_block_body,
+        "surface": dialects(member.surface),
+        "retraction": member.retraction.map(|retraction| catalogue::variant_name(&retraction)),
+        "slot": member.slot.map_or(Value::Null, |slot| json!({
+            "default_op": catalogue::variant_name(&slot.default_op),
+            "dedup": slot.dedup,
+        })),
+        "visibility_effect": member
+            .visibility_effect
+            .map(|visibility| catalogue::variant_name(&visibility)),
+        "effect": member_effect(member.effect),
+        "wrapper_shift": member.wrapper_shift.map_or(Value::Null, |shift| json!({
+            "receiver": shift.receiver.map(MemberReceiver::spelling),
+            "visibility": shift.visibility.map(DeclaredMemberVisibility::as_str),
+        })),
+    })
+}
+
+/// A member's optional word: its fixed position and each accepted spelling.
+fn optional_member_argument(optional: OptionalMemberArgument) -> Value {
+    json!({
+        "position": optional.position,
+        "values": Value::Array(optional.values.iter().map(|value| json!({
+            "value": value.value,
+            "role": catalogue::variant_name(&value.role),
+            "surface": dialects(value.surface),
+            "declared_visibility": value
+                .declared_visibility
+                .map(|visibility| catalogue::variant_name(&visibility)),
+        })).collect()),
+    })
+}
+
+/// A member effect in the `.tclspec` vocabulary: its kind and the payload that
+/// kind carries (`{kind: callable, receiver: instance, role: method,
+/// name_slot: 0, …}`).
+pub(crate) fn member_effect(effect: MemberEffect) -> Value {
+    let kind = effect.kind_spelling();
+    match effect {
+        MemberEffect::Callable {
+            receiver,
+            role,
+            name_slot,
+            params_slot,
+            body_slot,
+        } => json!({
+            "kind": kind,
+            "receiver": receiver.spelling(),
+            "role": role.spelling(),
+            "name_slot": name_slot,
+            "params_slot": params_slot,
+            "body_slot": body_slot,
+        }),
+        MemberEffect::Forward {
+            name_slot,
+            prefix_slot,
+        } => json!({ "kind": kind, "name_slot": name_slot, "prefix_slot": prefix_slot }),
+        MemberEffect::StateDeclaration { scope } => {
+            json!({ "kind": kind, "scope": scope.spelling() })
+        }
+        MemberEffect::Relation { slot } => json!({ "kind": kind, "slot": slot.spelling() }),
+        MemberEffect::InitScript { body_slot, timing } => {
+            json!({ "kind": kind, "body_slot": body_slot, "timing": timing.spelling() })
+        }
+        MemberEffect::Visibility | MemberEffect::Retraction | MemberEffect::Configuration => {
+            json!({ "kind": kind })
+        }
+    }
+}
+
+fn builtin_object_method(method: &BuiltinObjectMethod) -> Value {
+    json!({
+        "name": method.name,
+        "visibility": catalogue::variant_name(&method.visibility),
+        "receiver": catalogue::variant_name(&method.receiver),
+        "operation": method.operation.as_ref().map(catalogue::variant_name),
+        "detail": method.detail,
+    })
+}
+
+fn member_body_command(command: &MemberBodyCommand) -> Value {
+    json!({
+        "name": command.name,
+        "detail": command.detail,
+        "binds_handle": command.binds_handle.as_ref().map(handle_binding_expr),
+    })
+}
+
+/// Seed a `semantic_operation` value: `null`, or `{kind, detail}` in the
+/// operation's own spellings ([`SemanticOperationId::kind_str`] /
+/// [`SemanticOperationId::detail_str`]), a closed vocabulary.
+pub(crate) fn semantic_operation(operation: Option<SemanticOperationId>) -> Value {
+    operation.map_or(
+        Value::Null,
+        |operation| json!({ "kind": operation.kind_str(), "detail": operation.detail_str() }),
+    )
+}
+
+/// Seed the `clause_grammar` value from a live [`ClauseGrammarSpec`].
+///
+/// The descriptor is plain data all the way down — rows of slots, each a role
+/// with a few flags — so the draft holds the grammar itself, spelt in the
+/// `.tclspec` vocabulary (`-timing per-iteration`, `-pattern
+/// completion-code`), never an [`Unrecovered`] note. A row's surface is the
+/// same dialect-name list every other surface key holds.
+pub(crate) fn clause_grammar(grammar: Option<&'static ClauseGrammarSpec>) -> Value {
+    let Some(grammar) = grammar else {
+        return Value::Null;
+    };
+    json!({
+        "head": clause_row(&grammar.head),
+        "rows": Value::Array(grammar.rows.iter().map(clause_row).collect()),
+        "tail": grammar.tail.as_ref().map_or(Value::Null, clause_row),
+        "fallthrough_body": grammar.fallthrough_body,
+        "default_clause": grammar.default_clause.map_or(Value::Null, |default| json!({
+            "row": default.row,
+            "final_only": default.final_only,
+        })),
+        "selection": grammar.selection.spelling(),
+        "surface": dialects(grammar.surface),
+    })
+}
+
+/// One clause row: its keyword, its shape (the slots, or the layout a group
+/// cites), its timing and its surface.
+pub(crate) fn clause_row(row: &ClauseRow) -> Value {
+    let (shape, layout) = match row.shape {
+        ClauseRowShape::Repeated { .. } => ("repeated", None),
+        ClauseRowShape::Once { .. } => ("once", None),
+        ClauseRowShape::Group { layout } => ("group", Some(layout)),
+    };
+    json!({
+        "keyword": row.keyword,
+        "keyword_required": row.keyword_required,
+        "shape": shape,
+        "slots": Value::Array(row.slots().iter().map(clause_slot).collect()),
+        "layout": layout,
+        "timing": row.timing.spelling(),
+        "surface": dialects(row.surface),
+    })
+}
+
+/// One clause slot: its role and the flags that qualify it.
+pub(crate) fn clause_slot(slot: &ClauseSlot) -> Value {
+    json!({
+        "role": catalogue::variant_name(&slot.role),
+        "noise": slot.noise,
+        "handler": slot.handler.map(tcl_registry::clause_grammar::handler_spelling),
+        "conditional_binding": slot.conditional_binding,
+        "optional": slot.optional,
     })
 }
 
@@ -1034,6 +1349,50 @@ fn option_relations_expr(constraints: &[OptionRelation]) -> Option<String> {
     Some(format!("&[{}]", items?.join(", ")))
 }
 
+/// The Rust expression for one [`EffectAxis`].
+fn effect_axis_expr(axis: EffectAxis) -> String {
+    match axis {
+        EffectAxis::Substitution(kind) => format!(
+            "EffectAxis::Substitution({})",
+            catalogue::qualified_variant("SubstitutionKind", &kind)
+        ),
+        EffectAxis::PatternLanguage(kind) => format!(
+            "EffectAxis::PatternLanguage({})",
+            catalogue::qualified_variant("PatternType", &kind)
+        ),
+        EffectAxis::CaseSensitivity => "EffectAxis::CaseSensitivity".to_owned(),
+        EffectAxis::Selection(mode) => format!(
+            "EffectAxis::Selection({})",
+            catalogue::qualified_variant("CaseMatchMode", &mode)
+        ),
+    }
+}
+
+/// The Rust expression for a `&'static [OptionEffectFamily]` field.
+fn option_effect_families_expr(families: &[OptionEffectFamily]) -> String {
+    let items: Vec<String> = families
+        .iter()
+        .map(|family| {
+            let base = match family.base {
+                FamilyBase::AllOn => "FamilyBase::AllOn".to_owned(),
+                FamilyBase::AllOff => "FamilyBase::AllOff".to_owned(),
+                FamilyBase::Only(axis) => format!("FamilyBase::Only({})", effect_axis_expr(axis)),
+            };
+            let surface = family.surface.map_or_else(
+                || "None".to_owned(),
+                |set| format!("Some({})", dialect_set_expr(set)),
+            );
+            format!(
+                "OptionEffectFamily {{ name: {}, base: {base}, combine: FamilyCombine::{:?}, \
+                 surface: {surface} }}",
+                rust_string(family.name),
+                family.combine,
+            )
+        })
+        .collect();
+    format!("&[{}]", items.join(", "))
+}
+
 /// A draft value for a descriptor field: the rendered Rust expression when the
 /// field is set, `null` when it is at its default.
 ///
@@ -1141,6 +1500,7 @@ fn subcommand_identity(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) 
         "arg_role_resolver_roles".into(),
         role_list(sub.arg_role_resolver_roles),
     );
+    d.insert("clause_grammar".into(), clause_grammar(sub.clause_grammar));
     d.insert("command_prefixes".into(), prefix_map(sub.command_prefixes));
     d.insert(
         "callback_taint_inputs".into(),
@@ -1193,6 +1553,109 @@ fn subcommand_types(d: &mut Draft, sub: &SubCommand) {
     d.insert("mutator".into(), json!(sub.mutator));
 }
 
+/// `-semantic T`: the DSL spelling of a declared result or yield type — the
+/// Tcl type in lower case, or the vendor semantic verbatim.
+fn semantic_type_word(semantic: SemanticType) -> String {
+    match semantic {
+        SemanticType::Tcl(ty) => catalogue::variant_name(&ty).to_lowercase(),
+        SemanticType::Vendor(name) => name.to_owned(),
+    }
+}
+
+/// The `semantics { … }` / `evaluate …` declaration at one scope: the plan is
+/// plain data all the way down (like [`command_object_facts`]'s `object_class`
+/// one level up) and round-trips in full, *except* a declared implementation's
+/// body — carried only by the loader's pack-hook table, never on `CommandSpec`
+/// — and an option-level `-evaluate` decline, not yet carried back onto its
+/// option row.
+/// Those two shapes stay `lost`, exactly as a shipped, compiled-in
+/// specialisation — nameable by [`tcl_registry::value_transfer::CommandSemantics::identity`],
+/// never reconstructable — already was. An implementation derived from the
+/// command's reference body is neither: the body is on the `runtime_backing` row.
+fn semantics_value(declaration: SemanticsDeclaration, lost: &mut Unrecovered) -> Value {
+    let declared = match declaration {
+        SemanticsDeclaration::Inherited => return Value::Null,
+        SemanticsDeclaration::Declined => return json!("none"),
+        SemanticsDeclaration::Declared(semantics) => semantics,
+    };
+    let Some(declared) = declared.as_declared() else {
+        // A shipped, compiled-in specialisation: nameable, not
+        // reconstructable, and no pack could have written it either.
+        return Value::Null;
+    };
+    let has_body = matches!(
+        declared.evaluation,
+        DeclaredEvaluation::Implementation(_)
+            | DeclaredEvaluation::Route(EvalRoute::Implementation(_))
+    );
+    // An implementation the registry derived from the command's reference body
+    // is not the draft's to carry: the `runtime_backing` row holds the body it
+    // came from, and the next load derives it again.
+    if has_body
+        && declared.option_declines.is_empty()
+        && tcl_registry::value_transfer::reference_body::is_derived(declared)
+    {
+        return Value::Null;
+    }
+    if has_body || !declared.option_declines.is_empty() {
+        lost.note("semantics");
+        return Value::Null;
+    }
+    declared_semantics_json(declared)
+}
+
+/// [`semantics_value`]'s fully-recoverable case.
+fn declared_semantics_json(declared: &DeclaredSemantics) -> Value {
+    let structure = declared.structure;
+    let effects: Vec<&str> = structure.effects.iter().map(|e| e.as_str()).collect();
+    let stores = structure.stores.map(|stores| {
+        json!({
+            "targets": stores.targets,
+            "outcome": stores.outcome.as_str(),
+        })
+    });
+    let iterate = structure.iterate.map(|iterate| {
+        let kind = match iterate.kind {
+            tcl_registry::value_transfer::IterableWord::List => "list".to_owned(),
+            tcl_registry::value_transfer::IterableWord::Dict => "dict".to_owned(),
+            tcl_registry::value_transfer::IterableWord::Vendor(name) => name.to_owned(),
+        };
+        json!({
+            "binder": iterate.binder,
+            "iterable": iterate.iterable,
+            "kind": kind,
+            "body": iterate.body,
+            "yields": iterate.yields.map(semantic_type_word),
+            "cardinality": iterate.cardinality,
+            "zero_iterations_bind": iterate.zero_iterations_bind,
+        })
+    });
+    let evaluation = match declared.evaluation {
+        DeclaredEvaluation::Route(EvalRoute::None { reason }) => json!({
+            "kind": "none",
+            "reason": reason.as_str(),
+        }),
+        DeclaredEvaluation::Route(EvalRoute::Direct { id }) => json!({
+            "kind": "direct",
+            "id": catalogue::variant_name(&id),
+        }),
+        DeclaredEvaluation::Route(EvalRoute::Expression { language }) => json!({
+            "kind": "expression",
+            "language": language.as_str(),
+        }),
+        // Filtered out by `semantics_value` before this is reached.
+        DeclaredEvaluation::Route(EvalRoute::Implementation(_))
+        | DeclaredEvaluation::Implementation(_) => json!({"kind": "none", "reason": "unauthored"}),
+    };
+    json!({
+        "effects": effects,
+        "result": structure.result.map(semantic_type_word),
+        "stores": stores,
+        "iterate": iterate,
+        "evaluation": evaluation,
+    })
+}
+
 /// Constant folders and the compiler / analyser hook IDs.
 fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     d.insert(
@@ -1205,7 +1668,13 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     );
     d.insert(
         "semantic_operation".into(),
-        lost.expr("semantic_operation", sub.semantic_operation.is_some()),
+        semantic_operation(sub.semantic_operation),
+    );
+    d.insert(
+        "semantic_operation_windows".into(),
+        stamp_windows(sub.semantic_operation_windows, |operation| {
+            semantic_operation(Some(operation))
+        }),
     );
     d.insert(
         "completion".into(),
@@ -1226,6 +1695,15 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         sub.inline_codegen_hook
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
     );
+    d.insert(
+        "codegen_hook_windows".into(),
+        stamp_windows(sub.codegen_hook_windows, hook_name),
+    );
+    d.insert(
+        "inline_codegen_hook_windows".into(),
+        stamp_windows(sub.inline_codegen_hook_windows, hook_name),
+    );
+    d.insert("semantics".into(), semantics_value(sub.semantics, lost));
     d.insert(
         "analyser_hook".into(),
         sub.analyser_hook
@@ -1401,6 +1879,12 @@ fn subcommand_option_surface(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecov
             .map_or_else(|| lost.expr("option_relations", true), |expr| json!(expr))
     };
     d.insert("option_relations".into(), option_relations);
+    let option_effect_families = if sub.option_effect_families.is_empty() {
+        Value::Null
+    } else {
+        json!(option_effect_families_expr(sub.option_effect_families))
+    };
+    d.insert("option_effect_families".into(), option_effect_families);
     d.insert(
         "option_placement".into(),
         json!(catalogue::variant_name(&sub.option_placement)),
@@ -1611,6 +2095,7 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "arg_role_resolver_roles".into(),
         role_list(spec.arg_role_resolver_roles),
     );
+    d.insert("clause_grammar".into(), clause_grammar(spec.clause_grammar));
     d.insert(
         "frame_effect".into(),
         lost.expr("frame_effect", spec.frame_effect.is_some()),
@@ -1620,6 +2105,14 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "native_lowering".into(),
         lost.expr("native_lowering", spec.native_lowering.is_some()),
     );
+    d.insert(
+        "native_lowering_windows".into(),
+        lost.expr(
+            "native_lowering_windows",
+            !spec.native_lowering_windows.is_empty(),
+        ),
+    );
+    d.insert("semantics".into(), semantics_value(spec.semantics, lost));
     d.insert(
         "clause_shape_check".into(),
         lost.expr("clause_shape_check", spec.clause_shape_check.is_some()),
@@ -1641,13 +2134,6 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         lost.expr(
             "script_timing_resolver",
             spec.script_timing_resolver.is_some(),
-        ),
-    );
-    d.insert(
-        "substitution_resolver".into(),
-        lost.expr(
-            "substitution_resolver",
-            spec.substitution_resolver.is_some(),
         ),
     );
 }
@@ -1749,7 +2235,13 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert(
         "semantic_operation".into(),
-        lost.expr("semantic_operation", spec.semantic_operation.is_some()),
+        semantic_operation(spec.semantic_operation),
+    );
+    d.insert(
+        "semantic_operation_windows".into(),
+        stamp_windows(spec.semantic_operation_windows, |operation| {
+            semantic_operation(Some(operation))
+        }),
     );
     d.insert(
         "completion".into(),
@@ -1769,6 +2261,14 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "inline_codegen_hook".into(),
         spec.inline_codegen_hook
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
+    );
+    d.insert(
+        "codegen_hook_windows".into(),
+        stamp_windows(spec.codegen_hook_windows, hook_name),
+    );
+    d.insert(
+        "inline_codegen_hook_windows".into(),
+        stamp_windows(spec.inline_codegen_hook_windows, hook_name),
     );
     d.insert(
         "analyser_hook".into(),
@@ -1914,6 +2414,12 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
             .map_or_else(|| lost.expr("option_relations", true), |expr| json!(expr))
     };
     d.insert("option_relations".into(), option_relations);
+    let option_effect_families = if spec.option_effect_families.is_empty() {
+        Value::Null
+    } else {
+        json!(option_effect_families_expr(spec.option_effect_families))
+    };
+    d.insert("option_effect_families".into(), option_effect_families);
     d.insert(
         "option_prefix_words".into(),
         json!(spec.option_prefix_words),
@@ -2090,6 +2596,11 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "deprecated_replacement_drop_in".into(),
         json!(spec.deprecated_replacement_drop_in),
     );
+    d.insert("alias_of".into(), opt_str(spec.alias_of));
+    d.insert(
+        "runtime_backing".into(),
+        json!(tcl_spectcl::BackingSyntax::from_backing(spec.runtime_backing).spelling()),
+    );
     d.insert(
         "byte_array_payload".into(),
         spec.byte_array_payload
@@ -2101,7 +2612,7 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert(
         "definition_body".into(),
-        lost.expr("definition_body", spec.definition_body.is_some()),
+        definition_body(spec.definition_body),
     );
     command_manufacturer_methods(d, spec);
     d.insert(
@@ -2210,6 +2721,115 @@ mod tests {
     fn default_draft_records_no_unrecoverable_fields() {
         let draft = default_command_draft();
         assert_eq!(draft[UNRENDERABLE_KEY], json!([]));
+    }
+
+    /// The structural half of a declared `semantics` plan is plain data and
+    /// round-trips (`spectcl_roundtrip.rs`'s
+    /// `a_declared_semantics_plan_survives_the_round_trip` proves the DSL
+    /// side); what a bare `CommandSpec` cannot carry — a declared
+    /// implementation's body, or an option-level `-evaluate` decline — stays
+    /// unrecoverable, exactly like a shipped, compiled-in specialisation.
+    #[test]
+    fn a_declared_implementations_body_stays_unrecoverable() {
+        use tcl_registry::value_transfer::{
+            CompletionSupport, ContextDependency, DeclaredEvaluation, DeclaredImplementation,
+            DeclaredSemantics, DeclaredStructure, DeclineReason, EvaluatorCapability, HostKind,
+            ImplementationBudget, ImplementationIdentity, Needs, NoRouteReason,
+            SemanticsDeclaration,
+        };
+
+        const NO_STRUCTURE: DeclaredStructure = DeclaredStructure {
+            effects: &[],
+            result: None,
+            stores: None,
+            iterate: None,
+        };
+        static IMPLEMENTATION: DeclaredSemantics = DeclaredSemantics {
+            scope: "probe::grown",
+            structure: NO_STRUCTURE,
+            evaluation: DeclaredEvaluation::Implementation(DeclaredImplementation {
+                capability: EvaluatorCapability {
+                    identity: ImplementationIdentity {
+                        pack: "probe",
+                        id: "probe.grown.v1",
+                        content_hash: 0,
+                    },
+                    host: HostKind::BoundedTcl,
+                    target: Needs::NONE,
+                    inputs: &[],
+                    depends: &[ContextDependency::TclProfile],
+                    budget: ImplementationBudget {
+                        commands: None,
+                        wall_clock_ms: None,
+                        value_bytes: None,
+                    },
+                    completion: CompletionSupport::NormalOnly,
+                },
+                slot: None,
+                extension: None,
+            }),
+            option_declines: &[],
+        };
+        static DECLINING_OPTION: DeclaredSemantics = DeclaredSemantics {
+            scope: "probe::grown",
+            structure: NO_STRUCTURE,
+            evaluation: DeclaredEvaluation::Route(EvalRoute::None {
+                reason: NoRouteReason::Declared,
+            }),
+            option_declines: &[("-about", DeclineReason::NoRoute(NoRouteReason::Declared))],
+        };
+
+        let draft = from_command_spec(&CommandSpec {
+            name: "probe::grown",
+            semantics: SemanticsDeclaration::Declared(&IMPLEMENTATION),
+            ..CommandSpec::DEFAULT
+        });
+        assert_eq!(draft["semantics"], Value::Null);
+        assert_eq!(draft[UNRENDERABLE_KEY], json!(["semantics"]));
+
+        let draft = from_command_spec(&CommandSpec {
+            name: "probe::grown",
+            semantics: SemanticsDeclaration::Declared(&DECLINING_OPTION),
+            ..CommandSpec::DEFAULT
+        });
+        assert_eq!(draft["semantics"], Value::Null);
+        assert_eq!(draft[UNRENDERABLE_KEY], json!(["semantics"]));
+    }
+
+    /// An implementation the registry derived from a command's reference body is
+    /// not a field the draft loses: the body and the author's `-evaluate` that
+    /// asked for it are on the `runtime_backing` row, which the draft carries, and
+    /// the next load derives it again. The test above is the control: one a pack
+    /// wrote stays lost.
+    #[test]
+    fn a_derived_implementation_is_not_lost_in_a_draft() {
+        use tcl_registry::value_transfer::SemanticsDeclaration;
+
+        let source = "speclib vendor 2.0 {\n    command vendor::double {\n        arity 1\n        \
+                      runtime_backing tcl-body {-pack-text {proc vendor::double {x} {expr {$x * 2}}} -evaluate}\n    }\n}\n";
+        let set = tcl_spectcl::pack::load_in_memory(vec![(
+            tcl_spectcl::PackFile {
+                tier: tcl_spectcl::Tier::Workspace,
+                path: std::path::PathBuf::from("vendor.tclspec"),
+                origin: tcl_spectcl::discovery::Origin::Setting,
+                dependency_tier: None,
+            },
+            source.to_owned(),
+        )]);
+        let spec = set.packs[0].commands[0].spec;
+        assert!(
+            matches!(spec.semantics, SemanticsDeclaration::Declared(_)),
+            "the load derives an implementation: {:?}",
+            spec.semantics
+        );
+        let draft = from_command_spec(spec);
+        assert_eq!(draft["semantics"], Value::Null);
+        assert_eq!(draft[UNRENDERABLE_KEY], json!([]), "{draft:?}");
+        let backing = draft["runtime_backing"].to_string();
+        assert!(
+            backing.contains("proc vendor::double") && backing.contains("-evaluate"),
+            "the body and the assertion are on the row the draft carries: {backing}"
+        );
     }
 
     #[test]

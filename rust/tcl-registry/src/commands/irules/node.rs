@@ -51,6 +51,7 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Server,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..CommandSpec::DEFAULT
     }
 }

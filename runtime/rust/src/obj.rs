@@ -46,15 +46,15 @@
 //! boundary is immediate, which is what `Tcl_DecrRefCount` documents.
 
 mod native_jim_lookup;
+pub(crate) use native_jim_lookup::{JimCommandCache, JimVariableCache};
 pub(crate) use native_jim_lookup::{
     install_command_cache as install_jim_command_cache,
     install_variable_cache as install_jim_variable_cache,
     with_command_cache as with_jim_command_cache, with_variable_cache as with_jim_variable_cache,
 };
-pub(crate) use native_jim_lookup::{JimCommandCache, JimVariableCache};
 
 use core::ffi::{c_char, c_void};
-use std::alloc::{alloc, dealloc, realloc, Layout};
+use std::alloc::{Layout, alloc, dealloc, realloc};
 use std::{
     any::Any,
     cell::{Cell, RefCell},
@@ -79,8 +79,7 @@ pub type TclWideInt = i64;
 /// the **shimmer keystone** (value-kinds): the runtime
 /// dispatches free / dup / string-generation through `typePtr`, so built-in
 /// types (int, double, list, …) and extension-registered custom types share one
-/// mechanism — type handling is open, never a closed enum (the §6/Track-2
-/// custom-`Tcl_ObjType` requirement). Signatures match `tcl.h` so an extension's
+/// mechanism. Signatures match `tcl.h` so an extension's
 /// `Tcl_ObjType` slots in unchanged.
 pub type FreeInternalRepProc = extern "C" fn(*mut TclObj);
 pub type DupInternalRepProc = extern "C" fn(*mut TclObj, *mut TclObj);
@@ -578,7 +577,7 @@ impl ProcedureObject {
     /// performing a native operation.
     #[must_use]
     pub fn as_ptr(&self) -> *mut TclObj {
-        self.0 .0
+        self.0.0
     }
     /// Select a live original header without acquiring a native reference.
     pub(crate) fn checked_ptr(&self) -> Result<*mut TclObj, tcl_syntax::value::ValueError> {
@@ -610,6 +609,22 @@ impl Drop for NativeObjectLifetime {
         }
     }
 }
+// The header's `Tcl_Obj` (`include/tcl.h`): the fields in this order at
+// consecutive word offsets, then the internal representation, which makes the
+// object 24 bytes on wasm32. An extension compiled against the header reads and
+// writes `refCount` and reads `bytes` and `length` at these offsets, so the build
+// fails if the struct stops matching them.
+const _: () = {
+    use core::mem::{offset_of, size_of};
+    const WORD: usize = size_of::<usize>();
+    assert!(offset_of!(TclObj, ref_count) == 0);
+    assert!(offset_of!(TclObj, bytes) == WORD);
+    assert!(offset_of!(TclObj, length) == 2 * WORD);
+    assert!(offset_of!(TclObj, type_ptr) == 3 * WORD);
+    assert!(offset_of!(TclObj, internal_rep) == 4 * WORD);
+    #[cfg(target_pointer_width = "32")]
+    assert!(size_of::<TclObj>() == 24);
+};
 
 impl TclObj {
     #[inline]
@@ -718,7 +733,7 @@ fn obj_layout() -> Layout {
 fn obj_alloc() -> *mut TclObj {
     // SAFETY: `obj_layout()` is non-zero-sized and well-formed; we initialise
     // every field before returning, and the pointer is freed exactly once by
-    // `obj_free`.
+    // `free_obj`.
     unsafe {
         let p = alloc(obj_layout()) as *mut TclObj;
         if p.is_null() {
@@ -744,12 +759,14 @@ fn obj_alloc() -> *mut TclObj {
     }
 }
 
-/// Free a `TclObj` and its owned string buffer (if any). `TclFreeObj`.
+/// Free a `TclObj` and its owned string buffer (if any). `TclFreeObj`: what
+/// the header's `Tcl_DecrRefCount` macro calls once it has lowered the count of
+/// the last reference, whatever count that left.
 ///
 /// # Safety
 /// `obj` must be a live header previously returned by `obj_alloc` and not yet
 /// freed; no other reference may use it after this returns.
-unsafe fn obj_free(obj: *mut TclObj) {
+pub unsafe fn free_obj(obj: *mut TclObj) {
     if obj.is_null() {
         return;
     }
@@ -2240,7 +2257,7 @@ pub unsafe fn decr_ref_count(obj: *mut TclObj) {
         }
         (*obj).ref_count -= 1;
         if (*obj).ref_count <= 0 {
-            obj_free(obj);
+            free_obj(obj);
         }
     }
 }

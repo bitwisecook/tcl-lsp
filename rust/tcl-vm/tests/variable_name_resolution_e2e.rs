@@ -271,17 +271,17 @@ puts [array get zok]:[array get {z)b}]:[array names {z(b}]
         script: r#"proc <cond> {} { puts "hit-cond" }
 proc <caller-frame-opaque> {} { puts "hit-cfo" }
 proc <global-frame-script> {} { puts "hit-gfs" }
-proc <upvar-invalidate> {} { puts "hit-uv" }
+proc <word-effects> {} { puts "hit-we" }
 proc <empty_clause> {} { puts "hit-ec" }
 <cond>
 <caller-frame-opaque>
 <global-frame-script>
-<upvar-invalidate>
+<word-effects>
 <empty_clause>
 puts done
 "#,
-        want_8x: "hit-cond\nhit-cfo\nhit-gfs\nhit-uv\nhit-ec\ndone",
-        want_90: "hit-cond\nhit-cfo\nhit-gfs\nhit-uv\nhit-ec\ndone",
+        want_8x: "hit-cond\nhit-cfo\nhit-gfs\nhit-we\nhit-ec\ndone",
+        want_90: "hit-cond\nhit-cfo\nhit-gfs\nhit-we\nhit-ec\ndone",
     },
     Vector {
         name: "the incr fallback keeps a resolved base literal and substitutes only the key",

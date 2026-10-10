@@ -44,7 +44,9 @@ use tcl_syntax::value::{ValueError, ValueOps};
 
 use crate::error::CmdError;
 use crate::prefix::OptionTable;
-use crate::regex::{NO_MATCH, RegMatch, RegexEngine, RegexFlags, decode_utf8};
+use crate::regex::{
+    AnalysisMatch, NO_MATCH, RegMatch, RegexEngine, RegexFailure, RegexFlags, Run, decode_utf8,
+};
 
 /// The matching mode (`-exact` is the default).
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -82,6 +84,12 @@ pub struct Options<V> {
     pub match_var: Option<V>,
     /// TIP #75 `-indexvar` target (the `{start end}` pair list; regexp only).
     pub index_var: Option<V>,
+    /// Index, in the name-stripped args, of the word naming the `-matchvar`
+    /// target — the place a caller's write lands on.
+    pub match_var_at: Option<usize>,
+    /// Index, in the name-stripped args, of the word naming the `-indexvar`
+    /// target.
+    pub index_var_at: Option<usize>,
     /// Index, in the name-stripped args, of the `string` to switch on.
     pub value_index: usize,
 }
@@ -168,6 +176,8 @@ where
     let mut nocase = false;
     let mut match_var: Option<V> = None;
     let mut index_var: Option<V> = None;
+    let mut match_var_at: Option<usize> = None;
+    let mut index_var_at: Option<usize> = None;
 
     let mut i = 0;
     // Tcl 8.4 has no remaining-argument bound on its option scan.
@@ -196,8 +206,10 @@ where
                 }
                 if name == "-indexvar" {
                     index_var = Some(args[i].clone());
+                    index_var_at = Some(i);
                 } else {
                     match_var = Some(args[i].clone());
+                    match_var_at = Some(i);
                 }
                 None
             }
@@ -236,6 +248,8 @@ where
         nocase,
         match_var,
         index_var,
+        match_var_at,
+        index_var_at,
         value_index: i,
     })
 }
@@ -267,8 +281,10 @@ pub enum Selection<V> {
 /// reached, so a non-integer pattern after the matching one goes unchecked.
 ///
 /// # Errors
-/// A malformed `-regexp` pattern (the engine's compile error), or under
-/// `-integer` a value or reached pattern that is not a wide integer.
+/// A malformed `-regexp` pattern (the engine's compile error), under
+/// `-integer` a value or reached pattern that is not a wide integer, and a
+/// search that established neither a match nor a no-match, raised as the
+/// error it is — never read as a pattern that did not match.
 pub fn select<O, E, V>(
     ops: &mut O,
     opts: &Options<V>,
@@ -279,6 +295,101 @@ pub fn select<O, E, V>(
 where
     O: ValueOps<Value = V>,
     E: RegexEngine,
+    E::Regex: 'static,
+    V: Clone,
+{
+    select_run::<O, E, V>(ops, opts, value, patterns, version, &mut Run::Runtime).map_err(
+        |failure| match failure {
+            SelectFailure::Error(error) => error,
+            SelectFailure::Regex(failure) => failure.into_error().into_cmd_error(),
+        },
+    )
+}
+
+/// [`select`] on the analysis path: a `-regexp` pattern compiled through the
+/// thread's bounded pattern cache, each search run under `analysis`' limits,
+/// and a search that established neither a match nor a no-match — or matched
+/// with an approximate span — kept typed as [`RegexFailure::Declined`] rather
+/// than raised. Only a completed match or a completed no-match selects, so an
+/// arm is never chosen, or passed over, on a search that was cut short.
+///
+/// # Errors
+/// [`RegexFailure::Error`] for the error the selection raises;
+/// [`RegexFailure::Declined`] for a pattern that does not compile, a refused
+/// compile charge, an exhausted or cancelled search, or an approximate span.
+pub fn select_analysis<O, E, V>(
+    ops: &mut O,
+    opts: &Options<V>,
+    value: &V,
+    patterns: &[V],
+    version: TclVersion,
+    analysis: &mut AnalysisMatch<'_>,
+) -> Result<Selection<V>, RegexFailure>
+where
+    O: ValueOps<Value = V>,
+    E: RegexEngine,
+    E::Regex: 'static,
+    V: Clone,
+{
+    select_run::<O, E, V>(
+        ops,
+        opts,
+        value,
+        patterns,
+        version,
+        &mut Run::Analysis(analysis),
+    )
+    .map_err(|failure| match failure {
+        SelectFailure::Error(error) => RegexFailure::Error(crate::regex::RegexError::from(error)),
+        SelectFailure::Regex(failure) => failure,
+    })
+}
+
+/// A selection that did not complete: the error `switch` raises with its
+/// own error code (an `-integer` operand that is not a wide integer), or a
+/// `-regexp` pattern's failure on either path.
+enum SelectFailure {
+    Error(CmdError),
+    Regex(RegexFailure),
+}
+
+impl From<CmdError> for SelectFailure {
+    fn from(error: CmdError) -> Self {
+        Self::Error(error)
+    }
+}
+
+impl From<RegexFailure> for SelectFailure {
+    fn from(failure: RegexFailure) -> Self {
+        Self::Regex(failure)
+    }
+}
+
+impl From<tcl_syntax::raw_string::UnicodeAccessError> for SelectFailure {
+    fn from(error: tcl_syntax::raw_string::UnicodeAccessError) -> Self {
+        Self::Error(error.into())
+    }
+}
+
+impl From<ValueError> for SelectFailure {
+    fn from(error: ValueError) -> Self {
+        Self::Error(error.into())
+    }
+}
+
+/// The one selection algorithm both paths run.
+fn select_run<O, E, V>(
+    ops: &mut O,
+    opts: &Options<V>,
+    value: &V,
+    patterns: &[V],
+    version: TclVersion,
+    run: &mut Run<'_, '_>,
+) -> Result<Selection<V>, SelectFailure>
+where
+    O: ValueOps<Value = V>,
+    E: RegexEngine,
+    E::Regex: 'static,
     V: Clone,
 {
     let npairs = patterns.len();
@@ -335,11 +446,17 @@ where
                     nocase: opts.nocase,
                     ..RegexFlags::for_release(version)
                 };
-                let mut re =
-                    E::compile(&pattern_bytes, flags).map_err(|d| compile_error(version, &d))?;
+                let re = run.compile::<E>(&pattern_bytes, flags, version)?;
                 let value_bytes = ops.native_string_bytes(value)?;
                 let (cps, byteoff) = decode_utf8(&value_bytes);
-                if let Some(m) = E::exec(&mut re, &cps, 0, false) {
+                let answer = run.exec::<E>(&re, &cps, 0, false);
+                if let crate::regex::RegexpPrecision::Declined(decline) = answer {
+                    // A search cut short selects no arm: the runtime raises
+                    // it and the analysis path declines, never reading it
+                    // as a pattern that did not match.
+                    return Err(RegexFailure::Declined(decline).into());
+                }
+                if let Some(m) = answer.match_vector() {
                     let writes = regexp_writes(ops, opts, &m, &value_bytes, &byteoff);
                     return Ok(Selection::Matched { index: p, writes });
                 }
@@ -379,6 +496,7 @@ pub fn select_original_with_jim<O, E, V, Err>(
 where
     O: crate::regex::NativeRegexObjects<E, Value = V>,
     E: RegexEngine,
+    E::Regex: 'static,
     V: Clone,
 {
     let jim = ops
@@ -429,6 +547,7 @@ pub fn select_original<O, E, V>(
 where
     O: crate::regex::NativeRegexObjects<E, Value = V>,
     E: RegexEngine,
+    E::Regex: 'static,
     V: Clone,
 {
     if opts.mode != Mode::Regexp {
@@ -665,14 +784,6 @@ fn wide_int(text: &str, version: TclVersion) -> Result<i64, CmdError> {
             "TCL VALUE NUMBER",
         )),
     }
-}
-
-fn compile_error(version: TclVersion, detail: &[u8]) -> CmdError {
-    CmdError::new(format!(
-        "{}{}",
-        version.regex_compile_error_prefix(),
-        String::from_utf8_lossy(detail)
-    ))
 }
 
 /// The compiler's `STR_MATCH` primitive reaches original objects independently of
@@ -971,9 +1082,13 @@ mod tests {
             _cps: &[i32],
             _offset: usize,
             _notbol: bool,
-        ) -> Option<Vec<RegMatch>> {
+        ) -> crate::regex::RegexpPrecision<RegMatch> {
             unreachable!()
         }
+        const IDENTITY: crate::regex::EngineIdentity = crate::regex::EngineIdentity {
+            name: "none",
+            revision: 0,
+        };
     }
 
     /// An engine whose every pattern fails to compile.
@@ -992,9 +1107,13 @@ mod tests {
             _cps: &[i32],
             _offset: usize,
             _notbol: bool,
-        ) -> Option<Vec<RegMatch>> {
+        ) -> crate::regex::RegexpPrecision<RegMatch> {
             unreachable!()
         }
+        const IDENTITY: crate::regex::EngineIdentity = crate::regex::EngineIdentity {
+            name: "rejecting",
+            revision: 0,
+        };
     }
 
     #[test]
@@ -1034,6 +1153,8 @@ mod tests {
             nocase: false,
             match_var: None,
             index_var: None,
+            match_var_at: None,
+            index_var_at: None,
             value_index: 0,
         }
     }

@@ -413,11 +413,19 @@ fn o101_module_wide_variable_trace_guard() {
     // this trace, `x` stays a plain local, so `expr {$x + 1}` still folds.
     assert!(
         optimised(
-            "trace add variable y write cb\nset x 6\nputs [expr {$x + 1}]",
+            "proc cb {args} {}\ntrace add variable y write cb\nset x 6\nputs [expr {$x + 1}]",
             TCL,
         )
         .contains("puts 7")
     );
+
+    // A callback the module cannot see may write any global, `x` included,
+    // whichever variable the trace is on.
+    assert!(opt_absent(
+        "trace add variable y write cb\nset x 6\nputs [expr {$x + 1}]",
+        TCL,
+        "O101"
+    ));
 
     // TP (trace removed later still declines to fold): the fact is
     // flow-insensitive by design — a later `trace remove` does not
@@ -953,9 +961,22 @@ fn o103_interprocedural_folding() {
         TCL,
         "O103"
     ));
-    // Recursive proc is not folded (infinite-inline risk).
-    assert!(opt_absent(
+    // A recursive proc folds where the argument-sensitive re-run reaches the
+    // end of its recursion — tclsh: fact 5 == 120 — and not where its seeds
+    // never end (tclsh: too many nested evaluations) or it recurses past the
+    // re-run's depth (tclsh: down 50 == 0).
+    assert!(optimised(
         "proc fact {n} {\n    if {$n <= 1} { return 1 }\n    return [expr {$n * [fact [expr {$n - 1}]]}]\n}\nset v [fact 5]\n",
+        TCL
+    )
+    .contains("set v 120"));
+    assert!(opt_absent(
+        "proc loop {n} {return [loop $n]}\nset v [loop 1]\n",
+        TCL,
+        "O103"
+    ));
+    assert!(opt_absent(
+        "proc down {n} {if {$n <= 0} {return 0}; return [down [expr {$n - 1}]]}\nset v [down 50]\n",
         TCL,
         "O103"
     ));
@@ -1167,27 +1188,31 @@ fn o109_dead_store_elimination() {
 
 #[test]
 fn o110_reassociation() {
-    // tclsh sweep: $a + 1 + 2 == $a + 3 (all $a).
-    assert!(optimised("set v [expr {$a + 1 + 2}]", TCL).contains("$a + 3"));
-    // tclsh sweep: $a * 2 * 3 == $a * 6.
-    assert!(optimised("set v [expr {$a * 2 * 3}]", TCL).contains("$a * 6"));
-    // tclsh sweep: $a + 3 - 1 == $a + 2.
-    assert!(optimised("set v [expr {$a + 3 - 1}]", TCL).contains("$a + 2"));
-    // Real fold through reassoc at top level: ($a + 1) + 2 flattens to $a + 3.
-    // tclsh sweep: ($a + 1) + 2 == $a + 3.
-    assert!(optimised("set v [expr {($a + 1) + 2}]", TCL).contains("$a + 3"));
-    assert!(opt_fires("set v [expr {($a + 1) + 2}]", TCL, "O110"));
-    // #1962: a `return [expr {...}]` value position now agrees with the `set`
-    // body above — the same reassoc folds there too.
-    assert!(
-        optimised("proc f {a} { return [expr {($a + 1) + 2}] }", TCL)
-            .contains("return [expr {$a + 3}]")
-    );
+    // Regrouping needs every term proven integer — wrap in `int_x`. tclsh
+    // sweep over integers: $x + 1 + 2 == $x + 3, $x * 2 * 3 == $x * 6,
+    // $x + 3 - 1 == $x + 2.
+    assert!(optimised(&int_x("set v [expr {$x + 1 + 2}]"), TCL).contains("$x + 3"));
+    assert!(optimised(&int_x("set v [expr {$x * 2 * 3}]"), TCL).contains("$x * 6"));
+    assert!(optimised(&int_x("set v [expr {$x + 3 - 1}]"), TCL).contains("$x + 2"));
+    // Real fold through reassoc: ($x + 1) + 2 flattens to $x + 3.
+    assert!(optimised(&int_x("set v [expr {($x + 1) + 2}]"), TCL).contains("$x + 3"));
     assert!(opt_fires(
-        "proc f {a} { return [expr {($a + 1) + 2}] }",
+        &int_x("set v [expr {($x + 1) + 2}]"),
         TCL,
         "O110"
     ));
+    // An unproven term keeps its chain: over a double the rounding is
+    // order-dependent (`set x 10000000000000000.0; expr {$x + 1 + 2}` prints
+    // `10000000000000002.0` and `expr {$x + 3}` `10000000000000004.0` under
+    // tclsh 8.5 to 9.1).
+    assert!(opt_absent("set v [expr {$a + 1 + 2}]", TCL, "O110"));
+    assert!(opt_absent("set v [expr {$a * 2 * 3}]", TCL, "O110"));
+    // #1962: a `return [expr {...}]` value position agrees with the `set`
+    // body above — the same reassoc folds there too.
+    let returned =
+        "proc f {n} {\n  for {set x 0} {$x < $n} {incr x} {}\n  return [expr {($x + 1) + 2}]\n}\n";
+    assert!(optimised(returned, TCL).contains("return [expr {$x + 3}]"));
+    assert!(opt_fires(returned, TCL, "O110"));
 }
 
 #[test]
@@ -1562,7 +1587,7 @@ fn o113_strength_reduction() {
 
 #[test]
 fn o114_incr_idiom() {
-    // D5-O114: the loop-counter pattern makes `x` INT-typed AND live (read via
+    // the loop-counter pattern makes `x` INT-typed AND live (read via
     // `puts $x`), so the rewrite is sound. tclsh: `set x N; set x [expr {$x+1}]`
     // is the same as `incr x` for INT x.
     let add1 = "proc foo {n} {\n  for {set x 0} {$x < $n} {incr x} {\n    set x [expr {$x + 1}]\n    puts $x\n  }\n}\nfoo 3\n";
@@ -1727,11 +1752,10 @@ fn o118_lindex_folding() {
 
 #[test]
 fn o119_multi_set_packing() {
-    // OMISSION (as in optimiser.rs): with an `eval {$a $b $c}` barrier the
-    // constants are forwarded THROUGH the braced `eval {...}` literal (O102/O109)
-    // — `eval {1 2 3}` — so no surviving stores remain and O119 never fires.
-    // tclsh: `set a 1; set b 2; set c 3; eval {$a $b $c}` and `eval {1 2 3}` are
-    // identical, so the fold is sound. Assert the packing-disabled invariants.
+    // As in optimiser.rs: with an `eval {$a $b $c}` barrier the constants are
+    // forwarded THROUGH the braced `eval {...}` literal (O102), and the command
+    // the script runs is one the module cannot see, which may read the globals
+    // `a`, `b` and `c`: the stores stay and O119 packs them.
 
     // Tcl 9.0: individual `set` is faster ⇒ O119 must not fire.
     assert!(opt_absent(
@@ -1741,10 +1765,10 @@ fn o119_multi_set_packing() {
     ));
     // Too few consecutive sets ⇒ no packing.
     assert!(opt_absent("set a 1\nset b 2\neval {$a $b}", TCL, "O119"));
-    // The eval-barrier form is folded rather than packed. tclsh: identical value.
+    // The words are forwarded and the stores are packed. tclsh: the same program.
     assert_eq!(
         optimised("set a 1\nset b 2\nset c 3\neval {$a $b $c}", TCL),
-        "eval {1 2 3}"
+        "lassign {1 2 3} a b c\neval {1 2 3}"
     );
 }
 
@@ -1952,6 +1976,24 @@ fn shimmer_no_false_positives() {
         shimmer_count("set x true\nset y [expr {$x + 1}]", "S100"),
         0
     );
+}
+
+/// The variables `catch` writes hold the script's result and its options
+/// dictionary, not the integer completion code `catch` itself returns, so a
+/// list or dictionary command over one shimmers nothing — in the top-level
+/// script and in a procedure whose body the graph keeps as one statement, with
+/// the result variable alone or beside the options variable.
+#[test]
+fn a_catch_result_variable_holds_no_integer_to_shimmer() {
+    for source in [
+        "catch {foo} msg\nputs [lindex $msg 0]\n",
+        "catch {foo} msg opts\nputs [dict get $opts -code]\nputs [lindex $msg 0]\n",
+        "proc p {} {\n catch {if {1} {foo}} msg\n puts [lindex $msg 0]\n}\n",
+        "proc p {} {\n catch {set x [foo]} msg\n puts [dict get $msg x]\n}\n",
+        "proc p {} {\n catch {foo} msg\n puts [dict get $msg x]\n}\n",
+    ] {
+        assert_eq!(shimmer_codes(source), Vec::<String>::new(), "{source}");
+    }
 }
 
 #[test]

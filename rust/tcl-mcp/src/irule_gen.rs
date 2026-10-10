@@ -34,6 +34,8 @@ use std::fmt::Write as _;
 use regex::Regex;
 use serde_json::{Value, json};
 use tcl_registry::events::EventRegistry;
+use tcl_registry::value_transfer::{EvalRoute, NativeEvalId};
+use tcl_registry::{ArgRole, CommandRegistry, InvocationWord, InvocationWords};
 use tcl_syntax::list::list_element;
 
 /// The prose emitted for `multi_tmm_hint` when multi-TMM patterns are detected.
@@ -131,7 +133,7 @@ pub fn generate_irule_test(args: &Value) -> Value {
     let variables = extract_variables(&closure);
 
     let cfg_paths = crate::irule_test::cfg_paths_json(source);
-    let multi_tmm = needs_multi_tmm(&closure, &variables);
+    let multi_tmm = needs_multi_tmm(registry, &closure, &variables);
 
     let ctx = ScriptContext {
         basename: "irule.tcl",
@@ -211,12 +213,6 @@ fn extract_object_refs(
 fn extract_variables(commands: &[tcl_irules::IrulesExecutableCommand]) -> Variables {
     let mut static_vars: BTreeSet<String> = BTreeSet::new();
     for fact in commands {
-        if fact.command == "set"
-            && let Some(name) = fact.args.first()
-            && name.starts_with("static::")
-        {
-            static_vars.insert(name.trim_start_matches("static::").to_owned());
-        }
         for name in &fact.variable_names {
             if name.starts_with("static::") {
                 static_vars.insert(name.trim_start_matches("static::").to_owned());
@@ -252,6 +248,7 @@ fn infer_profiles(events: &[String]) -> Vec<String> {
 /// Suggest an independently observed multi-TMM scenario from source patterns
 /// (`_needs_multi_tmm`).
 fn needs_multi_tmm(
+    registry: &CommandRegistry,
     commands: &[tcl_irules::IrulesExecutableCommand],
     variables: &Variables,
 ) -> bool {
@@ -260,17 +257,18 @@ fn needs_multi_tmm(
         fact.event
             .as_deref()
             .is_some_and(|event| HOT_EVENTS.contains(&event))
-            && matches!(fact.command.as_str(), "set" | "incr")
-            && fact
-                .args
-                .first()
-                .is_some_and(|arg| arg.starts_with("static::"))
+            && matches!(
+                cell_written(registry, fact),
+                Some((NativeEvalId::CellWrite | NativeEvalId::CellIncrement, name))
+                    if name.starts_with("static::")
+            )
     });
     let has_counter = commands.iter().any(|fact| {
-        fact.command == "incr"
-            && fact.args.first().is_some_and(|arg| {
-                arg.starts_with("static::") || arg.to_ascii_lowercase().contains("count")
-            })
+        matches!(
+            cell_written(registry, fact),
+            Some((NativeEvalId::CellIncrement, name))
+                if name.starts_with("static::") || name.to_ascii_lowercase().contains("count")
+        )
     });
     let uses_shared_table = commands.iter().any(|fact| {
         fact.command == "table"
@@ -1050,7 +1048,7 @@ mod tests {
         );
     }
 
-    /// Adversarial-review finding: reusing the raw `matches_glob`/
+    /// Reusing the raw `matches_glob`/
     /// `matches_regex` pattern text verbatim as the simulated request URI
     /// produces a generated test whose own simulated request doesn't
     /// satisfy the very condition its branch exercises — confirmed against
@@ -1237,14 +1235,14 @@ mod tests {
             "{:?}",
             variables.static_vars
         );
-        assert!(!needs_multi_tmm(&commands, &variables));
+        assert!(!needs_multi_tmm(registry(), &commands, &variables));
         assert_eq!(object_refs(inert).pools, ["live"]);
 
         let live = "when HTTP_REQUEST { set static::hits 0; incr static::hits; table incr key; HTTP::respond 200 }";
         let commands = executable(live);
         let variables = extract_variables(&commands);
         assert_eq!(variables.static_vars, ["hits"]);
-        assert!(needs_multi_tmm(&commands, &variables));
+        assert!(needs_multi_tmm(registry(), &commands, &variables));
     }
 
     #[test]

@@ -242,42 +242,26 @@ namespace eval ::itest::cmd {
     cmd_accumulate {toplevel accumulate}
     cmd_active_members {toplevel active_members}
     cmd_active_nodes {toplevel active_nodes}
-    cmd_append {toplevel append}
-    cmd_array {toplevel array}
     cmd_b64decode {toplevel b64decode}
     cmd_b64encode {toplevel b64encode}
-    cmd_binary {toplevel binary}
-    cmd_break {toplevel break}
     cmd_call {toplevel call}
     cmd_case {toplevel case}
-    cmd_catch {toplevel catch}
     cmd_check {toplevel check}
     cmd_client_addr {toplevel client_addr}
     cmd_client_port {toplevel client_port}
     cmd_clientside {toplevel clientside}
-    cmd_clock {toplevel clock}
     cmd_clone {toplevel clone}
     cmd_close {toplevel close}
-    cmd_concat {toplevel concat}
     cmd_connect {toplevel connect}
-    cmd_continue {toplevel continue}
     cmd_cpu {toplevel cpu}
     cmd_crc32 {toplevel crc32}
     cmd_decode_uri {toplevel decode_uri}
     cmd_domain {toplevel domain}
-    cmd_encoding {toplevel encoding}
-    cmd_error {toplevel error}
-    cmd_eval {toplevel eval}
-    cmd_expr {toplevel expr}
     cmd_fasthash {toplevel fasthash}
     cmd_findclass {toplevel findclass}
     cmd_findstr {toplevel findstr}
-    cmd_for {toplevel for}
-    cmd_foreach {toplevel foreach}
-    cmd_format {toplevel format}
     cmd_forward {toplevel forward}
     cmd_getfield {toplevel getfield}
-    cmd_global {toplevel global}
     cmd_html_encode {toplevel html_encode}
     cmd_html_escape {toplevel html_escape}
     cmd_htmlencode {toplevel htmlencode}
@@ -291,32 +275,18 @@ namespace eval ::itest::cmd {
     cmd_http_method {toplevel http_method}
     cmd_http_uri {toplevel http_uri}
     cmd_http_version {toplevel http_version}
-    cmd_if {toplevel if}
     cmd_ifile {toplevel ifile}
     cmd_imid {toplevel imid}
-    cmd_incr {toplevel incr}
-    cmd_info {toplevel info}
     cmd_ip_addr {toplevel ip_addr}
     cmd_ip_protocol {toplevel ip_protocol}
     cmd_ip_tos {toplevel ip_tos}
     cmd_ip_ttl {toplevel ip_ttl}
-    cmd_join {toplevel join}
-    cmd_lappend {toplevel lappend}
     cmd_lasthop {toplevel lasthop}
-    cmd_lindex {toplevel lindex}
     cmd_link_qos {toplevel link_qos}
-    cmd_linsert {toplevel linsert}
-    cmd_list {toplevel list}
     cmd_listen {toplevel listen}
-    cmd_llength {toplevel llength}
     cmd_llookup {toplevel llookup}
     cmd_local_addr {toplevel local_addr}
     cmd_local_port {toplevel local_port}
-    cmd_lrange {toplevel lrange}
-    cmd_lreplace {toplevel lreplace}
-    cmd_lsearch {toplevel lsearch}
-    cmd_lset {toplevel lset}
-    cmd_lsort {toplevel lsort}
     cmd_matchclass {toplevel matchclass}
     cmd_md4 {toplevel md4}
     cmd_md5 {toplevel md5}
@@ -333,49 +303,34 @@ namespace eval ::itest::cmd {
     cmd_rateclass {toplevel rateclass}
     cmd_recv {toplevel recv}
     cmd_redirect {toplevel redirect}
-    cmd_regexp {toplevel regexp}
-    cmd_regsub {toplevel regsub}
     cmd_relate_client {toplevel relate_client}
     cmd_relate_server {toplevel relate_server}
     cmd_remote_addr {toplevel remote_addr}
     cmd_remote_port {toplevel remote_port}
-    cmd_return {toplevel return}
     cmd_rmd160 {toplevel rmd160}
-    cmd_scan {toplevel scan}
     cmd_send {toplevel send}
     cmd_server_addr {toplevel server_addr}
     cmd_server_port {toplevel server_port}
     cmd_serverside {toplevel serverside}
     cmd_session {toplevel session}
-    cmd_set {toplevel set}
     cmd_sha1 {toplevel sha1}
     cmd_sha256 {toplevel sha256}
     cmd_sha384 {toplevel sha384}
     cmd_sha512 {toplevel sha512}
     cmd_sharedvar {toplevel sharedvar}
-    cmd_split {toplevel split}
-    cmd_string {toplevel string}
-    cmd_subst {toplevel subst}
     cmd_substr {toplevel substr}
-    cmd_switch {toplevel switch}
     cmd_tcpdump {toplevel tcpdump}
     cmd_timing {toplevel timing}
-    cmd_trace {toplevel trace}
     cmd_traffic_group {toplevel traffic_group}
     cmd_translate {toplevel translate}
     cmd_uniq_ordered_ip_list {toplevel uniq_ordered_ip_list}
     cmd_uniq_sorted_ip_list {toplevel uniq_sorted_ip_list}
-    cmd_unset {toplevel unset}
-    cmd_uplevel {toplevel uplevel}
-    cmd_upvar {toplevel upvar}
     cmd_urlcatblindquery {toplevel urlcatblindquery}
     cmd_urlcatquery {toplevel urlcatquery}
     cmd_use {toplevel use}
-    cmd_variable {toplevel variable}
     cmd_vlan_id {toplevel vlan_id}
     cmd_when {toplevel when}
     cmd_whereis {toplevel whereis}
-    cmd_while {toplevel while}
     cmd_xff_list {toplevel xff_list}
     cmd_xff_uniq_ordered_ip_list {toplevel xff_uniq_ordered_ip_list}
     cmd_xff_uniq_sorted_ip_list {toplevel xff_uniq_sorted_ip_list}
@@ -716,7 +671,6 @@ namespace eval ::itest::cmd {
     pem_flow {pem flow}
     pem_session {pem session}
     pem_subscriber {pem subscriber}
-    pkg_create {pkg create}
     plugin_disable {plugin disable}
     plugin_enable {plugin enable}
     policy_controls {policy controls}
@@ -1016,4 +970,4 @@ namespace eval ::itest::cmd {
     }
 }
 
-# Total stub actions generated: 979
+# Total stub actions generated: 933

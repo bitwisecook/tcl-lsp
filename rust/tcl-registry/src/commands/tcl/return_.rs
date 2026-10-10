@@ -163,7 +163,7 @@ fn errorstack_value(args: &[&str], start: usize) -> OptionValueOutcome {
 /// independently known cardinality; ambiguous option mixtures stay unresolved.
 fn return_layout_roles(
     args: crate::InvocationArguments<'_>,
-    _options: crate::resolved_invocation::InvocationOptions<'_>,
+    _options: crate::resolved_invocation::InvocationOptions<'_, '_>,
 ) -> Option<Vec<(u8, ArgRole)>> {
     match args.exact_argv_len()? {
         0 => Some(Vec::new()),
@@ -273,6 +273,7 @@ pub fn spec() -> CommandSpec {
             ),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("return"),
         // Present and unrestricted: its `dialects` group carries the
         // `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`), so it resolves
         // under the bare `IRULES` availability mask — a pure control-flow
@@ -313,6 +314,7 @@ pub fn spec() -> CommandSpec {
         lowering_hook: Some(LoweringHookId::Return),
         native_lowering: Some(NativeLowering::Structured(LoweringHookId::Return)),
         inline_codegen_hook: Some(InlineCodegenHookId::Return),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::completion::RETURN),
         forms: FORMS,
         context_gate: Some(return_context_gate),
         // Native return scans option/value pairs while preserving the last

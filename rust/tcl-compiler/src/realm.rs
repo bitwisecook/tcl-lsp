@@ -711,6 +711,9 @@ pub(crate) fn document_realm_bindings_with_resolved_input(
         config,
     );
     let options = crate::command_binding::SourceAnalysisOptions {
+        metadata_context: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
+            Some(input),
+        ),
         invocation_dialect: Some(dialect),
         native_compilation: crate::environment_ingress::authoring_native_compilation(),
         ..crate::command_binding::SourceAnalysisOptions::default()
@@ -740,6 +743,9 @@ pub(crate) fn document_lexical_realm_with_resolved_input(
     dialect.word_values =
         tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);
     let options = crate::command_binding::SourceAnalysisOptions {
+        metadata_context: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
+            Some(input),
+        ),
         invocation_dialect: Some(dialect),
         logical_source_input: Some(input),
         native_compilation: crate::environment_ingress::authoring_native_compilation(),
@@ -770,6 +776,9 @@ pub(crate) fn document_vendor_realm_with_resolved_input(
     dialect.word_values =
         tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);
     let options = crate::command_binding::SourceAnalysisOptions {
+        metadata_context: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
+            Some(input),
+        ),
         invocation_dialect: Some(dialect),
         vendor_source_input: Some(input),
         native_compilation: crate::environment_ingress::authoring_native_compilation(),
@@ -1448,11 +1457,10 @@ mod tests {
     #[test]
     fn unavailable_irules_mutators_do_not_change_event_identity() {
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
-        let profile = registry.profile().expect("dialect registry has a profile");
         for command in ["interp", "rename", "namespace"] {
             assert!(
                 registry
-                    .get_for_surface(command, Some(profile.surface_query()))
+                    .get_for_surface(command, registry.own_surface_query())
                     .is_none(),
                 "F5 K36322151 disables {command} in iRules"
             );

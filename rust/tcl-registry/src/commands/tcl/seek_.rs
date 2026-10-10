@@ -93,6 +93,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("seek"),
         // Core Tcl command whose surface is `ALL_TCL` (no iRules row). Its
         // absence from F5 iRules — the sandboxed TMM interpreter has no real
         // filesystem/channel-seek support — falls straight out of that

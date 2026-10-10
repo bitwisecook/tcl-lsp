@@ -24,8 +24,11 @@ and are omitted to keep the binary small.
 [`manifest.json`](manifest.json) records the upstream tag and commit, each
 source-relative path, its SHA-256 digest, and whether it is part of the embedded
 read-closure. `cargo xtask runtime-stdlib` verifies the manifest, the exact
-`init.tcl` patch requirement, and the `embedded_stdlib.rs` `FILES` table
-offline; it is part of `make rust-check`.
+`init.tcl` patch requirement, the `embedded_stdlib.rs` `FILES` table, and that
+`EMBEDDED_STDLIB_REVISION` (`rust/tcl-runtime-api/src/manifest.rs`), the
+revision every compiled artefact states of this library, names the manifest's
+patchlevel, commit and embedded-file hashes, offline. It is part of
+`make rust-check`.
 
 ## Licence
 
@@ -37,5 +40,6 @@ under that licence.
 ## Updating
 
 To re-vendor for a new Tcl version, trace the read-closure from the official
-source tree, copy those files without modification, and update `manifest.json`.
+source tree, copy those files without modification, and update `manifest.json`
+and `EMBEDDED_STDLIB_REVISION` (the gate prints the value it expects).
 If the closure changes, update the `FILES` table in `embedded_stdlib.rs` too.

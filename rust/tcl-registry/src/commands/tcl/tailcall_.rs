@@ -58,6 +58,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("tailcall"),
         // `TCL86_PLUS` also, via the mask-intersection rule
         // `CommandSpec::supports_dialect` / `ProfileQueries::is_available`
         // apply, already resolves availability correctly for every non-core

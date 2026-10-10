@@ -64,6 +64,13 @@
 //!   `tcl_dialect::scan_expr_number`.
 //! - `owner-resolution` — verify that the shared semantic-owner contract
 //!   resolves to live source files and drift gates.
+//! - `value-transfers` — flag a command recognised by name on the value axis
+//!   outside the registry, and generate or verify the value-transfer
+//!   inventory (`docs/generated/value-transfers.md`).
+//! - `registry-axes` — flag a registry word (command, subcommand, option,
+//!   member keyword, clause keyword, special variable) compared outside the
+//!   registry, and generate or verify the per-axis ledger
+//!   (`docs/generated/registry-axes.md`).
 //! - `segmentation-drift` — flag a hand-rolled Tcl command-terminator scan
 //!   or a private `Sep`/`Eol` word-start state machine outside the command /
 //!   word boundary owners, and verify the owner/scanner corpus differential
@@ -109,6 +116,7 @@ mod kcs_index_links;
 mod number_drift;
 mod owner_resolution;
 mod pack_goldens;
+mod registry_axes;
 mod registry_oracle;
 mod resolution_drift;
 mod retired_api_gate;
@@ -118,6 +126,7 @@ mod sslictcl_data;
 mod tcltest_sweep;
 mod tzdata_bundle;
 mod util;
+mod value_transfers;
 mod version;
 mod workflow_sync;
 
@@ -411,6 +420,29 @@ enum Command {
     #[command(name = "owner-resolution")]
     OwnerResolution,
 
+    /// Flag a command recognised by name on the value axis, and generate or
+    /// verify the registry's value-transfer inventory
+    /// (`docs/generated/value-transfers.md`).
+    #[command(name = "value-transfers")]
+    ValueTransfers {
+        /// Verify the committed inventory instead of rewriting it; exit
+        /// non-zero on drift, an unwaived site, or an unclassified gap.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Flag a word the registry declares — a command, subcommand, option
+    /// spelling, member keyword, clause keyword, or special variable —
+    /// compared outside `tcl-registry`, and generate or verify the per-axis
+    /// ledger (`docs/generated/registry-axes.md`).
+    #[command(name = "registry-axes")]
+    RegistryAxes {
+        /// Verify the committed ledger instead of rewriting it; exit non-zero
+        /// on drift, a rising count, a stale pin, or a malformed waiver.
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Regenerate — or, with `--check`, verify — the golden snapshots of
     /// every shipped `.tclspec`. The gate that a loader change cannot
     /// silently alter what a shipped pack means.
@@ -540,6 +572,8 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::RuntimeStdlib => runtime_stdlib::run(),
         Command::CatalogueCallers { check } => Ok(catalogue_callers::run(check)),
         Command::OwnerResolution => owner_resolution::run(),
+        Command::ValueTransfers { check } => value_transfers::run(check),
+        Command::RegistryAxes { check } => registry_axes::run(check),
         Command::PackGoldens { check } => Ok(pack_goldens::run(check)),
         Command::SslictclData {
             operation,

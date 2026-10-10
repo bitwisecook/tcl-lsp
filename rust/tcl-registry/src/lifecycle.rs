@@ -290,6 +290,23 @@ impl Lifecycle {
         self
     }
 
+    /// Whether some release is available under both lifecycles.
+    ///
+    /// Two lifecycles overlap unless one is wholly retired before the other is
+    /// introduced; retirement is exclusive, so `[.., 3.0)` and `[3.0, ..)` are
+    /// adjacent and do not. A lifecycle with no declared bounds overlaps every
+    /// other, which is why a second unbounded window is always an error.
+    #[must_use]
+    pub fn overlaps(self, other: Self) -> bool {
+        fn ends_before(a: Lifecycle, b: Lifecycle) -> bool {
+            match (a.retired, b.introduced) {
+                (Some(retired), Some(introduced)) => compare(retired, introduced).is_le(),
+                _ => false,
+            }
+        }
+        !ends_before(self, other) && !ends_before(other, self)
+    }
+
     /// Narrow to the stricter of two lifecycles: the later introduction and
     /// the earlier deprecation/retirement. Used where an entity inherits a
     /// parent's gate (a subcommand of a package-gated command).
@@ -434,6 +451,17 @@ mod tests {
                 .introduced,
             Some("9.0.3")
         );
+    }
+
+    #[test]
+    fn lifecycles_overlap_unless_one_ends_before_the_other_begins() {
+        let before = Lifecycle::UNSPECIFIED.retired_from("3.0");
+        let after = Lifecycle::introduced_in("3.0");
+        assert!(!before.overlaps(after), "retirement is exclusive");
+        assert!(!after.overlaps(before), "and the answer is symmetric");
+        assert!(before.overlaps(Lifecycle::introduced_in("2.0")));
+        assert!(Lifecycle::UNSPECIFIED.overlaps(Lifecycle::UNSPECIFIED));
+        assert!(Lifecycle::UNSPECIFIED.overlaps(after));
     }
 
     #[test]

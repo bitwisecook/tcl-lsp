@@ -42,6 +42,23 @@ set result [expr {1 + 1}]
 puts $result
 ```
 
+## Existence checks and unset count as uses
+
+A variable that is only checked with `info exists` or `array exists`, or only
+unset, is used: the check's answer and whether the `unset` succeeds depend on
+the assignment. That holds wherever the check or the `unset` sits — a command
+of its own, an `if` condition, or a `[…]` substitution inside another command:
+
+```tcl
+proc drain {} {
+    set pending 1          ;# not flagged — the unset below needs it
+    puts [unset pending]
+}
+```
+
+Without the assignment, `unset pending` raises `can't unset "pending": no such
+variable`.
+
 ## Reads through a computed name
 
 A variable read through a name Tcl computes at run time counts as a use, even
@@ -82,6 +99,47 @@ protects the *caller's*, `eval $script` protects the procedure that writes it.
 See
 [W220](kcs-diagnostic-w220-dead-store.md#a-procedure-you-call-can-read-your-variables)
 for the same rule on the dead-store side.
+
+## A variable you hand a procedure by name
+
+A variable you name to a procedure that links it with `upvar` counts as used
+by the call, and so does the variable a parameter's default names when the call
+leaves that argument out:
+
+```tcl
+proc bumpd {{name n}} {upvar 1 $name v; incr v}
+proc p {} {
+    set n 1               ;# not flagged — bumpd reads n through the link
+    bumpd
+    return 0
+}
+```
+
+## A command the file does not define can read your variables
+
+A plain variable in the top-level script is the global `::name`, which a
+command the file does not define, a call whose command is computed and a call
+inside the body of a `catch` can read, so a top-level variable set before one
+is not unused:
+
+```tcl
+set h 6
+source other.tcl      ;# runs in this frame and may read h: not flagged
+```
+
+The same holds for a procedure's local: such a command — one an autoloader or
+the unknown handler brings in — reaches it through `upvar 1`, and a `source`
+runs its file in the procedure's frame. A local set and never read with no
+such call after it still draws `W211`.
+
+A command a [stub](../kcs-howto-annotate-commands-with-stubs.md) declares is
+such a command until the stub states what it does to the caller's variables. A
+plain stub — every argument a value, name, pattern or channel, no flag but
+`-pure` or `-unsafe` — with `-frame own` or `-frame none` reads none of them,
+and one with `-frame caller` only sets them, as `argparse` does, so a local set
+before such a call and never read still draws `W211`. See
+[W220](kcs-diagnostic-w220-dead-store.md#a-command-the-file-does-not-define-can-read-your-variables)
+for the dead-store side.
 
 ## How to suppress
 

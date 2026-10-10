@@ -26,6 +26,28 @@ use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
 
+/// Concatenate already decoded logical string values for source-value analysis.
+/// Checked text access supplies their counted contents; this door does not run
+/// native append, infer a physical representation, or publish variable observers.
+/// Native adapters use the independently authenticated original-object owner.
+pub fn logical_append_value<O: ValueOps>(
+    ops: &mut O,
+    current: Option<O::Value>,
+    values: &[O::Value],
+) -> Result<O::Value, CmdError> {
+    if values.is_empty() {
+        return Ok(current.unwrap_or_else(|| ops.empty()));
+    }
+    let mut contents = match current.as_ref() {
+        Some(value) => ops.try_as_str(value)?.to_string(),
+        None => String::new(),
+    };
+    for value in values {
+        contents.push_str(&ops.try_as_str(value)?);
+    }
+    Ok(ops.new_string(contents))
+}
+
 /// `lappend`'s new value: `cur` (or `None` → an empty list) with every `values`
 /// element appended as a list element. Grows `cur` in place when the runtime can
 /// (returning the same value), else builds a fresh list. Byte-exact (elements

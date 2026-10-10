@@ -42,6 +42,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("error"),
         // Present and unrestricted: its surface explicitly carries an iRules
         // row (unlike the TMM-sandbox-banned commands, whose bare `ALL_TCL`
         // surface never intersects the `IRULES` mask) — `error` is a pure
@@ -82,6 +83,7 @@ pub fn spec() -> CommandSpec {
             return_value: "Never returns to the caller: unconditionally completes with a TCL_ERROR whose result is message, catchable by an enclosing catch (or, from Tcl 8.6 on, try).",
         }),
         inline_codegen_hook: Some(InlineCodegenHookId::Error),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::completion::ERROR),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

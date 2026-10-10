@@ -184,6 +184,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::objdefine",
         native_compilation: Some(super::oo_class::OO_NATIVE_COMPILATION),
+        runtime_backing: RuntimeBacking::shipped("oo::objdefine"),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::LANGUAGE_KEYWORD
             | Traits::INSTALLS_NAMED_DEFINITION

@@ -166,8 +166,10 @@ fn switch_creates_dispatch_branches() {
     // A non-fallthrough EXACT switch is expanded (not opaque) into a dispatch
     // chain — one Branch per arm — so ≥2 blocks end in a Branch. STRUCTURAL (the
     // exact/expanded vs. glob/regexp/fallthrough/opaque split is a CFG-builder
-    // decision).
-    let module = cfg("switch $x {a {set y 1} b {set y 2}}");
+    // decision). `--` ends the options, so no release reads the subject as one;
+    // see `switch_subject_a_release_may_read_as_an_option_stays_opaque` for the
+    // bare form.
+    let module = cfg("switch -- $x {a {set y 1} b {set y 2}}");
     let func = top(&module);
     let branch_count = terminators(func)
         .iter()
@@ -176,6 +178,31 @@ fn switch_creates_dispatch_branches() {
     assert!(
         branch_count >= 2,
         "expected ≥2 dispatch branches, got {branch_count}"
+    );
+}
+
+#[test]
+fn switch_subject_a_release_may_read_as_an_option_stays_opaque() {
+    // `build_cfg` names no dialect, so it builds under the lenient `tcl` profile,
+    // which declares no release. Before 8.5 `switch` reads every leading word
+    // that starts with `-` as an option, so a variable subject with no `--`
+    // before it may be one: the statement is kept whole for the runtime command,
+    // where a dispatch chain would select the arm the subject spells.
+    // STRUCTURAL.
+    let module = cfg("switch $x {a {set y 1} b {set y 2}}");
+    let func = top(&module);
+    let switch_count = func
+        .blocks
+        .values()
+        .flat_map(|b| b.statements.iter())
+        .filter(|s| matches!(s, Statement::Switch { .. }))
+        .count();
+    assert_eq!(switch_count, 1, "the statement stays one opaque switch");
+    assert!(
+        !terminators(func)
+            .iter()
+            .any(|t| matches!(t, Terminator::Branch { .. })),
+        "no dispatch branch"
     );
 }
 
@@ -672,6 +699,344 @@ impl XorShift {
         // Take the high bits (better distributed than the low bits).
         (x.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 32) as u32
     }
+}
+
+// Clause plans: a `try`-shaped grammar under another keyword set
+
+/// A workspace pack declaring `attempt`, a `try`-shaped command whose clauses
+/// are introduced by `upon`, `catching` and `always` — no keyword the
+/// compiler has ever spelt. `grammar` is the `clause_grammar` block, or empty
+/// for the negative control.
+fn attempt_pack(grammar: &str) -> tcl_spectcl::PackSet {
+    let source = format!(
+        "speclib guarded 2.2 {{\n\
+         \x20   command attempt {{\n\
+         \x20       arity 1..\n\
+         \x20       traits {{CONTROL_FLOW BRANCH_SELECTED_BODY}}\n\
+         \x20       lowering_hook -native Try\n\
+         {grammar}\
+         \x20   }}\n\
+         }}\n"
+    );
+    tcl_spectcl::pack::load_in_memory(vec![(
+        tcl_spectcl::PackFile {
+            tier: tcl_spectcl::Tier::Workspace,
+            path: std::path::PathBuf::from("/workspace/.tcl-lsp/guarded.tclspec"),
+            origin: tcl_spectcl::discovery::Origin::DotDir,
+            dependency_tier: None,
+        },
+        source,
+    )])
+}
+
+/// `try`'s own clause grammar, respelt: the protected body, handlers selected
+/// by completion code and by error-code prefix, the clause that always runs,
+/// and the `-` fall-through marker.
+const ATTEMPT_GRAMMAR: &str = "        clause_grammar {\n\
+    \x20           head {Body} -timing protected\n\
+    \x20           repeated upon {Pattern LoopVarList Body} -timing selected -pattern completion-code\n\
+    \x20           repeated catching {Pattern LoopVarList Body} -timing selected -pattern error-code-prefix\n\
+    \x20           tail always {Body} -timing always\n\
+    \x20           fallthrough_body -\n\
+    \x20           selection first-match\n\
+    \x20       }\n";
+
+/// One block of a [`CfgShape`]: its name, its successors' names, and the
+/// constants it assigns.
+type BlockShape = (String, Vec<String>, Vec<String>);
+
+/// A CFG's shape with every span and spelling left out: each block in
+/// creation order, then the analysis-only exception edges.
+type CfgShape = (Vec<BlockShape>, Vec<(String, String)>);
+
+/// The [`CfgShape`] of `func`.
+fn cfg_shape(func: &Function) -> CfgShape {
+    let blocks = ordered_block_names(func)
+        .into_iter()
+        .map(|name| {
+            let block = func
+                .blocks
+                .values()
+                .find(|block| block.name == name)
+                .expect("an ordered block name is a block");
+            let successors = block
+                .terminator
+                .as_ref()
+                .map(|terminator| {
+                    terminator
+                        .successors()
+                        .into_iter()
+                        .map(|id| func.block_name(id).to_owned())
+                        .collect()
+                })
+                .unwrap_or_default();
+            let assigned = block
+                .statements
+                .iter()
+                .filter_map(|statement| match statement {
+                    Statement::AssignConst { name, .. } => Some(name.clone()),
+                    _ => None,
+                })
+                .collect();
+            (name, successors, assigned)
+        })
+        .collect();
+    let exception_edges = func
+        .exception_edges
+        .iter()
+        .map(|&(from, to)| {
+            (
+                func.block_name(from).to_owned(),
+                func.block_name(to).to_owned(),
+            )
+        })
+        .collect();
+    (blocks, exception_edges)
+}
+
+/// The lowering and the CFG read a `try`-shaped call's clause plan — each
+/// clause's timing and its handler's match vocabulary — never its keywords:
+/// a pack command declaring `try`'s grammar under `upon` / `catching` /
+/// `always` lowers to the same CFG `try` does. Negative control: the same
+/// pack command without the grammar stays one opaque call.
+#[test]
+fn a_try_handler_walk_reads_timing_not_keywords() {
+    let packs = attempt_pack(ATTEMPT_GRAMMAR);
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs(TCL, &packs);
+    let respelt = "attempt {set a 1} upon ok {r o} - catching {POSIX ENOENT} {m o} {set b 2} \
+                   upon error {m o} {set c 3} always {set d 4}";
+    let shipped = "try {set a 1} on ok {r o} - trap {POSIX ENOENT} {m o} {set b 2} \
+                   on error {m o} {set c 3} finally {set d 4}";
+
+    let module = lower_to_ir(respelt, &registry);
+    let Statement::Try {
+        handlers,
+        finally_body,
+        ..
+    } = &module.top_level.statements[0]
+    else {
+        panic!(
+            "the respelt call lowers structurally: {:?}",
+            module.top_level.statements[0]
+        );
+    };
+    let handler_shape: Vec<_> = handlers
+        .iter()
+        .map(|handler| {
+            (
+                handler.kind,
+                handler.match_arg.as_str(),
+                handler.fallthrough,
+            )
+        })
+        .collect();
+    assert_eq!(
+        handler_shape,
+        [
+            (tcl_compiler::ir::HandlerMatch::CompletionCode, "ok", true),
+            (
+                tcl_compiler::ir::HandlerMatch::ErrorCodePrefix,
+                "POSIX ENOENT",
+                false
+            ),
+            (
+                tcl_compiler::ir::HandlerMatch::CompletionCode,
+                "error",
+                false
+            ),
+        ]
+    );
+    assert_eq!(
+        handlers[1].trap_pattern.as_deref(),
+        Some(&["POSIX".to_owned(), "ENOENT".to_owned()][..])
+    );
+    assert!(
+        finally_body.is_some(),
+        "the `always` clause is the finally body"
+    );
+
+    let respelt_cfg = build_cfg(&module, false);
+    let shipped_cfg = build_cfg(&lower_to_ir(shipped, &registry), false);
+    assert_eq!(
+        cfg_shape(top(&respelt_cfg)),
+        cfg_shape(top(&shipped_cfg)),
+        "the respelt `try` lowers to `try`'s own CFG"
+    );
+
+    // Negative control: no grammar, no clause plan — the call is one opaque
+    // statement and the CFG holds no `try` region.
+    let packs = attempt_pack("");
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs(TCL, &packs);
+    let module = lower_to_ir(respelt, &registry);
+    assert_eq!(module.top_level.statements.len(), 1);
+    assert!(
+        matches!(
+            &module.top_level.statements[0],
+            Statement::Barrier { .. } | Statement::Call { .. }
+        ),
+        "without a grammar the call stays opaque: {:?}",
+        module.top_level.statements[0]
+    );
+    let func = build_cfg(&module, false);
+    assert!(
+        !ordered_block_names(top(&func))
+            .iter()
+            .any(|name| name.starts_with("try")),
+        "no `try` region: {:?}",
+        ordered_block_names(top(&func))
+    );
+    assert!(top(&func).exception_edges.is_empty());
+}
+
+/// The blocks of a function whose name starts with `prefix`, in creation
+/// order.
+fn blocks_named(func: &Function, prefix: &str) -> Vec<String> {
+    ordered_block_names(func)
+        .into_iter()
+        .filter(|name| name.starts_with(prefix))
+        .collect()
+}
+
+/// A `catch` body that is straight-line statements in a procedure is lowered
+/// into blocks, and any command of it may fail, so in the analysis build each
+/// statement ends a block that an exception edge leaves for the end block —
+/// the block before the body, whose edge is the body's way out at its first
+/// command, among them. The codegen build keeps the body in the one block its
+/// inline emitter compiles, so the bytecode it makes is as it was.
+#[test]
+fn a_flattened_catch_body_ends_a_block_at_each_statement() {
+    let source = "proc p {} {\n set x 1\n catch {set x 2; incr x; set y 3} m\n return $x\n}\n";
+    let module = cfg(source);
+    let func = proc(&module, "::p");
+    let body: Vec<String> = ordered_block_names(func)
+        .into_iter()
+        .filter(|name| name.starts_with("catch_body") || name.starts_with("catch_step"))
+        .collect();
+    assert_eq!(body.len(), 3, "a block for each statement: {body:?}");
+    let end = blocks_named(func, "catch_end");
+    assert_eq!(end.len(), 1);
+    let id = |name: &str| func.block_id(name).expect(name);
+    let mut sources: Vec<_> = func
+        .exception_edges
+        .iter()
+        .filter(|(_, to)| *to == id(&end[0]))
+        .map(|(from, _)| *from)
+        .collect();
+    sources.sort_unstable_by_key(|block| block.0);
+    let mut expected: Vec<_> = body.iter().map(|name| id(name)).collect();
+    expected.push(func.entry);
+    expected.sort_unstable_by_key(|block| block.0);
+    assert_eq!(
+        sources, expected,
+        "the block before the body and each statement's"
+    );
+    for name in &body {
+        assert_eq!(func.block_by_name(name).expect(name).statements.len(), 1);
+    }
+
+    // The block before the body is the body's entry edge, whose first
+    // command is in the first body block.
+    assert_eq!(func.region_entries.len(), 1);
+    let entry = func.region_entries[0];
+    assert_eq!(
+        (entry.source, entry.handler, entry.first),
+        (func.entry, id(&end[0]), id(&body[0]))
+    );
+
+    // The statement that ends the region has no words, so the analysis build
+    // keeps the `catch` as written beside it: the block before the body, the
+    // block that ends the region, and the call with its words and the variable
+    // it defines.
+    assert_eq!(func.catch_ends.len(), 1);
+    let kept = &func.catch_ends[0];
+    assert_eq!((kept.entry, kept.end), (func.entry, id(&end[0])));
+    let Statement::Call {
+        command,
+        args,
+        defs,
+        tokens,
+        ..
+    } = &kept.call
+    else {
+        panic!("a call: {:?}", kept.call);
+    };
+    assert_eq!(command, "catch");
+    assert_eq!(args.len(), 2, "{args:?}");
+    assert_eq!(defs, &["m".to_owned()]);
+    assert!(tokens.is_some());
+    let marker = &func.block_by_name(&end[0]).expect("end").statements[0];
+    assert!(
+        matches!(marker, Statement::Call { command, args, defs, .. }
+            if command == "catch" && args.is_empty() && defs == &["m".to_owned()]),
+        "{marker:?}"
+    );
+
+    // Codegen: one body block, as before.
+    let codegen = build_cfg_codegen(&lower_to_ir(source, registry()), false);
+    let plain = proc(&codegen, "::p");
+    assert!(plain.catch_ends.is_empty());
+    let in_body: Vec<String> = blocks_named(plain, "catch_body")
+        .into_iter()
+        .chain(blocks_named(plain, "catch_step"))
+        .collect();
+    assert_eq!(in_body.len(), 1, "{in_body:?}");
+    assert_eq!(
+        plain
+            .block_by_name(&in_body[0])
+            .expect("body")
+            .statements
+            .len(),
+        3
+    );
+    assert!(plain.region_entries.is_empty());
+}
+
+/// A `catch` the flow graph does not flatten — a body that stops at an `error`,
+/// a nested `catch`, a script at the top level — is the one opaque call, whose
+/// words are its own: no region ends, and no words are kept beside one.
+#[test]
+fn an_opaque_catch_keeps_no_words_beside_a_marker() {
+    let source = "proc p {} {\n catch {error boom} m\n return $m\n}\n\
+                  proc q {} {\n catch {catch {set x 1}} m\n return $m\n}\n\
+                  catch {set x 1} m\n";
+    let module = cfg(source);
+    assert!(proc(&module, "::p").catch_ends.is_empty());
+    assert!(proc(&module, "::q").catch_ends.is_empty());
+    assert!(top(&module).catch_ends.is_empty());
+}
+
+/// A `try` whose body can fall through is thrown to from the block before it,
+/// which holds the state ahead of the body's first command, and from its tail:
+/// the first is a region entry, which the solver opens or closes by what that
+/// command does. A body that cannot fall through has no such edge.
+#[test]
+fn a_try_body_is_thrown_to_from_the_block_before_it() {
+    let source = "proc p {} {\n set x 1\n try {set x 2} on error {} {set x 3}\n return $x\n}\n\
+                  proc q {} {\n try {error boom} on error {} {set x 3}\n}\n";
+    let module = cfg(source);
+    let func = proc(&module, "::p");
+    let handler = blocks_named(func, "try_handler");
+    assert_eq!(handler.len(), 1);
+    let body = blocks_named(func, "try_body");
+    assert_eq!(func.region_entries.len(), 1);
+    let entry = func.region_entries[0];
+    assert_eq!(
+        (entry.source, entry.handler, entry.first),
+        (
+            func.entry,
+            func.block_id(&handler[0]).expect("handler"),
+            func.block_id(&body[0]).expect("body")
+        )
+    );
+    assert!(
+        func.exception_edges
+            .contains(&(entry.source, entry.handler))
+    );
+    let raises = proc(&module, "::q");
+    assert!(
+        raises.region_entries.is_empty(),
+        "a body that cannot fall through is thrown to from its throw point alone"
+    );
 }
 
 /// A `break` out of a `try` resumes at its loop target from the `finally`

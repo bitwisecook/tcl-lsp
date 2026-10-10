@@ -99,6 +99,22 @@ fn case_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     roles
 }
 
+/// Tcl 8.x only; removed in Tcl 9.0 (no `doc/case.n`, no command) — see the
+/// module comment. iRules embeds Tcl 8.4.6 and keeps it.
+const SURFACE: &[SpecSurface] = surface![
+    SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.7"))]),
+    SpecSurface::core(Family::F5Irules)
+];
+
+/// `case`'s selection contract: `Tcl_CaseObjCmd`'s glob, pattern-list and
+/// fallback rules over its case-list grammar, read by the value-transfer
+/// layer's `Selection` transfer.
+static SEMANTICS: crate::value_transfer::selection::CaseSemantics =
+    crate::value_transfer::selection::CaseSemantics {
+        case_list: CaseListSpec::CASE,
+        surface: Some(SURFACE),
+    };
+
 /// Command spec for `case`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -109,12 +125,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
-        // Tcl 8.x only; removed in Tcl 9.0 (no `doc/case.n`, no command) —
-        // see the module comment. iRules embeds Tcl 8.4.6 and keeps it.
-        surface: Some(surface![
-            SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.7"))]),
-            SpecSurface::core(Family::F5Irules)
-        ]),
+        surface: Some(SURFACE),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::CONTROL_FLOW
             | Traits::LANGUAGE_KEYWORD
@@ -137,6 +148,7 @@ pub fn spec() -> CommandSpec {
         case_list: Some(&CaseListSpec::CASE),
         lowering_hook: Some(crate::hooks::LoweringHookId::Switch),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Switch),
+        semantics: SemanticsDeclaration::Declared(&SEMANTICS),
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
         deprecated_replacement: Some("switch"),
@@ -204,18 +216,17 @@ mod tests {
     }
 
     /// The descriptor carries the differences from `switch`: no options at
-    /// all, so no match-mode / `--` vocabulary, and a `default` honoured
+    /// all, so no match-mode / `--` vocabulary (those are option rows'
+    /// effects, and `case` declares none), and a `default` honoured
     /// wherever it appears rather than only last.
     #[test]
     fn descriptor_has_no_options_and_a_positionless_default() {
         let case = CaseListSpec::CASE;
         assert_eq!(case.subject_args, 1);
         assert_eq!(case.optional_subject_separator, Some("in"));
-        assert!(case.exact_option.is_none());
-        assert!(case.glob_option.is_none());
-        assert!(case.regex_option.is_none());
-        assert!(case.nocase_option.is_none());
-        assert!(case.end_options_option.is_none());
+        let spec = spec();
+        assert!(spec.options.is_empty());
+        assert!(spec.option_effect_families.is_empty());
         assert!(case.fallthrough_body.is_none());
         assert_eq!(case.keyword_patterns, ["default"]);
         assert!(!case.keyword_patterns_require_final);

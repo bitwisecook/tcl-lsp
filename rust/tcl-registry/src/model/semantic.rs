@@ -109,9 +109,8 @@ impl SemanticContext {
     /// the projected profile read, so a dialect with no catalogue row (`tk`,
     /// whose core is 8.6) answers with its core rather than `None`, and a
     /// non-Tcl family (`jim`) answers `None` because it has no rung on the
-    /// Tcl ladder. This closed redesign §11.2 D5's remaining boundary: the
-    /// runtime base no longer has to be looked up on a catalogue row, and
-    /// `the_point_names_the_catalogue_runtime_base` pins that the two agree
+    /// Tcl ladder. `the_point_names_the_catalogue_runtime_base` pins that
+    /// the environment's point and catalogue runtime base agree
     /// for every row that has one.
     #[must_use]
     pub fn runtime_version(self) -> Option<TclVersion> {

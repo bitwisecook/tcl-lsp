@@ -917,7 +917,7 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     }
     drop(leaf);
     drop(root);
-    let outcome = vm.eval_value_at_level(vm.current_level(), body);
+    let mut outcome = vm.eval_value_at_level(vm.current_level(), body);
     if let Some(refusal) = vm.refused_completion() {
         return refusal;
     }
@@ -926,6 +926,9 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     {
         return outcome;
     }
+    // The saved body result owns a native reference while writeback invokes
+    // commands that can replace the interpreter's current result.
+    outcome.result = outcome.result.into_native_reference();
     let objects = match VmDictionaryObjects::selected(vm) {
         Ok(objects) => objects.with_preparation(
             tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::ConvertBeforeCopy,
@@ -1163,10 +1166,11 @@ fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         mappings.push((pair[0].clone(), pair[1].clone()));
     }
     drop(root);
-    let outcome = vm.eval_value_at_level(vm.current_level(), body);
+    let mut outcome = vm.eval_value_at_level(vm.current_level(), body);
     if let Some(refusal) = vm.refused_completion() {
         return refusal;
     }
+    outcome.result = outcome.result.into_native_reference();
     match vm.dictionary_scope_writeback_bytes(
         &name,
         crate::interp::native_dictionary::DictionaryVariablePublication::CommandName,

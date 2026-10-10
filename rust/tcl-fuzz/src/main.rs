@@ -1553,7 +1553,11 @@ fn render(o: &Outcome) -> String {
 /// line used in engine arguments, metadata, and directory names.
 fn parse_tcl_version(raw: &str) -> Result<TclVersion, String> {
     TclVersion::from_package_version(raw)
-        .or_else(|| TclVersion::from_dialect(Some(raw)))
+        .or_else(|| {
+            tcl_dialect::DialectProfile::find(raw)
+                .filter(|profile| profile.is_tcl_release())
+                .and_then(TclVersion::from_profile)
+        })
         .ok_or_else(|| {
             format!("unknown Tcl release {raw:?} (want 8.4, 8.5, 8.6, 9.0, 9.1, or tclX.Y)")
         })
@@ -1740,6 +1744,9 @@ mod tests {
         assert_eq!(parse_tcl_version("8.6.16"), Ok(TclVersion::V8_6));
         assert_eq!(parse_tcl_version("tcl8.6"), Ok(TclVersion::V8_6));
         assert!(parse_tcl_version("8.7").is_err());
+        // A vendor fork has a measured release of its own, but is not a release
+        // a campaign can name.
+        assert!(parse_tcl_version("f5-irules").is_err());
 
         let modern = Cli::try_parse_from(["tcl-fuzz", "run", "--tcl-version", "8.6"])
             .expect("canonical release flag parses");

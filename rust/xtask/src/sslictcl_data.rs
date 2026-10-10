@@ -49,7 +49,7 @@ pub fn run(operation: &str, max_age_days: Option<u64>) -> Result<ExitCode> {
     let crate_dir = root.join(DATA_CRATE);
     if !crate_dir.is_dir() {
         println!(
-            "sslictcl-data: {DATA_CRATE}/ is not present; source-data gate is inactive until the data crate lands"
+            "sslictcl-data: {DATA_CRATE}/ is not present; source-data gate is inactive because the data crate is absent"
         );
         return Ok(ExitCode::SUCCESS);
     }
@@ -59,7 +59,7 @@ pub fn run(operation: &str, max_age_days: Option<u64>) -> Result<ExitCode> {
         || !root.join(PROVENANCE).is_file()
     {
         println!(
-            "sslictcl-data: {DATA_DIR}/ is not present; source-data gate is inactive until the data bundle lands"
+            "sslictcl-data: {DATA_DIR}/ is not present; source-data gate is inactive because the data bundle is absent"
         );
         return Ok(ExitCode::SUCCESS);
     }

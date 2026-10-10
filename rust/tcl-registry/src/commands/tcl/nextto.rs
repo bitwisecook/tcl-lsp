@@ -68,6 +68,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("nextto"),
         surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),

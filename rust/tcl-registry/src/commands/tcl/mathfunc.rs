@@ -35,6 +35,9 @@ pub fn spec() -> CommandSpec {
             &["tcl::mathfunc::name ?arg ...?"],
             "Tcl mathfunc(1)",
         )),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

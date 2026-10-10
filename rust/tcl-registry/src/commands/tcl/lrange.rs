@@ -94,6 +94,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::ListRange),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        runtime_backing: RuntimeBacking::shipped("lrange"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         const_fold: Some(crate::const_fold::fold_lrange),
         // `lrange list first last` has fixed arity 3, so *every* call is a
@@ -149,6 +150,9 @@ pub fn spec() -> CommandSpec {
                 },
             ),
         ],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
         ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     }
 }

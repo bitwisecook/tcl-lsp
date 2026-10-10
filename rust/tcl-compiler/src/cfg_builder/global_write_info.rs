@@ -279,6 +279,34 @@ pub(crate) fn detect_global_write_procs_with_bindings(
     own
 }
 
+/// What `body`, run in a frame of its own whose commands resolve in
+/// `namespace` — a lambda's body, as `apply` runs it — writes in the global
+/// frame: what a procedure body's summary states of its own statements
+/// ([`own_body_global_writes`]), unioned with the summary of each procedure it
+/// calls (`procedures`, the map [`detect_global_write_procs_with_bindings`]
+/// builds), a called procedure the map does not hold making it opaque, as a
+/// procedure's transitive closure does.
+pub(crate) fn own_frame_global_writes(
+    body: &Script,
+    registry: &tcl_registry::CommandRegistry,
+    aliases: &ModuleCommandBindings,
+    namespace: &str,
+    procedures: &HashMap<String, GlobalWriteInfo>,
+) -> GlobalWriteInfo {
+    let mut info = own_body_global_writes(body, registry, aliases, namespace);
+    let (calls, calls_opaque) = direct_call_targets(body, registry, aliases, namespace);
+    info.opaque_global_frame |= calls_opaque;
+    for callee in calls {
+        match procedures.get(&callee) {
+            Some(summary) => {
+                info.union_from(summary);
+            }
+            None => info.opaque_global_frame = true,
+        }
+    }
+    info
+}
+
 /// Every call-site spelling of `qname`, from the one helper
 /// [`super::detect_upvar_procs`] and [`super::prepare_cfg_context`] also
 /// use — the three maps are looked up by the same key at the same call
@@ -836,19 +864,26 @@ fn collect_write_targets(
             for target in targets {
                 let target = literal_root(&target);
                 if let Some(outers) = renamed_aliases.targets.get(target) {
-                    info.names.extend(outers.iter().cloned());
+                    for outer in outers {
+                        insert_outer_name(&mut info.names, outer);
+                    }
                 }
                 if renamed_aliases.opaque_locals.contains(target) {
                     info.opaque_global_frame = true;
                 }
-                info.names
-                    .extend(renamed_aliases.dynamic_local_targets.iter().cloned());
+                for outer in &renamed_aliases.dynamic_local_targets {
+                    insert_outer_name(&mut info.names, outer);
+                }
                 info.opaque_global_frame |= renamed_aliases.dynamic_local_opaque;
+                // A `::`-qualified target is outer-scope by its spelling
+                // alone, with no `global`, `variable` or `upvar` in the body:
+                // `set y [incr ::hits]` writes the global `hits` (#2214).
                 if !renamed_aliases.targets.contains_key(target)
                     && !renamed_aliases.opaque_locals.contains(target)
-                    && state.get(target).is_some_and(|f| f.writes_outer_scope())
+                    && (target.starts_with("::")
+                        || state.get(target).is_some_and(|f| f.writes_outer_scope()))
                 {
-                    info.names.insert(target.to_owned());
+                    insert_outer_name(&mut info.names, target);
                 }
             }
         } else if matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. }) {
@@ -869,6 +904,23 @@ fn collect_write_targets(
     }
 }
 
+/// Record `name` as an outer-scope name the procedure writes. A
+/// `::`-qualified name also records the spelling a caller at the global
+/// frame reads the same variable by — `::hits` is `hits` there — since a
+/// call site applies the summary's names as its own definitions, and a
+/// definition of `::hits` alone leaves the caller's `hits` forwarding a
+/// stale constant across the call.
+fn insert_outer_name(names: &mut BTreeSet<String>, name: &str) {
+    if let Some(relative) = name.strip_prefix("::")
+        && !relative.is_empty()
+    {
+        names.insert(relative.to_owned());
+    }
+    names.insert(name.to_owned());
+}
+
+/// The variable name(s) `stmt` itself directly writes — its own `name`
+/// field for the direct-assignment statement kinds, `Call::defs` for a
 /// Possible value destinations of the structured statement and its evaluated
 /// substitutions. Generic calls use the current selected roles and original
 /// alias prefix, rather than stale lower-time Call definitions. The Registry
