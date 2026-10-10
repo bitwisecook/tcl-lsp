@@ -43,7 +43,7 @@ pub use crate::expr_error::ExprError;
 pub use crate::obj::Owned;
 use tcl_syntax::expr::errors::{OperandDesc, OperandSide};
 use tcl_syntax::expr::mathfunc::MathFuncError;
-use tcl_syntax::expr::{BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp, eval};
+use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp};
 
 /// Immutable original expression backing. Jim terms retain their own objects,
 /// including unvisited lazy branches and original command Source descriptors.
@@ -511,13 +511,25 @@ fn selected_unary_error(
     op: UnaryOp,
     value: *mut TclObj,
     dialect: tcl_registry::InvocationDialect,
+    environment: Option<&dyn tcl_platform::NumericEnvironment>,
 ) -> ExprError {
     use tcl_registry::native_numeric_error::NativeExpressionOperandStage as Stage;
     if matches!(error, ArithError::NonNumeric | ArithError::NonInteger) {
         if let Some(presentation) = dialect.expression_operand_error_presentation() {
-            if matches!(op, UnaryOp::Pos | UnaryOp::Neg) && to_bool_in(value, dialect).is_ok() {
-                if let Some(message) = presentation.non_numeric_unary_message(op) {
-                    return ExprError::from_bytes(message);
+            if let Some(message) = presentation.non_numeric_unary_message(op) {
+                // JimExprOpNumUnary reaches the public Boolean primitive after
+                // rejected numeric operands; this is not an expression truth site.
+                // Guest refusal preserves ordinary classification. Its operational
+                // failure remains complete and cannot become the fallback Guest.
+                match crate::typed_value::native_scalar_probe_with_environment(
+                    value,
+                    dialect,
+                    tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
+                    environment,
+                ) {
+                    Ok(Ok(_)) => return ExprError::from_bytes(message),
+                    Ok(Err(_)) => {}
+                    Err(cause) => return ExprError::from_cmd_error(cause.into()),
                 }
             }
         }
@@ -788,7 +800,7 @@ pub(crate) fn dispatch_shared_in(
     args: &[Owned],
     dialect: tcl_registry::InvocationDialect,
 ) -> Result<Owned, ExprError> {
-    use tcl_syntax::expr::mathfunc::{NumValue, try_dispatch_with_backend_protocol};
+    use tcl_syntax::expr::mathfunc::{try_dispatch_with_backend_protocol, NumValue};
     let protocol = tcl_registry::mathfunc::native_math_protocol(dialect)
         .expect("native math handler dispatch must retain its selected protocol");
     let nums: Result<Option<Vec<NumValue<crate::bignum::TowerMp>>>, ExprError> = args
@@ -833,7 +845,7 @@ fn native_math_operand(
     dialect: tcl_registry::InvocationDialect,
     protocol: tcl_syntax::expr::mathfunc::NativeMathProtocol,
 ) -> Result<Option<tcl_syntax::expr::mathfunc::NumValue<bignum::TowerMp>>, ExprError> {
-    use tcl_syntax::expr::mathfunc::{NativeMathProtocol, NumValue, jim_numeric_operand};
+    use tcl_syntax::expr::mathfunc::{jim_numeric_operand, NativeMathProtocol, NumValue};
     if protocol == NativeMathProtocol::Tcl {
         if dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::Tcl84Wide) {
             if let Some(integer) = fixed_integer(operand, dialect)? {
@@ -1145,7 +1157,7 @@ impl ExprOps for TowerOps<'_> {
         // A unary operand-type error names the value and the operator, with no
         // left/right qualifier (`as operand of "OP"`).
         let uerr = |error: ArithError, _symbol: &[u8]| {
-            selected_unary_error(error, op, value.ptr(), dialect)
+            selected_unary_error(error, op, value.ptr(), dialect, environment)
         };
         match op {
             UnaryOp::Pos => {
@@ -1162,6 +1174,7 @@ impl ExprOps for TowerOps<'_> {
                             op,
                             value.ptr(),
                             dialect,
+                            environment,
                         ));
                     }
                     return Err(operand_type_err(
@@ -1262,8 +1275,13 @@ impl ExprOps for TowerOps<'_> {
         Ok(elems.iter().any(|element| obj::bytes_of(*element) == n))
     }
 
-    fn to_bool(&mut self, value: &Owned) -> Result<bool, ExprError> {
-        to_bool_in(value.ptr(), self.ctx.invocation_dialect())
+    fn to_bool(&mut self, _value: &Owned) -> Result<bool, ExprError> {
+        Err(ExprError::from_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "explicit expression Boolean purpose",
+            )
+            .into(),
+        ))
     }
     fn to_bool_for_purpose(
         &mut self,
@@ -1473,32 +1491,6 @@ pub fn eval_mathop(
 
 // value helpers
 
-pub(crate) fn to_bool_in(
-    value: *mut TclObj,
-    dialect: tcl_registry::InvocationDialect,
-) -> Result<bool, ExprError> {
-    crate::typed_value::boolean_in(value, dialect)
-        .map_err(ExprError::host_refusal)?
-        .map_err(|error| {
-            let mut error = ExprError::from_parts(error.message, error.code.to_vec());
-            if !matches!(
-                bignum::compare(value, value),
-                Some(NumericCompare::Unordered)
-            ) {
-                error = error.with_invalid_type_stage(
-                    dialect,
-                    tcl_registry::native_numeric_error::NativeExpressionOperandStage::Boolean,
-                );
-            }
-            selected_operand_error(
-                dialect,
-                tcl_registry::native_numeric_error::NativeExpressionOperandStage::Boolean,
-                value,
-            )
-            .unwrap_or(error)
-        })
-}
-
 /// C8.4's compiled jump inspects numeric primaries before the primitive
 /// Boolean getter. In particular it leaves a registered native-long literal
 /// unchanged instead of replacing it with a word-Boolean primary.
@@ -1565,7 +1557,7 @@ pub(crate) fn native_logical84(
 /// otherwise its original string spelling. Tcl preserves boolean literal text
 /// (`expr {yes}` returns `yes`); coercion happens only in a boolean context.
 fn make_literal(text: &str, dialect: tcl_registry::InvocationDialect) -> Result<Owned, ExprError> {
-    use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
+    use tcl_syntax::number::{parse_whole_with, Number, ParseFlags};
     if let Some(number) = parse_whole_with(text, ParseFlags::for_syntax(dialect.numbers)) {
         if let Some(policy) = dialect
             .arithmetic()
@@ -1797,6 +1789,88 @@ fn wide_error(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn original_unary_boolean_classifier_keeps_primitive_guest_acceptance_separate() {
+        // Source/API: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Pinned Jim source JimExprOpNumUnary reaches its public Boolean getter;
+        // these adapter controls assert no new original execution observation.
+        let interp = crate::interp::Interp::with_native_core(
+            crate::interp::default_host(),
+            tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let dialect = interp.native_invocation_dialect();
+        for (word, expected) in [
+            (
+                b"true".as_slice(),
+                b"can't use non-numeric string as operand of \"+\"".as_slice(),
+            ),
+            (
+                b"invalid".as_slice(),
+                b"expected boolean but got \"invalid\"".as_slice(),
+            ),
+        ] {
+            let original = Owned::fresh(obj::new_string_bytes(word));
+            let error = selected_unary_error(
+                ArithError::NonNumeric,
+                UnaryOp::Pos,
+                original.as_ptr(),
+                dialect,
+                None,
+            );
+            assert_eq!(error.msg, expected);
+            assert!(error.native_access_refusal.is_none());
+            assert!(error.native_execution_refusal.is_none());
+        }
+    }
+
+    #[test]
+    fn original_unary_classifier_preserves_retirement_first_host_and_prior_result() {
+        // Source/API: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut interp = crate::interp::Interp::with_native_core(
+            crate::interp::default_host(),
+            tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        interp.set_result_bytes(b"PRIOR\0\xff");
+        let prior = interp.get_obj_result();
+        let original = Owned::fresh(obj::new_string_bytes(b"true"));
+        let pointer = original.as_ptr();
+        let lifetime = obj::NativeObjectLifetime::retain(pointer);
+        drop(original);
+        assert!(!obj::allocation_is_live(pointer));
+        let error = selected_unary_error(
+            ArithError::NonNumeric,
+            UnaryOp::Neg,
+            pointer,
+            interp.native_invocation_dialect(),
+            None,
+        );
+        let cause = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "retired native object",
+            ),
+        );
+        assert_eq!(error.native_execution_refusal, Some(cause.clone()));
+        assert!(
+            error
+                .command_error
+                .as_ref()
+                .unwrap()
+                .native_execution_refusal()
+                == Some(&cause)
+        );
+        interp.report_expr_error(error);
+        assert_eq!(interp.native_execution_refusal(), Some(cause));
+        assert_eq!(interp.get_obj_result(), prior);
+        assert_eq!(interp.result_bytes(), b"PRIOR\0\xff");
+        drop(lifetime);
+    }
+
     use super::*;
     use tcl_syntax::expr::parser::parse_expr;
 

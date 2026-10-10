@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-registry303.elf",
+  "sha256": "128bd6725518ccebecc1a94e852789a6ee4a512336540f78da73426350bc9006",
+  "build_receipt": "/workspace/.proofs/integration-registry-api-own-test-build303.json",
+  "build_receipt_sha256": "cfd18290e1c771bfdc4af74f6469c359736120a21f5ac677ba6bdb6e24179b74",
+  "source_snapshot_sha256": "d7c12800d9ef1a0b02155cd69826645a6948f985f0823f65439da23477181797"
+}

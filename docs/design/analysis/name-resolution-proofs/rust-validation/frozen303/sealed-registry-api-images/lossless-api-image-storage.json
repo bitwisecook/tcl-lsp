@@ -1,0 +1,20 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen303/sealed-registry-api-images/pinned-api303.elf.gz",
+  "stored_sha256": "e2eb18b7dc5d3794f688501bef6491607084614a172f1219227ab2422d136fbd",
+  "stored_bytes": 837592,
+  "original_sha256": "098f7112ef86fe24cba904c4db14d0ec1ed0a7836a55ab0c17365e0716b1cfce",
+  "original_bytes": 2777336,
+  "original_recorded_executable": "/workspace/.proofs/pinned-api303.elf",
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen303/sealed-registry-api-images/pinned-api303.json",
+  "pin_metadata_sha256": "c9960b16c34f4d4e7ec8aff6d0b55770f658118d3c1643928336d2808c3b5774",
+  "build_receipt_id": "rust.frozen303.integration-registry-api-own-test-build303",
+  "build_receipt_sha256": "cfd18290e1c771bfdc4af74f6469c359736120a21f5ac677ba6bdb6e24179b74",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen303/sealed-registry-api-images/source-snapshot.json.gz",
+    "sha256": "e146092013a0a91dc1fce2e8830881d549276285688e0bf51ce991e5740c2fdf",
+    "compression": "gzip",
+    "uncompressed_sha256": "d7c12800d9ef1a0b02155cd69826645a6948f985f0823f65439da23477181797"
+  },
+  "verification": "Successful Registry/API-only own-producer reuses its actual two fresh Cargo artifacts, then independently pins exact executable/source bytes. Full SHA/size and decompressed byte comparison passed. No original unlink or launch."
+}

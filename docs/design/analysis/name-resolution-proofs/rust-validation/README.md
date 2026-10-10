@@ -2703,3 +2703,38 @@ Restoration proves exact bytes and launches no assertion. Primitive getter/host 
 The scoped no-run command selects Compiler, Registry and RuntimeAPI and closes with exit 101 after 228.489463s and `uniform_source: true`. Compiler reports one E0308 fixture type error at `native_lowering/tests.rs:74`: the actual profile is passed directly where `LexerConfig::for_profile` requires `Option<&DialectProfile>`. The original log records newly-created RuntimeAPI and Registry libtest artifact events. Those events supply no successful producer, admitted strict pin, inventory or assertion from the overall failed command.
 
 The [unchanged full original receipt](frozen303/integration-compiler-registry-api-own-test-build303/receipt.json.gz) preserves the complete immutable source image and command as lossless gzip. The [whole original log](frozen303/integration-compiler-registry-api-own-test-build303/tests.log) retains the fixture diagnostic and both partial creation events. All 32,894 source leaves are independently byte-verified. Any independent successful Registry/RuntimeAPI or Syntax producer and assertions retain their own command/source/image scope; no success is transferred to this failed invocation. No Native provider outcome or aggregate gate result is inferred.
+
+## Source303 independent Registry/API producer and full assertions
+
+The Registry/RuntimeAPI-only no-run command succeeds independently of the failed scoped Compiler/Registry/API command. Its actual Cargo events are fresh reused artifacts; the subsequent strict pins bind both exact executable byte streams to this successful command and immutable source. Registry lists and runs 1,723 tests, all passed. RuntimeAPI lists 85 tests and closes 84 passed/1 failed: `codegen_abi::tests::every_layout_constant_is_in_the_abi_fingerprint` reports that `NATIVE_PROC_STATUS_HOST_REFUSED` is missing from the ABI fingerprint. Build and listing execute no assertions. These separate crate results supply no combined gate, Compiler or new Native provider PASS.
+
+| Closed operation | Exact outcome | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-registry-api-own-test-build303` | `compile-passed`, exit 0, 0.396362s; no assertions | [Original receipt](frozen303/integration-registry-api-own-test-build303/receipt.json.gz) | [Whole log](frozen303/integration-registry-api-own-test-build303/tests.log) |
+| `integration-registry-inventory303` | `listed`, exit 0, 0.011929s; no assertions | [Original receipt](frozen303/integration-registry-inventory303/receipt.json.gz) | [Whole log](frozen303/integration-registry-inventory303/tests.log) |
+| `integration-registry-all-tests303` | `passed`, exit 0, 96.011552s; 1723 passed/0 failed | [Original receipt](frozen303/integration-registry-all-tests303/receipt.json.gz) | [Whole log](frozen303/integration-registry-all-tests303/tests.log) |
+| `integration-api-inventory303` | `listed`, exit 0, 0.004371s; no assertions | [Original receipt](frozen303/integration-api-inventory303/receipt.json.gz) | [Whole log](frozen303/integration-api-inventory303/tests.log) |
+| `integration-api-all-tests303` | `failed`, exit 101, 0.008227s; 84 passed/1 failed | [Original receipt](frozen303/integration-api-all-tests303/receipt.json.gz) | [Whole log](frozen303/integration-api-all-tests303/tests.log) |
+
+The exact [Registry selection](frozen303/selections/registry-all-selection303.json), [Registry request](frozen303/selections/registry-all-request303.json), [API selection](frozen303/selections/api-all-selection303.json) and [API request](frozen303/selections/api-all-request303.json) retain both authentic pin/list gates. The [complete source companion](frozen303/sealed-registry-api-images/source-snapshot.json.gz) preserves all original32894 hashes and compile paths. All164470 source associations across the five operations are byte-verified. Current question links require the entire current leaf to equal the frozen producer, so later source controls and VM464 outcomes are not inferred.
+
+Restore either measured executable with its own compressed and original integrity checks:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen303/sealed-registry-api-images")
+for kind in ("registry", "api"):
+    record = json.loads((base / f"lossless-{kind}-image-storage.json").read_text())
+    packed = (base / f"pinned-{kind}303.elf.gz").read_bytes()
+    assert len(packed) == record["stored_bytes"]
+    assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+    original = gzip.decompress(packed)
+    assert len(original) == record["original_bytes"]
+    assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+    restored = Path(f"/tmp/pinned-{kind}303.elf")
+    restored.write_bytes(original)
+    restored.chmod(0o755)
+```
+
+Restoration proves exact payload bytes and launches no assertion. The unchanged [Registry pin](frozen303/sealed-registry-api-images/pinned-registry303.json) and [API pin](frozen303/sealed-registry-api-images/pinned-api303.json), with their [Registry storage](frozen303/sealed-registry-api-images/lossless-registry-image-storage.json) and [API storage](frozen303/sealed-registry-api-images/lossless-api-image-storage.json) records, preserve the original measured identities, including their recorded workspace executable paths.
