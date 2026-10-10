@@ -9582,7 +9582,6 @@ mod logical_frame_source_role_tests {
                 &[Dynamic, Literal("a"), Literal("b")],
                 &["$opt", "a", "b"],
             ),
-            ("regexp", &[Literal("-about"), Dynamic], &["-about", "$re"]),
             (
                 "regexp",
                 &[Literal("--"), Dynamic, Dynamic],
@@ -9614,6 +9613,26 @@ mod logical_frame_source_role_tests {
                 "{name} {source:?}"
             );
         }
+        // The C9 selected option schema includes `-about`; the legacy
+        // descriptor-only text facade has no independent availability point.
+        // Dynamic pattern bytes do not withdraw this selected source shape.
+        let about = [Literal("-about"), Dynamic];
+        let selected = registry
+            .invocation(
+                InvocationWords::structured(Literal("regexp"), &about),
+                &context,
+            )
+            .resolved()
+            .unwrap();
+        assert_eq!(selected.return_type(), Some(TclType::List));
+        assert_eq!(
+            registry
+                .get("regexp")
+                .unwrap()
+                .return_type_for_call(&["-about", "$re"]),
+            Some(TclType::Int),
+            "the scalar compatibility facade cannot donate a C-only option point"
+        );
         let arguments = [Dynamic, Dynamic];
         let invocation = registry
             .invocation(

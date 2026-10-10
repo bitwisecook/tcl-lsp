@@ -689,12 +689,8 @@ impl ValueOps for Vm {
     }
 
     fn new_list(&mut self, items: Vec<Value>) -> Value {
-        match self
-            .native_invocation_dialect()
-            .native_string_materialization(Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
-        )) {
-            Some(recipe) => Value::native_list_constructor(items, recipe.protocol()),
+        match self.object_materialization() {
+            Some(purpose) => Value::native_list_constructor(items, purpose.protocol()),
             None => Value::list(items),
         }
     }
@@ -968,16 +964,22 @@ impl ValueOps for Vm {
     }
 
     fn list_elements(&mut self, v: &Value) -> Result<Vec<Value>, ValueError> {
-        let dialect = self.native_invocation_dialect();
-        let protocol = dialect.native_string_materialization(Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation)).ok_or(ValueError::CommandProtocolUnavailable("native object list conversion"))?.protocol();
-        self.native_object_list_elements_in(v, protocol)
+        let purpose =
+            self.object_materialization()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "native object list conversion",
+                ))?;
+        self.native_object_list_elements_in(v, purpose.protocol())
             .map(|items| items.as_ref().clone())
     }
 
     fn dict_pairs(&mut self, v: &Value) -> Result<Vec<(Value, Value)>, ValueError> {
-        let dialect = self.native_invocation_dialect();
-        let protocol = dialect.native_string_materialization(Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation)).ok_or(ValueError::CommandProtocolUnavailable("native object dictionary conversion"))?.protocol();
-        self.native_object_dict_pairs_in(v, protocol)
+        let purpose =
+            self.object_materialization()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "native object dictionary conversion",
+                ))?;
+        self.native_object_dict_pairs_in(v, purpose.protocol())
     }
 
     fn dict_hash_bucket_count(&mut self, v: &Value) -> Result<Option<usize>, ValueError> {
@@ -994,21 +996,20 @@ impl ValueOps for Vm {
         pairs: Vec<(Value, Value)>,
         bucket_count: usize,
     ) -> Result<Value, ValueError> {
-        let recipe = self.native_invocation_dialect().native_string_materialization(Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation)).ok_or(ValueError::CommandProtocolUnavailable("native dictionary construction"))?;
-        let buckets = Some(bucket_count);
-        Value::native_dictionary_constructor(pairs, buckets, recipe.protocol())
+        let purpose =
+            self.object_materialization()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "native dictionary construction",
+                ))?;
+        Value::native_dictionary_constructor(pairs, Some(bucket_count), purpose.protocol())
     }
 
     fn new_dict(&mut self, pairs: Vec<(Value, Value)>) -> Value {
         let value = Value::dict(pairs);
-        if let Some(recipe) = self
-            .native_invocation_dialect()
-            .native_string_materialization(Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
-        )) {
+        if let Some(purpose) = self.object_materialization() {
             value
-                .seal_compound_string_protocol(recipe.protocol())
-                .expect("fresh native Dictionary recipe");
+                .seal_compound_string_protocol(purpose.protocol())
+                .expect("fresh selected Dictionary recipe");
         }
         value
     }
@@ -1019,14 +1020,10 @@ impl ValueOps for Vm {
         bucket_count: usize,
     ) -> Value {
         let value = Value::dict_with_hash_bucket_count(pairs, Some(bucket_count));
-        if let Some(recipe) = self
-            .native_invocation_dialect()
-            .native_string_materialization(Some(
-            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
-        )) {
+        if let Some(purpose) = self.object_materialization() {
             value
-                .seal_compound_string_protocol(recipe.protocol())
-                .expect("fresh native Dictionary recipe");
+                .seal_compound_string_protocol(purpose.protocol())
+                .expect("fresh selected Dictionary recipe");
         }
         value
     }

@@ -476,6 +476,9 @@ mod tests {
 
     #[test]
     fn original_literal_expression_bracing_declines_substitution_functions_and_handler_changes() {
+        // docs/design/analysis/name-resolution-proofs/braced-error-context-publication.md
+        // docs/design/analysis/name-resolution-proofs/braced-handler-and-observer-boundaries.md
+
         // Implementation contract: naming.refactor.original-literal-expression-bracing
         // docs/design/analysis/name-resolution-proofs/original-literal-expression-bracing.md
         for source in [
@@ -505,6 +508,9 @@ mod tests {
 
     #[test]
     fn original_literal_bracing_normality_and_source_reflection_are_independent() {
+        // docs/design/analysis/name-resolution-proofs/braced-error-context-publication.md
+        // docs/design/analysis/name-resolution-proofs/braced-handler-and-observer-boundaries.md
+
         // Implementation contract: naming.refactor.original-literal-expression-bracing
         // docs/design/analysis/name-resolution-proofs/original-literal-expression-bracing.md
         // Captured natives: naming.expression.braced-error-context-publication

@@ -29,6 +29,36 @@ struct BodyWalk<'context, 'source> {
     source_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
 }
 
+/// Original substitution order, omitting descendants visited with their parent.
+pub(super) enum OriginalOperandEffect {
+    Command(Span),
+    Unknown,
+}
+
+pub(super) fn original_operand_effects(native: &[NativeWord]) -> Vec<OriginalOperandEffect> {
+    let mut covered = Vec::<Span>::new();
+    let mut effects = Vec::new();
+    for word in native {
+        for part in word.executable_parts().all_parts() {
+            match part.part {
+                ExecutablePart::Text(_) => {}
+                ExecutablePart::Command { body, .. } => {
+                    if covered
+                        .iter()
+                        .any(|outer| outer.start() <= body.start() && body.end() <= outer.end())
+                    {
+                        continue;
+                    }
+                    effects.push(OriginalOperandEffect::Command(body));
+                    covered.push(body);
+                }
+                _ => effects.push(OriginalOperandEffect::Unknown),
+            }
+        }
+    }
+    effects
+}
+
 impl AdviceInvocationContext<'_> {
     /// Reuse the original executable arena before selecting source head advice.
     /// Known child transitions are processed; unresolved variable/observer
@@ -49,11 +79,13 @@ impl AdviceInvocationContext<'_> {
             let mut walk = BodyWalk {
                 context: self,
                 visited: 0,
-                inventory: None,
+                inventory: matches!(self.policy, AdviceNamingPolicy::Logical(_))
+                    .then(OriginalSourceTransitionAdviceTape::default),
                 source_body: None,
                 authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             };
             walk.substitutions(graph, native, 0)?;
+            tape.extend_inventory(walk.inventory.unwrap_or_default());
             tape.extend_inventory(walk.authored_prefixes);
         }
         Some(substitutions)
@@ -290,23 +322,12 @@ impl BodyWalk<'_, '_> {
         native: &[NativeWord],
         depth: usize,
     ) -> Option<()> {
-        let mut covered = Vec::<Span>::new();
-        for word in native {
-            for part in word.executable_parts().all_parts() {
-                match part.part {
-                    ExecutablePart::Text(_) => {}
-                    ExecutablePart::Command { body, .. } => {
-                        if covered
-                            .iter()
-                            .any(|outer| outer.start() <= body.start() && body.end() <= outer.end())
-                        {
-                            continue;
-                        }
-                        self.script(graph, body, depth.checked_add(1)?)?;
-                        covered.push(body);
-                    }
-                    _ => graph.record_uncertainty(native),
+        for effect in original_operand_effects(native) {
+            match effect {
+                OriginalOperandEffect::Command(body) => {
+                    self.script(graph, body, depth.checked_add(1)?)?;
                 }
+                OriginalOperandEffect::Unknown => graph.record_uncertainty(native),
             }
         }
         Some(())
@@ -458,6 +479,18 @@ impl BodyWalk<'_, '_> {
         invocation: AdviceInvocation<'_>,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) -> Option<()> {
+        if let (Some(tape), None) = (&mut self.inventory, &self.source_body) {
+            // Immediate original operands use their root point, not a made-up
+            // body descriptor or a future frame's applicability.
+            if graph.blocks_registry_source(invocation.head) {
+                tape.registry_barriers
+                    .insert(invocation.native.first()?.span().start());
+                return Some(());
+            }
+            return self
+                .context
+                .retain_source_inventory(tape, invocation, graph, schema);
+        }
         let retained_producer = if let Some(body) = &self.source_body {
             let mut advice = self.context.schema_advice(invocation, graph, schema)?;
             advice.logical_body = Some(Arc::clone(body));
@@ -513,9 +546,7 @@ impl BodyWalk<'_, '_> {
     }
 
     fn mark_child_header(&mut self, native: &NativeScriptCommandWords) -> Option<()> {
-        if let Some(tape) = &mut self.inventory
-            && self.source_body.is_some()
-        {
+        if let Some(tape) = &mut self.inventory {
             tape.represented
                 .insert(native.words.first()?.span().start());
         }
@@ -709,5 +740,90 @@ mod logical_body_inventory_tests {
                 )
             );
         }
+    }
+    #[test]
+    fn logical_root_substitutions_keep_alias_point_without_future_body_applicability() {
+        // naming.source.original-editor-body-structure
+        // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+        let source = "interp alias {} make {} list set x; eval [make $value]";
+        let analysis = analyse(source);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let offset = u32::try_from(source.find("make $value").unwrap()).unwrap();
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            "make $value",
+            offset,
+            input.lexer_config(),
+        )
+        .remove(0);
+        let words = source_registry_words(source, &analysis, &segment).unwrap();
+        let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+            panic!("missing genuine original alias substitution point");
+        };
+        assert_eq!(advice.logical_source_input(), Some(input));
+        assert!(advice.logical_source_body().is_none());
+        assert!(advice.original_head().native_input().is_none());
+        assert!(
+            !advice
+                .obligations()
+                .contains(&SourceCommandTransitionObligation::ConditionalLogicalBodyApplicability)
+        );
+        assert!(
+            !advice
+                .obligations()
+                .contains(&SourceCommandTransitionObligation::DeferredLogicalBodyApplicability)
+        );
+        assert_eq!(words.command(), "list");
+        assert_eq!(
+            words
+                .arguments()
+                .get(0)
+                .and_then(|word| word.literal_bytes()),
+            Some(b"set".as_slice())
+        );
+        assert_eq!(
+            words
+                .arguments()
+                .get(1)
+                .and_then(|word| word.literal_bytes()),
+            Some(b"x".as_slice())
+        );
+    }
+
+    #[test]
+    fn logical_root_substitutions_keep_earlier_mutations_and_owner_refusals() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let source = "interp alias {} make {} list set x; eval [make $value]";
+        let baseline = analyse(source);
+        let offset = u32::try_from(source.find("make $value").unwrap()).unwrap();
+        let config = baseline.body_lexer_config.unwrap();
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            "make $value",
+            offset,
+            config,
+        )
+        .remove(0);
+        assert!(source_registry_words(source, &baseline, &segment).is_some());
+        let changed =
+            "interp alias {} make {} list set x; eval [list [rename make {}] [make $value]]";
+        let changed_analysis = analyse(changed);
+        let offset = u32::try_from(changed.find("make $value").unwrap()).unwrap();
+        let blocked = crate::segmenter::segment_commands_with_offset_and_config(
+            "make $value",
+            offset,
+            config,
+        )
+        .remove(0);
+        assert!(source_registry_words(changed, &changed_analysis, &blocked).is_none());
+        assert!(source_registry_words(&format!("{source} "), &baseline, &segment).is_none());
+        let mut missing = baseline.clone();
+        missing.resolved_input = None;
+        assert!(source_registry_words(source, &missing, &segment).is_none());
+        let mut config_changed = baseline;
+        config_changed.body_lexer_config = Some(tcl_lexer::LexerConfig {
+            strict_quoting: !config.strict_quoting,
+            ..config
+        });
+        assert!(source_registry_words(source, &config_changed, &segment).is_none());
     }
 }

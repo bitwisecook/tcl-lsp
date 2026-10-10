@@ -73,12 +73,14 @@ use tcl_registry::CommandRegistry;
 /// CRLF and a lone CR are parser-facing LF line endings. This boundary is for
 /// documents only: run-time string values keep raw CR / CRLF semantics.
 fn normalise_document_line_endings(source: &str) -> std::borrow::Cow<'_, str> {
-    let lone_cr_normalised = tcl_lexer::normalise_lone_cr(source);
-    if lone_cr_normalised.contains("\r\n") {
-        std::borrow::Cow::Owned(lone_cr_normalised.replace("\r\n", "\n"))
-    } else {
-        lone_cr_normalised
+    if !source.contains('\r') {
+        return std::borrow::Cow::Borrowed(source);
     }
+    tcl_lexer::DocumentLineEndingProjection::new(tcl_lexer::SourceImage::document(source))
+        .map_or_else(
+            || std::borrow::Cow::Borrowed(source),
+            |projection| std::borrow::Cow::Owned(projection.into_text()),
+        )
 }
 
 /// Compute formatting edits for the entire document.

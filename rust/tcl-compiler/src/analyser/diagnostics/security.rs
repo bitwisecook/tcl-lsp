@@ -897,7 +897,7 @@ mod original_capture_edit_tests {
         // naming.diagnostic.registry-source-ownership
         // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
         let input = input();
-        for (written, captured, code, captured_text) in [
+        for (written, captured, code, captured_word) in [
             (
                 "catch {return VALUE}",
                 "interp alias {} capture {} catch {return VALUE}; capture",
@@ -908,13 +908,13 @@ mod original_capture_edit_tests {
                 "string is booleanx 1",
                 "interp alias {} classify {} string is booleanx; classify 1",
                 DiagCode::W127,
-                Some("booleanx"),
+                Some(("booleanx", tcl_lexer::Span::new(38, 46))),
             ),
             (
                 "return -code errro VALUE",
                 "interp alias {} fail {} return -code errro; fail VALUE",
                 DiagCode::W127,
-                Some("errro"),
+                Some(("errro", tcl_lexer::Span::new(37, 42))),
             ),
         ] {
             let direct = Analyser::new()
@@ -945,9 +945,11 @@ mod original_capture_edit_tests {
                 panic!("original captured source subject")
             };
             assert!(subject.written_argument().is_none());
-            if let Some(text) = captured_text {
+            if let Some((text, span)) = captured_word {
                 assert_eq!(&captured[finding.span.as_range()], text);
-                assert!(finding.span.end() < u32::try_from(captured.rfind(';').unwrap()).unwrap());
+                // These original words end at the following semicolon's byte
+                // offset; the half-open extent excludes that delimiter.
+                assert_eq!(finding.span, span);
             }
         }
     }

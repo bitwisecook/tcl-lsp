@@ -334,13 +334,14 @@ pub(crate) fn captured_methods_at_command<'a>(
     source: &str,
     command: &SegmentedCommand,
 ) -> Vec<RetainedReceiverMethod<'a>> {
-    let (Some(realm), Some(config), Some(registry)) = (
-        analysis.retained_command_realm(),
-        analysis.body_lexer_config,
-        analysis.resolved_registry(),
-    ) else {
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
         return Vec::new();
     };
+    let Some(realm) = analysis.retained_command_realm() else {
+        return Vec::new();
+    };
+    let config = current.config();
     let mut tokens = CommandTokens::from_segmented(&SourceMap::new(source), config, command);
     let Some(head) = tokens.word_exprs.first() else {
         return Vec::new();
@@ -352,9 +353,21 @@ pub(crate) fn captured_methods_at_command<'a>(
         return Vec::new();
     }
     tokens.source_binding = Some(binding.clone());
-    let Some(normal) = tcl_compiler::registry_invocation::normal_representation_invocation(
-        registry, None, &tokens,
-    ) else {
+    let Some(metadata) =
+        tcl_compiler::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            current.registry(),
+            analysis.resolved_input.as_ref(),
+        )
+    else {
+        return Vec::new();
+    };
+    let Some(normal) =
+        tcl_compiler::registry_invocation::normal_representation_invocation_with_metadata_context(
+            current.registry(),
+            Some(metadata),
+            &tokens,
+        )
+    else {
         return Vec::new();
     };
     let Some(deferred) = normal.deferred_script_source_argument_indices() else {
@@ -1182,5 +1195,54 @@ mod tests {
             crate::definition::definition(source, 0, cursor, &analysis).len(),
             0
         );
+    }
+    #[test]
+    fn captured_method_registration_keeps_actual_metadata_and_source_currency() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source = "oo::class create C {method tick {} {}; method setup {} {set cb [list [self] tick]; after 0 $cb}}; C create obj; obj setup";
+        let baseline = analyse(source);
+        let config = baseline.body_lexer_config.unwrap();
+        let offset = u32::try_from(source.find("after 0 $cb").unwrap()).unwrap();
+        let command = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            "after 0 $cb",
+            offset,
+            config,
+        )
+        .remove(0);
+        assert_eq!(
+            captured_methods_at_command(&baseline, source, &command).len(),
+            1
+        );
+        let mut missing = baseline.clone();
+        missing.resolved_input = None;
+        assert!(captured_methods_at_command(&missing, source, &command).is_empty());
+        assert!(captured_methods_at_command(&baseline, &format!("{source} "), &command).is_empty());
+        let mut changed = baseline.clone();
+        changed.body_lexer_config = Some(tcl_lexer::LexerConfig {
+            strict_quoting: !config.strict_quoting,
+            ..config
+        });
+        assert!(captured_methods_at_command(&changed, source, &command).is_empty());
+        let input = baseline.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let mut foreign = baseline.clone();
+        foreign.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            std::sync::Arc::new(context.with_command_store(std::sync::Arc::new(
+                tcl_registry::CommandRegistry::build_default(),
+            ))),
+            config,
+        ));
+        assert!(captured_methods_at_command(&foreign, source, &command).is_empty());
+        let mut availability = baseline.clone();
+        availability.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry(),
+            config,
+        ));
+        assert!(captured_methods_at_command(&availability, source, &command).is_empty());
     }
 }

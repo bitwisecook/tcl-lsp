@@ -1573,6 +1573,8 @@ mod tests {
 
     #[test]
     fn original_outline_does_not_borrow_tcl9_member_roles_under_tcl86() {
+        // docs/design/analysis/name-resolution-proofs/tcloo-configurable-bootstrap-definition-path.md
+
         // naming.source.original-class-constructor-call
         // docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md
         // Native stock configurable availability is independently recorded by

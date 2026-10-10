@@ -94,6 +94,22 @@ fn compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_hea
             "{context}: original invocation host {:?}",
             vm.execution_refusal
         );
+        if std::env::var_os("TCL_VM_TRACE_INFO_COMMANDS_LITERAL").is_some()
+            && completion.code.as_int().to_string() != fields[2]
+        {
+            // Diagnostic observation of this unchanged software invocation only;
+            // no original-provider receipt or successful comparison is inferred.
+            let resident = completion.result.resident_string_bytes();
+            let checked = vm.native_name_operand_bytes(&completion.result);
+            eprintln!(
+                "INFO_COMMANDS_LITERAL context={context} code={} primary={} live={} resident={} checked={:?}",
+                completion.code.as_int(),
+                completion.result.native_object_type_name(),
+                completion.result.native_object_is_live(),
+                resident.is_some(),
+                checked.as_deref(),
+            );
+        }
         assert_eq!(
             completion.code.as_int().to_string(),
             fields[2],

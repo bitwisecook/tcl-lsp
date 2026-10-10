@@ -14,9 +14,13 @@ How does one shared original script geometry inventory retain reference-only syn
 
 OriginalSourceScriptPurpose selects Syntax or PotentialEvaluation over the same complete original Registry words, source/configuration/context and body/case geometry. Syntax retains reference-only body text. PotentialEvaluation uses the already selected script timing at each effective original ordinal and excludes ReferenceOnly; it remains conditional and proves no reached body, runtime frame, effects closure or Normal. Mutation coverage uses the same purpose projection. The default source_script_bodies method retains its Syntax contract; Core executable-region traversal explicitly asks for PotentialEvaluation. Hosted event source paths select PotentialEvaluation through the same shared body-purpose owner; their ReferenceOnly regions remain independently retained syntax without event reachability or appliance activation.
 
+Readonly body-name ownership preserves the genuine counted source ByteLiteral contents through checked UTF-8 for the body and interpreter selector. The original installer horizon, complete source/input/config and independently selected Current interpreter remain required; a named or unknown child cannot be substituted.
+
 ## Scope
 
 One shared geometry owner and selected Registry timing owner. Genuine reference-only and potential Body descriptors are distinguished without a new parser or reporting-head lookup. Unsupported source geometry/context stays unavailable. Source syntax and potential evaluation do not authorise runtime execution or edits.
+
+This existing-control source refinement changes no assertion identity or status. Logical Body versus ReferenceOnly purposes and missing/foreign source refusals remain independent. It establishes no Native body/frame entry, evaluated value, completed store, cell identity, Normal or assertion outcome.
 
 ## Provider answers
 
@@ -88,6 +92,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-irules/src/source_context.rs](../../../../rust/tcl-irules/src/source_context.rs), `source_context::tests::original_irules_source_paths_keep_reference_only_bodies_as_syntax` (linked): Custom genuine hosted Body source remains visible as Syntax under ReferenceOnly, while the event-rooted conditional path requires PotentialEvaluation. Complete source/context remains the same and neither branch proves Native event or body execution.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs), `OriginalSourceMaterializedFootprint::body_name_ownership`: Project checked UTF-8 from the actual retained counted source body/interpreter selector under the existing original installer snapshot and complete Current-scope input/config guard.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

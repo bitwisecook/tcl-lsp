@@ -1,0 +1,26 @@
+
+running 12 tests
+test cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers ... ok
+test command::native_completion_option_tests::checked_option_mutation_retains_original_opaque_members_and_carrier ... ok
+test command::native_completion_option_tests::invalid_carried_control_is_a_failure_and_absence_has_its_separate_default ... ok
+test command::native_completion_option_tests::option_snapshot_preserves_first_host_cause_and_earlier_guest_effects ... ok
+test error::checked_projection_tests::borrowed_projection_refuses_conversion_and_actual_context_reads_original_values ... ok
+test error::checked_projection_tests::checked_guest_projection_preserves_first_host_cause_without_materialising ... ok
+test interp::native_variable_inventory_policy_tests::genuine_native_inventory_policy_survives_unknown_source_profile ... 
+thread 'interp::native_variable_inventory_policy_tests::genuine_native_inventory_policy_survives_unknown_source_profile' (1008100) panicked at rust/tcl-vm/src/interp/native_variable_inventory_policy_tests.rs:114:82:
+called `Result::unwrap()` on an `Err` value: CommandProtocolUnavailable("native object list conversion")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test interp::native_variable_inventory_policy_tests::unsupported_inventory_policy_refuses_before_a_pattern_getter ... ok
+test interp::native_variable_inventory_policy_tests::variable_inventory_uses_the_actual_selected_name_purpose ... ok
+test value::script::execution_tests::deferred_original_jim_eval_and_uplevel_keep_their_worker_produced_script ... ok
+test value::script::execution_tests::deferred_original_jim_script_owner_refuses_foreign_and_retired_original_headers ... ok
+test value::script::execution_tests::deferred_original_jim_script_owner_survives_transport_clones_only_until_activation_exit ... ok
+
+failures:
+
+failures:
+    interp::native_variable_inventory_policy_tests::genuine_native_inventory_policy_survives_unknown_source_profile
+
+test result: FAILED. 11 passed; 1 failed; 0 ignored; 0 measured; 744 filtered out; finished in 3.91s
+

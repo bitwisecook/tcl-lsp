@@ -121,9 +121,25 @@ mod tests {
                 .is_none()
         );
         let jim = crate::model::ingress::static_context_for("jim");
+        // Inherited source metadata is fail-open without a loaded roster.
+        // Its absence cannot be inferred from the separate Native command set.
+        let native = crate::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
+        let actual = jim.commands().effective_semantics_for_dialect(native);
         assert!(
-            jim.command_source_unavailability("coroutine", loader)
-                .is_some()
+            actual.binding_names().contains("::alias"),
+            "the audited Native Jim roster is nonempty"
+        );
+        assert!(!actual.binding_names().contains("::coroutine"));
+        let unmeasured = crate::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+        );
+        assert!(
+            jim.commands()
+                .effective_semantics_for_dialect(unmeasured)
+                .binding_names()
+                .is_empty()
         );
         assert!(
             jim.command_source_unavailability("system", loader)

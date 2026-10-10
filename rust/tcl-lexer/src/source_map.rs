@@ -154,6 +154,13 @@ impl DocumentLineEndingProjection {
         &self.normalised
     }
 
+    /// Consume the derived Document presentation without transferring original
+    /// source, value, command, grammar or execution authority to the text.
+    #[must_use]
+    pub fn into_text(self) -> String {
+        self.normalised
+    }
+
     /// Map a Unicode byte boundary to the original document. The LF before
     /// and after a collapsed CRLF map to the complete pair's two boundaries.
     #[must_use]

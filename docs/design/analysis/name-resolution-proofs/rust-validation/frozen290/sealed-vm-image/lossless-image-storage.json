@@ -1,0 +1,20 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/sealed-vm-image/pinned-vm290.elf.gz",
+  "stored_sha256": "abd177d3138b6af9b3887f577c0cb4e80bd31e1e276ce65173d9c63b7385070b",
+  "stored_bytes": 19910465,
+  "original_sha256": "e37bc502fcaa6a1f9b8cf91bd8108608212a00d9ea056545709418c4eb97b4cb",
+  "original_bytes": 101711320,
+  "original_recorded_executable": "/workspace/.proofs/pinned-vm290.elf",
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/sealed-vm-image/pinned-vm290.json",
+  "pin_metadata_sha256": "17af4c70d63794f0f59e8a9a6e9bde1538ed75a367b5c46c4ce3abf3a5332fde",
+  "build_receipt_id": "rust.frozen290.integration-vm-own-test-build290",
+  "build_receipt_sha256": "9fe29003423bdf5292d0ebfaa65bcbee4a01d8f591c08c26e3d91361a6a80d2d",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/source-snapshot.json.gz",
+    "sha256": "49cfbeda0e0328ef6c4e2cdb99bb23746169e61cbf4a81cb22a83c2e779179d8",
+    "compression": "gzip",
+    "uncompressed_sha256": "a8d4bf12f994eeebffa076a5d56470d28a99508942f5d5263906c04de3d78629"
+  },
+  "verification": "Strict original successful producer/pin/source association retained. Full gzip restoration independently byte/SHA/size compared with original measured ELF. No original unlink or new build/run."
+}

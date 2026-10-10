@@ -4,6 +4,7 @@
 
 //! Deferred Logical source headers retain their original parent body/schema.
 
+use super::body_effects::{OriginalOperandEffect, original_operand_effects};
 use super::{
     AdviceGraph, AdviceInvocation, AdviceInvocationContext, AdviceNamingPolicy,
     AdvicePublicationPurpose, OriginalSourceCommandTransitionAdvice,
@@ -15,7 +16,7 @@ use crate::command_binding::source_declared_command::{
 };
 use crate::registry_invocation::OriginalSourceScriptBody;
 use std::sync::Arc;
-use tcl_lexer::{NativeScriptCommandWords, NativeWord};
+use tcl_lexer::{NativeScriptCommandWords, NativeWord, Span};
 use tcl_registry::{CommandBindingDefinitionKind, CommandBindingTransition, Traits};
 
 const MAX_DEPTH: usize = 64;
@@ -285,12 +286,23 @@ impl LogicalBodyWalk<'_, '_> {
         scope: &Arc<OriginalDeclaredLogicalBodyContext>,
         depth: usize,
     ) -> Option<()> {
+        self.script_at(tape, graph, scope, scope.body().content_span(), depth)
+    }
+
+    fn script_at(
+        &mut self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &mut AdviceGraph,
+        scope: &Arc<OriginalDeclaredLogicalBodyContext>,
+        span: Span,
+        depth: usize,
+    ) -> Option<()> {
         if depth > MAX_DEPTH {
             return None;
         }
         let plan = tcl_lexer::native_script_words_in(
             self.context.origin.source_image().clone(),
-            scope.body().content_span(),
+            span,
             self.context.config,
         )
         .ok()?;
@@ -367,7 +379,7 @@ impl LogicalBodyWalk<'_, '_> {
             .then(|| graph.resolve(&head))
             .flatten();
         let operand_barrier =
-            self.retain_deferred_operand_header(tape, graph, native, &head, scope)?;
+            self.retain_deferred_operand_header(tape, graph, native, &head, (scope, depth))?;
         let Some((selected, mut arguments, lineage)) =
             original_selection.or_else(|| graph.resolve(&head))
         else {
@@ -414,14 +426,27 @@ impl LogicalBodyWalk<'_, '_> {
     }
 
     fn retain_deferred_operand_header(
-        &self,
+        &mut self,
         tape: &mut OriginalSourceTransitionAdviceTape,
         graph: &mut AdviceGraph,
         native: &[NativeWord],
         head: &SourceAdviceNameInput,
-        scope: &Arc<OriginalDeclaredLogicalBodyContext>,
+        parent: (&Arc<OriginalDeclaredLogicalBodyContext>, usize),
     ) -> Option<bool> {
-        let operand_barrier = self.context.inspect_operand_effects(graph, native, tape)?;
+        let (scope, depth) = parent;
+        let effects = original_operand_effects(native);
+        let operand_barrier = !effects.is_empty();
+        if operand_barrier {
+            graph.record_uncertainty(native);
+        }
+        for effect in effects {
+            match effect {
+                OriginalOperandEffect::Command(body) => {
+                    self.script_at(tape, graph, scope, body, depth.checked_add(1)?)?;
+                }
+                OriginalOperandEffect::Unknown => graph.record_uncertainty(native),
+            }
+        }
         if graph.blocks_registry_source(head) {
             tape.registry_barriers
                 .insert(native.first()?.span().start());
@@ -657,5 +682,71 @@ mod tests {
                 "{source}"
             );
         }
+    }
+    #[test]
+    fn logical_deferred_substitutions_keep_original_body_and_evaluation_order() {
+        // naming.source.original-editor-body-structure
+        // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+        let source = "proc p {} {return [join [string index abc 99]]}\n";
+        let analysis = analyse_source(source);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        for fragment in ["join [string index abc 99]", "string index abc 99"] {
+            let words = words_at(source, &analysis, fragment).expect(fragment);
+            let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                panic!("missing deferred original substitution body");
+            };
+            assert_eq!(advice.logical_source_input(), Some(input));
+            assert!(advice.original_head().native_input().is_none());
+            assert!(advice.obligations().contains(
+                &super::SourceCommandTransitionObligation::DeferredLogicalBodyApplicability
+            ));
+            let body = advice.logical_source_body().unwrap();
+            assert!(body.matches_source(
+                &tcl_lexer::SourceImage::document(source),
+                input.lexer_config()
+            ));
+            assert_eq!(
+                source.get(body.content_span().as_range()),
+                Some("return [join [string index abc 99]]")
+            );
+            assert!(!words.operands_preserve_source_lookup());
+        }
+        let changed = "proc p {} {return [list [rename string {}] [string index abc 99]]}\n";
+        let changed_analysis = analyse_source(changed);
+        assert!(words_at(changed, &changed_analysis, "rename string {}").is_some());
+        assert!(words_at(changed, &changed_analysis, "string index abc 99").is_none());
+    }
+
+    #[test]
+    fn logical_deferred_substitutions_withdraw_missing_and_changed_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let source = "proc p {} {return [string index abc 99]}\n";
+        let baseline = analyse_source(source);
+        assert!(words_at(source, &baseline, "string index abc 99").is_some());
+        assert!(words_at(&format!("{source} "), &baseline, "string index abc 99").is_none());
+        let mut changed = baseline.clone();
+        changed.body_lexer_config = Some(tcl_lexer::LexerConfig {
+            strict_quoting: !baseline.body_lexer_config.unwrap().strict_quoting,
+            ..baseline.body_lexer_config.unwrap()
+        });
+        assert!(words_at(source, &changed, "string index abc 99").is_none());
+        let mut missing = baseline.clone();
+        missing.resolved_input = None;
+        assert!(words_at(source, &missing, "string index abc 99").is_none());
+        let mut foreign = baseline;
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let commands =
+            std::sync::Arc::new(tcl_registry::command_registry::CommandRegistry::build_default());
+        let context = std::sync::Arc::new(
+            tcl_registry::model::ingress::context_for_profile(profile).with_command_store(commands),
+        );
+        foreign.resolved_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        ));
+        assert!(words_at(source, &foreign, "string index abc 99").is_none());
     }
 }

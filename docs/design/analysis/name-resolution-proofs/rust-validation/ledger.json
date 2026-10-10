@@ -143279,6 +143279,561 @@
           "uncompressed_sha256": "2c89844481fbaf339eab05f8304d9faaa871296ad31dea5f3943fa193cfd1051"
         }
       }
+    },
+    {
+      "id": "rust.frozen290.integration-vm-own-test-build290",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/integration-vm-own-test-build290/receipt.json.gz",
+        "sha256": "4b8fca7751edc8194bde0e9881d0a5e2e6b1d94f782d90809097eb650df3e61f",
+        "compression": "gzip",
+        "uncompressed_sha256": "9fe29003423bdf5292d0ebfaa65bcbee4a01d8f591c08c26e3d91361a6a80d2d"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/integration-vm-own-test-build290/tests.log",
+        "sha256": "b7a53e3d7887ad059b6e69e091cf348474b66980643c60e19f8ad259293e9875"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 0,
+      "seconds": 160.89051837899024,
+      "uniform_source": true,
+      "status": "compile-passed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed original receipt retains exact source archive/compile paths, every source hash and command association. All source leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/sealed-vm-image/pinned-vm290.elf.gz",
+        "sha256": "abd177d3138b6af9b3887f577c0cb4e80bd31e1e276ce65173d9c63b7385070b",
+        "compression": "gzip",
+        "uncompressed_sha256": "e37bc502fcaa6a1f9b8cf91bd8108608212a00d9ea056545709418c4eb97b4cb",
+        "uncompressed_bytes": 101711320,
+        "compressed_bytes": 19910465,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/sealed-vm-image/pinned-vm290.json",
+        "metadata_sha256": "17af4c70d63794f0f59e8a9a6e9bde1538ed75a367b5c46c4ce3abf3a5332fde",
+        "build_receipt_id": "rust.frozen290.integration-vm-own-test-build290",
+        "original_source_snapshot_sha256": "a8d4bf12f994eeebffa076a5d56470d28a99508942f5d5263906c04de3d78629",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/source-snapshot.json.gz",
+          "sha256": "49cfbeda0e0328ef6c4e2cdb99bb23746169e61cbf4a81cb22a83c2e779179d8",
+          "compression": "gzip",
+          "uncompressed_sha256": "a8d4bf12f994eeebffa076a5d56470d28a99508942f5d5263906c04de3d78629"
+        }
+      },
+      "limits": "Successful exact VM no-run producer records one actual tcl_vm libtest artifact; compilation executes no unit assertion. No aggregate gate PASS or other-image result; original external Native processes remain immutable and independent."
+    },
+    {
+      "id": "rust.frozen290.integration-vm-inventory290",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/integration-vm-inventory290/receipt.json.gz",
+        "sha256": "10539539f3966c75f92062cef33c6961ec7d1a04b45f4414f5c426181c4567f0",
+        "compression": "gzip",
+        "uncompressed_sha256": "49f9835c30a85099a87a5e68bee55091b4fdb28ca43fab3ad4db66d11383db2f"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/integration-vm-inventory290/tests.log",
+        "sha256": "1bcc10c1268b594f6cdbcd72d6023a614ee00ecef895e2189b7152658d9fad6d"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm290.elf",
+        "--list"
+      ],
+      "exit": 0,
+      "seconds": 0.014115238998783752,
+      "uniform_source": true,
+      "status": "listed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed original receipt retains exact source archive/compile paths, every source hash and command association. All source leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/sealed-vm-image/pinned-vm290.elf.gz",
+        "sha256": "abd177d3138b6af9b3887f577c0cb4e80bd31e1e276ce65173d9c63b7385070b",
+        "compression": "gzip",
+        "uncompressed_sha256": "e37bc502fcaa6a1f9b8cf91bd8108608212a00d9ea056545709418c4eb97b4cb",
+        "uncompressed_bytes": 101711320,
+        "compressed_bytes": 19910465,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/sealed-vm-image/pinned-vm290.json",
+        "metadata_sha256": "17af4c70d63794f0f59e8a9a6e9bde1538ed75a367b5c46c4ce3abf3a5332fde",
+        "build_receipt_id": "rust.frozen290.integration-vm-own-test-build290",
+        "original_source_snapshot_sha256": "a8d4bf12f994eeebffa076a5d56470d28a99508942f5d5263906c04de3d78629",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/source-snapshot.json.gz",
+          "sha256": "49cfbeda0e0328ef6c4e2cdb99bb23746169e61cbf4a81cb22a83c2e779179d8",
+          "compression": "gzip",
+          "uncompressed_sha256": "a8d4bf12f994eeebffa076a5d56470d28a99508942f5d5263906c04de3d78629"
+        }
+      },
+      "limits": "Actual strict VM290 --list inventory contains756 exact tests; listing executes no assertion. No aggregate gate PASS or other-image result; original external Native processes remain immutable and independent."
+    },
+    {
+      "id": "rust.frozen290.integration-vm-ownership-completion-inventory-tests290",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/integration-vm-ownership-completion-inventory-tests290/receipt.json.gz",
+        "sha256": "dd9c8b04b6886b60f8505099cfaaecf2e5bb68298578849165fe2e27cdc52571",
+        "compression": "gzip",
+        "uncompressed_sha256": "b9347e2218bc21811b280e1aab02376ce4dbdbcde6089c42d6d66430c9d11e07"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/integration-vm-ownership-completion-inventory-tests290/tests.log",
+        "sha256": "dff1c90dfbf8f787e9c307dd172b1d7c996cb4d829041d20681ecb24a013bfe1"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm290.elf",
+        "command::native_completion_option_tests::checked_option_mutation_retains_original_opaque_members_and_carrier",
+        "command::native_completion_option_tests::invalid_carried_control_is_a_failure_and_absence_has_its_separate_default",
+        "command::native_completion_option_tests::option_snapshot_preserves_first_host_cause_and_earlier_guest_effects",
+        "error::checked_projection_tests::borrowed_projection_refuses_conversion_and_actual_context_reads_original_values",
+        "error::checked_projection_tests::checked_guest_projection_preserves_first_host_cause_without_materialising",
+        "interp::native_variable_inventory_policy_tests::variable_inventory_uses_the_actual_selected_name_purpose",
+        "interp::native_variable_inventory_policy_tests::unsupported_inventory_policy_refuses_before_a_pattern_getter",
+        "interp::native_variable_inventory_policy_tests::genuine_native_inventory_policy_survives_unknown_source_profile",
+        "cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers",
+        "value::script::execution_tests::deferred_original_jim_script_owner_survives_transport_clones_only_until_activation_exit",
+        "value::script::execution_tests::deferred_original_jim_script_owner_refuses_foreign_and_retired_original_headers",
+        "value::script::execution_tests::deferred_original_jim_eval_and_uplevel_keep_their_worker_produced_script",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 3.9280312479822896,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 11,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 744
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed original receipt retains exact source archive/compile paths, every source hash and command association. All source leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "cmd_mathop::tests::original_jim_namespace_info_guard_retains_its_original_headers",
+          "status": "passed",
+          "purpose": "Actual software original Jim helper guard completes with retained live headers under this exact image; it is separate from Native43524 public result and helper source observations.",
+          "proof_ids": []
+        },
+        {
+          "selector": "command::native_completion_option_tests::checked_option_mutation_retains_original_opaque_members_and_carrier",
+          "status": "passed",
+          "purpose": "Actual exact software checked completion/getter/first-Host-cause assertion passes; no external provider process or Native object/cache birth observation is supplied.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "command::native_completion_option_tests::invalid_carried_control_is_a_failure_and_absence_has_its_separate_default",
+          "status": "passed",
+          "purpose": "Actual exact software checked completion/getter/first-Host-cause assertion passes; no external provider process or Native object/cache birth observation is supplied.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "command::native_completion_option_tests::option_snapshot_preserves_first_host_cause_and_earlier_guest_effects",
+          "status": "passed",
+          "purpose": "Actual exact software checked completion/getter/first-Host-cause assertion passes; no external provider process or Native object/cache birth observation is supplied.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "error::checked_projection_tests::borrowed_projection_refuses_conversion_and_actual_context_reads_original_values",
+          "status": "passed",
+          "purpose": "Actual exact software checked completion/getter/first-Host-cause assertion passes; no external provider process or Native object/cache birth observation is supplied.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "error::checked_projection_tests::checked_guest_projection_preserves_first_host_cause_without_materialising",
+          "status": "passed",
+          "purpose": "Actual exact software checked completion/getter/first-Host-cause assertion passes; no external provider process or Native object/cache birth observation is supplied.",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ]
+        },
+        {
+          "selector": "interp::native_variable_inventory_policy_tests::genuine_native_inventory_policy_survives_unknown_source_profile",
+          "status": "failed",
+          "purpose": "Exact Source290 software positive retains genuine core policy through unknown source profile but fails downstream native object list conversion. No inventory result or provider pass follows; whole original failure retained.",
+          "proof_ids": [
+            "naming.invocation.original-variable-inventory-policy"
+          ]
+        },
+        {
+          "selector": "interp::native_variable_inventory_policy_tests::unsupported_inventory_policy_refuses_before_a_pattern_getter",
+          "status": "passed",
+          "purpose": "Actual exact supported-selection or standalone unavailable-policy software control passes; no external inventory provider comparison follows.",
+          "proof_ids": [
+            "naming.invocation.original-variable-inventory-policy"
+          ]
+        },
+        {
+          "selector": "interp::native_variable_inventory_policy_tests::variable_inventory_uses_the_actual_selected_name_purpose",
+          "status": "passed",
+          "purpose": "Actual exact supported-selection or standalone unavailable-policy software control passes; no external inventory provider comparison follows.",
+          "proof_ids": [
+            "naming.invocation.original-variable-inventory-policy"
+          ]
+        },
+        {
+          "selector": "value::script::execution_tests::deferred_original_jim_eval_and_uplevel_keep_their_worker_produced_script",
+          "status": "passed",
+          "purpose": "Actual software deferred Jim original owner/activation refusal control passes under this exact VM/source image; no original Jim private lifecycle observation or Native435 equivalence follows.",
+          "proof_ids": [
+            "naming.source.jim-original-deferred-script-ownership"
+          ]
+        },
+        {
+          "selector": "value::script::execution_tests::deferred_original_jim_script_owner_refuses_foreign_and_retired_original_headers",
+          "status": "passed",
+          "purpose": "Actual software deferred Jim original owner/activation refusal control passes under this exact VM/source image; no original Jim private lifecycle observation or Native435 equivalence follows.",
+          "proof_ids": [
+            "naming.source.jim-original-deferred-script-ownership"
+          ]
+        },
+        {
+          "selector": "value::script::execution_tests::deferred_original_jim_script_owner_survives_transport_clones_only_until_activation_exit",
+          "status": "passed",
+          "purpose": "Actual software deferred Jim original owner/activation refusal control passes under this exact VM/source image; no original Jim private lifecycle observation or Native435 equivalence follows.",
+          "proof_ids": [
+            "naming.source.jim-original-deferred-script-ownership"
+          ]
+        }
+      ],
+      "question_ids": [
+        "naming.embedding.original-host-publication-and-fact-transport",
+        "naming.invocation.original-variable-inventory-policy",
+        "naming.source.jim-original-deferred-script-ownership"
+      ],
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/sealed-vm-image/pinned-vm290.elf.gz",
+        "sha256": "abd177d3138b6af9b3887f577c0cb4e80bd31e1e276ce65173d9c63b7385070b",
+        "compression": "gzip",
+        "uncompressed_sha256": "e37bc502fcaa6a1f9b8cf91bd8108608212a00d9ea056545709418c4eb97b4cb",
+        "uncompressed_bytes": 101711320,
+        "compressed_bytes": 19910465,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/sealed-vm-image/pinned-vm290.json",
+        "metadata_sha256": "17af4c70d63794f0f59e8a9a6e9bde1538ed75a367b5c46c4ce3abf3a5332fde",
+        "build_receipt_id": "rust.frozen290.integration-vm-own-test-build290",
+        "original_source_snapshot_sha256": "a8d4bf12f994eeebffa076a5d56470d28a99508942f5d5263906c04de3d78629",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/source-snapshot.json.gz",
+          "sha256": "49cfbeda0e0328ef6c4e2cdb99bb23746169e61cbf4a81cb22a83c2e779179d8",
+          "compression": "gzip",
+          "uncompressed_sha256": "a8d4bf12f994eeebffa076a5d56470d28a99508942f5d5263906c04de3d78629"
+        }
+      },
+      "limits": "The separate12-control software run closes11 passed/1 failed. Original Jim helper guard, all three deferred ownership, five completion and two previous inventory controls pass. Genuine-core/unknown-source inventory positive fails downstream Native list conversion; no successful inventory result is inferred. No aggregate gate PASS or other-image result; original external Native processes remain immutable and independent."
+    },
+    {
+      "id": "rust.frozen290.integration-vm-native-frontier-tests290",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/integration-vm-native-frontier-tests290/receipt.json.gz",
+        "sha256": "a85fd2fcd1b4b944226d8e625a1cd3360e21df1af4e698fe7acfadea8dd12cec",
+        "compression": "gzip",
+        "uncompressed_sha256": "a48c5015b2968a9ca773fb03a10ce2b0e07ca784771d603f352c3be2c8e1a3c2"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/integration-vm-native-frontier-tests290/tests.log",
+        "sha256": "145222839971879272a22b2d4509e0487a85c37eea4586843ae8f5fc180c7b15"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm290.elf",
+        "cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows",
+        "cmd_dict::native_rmw_fixture_tests::c85_dictionary_write_error_retains_defined_host_storage",
+        "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+        "cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls",
+        "value::tests::byte_array_carrier_retains_original_storage_and_string_presence",
+        "interp::native_error_stack::tests::reached_error_capture_retains_original_argv_members_after_invocation_release",
+        "interp::native_error_stack::tests::reached_error_capture_declines_retired_argv_and_missing_protocol",
+        "interp::native_error_stack::tests::private_stack_retains_header_and_children_through_save_cow_and_restore",
+        "interp::native_error_stack::tests::reached_capture_adapters_preserve_typed_retired_foreign_and_first_causes",
+        "interp::native_error_stack::tests::reached_instruction_capture_preserves_missing_owner_refusal",
+        "cmd_dict::native_rmw_fixture_tests::c86_dictionary_write_error_retains_its_own_defined_host_storage",
+        "exec::active_manifest_tests::active_currency_rechecks_pack_claims_and_manifest_package_floors",
+        "exec::active_manifest_tests::compiled_entry_checks_retained_manifest_and_actual_pack_claims",
+        "exec::active_manifest_tests::refused_overlay_pin_preserves_the_active_artifact_identity",
+        "exec::active_manifest_tests::stale_pack_command_boundary_does_not_acknowledge_the_changed_epoch",
+        "interp::family_b_tests::explicit_host_engine_keeps_source_logical_and_availability_axes_separate",
+        "value_ops::raw_value_tests::safe_index_functions_require_the_actual_fixed_table",
+        "value_ops::raw_value_tests::portable_error_adapter_separates_raw_guest_result_from_unicode_refusal",
+        "value_ops::raw_value_tests::jim_range_retains_native_seek_and_cached_count_until_conversion",
+        "error::tests::typed_access_refusal_bypasses_catch_and_finally",
+        "cmd_lseq::tests::sequence_backend_capacity_bypasses_guest_capture_and_finally",
+        "command::tests::original_command_core_refusal_keeps_typed_first_host_cause",
+        "interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows",
+        "cmd_dict::native_rmw_fixture_tests::c86_dictionary_with_write_error_retains_independent_defined_host_storage",
+        "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 351.653479413013,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 24,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 731
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed original receipt retains exact source archive/compile paths, every source hash and command association. All source leaves independently byte-checked; head is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::c85_dictionary_write_error_retains_defined_host_storage",
+          "status": "passed",
+          "purpose": "Actual separate VM live host-storage assertion passes under its genuine software object and exact source; current native free/signal experiments supply only their independently measured purpose.",
+          "proof_ids": [
+            "naming.dictionary.c85-original-update-write-error-object-lifetime"
+          ]
+        },
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::c86_dictionary_with_write_error_retains_independent_defined_host_storage",
+          "status": "passed",
+          "purpose": "Actual separate VM live host-storage assertion passes under its genuine software object and exact source; current native free/signal experiments supply only their independently measured purpose.",
+          "proof_ids": [
+            "naming.dictionary.original-with-write-error-object-lifetime"
+          ]
+        },
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::c86_dictionary_write_error_retains_its_own_defined_host_storage",
+          "status": "passed",
+          "purpose": "Actual separate VM live host-storage assertion passes under its genuine software object and exact source; current native free/signal experiments supply only their independently measured purpose.",
+          "proof_ids": [
+            "naming.dictionary.original-update-write-error-object-lifetime"
+          ]
+        },
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows",
+          "status": "passed",
+          "purpose": "Actual software comparator completes326 whole windows plus3 captured bounded post-free observations; the latter are process observations only, never defined freed-content/completion guarantees.",
+          "proof_ids": [
+            "naming.dictionary.c85-original-update-write-error-object-lifetime",
+            "naming.dictionary.original-update-write-error-object-lifetime",
+            "naming.dictionary.original-with-write-error-object-lifetime",
+            "naming.dictionary.update-with-body-and-observer-frontiers"
+          ]
+        },
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+          "status": "passed",
+          "purpose": "Actual Source290 comparator completes all345 unchanged original dictionary/public process windows. Error-capture software ownership and independent private lifetime experiments retain their separate scope.",
+          "proof_ids": [
+            "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+          ]
+        },
+        {
+          "selector": "cmd_lseq::tests::sequence_backend_capacity_bypasses_guest_capture_and_finally",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": []
+        },
+        {
+          "selector": "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+          "status": "passed",
+          "purpose": "Actual Source290 comparator completes all84 unchanged original mathop source/control windows, including the fresh independently retained current-Jim context. Compiler/opcode/private frame admission remains separate.",
+          "proof_ids": [
+            "naming.mathop-procedure-source-controls",
+            "naming.mathop.original-jim-source-and-helper-context"
+          ]
+        },
+        {
+          "selector": "cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls",
+          "status": "passed",
+          "purpose": "Actual Source290 comparator completes all60 original public name/argv controls under their retained provider fixtures. It issues no specialised Jim opcode, original command-table or private frame conclusion.",
+          "proof_ids": [
+            "naming.mathop-binding-and-written-head-controls",
+            "naming.mathop.original-jim-source-and-helper-context"
+          ]
+        },
+        {
+          "selector": "command::tests::original_command_core_refusal_keeps_typed_first_host_cause",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": [
+            "naming.interpreter.original-child-host-refusal-transport"
+          ]
+        },
+        {
+          "selector": "error::tests::typed_access_refusal_bypasses_catch_and_finally",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": []
+        },
+        {
+          "selector": "exec::active_manifest_tests::active_currency_rechecks_pack_claims_and_manifest_package_floors",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": [
+            "naming.compiler.active-manifest-revalidation"
+          ]
+        },
+        {
+          "selector": "exec::active_manifest_tests::compiled_entry_checks_retained_manifest_and_actual_pack_claims",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": [
+            "naming.compiler.active-manifest-revalidation"
+          ]
+        },
+        {
+          "selector": "exec::active_manifest_tests::refused_overlay_pin_preserves_the_active_artifact_identity",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": [
+            "naming.compiler.active-manifest-revalidation"
+          ]
+        },
+        {
+          "selector": "exec::active_manifest_tests::stale_pack_command_boundary_does_not_acknowledge_the_changed_epoch",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": [
+            "naming.compiler.active-manifest-revalidation"
+          ]
+        },
+        {
+          "selector": "interp::family_b_tests::explicit_host_engine_keeps_source_logical_and_availability_axes_separate",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": []
+        },
+        {
+          "selector": "interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows",
+          "status": "failed",
+          "purpose": "The exact186-window software comparator fails at Jim absolute-existing Guest code1 versus original code0 after advancing all C rows. Partial loop advancement is not a completed186 assertion or independent provider outcome.",
+          "proof_ids": [
+            "naming.compiler.original-info-commands-literal-resolution"
+          ]
+        },
+        {
+          "selector": "interp::native_error_stack::tests::private_stack_retains_header_and_children_through_save_cow_and_restore",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": []
+        },
+        {
+          "selector": "interp::native_error_stack::tests::reached_capture_adapters_preserve_typed_retired_foreign_and_first_causes",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": [
+            "naming.error.original-invocation-context-capture"
+          ]
+        },
+        {
+          "selector": "interp::native_error_stack::tests::reached_error_capture_declines_retired_argv_and_missing_protocol",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": [
+            "naming.error.original-invocation-context-capture"
+          ]
+        },
+        {
+          "selector": "interp::native_error_stack::tests::reached_error_capture_retains_original_argv_members_after_invocation_release",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": [
+            "naming.error.original-invocation-context-capture"
+          ]
+        },
+        {
+          "selector": "interp::native_error_stack::tests::reached_instruction_capture_preserves_missing_owner_refusal",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": [
+            "naming.error.original-invocation-context-capture"
+          ]
+        },
+        {
+          "selector": "value::tests::byte_array_carrier_retains_original_storage_and_string_presence",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": []
+        },
+        {
+          "selector": "value_ops::raw_value_tests::jim_range_retains_native_seek_and_cached_count_until_conversion",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": []
+        },
+        {
+          "selector": "value_ops::raw_value_tests::portable_error_adapter_separates_raw_guest_result_from_unicode_refusal",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": []
+        },
+        {
+          "selector": "value_ops::raw_value_tests::safe_index_functions_require_the_actual_fixed_table",
+          "status": "passed",
+          "purpose": "Actual exact selected software ownership/storage/authority/Host-boundary control passes. Its original observation, cache, private object/frame and provider scopes remain separate; no new external process is supplied.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [
+        "naming.compiler.active-manifest-revalidation",
+        "naming.compiler.original-info-commands-literal-resolution",
+        "naming.dictionary.c85-original-update-write-error-object-lifetime",
+        "naming.dictionary.original-update-write-error-object-lifetime",
+        "naming.dictionary.original-with-write-error-object-lifetime",
+        "naming.dictionary.update-with-body-and-observer-frontiers",
+        "naming.error.original-invocation-context-capture",
+        "naming.interpreter.original-child-host-refusal-transport",
+        "naming.mathop-binding-and-written-head-controls",
+        "naming.mathop-procedure-source-controls",
+        "naming.mathop.original-jim-source-and-helper-context",
+        "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+      ],
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/sealed-vm-image/pinned-vm290.elf.gz",
+        "sha256": "abd177d3138b6af9b3887f577c0cb4e80bd31e1e276ce65173d9c63b7385070b",
+        "compression": "gzip",
+        "uncompressed_sha256": "e37bc502fcaa6a1f9b8cf91bd8108608212a00d9ea056545709418c4eb97b4cb",
+        "uncompressed_bytes": 101711320,
+        "compressed_bytes": 19910465,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/sealed-vm-image/pinned-vm290.json",
+        "metadata_sha256": "17af4c70d63794f0f59e8a9a6e9bde1538ed75a367b5c46c4ce3abf3a5332fde",
+        "build_receipt_id": "rust.frozen290.integration-vm-own-test-build290",
+        "original_source_snapshot_sha256": "a8d4bf12f994eeebffa076a5d56470d28a99508942f5d5263906c04de3d78629",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/source-snapshot.json.gz",
+          "sha256": "49cfbeda0e0328ef6c4e2cdb99bb23746169e61cbf4a81cb22a83c2e779179d8",
+          "compression": "gzip",
+          "uncompressed_sha256": "a8d4bf12f994eeebffa076a5d56470d28a99508942f5d5263906c04de3d78629"
+        }
+      },
+      "limits": "The separate25-control run closes24 passed/1 failed. Complete84/60 mathop and345 dictionary comparators pass, alongside observation-window/live-host-storage/error/manifest/byte controls. Info186 fails at Jim absolute-existing Guest completion1 versus original0; all C loop advancement is partial test progress, not a completed186 or provider PASS. No aggregate gate PASS or other-image result; original external Native processes remain immutable and independent."
     }
   ]
 }

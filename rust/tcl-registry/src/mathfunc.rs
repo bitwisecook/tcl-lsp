@@ -627,7 +627,25 @@ mod tests {
         for name in ["tcl8.4", "jim"] {
             let profile = crate::model::ingress::resolve_environment(name).analyser_profile();
             let registry = crate::CommandRegistry::build_default().project_for_profile(profile);
-            assert!(registry.get("::tcl::mathfunc::abs").is_none(), "{name}");
+            let native = if name == "jim" {
+                crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+                    tcl_dialect::model::Release::JIM_0_84,
+                ))
+            } else {
+                assert!(registry.get("::tcl::mathfunc::abs").is_none(), "{name}");
+                crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4)
+            };
+            assert_eq!(
+                super::native_function_dispatch(native),
+                Some(super::NativeMathFunctionDispatch::FixedTable)
+            );
+            assert!(
+                !registry
+                    .effective_semantics_for_dialect(native)
+                    .binding_names()
+                    .contains("::tcl::mathfunc::abs"),
+                "source metadata cannot establish a Native wrapper command"
+            );
             assert!(
                 registry
                     .selected_math_function_spec(
@@ -637,15 +655,32 @@ mod tests {
                     .is_some(),
                 "{name}"
             );
-            assert!(
-                registry
-                    .selected_math_function_spec(
-                        "::tcl::mathfunc::abs",
-                        super::NativeMathFunctionDispatch::CommandTable,
-                    )
-                    .is_none(),
-                "{name}"
-            );
+            if name != "jim" {
+                assert!(
+                    registry
+                        .selected_math_function_spec(
+                            "::tcl::mathfunc::abs",
+                            super::NativeMathFunctionDispatch::CommandTable,
+                        )
+                        .is_none(),
+                    "{name}"
+                );
+            } else {
+                // A missing inherited-source roster fails open by its own
+                // contract; that metadata is independent of actual dispatch.
+                let unmeasured = crate::InvocationDialect::of_point(
+                    tcl_dialect::model::DialectPoint::canonical(
+                        tcl_dialect::model::Release::JIM_0_79,
+                    ),
+                );
+                assert_eq!(super::native_function_dispatch(unmeasured), None);
+                assert!(
+                    registry
+                        .effective_semantics_for_dialect(unmeasured)
+                        .binding_names()
+                        .is_empty()
+                );
+            }
             assert!(
                 registry
                     .selected_math_function_spec(

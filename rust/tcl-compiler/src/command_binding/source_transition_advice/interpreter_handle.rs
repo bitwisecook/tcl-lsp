@@ -239,6 +239,8 @@ mod tests {
 
     #[test]
     fn original_created_handle_body_retains_source_order_and_refuses_unowned_entries() {
+        // docs/design/analysis/name-resolution-proofs/interpreter-original-created-parent-command.md
+
         // naming.interpreter.original-created-handle-source-body
         // docs/design/analysis/name-resolution-proofs/interpreter-original-created-handle-source-body.md
         // Native CLI answers basic creation/handle/path/delete equivalence in

@@ -1121,6 +1121,8 @@ mod tests {
     }
     #[test]
     fn original_native_class_names_keep_distinct_source_units_without_ascii_report_gate() {
+        // docs/design/analysis/name-resolution-proofs/corner-command-distinct-unicode.md
+
         // naming.source.original-class-constructor-call
         // docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md
         // Native Unicode name observation is separate: naming.corner.command-distinct-unicode.

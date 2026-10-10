@@ -574,6 +574,23 @@ pub struct CaseInvocation {
     pub nocase: bool,
 }
 
+#[derive(Clone, Copy)]
+enum CaseSubjectProjection {
+    Definite,
+    AfterSelectedOptions,
+    Possible,
+}
+
+impl CaseSubjectProjection {
+    fn retains_unknown_subject(self, selected_prefix_words: usize) -> bool {
+        match self {
+            Self::Definite => false,
+            Self::AfterSelectedOptions => selected_prefix_words > 0,
+            Self::Possible => true,
+        }
+    }
+}
+
 #[derive(Default)]
 struct CaseOptionScan {
     index: usize,
@@ -840,8 +857,13 @@ impl CaseListSpec {
             dialect,
             &shape,
             sole_clause_list,
-            !validate_clause_list,
-            possible_subject,
+            if possible_subject {
+                CaseSubjectProjection::Possible
+            } else if validate_clause_list {
+                CaseSubjectProjection::Definite
+            } else {
+                CaseSubjectProjection::AfterSelectedOptions
+            },
         )?;
         let mut i = scan.index;
         let mode = scan.mode.unwrap_or(self.default_mode);
@@ -958,8 +980,7 @@ impl CaseListSpec {
         dialect: Option<SurfaceQuery<'_>>,
         shape: &tcl_syntax::case_list::CaseListShape,
         sole_clause_list: bool,
-        source_shape: bool,
-        possible_subject: bool,
+        subject_projection: CaseSubjectProjection,
     ) -> Option<CaseOptionScan> {
         let mut scan = CaseOptionScan::default();
         // A sole subject-less clause-list word owns its own clause flags.
@@ -1012,7 +1033,8 @@ impl CaseListSpec {
             if !scan.outer_options_ended
                 && !options.is_empty()
                 && args.get(scan.index) == Some(&None)
-                && !(self.subject_args == 1 && (possible_subject || source_shape && scan.index > 0))
+                && !(self.subject_args == 1
+                    && subject_projection.retains_unknown_subject(scan.index))
             {
                 // An unreadable active candidate can still select an option;
                 // it does not establish the positional subject boundary.

@@ -3068,7 +3068,11 @@ pub fn normal_representation_invocation_in_context(
     )
 }
 
-pub(crate) fn normal_representation_invocation_with_metadata_context(
+/// Successful representation metadata with the caller's complete supplied
+/// availability and source-policy context. Selection remains independent of
+/// successful completion, original value identity and Native execution entry.
+#[must_use]
+pub fn normal_representation_invocation_with_metadata_context(
     registry: &CommandRegistry,
     context: Option<InvocationMetadataContext<'_>>,
     tokens: &CommandTokens,

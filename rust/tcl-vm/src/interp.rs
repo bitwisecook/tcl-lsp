@@ -114,6 +114,7 @@ mod native_rename;
 mod native_upvar_info_exists_tests;
 mod native_variable_names;
 mod native_variable_observers;
+mod object_materialization;
 mod selected_frame;
 mod variable_container;
 

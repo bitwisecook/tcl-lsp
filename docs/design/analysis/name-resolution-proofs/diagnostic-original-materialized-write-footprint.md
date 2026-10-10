@@ -18,6 +18,8 @@ The Module-aware materialized footprint selects the genuine installer point inpu
 
 Original installer Module projection authenticates the complete retained entry, namespace and frame-purpose owner before selecting conditional materialized names. SourceInvocationBinding::original_invocation_metadata_for_module retains complete original point metadata independently of unknown command dispatch or closed-footprint eligibility. The materialized footprint consumes this authenticated metadata and retains its separate lookup/observer requirements. A still-valid actual availability handle cannot substitute for those source premises.
 
+Readonly body-name ownership preserves the genuine counted source ByteLiteral contents through checked UTF-8 for the body and interpreter selector. The original installer horizon, complete source/input/config and independently selected Current interpreter remain required; a named or unknown child cannot be substituted.
+
 ## Scope
 
 Seven marked source/API controls cover literal dollars, unmatched scalar parentheses and Unicode names; moved/captured alias targets and known replacement; same command store with independently older availability; missing/foreign input and stale source/config; original child ordering and multiple expression-role refusal; and prepared CFG Module-profile/body-configuration checks. Materialized child text remains May advice without an authored NativeWord, original child span, entered frame, current cell/store, normal handler result or execution grant. Expression branches contribute possible names only. All seven external providers are not tested for this implementation contract. Immediate materialized bodies retain the original source-entry InvocationRealm from the sealed command world. The actual f5-irules context independently withholds a loader-only unavailable descriptor and permits its runtime-source metadata under an explicit source realm. The control retains native_entry: None and tests conditional possible names plus an opaque refusal only; it establishes neither an appliance process nor an entered runtime frame or successful store. The separate with_source_schema ingress retains its RuleLoader purpose. NamesOnly body ownership keeps possible writes and genuine by-name reads separate from ordinary interpolation. It selects the installer original lookup horizon and actual full source owner; a current-interpreter target is distinct from an unavailable named-child command table. List-derived text or missing child ownership cannot manufacture original body suppression. Logical target lookup remains a conditional source purpose without a physical frame.
@@ -25,6 +27,8 @@ Seven marked source/API controls cover literal dollars, unmatched scalar parenth
 Marked installer software controls define original snapshot/Module correspondence, genuine nested-input acceptance and future-scope refusal. They assert only conditional materialized name candidates. Mechanical SourceOriginId-to-source_image transport supplies no new selector, Native authority or executed outcome.
 
 The added controls mutate source ownership and original vector cardinality independently of valid metadata, and distinguish unknown dispatch metadata from closed body-footprint eligibility. Their frame-kind and incoming-formal software fields establish no physical entered frame, private Native identity, current write or completed callback.
+
+This existing-control source refinement changes no assertion identity or status. Logical Body versus ReferenceOnly purposes and missing/foreign source refusals remain independent. It establishes no Native body/frame entry, evaluated value, completed store, cell identity, Normal or assertion outcome.
 
 ## Provider answers
 
@@ -119,6 +123,10 @@ These source/API bindings carry no executed assertion or Native provider result.
 - [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs), `command_binding::materialized_footprint::tests::original_point_metadata_keeps_unknown_lookup_and_changed_vector_separate` (linked): An authentic unknown command retains complete Module/point metadata while its independently closed materialized footprint remains refused. Changed original operand-vector cardinality and withdrawn Module input refuse the metadata projection; no reached command or Native handler follows.
 
 These source/API bindings carry no executed assertion or Native provider result.
+
+- [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs), `OriginalSourceMaterializedFootprint::body_name_ownership`: Project checked UTF-8 from the actual retained counted source body/interpreter selector under the existing original installer snapshot and complete Current-scope input/config guard.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

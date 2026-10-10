@@ -688,13 +688,13 @@ mod tests {
         source: &str,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> crate::ir::Module {
-        crate::lowering::Lowerer::with_config(
+        let mut lowerer = crate::lowering::Lowerer::with_config(
             input.borrowed_context_registry().commands(),
             input.lexer_config(),
         )
-        .with_resolved_analysis_input(input.clone())
-        .lower(source)
-        .clone()
+        .with_resolved_analysis_input(input.clone());
+        lowerer.lower(source);
+        lowerer.finish_module(source)
     }
 
     fn expression_candidate_advice(

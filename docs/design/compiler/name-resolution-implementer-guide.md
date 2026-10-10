@@ -1833,6 +1833,15 @@ bodies in global and caller-frame summaries retain the same source-advice
 policy; their possible write footprint grants no entered frame, physical link
 or store.
 
+Original Module receipt queries require the finished canonical module from
+`lower_to_ir`, `CompilationUnit`, or the same configured `Lowerer` completed
+with `lowerer.lower(source)` followed by `lowerer.finish_module(source)`.
+`Lowerer::lower` exposes an unfinished internal module for construction-time IR
+inspection; it has not retained the final original source image and
+`RetainedSourceModuleBindings`. Do not use it to supply original Module
+correspondence, source inventory or literal-contents evidence. Finishing retains
+the real configured producer; it grants no Native entry, frame or execution.
+
 `FunctionUnit::build_full` supplies that checked metadata to
 `build_ssa_with_context_for_entry_and_metadata`, retaining it across SSA rename
 passes. Validate the complete source configuration before normalising nested

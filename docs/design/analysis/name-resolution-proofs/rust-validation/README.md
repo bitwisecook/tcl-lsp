@@ -2430,3 +2430,36 @@ for kind in ("compiler", "registry"):
 ```
 
 Restoration establishes exact measured image identity only; it does not perform another build/test or grant Native private object/frame/handler authority.
+
+## Sealed Source290 VM producer and two independent assertion runs
+
+The exact successful VM producer and copied strict image retain their complete source companion and measured executable identity. The fresh list contains 756 tests. The independent 12-control software run closes 11 passed/1 failed: the original Jim helper guard, three deferred-script ownership controls, five checked completion controls and two previous inventory controls pass. The genuine-core/unknown-source positive fails downstream native object list conversion; it supplies no successful inventory result. The separate 25-control run closes 24 passed/1 failed. Both complete 84/60 mathop comparators and the complete 345 dictionary comparator pass. Info186 fails at Jim absolute-existing Guest completion 1 versus original 0; prior C loop advancement is not a completed 186 or independent provider pass. All other selected observation-window, live-host-storage, error-capture, manifest, byte and Host-boundary assertions pass only in their exact purpose. There is no aggregate gate PASS.
+
+| Closed operation | Recorded outcome | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-vm-own-test-build290` | `compile-passed`, exit 0, 160.890518s; one successful artifact event; no assertions | [Original receipt](frozen290/integration-vm-own-test-build290/receipt.json.gz) | [Whole log](frozen290/integration-vm-own-test-build290/tests.log) |
+| `integration-vm-inventory290` | `listed`, exit 0, 0.014115s; 756 listed; no assertions | [Original receipt](frozen290/integration-vm-inventory290/receipt.json.gz) | [Whole log](frozen290/integration-vm-inventory290/tests.log) |
+| `integration-vm-ownership-completion-inventory-tests290` | `failed`, exit 101, 3.928031s; 11 passed/1 failed | [Original receipt](frozen290/integration-vm-ownership-completion-inventory-tests290/receipt.json.gz) | [Whole log](frozen290/integration-vm-ownership-completion-inventory-tests290/tests.log) |
+| `integration-vm-native-frontier-tests290` | `failed`, exit 101, 351.653479s; 24 passed/1 failed | [Original receipt](frozen290/integration-vm-native-frontier-tests290/receipt.json.gz) | [Whole log](frozen290/integration-vm-native-frontier-tests290/tests.log) |
+
+The exact [12-control selection](frozen290/selections/vm-ownership-completion-inventory-selection290.json) and [25-control selection](frozen290/selections/vm-native-frontier-selection290.json) retain the strict image/list gates. The [original pin](frozen290/sealed-vm-image/pinned-vm290.json), [lossless storage record](frozen290/sealed-vm-image/lossless-image-storage.json) and [complete source companion](frozen290/source-snapshot.json.gz) retain all associations; 127,832 source leaves are independently checked across the four receipts. Current proof IDs attach only where the entire source leaf matches the frozen producer; changed definitions borrow no outcome.
+
+Restore the exact measured image with both compressed and original integrity checks:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen290/sealed-vm-image")
+record = json.loads((base / "lossless-image-storage.json").read_text())
+packed = (base / "pinned-vm290.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/pinned-vm290.elf")
+restored.write_bytes(original)
+restored.chmod(0o755)
+```
+
+Restoration establishes measured payload identity only; it performs no new build/run and grants no Native header/frame/handler authority. The 326 complete/3 bounded dictionary-window assertions preserve post-free boundaries; live host storage is independent. Original public measurement archives and failed Info/inventory assertions remain unchanged.

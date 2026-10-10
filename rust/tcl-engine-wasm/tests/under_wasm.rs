@@ -1023,6 +1023,8 @@ impl HostCommand for RefusingHost {
 
 #[test]
 fn host_refusal_bypasses_guest_catch_and_keeps_prior_effects() {
+    // docs/design/analysis/name-resolution-proofs/interpreter-original-child-host-refusal-transport.md
+
     // Software integration: naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // naming.interpreter.original-child-host-refusal-transport
