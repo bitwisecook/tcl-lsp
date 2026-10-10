@@ -517,7 +517,7 @@ fn parse_int_i128(value: &str, octal_leading_zero: bool) -> Option<i128> {
         return None;
     }
     if b[0] == b'0' && b.len() >= 2 && matches!(b[1], b'x' | b'X' | b'o' | b'O' | b'b' | b'B') {
-        return None; // a prefixed form — a further follow-up
+        return None; // Prefixed numerals are outside this parser's decimal/octal subset.
     }
     if !b.iter().all(u8::is_ascii_digit) {
         return None;

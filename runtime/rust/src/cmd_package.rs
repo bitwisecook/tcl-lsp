@@ -16,12 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `package` — the package database (toward running tcltest). C ref `tclPkg.c`.
+//! `package` — the package database. C ref `tclPkg.c`.
 //!
 //! Holds the provided-version map, the `ifneeded` load scripts, and the
 //! `unknown` handler. `require` returns a provided package's version (checking
-//! the requirements), else invokes the `unknown` handler (the pure-Tcl
-//! auto-loader, which needs the VFS — L2) and re-checks. Version requirements
+//! the requirements), else tries an `ifneeded` script and invokes the
+//! `unknown` handler to discover further loaders before retrying. The
+//! library's pure-Tcl autoloader reads through the VFS. Version requirements
 //! follow TIP 268 (`min-`, `min-max`, bare `min` = same major), verified vs
 //! tclsh 9.0. The core `tcl`/`Tcl` packages are pre-provided at interp start
 //! (as C does before sourcing `init.tcl`).

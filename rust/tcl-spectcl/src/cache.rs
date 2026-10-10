@@ -62,11 +62,11 @@
 //! memo is therefore strictly less allocation than re-evaluating; the
 //! underlying leak is a registry-generations gap (redesign §11.2 D10).
 //!
-//! It is worth being precise about what is *not* here, because the design
-//! promises more: "resolved drafts plus hook bytecode". Hook bodies are
-//! carried as text and every pack hook installs as an abstaining function
-//! pointer (see [`crate::loader`]) — there is no bytecode to cache until hook
-//! bodies run on the VM.
+//! Hook bytecode is not stored in either tier. The loader carries hook
+//! bodies as text; [`crate::hooks`] assigns their registry slots and publishes
+//! the host plan. Each worker compiles the bodies into its own sandboxed
+//! engine when it installs that plan. A hook abstains on a worker without a
+//! host, or when its slot is unavailable or quarantined.
 //!
 //! ## How it hooks into the loader
 //!
@@ -205,9 +205,8 @@ pub fn key_for(source: &str, tier: Tier, trust: WorkspaceTrust) -> u64 {
 }
 
 /// The evaluation options a cached load runs under: the caller's tier and
-/// trust state and the default budget. The budget is deliberately *not* part
-/// of the identity — a pack that completes under one budget completes
-/// identically under a larger one, and one that blows a budget is not stored.
+/// trust state and the default budget. The cache always uses that budget, so
+/// it is not another caller-selected axis of the identity.
 fn options_for(tier: Tier, trust: WorkspaceTrust) -> EvalOptions {
     EvalOptions {
         tier,

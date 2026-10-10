@@ -19,7 +19,7 @@
 //! The core-profile layer of the registry redesign: language *family* ×
 //! *release* × *build profile* (design doc
 //! `docs/design/registry/dialect-and-package-registry-redesign.md` §0 layer 1 and
-//! §3.1, review finding B1).
+//! §3.1).
 //!
 //! A [`Family`] is a genuine core-language variant justified by an
 //! observable lexical/syntactic or core-evaluation fingerprint (§2). A

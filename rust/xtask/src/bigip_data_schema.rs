@@ -512,12 +512,8 @@ mod tests {
         assert_eq!(stale, vec!["now_a_real_kind"]);
     }
 
-    /// Regression test for the exact gap an adversarial review found: a
-    /// known-gap entry whose *reference was removed entirely* — nobody
-    /// names it anymore, so there is nothing left to resolve — must also be
-    /// flagged stale. The original implementation only checked "does it
-    /// resolve now", so a gap fixed by deleting the bad reference (rather
-    /// than by adding the missing kind) stayed on the list forever.
+    /// A known-gap entry with no remaining reference is stale: there is
+    /// nothing left to resolve, even if the kind itself remains absent.
     #[test]
     fn stale_known_gaps_flags_an_entry_whose_reference_was_removed() {
         let scanned: BTreeSet<String> = BTreeSet::new();
@@ -541,8 +537,7 @@ mod tests {
         assert_eq!(module_ident("ltm"), "ltm");
     }
 
-    /// Regression test for the exact gap an adversarial review found: a
-    /// module file physically added to `data/` but never declared via
+    /// A module file physically added to `data/` but never declared via
     /// `mod x;` in `data/mod.rs` at all (not even half-wired — no `mod x;`
     /// and no `extend` call) is invisible to a `mod x;`-vs-hand-kept-
     /// constant comparison, because a constant that also never learns about

@@ -2552,7 +2552,7 @@ fn literal_operand(node: &ExprNode) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    /// Adversarial-review regressions (tclsh 8.6/9.0 verified): exact
+    /// Reference-interpreter regressions (tclsh 8.6/9.0 verified): exact
     /// bignum↔double comparison folds, the `**` base collapses for bignum
     /// exponents, and NaN branch conditions declining.
     #[test]
@@ -3886,7 +3886,7 @@ mod tests {
     fn math_min_max_preserve_int_width() {
         assert_eq!(eval_str("min(3, 1, 2)"), Some(TclValue::Int(1)));
         assert_eq!(eval_str("max(3, 1, 2)"), Some(TclValue::Int(3)));
-        // Adversarial-review finding: a mixed int/float call returns the
+        // A mixed int/float call returns the
         // *winning* argument's own value, preserving its type — it does not
         // widen to float just because a float appeared among the operands.
         // `min(1, 2.5)` is `1` (an Int, since 1 wins), not `1.0` (confirmed

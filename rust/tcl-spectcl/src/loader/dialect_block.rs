@@ -113,14 +113,9 @@ const AXES: &[Axis] = &[
         name: "bom_skip",
         values: &["on", "off"],
     },
-    // The five axes on which Jim's parser — a reimplementation, not a
-    // fork — differs from every C Tcl release. The lexer has implemented
-    // all five since the Jim family landed; they were read by
-    // [`PackDialect::to_grammar`] but missing here, so no pack could set
-    // one and every non-default arm was unreachable (#2070). Without them
-    // the §2 classification gate could not see a pack redeclaring Jim: the
-    // nine axes above cannot express a Jim-shaped grammar, so
-    // [`PackDialect::duplicates_compiled_release`] answered `None` for one.
+    // These five axes distinguish Jim's parser from C Tcl. The loader and
+    // `to_grammar` share them so the classification gate can recognise a
+    // pack redeclaring an existing Jim grammar.
     Axis {
         name: "word_separators",
         values: &["tcl", "jim"],
@@ -192,8 +187,8 @@ impl PackDialect {
     /// The [`LexerGrammar`] the block's axes describe, when every value
     /// has a Rust backing.
     ///
-    /// `None` means the block uses a reserved `jim*` value, which the
-    /// lexer cannot be built with until the Jim branch lands. Unset axes
+    /// `None` means an axis has no supported grammar value. Jim's numeral,
+    /// escape, separator, variable and list rules are supported. Unset axes
     /// take the type's own default, which is the modern permissive value —
     /// so a block that sets nothing describes the default grammar, and the
     /// §2 classification gate below will reject it for that reason.

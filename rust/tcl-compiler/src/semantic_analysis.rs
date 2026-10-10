@@ -52,11 +52,9 @@ pub(crate) const fn test_common_analysis_provenance() -> CommonAnalysisProvenanc
 /// [`crate::compilation_unit::FunctionUnit`].
 ///
 /// The context is an explicitly resolved environment handle
-/// ([`SemanticContext`]) rather than an inferred target choice — the
-/// executable-IR re-key described in redesign §11.2 D1.  A function
-/// with no
-/// retained source IR records a typed unavailable state; a source script the
-/// linear compatibility builder cannot represent records its exact decline.
+/// ([`SemanticContext`]). A function with no retained source IR records
+/// a typed unavailable state; an unrepresentable source script records the
+/// linear compatibility builder's exact decline.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SemanticAnalysisBundle {
     context: Option<SemanticContext>,

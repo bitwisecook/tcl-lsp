@@ -61,9 +61,8 @@ const REPORT_PATH: &str = "docs/generated/wasm-command-backing.md";
 
 /// The one list the gate keeps: core commands declared a shipped builtin that
 /// the WASM runtime does not yet back — real gaps, each with its reason.
-/// Allow-listed so the gate stays green while they are implemented one by one;
-/// removing an entry (as its commands gain a handler) is the visible progress
-/// marker. Names are canonical (no leading `::`), kept sorted. An entry ending
+/// An entry becomes invalid once its commands gain a handler. Names are
+/// canonical (no leading `::`), kept sorted. An entry ending
 /// in `::` is a namespace prefix and covers every core command under it.
 ///
 /// The Tcl 9.1 entries (`divmod`, `frexp`, `lfilter`, `modf`, `remquo`, `timer`,
@@ -180,11 +179,9 @@ struct CoreCommand {
 /// *implementation* commands (`::tcl::…`) stay in the set so their
 /// declaration is explicit.
 ///
-/// Adversarial-review finding, twice over: the question is "9.0 **or
-/// later**", and asking about the 9.0 point alone silently drops every
-/// command introduced in 9.1 — not "classified as a gap", genuinely
-/// invisible to the gate. [`surface_admits_from`] is the question this
-/// wants.
+/// The scope is Tcl 9.0 or later: querying only the 9.0 point would omit
+/// commands introduced in 9.1. [`surface_admits_from`] includes those
+/// later releases.
 ///
 /// A name the registry holds more than one spec for is one command, and its
 /// specs must declare the same backing.

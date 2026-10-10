@@ -3762,7 +3762,7 @@ mod tests {
             );
         }
 
-        /// MISCOMPILE regression (adversarial review): `apply {params body
+        /// Namespace-resolution regression: `apply {params body
         /// ns}`'s third element names the namespace the body runs in, so a
         /// bare command word inside it resolves against *that* namespace.
         /// `lower_apply` computed the right `body_ns` and lowered the body

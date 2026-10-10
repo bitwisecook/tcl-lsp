@@ -101,15 +101,13 @@ expressive power, reach for the shapes a Tcl programmer already knows
 (`if`, `switch`, `foreach`, ordinary command syntax) before inventing a
 mini-language.
 
-## 0.1 Review evidence
+## 0.1 Reference evidence
 
-Two adversarial reviews shaped the model. Their findings are built in —
-the build axis (§3.1), per-interpreter temporal package state (§4.2), the
-`VersionSet` algebra (§4.1), the surface-declaration / realm-binding
-split, the fixed editor-identity set (§3.3), the trust lattice (§6.4), the
-fail-closed vocabulary classes (§6.1), the classification-by-fingerprint
-rule (§2), and the invariants I1–I10 (§8). Three of their probes remain
-the reference experiments (`P-D`):
+The model distinguishes build capabilities (§3.1), per-interpreter package
+state (§4.2), version ranges (§4.1), surface declarations and live bindings,
+editor identities (§3.3), trust (§6.4), vocabulary classes (§6.1), and
+language fingerprints (§2). These reference experiments establish why
+those distinctions matter (`P-D`):
 
 | Probe | Result the model must reproduce |
 |---|---|

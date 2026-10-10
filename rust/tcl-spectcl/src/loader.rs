@@ -678,9 +678,9 @@ fn leak_one<T>(value: T) -> &'static T {
     Box::leak(Box::new(value))
 }
 
-// Hook bodies — carried as text, never run
+// Hook declarations: bodies are carried as text for the hook host.
 
-/// Which of the ten hook families a body belongs to.
+/// Which hook family a body belongs to.
 ///
 /// The family is what decides a body's emitter verbs, what its *silence*
 /// means, and whether it may run at all against a call carrying a dynamic
@@ -692,9 +692,9 @@ fn leak_one<T>(value: T) -> &'static T {
 /// with, so the two cannot drift into disagreeing about what silence means.
 pub use tcl_registry::pack_hooks::HookFamily;
 
-/// The whitelist a hook body is evaluated against once the sandbox lands.
+/// The whitelist the hook host evaluates a body against.
 ///
-/// Recorded here so the loader can already report a body reaching for
+/// Recorded here so the loader can report a body reaching for
 /// something it will never be given. Deliberately absent: `open`, `exec`,
 /// `source`, `socket`, `after`, `interp`, `uplevel`, `upvar`, `trace`,
 /// `namespace`, `proc`, `rename`, `info`, `subst`.

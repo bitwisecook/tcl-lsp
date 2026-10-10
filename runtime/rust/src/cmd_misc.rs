@@ -29,8 +29,8 @@ use crate::obj::TclObj;
 /// Register the misc bootstrap commands.
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"encoding", encoding_cmd);
-    // The `clock` C subsystem is L3; init.tcl's startup calls this configure
-    // hook unconditionally — accept it as a no-op until `clock` lands.
+    // init.tcl calls this clock configuration helper during startup. The
+    // runtime has no clock configuration state, so the helper is a no-op.
     interp.register_builtin(b"::tcl::unsupported::clock::configure", noop);
     // `tcl::build-info` — build metadata; the tcltest helper (`tcltests.tcl`)
     // queries it for the `debug`/`purify`/`memdebug`/`deprecated` constraints.

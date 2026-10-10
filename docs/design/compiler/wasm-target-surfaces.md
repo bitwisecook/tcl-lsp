@@ -288,9 +288,9 @@ opportunity — not the dominant cost.
 The `wasm_stdlib` feature costs the measured browser build next to nothing
 because `embedded_stdlib::seed` is called nowhere on the
 `wasm32-unknown-unknown` target (a wiring question, not a numeric-code one —
-see "Wiring gap, not a WASI dependency" in §2). Once §2's wiring fix lands
-for `BrowserHost`, the ~250 KB `embedded_stdlib.rs`'s module doc describes
-is paid on this target too.
+see "Wiring gap, not a WASI dependency" in §2). Seeding `BrowserHost` with
+the embedded library would add the ~250 KB described in
+`embedded_stdlib.rs`'s module documentation to this target too.
 
 ## 5. Recommendation: what does AOT direct emission actually buy the browser?
 

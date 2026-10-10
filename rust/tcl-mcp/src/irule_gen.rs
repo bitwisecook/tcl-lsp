@@ -1088,7 +1088,7 @@ mod tests {
         );
     }
 
-    /// Adversarial-review finding: reusing the raw `matches_glob`/
+    /// Reusing the raw `matches_glob`/
     /// `matches_regex` pattern text verbatim as the simulated request URI
     /// produces a generated test whose own simulated request doesn't
     /// satisfy the very condition its branch exercises — confirmed against

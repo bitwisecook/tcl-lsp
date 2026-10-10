@@ -978,9 +978,8 @@ fn wide_of_long(value: c_long) -> TclWideInt {
 
 // runtime interp lifecycle (host entry points, not in tcl.h)
 //
-// `Tcl_CreateInterp` / `Tcl_DeleteInterp` (the public surface) land with the
-// full interp port; until then the host needs a way to mint and tear down the
-// minimal result-only interp, so the runtime exposes these two entry points.
+// These runtime-specific entry points create and destroy an interpreter for
+// the host bridge. They are separate from the extension header's Tcl API.
 
 /// Create a runtime interp; returns an owning raw pointer the caller must pass
 /// to [`tcl_runtime_delete_interp`].

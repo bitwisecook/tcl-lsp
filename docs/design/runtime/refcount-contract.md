@@ -106,7 +106,7 @@ The obj-lifecycle and result slice of `tcl.h`, exported for extensions
 | `Tcl_GetObjResult(interp)` | (n/a) | `borrowed` | (n/a) | The interp keeps its +1; valid until the result is replaced. |
 | `Tcl_GetStringFromObj(objPtr, lengthPtr)` | `borrowed` | borrowed `char*` | (n/a) | Shimmers on demand. The pointer is into the object's own owned buffer and dies with it. Writes the byte length through `lengthPtr` when non-null. |
 | `Tcl_GetString(objPtr)` | `borrowed` | borrowed `char*` | (n/a) | As above with no length out-param. |
-| `tcl_runtime_create_interp()` | (n/a) | owning `*mut Interp` | (n/a) | Not in `tcl.h` — the host entry point until `Tcl_CreateInterp` lands. Boxes the `Rc` handle so C has a stable owning pointer. |
+| `tcl_runtime_create_interp()` | (n/a) | owning `*mut Interp` | (n/a) | Runtime host entry point, not declared in `tcl.h`. Boxes the `Rc` handle so C has a stable owning pointer. |
 | `tcl_runtime_delete_interp(interp)` | `consumed` | `void` | (n/a) | Reclaims the box, running `Drop` once; releases the interp's hold on its result. **Null-safe.** |
 | `tcl_test_reset_counters()` / `tcl_test_alloc_count()` / `tcl_test_double_free_count()` / `tcl_test_finalize()` | (n/a) | `void` / i64 | (n/a) | The leak-check surface (MM-C). No refcount interaction. |
 

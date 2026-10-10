@@ -1333,7 +1333,7 @@ mod tests {
             dispatch("min", &[Num::Int(5), Num::Float(2.5)]),
             Some(Num::Float(2.5))
         );
-        // Adversarial-review finding: a mixed-type call whose *winner* is
+        // A mixed-type call whose winner is
         // the `Int` operand must return that `Int` unchanged, not a
         // re-widened `Float` — real Tcl preserves the winning argument's
         // own type (`expr {min(3, 5.5)}` is `3`, not `3.0`; confirmed
@@ -1462,10 +1462,8 @@ mod tests {
 
     #[test]
     fn isqrt_accepts_a_float_operand() {
-        // Adversarial-review finding: `isqrt` only matched `Num::Int`, so a
-        // `Num::Float` operand fell to the catch-all `_ => None` — treated
-        // as a domain error even though real Tcl accepts a float here,
-        // truncating it toward zero first (confirmed tclsh8.6/9.0):
+        // Tcl accepts a float operand to `isqrt`, truncating it toward
+        // zero first (confirmed tclsh8.6/9.0):
         //   expr {isqrt(9.0)}      -> 3
         //   expr {isqrt(9.5)}      -> 3   (truncates to 9, same as isqrt(9))
         //   expr {isqrt(15.9999)}  -> 3   (truncates to 15, not 16)

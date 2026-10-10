@@ -143,8 +143,8 @@ struct Sample {
 
 /// A sample/plan pair that is known not to match tclsh today, with the reason.
 ///
-/// `why` is the *defect*, not a shrug: every entry names the issue or the §2.2
-/// review finding that explains it. An entry with no such reason does not
+/// `why` names the defect: every entry cites its issue or the explanation
+/// in §2.2. An entry with no such reason does not
 /// belong here — it belongs in a bug report.
 #[derive(Debug, Clone, Copy)]
 struct ExpectedDivergence {
