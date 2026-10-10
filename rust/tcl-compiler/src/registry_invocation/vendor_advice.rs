@@ -356,7 +356,9 @@ mod tests {
             bigip: Some(tcl_dialect::model::Version::parse("17.1.0").unwrap()),
             ..Default::default()
         };
-        let owner = environment.context_registry(&keyed, 0);
+        let owner = environment
+            .context_registry(&keyed, 0)
+            .expect("authored keyed hosted context is available");
         let config = LexerConfig::from_grammar(owner.commands().profile().unwrap().grammar);
         let original = words("proc name {} {}", config);
         let policy = VendorSourceNamePolicy::authored(BigIpExecutionContext::TmmIRule).unwrap();

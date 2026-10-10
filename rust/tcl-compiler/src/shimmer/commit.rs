@@ -1339,6 +1339,7 @@ mod tests {
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
             values: &fu.sccp.values,
+            folded: &fu.sccp.folded_types,
         };
         let key = (fu.ssa.var_symbol("v").unwrap(), 1);
         let source = fu.cfg.entry;
@@ -1463,6 +1464,7 @@ mod tests {
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
             values: &fu.sccp.values,
+            folded: &fu.sccp.folded_types,
         };
         for (&block, body) in &fu.ssa.blocks {
             let mut walker = facts.walker(&ctx, block);
@@ -1508,6 +1510,7 @@ mod tests {
                 source: crate::ssa::SsaSourceView::unpositioned(&function.ssa),
                 types: &function.types,
                 values: &function.sccp.values,
+                folded: &function.sccp.folded_types,
             };
             let mut found = false;
             for (&block, body) in &function.ssa.blocks {
@@ -1557,6 +1560,7 @@ mod tests {
             source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
             values: &fu.sccp.values,
+            folded: &fu.sccp.folded_types,
         };
         for (&block, body) in &fu.ssa.blocks {
             let mut walker = facts.walker(&ctx, block);

@@ -1,0 +1,6 @@
+{
+  "id": "native-dictionary-update-lifetime399",
+  "request_sha256": "3939613b30ae3425a80659c5807a53ebe001ecc540506d00fd368cbffeaa670e",
+  "launcher_sha256": "bd811a9baa26dc160e26b6c2fdf8bf0be60cb020b90449d897ebfd5155b7ba13",
+  "scope": "Same original guest/probe programs and pinned398 independent observer archives; only integer counter reporting also precedes source-object release/teardown. Process signal termination is retained, never a successful completion. Public bytes from after final free are not defined storage equivalence. No freed-header dereference or Tcl ownership mutation by the observer."
+}

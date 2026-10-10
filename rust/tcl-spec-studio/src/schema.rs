@@ -987,6 +987,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
          natively with no VM entry.",
     ),
     f(
+        "source_index_bounds",
+        "Source index bounds",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "sourceIndexBounds",
+            optional: true,
+        },
+        "Conditional original index/container relationship; no native handler or current result.",
+    ),
+    f(
         "literal_argument_validator",
         "Literal argument validator",
         HOOKS,
@@ -2383,6 +2393,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
          natively with no VM entry.",
     ),
     f(
+        "source_index_bounds",
+        "Source index bounds",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "sourceIndexBounds",
+            optional: true,
+        },
+        "Conditional original index/container relationship; no native handler or current result.",
+    ),
+    f(
         "literal_argument_validator",
         "Literal argument validator",
         HOOKS,
@@ -2601,7 +2621,7 @@ fn custom_catalogues() -> [(&'static str, Value); 7] {
 /// The variant catalogues the form's pickers read, keyed by catalogue id.
 #[must_use]
 pub fn catalogues() -> Value {
-    let standard: [(&str, &[catalogue::Variant]); 28] = [
+    let standard: [(&str, &[catalogue::Variant]); 29] = [
         ("argRole", catalogue::ARG_ROLES),
         ("tclType", catalogue::TCL_TYPES),
         ("bodyKind", catalogue::BODY_KINDS),
@@ -2618,6 +2638,7 @@ pub fn catalogues() -> Value {
         ("commandTableEffect", catalogue::COMMAND_TABLE_EFFECTS),
         ("patternType", catalogue::PATTERN_TYPES),
         ("sourcePathOperation", catalogue::SOURCE_PATH_OPERATIONS),
+        ("sourceIndexBounds", catalogue::SOURCE_INDEX_BOUNDS),
         (
             "taintTransformCondition",
             catalogue::TAINT_TRANSFORM_CONDITIONS,

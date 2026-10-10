@@ -65,6 +65,7 @@ pub(crate) fn derive_implementations(commands: &mut [PackCommand], notices: &mut
     for command in commands {
         if let Some(why) = derive(command) {
             notices.push(PackNotice {
+                subject: None,
                 path: command.file.clone(),
                 line: command.line,
                 context: format!("command {}", command.spec.name),

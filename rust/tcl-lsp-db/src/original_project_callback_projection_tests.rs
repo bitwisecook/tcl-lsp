@@ -252,8 +252,17 @@ fn legacy_project_advice_requires_positive_retained_logical_input() {
     );
     let mut missing = logical.clone();
     missing.resolved_input = None;
-    assert!(missing.allows_lexical_declaration_advice());
+    assert!(!missing.allows_lexical_declaration_advice());
     assert_eq!(legacy_advice(&missing), (Vec::new(), Vec::new()));
+    let mut unavailable = logical.clone();
+    unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+        environment: "tcl".to_owned(),
+        overlay: 0x348,
+    });
+    assert_eq!(unavailable.resolved_input, logical.resolved_input);
+    assert!(!unavailable.allows_lexical_declaration_advice());
+    assert!(!unavailable.allows_retained_logical_declaration_advice());
+    assert_eq!(legacy_advice(&unavailable), (Vec::new(), Vec::new()));
     assert_eq!(
         legacy_advice(&AnalysisResult::default()),
         (Vec::new(), Vec::new())
@@ -282,4 +291,68 @@ fn legacy_project_advice_requires_positive_retained_logical_input() {
             "{dialect}"
         );
     }
+}
+
+#[test]
+fn supplied_project_callbacks_refuse_unavailable_generation_with_original_receipts() {
+    // naming.database.original-project-callback-projection
+    // docs/design/analysis/name-resolution-proofs/database-original-project-callback-projection.md
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // Original source signature advice never establishes callback execution.
+    let db = TclDatabase::default();
+    let source = "lsort -command cb {2 1}";
+    let library = SourceFile::new(
+        &db,
+        "proc cb {one} {}".to_owned(),
+        "tcl9.0".to_owned(),
+        None,
+    );
+    let caller = SourceFile::new(&db, source.to_owned(), "tcl9.0".to_owned(), None);
+    let project = Project::new(&db, vec![library, caller]);
+    let analysis = Analyser::new().analyse(source, "tcl9.0");
+    let selection = analysis
+        .command_invocations
+        .iter()
+        .find_map(|invocation| invocation.original_callback_signature_lookup.as_ref())
+        .expect("the genuine original callback has a source registration and target horizon");
+    let original_join = |result: &AnalysisResult| {
+        tcl_compiler::analyser::SourceCallbackSignatureLookup::from_original_lookup(
+            result,
+            Arc::new(selection.prefix().clone()),
+            Arc::new(selection.original().clone()),
+        )
+    };
+    assert_eq!(original_join(&analysis).as_ref(), Some(selection.as_ref()));
+    let input = analysis.resolved_input.as_ref().unwrap();
+    let image = tcl_lexer::SourceImage::document(source);
+    assert!(analysis.matches_original_source_image(&image, input.lexer_config()));
+    assert!(callback_codes(&analysis.diagnostics).is_empty());
+    assert_eq!(
+        callback_codes(&project_callback_diagnostics_for_analysis(
+            &db,
+            project,
+            source,
+            &analysis,
+            |_| false,
+        )),
+        vec![DiagCode::E003],
+    );
+    let mut unavailable = analysis.clone();
+    unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+        environment: "tcl9.0".to_owned(),
+        overlay: 0x348,
+    });
+    assert_eq!(unavailable.resolved_input, analysis.resolved_input);
+    assert_eq!(
+        unavailable.command_invocations,
+        analysis.command_invocations
+    );
+    assert!(!unavailable.matches_original_source_image(&image, input.lexer_config()));
+    assert!(original_join(&unavailable).is_none());
+    assert_eq!(
+        project_callback_diagnostics_for_analysis(&db, project, source, &unavailable, |_| false),
+        unavailable.diagnostics,
+    );
+    assert!(unavailable.analysis_context_unavailable.is_some());
 }

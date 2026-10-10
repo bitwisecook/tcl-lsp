@@ -14,9 +14,13 @@ How do references, hazard, caller-frame and refactor source-region consumers ret
 
 retained_dispatch_context requires positive actual retained input, complete original image/configuration, matching retained command realm, selected Registry generation and current availability context. nested_dispatch_regions and frame_shifted_dispatch_regions consume shared source_registry_words and selected script purpose with original operands and known command barriers. Method scans use that same context for custom body schemas, excluding ReferenceOnly and unavailable script positions. Genuine moved namespace source retains its selected region; known replacement/deletion or missing/stale input withdraws it. Caller-frame, reference/hazard and refactor consumers share these readonly regions while retaining independent receiver/method/frame/edit obligations. Neither a source body span nor a selected metadata descriptor proves actual dispatch, entered frame, Native receiver identity or edit authority.
 
+Method-reference and namespace rename-hazard scanners share current whole analysis/configuration and selected original source schema under actual availability. A custom dispatch trait or NamespaceName role is usable only through that current owner; known replacements, older same-store availability and missing/foreign/stale ownership preserve refusal. Conditional method spans and namespace blockers retain their independent runtime and edit purposes.
+
 ## Scope
 
 Current Core source-region implementation contract. Two fixed controls check retained custom schema/PotentialEvaluation versus ReferenceOnly, and original moved namespace source versus replacement/delete/missing/stale ownership. All seven providers are not tested; original provider dispatch/lifetime observations remain separate.
+
+Two additional source/API controls classify reference geometry and rename blockers under authentic custom source roles. They compare no external C/Jim/BIG-IP completion, live receiver, original table/private holder, Native method/body/frame execution or executable rename equivalence. All provider answers remain not tested, with no assertion execution claimed.
 
 ## Provider answers
 
@@ -80,6 +84,14 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs), `references::tests::shifted_dispatch_regions_follow_original_moves_and_known_source_barriers` (linked): Original moved namespace source keeps its authentic shifted body; known replaced/deleted command and missing/stale context refuse without nominal re-entry.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs), `retained_dispatch_context`: Retain whole source/configuration, complete actual AnalysisResult input, matching immutable Realm/Registry and full ContextRegistry availability before source dispatch scans. Printed dialect labels, missing input and foreign stores cannot repair original ownership.
+- [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs), `scan_my_method_sites`: Consume selected original dispatch traits/effective operands under actual retained source context, preserving current availability and original move/replacement barriers. Source reference spans supply no live receiver, method entry or editing equivalence.
+- [rust/tcl-lsp-core/src/namespace_rename.rs](../../../../rust/tcl-lsp-core/src/namespace_rename.rs), `namespace_rename_hazard`: Use genuine current source schema and written argument roles under actual input/configuration/Realm. Computed namespace values and unavailable roles retain explicit rename blockers; a source hazard inventory does not grant physical namespace or Native edit authority.
+- [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs), `references::tests::method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers` (linked): Genuine custom source dispatch traits select method-reference geometry under actual current same-store availability. Older availability, changed source config, foreign/missing input and a known replacement refuse the reference without live receiver or method entry.
+- [rust/tcl-lsp-core/src/namespace_rename.rs](../../../../rust/tcl-lsp-core/src/namespace_rename.rs), `namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal` (linked): An authentic custom NamespaceName role retains a computed-name rename blocker; unavailable same-store roles, stale config or missing complete source input retain explicit refusal instead of permitting namespace edits.
+
+These source/API bindings carry no executed assertion or Native provider result.
 
 ## Replay
 

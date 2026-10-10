@@ -2838,6 +2838,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     native_hook(out, ctx, draft, "const_fold");
     native_hook(out, ctx, draft, "const_fold_versioned");
     semantics_block(out, ctx, draft);
+    enum_word(out, ctx, draft, "source_index_bounds");
     native_hook(out, ctx, draft, "literal_argument_validator");
     native_hook(out, ctx, draft, "context_gate");
     catalogue_hook(out, ctx, draft, "lowering_hook");
@@ -3899,6 +3900,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     flag(out_body, ctx, sub, "mutator");
     flag(out_body, ctx, sub, "destructive");
     flag(out_body, ctx, sub, "returns_path");
+    enum_word(out_body, ctx, sub, "source_index_bounds");
     enum_word(out_body, ctx, sub, "source_path_operation");
     flag(out_body, ctx, sub, "is_unescape");
     flag(out_body, ctx, sub, "loop_list_header");
@@ -5611,6 +5613,49 @@ mod tests {
                 .unwrap()
                 .source_path_operation,
             None,
+        );
+    }
+    #[test]
+    fn authored_source_index_bounds_survive_render_load_and_draft() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        static MEMBERS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
+            name: "insert",
+            source_index_bounds: Some(tcl_registry::SourceIndexBounds::StringInsert),
+            ..tcl_registry::SubCommand::DEFAULT
+        }];
+        let spec = tcl_registry::CommandSpec {
+            name: "probe::indices",
+            source_index_bounds: Some(tcl_registry::SourceIndexBounds::ListIndex),
+            subcommands: MEMBERS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(text.contains("source_index_bounds ListIndex"), "{text}");
+        assert!(text.contains("source_index_bounds StringInsert"), "{text}");
+        let rust = crate::render_rs::render(&before);
+        assert!(rust.contains("SourceIndexBounds::ListIndex"), "{rust}");
+        assert!(rust.contains("SourceIndexBounds::StringInsert"), "{rust}");
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let parsed = pack.command("probe::indices").unwrap().spec;
+        let after = draft::from_command_spec(parsed);
+        assert_eq!(
+            after.get("source_index_bounds"),
+            before.get("source_index_bounds")
+        );
+        assert_eq!(after.get("subcommands"), before.get("subcommands"));
+        assert!(parsed.successful_handler.is_none());
+        assert!(parsed.subcommands[0].successful_handler.is_none());
+        let invalid = crate::spectcl::evaluate_pack(&text.replace(
+            "source_index_bounds StringInsert",
+            "source_index_bounds Unknown",
+        ));
+        assert!(!invalid.notices.is_empty());
+        assert_eq!(
+            invalid.command("probe::indices").unwrap().spec.subcommands[0].source_index_bounds,
+            None
         );
     }
 }

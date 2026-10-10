@@ -23,7 +23,7 @@ use std::sync::Arc;
 use super::{
     ModuleCommandBindings, SourceAnalysisEntry, SourceAnalysisOptions, SourceCommandBindings,
 };
-use crate::ir::{Module, TopLevelKind};
+use crate::ir::{Module, Procedure, TopLevelKind};
 use crate::var_resolve::VariableExecutionFrame;
 use tcl_registry::{CommandRegistry, RegistrySemanticKey};
 
@@ -40,6 +40,62 @@ pub struct RetainedSourceModuleBindings {
     kind: TopLevelKind,
     registry: RegistrySemanticKey,
     observed: ModuleCommandBindings,
+    procedures: std::collections::BTreeMap<String, OriginalProcedureSource>,
+}
+
+/// Original header and body coordinates retained by the real Module producer.
+/// This source signature supplies no entered procedure or native frame.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalProcedureSource {
+    name: String,
+    qualified_name: String,
+    parameters: Vec<String>,
+    parameters_text: String,
+    declaration: tcl_lexer::Span,
+    body_offset: u32,
+    body_text: Option<String>,
+    namespace: Option<Box<super::SourceNamespaceKey>>,
+    body_source: Option<Arc<super::ExecutedScriptSource>>,
+    statements: Vec<tcl_lexer::Span>,
+}
+
+impl OriginalProcedureSource {
+    fn retain(procedure: &Procedure) -> Self {
+        Self {
+            name: procedure.name.clone(),
+            qualified_name: procedure.qualified_name.clone(),
+            parameters: procedure.params.clone(),
+            parameters_text: procedure.params_raw.clone(),
+            declaration: procedure.span,
+            body_offset: procedure.body_offset,
+            body_text: procedure.body_source.clone(),
+            namespace: procedure.body.namespace_context.clone(),
+            body_source: procedure.body.executed_source.clone(),
+            statements: procedure
+                .body
+                .statements
+                .iter()
+                .map(crate::ir::Statement::span)
+                .collect(),
+        }
+    }
+
+    fn matches(&self, procedure: &Procedure) -> bool {
+        self.name == procedure.name
+            && self.qualified_name == procedure.qualified_name
+            && self.parameters == procedure.params
+            && self.parameters_text == procedure.params_raw
+            && self.declaration == procedure.span
+            && self.body_offset == procedure.body_offset
+            && self.body_text == procedure.body_source
+            && self.namespace == procedure.body.namespace_context
+            && self.body_source == procedure.body.executed_source
+            && self.statements.iter().copied().eq(procedure
+                .body
+                .statements
+                .iter()
+                .map(crate::ir::Statement::span))
+    }
 }
 
 impl RetainedSourceModuleBindings {
@@ -64,6 +120,11 @@ impl RetainedSourceModuleBindings {
             kind: module.top_level_kind,
             registry: registry.snapshot().semantic_key(),
             observed: bindings.module_projection(module),
+            procedures: module
+                .procedures
+                .iter()
+                .map(|(name, procedure)| (name.clone(), OriginalProcedureSource::retain(procedure)))
+                .collect(),
         }))
     }
 
@@ -80,6 +141,15 @@ impl RetainedSourceModuleBindings {
             && self.namespace_context == module.top_level_namespace_context
             && self.kind == module.top_level_kind
             && self.registry == registry.snapshot().semantic_key()
+    }
+
+    /// Retain an original procedure header, body coordinates and direct
+    /// statement order under this same Lowerer-produced Module. Child statements
+    /// still require their own original token and selected operation receipts.
+    pub(crate) fn matches_original_procedure(&self, procedure: &Procedure) -> bool {
+        self.procedures
+            .get(&procedure.qualified_name)
+            .is_some_and(|original| original.matches(procedure))
     }
 
     /// Authenticate a whole original function carrier against this Module's

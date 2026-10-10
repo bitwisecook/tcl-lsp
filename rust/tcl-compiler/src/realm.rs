@@ -844,8 +844,9 @@ mod tests {
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let environment = crate::environment_ingress::resolve_environment(name);
             let profile = environment.analyser_profile();
-            let context =
-                environment.context_registry(&tcl_registry::model::KeyedVersions::default(), 0);
+            let context = environment
+                .context_registry(&tcl_registry::model::KeyedVersions::default(), 0)
+                .expect("the original zero-overlay environment is installed");
             let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
             let input = crate::analyser::ResolvedAnalysisInput::new(
                 profile,

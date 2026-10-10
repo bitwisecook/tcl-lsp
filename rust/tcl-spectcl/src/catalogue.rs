@@ -214,6 +214,17 @@ pub const BYTE_ARRAY_EFFECTS: &[Variant] = &[
     ),
 ];
 
+/// [`tcl_registry::SourceIndexBounds`] conditional original index relationships.
+pub const SOURCE_INDEX_BOUNDS: &[Variant] = &[
+    v("ListIndex", "literal list index descent"),
+    v("ListRange", "literal list slice bounds"),
+    v("ListReplace", "literal list replacement bounds"),
+    v("StringIndex", "literal string character index"),
+    v("StringRange", "literal string slice bounds"),
+    v("StringReplace", "literal string replacement bounds"),
+    v("StringInsert", "literal string insertion bounds"),
+];
+
 /// [`tcl_registry::SourcePathOperation`] conditional source path algebra.
 pub const SOURCE_PATH_OPERATIONS: &[Variant] = &[
     v("Join", "join exact source argument values"),
@@ -1207,6 +1218,19 @@ mod tests {
         }
     }
 
+    fn covered_source_index_bounds(operation: tcl_registry::SourceIndexBounds) -> bool {
+        use tcl_registry::SourceIndexBounds as Kind;
+        match operation {
+            Kind::ListIndex
+            | Kind::ListRange
+            | Kind::ListReplace
+            | Kind::StringIndex
+            | Kind::StringRange
+            | Kind::StringReplace
+            | Kind::StringInsert => true,
+        }
+    }
+
     fn covered_source_path_operation(operation: tcl_registry::SourcePathOperation) -> bool {
         match operation {
             tcl_registry::SourcePathOperation::Join
@@ -1224,6 +1248,15 @@ mod tests {
 
     #[test]
     fn enum_witnesses_compile_and_hold() {
+        for operation in tcl_registry::SourceIndexBounds::ALL {
+            assert!(covered_source_index_bounds(*operation));
+            let name = variant_name(operation);
+            assert!(
+                SOURCE_INDEX_BOUNDS
+                    .iter()
+                    .any(|variant| variant.key == name)
+            );
+        }
         for operation in tcl_registry::SourcePathOperation::ALL {
             assert!(covered_source_path_operation(*operation));
         }
@@ -1254,6 +1287,7 @@ mod tests {
             BYTE_ARRAY_EFFECTS,
             SOURCE_DEPRECATION_ADVICE,
             SOURCE_PATH_OPERATIONS,
+            SOURCE_INDEX_BOUNDS,
             COMMAND_TABLE_EFFECTS,
             PATTERN_TYPES,
             TAINT_TRANSFORM_CONDITIONS,

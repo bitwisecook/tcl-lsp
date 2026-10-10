@@ -66,13 +66,14 @@ mod tests {
                 tcl_compiler::compile_service::BytecodeCompileService::default(),
             ));
             let error = vm.try_eval_source(script).unwrap_err();
-            let tcl_runtime_api::NativeExecutionError::HostCommandRefusal(refusal) = error else {
-                panic!("expected reached materialization refusal: {error:?}");
+            let tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::Materialization(refusal),
+            ) = error
+            else {
+                panic!("expected reached materialisation refusal: {error:?}");
             };
-            assert_eq!(
-                refusal.reason,
-                "host cannot materialize 100000001 elements; backend limit is 100000000"
-            );
+            assert_eq!(refusal.requested(), 100_000_001);
+            assert_eq!(refusal.limit(), 100_000_000);
             assert_eq!(
                 vm.get_var("prior").unwrap().string_bytes().as_ref(),
                 b"BEFORE"

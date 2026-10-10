@@ -2158,11 +2158,7 @@ fn scan_method_sites_by_kind(
     callbacks_only: bool,
 ) -> Vec<tcl_lexer::Span> {
     let Some(RetainedDispatchContext {
-        dialect,
-        registry,
-        identities,
-        config,
-        ..
+        dialect, config, ..
     }) = retained_dispatch_context(source, analysis)
     else {
         return Vec::new();
@@ -2172,8 +2168,6 @@ fn scan_method_sites_by_kind(
         analysis,
         config,
         dialect,
-        registry,
-        identities,
         method,
         skip,
         external_callback_allowed,
@@ -2207,8 +2201,6 @@ struct MyMethodScan<'a> {
     analysis: &'a AnalysisResult,
     config: tcl_lexer::LexerConfig,
     dialect: &'static tcl_dialect::DialectProfile,
-    registry: &'a tcl_registry::CommandRegistry,
-    identities: &'a tcl_compiler::realm::CommandBindingRealm,
     method: &'a str,
     skip: Option<tcl_lexer::Span>,
     /// `[list [self] METHOD ...]` later dispatches through the external
@@ -2283,75 +2275,101 @@ fn collect_stored_callback_writes(
     writes: &mut std::collections::HashMap<String, (u32, Option<PrefixTargetAtSpan>)>,
     counts: &mut std::collections::HashMap<String, usize>,
 ) -> bool {
+    use tcl_compiler::registry_invocation::{InvocationWordOrigin, source_structure};
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     use tcl_lexer::TokenType;
-    use tcl_registry::ArgRole;
     use tcl_registry::hooks::LoweringHookId;
+    use tcl_registry::{ArgRole, Traits};
 
-    if MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) || start >= end || end > ctx.source.len() {
+    if MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) || end > ctx.source.len() {
+        return true;
+    }
+    if start >= end {
         return false;
     }
-    let commands = segment_commands_with_offset_and_config(
-        &ctx.source[start..end],
-        u32::try_from(start).unwrap_or(0),
-        ctx.config,
-    );
+    let Some(input) = ctx.analysis.resolved_input.as_ref() else {
+        return true;
+    };
+    let context = input.context_registry();
+    let Ok(offset) = u32::try_from(start) else {
+        return true;
+    };
+    let commands =
+        segment_commands_with_offset_and_config(&ctx.source[start..end], offset, ctx.config);
     let mut has_scope_alias = false;
     for cmd in commands {
-        let (Some(head), Some(written)) = (cmd.argv.first(), cmd.texts.first()) else {
+        let Some(words) = source_structure::source_registry_words(ctx.source, ctx.analysis, &cmd)
+        else {
+            has_scope_alias = true;
             continue;
         };
-        let resolved = ctx
-            .identities
-            .head_words(written, head.span.start())
-            .resolved;
-        let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
-        // Only the registry's typed `Set` lowering relation says that the
-        // value immediately follows the VarWrite name.  Other VarWrite
-        // commands (lassign, scan, array set, …) deliberately do not enter
-        // this callback-value path.
-        let resolved_call = ctx.registry.resolve_call(
-            resolved,
-            &args,
-            Some(crate::document_context_for_profile(ctx.dialect).authoring_query()),
-        );
-        has_scope_alias |= resolved_call.is_some_and(|call| {
-            matches!(
-                call.lowering_hook,
-                Some(LoweringHookId::Global | LoweringHookId::Variable | LoweringHookId::Upvar)
-            ) || call.sub.is_some_and(|sub| sub.creates_scope_alias)
-        });
-        let is_scalar_assignment =
-            resolved_call.is_some_and(|call| call.lowering_hook == Some(LoweringHookId::Set));
-        for var_idx in ctx
-            .registry
-            .arg_indices_for_role(resolved, &args, ArgRole::VarWrite)
-        {
-            let (Some(var), Some(&var_tok)) =
-                (cmd.texts.get(var_idx + 1), cmd.argv.get(var_idx + 1))
-            else {
+        let Some((aliases, setter, variables)) = words
+            .with_source_schema(&context, |schema| {
+                let roles = words.roles()?;
+                let variables = roles
+                    .iter()
+                    .filter(|(_, role)| *role == ArgRole::VarWrite)
+                    .map(|&(ordinal, _)| {
+                        (
+                            ordinal,
+                            schema
+                                .words
+                                .arguments()
+                                .get(ordinal)
+                                .and_then(tcl_registry::InvocationWord::literal)
+                                .map(str::to_owned),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                Some((
+                    schema
+                        .semantics
+                        .traits
+                        .contains(Traits::CREATES_SCOPE_ALIAS)
+                        || matches!(
+                            schema.semantics.lowering_hook,
+                            Some(
+                                LoweringHookId::Global
+                                    | LoweringHookId::Variable
+                                    | LoweringHookId::Upvar
+                            )
+                        ),
+                    schema.semantics.lowering_hook == Some(LoweringHookId::Set),
+                    variables,
+                ))
+            })
+            .flatten()
+        else {
+            has_scope_alias = true;
+            continue;
+        };
+        has_scope_alias |= aliases;
+        for (ordinal, variable) in variables {
+            let Some(var) = variable else {
+                has_scope_alias = true;
                 continue;
             };
-            if var_tok.kind != TokenType::Esc
-                || cmd.single_token_word.get(var_idx + 1) != Some(&true)
-                || var.contains("::")
-                || var.contains('(')
-            {
+            if var.contains("::") || tcl_syntax::naming::split_element_ref(&var).is_some() {
                 continue;
             }
-            let count = counts.entry(var.clone()).or_default();
-            *count += 1;
-            let value_target = is_scalar_assignment
+            *counts.entry(var.clone()).or_default() += 1;
+            // Selected Set describes adjacent effective operands. Captured names
+            // retain their value but never borrow a caller's value-token index.
+            let value_target = setter
                 .then(|| {
-                    cmd.argv.get(var_idx + 2).and_then(|&value_tok| {
-                        (value_tok.kind == TokenType::Cmd
-                            && cmd.single_token_word.get(var_idx + 2) == Some(&true))
-                        .then(|| command_prefix_targets_from_word(ctx, &value_tok, 0))
-                        .and_then(|targets| (targets.len() == 1).then(|| targets[0]))
-                    })
+                    let origin = words.origins().get(ordinal.checked_add(2)?)?;
+                    let InvocationWordOrigin::Written(written) = origin else {
+                        return None;
+                    };
+                    let &token = cmd.argv.get(*written)?;
+                    (token.kind == TokenType::Cmd
+                        && cmd.single_token_word.get(*written) == Some(&true)
+                        && positions_are_literal_through(&cmd, *written))
+                    .then(|| command_prefix_targets_from_word(ctx, &token, 0))
+                    .and_then(|targets| (targets.len() == 1).then(|| targets[0]))
                 })
                 .flatten();
-            writes.insert(var.clone(), (cmd.span.end(), value_target));
+            writes.insert(var, (cmd.span.end(), value_target));
         }
         for (nested_start, nested_end) in
             nested_dispatch_regions(ctx.source, ctx.analysis, ctx.dialect, &cmd)
@@ -2484,40 +2502,7 @@ fn original_self_dispatch(
     if command.single_token_word.first() != Some(&true) || head.kind != tcl_lexer::TokenType::Cmd {
         return false;
     }
-    let regions =
-        crate::executable_regions::command_substitution_regions(ctx.source, ctx.config, head);
-    let [(start, end)] = regions.as_slice() else {
-        return false;
-    };
-    let Ok(offset) = u32::try_from(*start) else {
-        return false;
-    };
-    let commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
-        &ctx.source[*start..*end],
-        offset,
-        ctx.config,
-    );
-    let [child] = commands.as_slice() else {
-        return false;
-    };
-    let Some(words) = source_structure::source_registry_words(ctx.source, ctx.analysis, child)
-    else {
-        return false;
-    };
-    words.with_source_schema(&context, |schema| {
-        let spec = schema.command();
-        if spec.self_receiver_words.is_empty() {
-            return false;
-        }
-        match words.arguments() {
-            [] => spec.arity.min == 0,
-            [argument] => argument
-                .as_registry_word()
-                .literal()
-                .is_some_and(|word| spec.self_receiver_words.contains(&word)),
-            _ => false,
-        }
-    }) == Some(true)
+    original_self_receiver_word(ctx, head)
 }
 
 /// Matching method words captured into this command's executable callback.
@@ -2566,55 +2551,44 @@ fn callback_targets_from_command(
     ctx: MyMethodScan<'_>,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<PrefixTargetAtSpan> {
+    use tcl_compiler::registry_invocation::{InvocationWordOrigin, source_structure};
     use tcl_lexer::TokenType;
-    use tcl_registry::ArgRole;
 
-    let (Some(head), Some(written_name)) = (cmd.argv.first(), cmd.texts.first()) else {
+    let Some(input) = ctx.analysis.resolved_input.as_ref() else {
         return Vec::new();
     };
-    let resolved = ctx
-        .identities
-        .head_words(written_name, head.span.start())
-        .resolved;
-    let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
+    let context = input.context_registry();
+    let Some(words) = source_structure::source_registry_words(ctx.source, ctx.analysis, cmd) else {
+        return Vec::new();
+    };
+    let Some(positions) = words
+        .with_source_schema(&context, |schema| {
+            if ctx.analysis.allows_retained_logical_declaration_advice() {
+                schema.authored_logical_source_plain_script_arguments()
+            } else {
+                schema.authored_source_plain_script_arguments()
+            }
+        })
+        .flatten()
+    else {
+        return Vec::new();
+    };
     let mut out = Vec::new();
-    let mut callback_indices = ctx
-        .registry
-        .arg_indices_for_role(resolved, &args, ArgRole::Body);
-    callback_indices.extend(ctx.registry.arg_indices_for_role(
-        resolved,
-        &args,
-        ArgRole::CommandPrefix,
-    ));
-    callback_indices.sort_unstable();
-    callback_indices.dedup();
-    for idx in callback_indices {
-        let Some(&body_tok) = cmd.argv.get(idx + 1) else {
+    for ordinal in positions {
+        let Some(InvocationWordOrigin::Written(written)) = words.origins().get(ordinal + 1) else {
             continue;
         };
-        // `{*}` splices the word's value into the argument list, so the
-        // registry's role indices no longer describe where anything landed:
-        // `lsort -command {*}[list [self] compare] $items` runs the *object
-        // command* as the comparator and passes `compare` as a separate
-        // argument. Reading the word as if it were the callback slot invents a
-        // reference to `compare` — and Rename would rewrite it. The compiler's
-        // own prefix scan gates on this
-        // (`signature_scan::command_prefix`); this scan had not.
-        if !positions_are_literal_through(cmd, idx + 1) {
+        let Some(&body_tok) = cmd.argv.get(*written) else {
+            continue;
+        };
+        if !positions_are_literal_through(cmd, *written) {
             continue;
         }
-        if body_tok.kind == TokenType::Var && cmd.single_token_word.get(idx + 1) == Some(&true) {
-            // A stored callback is accepted only when exactly one static
-            // assignment to this local spelling precedes the use.  The
-            // assignment table was built from registry VarWrite facts, so
-            // this remains independent of command names and rejects every
-            // ambiguous/reassigned form conservatively.
-            let variable = source_span_text(ctx.source, body_tok.span);
-            let variable = variable.strip_prefix('$').unwrap_or(variable);
-            let variable = variable
-                .strip_prefix('{')
-                .and_then(|name| name.strip_suffix('}'))
-                .unwrap_or(variable);
+        if body_tok.kind == TokenType::Var && cmd.single_token_word.get(*written) == Some(&true) {
+            let Some(variable) = strip_var_decoration(source_span_text(ctx.source, body_tok.span))
+            else {
+                continue;
+            };
             let matches: Vec<_> = ctx
                 .stored_callbacks
                 .iter()
@@ -2627,14 +2601,11 @@ fn callback_targets_from_command(
             }
             continue;
         }
-        // A compound outer word changes the command prefix after the list
-        // substitution has run: `[list [self] tick]Suffix` invokes
-        // `tickSuffix`, not `tick`.  Only a sole substitution is an exact,
-        // safely renameable representation of the built command.
-        if body_tok.kind != TokenType::Cmd || cmd.single_token_word.get(idx + 1) != Some(&true) {
-            continue;
+        // Only a genuine sole written substitution is renameable here. A
+        // captured operand retains its producer, not this call's source span.
+        if body_tok.kind == TokenType::Cmd && cmd.single_token_word.get(*written) == Some(&true) {
+            out.extend(command_prefix_targets_from_word(ctx, &body_tok, 0));
         }
-        out.extend(command_prefix_targets_from_word(ctx, &body_tok, 0));
     }
     out
 }
@@ -2667,6 +2638,31 @@ struct PrefixTargetAtSpan {
     span: tcl_lexer::Span,
 }
 
+/// Map an effective builder operand to its genuine whole written source token.
+fn written_prefix_operand(
+    words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    ordinal: usize,
+) -> Option<tcl_lexer::Token> {
+    use tcl_compiler::registry_invocation::InvocationWordOrigin;
+    let InvocationWordOrigin::Written(written) = words.origins().get(ordinal.checked_add(1)?)?
+    else {
+        return None;
+    };
+    (command.single_token_word.get(*written) == Some(&true)
+        && positions_are_literal_through(command, *written))
+    .then_some(())?;
+    command.argv.get(*written).copied()
+}
+
+fn bare_original_prefix_span(word: &tcl_lexer::NativeWord) -> Option<tcl_lexer::Span> {
+    let [token] = word.tokens() else {
+        return None;
+    };
+    (token.kind == tcl_lexer::TokenType::Esc && !token.in_quote && !word.group().expand)
+        .then_some(token.span)
+}
+
 /// Extract static method words from one sole command substitution used as a
 /// callback value.  The recursion deliberately requires each hop to be a
 /// single substitution, so concatenated and dynamically-built values abstain.
@@ -2675,103 +2671,120 @@ fn command_prefix_targets_from_word(
     word_tok: &tcl_lexer::Token,
     depth: u32,
 ) -> Vec<PrefixTargetAtSpan> {
+    use tcl_compiler::registry_invocation::source_structure;
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     use tcl_lexer::TokenType;
-    use tcl_registry::{ArgRole, Traits};
+    use tcl_registry::Traits;
 
     if MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) || word_tok.kind != TokenType::Cmd {
         return Vec::new();
     }
+    let Some(input) = ctx.analysis.resolved_input.as_ref() else {
+        return Vec::new();
+    };
+    let context = input.context_registry();
     let regions =
         crate::executable_regions::command_substitution_regions(ctx.source, ctx.config, *word_tok);
     let [(inner_start, inner_end)] = regions.as_slice() else {
         return Vec::new();
     };
+    let Ok(offset) = u32::try_from(*inner_start) else {
+        return Vec::new();
+    };
     let built = segment_commands_with_offset_and_config(
         &ctx.source[*inner_start..*inner_end],
-        u32::try_from(*inner_start).unwrap_or(0),
+        offset,
         ctx.config,
     );
     let [builder] = built.as_slice() else {
         return Vec::new();
     };
-    let (Some(builder_head), Some(builder_written)) = (builder.argv.first(), builder.texts.first())
+    let Some(words) = source_structure::source_registry_words(ctx.source, ctx.analysis, builder)
     else {
         return Vec::new();
     };
-    let builder_resolved = ctx
-        .identities
-        .head_words(builder_written, builder_head.span.start())
-        .resolved;
-    let args: Vec<&str> = builder.texts.iter().skip(1).map(String::as_str).collect();
-    let Some(invocation) = ctx.registry.resolve_invocation(
-        builder_resolved,
-        &args,
-        Some(crate::document_context_for_profile(ctx.dialect).authoring_query()),
-    ) else {
+    let Some((builds, wraps)) = words.with_source_schema(&context, |schema| {
+        (
+            schema
+                .semantics
+                .traits
+                .contains(Traits::BUILDS_COMMAND_PREFIX)
+                && schema.semantics.native_result
+                    == Some(
+                        tcl_registry::native_result::NativeResultContract::ListArguments {
+                            from: 0,
+                        },
+                    )
+                && schema.semantics.argument_offset == 0
+                && schema.facts().arity_accepts_frozen_arguments() == Some(true),
+            schema
+                .semantics
+                .traits
+                .contains(Traits::WRAPS_COMMAND_PREFIX),
+        )
+    }) else {
         return Vec::new();
     };
-    let traits = invocation.semantics.traits;
-
-    // The built prefix's own words are read by position too, so an expansion
-    // inside it is as disqualifying as one at the consumer's callback slot.
-    if !positions_are_literal_through(builder, 2) {
-        return Vec::new();
-    }
-    if traits.contains(Traits::BUILDS_COMMAND_PREFIX) {
-        if let (Some(receiver), Some(&method_tok)) = (builder.texts.get(1), builder.argv.get(2))
-            && method_tok.kind == TokenType::Esc
-            && !method_tok.in_quote
-            && builder.single_token_word.get(1) == Some(&true)
-            && builder.single_token_word.get(2) == Some(&true)
+    if builds {
+        if let Some(prefix) =
+            source_structure::source_authored_command_prefix(ctx.source, ctx.analysis, builder)
+            && prefix.with_source_schema(&context, |schema| {
+                schema
+                    .semantics
+                    .traits
+                    .contains(Traits::TCLOO_SELF_DISPATCH)
+            }) == Some(true)
+            && let Some(span) = prefix
+                .original_argument(0)
+                .and_then(bare_original_prefix_span)
         {
-            if exact_self_receiver_call(ctx, receiver) {
-                return vec![PrefixTargetAtSpan {
-                    kind: tcl_registry::CommandPrefixTarget::CurrentObjectExternalMethod,
-                    span: method_tok.span,
-                }];
-            }
-            if crate::definition::method_dispatch_keyword_in(ctx.dialect, receiver)
-                == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
-            {
-                return vec![PrefixTargetAtSpan {
-                    kind: tcl_registry::CommandPrefixTarget::CurrentObjectInternalMethod,
-                    span: method_tok.span,
-                }];
-            }
+            return vec![PrefixTargetAtSpan {
+                kind: tcl_registry::CommandPrefixTarget::CurrentObjectInternalMethod,
+                span,
+            }];
         }
-        let Some(&head_tok) = builder.argv.get(1) else {
-            return Vec::new();
-        };
-        return (builder.single_token_word.get(1) == Some(&true)
-            && head_tok.kind == TokenType::Esc
-            && !head_tok.in_quote)
-            .then_some(PrefixTargetAtSpan {
+        if let (Some(receiver), Some(method)) = (
+            written_prefix_operand(&words, builder, 0),
+            written_prefix_operand(&words, builder, 1),
+        ) && method.kind == TokenType::Esc
+            && !method.in_quote
+            && original_self_receiver_word(ctx, receiver)
+        {
+            return vec![PrefixTargetAtSpan {
+                kind: tcl_registry::CommandPrefixTarget::CurrentObjectExternalMethod,
+                span: method.span,
+            }];
+        }
+        // A literal list head is source syntax only. Its declaration or current
+        // target, if any, is resolved independently by the navigation consumer.
+        return written_prefix_operand(&words, builder, 0)
+            .filter(|token| token.kind == TokenType::Esc && !token.in_quote)
+            .map(|token| PrefixTargetAtSpan {
                 kind: tcl_registry::CommandPrefixTarget::DirectCommandHead,
-                span: head_tok.span,
+                span: token.span,
             })
             .into_iter()
             .collect();
     }
-
-    if !traits.contains(Traits::WRAPS_COMMAND_PREFIX) {
+    if !wraps {
         return Vec::new();
     }
-    ctx.registry
-        .arg_indices_for_role(builder_resolved, &args, ArgRole::Body)
-        .into_iter()
-        .flat_map(|idx| {
-            let Some(&body) = builder.argv.get(idx + 1) else {
-                return Vec::new();
-            };
-            if builder.single_token_word.get(idx + 1) == Some(&true)
-                && positions_are_literal_through(builder, idx + 1)
-            {
-                command_prefix_targets_from_word(ctx, &body, depth + 1)
+    let Some(positions) = words
+        .with_source_schema(&context, |schema| {
+            if ctx.analysis.allows_retained_logical_declaration_advice() {
+                schema.authored_logical_source_plain_script_arguments()
             } else {
-                Vec::new()
+                schema.authored_source_plain_script_arguments()
             }
         })
+        .flatten()
+    else {
+        return Vec::new();
+    };
+    positions
+        .into_iter()
+        .filter_map(|ordinal| written_prefix_operand(&words, builder, ordinal))
+        .flat_map(|body| command_prefix_targets_from_word(ctx, &body, depth + 1))
         .collect()
 }
 
@@ -2792,19 +2805,13 @@ fn command_prefix_target_at_cursor(
     cursor_offset: u32,
 ) -> Option<PrefixTargetAtSpan> {
     let RetainedDispatchContext {
-        dialect,
-        registry,
-        identities,
-        config,
-        ..
+        dialect, config, ..
     } = retained_dispatch_context(source, analysis)?;
     let base_ctx = MyMethodScan {
         source,
         analysis,
         config,
         dialect,
-        registry,
-        identities,
         method: "",
         skip: None,
         external_callback_allowed: true,
@@ -2895,30 +2902,53 @@ fn command_prefix_target_in_region(
     None
 }
 
-/// Whether a command-substitution word is exactly the registry-declared
-/// current `TclOO` receiver form valid on a method frame's command path.
-fn exact_self_receiver_call(ctx: MyMethodScan<'_>, receiver: &str) -> bool {
-    let Some((written, args)) =
-        tcl_compiler::value_shapes::parse_command_substitution_with_config(receiver, ctx.config)
+/// A sole original receiver substitution retains its own selected child schema.
+/// Method receiver applicability supplies no entered object or callback frame.
+fn original_self_receiver_word(ctx: MyMethodScan<'_>, head: tcl_lexer::Token) -> bool {
+    use tcl_compiler::registry_invocation::source_structure;
+    if head.kind != tcl_lexer::TokenType::Cmd {
+        return false;
+    }
+    let Some(input) = ctx.analysis.resolved_input.as_ref() else {
+        return false;
+    };
+    let context = input.context_registry();
+    let regions =
+        crate::executable_regions::command_substitution_regions(ctx.source, ctx.config, head);
+    let [(start, end)] = regions.as_slice() else {
+        return false;
+    };
+    let Ok(offset) = u32::try_from(*start) else {
+        return false;
+    };
+    let commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        &ctx.source[*start..*end],
+        offset,
+        ctx.config,
+    );
+    let [child] = commands.as_slice() else {
+        return false;
+    };
+    let Some(words) = source_structure::source_registry_words(ctx.source, ctx.analysis, child)
     else {
         return false;
     };
-    // A rooted spelling bypasses a method frame's command path. Reject it
-    // when its resolved registry spec exists only through that method
-    // context; a genuinely qualified helper has its own unscoped spec and is
-    // accepted. Command identity stays wholly registry-owned.
-    if written.starts_with("::") && ctx.registry.resolves_only_in_method_context(&written) {
-        return false;
-    }
-    // TclOO installs `::oo::Helpers` on a method frame's command path, ahead
-    // of global fallback. A global `proc self` therefore does not shadow the
-    // helper. The receiver form is nevertheless exact: `self` takes no word,
-    // while `self object` takes exactly that one declared selector.
-    match args.as_slice() {
-        [] => ctx.registry.is_self_receiver_call(&written, None),
-        [arg] => ctx.registry.is_self_receiver_call(&written, Some(arg)),
-        _ => false,
-    }
+    words.with_source_schema(&context, |schema| {
+        let spec = schema.authored_source_descriptors().command;
+        if spec.self_receiver_words.is_empty() {
+            return false;
+        }
+        match schema.words.arguments().exact_argv_len() {
+            Some(0) => spec.arity.min == 0,
+            Some(1) => schema
+                .words
+                .arguments()
+                .get(0)
+                .and_then(tcl_registry::InvocationWord::literal)
+                .is_some_and(|word| spec.self_receiver_words.contains(&word)),
+            _ => false,
+        }
+    }) == Some(true)
 }
 
 /// Re-segment a single `method`-named method `body` and return the head-token
@@ -7285,6 +7315,147 @@ mod tests {
             .analyse(source, profile.name);
         let body = tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap());
         assert!(scan_my_method_sites(source, &analysis, &[body], "selected", None).is_empty());
+    }
+
+    fn callback_source_store(gate: &str) -> std::sync::Arc<tcl_registry::CommandRegistry> {
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        let gated = registry.get(gate).unwrap();
+        let surface = gated.surface;
+        let required_package = gated.required_package;
+        registry.insert(tcl_registry::CommandSpec {
+            name: "source_callback",
+            arity: tcl_registry::Arity::exact(1),
+            arg_roles: &[(0, tcl_registry::ArgRole::CommandPrefix)],
+            command_prefixes: &[(0, tcl_registry::AppendedArity::Exactly(0))],
+            traits: tcl_registry::Traits::DEFERS_BODY,
+            surface,
+            required_package,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        registry.insert(tcl_registry::CommandSpec {
+            name: "source_dispatch",
+            arity: tcl_registry::Arity::at_least(1),
+            traits: tcl_registry::Traits::TCLOO_SELF_DISPATCH,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        std::sync::Arc::new(registry)
+    }
+
+    fn callback_source_analysis_with_store(
+        source: &str,
+        environment: &str,
+        store: std::sync::Arc<tcl_registry::CommandRegistry>,
+    ) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let context = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for(environment).with_command_store(store),
+        );
+        let input =
+            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    fn callback_source_analysis(source: &str, release: &str) -> AnalysisResult {
+        callback_source_analysis_with_store(source, release, callback_source_store("dict"))
+    }
+
+    fn callback_source_spans(
+        source: &str,
+        analysis: &AnalysisResult,
+        method: &str,
+    ) -> Vec<tcl_lexer::Span> {
+        let body = tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap());
+        scan_method_sites_by_kind(source, analysis, &[body], method, None, true, true)
+    }
+
+    #[test]
+    fn callback_source_roles_keep_actual_availability_and_original_builder_geometry() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        // Conditional source reference spans; no Native callback, receiver or edit grant.
+        let store = callback_source_store("dict");
+        for source in [
+            "source_callback [list source_dispatch selected]",
+            "set cb [list source_dispatch selected]; source_callback $cb",
+            "source_callback [namespace code [list source_dispatch selected]]",
+            "interp alias {} install {} source_callback; install [list source_dispatch selected]",
+            "interp alias {} make {} list source_dispatch; source_callback [make selected]",
+            "interp alias {} target {} source_dispatch selected; source_callback [list target]",
+        ] {
+            let mut analysis = callback_source_analysis_with_store(source, "tcl8.6", store.clone());
+            let spans = callback_source_spans(source, &analysis, "selected");
+            assert_eq!(spans.len(), 1, "{source}: {spans:?}");
+            assert_eq!(source_span_text(source, spans[0]), "selected");
+            assert!(
+                callback_source_spans(
+                    source,
+                    &callback_source_analysis_with_store(source, "tcl8.4", store.clone()),
+                    "selected"
+                )
+                .is_empty(),
+                "{source}"
+            );
+            let config = analysis.body_lexer_config.unwrap();
+            let mut missing_point = AnalysisResult::default();
+            missing_point.resolved_input = analysis.resolved_input.clone();
+            missing_point.body_lexer_config = Some(config);
+            assert!(callback_source_spans(source, &missing_point, "selected").is_empty());
+            analysis.body_lexer_config.as_mut().unwrap().expand_syntax = !config.expand_syntax;
+            assert!(callback_source_spans(source, &analysis, "selected").is_empty());
+            analysis.body_lexer_config = Some(config);
+            analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                tcl_dialect::DialectProfile::plain_tcl(),
+                tcl_dialect::DialectProfile::plain_tcl(),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                    .default_context_registry(),
+                config,
+            ));
+            assert!(callback_source_spans(source, &analysis, "selected").is_empty());
+            analysis.resolved_input = None;
+            assert!(callback_source_spans(source, &analysis, "selected").is_empty());
+        }
+    }
+
+    #[test]
+    fn callback_source_roles_keep_actual_package_availability_in_the_same_store() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source = "set cb [list source_dispatch selected]; source_callback $cb";
+        let store = callback_source_store("bind");
+        let available = callback_source_analysis_with_store(source, "tk", store.clone());
+        let unavailable = callback_source_analysis_with_store(source, "tcl8.6", store);
+        assert_eq!(
+            callback_source_spans(source, &available, "selected").len(),
+            1
+        );
+        assert!(callback_source_spans(source, &unavailable, "selected").is_empty());
+    }
+
+    #[test]
+    fn callback_source_targets_withdraw_known_shadows_and_incomplete_stored_writes() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        for source in [
+            "proc source_callback args {}; source_callback [list source_dispatch selected]",
+            "proc list args {}; source_callback [list source_dispatch selected]",
+            "proc source_dispatch args {}; source_callback [list source_dispatch selected]",
+            "rename source_dispatch {}; source_callback [list source_dispatch selected]",
+            "set cb [list source_dispatch selected]; opaque $cb; source_callback $cb",
+            "set cb [list source_dispatch selected]; set $unknown other; source_callback $cb",
+            "source_callback [list $unknown selected]",
+            "interp alias {} target {} source_dispatch selected; rename target {}; source_callback [list target]",
+            "source_callback {*}[list source_dispatch selected]",
+            "source_callback [list source_dispatch selected]Suffix",
+        ] {
+            let analysis = callback_source_analysis(source, "tcl8.6");
+            assert!(
+                callback_source_spans(source, &analysis, "selected").is_empty(),
+                "{source}"
+            );
+        }
     }
 
     #[test]

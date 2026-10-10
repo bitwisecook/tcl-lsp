@@ -2054,6 +2054,20 @@ impl Analyser {
         self
     }
 
+    /// Resolve the driver's complete editing input without walking source.
+    /// An unavailable overlay is returned unchanged, without a donor generation.
+    ///
+    /// # Errors
+    /// Returns the selected overlay miss when its command store is unavailable.
+    pub fn prepare_analysis_input(
+        &mut self,
+        dialect: &str,
+    ) -> Result<super::input::ResolvedAnalysisInput, tcl_registry::model::OverlayMiss> {
+        self.resolve_walk_environment(dialect);
+        self.try_analysis_context()?;
+        Ok(self.resolved_analysis_input())
+    }
+
     /// Retain the current walk's editing generation and exact body grammar for
     /// isolated analysis or a cache key. Call after resolving the walk input;
     /// this does not retain the document's temporal execution world.

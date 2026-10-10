@@ -3088,6 +3088,7 @@ mod tests {
                     target_interpreter,
                     target,
                     arguments,
+                    target_lookup: _,
                 } => [source_interpreter, alias, target_interpreter, target]
                     .into_iter()
                     .chain(arguments)
@@ -3095,6 +3096,48 @@ mod tests {
                 CommandBindingTransition::Unknown { operands } => operands.iter().collect(),
             },
             _ => Vec::new(),
+        }
+    }
+
+    fn assert_alias_subject_correspondence(
+        subject: &TransitionSubject,
+        command: &str,
+        words: &[InvocationWord<'_>],
+        computed: usize,
+    ) {
+        match subject {
+            TransitionSubject::Unknown { argument_index, .. } => assert_eq!(
+                *argument_index, computed,
+                "`{command}` {words:?}: an unknown subject stands at the computed word"
+            ),
+            TransitionSubject::Literal(name) => assert!(
+                words
+                    .iter()
+                    .any(|word| word.literal() == Some(name.as_str())),
+                "`{command}` {words:?} states `{name}`, which no literal word spells"
+            ),
+            TransitionSubject::LocatedLiteral {
+                value,
+                argument_index,
+            } => {
+                assert_eq!(
+                    words.get(*argument_index).and_then(|word| word.literal()),
+                    Some(value.as_str()),
+                    "`{command}` {words:?}: known value retains its own operand"
+                );
+            }
+            TransitionSubject::LocatedNativeBytes {
+                value,
+                argument_index,
+            } => {
+                assert_eq!(
+                    words
+                        .get(*argument_index)
+                        .and_then(|word| word.native_bytes()),
+                    Some(value.as_slice()),
+                    "`{command}` {words:?}: native value retains its own operand"
+                );
+            }
         }
     }
 
@@ -3180,18 +3223,7 @@ mod tests {
             );
             for fact in transitions.facts() {
                 for subject in alias_and_binding_subjects(&fact.transition) {
-                    match subject {
-                        TransitionSubject::Unknown { argument_index, .. } => assert_eq!(
-                            *argument_index, computed,
-                            "`{command}` {words:?}: an unknown subject stands at the computed word"
-                        ),
-                        TransitionSubject::Literal(name) => assert!(
-                            words
-                                .iter()
-                                .any(|word| word.literal() == Some(name.as_str())),
-                            "`{command}` {words:?} states `{name}`, which no literal word spells"
-                        ),
-                    }
+                    assert_alias_subject_correspondence(subject, command, words, computed);
                 }
             }
         }

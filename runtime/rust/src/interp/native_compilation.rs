@@ -36,7 +36,7 @@ pub(super) struct CompilationState {
     execution: CompilationExecution,
     admission_error: Option<NativeCompilationAdmissionError>,
     native_access_refusal: Option<tcl_syntax::raw_string::NativeValueAccessRefusal>,
-    host_command_refusal: Option<String>,
+    host_command_refusal: Option<Box<tcl_runtime_api::NativeHostCommandRefusal>>,
 }
 
 #[derive(Default)]
@@ -137,6 +137,9 @@ impl Interp {
     /// Each interpreter retains its own actual state; no value or lookup identity
     /// crosses this channel, and an earlier parent refusal remains authoritative.
     pub(crate) fn transport_host_refusal_from(&mut self, origin: &Interp) -> super::Code {
+        if self.host_refusal_pending() {
+            return super::Code::Error;
+        }
         let origin = origin.native_compilation.borrow();
         let mut target = self.native_compilation.borrow_mut();
         if target.admission_error.is_none() {
@@ -153,19 +156,61 @@ impl Interp {
         super::Code::Error
     }
 
-    /// A reached host callback refusal, retained outside Tcl completion state.
-    pub fn host_command_refusal(&self) -> Option<String> {
+    /// Actual retained host cause; guest completion state never supplies it.
+    pub fn native_execution_refusal(&self) -> Option<tcl_runtime_api::NativeExecutionError> {
+        let state = self.native_compilation.borrow();
+        if let Some(error) = state.admission_error {
+            return Some(tcl_runtime_api::NativeExecutionError::CompilationAdmission(
+                error,
+            ));
+        }
+        if let Some(error) = state.native_access_refusal {
+            return Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                error,
+            ));
+        }
+        state
+            .host_command_refusal
+            .clone()
+            .map(tcl_runtime_api::NativeExecutionError::HostCommandRefusal)
+    }
+
+    /// Original host callback metadata, without projecting its diagnostic text.
+    pub fn native_host_command_refusal(&self) -> Option<tcl_runtime_api::NativeHostCommandRefusal> {
         self.native_compilation
             .borrow()
             .host_command_refusal
-            .clone()
+            .as_deref()
+            .cloned()
+    }
+
+    /// A host callback's retained reporting text, independently of guest result bytes.
+    pub fn host_command_refusal(&self) -> Option<String> {
+        self.native_host_command_refusal()
+            .map(|failure| failure.reason)
     }
 
     pub(crate) fn refuse_host_command(&mut self, reason: impl Into<String>) -> Code {
-        self.native_compilation
-            .borrow_mut()
-            .host_command_refusal
-            .get_or_insert_with(|| reason.into());
+        if self.host_refusal_pending() {
+            return Code::Error;
+        }
+        let namespace_token = self.current_ns();
+        let namespace = self.namespaces().qualified_name(namespace_token);
+        // This field is diagnostic display only; actual ownership remains the
+        // retained interpreter and namespace token, including for opaque bytes.
+        let namespace = std::str::from_utf8(&namespace)
+            .map_or_else(|_| namespace.escape_ascii().to_string(), str::to_owned);
+        let profile = self.dialect_profile().cache_key();
+        let failure = tcl_runtime_api::NativeHostCommandRefusal {
+            reason: reason.into(),
+            source_profile: profile,
+            native_profile: profile,
+            interpreter: self.native_command_interpreter,
+            frame: self.frames.borrow().current_level(),
+            namespace: namespace.into(),
+            namespace_token: namespace_token as u64,
+        };
+        self.native_compilation.borrow_mut().host_command_refusal = Some(Box::new(failure));
         Code::Error
     }
 
@@ -180,6 +225,9 @@ impl Interp {
         &mut self,
         error: tcl_syntax::raw_string::NativeValueAccessRefusal,
     ) -> crate::interp::Code {
+        if self.host_refusal_pending() {
+            return Code::Error;
+        }
         self.native_compilation
             .borrow_mut()
             .native_access_refusal

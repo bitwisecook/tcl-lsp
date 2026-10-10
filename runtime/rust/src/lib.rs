@@ -162,7 +162,9 @@ pub mod value_ops;
 pub mod vars;
 mod version;
 
-pub use tcl_runtime_api::{Code as CompletionCode, ScriptCompletion};
+pub use tcl_runtime_api::{
+    Code as CompletionCode, NativeExecutionError, NativeHostCommandRefusal, ScriptCompletion,
+};
 
 #[cfg(test)]
 mod tests {

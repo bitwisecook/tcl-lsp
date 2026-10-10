@@ -1,0 +1,7 @@
+include /workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile
+BUILD_DIR := /workspace/tcl-lsp/tmp/tcl9.0.4/unix
+.PHONY: observed-execute observed-object
+observed-execute:
+	$(CC) -c $(CC_SWITCHES) /tmp/native-dictionary-update-lifetime398/9.0.4/observed-tclExecute.c -o /tmp/native-dictionary-update-lifetime398-capture/9.0.4/tclExecute.o
+observed-object:
+	$(CC) -c $(CC_SWITCHES) /tmp/native-dictionary-update-lifetime398/9.0.4/observed-tclObj.c -o /tmp/native-dictionary-update-lifetime398-capture/9.0.4/tclObj.o

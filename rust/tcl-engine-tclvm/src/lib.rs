@@ -516,12 +516,10 @@ fn provide_package(vm: &mut Vm, name: &str, version: &str) -> Result<(), EngineE
 }
 
 fn read_variable(vm: &mut Vm, name: &str) -> Result<Value, EngineError> {
-    vm.read_variable(name)
-        .and_then(|value| {
-            from_vm_value(&value, vm.native_scalar_carrier_dialect())
-                .map_err(|error| vm.refuse_host_command(error.to_string()))
-        })
-        .map_err(|completion| script_error(&completion, vm.native_scalar_carrier_dialect()))
+    let value = vm
+        .read_variable(name)
+        .map_err(|error| internal_error(error, vm.native_scalar_carrier_dialect()))?;
+    from_vm_value(&value, vm.native_scalar_carrier_dialect())
 }
 
 fn set_variable(vm: &mut Vm, name: &str, value: &Value) -> Result<(), EngineError> {
@@ -529,12 +527,12 @@ fn set_variable(vm: &mut Vm, name: &str, value: &Value) -> Result<(), EngineErro
         name,
         to_vm_value(value, vm.native_scalar_carrier_dialect())?,
     )
-    .map_err(|completion| script_error(&completion, vm.native_scalar_carrier_dialect()))
+    .map_err(|error| internal_error(error, vm.native_scalar_carrier_dialect()))
 }
 
 fn unset_variable(vm: &mut Vm, name: &str) -> Result<(), EngineError> {
     vm.unset_variable(name)
-        .map_err(|completion| script_error(&completion, vm.native_scalar_carrier_dialect()))
+        .map_err(|error| internal_error(error, vm.native_scalar_carrier_dialect()))
 }
 
 /// Evaluate `script` in the VM's current frame and report how it completed: a
@@ -2232,6 +2230,39 @@ mod tests {
         assert_eq!(*collector.emitted.borrow(), [vec!["BEFORE".to_owned()]]);
         assert!(error.script_message_bytes().is_none());
         assert!(error.script_options_bytes().is_none());
+    }
+
+    #[test]
+    fn variable_consumers_report_trace_host_refusal_without_guest_projection() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for operation in ["r", "w", "u"] {
+            let mut engine = TclVmEngine::new();
+            engine
+                .define_command("host_refuse", Rc::new(RefusingHostCommand))
+                .unwrap();
+            let collector = Rc::new(Collector {
+                emitted: RefCell::new(Vec::new()),
+            });
+            engine.define_command("record", collector.clone()).unwrap();
+            engine.eval_in_invocation(&format!(
+                "set target ORIGINAL; proc trace_refusal args {{record BEFORE; host_refuse; record AFTER}}; trace variable target {operation} trace_refusal",
+            )).unwrap();
+            let error = match operation {
+                "r" => engine.variable("target").map(|_| ()),
+                "w" => engine.set_variable("target", Value::string("REPLACEMENT")),
+                "u" => engine.unset_variable("target"),
+                _ => unreachable!(),
+            }
+            .expect_err("actual reached host trace refusal");
+            assert_eq!(
+                error,
+                EngineError::ExecutionRefusal("host provider unavailable".into())
+            );
+            assert!(error.script_message_bytes().is_none());
+            assert!(error.script_options_bytes().is_none());
+            assert_eq!(*collector.emitted.borrow(), [vec!["BEFORE".to_owned()]]);
+        }
     }
 
     #[test]

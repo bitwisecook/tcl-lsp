@@ -161,6 +161,11 @@ impl NativeListItems {
     pub fn native_is_shared(&self) -> bool {
         self.storage.headers.get() > 1
     }
+    /// Whether this value owns a native header rather than a lifetime view.
+    pub(crate) fn owns_native_header(&self) -> bool {
+        self.header
+    }
+
     #[must_use]
     pub fn has_native_header(&self) -> bool {
         self.storage.headers.get() != 0

@@ -2551,6 +2551,7 @@ mod exact_cell_diagnostic_tests {
             source,
             analysis,
             context: input.borrowed_context_registry(),
+            module: None,
         }
     }
 
@@ -2587,7 +2588,7 @@ mod exact_cell_diagnostic_tests {
                 footprint_semantics(source, &analysis, &input),
             );
             if let Some(expected) = expected {
-                assert!(names.contains_key(expected), "{source}: {names:?}");
+                assert!(names.contains(expected), "{source}: {names:?}");
             } else {
                 assert!(!names.contains("hidden"), "known replacement: {names:?}");
             }
@@ -2633,7 +2634,7 @@ mod exact_cell_diagnostic_tests {
                 footprint_semantics(source, &analysis, &input),
             );
             if let Some(expected) = expected {
-                assert!(names.contains(expected), "{source}: {names:?}");
+                assert!(names.contains_key(expected), "{source}: {names:?}");
             } else {
                 assert!(
                     !names.contains_key("hidden") && !names.contains_key("status"),
@@ -2807,7 +2808,9 @@ mod exact_cell_diagnostic_tests {
         );
         let function = cu.procedures.values().next().expect("original procedure");
         let considered = function.ssa.blocks.keys().copied().collect();
-        let (_, _, killed) = build_phi_undef_index(&function.ssa, &considered, registry);
+        let module = crate::interprocedural::ModuleProcedures::of_unit(&cu, registry);
+        let steps = super::call_steps(function, &considered, Some(&module), registry);
+        let killed = build_phi_undef_index(&function.ssa, &considered, registry, &steps).killed;
         let original =
             original_read_occurrence_at_span(function, occurrence_span(source, "$original"))
                 .expect("original read value");
@@ -2910,7 +2913,9 @@ mod exact_cell_diagnostic_tests {
         )
         .expect("original attempted read after destruction");
         let considered = function.ssa.blocks.keys().copied().collect();
-        let (_, _, killed) = build_phi_undef_index(&function.ssa, &considered, registry);
+        let module = crate::interprocedural::ModuleProcedures::of_unit(&unit, registry);
+        let steps = super::call_steps(function, &considered, Some(&module), registry);
+        let killed = build_phi_undef_index(&function.ssa, &considered, registry, &steps).killed;
         assert_eq!(first.0, later.0, "the alias selects the same actual cell");
         assert_ne!(first.1, later.1, "destruction has its own contents version");
         assert!(

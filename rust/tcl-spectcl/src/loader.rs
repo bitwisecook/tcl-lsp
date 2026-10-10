@@ -1723,6 +1723,7 @@ fn special_var_row(
             initially_bound,
             lazily_readable,
             startup_binding: startup,
+            runtime_hook: None,
             keys: &[],
             externally_read: false,
             cmp_unsafe: false,
@@ -6498,6 +6499,15 @@ fn apply_command_stmt(
                 _ => {}
             }
         }
+        "source_index_bounds" => {
+            spec.source_index_bounds = enum_by_name(
+                tcl_registry::SourceIndexBounds::ALL,
+                &value,
+                "source index bounds",
+                stmt.line,
+                log,
+            );
+        }
         "traits" => spec.traits |= parse_traits(&value, stmt.line, log),
         "arity" => match parse_arity(stmt, log) {
             (arity, None) => spec.arity = arity,
@@ -8576,6 +8586,15 @@ fn apply_subcommand_stmt(
         "mutator" => sub.mutator = parse_flag(stmt.tail()),
         "destructive" => sub.destructive = parse_flag(stmt.tail()),
         "returns_path" => sub.returns_path = parse_flag(stmt.tail()),
+        "source_index_bounds" => {
+            sub.source_index_bounds = enum_by_name(
+                tcl_registry::SourceIndexBounds::ALL,
+                &value,
+                "source index bounds",
+                stmt.line,
+                log,
+            );
+        }
         "source_path_operation" => {
             sub.source_path_operation = enum_by_name(
                 tcl_registry::SourcePathOperation::ALL,

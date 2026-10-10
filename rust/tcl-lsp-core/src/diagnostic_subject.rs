@@ -117,6 +117,7 @@ enum RegistryPurposeDescription {
     CaseBody,
     OptionOnly,
     PatternSubstitution,
+    IndexBounds,
 }
 impl From<tcl_compiler::analyser::RegistrySourceDiagnosticKind> for RegistryPurposeDescription {
     fn from(kind: tcl_compiler::analyser::RegistrySourceDiagnosticKind) -> Self {
@@ -142,6 +143,7 @@ impl From<tcl_compiler::analyser::RegistrySourceDiagnosticKind> for RegistryPurp
             Kind::CaseBody => Self::CaseBody,
             Kind::OptionOnly => Self::OptionOnly,
             Kind::PatternSubstitution => Self::PatternSubstitution,
+            Kind::IndexBounds => Self::IndexBounds,
         }
     }
 }
@@ -168,6 +170,7 @@ impl RegistryPurposeDescription {
             Self::CaseBody => code == "W106",
             Self::OptionOnly => code == "W217",
             Self::PatternSubstitution => code == "W306",
+            Self::IndexBounds => matches!(code, "W230" | "W232"),
         }
     }
 }
@@ -297,6 +300,7 @@ enum RegisteredInstanceObligationDescription {
     ConditionalDeclarationApplicability,
     DeferredLogicalBodyApplicability,
     ConditionalLogicalBodyApplicability,
+    AuthoredCommandPrefixApplicability,
     ProducedCommandPrefixApplicability,
     RegisteredFactoryApplicability,
     RegisteredHandleBindingApplicability,
@@ -334,6 +338,9 @@ impl From<&tcl_compiler::command_binding::SourceCommandTransitionObligation>
             Obligation::DeferredLogicalBodyApplicability => Self::DeferredLogicalBodyApplicability,
             Obligation::ConditionalLogicalBodyApplicability => {
                 Self::ConditionalLogicalBodyApplicability
+            }
+            Obligation::AuthoredCommandPrefixApplicability => {
+                Self::AuthoredCommandPrefixApplicability
             }
             Obligation::ProducedCommandPrefixApplicability => {
                 Self::ProducedCommandPrefixApplicability
@@ -1860,5 +1867,39 @@ mod tests {
         let mut changed = diagnostic;
         changed.message = "unrelated presentation".to_owned();
         assert_eq!(super::diagnostic_subject_data(&changed), Some(data));
+    }
+    #[test]
+    fn original_index_transport_preserves_captured_operand_purpose_without_message_names() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let source = "interp alias {} at {} string range {λé} 9; at 12";
+        let result = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "tcl");
+        let mut diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == DiagCode::W232)
+            .unwrap()
+            .clone();
+        let payload = diagnostic_subject_data(&diagnostic).unwrap();
+        assert_eq!(payload["subject"]["purpose"], "indexBounds");
+        assert_eq!(payload["subject"]["argument"], 2);
+        assert_eq!(payload["subject"]["writtenArgument"], Value::Null);
+        assert_eq!(payload["subject"]["start"], diagnostic.span.start());
+        assert_eq!(payload["subject"]["end"], diagnostic.span.end());
+        assert!(DiagnosticSubjectData::from_value(&payload, "W232").is_some());
+        assert!(DiagnosticSubjectData::from_value(&payload, "W123").is_none());
+        diagnostic.message =
+            "translated text with a misleading command and variable name".to_owned();
+        diagnostic.fixes.clear();
+        assert_eq!(diagnostic_subject_data(&diagnostic), Some(payload));
     }
 }

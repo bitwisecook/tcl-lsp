@@ -381,7 +381,7 @@ mod tests {
                     .resolved()
                     .unwrap();
                 assert_eq!(
-                    !resolved.effect_footprint().requires_world_barrier(),
+                    !resolved.effects().requires_world_barrier(),
                     closed,
                     "{profile}: {word:?}",
                 );

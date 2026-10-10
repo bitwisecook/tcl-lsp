@@ -1727,17 +1727,21 @@ mod tests {
     fn fallback_role_scan_distinguishes_unknown_options_from_ordinary_values() {
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-        let dialect = Some(tcl_registry::InvocationDialect::of_profile(profile));
+        let config = LexerConfig::from_grammar(profile.grammar);
+        let declared = DeclaredFrameEffects::default();
+        let commands = Commands::standalone(registry, &declared);
         let scan = |command, arguments: &[&str], braced: &[bool]| {
             let arguments: Vec<_> = arguments.iter().map(|word| (*word).to_owned()).collect();
             let mut barrier = DynamicNameBarrier::default();
             scan_command(
                 command,
-                &arguments,
-                Some(braced),
-                registry,
+                &CommandWords {
+                    args: &arguments,
+                    braced: Some(braced),
+                },
+                commands,
                 &mut barrier,
-                dialect,
+                (0, config),
             );
             barrier
         };
@@ -1755,13 +1759,7 @@ mod tests {
         assert!(!ordinary.reads && !ordinary.destroys);
         assert!(scan("set", &["$name", "$value"], &[true, false]).is_clear());
         let mut quoted_level = DynamicNameBarrier::default();
-        scan_script_text(
-            "uplevel {0} $body",
-            registry,
-            &mut quoted_level,
-            0,
-            LexerConfig::from_grammar(profile.grammar),
-        );
+        scan_script_text("uplevel {0} $body", commands, &mut quoted_level, 0, config);
         assert_eq!(
             quoted_level,
             DynamicNameBarrier::OPAQUE_SCRIPT,
@@ -1770,10 +1768,10 @@ mod tests {
         let mut quoted_option = DynamicNameBarrier::default();
         scan_script_text(
             "regsub {-nocase} x x value target",
-            registry,
+            commands,
             &mut quoted_option,
             0,
-            LexerConfig::from_grammar(profile.grammar),
+            config,
         );
         assert!(quoted_option.is_clear(), "{quoted_option:?}");
     }

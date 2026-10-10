@@ -8,6 +8,7 @@ use tcl_runtime_api::error_stack::{
     ErrorStack, ErrorStackFrame, ErrorStackValueError, ShiftedErrorStackFrame,
 };
 use tcl_syntax::native_string::NativeStringProtocol;
+use tcl_syntax::value::ValueError;
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct NativeErrorStack {
@@ -65,23 +66,29 @@ impl NativeErrorStack {
         self.replace(values);
         self.metadata.adopt(vec![(); values.len()])
     }
-    pub(super) fn begin_inner(&mut self, tag: Value, context: Value) -> bool {
+    pub(super) fn begin_inner(&mut self, tag: Value, context: Value) -> Result<bool, ValueError> {
         if !self.metadata.is_reset() {
-            return false;
+            return Ok(false);
         }
+        let protocol = self.protocol.ok_or(ValueError::CommandProtocolUnavailable(
+            "native error-context owner",
+        ))?;
+        let context = context.capture_native_error_context(protocol)?;
         self.replace(&[tag, context]);
-        self.metadata.begin_inner((), ())
+        Ok(self.metadata.begin_inner((), ()))
     }
     /// `TclGetInnerContext` reuses its own List header and retains original stack operands.
     pub(super) fn begin_instruction(
         &mut self,
         name: tcl_syntax::native_instruction_name::NativeInstructionName,
         operands: &[Value],
-    ) {
+    ) -> Result<(), ValueError> {
         if !self.metadata.is_reset() {
-            return;
+            return Ok(());
         }
-        let protocol = self.protocol.expect("selected native inner context");
+        let protocol = self.protocol.ok_or(ValueError::CommandProtocolUnavailable(
+            "native instruction context owner",
+        ))?;
         let mut values = Vec::with_capacity(operands.len() + 1);
         values.push(Value::new_native_instruction_name(name));
         values.extend(operands.iter().cloned());
@@ -93,19 +100,19 @@ impl NativeErrorStack {
                 .borrow(),
             &values,
             protocol,
-        )
-        .expect("original native innerContext List");
+        )?;
         let retired = self
             .inner_context
             .as_ref()
             .expect("original innerContext role")
             .replace(context.clone());
         drop(retired);
-        self.begin_inner(Value::string("INNER"), context);
+        self.begin_inner(Value::string("INNER"), context)?;
+        Ok(())
     }
-    pub(super) fn restart_inner(&mut self, tag: Value, context: Value) {
+    pub(super) fn restart_inner(&mut self, tag: Value, context: Value) -> Result<bool, ValueError> {
         self.metadata.mark_reset();
-        self.begin_inner(tag, context);
+        self.begin_inner(tag, context)
     }
     fn push_pair(&mut self, tag: Value, value: Value) -> bool {
         if self.metadata.is_reset() {
@@ -190,7 +197,9 @@ mod tests {
                     .is_none()
             );
             let context = Value::new_native_string_bytes(b"original\0\xff".as_slice());
-            stack.begin_inner(Value::string("INNER"), context.clone());
+            stack
+                .begin_inner(Value::string("INNER"), context.clone())
+                .unwrap();
             assert_eq!(
                 stack.header.as_ref().unwrap().native_object_identity(),
                 identity
@@ -207,7 +216,9 @@ mod tests {
             );
             assert_eq!(context.native_object_reference_count(), 2);
             stack.mark_reset();
-            stack.begin_inner(Value::string("INNER"), Value::string("callback"));
+            stack
+                .begin_inner(Value::string("INNER"), Value::string("callback"))
+                .unwrap();
             assert_ne!(
                 stack.header.as_ref().unwrap().native_object_identity(),
                 identity
@@ -231,6 +242,103 @@ mod tests {
             assert_eq!(context.native_object_reference_count(), 1);
         }
     }
+    #[test]
+    fn reached_error_capture_retains_original_argv_members_after_invocation_release() {
+        // naming.error.original-invocation-context-capture
+        // docs/design/analysis/name-resolution-proofs/error-original-invocation-context-capture.md
+        // Software ownership contract: no native private-pointer observation or
+        // execution/frame permission follows from these VM reference counts.
+        for version in [
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
+        ] {
+            let recipe = tcl_registry::InvocationDialect::for_version(version)
+                .native_error_objects_protocol()
+                .unwrap();
+            let member = Value::native_list_constructor(
+                vec![Value::string("Y"), Value::string("Z")],
+                recipe.strings(),
+            );
+            let observed = member.native_lifetime_lease();
+            let argv = NativeListItems::new(vec![member], false);
+            let diagnostic = Value::invocation_list_view(&argv);
+            assert_eq!(observed.value().native_object_reference_count(), 1);
+            assert!(observed.value().resident_string_bytes().is_none());
+            let mut stack = NativeErrorStack::default();
+            stack.configure(Some(recipe));
+            assert!(
+                stack
+                    .begin_inner(Value::string("INNER"), diagnostic)
+                    .unwrap()
+            );
+            assert_eq!(observed.value().native_object_reference_count(), 2);
+            assert!(observed.value().resident_string_bytes().is_none());
+            drop(argv);
+            assert!(observed.value().native_object_is_live());
+            assert_eq!(observed.value().native_object_reference_count(), 1);
+            let stack_value = stack.value();
+            let entries = stack_value
+                .native_object_list_elements(recipe.strings())
+                .unwrap();
+            let context = entries[1]
+                .native_object_list_elements(recipe.strings())
+                .unwrap();
+            assert!(context[0].is_same_object(observed.value()));
+            assert_eq!(
+                stack_value
+                    .native_string_bytes(recipe.strings())
+                    .unwrap()
+                    .as_ref(),
+                b"INNER {{Y Z}}"
+            );
+            drop(context);
+            drop(entries);
+            drop(stack_value);
+            drop(stack);
+            assert!(!observed.value().native_object_is_live());
+        }
+    }
+
+    #[test]
+    fn reached_error_capture_declines_retired_argv_and_missing_protocol() {
+        // naming.error.original-invocation-context-capture
+        // docs/design/analysis/name-resolution-proofs/error-original-invocation-context-capture.md
+        // No source text, fresh strings or retired-header revival repairs a view.
+        let recipe = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6)
+            .native_error_objects_protocol()
+            .unwrap();
+        let member = Value::native_list_constructor(vec![Value::string("old")], recipe.strings());
+        let observed = member.native_lifetime_lease();
+        let argv = NativeListItems::new(vec![member], false);
+        let diagnostic = Value::invocation_list_view(&argv);
+        drop(argv);
+        assert!(!observed.value().native_object_is_live());
+        let mut stack = NativeErrorStack::default();
+        stack.configure(Some(recipe));
+        assert!(
+            stack
+                .begin_inner(Value::string("INNER"), diagnostic)
+                .is_err()
+        );
+        assert!(stack.is_reset());
+        assert_eq!(
+            stack
+                .value()
+                .native_string_bytes(recipe.strings())
+                .unwrap()
+                .as_ref(),
+            b""
+        );
+        let mut missing = NativeErrorStack::default();
+        assert!(
+            missing
+                .begin_inner(Value::string("INNER"), Value::string("actual"))
+                .is_err()
+        );
+        assert!(missing.is_reset());
+    }
+
     #[test]
     fn explicit_stack_copies_original_members_into_the_private_header() {
         let recipe = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)

@@ -794,6 +794,12 @@ fn selection_facts(function: &ExecutableFunction) -> SelectionFacts<'_> {
 mod tests {
     use super::super::{ValType, WasmOp};
     use super::*;
+    use crate::common_aot_plan::{
+        CommonAotProofPlan, DirectProcDecision, MaterialisableSlotDecision,
+    };
+    use crate::native_integer_proof::{
+        NativeAddDecision, NativeIntegerPolicy, NativeIntegerProof, prove_native_integer_adds,
+    };
     use tcl_runtime_api::codegen_abi::CodegenAbiImportId;
 
     fn unit(source: &str, registry: &CommandRegistry) -> CompilationUnit {

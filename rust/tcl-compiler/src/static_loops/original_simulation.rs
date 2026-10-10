@@ -794,6 +794,7 @@ mod tests {
             name: name.into(),
             name_braced: false,
             amount: amount.map(String::from),
+            amount_braced: false,
             safe_on_uninit: false,
         }
     }
@@ -1148,8 +1149,10 @@ mod tests {
     /// switch-dispatch case and its unresolvable-subject counterpart.
     fn mode_switch() -> Statement {
         Statement::Switch {
+            command: "switch".into(),
             subject_braced: false,
             raw_arg_braced: Vec::new(),
+            raw_arg_quoted: Vec::new(),
             span: sp(),
             subject: "$mode".into(),
             subject_span: sp(),

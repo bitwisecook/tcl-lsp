@@ -2706,6 +2706,28 @@ impl CompilationUnit {
         Self::build_with(source, options, Some(cache), Some(body_cache))
     }
 
+    /// Memoise procedure lattices and body lowering under the driver's complete
+    /// source input. Execution provenance remains the independent optional entry.
+    #[must_use]
+    pub fn build_memoized_with_analysis_input(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        cache: &mut ProcLatticeCache<'_>,
+        body_cache: &BodyLoweringCache<'_>,
+        entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Self {
+        Self::build_with_retained_entry(
+            source,
+            options,
+            Some(cache),
+            Some(body_cache),
+            entry,
+            None,
+            Some(input),
+        )
+    }
+
     /// Build with the driver's retained runtime and package-provider entry.
     /// The entry supplies execution provenance independently of catalogue metadata.
     #[must_use]
@@ -4548,6 +4570,7 @@ mod tests {
             &HashSet::new(),
             ModuleTraceFacts::none(),
             &crate::command_binding::ModuleCommandMutations::default(),
+            None,
         );
         let facts = unit
             .semantic_values()

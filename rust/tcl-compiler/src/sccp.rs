@@ -5221,6 +5221,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let p = compute_predecessors(&f);
@@ -5243,6 +5245,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let order = cfg_order(&f);
@@ -5932,6 +5936,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -6016,6 +6021,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         });
@@ -6118,6 +6124,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let mut ssa = make_ssa(&f, vec![]);
@@ -6146,6 +6154,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
@@ -6153,6 +6163,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let ssa = make_ssa(&f, vec![]);
@@ -6179,6 +6191,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
@@ -6186,6 +6200,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let ssa = make_ssa(&f, vec![]);
@@ -6214,6 +6230,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
@@ -6221,6 +6239,8 @@ mod tests {
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let ssa = make_ssa(&f, vec![]);
@@ -6284,6 +6304,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         };
@@ -6341,6 +6362,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         };
@@ -6386,6 +6408,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -6511,6 +6534,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -6663,6 +6687,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -6785,6 +6810,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         };
@@ -7135,6 +7161,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -7356,6 +7383,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -7880,6 +7908,8 @@ p
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         f.blocks.get_mut(&dead).unwrap().terminator = Some(Terminator::Return {
@@ -7887,6 +7917,8 @@ p
             value_word: None,
             span: None,
             expr: None,
+            expr_base: None,
+            tokens: None,
             braced: false,
         });
         let order = cfg_order(&f);

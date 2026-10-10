@@ -421,7 +421,7 @@ impl LogicalBodyWalk<'_, '_> {
         head: &SourceAdviceNameInput,
         scope: &Arc<OriginalDeclaredLogicalBodyContext>,
     ) -> Option<bool> {
-        let operand_barrier = self.context.inspect_operand_effects(graph, native)?;
+        let operand_barrier = self.context.inspect_operand_effects(graph, native, tape)?;
         if graph.blocks_registry_source(head) {
             tape.registry_barriers
                 .insert(native.first()?.span().start());
@@ -487,6 +487,8 @@ impl LogicalBodyWalk<'_, '_> {
         advice
             .obligations
             .push(SourceCommandTransitionObligation::DeferredLogicalBodyApplicability);
+        self.context
+            .retain_authored_command_prefix(tape, invocation, graph, schema, Some(&advice));
         tape.advice.insert(advice.site.offset, advice.clone());
         self.context
             .retain_source_callback_targets(tape, invocation, graph, schema);

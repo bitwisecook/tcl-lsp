@@ -2370,6 +2370,9 @@ mod tests {
             option: None,
             constraints: None,
             dialect: None,
+            targets: &[],
+            budget: ImplementationBudget::default(),
+            depends: &[],
         };
         assert_eq!(kind_word(words[0].kind), "known-bytes");
         assert!(!call.all_literal());

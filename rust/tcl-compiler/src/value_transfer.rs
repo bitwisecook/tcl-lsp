@@ -7940,6 +7940,50 @@ fn dict_value_at(rules: WordValueRules, text: &str, key: &str) -> Option<String>
         .map(|[_, value]| value.to_string())
 }
 
+/// The already selected descriptor's template structure under complete source
+/// metadata and its original lexer policy. Literal captured operands keep their
+/// effective ordinals; unknown operands supply no invented text or child span.
+/// The Structure tier grants neither a current value nor successful evaluation.
+pub(crate) fn source_template_plan(
+    schema: &ResolvedInvocation<'_, '_>,
+    registry: &CommandRegistry,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    config: LexerConfig,
+) -> Option<tcl_registry::value_transfer::TemplateWordPlan> {
+    use tcl_registry::value_transfer::LiteralInputs;
+    if !metadata.matches_registry(registry) {
+        return None;
+    }
+    let input = metadata.source_analysis_input()?;
+    let arguments = schema.words.arguments();
+    let texts = (0..arguments.len())
+        .map(|ordinal| arguments.literal_at(ordinal).unwrap_or_default())
+        .collect::<Vec<_>>();
+    let mut selected = AnalysisContext::detached(Some(input.unit_profile()));
+    selected.grammar = config.grammar_over(input.unit_profile().grammar);
+    selected.registry_generation = registry.generation();
+    selected.overlay_generation = registry.overlay_generation();
+    selected.tier = AnalysisTier::Structure;
+    let mut literals = LiteralInputs::new(
+        schema.canonical_command,
+        None,
+        &texts,
+        Some(input.unit_profile()),
+    )
+    .with_context(selected);
+    for ordinal in 0..arguments.len() {
+        literals = if arguments.literal_at(ordinal).is_some() {
+            literals.with_bare(OperandId(ordinal))
+        } else {
+            literals.with_unproven(OperandId(ordinal))
+        };
+    }
+    match schema.semantics.value.semantics()?.structure(&literals) {
+        PlanAnswer::TemplateWord(plan) => Some(plan),
+        _ => None,
+    }
+}
+
 /// How one word of a call reads in its source, for a template plan asked
 /// before the lattice ([`literal_template_plan`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

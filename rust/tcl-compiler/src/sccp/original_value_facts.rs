@@ -4065,7 +4065,7 @@ mod tests {
         param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
         policy: FoldPolicy,
     ) -> SccpResult {
-        sccp(
+        crate::sccp::sccp(
             cfg,
             ssa,
             param_constants,
@@ -4250,7 +4250,7 @@ mod tests {
     fn point_expression_environment_preserves_alias_spelling_and_retargeting() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         let source =
-            include_str!("../../tcl-syntax/tests/data/resolution/alias-retarget-expression.tcl");
+            include_str!("../../../tcl-syntax/tests/data/resolution/alias-retarget-expression.tcl");
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl9.0",
         );
@@ -4971,6 +4971,7 @@ mod tests {
                 name: name.into(),
                 name_braced: false,
                 amount: amount.map(String::from),
+                amount_braced: false,
                 safe_on_uninit: false,
             },
             uses,

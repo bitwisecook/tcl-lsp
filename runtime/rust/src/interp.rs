@@ -3901,21 +3901,44 @@ impl Interp {
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
     ) {
+        let _ = self.install_proc_original_storage(
+            name,
+            params,
+            parameters_obj,
+            body_obj,
+            native,
+            statics,
+        );
+    }
+
+    /// Install original procedure storage and return its actual command generation.
+    pub(crate) fn install_proc_original_storage(
+        &mut self,
+        name: &[u8],
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body_obj: *mut TclObj,
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) -> Option<u64> {
+        if self.host_refusal_pending() {
+            return None;
+        }
         let chosen = match self.choose_original_procedure_body(body_obj) {
             Ok(chosen) => chosen,
             Err(error) => {
                 self.report_cmd_error(error.into());
-                return;
+                return None;
             }
         };
-        self.define_proc_chosen_storage(
+        self.install_proc_chosen_storage(
             name,
             params,
             parameters_obj,
             (body_obj, chosen),
             native,
             statics,
-        );
+        )
     }
 
     pub(crate) fn define_proc_chosen_storage(
@@ -3927,13 +3950,30 @@ impl Interp {
         native: Option<NativeProcEntry>,
         statics: Option<Rc<crate::frame::StaticVariables>>,
     ) {
+        let _ =
+            self.install_proc_chosen_storage(name, params, parameters_obj, body, native, statics);
+    }
+
+    /// Bind the chosen original procedure and return its installed generation.
+    pub(crate) fn install_proc_chosen_storage(
+        &mut self,
+        name: &[u8],
+        params: Vec<Param>,
+        parameters_obj: Option<*mut TclObj>,
+        body: (*mut TclObj, obj::Owned),
+        native: Option<NativeProcEntry>,
+        statics: Option<Rc<crate::frame::StaticVariables>>,
+    ) -> Option<u64> {
+        if self.host_refusal_pending() {
+            return None;
+        }
         let (original_body, body) = body;
         if self.native_invocation_dialect().native_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             if let Err(error) = self.native_jim_object_context() {
                 self.report_cmd_error(error.into());
-                return;
+                return None;
             }
         }
         let publication = self
@@ -3947,7 +3987,7 @@ impl Interp {
                         "procedure publication namespace",
                     ),
                 );
-                return;
+                return None;
             }
         };
         let ns = if self
@@ -3959,7 +3999,7 @@ impl Interp {
                 Some(context) => context,
                 None => {
                     self.refuse_native_access(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("Jim procedure namespace object"));
-                    return;
+                    return None;
                 }
             }
         } else {
@@ -4022,7 +4062,7 @@ impl Interp {
             Ok(header) => header,
             Err(error) => {
                 self.report_cmd_error(error.into());
-                return;
+                return None;
             }
         };
         def.compiler_header.set(header);
@@ -4041,6 +4081,7 @@ impl Interp {
             self.namespaces_mut()
                 .set_native_compiler_recipe(generation, recipe);
         }
+        generation
     }
 
     /// Install a fresh command token at an exact namespace binding, applying
@@ -5190,13 +5231,21 @@ impl Interp {
     ///
     /// The source return boundary is settled before the snapshot. An uncaught
     /// error is published to Tcl's globals only after its live options,
-    /// including `-during`, have been captured.
+    /// including `-during`, have been captured. Host refusals return their typed
+    /// original cause without fabricating a Tcl result or options dictionary.
+    ///
+    /// # Errors
+    /// Returns a retained host execution refusal before accessing guest values.
     pub fn eval_sourced_completion(
         &mut self,
         script: &[u8],
         name: &[u8],
-    ) -> tcl_runtime_api::ScriptCompletion {
-        self.eval_sourced_boundary(script, name, crate::completion::capture_bytes)
+    ) -> Result<tcl_runtime_api::ScriptCompletion, tcl_runtime_api::NativeExecutionError> {
+        let completion = self.eval_sourced_boundary(script, name, crate::completion::capture_bytes);
+        if let Some(error) = self.native_execution_refusal() {
+            return Err(error);
+        }
+        completion
     }
 
     /// `info script` — the file currently being sourced (empty at top level).
@@ -10002,8 +10051,20 @@ impl Interp {
     /// options are captured from the live exception. Actual C private error
     /// objects remain owned after this method returns, until a native result
     /// reset or a hidden error-variable read. No text encoding is applied.
-    pub fn eval_completion(&mut self, script: &[u8]) -> tcl_runtime_api::ScriptCompletion {
-        self.eval_str_boundary(script, crate::completion::capture_bytes)
+    /// Host-only failures return their original typed cause independently of
+    /// every guest completion code, including Tcl errors captured by `catch`.
+    ///
+    /// # Errors
+    /// Returns a retained host execution refusal before accessing guest values.
+    pub fn eval_completion(
+        &mut self,
+        script: &[u8],
+    ) -> Result<tcl_runtime_api::ScriptCompletion, tcl_runtime_api::NativeExecutionError> {
+        let completion = self.eval_str_boundary(script, crate::completion::capture_bytes);
+        if let Some(error) = self.native_execution_refusal() {
+            return Err(error);
+        }
+        completion
     }
 
     /// Evaluate `src` as the body of its own `info frame` level (`frame` is
@@ -11641,12 +11702,22 @@ impl Interp {
         code
     }
 
-    /// `Tcl_CreateObjCommand`: bind `name` (qualified or relative to the current
-    /// namespace) to `command`, replacing and so deleting any command of that
-    /// name. Answers the new binding's generation.
+    /// `Tcl_CreateObjCommand`: select the original C publication address.
+    /// Unqualified names bind globally; qualified relative names use the actual
+    /// current namespace. Answers the installed token without relooking up a name.
     pub(crate) fn create_obj_command(&mut self, name: &[u8], command: ObjCommand) -> Option<u64> {
-        self.ns_register(name, Command::ObjCmd(Rc::new(command)));
-        self.resolve_cmd_token(name)
+        let selected = self
+            .namespaces_mut()
+            .command_c_api_publication_at(self.current_ns(), name);
+        let Some((namespace, simple)) = selected else {
+            self.refuse_host_command("C command publication has no selected original namespace");
+            return None;
+        };
+        self.bind_command_replacement(namespace, &simple, Command::ObjCmd(Rc::new(command)));
+        if self.host_refusal_pending() {
+            return None;
+        }
+        self.namespaces().command_generation(namespace, &simple)
     }
 
     /// Register `cmd` under the (possibly qualified) name `name` — for the OO

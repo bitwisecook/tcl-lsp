@@ -6993,7 +6993,7 @@ mod tests {
     /// `time {…}` lowers to, whatever its frame effect.
     #[test]
     fn a_declared_plain_call_brings_the_frame_effect_it_states() {
-        let registry = static_context_for("tcl8.6").commands();
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
         let build = |stub: &str, body: &str| {
             let src = format!(

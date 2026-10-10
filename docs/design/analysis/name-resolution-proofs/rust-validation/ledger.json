@@ -109973,6 +109973,44 @@
       "tests": [],
       "question_ids": [],
       "limits": "The exact locked, offline 5-crate no-run unit build closes at one Core ordinary library E0451 error in an AnalysisResult test fixture constructor. Ordinary Compiler and VM library artifact records are retained separately from test construction. The log emits one CmdCore libtest executable artifact, marked fresh:false, which this operation never runs or seals as a validation pin. There is no test inventory, unit assertion, aggregate pass, tested Compiler/VM/Engine artifact or Native provider result."
+    },
+    {
+      "id": "rust.frozen268.integration-vm-native-test-build268",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen268/integration-vm-native-test-build268/receipt.json.gz",
+        "sha256": "b1eeadca77e44f1fb17c718e4dc8c548542d9f8270fffa1c5b243fa0e5e4caa0",
+        "compression": "gzip",
+        "uncompressed_sha256": "ad175852efe1b2999fd2c5cd25e13fd873cd51ca2d9070820675f2dadfa49dd5"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen268/integration-vm-native-test-build268/tests.log",
+        "sha256": "1c79bec805bbed40d897b6dc9a36140db37a04572417591152507f727be63a64"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 144.9008756050025,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The exact locked, offline VM no-run library test build closes at two VM libtest compilation errors: unresolved stale brace_safe/quote_for_script imports in exec.rs and the old InterpState dialect_profile field in interp.rs. It emits no libtest executable, never reaches test inventory or assertions and supplies no sealed pin, compiled test pass, aggregate gate or Native provider result."
     }
   ]
 }

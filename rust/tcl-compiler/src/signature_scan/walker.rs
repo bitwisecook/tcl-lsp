@@ -994,18 +994,19 @@ mod tests {
     fn selected_scan_variable_elements_use_member_effect_and_written_offsets() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        const SUBCOMMANDS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
+            name: "grow",
+            arity: tcl_registry::Arity::exact(2),
+            arg_roles: &[(0, ArgRole::VarWrite)],
+            var_elements_effect: Some(tcl_registry::VarElementsEffect::AppendsListElements {
+                values_from: 1,
+            }),
+            ..tcl_registry::SubCommand::DEFAULT
+        }];
         let mut registry = tcl_registry::CommandRegistry::build_default();
         registry.insert(tcl_registry::CommandSpec {
             name: "search-path",
-            subcommands: &[tcl_registry::SubCommand {
-                name: "grow",
-                arity: tcl_registry::Arity::exact(2),
-                arg_roles: &[(0, ArgRole::VarWrite)],
-                var_elements_effect: Some(tcl_registry::VarElementsEffect::AppendsListElements {
-                    values_from: 1,
-                }),
-                ..tcl_registry::SubCommand::DEFAULT
-            }],
+            subcommands: SUBCOMMANDS,
             ..tcl_registry::CommandSpec::DEFAULT
         });
         let result =

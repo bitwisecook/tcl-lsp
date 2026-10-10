@@ -20912,10 +20912,13 @@ impl Vm {
     #[cfg(test)]
     pub(crate) fn begin_error_stack_context(&mut self, context: Value) {
         if self.supports_error_stack() && !self.native_errors.error_logged {
-            let _ = self
+            if let Err(error) = self
                 .native_errors
                 .error_stack
-                .begin_inner(Value::string("INNER"), context);
+                .begin_inner(Value::string("INNER"), context)
+            {
+                let _ = self.refuse_host_command(error.to_string());
+            }
         }
     }
 
@@ -20936,9 +20939,13 @@ impl Vm {
             self.native_errors.error_logged = false;
         }
         if !self.native_errors.error_logged {
-            self.native_errors
+            if let Err(error) = self
+                .native_errors
                 .error_stack
-                .begin_instruction(name, operands);
+                .begin_instruction(name, operands)
+            {
+                let _ = self.refuse_host_command(error.to_string());
+            }
         }
     }
 
@@ -20947,10 +20954,14 @@ impl Vm {
         if !self.supports_error_stack() {
             return;
         }
-        let _ = self
+        if let Err(error) = self
             .native_errors
             .error_stack
-            .begin_inner(Value::string("INNER"), context);
+            .begin_inner(Value::string("INNER"), context)
+        {
+            let _ = self.refuse_host_command(error.to_string());
+            return;
+        }
         let frame = if let Some(original) = self
             .native_errors
             .error_stack
@@ -20988,9 +20999,13 @@ impl Vm {
         if !self.supports_error_stack() {
             return;
         }
-        self.native_errors
+        if let Err(error) = self
+            .native_errors
             .error_stack
-            .restart_inner(Value::string("INNER"), context);
+            .restart_inner(Value::string("INNER"), context)
+        {
+            let _ = self.refuse_host_command(error.to_string());
+        }
     }
 
     /// Return the last TIP 348 stack as a Tcl list value.
@@ -22033,13 +22048,18 @@ impl Vm {
         )
     }
 
-    pub(crate) fn refuse_tcl_host_failure(
+    /// Retain an original operational failure outside every guest completion.
+    /// The returned empty carrier only unwinds the current activation; public
+    /// host boundaries return the original cause through their fallible result.
+    pub fn refuse_tcl_host_failure(
         &mut self,
         failure: crate::error::TclHostFailure,
     ) -> Completion<Value> {
         match failure {
             crate::error::TclHostFailure::ValueAccess(error) => {
-                self.refuse_host_command(error.to_string())
+                self.execution_refusal
+                    .get_or_insert(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(error));
+                err("")
             }
             crate::error::TclHostFailure::Execution(error) => {
                 self.execution_refusal.get_or_insert(error);
@@ -22086,15 +22106,21 @@ impl Vm {
         &mut self,
         completion: Completion<Value>,
     ) -> Result<Completion<Value>, tcl_runtime_api::NativeExecutionError> {
-        match self.execution_refusal.clone() {
-            Some(error) => {
-                if self.activation_depth == 0 && self.host_execution_depth == 0 {
-                    self.execution_refusal = None;
-                }
-                Err(error)
-            }
+        match self.take_host_boundary_refusal() {
+            Some(error) => Err(error),
             None => Ok(completion),
         }
+    }
+
+    /// Return the first original host cause; only the outer host boundary retires it.
+    pub(crate) fn take_host_boundary_refusal(
+        &mut self,
+    ) -> Option<tcl_runtime_api::NativeExecutionError> {
+        let error = self.execution_refusal.clone()?;
+        if self.activation_depth == 0 && self.host_execution_depth == 0 {
+            self.execution_refusal = None;
+        }
+        Some(error)
     }
 
     /// Add C's `(parsing expression "…")` `errorInfo` frame for a rejected
@@ -23272,10 +23298,7 @@ impl Vm {
         self.host_execution_depth += 1;
         let result = self.eval_source_internal(src, None);
         self.host_execution_depth -= 1;
-        if let Some(refusal) = self.execution_refusal.clone() {
-            if self.activation_depth == 0 && self.host_execution_depth == 0 {
-                self.execution_refusal = None;
-            }
+        if let Some(refusal) = self.take_host_boundary_refusal() {
             return Err(TclError::from_execution_failure(refusal));
         }
         result

@@ -14,9 +14,13 @@ Can tracked and supplied-analysis project callback diagnostics share authentic c
 
 project_callback_diagnostics_for_analysis requires actual retained input and matching complete source image/configuration before augmenting supplied analyser diagnostics. retained_callback_invocations reissues SourceCallbackSignatureLookup::from_original_lookup and requires the same authentic registration/target/local canonical header selection. The tracked project_callback_diagnostics query delegates to that owner. Current external project headers use the genuine held target slot or permitted unknown-target lookup; known local deletion/replacement and unavailable horizons remain terminal. Legacy callback tail/scalar advice requires AnalysisResult::allows_retained_logical_declaration_advice. Backend push publication, full pull and code actions consume the same supplied-analysis projection through project_callback_diagnostics_if and retain typed source subject/range correspondence. Actual opt-in, complete current image and current header queries remain independent premises. This is conditional source signature advice, not callback registration, future entry, installed callable, runtime argv/arity, header cache identity, entered frame or signature edit authority.
 
+Typed unavailable generation is terminal for a populated original callback lookup as well as positive Logical compatibility. Complete copied input, source coordinates and original callback cards cannot reopen the signature join after an OverlayMiss. The existing Logical-only legacy control additionally retains that refusal without changing its earlier linked row; Native/hosted or missing inputs cannot borrow display flags.
+
 ## Scope
 
 Four Database controls compare tracked/supplied results, exact current headers, foreign image/input/lookup refusal and positive Logical legacy admission. Four Server controls compare publication cache/full-pull typed subjects and ranges, feature/source/header changes, terminal local source barriers and code-action demand for the authentic external header query without an invented readonly signature edit. Provider-labelled source profiles do not execute native callbacks or network transports. Five marked package controls retain actual required-availability directives, genuine original rooted prefixes and typed source argument-count subjects. Exact finite or lower-bound schemas remain source metadata; missing package directives, even with a package require source line, cannot issue local-header advice. No package loader, actual callback entry or runtime argument vector is observed.
+
+One additional marked software control preserves a genuine positive original callback receipt while independently withdrawing the actual generation. This distinguishes source authority from receipt presence and supplies no installed callback, entered frame, Handler, runtime completion or call-site edit equivalence. All provider answers remain not tested.
 
 ## Provider answers
 
@@ -94,6 +98,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `tests::callback_arity_unavailable_package_descriptors_do_not_select_local_headers` (linked): Absent retained package availability/directives withdraws callback arity advice across Tk/calculus/SMTP/halfpipe/mime/graph/tree source examples, including package require text; genuine local headers alone cannot donate availability.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/analyser/types.rs](../../../../rust/tcl-compiler/src/analyser/types.rs), `AnalysisResult::matches_original_source_image`: Reject typed unavailable generation before validating original realm/input/config/source geometry; copied complete input and populated original callback cards cannot reopen current source correspondence.
+- [rust/tcl-compiler/src/analyser/types.rs](../../../../rust/tcl-compiler/src/analyser/types.rs), `AnalysisResult::allows_retained_logical_declaration_advice`: Retain positive complete Logical input and no typed unavailable status for compatibility source headers. Missing/Native/hosted input remains refused despite copied display dialect or flags.
+- [rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs](../../../../rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs), `SourceCallbackSignatureLookup::from_original_lookup`: Join a genuine original callback prefix and immutable registration/target lookup to the current complete source analysis; typed withdrawn generation refuses even when original receipts remain populated.
+- [rust/tcl-lsp-db/src/original_project_callback_projection_tests.rs](../../../../rust/tcl-lsp-db/src/original_project_callback_projection_tests.rs), `original_project_callback_projection_tests::supplied_project_callbacks_refuse_unavailable_generation_with_original_receipts` (linked): A genuine populated original callback signature lookup and complete source input remain insufficient after typed OverlayMiss generation withdrawal. Source-image/signature joins refuse and project callback advice retains only original analyser diagnostics; no callback execution is observed.
+
+These source/API bindings carry no executed assertion or Native provider result.
 
 ## Replay
 

@@ -2892,7 +2892,8 @@ impl AnalysisResult {
     /// when no complete source name occurrence can be retained.
     #[must_use]
     pub fn allows_lexical_declaration_advice(&self) -> bool {
-        self.lexical_declaration_advice
+        self.analysis_context_unavailable.is_none()
+            && self.lexical_declaration_advice
             && !self.has_original_vendor_source_names()
             && self
                 .resolved_input
@@ -3374,6 +3375,9 @@ impl AnalysisResult {
         image: &tcl_lexer::SourceImage,
         config: tcl_lexer::LexerConfig,
     ) -> bool {
+        if self.analysis_context_unavailable.is_some() {
+            return false;
+        }
         let Some(input) = self.resolved_input.as_ref() else {
             return false;
         };

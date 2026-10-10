@@ -1573,6 +1573,7 @@ fn enum_type_name(catalogue: &str) -> &'static str {
         "commandTableEffect" => "CommandTableEffect",
         "patternType" => "PatternType",
         "sourcePathOperation" => "SourcePathOperation",
+        "sourceIndexBounds" => "SourceIndexBounds",
         "formatType" => "FormatType",
         "formKind" => "FormKind",
         "definedSymbolKind" => "DefinedSymbolKind",

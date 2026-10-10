@@ -1237,12 +1237,14 @@ mod tests {
                         "eval-complete",
                         receipt_start,
                     );
-                    assert!(
-                        matches!(
-                            error,
-                            tcl_runtime_api::NativeExecutionError::HostCommandRefusal(_)
+                    assert_eq!(
+                        error,
+                        tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                            tcl_syntax::raw_string::NativeValueAccessRefusal::FatalCondition(
+                                tcl_syntax::raw_string::NativeFatalCondition::DictionarySearchConcurrentMutation,
+                            ),
                         ),
-                        "{engine}: {error:?}"
+                        "{engine}"
                     );
                     assert!(vm.get_var_bytes(b"reached").is_none());
                     assert!(vm.get_var_bytes(b"caught").is_none());

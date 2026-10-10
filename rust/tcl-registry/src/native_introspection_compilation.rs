@@ -36,6 +36,8 @@ pub enum NativeIntrospectionKind {
     NamespaceCode,
     /// Original caller-variable frame introspection.
     InfoLevel,
+    /// Original absolute literal command resolution and conditional List result.
+    InfoCommands,
 }
 
 /// Selected original operands and physical introspection instruction.
@@ -71,6 +73,10 @@ pub fn compile_native_introspection(
         NativeIntrospectionKind::NamespaceCurrent => arguments.is_empty(),
         NativeIntrospectionKind::NamespaceOrigin => arguments.len() == 1,
         NativeIntrospectionKind::InfoLevel => arguments.len() <= 1,
+        NativeIntrospectionKind::InfoCommands => {
+            matches!(arguments, [word] if matches!(word.shape, Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral)
+                && word.literal.as_deref().is_some_and(native_info_commands_literal_is_trivial))
+        }
         NativeIntrospectionKind::NamespaceCode => {
             matches!(arguments, [word] if matches!(word.shape, Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral)
                 && word.literal.as_ref().is_some_and(|bytes| !(bytes.len() > 20 && bytes.starts_with(b"::namespace inscope "))))
@@ -80,6 +86,16 @@ pub fn compile_native_introspection(
         kind,
         operands: arguments.iter().map(|word| word.operand.clone()).collect(),
     })
+}
+
+/// Pure compile-known pattern restriction of the original C compiler. The
+/// caller supplies its original source-channel value and selected registration.
+#[must_use]
+pub fn native_info_commands_literal_is_trivial(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"::")
+        && !bytes
+            .iter()
+            .any(|byte| matches!(byte, b'*' | b'[' | b'?' | b'\\'))
 }
 
 /// The opcode's reached numeric extraction width, distinct from frame selectors.

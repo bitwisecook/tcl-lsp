@@ -214,11 +214,7 @@ impl Vm {
         if follow_imports {
             return tcl_cmd_core::namespace::origin_from_command_checked(self, command).map(Some);
         }
-        self.command_name_bytes(command)
-            .map(Some)
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "resolved command-name reporting token",
-            ))
+        tcl_cmd_core::namespace::command_name_from_command_checked(self, command).map(Some)
     }
 
     /// Allocate the selected C full-command-name String result independently

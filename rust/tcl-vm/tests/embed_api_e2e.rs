@@ -527,8 +527,11 @@ fn info_loaded_lists_the_libraries_a_host_recorded() {
     );
 }
 
-fn failed(result: Result<Value, tcl_vm::Completion<Value>>) -> String {
-    let completion = result.expect_err("an error");
+fn failed(result: Result<Value, tcl_vm::TclError>) -> String {
+    let completion = result
+        .expect_err("an error")
+        .into_completion()
+        .expect("original guest completion");
     assert_eq!(completion.code, Code::Error);
     completion.result.to_str().to_string()
 }
@@ -568,6 +571,8 @@ fn a_variable_is_read_written_and_unset_as_set_and_unset_do() {
     assert_eq!(
         vm.write_variable("a", Value::string("2"))
             .expect_err("an array is not a scalar")
+            .into_completion()
+            .expect("original guest completion")
             .result
             .to_str()
             .as_ref(),
@@ -581,6 +586,8 @@ fn a_variable_is_read_written_and_unset_as_set_and_unset_do() {
     assert_eq!(
         vm.unset_variable("nosuch")
             .expect_err("nothing to unset")
+            .into_completion()
+            .expect("original guest completion")
             .result
             .to_str()
             .as_ref(),
@@ -608,6 +615,98 @@ fn the_variable_forms_fire_the_traces_a_script_would() {
         "write read unset",
         "each form fires the trace of its operation"
     );
+}
+
+struct VariableTraceHostRefusal;
+
+impl NativeCommand for VariableTraceHostRefusal {
+    fn invoke(&self, vm: &mut Vm, _: &[Value]) -> Completion<Value> {
+        vm.set_var("::reached", Value::string("BEFORE"))
+            .expect("actual trace entry marker");
+        vm.refuse_host_command("original variable trace refusal".into())
+    }
+}
+
+#[test]
+fn variable_embedding_returns_original_trace_host_cause_and_preserves_prior_effects() {
+    // Software contract: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for version in tcl_dialect::TclVersion::ALL {
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+        for operation in ["r", "w", "u"] {
+            let mut vm = Vm::new();
+            vm.set_dialect_profile(profile);
+            vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+            vm.register_native_command("trace_refusal", Rc::new(VariableTraceHostRefusal));
+            vm.try_eval_source(&format!(
+                "set target ORIGINAL; set prior BEFORE; trace variable target {operation} trace_refusal",
+            )).unwrap();
+            let error = match operation {
+                "r" => vm.read_variable("target").map(|_| ()),
+                "w" => vm.write_variable("target", Value::string("REPLACEMENT")),
+                "u" => vm.unset_variable("target"),
+                _ => unreachable!(),
+            }
+            .expect_err("actual reached trace host refusal");
+            let Err(tcl_vm::TclHostFailure::Execution(
+                tcl_runtime_api::NativeExecutionError::HostCommandRefusal(original),
+            )) = error.into_completion()
+            else {
+                panic!("a host trace failure cannot supply a guest completion");
+            };
+            assert_eq!(original.reason, "original variable trace refusal");
+            assert_eq!(original.source_profile, profile.cache_key());
+            assert_eq!(original.native_profile, profile.cache_key());
+            assert_eq!(original.namespace.as_ref(), "::");
+            assert_eq!(original.frame, 0);
+            assert_eq!(
+                vm.get_var("prior").unwrap().string_bytes().as_ref(),
+                b"BEFORE"
+            );
+            assert_eq!(
+                vm.get_var("reached").unwrap().string_bytes().as_ref(),
+                b"BEFORE"
+            );
+            vm.write_variable("next", Value::string("NEXT")).unwrap();
+            assert_eq!(
+                vm.read_variable("next").unwrap().string_bytes().as_ref(),
+                b"NEXT"
+            );
+        }
+    }
+}
+
+#[test]
+fn embedding_entry_refuses_an_earlier_original_cause_before_new_variable_or_package_effects() {
+    // Software contract: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let original = tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+        "original embedding operation",
+    );
+    for operation in ["read", "write", "unset", "package"] {
+        let mut vm = vm();
+        vm.write_variable("kept", Value::string("BEFORE")).unwrap();
+        let _ = vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::ValueAccess(original));
+        let error = match operation {
+            "read" => vm.read_variable("kept").map(|_| ()),
+            "write" => vm.write_variable("kept", Value::string("AFTER")),
+            "unset" => vm.unset_variable("kept"),
+            "package" => vm.package_provide("unentered", "1.0"),
+            _ => unreachable!(),
+        }
+        .expect_err("earlier original cause wins before another operation");
+        assert_eq!(
+            error.into_completion().unwrap_err(),
+            tcl_vm::TclHostFailure::Execution(
+                tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(original)
+            ),
+        );
+        assert_eq!(
+            vm.get_var("kept").unwrap().string_bytes().as_ref(),
+            b"BEFORE"
+        );
+        vm.package_provide("unentered", "2.0").unwrap();
+    }
 }
 
 fn failure(message: &str, options: Value) -> Completion<Value> {

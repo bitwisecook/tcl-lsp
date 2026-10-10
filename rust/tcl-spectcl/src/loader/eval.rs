@@ -347,6 +347,7 @@ const ROW_WORDS: &[&str] = &[
     "mutator",
     "destructive",
     "returns_path",
+    "source_index_bounds",
     "source_path_operation",
     "is_unescape",
     "loop_list_header",

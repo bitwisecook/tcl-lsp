@@ -2065,15 +2065,15 @@ impl Analyser {
     /// solver's branch facts), W230 / W232 index bounds, W231 `lset` bounds,
     /// and W232 string indices.
     ///
-    /// Grouped so the shared per-command dispatch stays readable; each check
-    /// is independent and every one of them takes the registry rather than
-    /// recognising a command by name. The loop checks take the document's
-    /// command surface, so a stub declaring `-loop` is checked as `while` is.
+    /// Loop plans use the actual metadata context. W230/W232 require the
+    /// selected original source schema and preserve captured operand origins;
+    /// the separate W231 prior-value scan receives the same retained context.
     fn emit_bounds_family_diagnostics(
         &mut self,
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
+        original: Option<&super::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
         let generation = self.analysis_context();
         let registry = super::bounds_checks::BoundsMetadataContext::Retained(&generation);
@@ -2091,13 +2091,8 @@ impl Analyser {
             self.loop_candidates.push(candidate);
         }
         let numbers = grammar.numbers;
-        let idx_diags = super::bounds_checks::list_index_diagnostics(
-            cmd_name,
-            args,
-            arg_tokens,
-            numbers,
-            self.word_rules(),
-        );
+        let idx_diags =
+            original.map_or_else(Vec::new, super::bounds_checks::original_index_diagnostics);
         let lset_diags = super::bounds_checks::lset_index_diagnostics(
             cmd_name,
             args,
@@ -2107,11 +2102,8 @@ impl Analyser {
             self.lexer_config(),
             numbers,
         );
-        let str_diags =
-            super::bounds_checks::string_index_diagnostics(cmd_name, args, arg_tokens, numbers);
         self.result.diagnostics.extend(idx_diags);
         self.result.diagnostics.extend(lset_diags);
-        self.result.diagnostics.extend(str_diags);
     }
 
     /// Dispatch-site diagnostic emitters, run from
@@ -2209,7 +2201,7 @@ impl Analyser {
         self.emit_w108_non_ascii(arg_tokens);
         self.emit_w148_numeral_release(args, arg_tokens);
         self.emit_w151_range_numerals(args, arg_tokens);
-        self.emit_bounds_family_diagnostics(cmd_name, args, arg_tokens);
+        self.emit_bounds_family_diagnostics(cmd_name, args, arg_tokens, original.as_ref());
         self.emit_registry_argument_diagnostics(site, original.as_ref());
         self.emit_w304_missing_option_terminator(original.as_ref(), cmd_name);
         self.emit_w217_unset_option_only(original.as_ref());
@@ -4994,7 +4986,10 @@ impl Analyser {
             return Vec::new();
         }
         let trim_base = u32::try_from(expr_text.len() - expr_text.trim_start().len()).unwrap_or(0);
-        let parsed = crate::parse_expr_for_profile(trimmed, Some(self.profile));
+        let Some(context) = self.original_expression_parser_context() else {
+            return Vec::new();
+        };
+        let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(trimmed, &context);
         parsed
             .function_calls()
             .into_iter()

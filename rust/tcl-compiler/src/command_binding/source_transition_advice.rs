@@ -32,8 +32,10 @@ pub use source_configured_class::OriginalSourceConfiguredClassReference;
 mod source_instance;
 mod source_procedure;
 mod source_procedure_publications;
-pub use produced_prefix::OriginalSourceProducedCommandPrefix;
 pub(crate) use produced_prefix::original_single_command_substitution_words;
+pub use produced_prefix::{
+    OriginalSourceAuthoredCommandPrefix, OriginalSourceProducedCommandPrefix,
+};
 pub use registered_instance::{
     OriginalSourceRegisteredHandleBinding, OriginalSourceRegisteredInstance,
     OriginalSourceRegisteredInstanceWords,
@@ -234,6 +236,8 @@ pub enum SourceCommandTransitionObligation {
     /// A selected original immediate body supplies conditional source syntax,
     /// without complete operand effects, an entered frame or execution facts.
     ConditionalLogicalBodyApplicability,
+    /// Original list data describes a conditional target without a deferred parent.
+    AuthoredCommandPrefixApplicability,
     /// A selected list builder describes a possible future invocation only.
     ProducedCommandPrefixApplicability,
     /// Successful named factory execution remains an independent premise.
@@ -507,6 +511,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     registry_barriers: BTreeSet<u32>,
     interpreter_bodies: BTreeMap<u32, OriginalSourceInterpreterHandleBody>,
     interpreter_paths: BTreeMap<u32, Vec<OriginalSourceInterpreterPathBinding>>,
+    authored_prefixes: BTreeMap<u32, Option<OriginalSourceAuthoredCommandPrefix>>,
     produced_prefixes: BTreeMap<u32, Option<OriginalSourceProducedCommandPrefix>>,
     registered_instances: BTreeMap<u32, Option<OriginalSourceRegisteredInstanceWords>>,
     registered_factories: BTreeMap<u32, Option<Arc<OriginalSourceRegisteredInstance>>>,
@@ -637,6 +642,9 @@ impl OriginalSourceTransitionAdviceTape {
                     }
                 })
                 .or_insert(receipt);
+        }
+        for (offset, prefix) in other.authored_prefixes {
+            self.merge_authored_prefix(offset, prefix);
         }
         for (offset, prefix) in other.produced_prefixes {
             self.merge_produced_prefix(offset, prefix);
@@ -1456,6 +1464,7 @@ impl AdviceInvocationContext<'_> {
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) -> Option<()> {
         self.retain_schema_advice(tape, invocation, graph, schema)?;
+        self.retain_authored_command_prefix(tape, invocation, graph, schema, None);
         self.retain_source_callback_targets(tape, invocation, graph, schema);
         self.retain_produced_command_prefixes(tape, invocation, graph, schema, None);
         self.retain_logical_procedure_body(tape, invocation, graph, schema);
@@ -1618,7 +1627,8 @@ impl AdviceInvocationContext<'_> {
             .then(|| graph.resolve(&head))
             .flatten();
         let original_barrier = graph.blocks_registry_source(&head);
-        let Some(operand_barrier) = self.inspect_operand_effects(graph, &invocation.words) else {
+        let Some(operand_barrier) = self.inspect_operand_effects(graph, &invocation.words, tape)
+        else {
             graph.widen(&invocation.words);
             return Some(());
         };

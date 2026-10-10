@@ -25,6 +25,7 @@ struct BodyWalk<'context, 'source> {
     context: &'context AdviceInvocationContext<'source>,
     visited: usize,
     inventory: Option<OriginalSourceTransitionAdviceTape>,
+    authored_prefixes: OriginalSourceTransitionAdviceTape,
     source_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
 }
 
@@ -36,6 +37,7 @@ impl AdviceInvocationContext<'_> {
         &self,
         graph: &mut AdviceGraph,
         native: &[NativeWord],
+        tape: &mut OriginalSourceTransitionAdviceTape,
     ) -> Option<bool> {
         let substitutions = native.iter().any(|word| {
             word.executable_parts()
@@ -44,13 +46,15 @@ impl AdviceInvocationContext<'_> {
         });
         if substitutions {
             graph.record_uncertainty(native);
-            BodyWalk {
+            let mut walk = BodyWalk {
                 context: self,
                 visited: 0,
                 inventory: None,
                 source_body: None,
-            }
-            .substitutions(graph, native, 0)?;
+                authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+            };
+            walk.substitutions(graph, native, 0)?;
+            tape.extend_inventory(walk.authored_prefixes);
         }
         Some(substitutions)
     }
@@ -71,6 +75,7 @@ impl AdviceInvocationContext<'_> {
                 && schema.semantics.body_kind == tcl_registry::BodyKind::Plain)
                 .then(OriginalSourceTransitionAdviceTape::default),
             source_body: None,
+            authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
         };
         let expressions_complete = walk.expressions(graph, advice, schema, 0).is_some();
         if !expressions_complete && walk.inventory.is_some() {
@@ -80,13 +85,15 @@ impl AdviceInvocationContext<'_> {
         }
         let regions_complete = (expressions_complete || walk.inventory.is_some())
             && walk.regions(graph, advice, schema, 0).is_some();
+        let mut inventory = if regions_complete {
+            walk.inventory.unwrap_or_default()
+        } else {
+            OriginalSourceTransitionAdviceTape::default()
+        };
+        inventory.extend_inventory(walk.authored_prefixes);
         BodyEffectProjection {
             effects_complete: expressions_complete && regions_complete,
-            inventory: if regions_complete {
-                walk.inventory.unwrap_or_default()
-            } else {
-                OriginalSourceTransitionAdviceTape::default()
-            },
+            inventory,
         }
     }
 }
@@ -451,6 +458,23 @@ impl BodyWalk<'_, '_> {
         invocation: AdviceInvocation<'_>,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) -> Option<()> {
+        let retained_producer = if let Some(body) = &self.source_body {
+            let mut advice = self.context.schema_advice(invocation, graph, schema)?;
+            advice.logical_body = Some(Arc::clone(body));
+            advice
+                .obligations
+                .push(SourceCommandTransitionObligation::ConditionalLogicalBodyApplicability);
+            Some(advice)
+        } else {
+            None
+        };
+        self.context.retain_authored_command_prefix(
+            &mut self.authored_prefixes,
+            invocation,
+            graph,
+            schema,
+            retained_producer.as_ref(),
+        );
         let (Some(tape), Some(body)) = (&mut self.inventory, &self.source_body) else {
             return Some(());
         };

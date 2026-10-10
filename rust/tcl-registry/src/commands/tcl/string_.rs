@@ -1329,6 +1329,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "insert",
+        source_index_bounds: Some(crate::SourceIndexBounds::StringInsert),
         // S110 (9.0-only subcommand): built on `TclStringReplace`, so a pure
         // byte-array operand with a pure byte-array insertion keeps the
         // byte-array rep, but the typical string insertion coerces —
@@ -2388,7 +2389,7 @@ pub fn spec() -> CommandSpec {
 mod tests {
     use tcl_dialect::model::{Family, SurfaceQuery};
 
-    use super::{fold_is, string_is_member_type};
+    use super::{fold_is, string_is_member_type, string_is_member_type_for_dialect};
     use crate::hooks::TclVersion;
     use crate::types::TclType;
     use crate::{CommandRegistry, DispatchDependencies, DispatchDependencyDomain};
@@ -2441,7 +2442,7 @@ mod tests {
                 .resolve_structured_invocation(invocation, dialect.authoring_query())
                 .resolved()
                 .unwrap();
-            let effects = resolved.effect_footprint();
+            let effects = resolved.effects();
             assert!(!effects.requires_world_barrier(), "{profile}: {effects:?}");
             assert!(effects.accesses().is_empty(), "{profile}: {effects:?}");
             for options in [
@@ -2452,13 +2453,10 @@ mod tests {
                     .commands()
                     .resolve_invocation("string", &options, dialect.authoring_query())
                     .unwrap();
-                assert!(
-                    resolved.effect_footprint().requires_world_barrier(),
-                    "{profile}"
-                );
+                assert!(resolved.effects().requires_world_barrier(), "{profile}");
                 assert!(
                     resolved
-                        .effect_footprint()
+                        .effects()
                         .accesses()
                         .iter()
                         .any(|access| access.domain == crate::WorldStateDomain::VariableStore),

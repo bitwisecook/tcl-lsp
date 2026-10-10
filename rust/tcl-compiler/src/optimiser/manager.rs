@@ -659,7 +659,6 @@ fn couple_const_dead_store_chain(
     let purity = super::elimination::PurityCtx {
         registry: Some(registry),
         interproc_pure: &empty,
-        enclosing_class: None,
         config: fu.source_lexer_config(),
         metadata: fu.invocation_metadata_context_for_module(registry, module),
         module: Some(module),

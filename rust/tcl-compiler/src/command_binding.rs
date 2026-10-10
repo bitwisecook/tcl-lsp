@@ -128,11 +128,12 @@ pub use source_catalogue_advice::{
 };
 pub(crate) use source_transition_advice::original_single_command_substitution_words;
 pub use source_transition_advice::{
-    OriginalLogicalSourceNameInput, OriginalSourceCallbackProcedureLookup,
-    OriginalSourceCallbackProcedureRefusal, OriginalSourceCallbackProcedureTarget,
-    OriginalSourceCallbackProcedureTargetKind, OriginalSourceCallbackRegistration,
-    OriginalSourceClassCandidate, OriginalSourceClassDeclaration, OriginalSourceClassHandleBinding,
-    OriginalSourceClassInstance, OriginalSourceClassInstanceWords, OriginalSourceClassPublication,
+    OriginalLogicalSourceNameInput, OriginalSourceAuthoredCommandPrefix,
+    OriginalSourceCallbackProcedureLookup, OriginalSourceCallbackProcedureRefusal,
+    OriginalSourceCallbackProcedureTarget, OriginalSourceCallbackProcedureTargetKind,
+    OriginalSourceCallbackRegistration, OriginalSourceClassCandidate,
+    OriginalSourceClassDeclaration, OriginalSourceClassHandleBinding, OriginalSourceClassInstance,
+    OriginalSourceClassInstanceWords, OriginalSourceClassPublication,
     OriginalSourceClassPublications, OriginalSourceClassReference, OriginalSourceCommandTransition,
     OriginalSourceCommandTransitionAdvice, OriginalSourceConfiguredClassReference,
     OriginalSourceConstructorCall, OriginalSourceConstructorShape,

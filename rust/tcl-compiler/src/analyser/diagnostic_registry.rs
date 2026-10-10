@@ -164,6 +164,8 @@ pub enum RegistrySourceDiagnosticKind {
     OptionOnly,
     /// Live substitution in an original selected regular-expression pattern.
     PatternSubstitution,
+    /// Literal index/container relationship from the selected original schema.
+    IndexBounds,
 }
 
 /// A structured source diagnostic subject with original schema ownership.
@@ -204,7 +206,7 @@ impl RegistrySourceDiagnosticSubject {
     pub const fn argument(&self) -> Option<usize> {
         self.argument
     }
-    /// Original written post-head operand ordinal, absent for a head subject.
+    /// Original written post-head ordinal, absent for a head or captured operand.
     #[must_use]
     pub const fn written_argument(&self) -> Option<usize> {
         self.written_argument

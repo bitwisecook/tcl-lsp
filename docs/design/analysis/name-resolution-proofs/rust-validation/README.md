@@ -2036,3 +2036,9 @@ The three independent locked, offline no-run unit builds close with exit101 and 
 - `integration-native-consumer-test-build267`: [exact receipt](frozen267/integration-native-consumer-test-build267/receipt.json.gz), [complete log](frozen267/integration-native-consumer-test-build267/tests.log). Exit101; 139.981644s; 1 ordinary Core errors; one unrun CmdCore libtest artifact marked `fresh: false`.
 
 Each receipt is a lossless gzip payload with compressed and uncompressed SHA256. Every immutable archived source leaf is independently byte-checked; both266 commands retain the exact same source inventory. Original commands, source association, paths, timing, diagnostics and unrun artifact records remain unchanged.
+
+## VM no-run unit build268
+
+The exact locked, offline VM library no-run unit build closes with exit101 after 144.900876s and `uniform_source: true`. Two libtest compilation errors block construction: stale `brace_safe`/`quote_for_script` imports in exec.rs and the old InterpState `dialect_profile` field in interp.rs. It emits no libtest executable and never reaches test inventory or assertions. There is no sealed pin, compiled test pass, aggregate gate or Native provider result.
+
+Its [exact original receipt](frozen268/integration-vm-native-test-build268/receipt.json.gz) is retained as lossless gzip with compressed and uncompressed SHA256. The [complete log](frozen268/integration-vm-native-test-build268/tests.log) preserves every diagnostic. Every immutable source archive leaf is independently checked against the receipt inventory; original commands, paths, source association and timing remain exact.

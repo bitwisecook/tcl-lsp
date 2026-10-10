@@ -9056,6 +9056,7 @@ mod tests {
     use crate::spec::ArgRoleResolver;
     use std::collections::BTreeSet;
     use std::sync::Arc;
+    use tcl_dialect::DialectProfile;
     use tcl_dialect::model::SpecProvider;
     use tcl_dialect::model::{Family, SpecSurface, SurfaceLayer, SurfaceQuery};
     use tcl_dialect::surface;
@@ -16907,7 +16908,7 @@ mod tests {
             Some(TryControlInvocation {
                 body_index: 0,
                 clauses: vec![TryControlClause {
-                    kind: TryClauseKind::On(crate::completion::CompletionCode::Error),
+                    kind: TryClauseKind::On(TryCompletionSelector::Error),
                     selector_index: Some(2),
                     variable_list_index: Some(3),
                     body_index: 4,
@@ -16998,7 +16999,7 @@ mod tests {
         for spelling in ["+1", "01", "0x1", " 1 "] {
             assert_eq!(
                 selector(tcl9, spelling),
-                Some(crate::completion::CompletionCode::Error),
+                Some(TryCompletionSelector::Error),
                 "Tcl 9 completion selector {spelling:?}"
             );
         }
@@ -17014,18 +17015,18 @@ mod tests {
         let tcl8 = crate::model::ingress::static_context_for("tcl8.6").commands();
         assert_eq!(
             selector(tcl8, "010"),
-            Some(crate::completion::CompletionCode::Other(8))
+            Some(TryCompletionSelector::Numeric(8))
         );
         assert_eq!(
             selector(tcl9, "010"),
-            Some(crate::completion::CompletionCode::Other(10))
+            Some(TryCompletionSelector::Numeric(10))
         );
 
         // Completion codes use Tcl's C-compatible signed-int domain: the
         // final unsigned range wraps, while values outside it are invalid.
         assert_eq!(
             selector(tcl9, "4294967295"),
-            Some(crate::completion::CompletionCode::Other(-1))
+            Some(TryCompletionSelector::Numeric(-1))
         );
         for out_of_range in ["-2147483649", "4294967296", "9223372036854775808"] {
             assert_eq!(
@@ -17063,7 +17064,7 @@ mod tests {
         assert!(matches!(
             invocation.clauses.as_slice(),
             [TryControlClause {
-                kind: TryClauseKind::On(crate::completion::CompletionCode::Other(10)),
+                kind: TryClauseKind::On(TryCompletionSelector::Numeric(10)),
                 ..
             }]
         ));

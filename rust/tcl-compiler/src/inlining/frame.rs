@@ -68,6 +68,9 @@ use crate::var_refs::{VarReferenceScanner, VarScanOptions};
 
 /// Whether every variable `proc`'s body reads is bound when it is read.
 pub(super) fn reads_only_bound_names(proc: &Procedure, source: SourceContext<'_>) -> bool {
+    if !source.matches_procedure(proc) {
+        return false;
+    }
     let frame = Frame { source };
     let mut bound: HashSet<String> = proc
         .params
@@ -97,6 +100,7 @@ pub(super) struct SourceContext<'a> {
     pub(super) metadata: crate::registry_invocation::InvocationMetadataContext<'a>,
     pub(super) config: LexerConfig,
     image: &'a tcl_lexer::SourceImage,
+    retained: &'a crate::command_binding::RetainedSourceModuleBindings,
 }
 
 impl<'a> SourceContext<'a> {
@@ -115,7 +119,12 @@ impl<'a> SourceContext<'a> {
             metadata,
             config: module.lexer_config,
             image: &module.source,
+            retained: module.retained_source_bindings.as_deref()?,
         })
+    }
+
+    pub(super) fn matches_procedure(self, procedure: &Procedure) -> bool {
+        self.retained.matches_original_procedure(procedure)
     }
 
     pub(super) fn invocation(
@@ -754,6 +763,34 @@ mod tests {
         };
         *tokens = None;
         assert!(!reads_only_bound_names(&cooked, selected));
+    }
+
+    #[test]
+    fn original_frame_context_declines_modified_procedure_headers_and_bodies() {
+        // naming.inlining.original-frame-source-context
+        // docs/design/analysis/name-resolution-proofs/inlining-original-frame-source-context.md
+        // The retained producer signature is shared with source completion;
+        // it provides no native frame or source-edit permission.
+        let (context, module) =
+            crate::inlining::tests::logical_module_for("proc p {café} {return ${café}}; p VALUE");
+        let source = SourceContext::for_module(&module, context.commands()).unwrap();
+        let original = &module.procedures["::p"];
+        assert!(reads_only_bound_names(original, source));
+        let mutations: &[fn(&mut Procedure)] = &[
+            |procedure| procedure.name = "other".into(),
+            |procedure| procedure.qualified_name = "::other".into(),
+            |procedure| procedure.params_raw = "{café DEFAULT}".into(),
+            |procedure| procedure.params = vec!["other".into()],
+            |procedure| procedure.body_offset += 1,
+            |procedure| procedure.body_source = Some("return OTHER".into()),
+            |procedure| procedure.body.statements.clear(),
+        ];
+        for mutate in mutations {
+            let mut changed = original.clone();
+            mutate(&mut changed);
+            assert!(!source.matches_procedure(&changed));
+            assert!(!reads_only_bound_names(&changed, source));
+        }
     }
 
     #[test]

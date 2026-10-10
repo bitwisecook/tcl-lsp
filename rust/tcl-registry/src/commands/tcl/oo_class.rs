@@ -457,7 +457,7 @@ mod tests {
                         WorldStateDomain::CommandBindings
                     ))
             );
-            let effects = selected.effect_footprint();
+            let effects = selected.effects();
             assert!(
                 !effects
                     .accesses()

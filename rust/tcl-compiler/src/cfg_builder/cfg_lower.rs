@@ -2542,13 +2542,10 @@ mod tests {
             let mut builder = CfgBuilder::new(false, registry).with_lexer_config(config);
             builder.command_classes = CfgCommandClasses::from_source_input(registry, Some(&input));
             assert_eq!(builder.handler_code(&handlers[1]), Some(expected));
-            assert_eq!(
-                builder.handler_shadowed(&handlers[..1], &handlers[1]),
-                shadowed
-            );
+            assert_eq!(builder.handler_chain(handlers).preempted(1), shadowed);
             builder.command_classes = CfgCommandClasses::from_source_input(registry, None);
             assert_eq!(builder.handler_code(&handlers[1]), None);
-            assert!(!builder.handler_shadowed(&handlers[..1], &handlers[1]));
+            assert!(!builder.handler_chain(handlers).preempted(1));
             assert_eq!(
                 builder.handler_code(&handlers[0]),
                 Some(tcl_core_types::Code::Other(8))

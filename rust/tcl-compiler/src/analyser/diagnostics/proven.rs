@@ -545,32 +545,9 @@ impl Analyser {
         written: &super::super::diagnostic_registry::OriginalDiagnosticInvocation,
         proven: &super::super::diagnostic_registry::OriginalDiagnosticInvocation,
     ) {
-        let (Some((original_args, original_tokens, _)), Some((proven_args, proven_tokens, _))) =
-            (written.source_arguments(), proven.source_arguments())
-        else {
-            return;
-        };
-        let numbers = self.grammar().numbers;
-        let rules = self.word_rules();
-        let run = |args: &[String], tokens: &[Token]| {
-            let mut found = super::super::bounds_checks::list_index_diagnostics(
-                proven.command(),
-                args,
-                tokens,
-                numbers,
-                rules,
-            );
-            found.extend(super::super::bounds_checks::string_index_diagnostics(
-                proven.command(),
-                args,
-                tokens,
-                numbers,
-            ));
-            found
-        };
-        let written = run(&original_args, &original_tokens);
-        for diagnostic in run(&proven_args, &proven_tokens) {
-            let drawn = written.iter().any(|seen| {
+        let written_diagnostics = super::super::bounds_checks::original_index_diagnostics(written);
+        for diagnostic in super::super::bounds_checks::original_index_diagnostics(proven) {
+            let drawn = written_diagnostics.iter().any(|seen| {
                 seen.code == diagnostic.code
                     && seen.span == diagnostic.span
                     && seen.message == diagnostic.message

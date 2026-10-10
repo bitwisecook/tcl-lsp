@@ -14,9 +14,13 @@ How does original child evaluation retain a reached typed host refusal and the e
 
 child_eval_original evaluates the selected original body in the actual child. Before guest completion capture it checks host_refusal_pending. A reached child refusal transports the actual admission/access failure fields through transport_host_refusal_from and returns Error without publishing a guest result/options pair. An existing parent refusal remains authoritative for each corresponding field; both interpreter states remain retained. The parent result stays unchanged. The fixed authored host-worker control demonstrates typed access-cause transport and prior-parent precedence, not a native child interpreter, guest error-options equivalence, value allocation, lookup identity or successful command execution.
 
+The Runtime embedding adapter shares this host-only boundary. Its typed host refusal is uncatchable by guest catch, preserves effects already reached and leaves pending result/return/options state intact. Actual child transport retains an earlier parent cause and result. Explicit guest ScriptBytes errors and nonstandard completions retain a separate original options path; no host reason is fabricated as guest error options.
+
 ## Scope
 
 One fixed Runtime source/API control uses an explicit authored host worker in a created model child, with and without an existing parent refusal. It compares the actual retained typed cause in both states and unchanged parent result. All seven native providers are not tested; no external process or native object/header/frame observation answers this API question.
+
+One additional embedding software control binds this typed-host boundary and prior-parent precedence; it does not execute a native child or assert C/Jim guest exception equivalence. Exact counted result/resident facts are authored Rust inputs, not independently produced Native object observations.
 
 ## Provider answers
 
@@ -79,6 +83,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs), `interp::native_children::tests::child_host_failure_keeps_its_typed_cause_and_parent_result` (linked): Explicit authored child host worker keeps its typed access failure and prior-parent precedence with unchanged parent result; no native execution observation.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [runtime/rust/src/engine.rs](../../../../runtime/rust/src/engine.rs), `fail`: Keep typed host execution refusal outside guest catch, retaining prior interpreter result/return state and effects; only explicit guest Script/ScriptBytes failures use the guest completion owner.
+- [runtime/rust/src/engine.rs](../../../../runtime/rust/src/engine.rs), `capture_answer`: Detect retained host refusal before guest result/options capture; a child host cause does not replace prior parent refusal or result.
+- [runtime/rust/src/engine.rs](../../../../runtime/rust/src/engine.rs), `engine::tests::host_refusal_is_uncatchable_and_retains_prior_effects_and_completion_state` (linked): Typed host execution refusal remains outside guest catch/completion, retains earlier effects and prevents later effects. The model keeps the prior result/resident bytes, pending return state/options and prior-parent host cause when transporting a child refusal.
+
+These source/API bindings carry no executed assertion or Native provider result.
 
 ## Replay
 

@@ -786,7 +786,7 @@ mod tests {
         let mut map = RegistryTable::default();
         let one = Arc::new(CommandRegistry::build_default());
         for stale in 0..OVERLAY_LIMIT as u64 {
-            map.insert((profile.name, 0x0E91_0000 + stale), Arc::clone(&one));
+            map.insert((profile.cache_key(), 0x0E91_0000 + stale), Arc::clone(&one));
         }
         let before_sweep = overlay_epoch();
         prune_overlays(&mut map, 0x0E92_0000);

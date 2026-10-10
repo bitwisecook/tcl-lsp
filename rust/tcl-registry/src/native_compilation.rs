@@ -2001,6 +2001,7 @@ impl NativeCompilationSpec {
         use crate::native_introspection_compilation::NativeIntrospectionKind as Kind;
         match self.grammar {
             NativeCompilationGrammar::InfoLevel => Some(Kind::InfoLevel),
+            NativeCompilationGrammar::InfoCommands => Some(Kind::InfoCommands),
             NativeCompilationGrammar::NamespaceCurrent => Some(Kind::NamespaceCurrent),
             NativeCompilationGrammar::NamespaceOrigin => Some(Kind::NamespaceOrigin),
             NativeCompilationGrammar::NamespaceCode => Some(Kind::NamespaceCode),
@@ -4979,10 +4980,9 @@ fn info_commands_grammar(
     let absolute = shapes.len() == 2
         && literal_shape(shapes[1])
         && words.arguments().literal_at(1).is_some_and(|pattern| {
-            pattern.starts_with("::")
-                && !pattern
-                    .chars()
-                    .any(|ch| matches!(ch, '*' | '[' | '?' | '\\'))
+            crate::native_introspection_compilation::native_info_commands_literal_is_trivial(
+                pattern.as_bytes(),
+            )
         });
     if absolute {
         NativeCompilationSelection::Inline {

@@ -25,6 +25,11 @@
 //! an explicitly supplied [`SemanticContext`] — the resolved environment the
 //! document is assisted under (redesign §11.2 D1).
 
+mod original_procedure_call;
+pub(crate) use original_procedure_call::{
+    original_logical_procedure_calls_for_module, original_procedure_formal_count_shape,
+    original_procedure_scalar_bindings,
+};
 mod metadata_context;
 pub use metadata_context::{
     InvocationMetadataContext, InvocationMetadataInput, OwnedInvocationMetadataContext,

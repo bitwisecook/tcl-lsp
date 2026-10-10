@@ -1998,6 +1998,40 @@ fn source_transition_words_with_segment(
     })
 }
 
+/// Authored target metadata of a selected original list builder at its actual
+/// source point. Inert list data gains no deferred parent, future lookup,
+/// evaluated result object, current receiver or dispatch authority.
+#[must_use]
+pub fn source_authored_command_prefix(
+    source: &str,
+    analysis: &AnalysisResult,
+    producer: &crate::segmenter::SegmentedCommand,
+) -> Option<crate::command_binding::OriginalSourceAuthoredCommandPrefix> {
+    // naming.source.original-authored-command-prefix-data
+    // docs/design/analysis/name-resolution-proofs/source-original-authored-command-prefix-data.md
+    let input = analysis.resolved_input.as_ref()?;
+    let config = input.lexer_config();
+    let image = tcl_lexer::SourceImage::document(source);
+    analysis
+        .matches_original_source_image(&image, config)
+        .then_some(())?;
+    (analysis.body_lexer_config == Some(config)).then_some(())?;
+    let realm = analysis.retained_command_realm()?;
+    realm.matches_resolved_analysis_input(input).then_some(())?;
+    let tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        producer,
+    );
+    let original = super::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        producer.argv.first()?.span.start(),
+        config,
+    )?;
+    realm.original_authored_command_prefix(input, &original)
+}
+
 /// Conditional future source argv built by a selected original list invocation
 /// in a retained deferred operand. Every written target operand keeps its own
 /// builder source word; captured target-prefix values acquire no source anchor.

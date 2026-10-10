@@ -66,14 +66,26 @@ impl PureFunction {
     /// stub `register_all` would have registered, when the table names one.
     fn stub(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         let table = format!("::itest::cmd::_stub_actions({})", self.mock);
-        let action = vm
-            .read_variable(&table)
-            .ok()
-            .and_then(|action| action.as_list().ok());
+        let action = match vm.read_variable(&table) {
+            Ok(original) => match tcl_syntax::value::ValueOps::list_elements(vm, &original) {
+                Ok(action) => Some(action),
+                Err(error) => {
+                    if let Some(refusal) = error.native_access_refusal() {
+                        return vm
+                            .refuse_tcl_host_failure(tcl_vm::TclHostFailure::ValueAccess(refusal));
+                    }
+                    None
+                }
+            },
+            Err(error) => match error.into_completion() {
+                Ok(_) => None,
+                Err(failure) => return vm.refuse_tcl_host_failure(failure),
+            },
+        };
         let Some(action) = action else {
             return Completion::new(Code::Ok, Value::empty(), Value::empty());
         };
-        let mut words: Vec<Value> = action.iter().cloned().collect();
+        let mut words = action;
         words.extend_from_slice(args);
         vm.invoke_command("::itest::cmd::_stub", &words)
     }
@@ -585,5 +597,107 @@ mod tests {
             }
         }
         eprintln!("compared {compared} samples against tclsh");
+    }
+}
+
+#[cfg(test)]
+mod stub_transport_tests {
+    use super::*;
+    use std::cell::Cell;
+
+    struct RunStub(PureFunction);
+    impl NativeCommand for RunStub {
+        fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+            self.0.stub(vm, args)
+        }
+    }
+
+    struct CountStub(Rc<Cell<usize>>);
+    impl NativeCommand for CountStub {
+        fn invoke(&self, _: &mut Vm, _: &[Value]) -> Completion<Value> {
+            self.0.set(self.0.get() + 1);
+            Completion::new(Code::Ok, Value::string("ACTION"), Value::empty())
+        }
+    }
+
+    struct RefuseRead;
+    impl NativeCommand for RefuseRead {
+        fn invoke(&self, vm: &mut Vm, _: &[Value]) -> Completion<Value> {
+            vm.set_var("::reached", Value::string("BEFORE")).unwrap();
+            vm.refuse_host_command("original stub-table trace refusal".into())
+        }
+    }
+
+    fn fixture() -> (Vm, Rc<Cell<usize>>) {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(profile);
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        ));
+        vm.try_eval_source("namespace eval ::itest::cmd {}; set prior BEFORE")
+            .unwrap();
+        let calls = Rc::new(Cell::new(0));
+        vm.register_native_command("::itest::cmd::_stub", Rc::new(CountStub(Rc::clone(&calls))));
+        vm.register_native_command(
+            "probe",
+            Rc::new(RunStub(PureFunction {
+                command: "probe",
+                mock: "cmd_probe".into(),
+            })),
+        );
+        (vm, calls)
+    }
+
+    #[test]
+    fn optional_stub_lookup_preserves_host_failure_before_any_fallback_or_dispatch() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let (mut vm, calls) = fixture();
+        vm.register_native_command("refuse_read", Rc::new(RefuseRead));
+        vm.try_eval_source("set ::itest::cmd::_stub_actions(cmd_probe) ACTION; trace variable ::itest::cmd::_stub_actions(cmd_probe) r refuse_read").unwrap();
+        let error = vm
+            .try_eval_source("catch {probe input} captured; set after YES")
+            .unwrap_err();
+        let tcl_runtime_api::NativeExecutionError::HostCommandRefusal(original) = error else {
+            panic!("a reached host table refusal cannot supply a fallback answer");
+        };
+        assert_eq!(original.reason, "original stub-table trace refusal");
+        assert_eq!(calls.get(), 0);
+        assert_eq!(
+            vm.get_var("prior").unwrap().string_bytes().as_ref(),
+            b"BEFORE"
+        );
+        assert_eq!(
+            vm.get_var("reached").unwrap().string_bytes().as_ref(),
+            b"BEFORE"
+        );
+        assert!(vm.get_var("captured").is_none());
+        assert!(vm.get_var("after").is_none());
+    }
+
+    #[test]
+    fn optional_stub_lookup_accepts_only_actual_selected_action_members() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let (mut vm, calls) = fixture();
+        let absent = vm.try_eval_source("probe input").unwrap();
+        assert_eq!(absent.code, Code::Ok);
+        assert!(absent.result.string_bytes().is_empty());
+        assert_eq!(calls.get(), 0);
+        vm.write_variable("::itest::cmd::_stub_actions(cmd_probe)", Value::string("{"))
+            .unwrap();
+        let malformed = vm.try_eval_source("probe input").unwrap();
+        assert_eq!(malformed.code, Code::Ok);
+        assert!(malformed.result.string_bytes().is_empty());
+        assert_eq!(calls.get(), 0);
+        vm.write_variable(
+            "::itest::cmd::_stub_actions(cmd_probe)",
+            Value::string("ACTION"),
+        )
+        .unwrap();
+        let selected = vm.try_eval_source("probe input").unwrap();
+        assert_eq!(selected.result.string_bytes().as_ref(), b"ACTION");
+        assert_eq!(calls.get(), 1);
     }
 }

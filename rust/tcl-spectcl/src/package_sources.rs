@@ -72,6 +72,7 @@ pub(crate) fn provision(
                 command.reference_text = Some(Arc::from(text));
             }
             Err(reason) => notices.push(PackNotice {
+                subject: None,
                 path: command.file.clone(),
                 line: command.line,
                 context: format!("command {}", command.spec.name),

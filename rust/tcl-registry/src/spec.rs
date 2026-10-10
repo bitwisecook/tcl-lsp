@@ -1957,6 +1957,10 @@ pub struct CommandSpec {
     /// A resolved subcommand or form may override this callback.
     pub literal_argument_validator: Option<LiteralArgumentValidator>,
 
+    /// Conditional index/container relationship for original source advice.
+    /// This descriptor grants no native handler, current value or result.
+    pub source_index_bounds: Option<crate::source_index_bounds::SourceIndexBounds>,
+
     /// Inferred storage type for the target variable (`Dict`, `List`, `Array`).
     pub inferred_storage_type: Option<StorageType>,
 
@@ -2910,6 +2914,7 @@ impl CommandSpec {
         state_transitions: None,
         dispatch_dependencies: None,
         literal_argument_validator: None,
+        source_index_bounds: None,
         inferred_storage_type: None,
         required_package: None,
         tk_geometry: None,
@@ -4404,6 +4409,10 @@ pub struct SubCommand {
     /// A matching form may override this callback.
     pub literal_argument_validator: Option<LiteralArgumentValidator>,
 
+    /// Conditional index/container relationship for original source advice.
+    /// This descriptor grants no native handler, current value or result.
+    pub source_index_bounds: Option<crate::source_index_bounds::SourceIndexBounds>,
+
     /// Irreversible operation (`file delete`, …).
     pub destructive: bool,
 
@@ -4778,6 +4787,7 @@ impl SubCommand {
         state_transitions: None,
         dispatch_dependencies: None,
         literal_argument_validator: None,
+        source_index_bounds: None,
         destructive: false,
         returns_path: false,
         source_path_operation: None,

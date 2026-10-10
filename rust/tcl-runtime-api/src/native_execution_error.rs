@@ -95,6 +95,8 @@ pub enum NativeExecutionError {
     CompileServiceRefusal(Box<NativeCompileServiceRefusal>),
     /// A reached expression cannot be executed faithfully by this engine.
     ExpressionRefusal(Box<NativeExpressionFailure>),
+    /// A reached native value operation lacks its actual execution capability.
+    ValueAccessRefusal(tcl_syntax::raw_string::NativeValueAccessRefusal),
     /// A host command explicitly refused its requested execution capability.
     HostCommandRefusal(Box<NativeHostCommandRefusal>),
 }
@@ -111,6 +113,7 @@ impl std::fmt::Display for NativeExecutionError {
             Self::CompilationAdmission(error) => error.fmt(formatter),
             Self::CompileServiceRefusal(failure) => formatter.write_str(&failure.reason),
             Self::HostCommandRefusal(failure) => formatter.write_str(&failure.reason),
+            Self::ValueAccessRefusal(failure) => failure.fmt(formatter),
             Self::ExpressionRefusal(failure) => formatter.write_str(match failure.reason {
                 NativeExpressionRefusal::UnsupportedGrammar => {
                     "native expression provider required for unsupported grammar"

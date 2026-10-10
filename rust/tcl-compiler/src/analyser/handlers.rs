@@ -12494,11 +12494,13 @@ mod tests {
         Span::new(start, end)
     }
 
-    // `substitution_elements` — a `[…]` value read as a call's words
-
-    fn elements(text: &str) -> Option<Vec<&str>> {
-        super::super::commands::substitution_elements(text)
-            .map(|words| words.into_iter().map(|(word, _)| word).collect())
+    // Explicit standalone word-shape controls use the shared lexer owner.
+    fn elements(text: &str) -> Option<Vec<String>> {
+        let (head, args) = crate::value_shapes::parse_command_substitution_with_config(
+            text,
+            tcl_lexer::LexerConfig::default(),
+        )?;
+        Some(std::iter::once(head).chain(args).collect())
     }
 
     #[test]

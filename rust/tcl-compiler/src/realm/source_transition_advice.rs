@@ -520,6 +520,31 @@ impl super::CommandBindingRealm {
             .then(|| prefix.clone())
     }
 
+    /// Authored list data retains its exact builder point, not a deferred parent.
+    pub(crate) fn original_authored_command_prefix(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        original: &[tcl_lexer::NativeWord],
+    ) -> Option<crate::command_binding::OriginalSourceAuthoredCommandPrefix> {
+        self.matches_resolved_analysis_input(input).then_some(())?;
+        let image = self.original_source_image()?;
+        let config = input.lexer_config();
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let context = input.context_registry();
+        let prepared = self.source_advice.get_or_prepare(&context, || {
+            self.bindings
+                .original_source_transition_advice_tape(&context)
+        });
+        let prefix = prepared
+            .as_ref()
+            .as_ref()?
+            .authored_prefix(original.first()?.span().start())?;
+        (prefix.matches_source_context(image, config, &context)
+            && prefix.producer().original_words() == original)
+            .then(|| prefix.clone())
+    }
+
     /// Source-only aliases and moves do not fill absent execution lookup.
     /// Full context and immutable source/Registry/configuration guard the tape.
     pub(crate) fn original_source_transition_advice(

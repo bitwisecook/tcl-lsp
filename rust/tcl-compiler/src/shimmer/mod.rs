@@ -586,7 +586,7 @@ mod tests {
         );
         let types: HashMap<ValueKey, TypeLattice> = HashMap::new();
         assert!(find_shimmer_warnings(&f, &ssa, &types, &sccp, &registry()).is_empty());
-        assert!(
+        assert_eq!(
             find_thunking_warnings(
                 &f,
                 &ssa,

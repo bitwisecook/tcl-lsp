@@ -2853,15 +2853,19 @@ impl Analyser {
         if !contains_gated_word(expr_text) {
             return;
         }
-        let Some((base, f5_words)) = self.w003_gates() else {
+        let Some(original) = self.original_expression_parser_context() else {
             return;
         };
+        let Some(base) = original.expr_grammar_base else {
+            return;
+        };
+        let f5_words = original.f5_word_grammar.is_some();
 
         // Operator assistance recognises the full shipped vocabulary while
         // preserving this document's lexical rules. Availability remains the
         // actual profile's gate above; this tree carries no native proof.
         let trimmed = expr_text.trim();
-        let assistance = gated_operator_assistance_context(self.profile);
+        let assistance = gated_operator_assistance_context(original);
         let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(trimmed, &assistance);
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
@@ -3004,10 +3008,14 @@ impl Analyser {
         if !contains_gated_word(joined_text) {
             return;
         }
-        let Some((base, f5_words)) = self.w003_gates() else {
+        let Some(original) = self.original_expression_parser_context() else {
             return;
         };
-        let assistance = gated_operator_assistance_context(self.profile);
+        let Some(base) = original.expr_grammar_base else {
+            return;
+        };
+        let f5_words = original.f5_word_grammar.is_some();
+        let assistance = gated_operator_assistance_context(original);
         let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(
             joined_text.trim(),
             &assistance,
@@ -3034,24 +3042,6 @@ impl Analyser {
                 // one) — left unfixed.
 Vec::new()));
         }
-    }
-
-    /// The active dialect's `expr`-grammar base version and F5-family
-    /// word-operator acceptance, or `None` when the dialect string has no
-    /// documented base version (nothing for W003 to check — see
-    /// [`gated_operator_name`], which does the real per-operator gate
-    /// comparison against this).
-    ///
-    /// The second half follows the **family fact**, not the iRules name:
-    /// the word-form operators are an `f5-tcl` trunk fact, measured valid
-    /// in tmsh and iApp `expr` too
-    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a), so any
-    /// F5Tcl-cored profile passes the word-operator gate.
-    fn w003_gates(&self) -> Option<(tcl_dialect::TclVersion, bool)> {
-        let profile = self.profile;
-        profile
-            .expr_grammar_base
-            .map(|base| (base, profile.f5_core_expr_grammar().is_some()))
     }
 }
 
@@ -3197,9 +3187,8 @@ pub(super) fn last_literal_set_value_for_var(
 /// syntax acceptance. The warning compares each recognised operator with the
 /// actual profile separately; lexical and numeral rules remain source-selected.
 fn gated_operator_assistance_context(
-    profile: &tcl_dialect::DialectProfile,
+    mut context: tcl_syntax::expr::parser::ExprParseContext,
 ) -> tcl_syntax::expr::parser::ExprParseContext {
-    let mut context = tcl_syntax::expr::parser::ExprParseContext::for_profile(profile);
     context.expr_grammar_base = Some(tcl_dialect::TclVersion::V9_1);
     context.f5_word_grammar = tcl_dialect::DialectProfile::irules().f5_core_expr_grammar();
     context.native_syntax = tcl_syntax::expr::parser::NativeExprSyntax::Unknown;
@@ -3744,6 +3733,105 @@ mod logical_class_family_tests {
                     "{dialect}: reports cannot donate a Native class receipt"
                 );
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_expression_assistance_tests {
+    use super::*;
+
+    fn input(braced_var: tcl_dialect::BracedVarStyle) -> crate::analyser::ResolvedAnalysisInput {
+        let selected =
+            tcl_dialect::DialectProfile::find("tcl8.4").expect("authored Tcl 8.4 grammar");
+        let mut profile = tcl_dialect::DialectProfile::plain_tcl().clone();
+        profile.grammar = selected.grammar;
+        profile.expr_grammar_base = selected.expr_grammar_base;
+        let profile = profile.intern();
+        let config = tcl_lexer::LexerConfig {
+            braced_var,
+            ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry(),
+            config,
+        );
+        assert!(input.has_logical_source_name_context());
+        input
+    }
+
+    #[test]
+    fn original_operator_assistance_preserves_retained_variable_grammar() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Recognition and warning geometry only; no Native syntax acceptance.
+        let source = "expr {${a{b}c} in {λ}}";
+        for (style, count) in [
+            (tcl_dialect::BracedVarStyle::FirstClose, 0),
+            (tcl_dialect::BracedVarStyle::Tcl9Nesting, 1),
+        ] {
+            let result = Analyser::new()
+                .with_resolved_input(input(style))
+                .analyse(source, "tcl");
+            let warnings = result
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == DiagCode::W003)
+                .collect::<Vec<_>>();
+            assert_eq!(warnings.len(), count, "{style:?}: {:?}", result.diagnostics);
+            if let [warning] = warnings.as_slice() {
+                assert_eq!(source.get(warning.span.as_range()), Some("in"));
+            }
+        }
+    }
+
+    #[test]
+    fn original_function_assistance_keeps_lexer_overlays_and_missing_owner_refusals() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Original source references only, independently of dispatch/frames.
+        let source = "expr {max(${a{b}c}, 1)}";
+        for (style, count) in [
+            (tcl_dialect::BracedVarStyle::FirstClose, 0),
+            (tcl_dialect::BracedVarStyle::Tcl9Nesting, 1),
+        ] {
+            let actual = input(style);
+            let mut analyser = Analyser::new().with_resolved_input(actual.clone());
+            let result = analyser.analyse(source, "tcl");
+            let functions = result
+                .command_invocations
+                .iter()
+                .filter(|invocation| invocation.is_mathfunc_call && invocation.name == "max")
+                .collect::<Vec<_>>();
+            assert_eq!(functions.len(), count, "{style:?}");
+            if let [function] = functions.as_slice() {
+                assert_eq!(source.get(function.range.as_range()), Some("max"));
+                assert_eq!(function.argc, Some(2));
+            }
+            let command = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                actual.lexer_config(),
+            )
+            .pop()
+            .unwrap();
+            let expression = command.argv[1];
+            analyser.result.resolved_input = None;
+            assert!(analyser.expr_function_calls(expression).is_empty());
+            analyser.result.resolved_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+                actual.analyser_profile(),
+                actual.unit_profile(),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0")
+                    .default_context_registry(),
+                actual.lexer_config(),
+            ));
+            assert!(analyser.expr_function_calls(expression).is_empty());
+            let mut stale = actual;
+            stale.config.strict_quoting = !stale.config.strict_quoting;
+            analyser.result.resolved_input = Some(stale);
+            assert!(analyser.expr_function_calls(expression).is_empty());
         }
     }
 }

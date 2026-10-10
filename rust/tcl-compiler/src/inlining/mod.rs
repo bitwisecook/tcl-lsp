@@ -732,6 +732,7 @@ fn build_inlinable_map(
     let mut map = HashMap::new();
     for (qname, proc) in &module.procedures {
         if module.redefined_procedures.contains(qname)
+            || !source.matches_procedure(proc)
             || crate::native_compilation_admission::script_requires_admission(&proc.body)
         {
             continue;

@@ -97,10 +97,8 @@ mod tests {
         assert_eq!(effects.names, ["local"]);
         assert!(!effects.read_names.iter().any(|name| name == "other"));
         let mut missing = row.clone();
-        Arc::make_mut(&mut missing.snapshot)
-            .state
-            .baseline
-            .metadata_context = OwnedInvocationMetadataContext::Unavailable;
+        Arc::make_mut(&mut Arc::make_mut(&mut missing.snapshot).state.baseline).metadata_context =
+            OwnedInvocationMetadataContext::Unavailable;
         assert!(
             missing
                 .source_body_name_ownership(
@@ -156,12 +154,10 @@ mod tests {
         let foreign =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
         let mut changed = row.clone();
-        Arc::make_mut(&mut changed.snapshot)
-            .state
-            .baseline
-            .metadata_context = OwnedInvocationMetadataContext::for_source_input(Some(
-            &ResolvedAnalysisInput::new(profile, profile, foreign, config),
-        ));
+        Arc::make_mut(&mut Arc::make_mut(&mut changed.snapshot).state.baseline).metadata_context =
+            OwnedInvocationMetadataContext::for_source_input(Some(&ResolvedAnalysisInput::new(
+                profile, profile, foreign, config,
+            )));
         assert!(
             changed
                 .source_body_name_ownership(

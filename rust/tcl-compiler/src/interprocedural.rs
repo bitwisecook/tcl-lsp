@@ -37,6 +37,8 @@ mod eager;
 mod transfer;
 
 pub(crate) use completion::CompletionWalk;
+#[cfg(test)]
+pub(crate) use completion::tests::logical_unit as logical_completion_unit;
 pub(crate) use eager::{DefinitionReach, EagerInvocations};
 pub use transfer::TransferSummaries;
 pub(crate) use transfer::{CallTransfer, ModuleInputs, ModuleProcedures, Rerun, RerunStance};
@@ -778,34 +780,6 @@ pub fn build_interprocedural_analysis(
     )
 }
 
-/// Build interprocedural summaries while reusing an already-built module CFG.
-/// It avoids preparing command-binding context and rebuilding the same CFG
-/// solely to recover instance-backed global writes. No seedless run is made,
-/// so the return shapes answer; a compilation unit's summaries are
-/// [`build_interprocedural_analysis_for_unit`]'s.
-pub(crate) fn build_interprocedural_analysis_with_cfg(
-    ir_module: &crate::ir::Module,
-    registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
-    object_types: ObjectTypeMap<'_>,
-    identities: &crate::realm::CommandBindingRealm,
-    declared: Option<&tcl_registry::model::DeclaredSurface>,
-    cfg_module: &crate::cfg::CfgModule,
-) -> InterproceduralAnalysis {
-    build_interprocedural_analysis_inner(
-        ir_module,
-        registry,
-        dialect,
-        object_types,
-        identities,
-        declared,
-        Some(ModuleUnits {
-            cfg: cfg_module,
-            seedless: None,
-        }),
-    )
-}
-
 /// Build the summaries of a compilation unit's procedures, each pure one's
 /// return read from its own seedless lattice ([`seedless_returns`]): the
 /// unit holds every procedure's flow graph and SSA and the module's command
@@ -894,14 +868,10 @@ fn build_interprocedural_analysis_inner(
     // does not.
     let completes = units
         .and_then(|units| units.seedless)
-        .map(|units| {
-            completion::procedures_complete(
-                ir_module,
-                tcl_registry::model::DocumentCommandSurface::new(registry, declared),
-                dialect,
-                units.mutations,
-                &|callee, caller| reach.defined(callee, caller),
-            )
+        .map(|_| {
+            completion::procedures_complete(ir_module, registry, &|callee, caller| {
+                reach.defined(callee, caller)
+            })
         })
         .unwrap_or_default();
 

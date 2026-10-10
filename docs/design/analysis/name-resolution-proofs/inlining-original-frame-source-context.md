@@ -16,11 +16,15 @@ SourceContext::for_module joins the complete retained Logical Module interpretat
 
 Inlining head namespace projection consumes the same actual Module LexerConfig through shared checked WordPart/index decomposition. Whole original spelling, literal escape/index boundaries and enabled child substitutions determine conditional source hazards; unavailable decomposition remains a refusal.
 
+Inlining source eligibility shares the same original Lowerer-produced procedure header/body signature with conditional completion. The complete original declaration, selected formals and direct statement inventory must remain current; changed procedure names, formals, body coordinates/source or statements withdraw the eligibility instead of borrowing a source label. Existing alias and missing/foreign/config controls retain their earlier recorded purposes.
+
 ## Scope
 
 Marked software controls define original Module/selected-invocation source ownership, lexical renaming and whole-word syntax. The existing selected-Tcl activation control remains independently linked to original-readonly-formal-topology and supplies no Native activation. C8/C9/Jim lexer controls compare software source projections, not native341 completion fields. Ordinary strict Tcl array-formal rejection is a declaration-purpose guard, not a C84 after-zero installation observation or Jim substitute. Independently imported/lowered reference bodies without the joined complete Module source carrier decline. Native frame, caller-cell, compiled-header, body execution, edit permission and executable admission remain independent. No authored assertion is claimed executed; all seven external providers are not tested.
 
 The additional source control compares lexical software carriers, including selected C8/C9 and Jim grammars, without invoking those providers or comparing native341 result fields. It grants no caller storage, Native header/frame/activation or executable head/body equivalence.
+
+One additional marked mutated-header/body software control binds that common source correspondence. Its unchanged source positive is not an observed Native activation, body equivalence or executable inlining permit.
 
 ## Provider answers
 
@@ -104,6 +108,11 @@ The existing `inlining::tests::original_inlining_activation_requires_selected_c_
 - [rust/tcl-compiler/src/inlining/heads.rs](../../../../rust/tcl-compiler/src/inlining/heads.rs), `substitutes`: Use shared decompose_spanned_checked and WordPart/index traversal; checked parse failure conservatively retains a substitution hazard. Escaped literal brackets and combined braced indices are not reinterpreted as executable children.
 - [rust/tcl-compiler/src/inlining/heads.rs](../../../../rust/tcl-compiler/src/inlining/heads.rs), `root`: Only rewrite retained call heads after the selected whole-word/index scanner declines unrewritable textual command substitution; source spelling/configuration supplies no Native frame or body admission.
 - [rust/tcl-compiler/src/inlining/heads.rs](../../../../rust/tcl-compiler/src/inlining/heads.rs), `inlining::heads::tests::original_head_namespace_scan_keeps_selected_word_and_index_grammar` (linked): Selected whole-word/index grammar distinguishes escaped brackets and literal combined indices from authentic nested substitutions, C8/C9 brace closure, Unicode scalars and Jim expression sugar; malformed or unavailable decomposition conservatively refuses head rewriting.
+
+These source/API bindings carry no executed assertion or Native provider result.
+
+- [rust/tcl-compiler/src/inlining/frame.rs](../../../../rust/tcl-compiler/src/inlining/frame.rs), `SourceContext::matches_procedure`: Use the same RetainedSourceModuleBindings original procedure header/body signature as source completion. A body clone with altered fields cannot borrow nominal procedure or caller-frame eligibility.
+- [rust/tcl-compiler/src/inlining/frame.rs](../../../../rust/tcl-compiler/src/inlining/frame.rs), `inlining::frame::tests::original_frame_context_declines_modified_procedure_headers_and_bodies` (linked): The shared Lowerer-retained procedure signature authenticates exact name/formals/body coordinates/source/direct statement inventory. Altering any header/body axis refuses bound-read eligibility; matching original source still supplies no Native frame or edit permission.
 
 These source/API bindings carry no executed assertion or Native provider result.
 

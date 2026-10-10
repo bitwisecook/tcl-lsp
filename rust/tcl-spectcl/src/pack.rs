@@ -112,6 +112,7 @@ impl PackNotice {
     #[must_use]
     pub fn stamp_refused(command: &PackCommand, refusal: &StampRefusal) -> Self {
         Self {
+            subject: None,
             path: command.file.clone(),
             line: command.line,
             context: format!("command {}", command.spec.name),
@@ -132,6 +133,7 @@ impl PackNotice {
         refusal: &crate::stamps::DeclarationRefusal,
     ) -> Self {
         Self {
+            subject: None,
             path: command.file.clone(),
             line: command.line,
             context: format!("command {}", command.spec.name),
@@ -147,6 +149,7 @@ impl PackNotice {
     #[must_use]
     pub fn dormant(hook: &DormantHook) -> Self {
         Self {
+            subject: None,
             path: hook.file.clone(),
             line: hook.line,
             context: format!("command {}", hook.command),
@@ -167,6 +170,7 @@ impl PackNotice {
     #[must_use]
     pub fn pack_text_backing(command: &PackCommand) -> Self {
         Self {
+            subject: None,
             path: command.file.clone(),
             line: command.line,
             context: format!("command {}", command.spec.name),

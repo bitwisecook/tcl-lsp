@@ -2010,6 +2010,12 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     d.insert("destructive".into(), json!(sub.destructive));
     d.insert("returns_path".into(), json!(sub.returns_path));
     d.insert(
+        "source_index_bounds".into(),
+        sub.source_index_bounds.map_or(Value::Null, |operation| {
+            json!(catalogue::variant_name(&operation))
+        }),
+    );
+    d.insert(
         "source_path_operation".into(),
         sub.source_path_operation.map_or(Value::Null, |operation| {
             json!(catalogue::variant_name(&operation))
@@ -2310,6 +2316,12 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "constraints".into(),
         lost.expr("constraints", spec.constraints.is_some()),
+    );
+    d.insert(
+        "source_index_bounds".into(),
+        spec.source_index_bounds.map_or(Value::Null, |operation| {
+            json!(catalogue::variant_name(&operation))
+        }),
     );
     d.insert(
         "literal_argument_validator".into(),

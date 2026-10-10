@@ -61,12 +61,14 @@ use crate::obj::{self, TclObj};
 /// command has unwound, then resumed on the embedder's side of the interface.
 type PanicSlot = Rc<RefCell<Option<Box<dyn Any + Send>>>>;
 
-/// A compiled unit: the procedure it was defined as, and how many arguments it
-/// takes.
+/// A compiled unit retains its original interpreter and installed command
+/// generation. Its reported procedure spelling does not grant binding authority.
 #[derive(Debug, Clone)]
 pub struct RuntimeHandle {
     procedure: String,
     parameters: usize,
+    generation: u64,
+    interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
 }
 
 impl RuntimeHandle {
@@ -247,27 +249,39 @@ impl Engine for RuntimeEngine {
                 default: None,
             })
             .collect();
-        let body = new_string(unit.body.as_bytes());
-        // SAFETY: a fresh object, held across the definition, which copies it.
-        unsafe { obj::incr_ref_count(body) };
-        self.interp
-            .define_proc(procedure.as_bytes(), parameters, body);
-        // SAFETY: balances the hold above.
-        unsafe { obj::decr_ref_count(body) };
-        if let Some(generation) = self.interp.resolve_cmd_token(procedure.as_bytes()) {
-            self.unit_commands.push(generation);
-        } else {
-            return Err(host_error(&self.interp).unwrap_or_else(|| {
-                EngineError::ExecutionRefusal("compiled unit publication failed".into())
-            }));
+        let body = obj::Owned::fresh(new_string(unit.body.as_bytes()));
+        let generation = self.interp.install_proc_original_storage(
+            procedure.as_bytes(),
+            parameters,
+            None,
+            body.as_ptr(),
+            None,
+            None,
+        );
+        if let Some(error) = host_error(&self.interp) {
+            return Err(error);
         }
+        let generation = generation.ok_or_else(|| {
+            EngineError::ExecutionRefusal("compiled unit publication failed".into())
+        })?;
+        self.unit_commands.push(generation);
         Ok(RuntimeHandle {
             procedure,
             parameters: unit.parameters.len(),
+            generation,
+            interpreter: self.interp.native_callable_interpreter(),
         })
     }
 
     fn invoke(&mut self, handle: &Self::Handle, arguments: &[Value]) -> Result<Value, EngineError> {
+        if handle.interpreter != self.interp.native_callable_interpreter()
+            || self.interp.resolve_cmd_token(handle.procedure.as_bytes()) != Some(handle.generation)
+        {
+            return Err(EngineError::ExecutionRefusal(
+                "compiled procedure binding was retired, replaced or belongs to another interpreter"
+                    .into(),
+            ));
+        }
         if arguments.len() != handle.parameters {
             return Err(EngineError::Script {
                 message: format!(
@@ -339,14 +353,8 @@ impl Engine for RuntimeEngine {
 
 /// Read the existing host-only channel before reaching result or option updaters.
 fn host_error(interp: &Interp) -> Option<EngineError> {
-    if let Some(reason) = interp.host_command_refusal() {
-        return Some(EngineError::ExecutionRefusal(reason));
-    }
-    if let Some(error) = interp.native_compilation_admission_error() {
-        return Some(EngineError::ExecutionRefusal(error.to_string()));
-    }
     interp
-        .native_access_refusal()
+        .native_execution_refusal()
         .map(|error| EngineError::ExecutionRefusal(error.to_string()))
 }
 
@@ -1096,6 +1104,8 @@ mod tests {
     // receipt authority and callbacks, rather than claiming a fresh C run.
     #[test]
     fn publication_receipts_keep_actual_slots_and_refuse_forged_stale_or_foreign_authority() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let mut engine = engine(profile);
             let service = engine.command_publication_service().unwrap();
@@ -1194,6 +1204,8 @@ mod tests {
 
     #[test]
     fn callback_scope_is_owned_and_c_creation_keeps_unqualified_global_rule() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         let mut engine = engine("tcl8.6");
         let captured = Rc::new(RefCell::new(None));
         engine
@@ -1238,6 +1250,8 @@ mod tests {
 
     #[test]
     fn whitelist_keeps_renamed_opaque_host_token_and_exact_unit_tokens() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         let mut engine = engine("tcl8.6");
         engine
             .define_command_bytes(b"opaque\xff", Rc::new(Constant))
@@ -1274,6 +1288,8 @@ mod tests {
 
     #[test]
     fn callbacks_and_results_keep_exact_counted_bytes_and_scalar_storage() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         let mut engine = engine("tcl8.6");
         let observed = Rc::new(RefCell::new(Vec::new()));
         engine
@@ -1349,7 +1365,10 @@ mod tests {
 
     #[test]
     fn host_refusal_is_uncatchable_and_retains_prior_effects_and_completion_state() {
-        // Existing native evidence for the separate child host-failure channel:
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Existing child host-failure source/API contract:
+        // naming.interpreter.original-child-host-refusal-transport
         // docs/design/analysis/name-resolution-proofs/interpreter-original-child-host-refusal-transport.md
         // This callback control adds a host reason without claiming C supplied it.
         let mut engine = engine("tcl8.6");
@@ -1407,6 +1426,8 @@ mod tests {
     }
     #[test]
     fn guest_failure_options_and_nonstandard_completions_use_shared_original_owner() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         let mut engine = engine("tcl8.6");
         engine.define_command("guest", Rc::new(GuestError)).unwrap();
         let result = engine.eval_in_invocation("catch {guest} message options; list $message [dict get $options -tag] [dict get $options -errorcode]").unwrap();
@@ -1432,6 +1453,53 @@ mod tests {
             .any(|bytes| bytes == b"-tag retained"));
     }
 
+    #[test]
+    fn compiled_handles_retain_installed_generation_and_original_interpreter() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut original = engine(profile);
+            let unit = CompileUnit {
+                name: "handle control",
+                parameters: &[],
+                body: "set ::entered ORIGINAL; return ORIGINAL",
+            };
+            let handle = original.compile(unit).unwrap();
+            assert_eq!(
+                original.invoke(&handle, &[]).unwrap().as_str(),
+                Some("ORIGINAL")
+            );
+            let mut foreign = engine(profile);
+            let foreign_handle = foreign.compile(unit).unwrap();
+            assert_eq!(foreign_handle.procedure(), handle.procedure());
+            assert!(matches!(
+                foreign.invoke(&handle, &[]),
+                Err(EngineError::ExecutionRefusal(_))
+            ));
+            assert!(foreign.interp.var_get(b"entered").is_err());
+            original.eval_in_invocation("unset ::entered").unwrap();
+            original
+                .eval_in_invocation(&format!(
+                "rename {} {{}}; proc {} {{}} {{set ::entered REPLACEMENT; return REPLACEMENT}}",
+                handle.procedure(), handle.procedure(),
+            ))
+                .unwrap();
+            assert!(matches!(
+                original.invoke(&handle, &[]),
+                Err(EngineError::ExecutionRefusal(_))
+            ));
+            assert!(original.interp.var_get(b"entered").is_err());
+            assert_eq!(
+                original
+                    .eval_in_invocation(handle.procedure())
+                    .unwrap()
+                    .value
+                    .as_str(),
+                Some("REPLACEMENT")
+            );
+        }
+    }
+
     struct RetireReplacing(Rc<RefCell<usize>>);
     impl HostCommand for RetireReplacing {
         fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
@@ -1448,6 +1516,8 @@ mod tests {
     #[test]
     fn retirement_callback_reentry_protects_new_generation_and_guest_traces_refuse_before_effects()
     {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         let mut engine = engine("tcl8.6");
         let calls = Rc::new(RefCell::new(0));
         engine
@@ -1475,6 +1545,8 @@ mod tests {
 
     #[test]
     fn original_object_view_and_logical_native_receipts_refuse_explicitly() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         let mut logical = RuntimeEngine::new();
         assert!(matches!(
             logical.command_publication_service(),

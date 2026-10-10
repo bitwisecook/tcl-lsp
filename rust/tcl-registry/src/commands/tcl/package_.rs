@@ -739,7 +739,7 @@ mod tests {
                     )
                     .resolved()
                     .expect("selected package registration");
-                let effects = selected.effect_footprint();
+                let effects = selected.effects();
                 assert!(
                     !effects.requires_world_barrier(),
                     "{release:?} {arguments:?}"
@@ -764,8 +764,8 @@ mod tests {
                 )
                 .resolved()
                 .expect("selected package require");
-            assert!(require.effect_footprint().requires_world_barrier());
-            assert!(require.effect_footprint().callback().kinds.is_unknown());
+            assert!(require.effects().requires_world_barrier());
+            assert!(require.effects().callback().kinds.is_unknown());
         }
     }
 

@@ -220,6 +220,7 @@ pub mod semantic_operation;
 pub mod side_effects;
 pub mod snapshot;
 pub mod source_file;
+pub mod source_index_bounds;
 pub mod source_name_ownership;
 pub mod source_navigation;
 pub mod source_path;
@@ -336,6 +337,7 @@ pub mod prelude {
     pub use crate::side_effects::{
         ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
     };
+    pub use crate::source_index_bounds::SourceIndexBounds;
     pub use crate::source_path::SourcePathOperation;
     pub use crate::spec::{
         BytePayloadSpec, CaseForceListShape, CaseListSpec, CaseMatchMode, CommandSpec,
@@ -534,4 +536,5 @@ pub mod native_jim_enum;
 pub mod native_property_lookup;
 
 pub use deprecation::SourceDeprecationAdvice;
+pub use source_index_bounds::{SourceIndexBounds, SourceIndexBoundsInvocation};
 pub use source_path::SourcePathOperation;

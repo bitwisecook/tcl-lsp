@@ -136,7 +136,8 @@ fn modern_trace_state_restores_return_and_error_metadata_without_child_copies() 
         if release.has_error_stack() {
             vm.native_errors
                 .error_stack
-                .begin_inner(Value::string("INNER"), context.clone());
+                .begin_inner(Value::string("INNER"), context.clone())
+                .unwrap();
             vm.native_errors.error_stack.mark_reset();
         }
         let saved = vm.save_native_interp_trace_result().unwrap().unwrap();
@@ -156,7 +157,8 @@ fn modern_trace_state_restores_return_and_error_metadata_without_child_copies() 
         if release.has_error_stack() {
             vm.native_errors
                 .error_stack
-                .begin_inner(Value::string("INNER"), Value::string("CALLBACK"));
+                .begin_inner(Value::string("INNER"), Value::string("CALLBACK"))
+                .unwrap();
         }
         vm.restore_native_interp_trace_result(saved);
         assert_eq!(vm.native_errors.native_c_return_state.code, 7);

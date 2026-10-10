@@ -14,6 +14,104 @@ use std::sync::Arc;
 use tcl_lexer::{ExecutablePart, NativeWord, SourceImage};
 use tcl_registry::{ArgRole, InvocationWord, InvocationWords, Traits};
 
+/// Conditional target words of a selected original list builder. The result is
+/// authored data: neither a deferred parent nor a future invocation is issued.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSourceAuthoredCommandPrefix {
+    producer: Arc<OriginalSourceCommandTransitionAdvice>,
+    target: SelectedSourcePrefixTarget,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SelectedSourcePrefixTarget {
+    head: SourceAdviceNameInput,
+    command: String,
+    arguments: Vec<SourceAdviceWord>,
+    roles: Option<Vec<(usize, ArgRole)>>,
+    lineage: Vec<Arc<OriginalSourceCommandTransition>>,
+    obligations: Vec<SourceCommandTransitionObligation>,
+}
+impl OriginalSourceAuthoredCommandPrefix {
+    /// Exact selected builder before its source transitions; not a result object.
+    #[must_use]
+    pub fn producer(&self) -> &OriginalSourceCommandTransitionAdvice {
+        &self.producer
+    }
+    /// Conditional target's original source operand; no future lookup or argv.
+    #[must_use]
+    pub fn original_head(&self) -> &SourceAdviceNameInput {
+        &self.target.head
+    }
+    /// Complete unanimous target roles, independently of successful dispatch.
+    #[must_use]
+    pub fn roles(&self) -> Option<&[(usize, ArgRole)]> {
+        self.target.roles.as_deref()
+    }
+    /// Target operands keep their own builder or captured declaration geometry.
+    #[must_use]
+    pub fn original_argument(&self, ordinal: usize) -> Option<&NativeWord> {
+        Some(&self.target.arguments.get(ordinal)?.original)
+    }
+    /// Written ordinals refer to the builder; captured ordinals have no caller word.
+    #[must_use]
+    pub fn argument_origin(
+        &self,
+        ordinal: usize,
+    ) -> Option<crate::registry_invocation::InvocationWordOrigin> {
+        Some(self.target.arguments.get(ordinal)?.origin)
+    }
+    /// Target alias/move lineage; the builder retains its separate producer lineage.
+    #[must_use]
+    pub fn lineage(&self) -> &[Arc<OriginalSourceCommandTransition>] {
+        &self.target.lineage
+    }
+    /// Data applicability stays independent of deferred entry and native values.
+    #[must_use]
+    pub fn obligations(&self) -> &[SourceCommandTransitionObligation] {
+        &self.target.obligations
+    }
+    /// Whole builder input, target operands, configuration and actual context.
+    #[must_use]
+    pub fn matches_source_context(
+        &self,
+        image: &SourceImage,
+        config: tcl_lexer::LexerConfig,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> bool {
+        self.producer.matches_source(image, config)
+            && self.producer.matches_context(context)
+            && self
+                .target
+                .head
+                .original_word()
+                .is_some_and(|word| word.image() == image && word.config() == config)
+            && self.target.arguments.iter().all(|argument| {
+                argument.original.image() == image && argument.original.config() == config
+            })
+    }
+    /// Query the retained conditional target under its unchanged full availability.
+    /// This grants source roles only, never a future lookup, frame or handler.
+    #[must_use]
+    pub fn with_source_schema<'r, T>(
+        &'r self,
+        context: &'r tcl_registry::model::ContextRegistry,
+        project: impl FnOnce(&tcl_registry::ResolvedInvocation<'r, '_>) -> T,
+    ) -> Option<T> {
+        let word = self.producer.original_words().first()?;
+        self.matches_source_context(word.image(), word.config(), context)
+            .then_some(())?;
+        let values = registry_words(&self.target.arguments);
+        let resolution =
+            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                context.commands(),
+                Some(context.context()),
+                InvocationWords::structured(InvocationWord::Literal(&self.target.command), &values)
+                    .with_dialect(self.producer.dialect()),
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            );
+        Some(project(resolution.resolved()?))
+    }
+}
+
 /// Conditional source syntax of a command prefix built by one original
 /// invocation in an independently selected deferred operand. No value object,
 /// dispatch point, future lookup, frame, Normal or edit authority is issued.
@@ -84,6 +182,27 @@ impl OriginalSourceProducedCommandPrefix {
 }
 
 impl OriginalSourceTransitionAdviceTape {
+    pub(crate) fn authored_prefix(
+        &self,
+        offset: u32,
+    ) -> Option<&OriginalSourceAuthoredCommandPrefix> {
+        self.authored_prefixes.get(&offset)?.as_ref()
+    }
+    pub(super) fn merge_authored_prefix(
+        &mut self,
+        offset: u32,
+        prefix: Option<OriginalSourceAuthoredCommandPrefix>,
+    ) {
+        self.authored_prefixes
+            .entry(offset)
+            .and_modify(|retained| {
+                if retained != &prefix {
+                    *retained = None;
+                }
+            })
+            .or_insert(prefix);
+    }
+
     pub(crate) fn produced_prefix(
         &self,
         offset: u32,
@@ -156,6 +275,52 @@ pub(super) struct SelectedPrefixWords {
 }
 
 impl AdviceInvocationContext<'_> {
+    /// Retain authored data at the actual builder point, with no deferred parent.
+    pub(super) fn retain_authored_command_prefix(
+        &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        invocation: AdviceInvocation<'_>,
+        graph: &AdviceGraph,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        retained_producer: Option<&OriginalSourceCommandTransitionAdvice>,
+    ) {
+        // naming.source.original-authored-command-prefix-data
+        // docs/design/analysis/name-resolution-proofs/source-original-authored-command-prefix-data.md
+        if tape.authored_prefixes.len() >= 256
+            || !schema
+                .semantics
+                .traits
+                .contains(Traits::BUILDS_COMMAND_PREFIX)
+            || schema.semantics.native_result
+                != Some(
+                    tcl_registry::native_result::NativeResultContract::ListArguments { from: 0 },
+                )
+            || schema.semantics.argument_offset != 0
+            || schema.facts().arity_accepts_frozen_arguments() != Some(true)
+            || invocation.native.iter().any(|word| word.group().expand)
+        {
+            return;
+        }
+        let Some(offset) = invocation.native.first().map(|word| word.span().start()) else {
+            return;
+        };
+        let prefix = (|| {
+            let producer = Arc::new(
+                retained_producer
+                    .cloned()
+                    .or_else(|| self.schema_advice(invocation, graph, schema))?,
+            );
+            let selected = self.selected_prefix_arguments(invocation.arguments, graph)?;
+            let target = self.selected_prefix_target(
+                &producer,
+                selected,
+                SourceCommandTransitionObligation::AuthoredCommandPrefixApplicability,
+            )?;
+            Some(OriginalSourceAuthoredCommandPrefix { producer, target })
+        })();
+        tape.merge_authored_prefix(offset, prefix);
+    }
+
     pub(super) fn retain_produced_command_prefixes(
         &self,
         tape: &mut OriginalSourceTransitionAdviceTape,
@@ -213,9 +378,20 @@ impl AdviceInvocationContext<'_> {
         native: &[NativeWord],
         graph: &AdviceGraph,
     ) -> Option<SelectedPrefixWords> {
-        let mut written = original_words(native, self.policy)?;
-        let head = written.first()?.input.as_ref()?.clone();
+        let written = original_words(native, self.policy)?;
         if native.iter().any(|word| word.group().expand) {
+            return None;
+        }
+        self.selected_prefix_arguments(&written, graph)
+    }
+
+    fn selected_prefix_arguments(
+        &self,
+        written: &[SourceAdviceWord],
+        graph: &AdviceGraph,
+    ) -> Option<SelectedPrefixWords> {
+        let head = written.first()?.input.as_ref()?.clone();
+        if written.iter().any(|word| word.original.group().expand) {
             return None;
         }
         let (command, mut arguments, lineage) = graph.resolve(&head)?;
@@ -223,7 +399,7 @@ impl AdviceInvocationContext<'_> {
             argument.origin =
                 crate::registry_invocation::InvocationWordOrigin::BindingPrefix(ordinal);
         }
-        arguments.extend(written.drain(1..));
+        arguments.extend_from_slice(written.get(1..)?);
         Some(SelectedPrefixWords {
             head,
             arguments,
@@ -298,12 +474,42 @@ impl AdviceInvocationContext<'_> {
         native: &[NativeWord],
         graph: &AdviceGraph,
     ) -> Option<OriginalSourceProducedCommandPrefix> {
+        let selected = self.selected_prefix_words(native, graph)?;
+        let target = self.selected_prefix_target(
+            &producer,
+            selected,
+            SourceCommandTransitionObligation::ProducedCommandPrefixApplicability,
+        )?;
+        let mut obligations = parent.obligations().to_vec();
+        for obligation in &target.obligations {
+            if !obligations.contains(obligation) {
+                obligations.push(obligation.clone());
+            }
+        }
+        Some(OriginalSourceProducedCommandPrefix {
+            parent,
+            producer,
+            head: target.head,
+            command: target.command,
+            arguments: target.arguments,
+            roles: target.roles,
+            lineage: target.lineage,
+            obligations,
+        })
+    }
+
+    fn selected_prefix_target(
+        &self,
+        producer: &OriginalSourceCommandTransitionAdvice,
+        selected: SelectedPrefixWords,
+        purpose: SourceCommandTransitionObligation,
+    ) -> Option<SelectedSourcePrefixTarget> {
         let SelectedPrefixWords {
             head,
             arguments,
             command,
             lineage,
-        } = self.selected_prefix_words(native, graph)?;
+        } = selected;
         let values = registry_words(&arguments);
         let resolution =
             tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
@@ -329,22 +535,15 @@ impl AdviceInvocationContext<'_> {
                     .collect::<Option<Vec<_>>>()
             })
             .flatten();
-        let mut obligations = parent.obligations().to_vec();
-        for obligation in producer.obligations() {
-            if !obligations.contains(obligation) {
-                obligations.push(obligation.clone());
-            }
-        }
+        let mut obligations = producer.obligations().to_vec();
         if !lineage.is_empty()
             && !obligations
                 .contains(&SourceCommandTransitionObligation::WrittenTransitionApplicability)
         {
             obligations.push(SourceCommandTransitionObligation::WrittenTransitionApplicability);
         }
-        obligations.push(SourceCommandTransitionObligation::ProducedCommandPrefixApplicability);
-        Some(OriginalSourceProducedCommandPrefix {
-            parent,
-            producer,
+        obligations.push(purpose);
+        Some(SelectedSourcePrefixTarget {
             head,
             command: schema.canonical_command.to_owned(),
             arguments,
@@ -391,6 +590,119 @@ mod tests {
             config,
         )
         .remove(0)
+    }
+
+    #[test]
+    fn authored_prefix_data_keeps_builder_point_without_a_deferred_parent() {
+        // naming.source.original-authored-command-prefix-data
+        // docs/design/analysis/name-resolution-proofs/source-original-authored-command-prefix-data.md
+        // Software source/data correspondence; no result object or future dispatch.
+        use crate::registry_invocation::source_structure::source_authored_command_prefix;
+        let source = "set cb [list upvar #0 originalName localName]; after idle $cb";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            config,
+        );
+        let mut analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        let segment = builder(source, &analysis);
+        let prefix = source_authored_command_prefix(source, &analysis, &segment).unwrap();
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        assert_eq!(
+            prefix.producer().site().offset,
+            segment.argv[0].span.start()
+        );
+        assert_eq!(
+            prefix.roles(),
+            Some([(2, tcl_registry::ArgRole::VarWrite)].as_slice())
+        );
+        assert_eq!(prefix.original_argument(2).unwrap().bytes(), b"localName");
+        assert_eq!(
+            prefix.argument_origin(2),
+            Some(crate::registry_invocation::InvocationWordOrigin::Written(4))
+        );
+        assert!(prefix.obligations().contains(
+            &super::SourceCommandTransitionObligation::AuthoredCommandPrefixApplicability
+        ));
+        assert!(!prefix.obligations().contains(
+            &super::SourceCommandTransitionObligation::ProducedCommandPrefixApplicability
+        ));
+        assert!(source_produced_command_prefix_words(source, &analysis, &segment).is_none());
+        assert_eq!(
+            prefix.with_source_schema(&context, |schema| schema.semantics.lowering_hook),
+            Some(Some(tcl_registry::hooks::LoweringHookId::Upvar))
+        );
+        let foreign = tcl_registry::model::ingress::context_for_profile(profile);
+        assert!(prefix.with_source_schema(&foreign, |_| ()).is_none());
+        let mut changed = segment.clone();
+        changed.texts[1] = "set".to_owned();
+        assert!(source_authored_command_prefix(source, &analysis, &changed).is_none());
+        analysis.resolved_input = None;
+        assert!(source_authored_command_prefix(source, &analysis, &segment).is_none());
+    }
+
+    #[test]
+    fn authored_prefix_keeps_alias_origins_and_known_target_barriers() {
+        // naming.source.original-authored-command-prefix-data
+        // docs/design/analysis/name-resolution-proofs/source-original-authored-command-prefix-data.md
+        use crate::registry_invocation::source_structure::source_authored_command_prefix;
+        let source = "interp alias {} sourceList {} list upvar #0 originalName; set cb [sourceList localName]";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            config,
+        );
+        let analysis = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, profile.name);
+        let segment = builder(source, &analysis);
+        let prefix = source_authored_command_prefix(source, &analysis, &segment).unwrap();
+        assert_eq!(
+            prefix.original_head().original_word().unwrap().bytes(),
+            b"upvar"
+        );
+        assert!(
+            prefix
+                .original_head()
+                .original_word()
+                .unwrap()
+                .span()
+                .start()
+                < segment.span.start()
+        );
+        assert_eq!(
+            prefix.argument_origin(0),
+            Some(crate::registry_invocation::InvocationWordOrigin::BindingPrefix(1))
+        );
+        assert_eq!(
+            prefix.argument_origin(2),
+            Some(crate::registry_invocation::InvocationWordOrigin::Written(1))
+        );
+        assert_eq!(prefix.original_argument(2).unwrap().bytes(), b"localName");
+        assert!(!prefix.producer().lineage().is_empty());
+        for source in [
+            "proc list args {}; set cb [list upvar #0 originalName localName]",
+            "proc upvar args {}; set cb [list upvar #0 originalName localName]",
+            "rename upvar {}; set cb [list upvar #0 originalName localName]",
+            "set cb [list $unknown #0 originalName localName]",
+        ] {
+            let analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, profile.name);
+            assert!(
+                source_authored_command_prefix(source, &analysis, &builder(source, &analysis))
+                    .is_none(),
+                "{source}"
+            );
+        }
     }
 
     #[test]

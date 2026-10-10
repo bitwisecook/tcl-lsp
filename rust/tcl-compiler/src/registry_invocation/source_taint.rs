@@ -295,7 +295,9 @@ mod tests {
             bigip: Some(tcl_dialect::model::Version::parse("21.1.0").unwrap()),
             ..Default::default()
         };
-        let keyed_context = environment.context_registry(&keyed, 0);
+        let keyed_context = environment
+            .context_registry(&keyed, 0)
+            .expect("authored keyed hosted context is available");
         let original_context =
             HostedSourceTaintContext::from_lowering(image.clone(), config, Arc::clone(&context))
                 .unwrap();

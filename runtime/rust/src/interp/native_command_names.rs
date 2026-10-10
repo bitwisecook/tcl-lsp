@@ -10,25 +10,49 @@ use tcl_runtime_api::native_command_name::{NativeCommandNameCache, NativeCommand
 use tcl_syntax::value::{ValueError, ValueOps};
 
 impl Interp {
-    /// Resolve the same original command object before reporting its imported origin.
-    /// The reporting query consumes the selected token without a second name lookup.
+    /// Retain the original object's actual selected command token before any
+    /// name or imported-origin reporting. No reporting query redoes lookup.
+    fn native_selected_original_command_token(
+        &mut self,
+        original: *mut TclObj,
+    ) -> Result<Option<tcl_runtime_api::CommandId>, ValueError> {
+        let Some((command, token)) = self.resolve_original_command(original)? else {
+            return Ok(None);
+        };
+        drop(command);
+        let token = token.ok_or(ValueError::CommandProtocolUnavailable(
+            "original selected command token",
+        ))?;
+        let (name, _) = self.raw_command_location_by_generation(token).ok_or(
+            ValueError::CommandProtocolUnavailable("original selected command placement"),
+        )?;
+        Ok(Some(tcl_runtime_api::CommandId(
+            self.intern_cmd(&name, token),
+        )))
+    }
+
+    /// Report the selected original command's current name, preserving an
+    /// import's own token rather than following its origin.
+    pub(crate) fn native_resolved_command_name(
+        &mut self,
+        original: *mut TclObj,
+    ) -> Result<Option<Vec<u8>>, ValueError> {
+        self.native_selected_original_command_token(original)?
+            .map(|command| {
+                tcl_cmd_core::namespace::command_name_from_command_checked(self, command)
+            })
+            .transpose()
+    }
+
+    /// Report the selected original command's imported origin without a second
+    /// lookup or reconstruction of the original operand.
     pub(crate) fn native_namespace_origin(
         &mut self,
         original: *mut TclObj,
     ) -> Result<Option<Vec<u8>>, ValueError> {
-        let Some((command, token)) = self.resolve_original_command(original)? else {
-            return Ok(None);
-        };
-        // A lookup worker clone is not an invocation or an origin-reporting owner.
-        drop(command);
-        let token = token.ok_or(ValueError::CommandProtocolUnavailable(
-            "original command origin token",
-        ))?;
-        let (name, _) = self.raw_command_location_by_generation(token).ok_or(
-            ValueError::CommandProtocolUnavailable("original command origin placement"),
-        )?;
-        let command = tcl_runtime_api::CommandId(self.intern_cmd(&name, token));
-        tcl_cmd_core::namespace::origin_from_command_checked(self, command).map(Some)
+        self.native_selected_original_command_token(original)?
+            .map(|command| tcl_cmd_core::namespace::origin_from_command_checked(self, command))
+            .transpose()
     }
 
     /// Produce the C full-command-name String independently of the input cache.

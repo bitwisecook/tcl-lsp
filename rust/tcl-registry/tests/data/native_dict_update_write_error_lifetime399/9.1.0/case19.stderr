@@ -1,0 +1,2 @@
+DICT_RELEASE_BODY_RETURN|errors=0|refcount_before_release=-1|same_cell=-1|defined_scalar=-1|final_free=0
+alloc: invalid block: 0x55eac520f1c0: d0 c5

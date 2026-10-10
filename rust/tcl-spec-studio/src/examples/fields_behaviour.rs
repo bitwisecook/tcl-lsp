@@ -1593,6 +1593,17 @@ append log $line",
         },
     ),
     (
+        "source_index_bounds",
+        Example {
+            code: "lindex {a b} 9",
+            focuses: &[focus(
+                0,
+                "9",
+                "the selected source ListIndex relationship compares this original operand with the literal container",
+            )],
+        },
+    ),
+    (
         "source_path_operation",
         Example {
             code: "set target [file join /project lib]",

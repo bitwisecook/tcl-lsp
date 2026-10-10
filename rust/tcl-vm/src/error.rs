@@ -608,12 +608,16 @@ mod tests {
             ));
             vm.register_command("byte_refusal", Command::Builtin(refuse));
             let refusal = vm.try_eval_source(source).expect_err("host access refusal");
-            assert!(
-                matches!(
-                    refusal,
-                    tcl_runtime_api::NativeExecutionError::HostCommandRefusal(_)
+            assert_eq!(
+                refusal,
+                tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    UnicodeAccessError {
+                        valid_up_to: 0,
+                        error_len: Some(1),
+                    }
+                    .into()
                 ),
-                "{source}: {refusal:?}"
+                "{source}"
             );
             assert_eq!(
                 vm.get_var("reached")

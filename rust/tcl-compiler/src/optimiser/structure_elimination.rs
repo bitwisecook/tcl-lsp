@@ -606,6 +606,8 @@ fn try_eliminate_switch(
 }
 
 #[cfg(test)]
+use super::helpers::literals::is_plain_literal;
+#[cfg(test)]
 use crate::ir::SwitchMode;
 #[cfg(test)]
 use crate::naming::normalise_var_name;

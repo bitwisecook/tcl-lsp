@@ -85,6 +85,18 @@ impl Interp {
                         .map_err(|error| self.report_cmd_error(error))?,
                 )
             }
+            Kind::InfoCommands => {
+                let bytes = self
+                    .native_resolved_command_name(operands[0].as_ptr())
+                    .map_err(|error| self.report_cmd_error(error.into()))?;
+                match bytes {
+                    Some(bytes) if !bytes.is_empty() => {
+                        let name = obj::Owned::fresh(obj::new_string_bytes(&bytes));
+                        obj::Owned::fresh(self.new_list_object(&[name.as_ptr()]))
+                    }
+                    _ => obj::Owned::fresh(obj::new_obj()),
+                }
+            }
             Kind::NamespaceOrigin => {
                 let input = operands[0].as_ptr();
                 let bytes = self
@@ -240,7 +252,9 @@ mod tests {
                 ),
             ),
         ] {
-            if matches!(kind, WindowKind::LegacyArrayExistence) != matches!(engine, "tcl8.4" | "tcl8.5") {
+            if matches!(kind, WindowKind::LegacyArrayExistence)
+                != matches!(engine, "tcl8.4" | "tcl8.5")
+            {
                 continue;
             }
             let mut interp = super::super::tests::interpreter(engine);
@@ -249,7 +263,9 @@ mod tests {
                 let fields: Vec<_> = row.split('\t').collect();
                 let case = fields[0].parse::<usize>().unwrap();
                 let selected = match kind {
-                    WindowKind::Introspection => matches!(case, 0 | 2 | 3 | 4 | 6 | 8 | 9 | 10 | 11 | 12 | 13),
+                    WindowKind::Introspection => {
+                        matches!(case, 0 | 2 | 3 | 4 | 6 | 8 | 9 | 10 | 11 | 12 | 13)
+                    }
                     WindowKind::Arrays => case >= 15,
                     WindowKind::LegacyArrayExistence => matches!(case, 15..=17),
                 };

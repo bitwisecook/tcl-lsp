@@ -2876,9 +2876,8 @@ impl CodegenCtx<'_> {
                 return self.append_native_array_tasks(command, recipe, version, operations);
             }
             NativeInstructionPlan::Introspection(recipe) => {
-                return Self::append_native_introspection_tasks(
-                    command, recipe, version, operations,
-                );
+                return self
+                    .append_native_introspection_tasks(command, recipe, version, operations);
             }
             NativeInstructionPlan::MathOperator(recipe) => {
                 return Self::append_native_mathop_tasks(command, recipe, version, operations);

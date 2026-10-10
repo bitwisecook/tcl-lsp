@@ -274,10 +274,7 @@ impl Vm {
         &mut self,
         result: Result<T, TclError>,
     ) -> Result<T, VmCompilationError> {
-        if let Some(error) = self.execution_refusal.clone() {
-            if self.activation_depth == 0 && self.host_execution_depth == 0 {
-                self.execution_refusal = None;
-            }
+        if let Some(error) = self.take_host_boundary_refusal() {
             return Err(VmCompilationError::Host(error));
         }
         result.map_err(VmCompilationError::Tcl)
@@ -494,15 +491,18 @@ impl Vm {
     /// 2.0`, `TCL PACKAGE VERSIONCONFLICT`), and the same version again is a
     /// no-op. A later `package require` is satisfied from what was provided here.
     pub fn package_provide(&mut self, name: &str, version: &str) -> Result<(), TclError> {
+        self.begin_embedding_call()?;
         let completion = crate::cmd_package::pkg_provide(
             self,
             &[Value::string(name), Value::string(version)],
             self.runtime_version(),
         );
-        if completion.code.is_ok() {
-            return Ok(());
-        }
-        Err(TclError::from_completion(completion))
+        let result = if completion.code.is_ok() {
+            Ok(())
+        } else {
+            Err(completion)
+        };
+        self.finish_embedding_result(result)
     }
 
     /// Record that the library `prefix` has been loaded into the interpreter,
@@ -516,27 +516,58 @@ impl Vm {
     /// scalar, or an array element spelt `a(k)`, with its read traces fired. A
     /// variable that is not there is the error `set` raises
     /// (`can't read "x": no such variable`).
-    pub fn read_variable(&mut self, name: &str) -> Result<Value, Completion<Value>> {
-        match self.read_var_traced(name)? {
-            Some(value) => Ok(value),
-            None => Err(crate::interp::err(self.read_miss_msg(name))),
-        }
+    ///
+    /// # Errors
+    /// Retains the original guest completion or reached typed host refusal.
+    pub fn read_variable(&mut self, name: &str) -> Result<Value, TclError> {
+        self.begin_embedding_call()?;
+        let result = self.read_variable_result_bytes(name.as_bytes(), None);
+        self.finish_embedding_result(result)
     }
 
     /// Set the variable `name` as `set name value` does in the current frame: a
     /// scalar, or an array element spelt `a(k)`, with its write traces fired. A
     /// store `set` refuses (an array, a constant, a confined store) is the error
     /// `set` raises.
-    pub fn write_variable(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
-        self.store_var_result(name, value).map(|_| ())
+    ///
+    /// # Errors
+    /// Retains original guest options and any trace's typed host refusal.
+    pub fn write_variable(&mut self, name: &str, value: Value) -> Result<(), TclError> {
+        self.begin_embedding_call()?;
+        let result = self.store_var_result(name, value).map(|_| ());
+        self.finish_embedding_result(result)
     }
 
     /// Unset the variable `name` as `unset name` does in the current frame: a
     /// scalar, an array element spelt `a(k)` or a whole array, with its unset
     /// traces fired. One that is not there is the error `unset` raises
     /// (`can't unset "x": no such variable`).
-    pub fn unset_variable(&mut self, name: &str) -> Result<(), Completion<Value>> {
-        self.unset_one(name, true)
+    ///
+    /// # Errors
+    /// A reached host trace refusal remains independent of the guest unset result.
+    pub fn unset_variable(&mut self, name: &str) -> Result<(), TclError> {
+        self.begin_embedding_call()?;
+        let result = self.unset_one(name, true);
+        self.finish_embedding_result(result)
+    }
+
+    fn begin_embedding_call(&mut self) -> Result<(), TclError> {
+        if let Some(refusal) = self.take_host_boundary_refusal() {
+            return Err(TclError::from_execution_failure(refusal));
+        }
+        self.host_execution_depth += 1;
+        Ok(())
+    }
+
+    fn finish_embedding_result<T>(
+        &mut self,
+        result: Result<T, Completion<Value>>,
+    ) -> Result<T, TclError> {
+        self.host_execution_depth -= 1;
+        if let Some(refusal) = self.take_host_boundary_refusal() {
+            return Err(TclError::from_execution_failure(refusal));
+        }
+        result.map_err(TclError::from_completion)
     }
 
     /// Publish `$errorInfo` and `$errorCode` for `completion`, an error a host
@@ -723,6 +754,45 @@ impl Vm {
     /// Zero the command counter — refill the fuel before an invocation.
     pub fn reset_command_count(&mut self) {
         self.reset_command_count_inner();
+    }
+}
+
+#[cfg(test)]
+mod embedding_settlement_tests {
+    use super::*;
+
+    #[test]
+    fn embedding_settlement_retains_complete_original_guest_result_and_options() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for code in [
+            Code::Error,
+            Code::Return,
+            Code::Break,
+            Code::Continue,
+            Code::Other(7),
+        ] {
+            let mut vm = Vm::new();
+            let result = Value::from_string_bytes(b"RESULT\0\xff".as_slice());
+            let options = Value::list(vec![
+                Value::string("-tag"),
+                Value::from_string_bytes(b"OPTION\0\xfe".as_slice()),
+            ]);
+            vm.begin_embedding_call().unwrap();
+            let error = vm
+                .finish_embedding_result::<()>(Err(Completion::new(
+                    code,
+                    result.clone(),
+                    options.clone(),
+                )))
+                .unwrap_err();
+            let completion = error.into_completion().expect("actual guest producer");
+            assert_eq!(completion.code, code);
+            assert!(completion.result.is_same_object(&result));
+            assert!(completion.options.is_same_object(&options));
+            assert_eq!(completion.result.string_bytes().as_ref(), b"RESULT\0\xff");
+            assert!(vm.take_host_boundary_refusal().is_none());
+        }
     }
 }
 

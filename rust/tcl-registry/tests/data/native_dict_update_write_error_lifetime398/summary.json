@@ -1,0 +1,8 @@
+{
+  "id": "native-dictionary-update-lifetime398",
+  "request_sha256": "0c2292045cf2ec422dd29efca2cf39febb38acc27e12c4b748b93b4bea64da42",
+  "launcher_sha256": "2bff9be8657c5badb2b5a0eebc887ab694d89b8ccf76d8c6b7ccd7805e2d9c8b",
+  "question": "For the unchanged Native329 compiled-update-dict-write-error case9 on the independently pinned current C8.6/C9.0/C9.1 archives, is the allocated dictionary still selected by a defined scalar immediately before error cleanup, and does its watched final-free hook run? What do unchanged plain0/with-write-error19 controls show?",
+  "scope": "Live pre-release integer counters and watched free entry, independently of original archived provider object identity. No freed-header dereference or dangling readback reproduction/storage equivalence grant. Guest/probe public reporting bytes unchanged; original and independent instrumented archives remain separate.",
+  "setup_failures": []
+}

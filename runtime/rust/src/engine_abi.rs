@@ -198,11 +198,36 @@ pub unsafe extern "C" fn tcl_engine_define_unit(
 ) -> c_int {
     // SAFETY: caller guarantees a live interpreter.
     let interp = unsafe { &mut *interp };
-    let Ok(parameters) = crate::cmd_proc::parse_params(&obj_bytes(params)) else {
+    if interp.host_refusal_pending() {
         return TCL_ERROR;
+    }
+    let name = obj_bytes(name);
+    let chosen_body = match interp.choose_original_procedure_body(body) {
+        Ok(body) => body,
+        Err(error) => {
+            return i32::try_from(interp.report_cmd_error(error.into()).as_int())
+                .unwrap_or(TCL_ERROR)
+        }
     };
-    interp.define_proc(&obj_bytes(name), parameters, body);
-    TCL_OK
+    let parameters = match crate::cmd_proc::parse_params_object(interp, params, &name) {
+        Ok(parameters) => parameters,
+        Err(error) => {
+            return i32::try_from(interp.report_cmd_error(error).as_int()).unwrap_or(TCL_ERROR);
+        }
+    };
+    let generation = interp.install_proc_chosen_storage(
+        &name,
+        parameters,
+        Some(params),
+        (body, chosen_body),
+        None,
+        None,
+    );
+    if generation.is_none() || interp.host_refusal_pending() {
+        TCL_ERROR
+    } else {
+        TCL_OK
+    }
 }
 
 /// `tcl_engine_provide_package(interp, name, version) -> status` — what
@@ -290,4 +315,68 @@ pub unsafe extern "C" fn tcl_engine_return(
         unsafe { decr_ref_count(word) };
     }
     c_int::try_from(code.as_int()).unwrap_or(TCL_ERROR)
+}
+
+#[cfg(test)]
+mod procedure_publication_tests {
+    use super::*;
+
+    #[test]
+    fn abi_definition_uses_original_storage_and_reports_failure_without_later_publication() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interp = Interp::new();
+            interp.pin_release(profile).unwrap();
+            let name = crate::obj::Owned::fresh(new_string(b"unit"));
+            let bad_parameters = crate::obj::Owned::fresh(new_string(b"{x y z}"));
+            let parameters = crate::obj::Owned::fresh(new_string(b""));
+            let body = crate::obj::Owned::fresh(new_string(b"return ORIGINAL"));
+            // SAFETY: all borrowed originals and the interpreter remain live.
+            assert_eq!(
+                unsafe {
+                    tcl_engine_define_unit(
+                        &mut interp,
+                        name.as_ptr(),
+                        bad_parameters.as_ptr(),
+                        body.as_ptr(),
+                    )
+                },
+                TCL_ERROR
+            );
+            assert!(interp.resolve_cmd_token(b"unit").is_none());
+            // SAFETY: the successful producer uses the same live originals.
+            assert_eq!(
+                unsafe {
+                    tcl_engine_define_unit(
+                        &mut interp,
+                        name.as_ptr(),
+                        parameters.as_ptr(),
+                        body.as_ptr(),
+                    )
+                },
+                TCL_OK
+            );
+            let completion = interp.eval_completion(b"unit").unwrap();
+            assert_eq!(completion.code, tcl_runtime_api::Code::Ok);
+            assert_eq!(completion.result, b"ORIGINAL");
+            let pending_name = crate::obj::Owned::fresh(new_string(b"unentered"));
+            interp.refuse_host_command("original ABI host refusal");
+            let original = interp.native_execution_refusal().unwrap();
+            // SAFETY: a prior host refusal stops before inspecting or publishing originals.
+            assert_eq!(
+                unsafe {
+                    tcl_engine_define_unit(
+                        &mut interp,
+                        pending_name.as_ptr(),
+                        parameters.as_ptr(),
+                        body.as_ptr(),
+                    )
+                },
+                TCL_ERROR
+            );
+            assert_eq!(interp.native_execution_refusal(), Some(original));
+            assert!(interp.resolve_cmd_token(b"unentered").is_none());
+        }
+    }
 }

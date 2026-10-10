@@ -81,7 +81,6 @@ use super::{Optimisation, PassContext};
 pub(crate) struct PurityCtx<'a> {
     pub(crate) registry: Option<&'a CommandRegistry>,
     pub(crate) interproc_pure: &'a HashSet<String>,
-    pub(crate) enclosing_class: Option<&'a str>,
     /// The document's lexer configuration.  The purity walk re-lexes an
     /// already-extracted word only to recognise command substitution syntax;
     /// original child receipts supply dispatch and arguments. It reads under
@@ -267,11 +266,9 @@ struct CallCompletion<'a> {
     mutations: &'a crate::command_binding::ModuleCommandMutations,
     /// Whether the module traces a command, whose callback may raise.
     traces_commands: bool,
-    /// The document's grammar, which a value's words were lexed under.
-    config: tcl_lexer::LexerConfig,
-    /// Whether the function runs in a namespace chosen at run time — a
-    /// method body — where a relative head names no proven procedure.
-    runtime_namespace: bool,
+    /// Same original Module/registry required by conditional call receipts.
+    module: Option<&'a crate::ir::Module>,
+    registry: &'a CommandRegistry,
     /// Which procedures are surely defined where the function's calls run.
     defined: Defined<'a>,
 }
@@ -330,17 +327,6 @@ impl<'a> Defined<'a> {
 }
 
 impl CallCompletion<'_> {
-    /// The procedure of the module `head` names from `function`, as Tcl
-    /// resolves a command: the function's namespace, then the global one.
-    fn procedure(&self, function: &str, head: &str) -> Option<String> {
-        if self.runtime_namespace && !head.starts_with("::") {
-            return None;
-        }
-        crate::interprocedural::resolve_internal_call_with(head, function, |qname| {
-            self.procedures.contains_key(qname)
-        })
-    }
-
     /// Whether a call to `qname` with `words` words after its head, made by
     /// the statement at `site`, cannot raise: the summary proves the
     /// procedure pure and completing, its parameters accept the count, its
@@ -350,9 +336,16 @@ impl CallCompletion<'_> {
             summary.pure
                 && summary.completes
                 && self.defined.admits(summary, site)
-                && u16::try_from(words).is_ok_and(|count| {
-                    crate::interprocedural::arity_from_names(&summary.params).accepts(count)
-                })
+                && self
+                    .module
+                    .and_then(|module| {
+                        crate::registry_invocation::original_procedure_formal_count_shape(
+                            module,
+                            module.procedures.get(qname)?,
+                            self.registry,
+                        )
+                    })
+                    .is_some_and(|shape| shape.accepts(words))
         }) && !self
             .redefined
             .is_some_and(|redefined| redefined.contains(qname))
@@ -395,8 +388,8 @@ impl<'a> RaiseProof<'a> {
                 traces_commands: ctx
                     .ir_module
                     .is_some_and(|m| !m.traced_commands.is_empty() || m.has_dynamic_trace),
-                config: fu.source_lexer_config(),
-                runtime_namespace: execution_namespace.is_some(),
+                module: ctx.ir_module,
+                registry,
                 defined: Defined::of(ctx, fu, execution_namespace.is_some()),
             },
         }
@@ -448,7 +441,7 @@ impl<'a> RaiseProof<'a> {
             // An element read (`$a(k)`, `$a($i)`) raises when its base is a
             // scalar or lacks the element, and a command substitution on its
             // own words, neither of which the reads' existence can show.
-            Statement::AssignValue { value, .. } => {
+            Statement::AssignValue { .. } => {
                 folded()
                     || stmt.tokens().is_some_and(|tokens| {
                         tokens.source_binding.as_ref().is_some_and(|binding| {
@@ -456,8 +449,7 @@ impl<'a> RaiseProof<'a> {
                         })
                     })
                     || (self.logical_source_assistance
-                        && !has_element_substitution(value)
-                        && (!has_command_substitution(value) || self.calls_complete(stmt))
+                        && self.calls_complete(stmt)
                         && self.reads_are_set(block, idx))
             }
             Statement::Incr {
@@ -478,15 +470,11 @@ impl<'a> RaiseProof<'a> {
         }
     }
 
-    /// Whether every command the value word of `stmt` (an `AssignValue`)
-    /// substitutes is a call that cannot raise: to a procedure of the
-    /// module, resolved from the function's namespace as Tcl resolves it,
-    /// whose summary proves it pure and completing whatever its arguments
-    /// hold, called with a word count its parameters accept, under a name no
-    /// redefinition, `rename` or alias moves, in a module that traces no
-    /// command; each of its words literal, a variable read or a substitution
-    /// of the same kind. Whether the reads are set is
-    /// [`Self::reads_are_set`]'s question.
+    /// The original value word's lexical reads and authentic child calls.
+    /// Procedure targets join the same Logical Module's original allocation,
+    /// header and effective argument vector. Supplied summaries, definition reach,
+    /// purity and observer guards remain independent; variable existence is
+    /// checked by `reads_are_set` before any deletion proof consumes this result.
     fn calls_complete(&self, stmt: &Statement) -> bool {
         let Statement::AssignValue {
             tokens: Some(tokens),
@@ -502,10 +490,16 @@ impl<'a> RaiseProof<'a> {
         if calls.traces_commands {
             return false;
         }
-        let procedure = |head: &str| calls.procedure(&self.fu.name, head);
-        let mut walk = crate::interprocedural::CompletionWalk::new(calls.config, &procedure, None);
+        let Some(module) = calls.module else {
+            return false;
+        };
+        let Some(mut walk) =
+            crate::interprocedural::CompletionWalk::for_module(module, calls.registry, false)
+        else {
+            return false;
+        };
         let site = stmt.span().start();
-        walk.word(value)
+        walk.word_in(tokens, value)
             && walk
                 .calls
                 .iter()
@@ -626,121 +620,6 @@ impl<'a> RaiseProof<'a> {
 /// Whether a word runs a command substitution: an unescaped `[`. A bracket
 /// inside a braced part of the word is text, which a false positive only
 /// treats as a command and so keeps a store.
-fn has_command_substitution(word: &str) -> bool {
-    let bytes = word.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'\\' => i += 2,
-            b'[' => return true,
-            _ => i += 1,
-        }
-    }
-    false
-}
-
-/// Whether a word substitutes an array element: an unescaped `$name(`, or
-/// `$(` for the empty-named array. A braced `${a(k)}` names a scalar and is
-/// not one; a false positive only keeps a store.
-fn has_element_substitution(word: &str) -> bool {
-    let bytes = word.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'\\' => i += 2,
-            b'$' if bytes.get(i + 1) != Some(&b'{') => {
-                let mut j = i + 1;
-                while j < bytes.len()
-                    && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_' || bytes[j] == b':')
-                {
-                    j += 1;
-                }
-                if bytes.get(j) == Some(&b'(') {
-                    return true;
-                }
-                i = j.max(i + 1);
-            }
-            _ => i += 1,
-        }
-    }
-    false
-}
-
-/// The variable targets of a command statement, split by how the registry
-/// says the invocation writes them. The targets are the call's `defs` that
-/// sit at the invocation's own `VarWrite` positions (see
-/// [`command_write_targets`]); a def taken from a script argument
-/// (`catch {set a 1} x` defining `a`) or a nested substitution is in neither.
-#[derive(Default)]
-struct CommandWriteTargets<'s> {
-    /// Written whenever the command completes (`UNCONDITIONAL_VARIABLE_WRITE`).
-    always: Vec<&'s str>,
-    /// Written only on a runtime match, else left as they were
-    /// (`CONDITIONAL_VARIABLE_WRITE`), or read before the write
-    /// (`READS_BEFORE_WRITE`: `lset`, `lpop`, `ledit`), so set after the
-    /// command exactly when they were set before it.
-    maybe: Vec<&'s str>,
-}
-
-fn command_write_targets<'s>(
-    stmt: &'s Statement,
-    registry: &CommandRegistry,
-    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
-) -> CommandWriteTargets<'s> {
-    let Statement::Call { defs, .. } = stmt else {
-        return CommandWriteTargets::default();
-    };
-    let Some(context) = context.filter(|context| context.matches_registry(registry)) else {
-        return CommandWriteTargets::default();
-    };
-    let Some(invocation) =
-        crate::registry_invocation::resolved_statement_invocation_with_metadata_context(
-            registry,
-            Some(context),
-            stmt,
-        )
-    else {
-        return CommandWriteTargets::default();
-    };
-    let traits = invocation.facts.traits;
-    let always = traits.contains(tcl_registry::Traits::UNCONDITIONAL_VARIABLE_WRITE);
-    let maybe = traits.contains(tcl_registry::Traits::CONDITIONAL_VARIABLE_WRITE)
-        || (traits.contains(tcl_registry::Traits::READS_BEFORE_WRITE)
-            && !traits.contains(tcl_registry::Traits::DESTROYS_VARIABLE));
-    if !always && !maybe {
-        return CommandWriteTargets::default();
-    }
-    let targets: Vec<String> = invocation
-        .facts
-        .arg_roles
-        .iter()
-        .filter(|(_, role)| *role == tcl_registry::ArgRole::VarWrite)
-        .filter_map(|(index, _)| {
-            invocation
-                .evaluated_arguments
-                .get(invocation.facts.argument_offset + usize::from(*index))
-                .cloned()
-                .flatten()
-        })
-        .collect();
-    let names: Vec<&str> = defs
-        .iter()
-        .map(String::as_str)
-        .filter(|name| targets.iter().any(|target| target == name))
-        .collect();
-    if always {
-        CommandWriteTargets {
-            always: names,
-            maybe: Vec::new(),
-        }
-    } else {
-        CommandWriteTargets {
-            always: Vec::new(),
-            maybe: names,
-        }
-    }
-}
-
 /// Collect the qualified names of procs / methods that interprocedural
 /// analysis has proven pure — threaded into the O109 / O126 RHS-purity
 /// gates so `set unused [pureProc]` / `set unused [my pureMethod]` can
@@ -769,7 +648,6 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let purity = PurityCtx {
             registry: ctx.registry,
             interproc_pure: &interproc_pure,
-            enclosing_class: None,
             config: cu.top_level.source_lexer_config(),
             metadata: ctx.registry.and_then(|registry| {
                 cu.top_level
@@ -808,7 +686,6 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let purity = PurityCtx {
             registry: ctx.registry,
             interproc_pure: &interproc_pure,
-            enclosing_class: None,
             config: fu.source_lexer_config(),
             metadata: ctx.registry.and_then(|registry| {
                 fu.invocation_metadata_context_for_module(registry, &cu.ir_module)
@@ -833,7 +710,6 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             continue;
         }
         let ir_method = cu.ir_module.methods.get(mqname);
-        let enclosing_class = ir_method.map(|m| m.class_name.as_str());
         let execution_namespace = ir_method.map(|m| &m.execution_namespace);
         ctx.cross_event_vars = ir_method
             .map(|m| m.instance_vars.clone())
@@ -842,7 +718,6 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let purity = PurityCtx {
             registry: ctx.registry,
             interproc_pure: &interproc_pure,
-            enclosing_class,
             config: fu.source_lexer_config(),
             metadata: ctx.registry.and_then(|registry| {
                 fu.invocation_metadata_context_for_module(registry, &cu.ir_module)
@@ -1998,7 +1873,6 @@ mod tests {
         let purity = PurityCtx {
             registry: Some(&reg),
             interproc_pure: &interproc_pure,
-            enclosing_class: None,
             config: tcl_lexer::LexerConfig::default(),
             metadata: None,
             module: None,
@@ -2024,6 +1898,48 @@ mod tests {
             };
         }
         assert!(expr_has_observable_side_effect(&node, effect, 0));
+    }
+
+    #[test]
+    fn original_completion_deletion_consumer_uses_same_module_and_header() {
+        // naming.interprocedural.original-procedure-completion-source-context
+        // docs/design/analysis/name-resolution-proofs/interprocedural-original-procedure-completion-source-context.md
+        // The call no-error consumer only. SCCP existence, observers, purity
+        // and source edit permission are independently required for deletion.
+        let source = "proc leaf {x} {return $x}; set unused [leaf VALUE]";
+        let (context, unit) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+        let profile = unit.ir_module.dialect_profile;
+        let unit = unit.with_interprocedural(context.commands(), profile);
+        let interproc = unit.interproc.as_ref().unwrap();
+        assert!(interproc.procedures["::leaf"].pure);
+        assert!(interproc.procedures["::leaf"].completes);
+        let statement = unit
+            .top_level
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .find(|statement| {
+                matches!(statement,
+                Statement::AssignValue { name, .. } if name == "unused")
+            })
+            .unwrap();
+        let mut ctx = PassContext::new(source, interproc.clone());
+        ctx.registry = Some(context.commands());
+        ctx.command_mutations = unit.command_mutations.clone();
+        ctx.ir_module = Some(&unit.ir_module);
+        assert!(RaiseProof::new(&ctx, &unit.top_level, None).calls_complete(statement));
+        let mut changed = unit.ir_module.clone();
+        changed.procedures.get_mut("::leaf").unwrap().params_raw = "{x DEFAULT}".into();
+        ctx.ir_module = Some(&changed);
+        assert!(!RaiseProof::new(&ctx, &unit.top_level, None).calls_complete(statement));
+        ctx.ir_module = None;
+        assert!(!RaiseProof::new(&ctx, &unit.top_level, None).calls_complete(statement));
+        ctx.ir_module = Some(&unit.ir_module);
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        ctx.registry = Some(foreign.commands());
+        assert!(!RaiseProof::new(&ctx, &unit.top_level, None).calls_complete(statement));
     }
 
     #[test]

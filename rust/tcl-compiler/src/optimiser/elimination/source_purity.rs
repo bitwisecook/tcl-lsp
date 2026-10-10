@@ -41,42 +41,24 @@ pub(super) fn substitutions_are_pure(effect: EffectCtx<'_>) -> bool {
 }
 
 fn logical_procedure_is_pure(tokens: &CommandTokens, purity: PurityCtx<'_>) -> bool {
-    let (Some(metadata), Some(module), Some(binding)) = (
-        purity.metadata,
-        purity.module,
-        tokens.source_binding.as_ref(),
-    ) else {
+    let (Some(metadata), Some(module), Some(registry)) =
+        (purity.metadata, purity.module, purity.registry)
+    else {
         return false;
     };
     if !metadata.permits_logical_source_names() {
         return false;
     }
-    let Some(input) = metadata.source_analysis_input() else {
+    let Some(calls) = crate::registry_invocation::original_logical_procedure_calls_for_module(
+        tokens, module, registry,
+    ) else {
         return false;
     };
-    let Some(targets) = binding.original_logical_procedure_call_targets(tokens, input) else {
-        return false;
-    };
-    !targets.is_empty()
-        && targets.iter().all(|target| {
-            let Some(allocation) = target.implementation_allocation.as_ref() else {
-                return false;
-            };
-            let Some(call) = binding.invocation_site() else {
-                return false;
-            };
-            if allocation.site.source != call.source {
-                return false;
-            }
-            let mut declarations = module
-                .procedures
-                .values()
-                .filter(|procedure| procedure.span.start() == allocation.site.offset);
-            let Some(procedure) = declarations.next() else {
-                return false;
-            };
-            declarations.next().is_none()
-                && purity.interproc_pure.contains(&procedure.qualified_name)
+    !calls.is_empty()
+        && calls.iter().all(|call| {
+            purity
+                .interproc_pure
+                .contains(&call.procedure().qualified_name)
         })
 }
 
@@ -124,7 +106,6 @@ mod tests {
         let purity = PurityCtx {
             registry: Some(registry),
             interproc_pure: pure,
-            enclosing_class: None,
             config: function.source_lexer_config(),
             module: Some(&unit.ir_module),
             metadata: function.invocation_metadata_context_for_module(registry, &unit.ir_module),
@@ -243,7 +224,6 @@ mod tests {
             let purity = PurityCtx {
                 registry: Some(context.commands()),
                 interproc_pure: &empty,
-                enclosing_class: None,
                 config: selected.top_level.source_lexer_config(),
                 module: Some(&selected.ir_module),
                 metadata: selected.top_level.invocation_metadata_context_for_module(
@@ -295,6 +275,18 @@ mod tests {
         );
         assert!(check_with_procedure_summary(
             &original,
+            context.commands(),
+            &summary
+        ));
+        let mut changed = original.clone();
+        changed
+            .ir_module
+            .procedures
+            .get_mut("::pure")
+            .unwrap()
+            .params_raw = "{x DEFAULT}".into();
+        assert!(!check_with_procedure_summary(
+            &changed,
             context.commands(),
             &summary
         ));

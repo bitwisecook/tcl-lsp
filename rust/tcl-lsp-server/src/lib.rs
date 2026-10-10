@@ -4547,6 +4547,7 @@ async fn compute_compiler_diags(
     ctx: &SalsaAnalysisCtx<'_>,
     registry: &Arc<CommandRegistry>,
     generic_variable_patterns: Option<&[String]>,
+    analysis: Option<&Arc<AnalysisResult>>,
 ) -> ControlFlow<bool, Arc<tcl_lsp_db::CompilerDiagnostics>> {
     let &SalsaAnalysisCtx {
         db,
@@ -4554,7 +4555,7 @@ async fn compute_compiler_diags(
         file,
         config,
         text,
-        dialect,
+        ..
     } = ctx;
     if let Some(file) = file {
         let snapshot = db.snapshot("compute_compiler_diags").await;
@@ -4585,23 +4586,29 @@ async fn compute_compiler_diags(
             }
         }
     } else {
-        let (c_text, c_dialect) = (text.to_owned(), dialect.to_owned());
+        let Some(c_analysis) = analysis.map(Arc::clone) else {
+            return ControlFlow::Continue(Arc::new(tcl_lsp_db::CompilerDiagnostics {
+                checks: Vec::new(),
+                optimisations: Vec::new(),
+            }));
+        };
+        let c_text = text.to_owned();
         let c_registry = Arc::clone(registry);
         let c_generic = generic_variable_patterns.map(<[String]>::to_vec);
         ControlFlow::Continue(
             crate::rt::spawn_blocking(move || {
                 with_pack_hooks(|| {
-                    Arc::new(tcl_lsp_db::compiler_check_diagnostics_uncached(
-                        &c_text,
-                        &c_registry,
-                        c_dialect.name,
-                        c_generic.as_deref(),
-                        // The no-salsa-input fallback: this document is not in
-                        // the db, so there is genuinely no workspace view to
-                        // pass — `None` is the honest answer, not a missed
-                        // wiring.
-                        None,
-                    ))
+                    Arc::new(
+                        tcl_lsp_db::compiler_check_diagnostics_uncached_from_analysis(
+                            &c_text,
+                            &c_registry,
+                            &c_analysis,
+                            c_generic.as_deref(),
+                            // No SourceFile means no stored cross-file evidence;
+                            // the configured base still owns this source's input.
+                            None,
+                        ),
+                    )
                 })
             })
             .await
@@ -4612,6 +4619,26 @@ async fn compute_compiler_diags(
                 })
             }),
         )
+    }
+}
+
+/// Indexed compiler work is independent of the base walk. An unindexed
+/// document borrows the configured base result, including terminal refusal,
+/// rather than reconstructing an input from the registry's display profile.
+async fn compute_compiler_diags_after_base(
+    ctx: &SalsaAnalysisCtx<'_>,
+    registry: &Arc<CommandRegistry>,
+    generic_variable_patterns: Option<&[String]>,
+    base: impl std::future::Future<Output = ControlFlow<bool, Arc<AnalysisResult>>>,
+) -> ControlFlow<bool, Arc<tcl_lsp_db::CompilerDiagnostics>> {
+    if ctx.file.is_some() {
+        return compute_compiler_diags(ctx, registry, generic_variable_patterns, None).await;
+    }
+    match base.await {
+        ControlFlow::Continue(analysis) => {
+            compute_compiler_diags(ctx, registry, generic_variable_patterns, Some(&analysis)).await
+        }
+        ControlFlow::Break(settled) => ControlFlow::Break(settled),
     }
 }
 
@@ -5951,15 +5978,12 @@ async fn run_diagnostics_analyser_path(
     deep.await
 }
 
-/// The deep diagnostics pass: the three independent whole-file analyses run
-/// concurrently — the per-file analyser walk, the compiler /
-/// optimiser checks, and the cross-file resolution — then the W120/W123
-/// workspace refinement, the diagnostic lifts, and the single authoritative
-/// currency-guarded publish.  Only the downstream refine + lift consume all
-/// three passes, so overlapping them collapses the deep pass towards its longest
-/// single pass.  The one thing given up is fail-fast on a base-analysis
-/// cancellation — the compiler / cross-file passes may do a little wasted work
-/// before observing the same cancellation, which is the accepted trade.
+/// The indexed deep diagnostics pass runs the analyser, compiler checks and
+/// cross-file resolution concurrently, then refines and publishes their joint
+/// findings. An unindexed compiler build depends on the shared base analysis's
+/// complete input; it does not start a separate profile-derived analysis.
+/// Indexed secondary work can finish after base cancellation, but publication
+/// remains guarded by the same document currency.
 ///
 /// `base` is the per-file analyser walk, supplied by the caller (as a `Shared`
 /// future) rather than started here, so the progressive fast tier can await the
@@ -5981,12 +6005,14 @@ async fn run_deep_diagnostics(
     timing: PublishTiming<'_>,
     base: impl std::future::Future<Output = ControlFlow<bool, Arc<AnalysisResult>>>,
 ) -> bool {
+    let base = base.shared();
     let (base_result, compiler_result, project_result) = tokio::join!(
-        base,
-        compute_compiler_diags(
+        base.clone(),
+        compute_compiler_diags_after_base(
             salsa_ctx,
             &inputs.registry,
-            inputs.generic_variable_patterns
+            inputs.generic_variable_patterns,
+            base,
         ),
         compute_project_diags(salsa_ctx, project),
     );
@@ -8843,7 +8869,7 @@ enum FolderGenericPatterns {
 ///
 /// Resolve with [`Backend::resource_analyser_inputs`], which answers per
 /// document: a folder override wins, else the process-global value.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct ResourceAnalyserInputs {
     /// `tclLsp.packages.provides` / `[packages.provides]` — what a package's
     /// loader additionally brings up.
@@ -9234,6 +9260,9 @@ struct WorkspaceClassAnalysis {
     /// Recomputing it is a few microseconds against the several milliseconds
     /// of a re-analysis.
     fingerprint: (u64, u64, u64, u64),
+    /// The complete source/context owner the secondary analysis borrowed.
+    source_analysis: Option<Arc<AnalysisResult>>,
+    resource_inputs: Option<ResourceAnalyserInputs>,
     analysis: Arc<AnalysisResult>,
 }
 
@@ -16147,23 +16176,38 @@ impl Backend {
         self.resolve_target_locations(targets).await
     }
 
-    /// Analyse `source` with the **workspace class set** supplied to instance
-    /// inference, so a constructor whose class lives in another file
-    /// (`set d [::other::Cls new]`) still records `d`'s class.  Used only by the
-    /// cross-file method reference / definition path; the normal cached
-    /// analysis (which drives diagnostics) leaves the oracle empty.
-    ///
-    /// Memoised per `uri` in [`Self::workspace_class_analyses`] and validated
-    /// against a fingerprint of both inputs, so a consumer scan that visits
-    /// the same documents for every lens on screen analyses each of them
-    /// once.  Returns a shared `Arc` the caller can move into a
-    /// `spawn_blocking` worker, as [`Self::analysis_for`] does.
+    /// Analyse current source with workspace class hints and its complete
+    /// document input. The cache retains that owner, configuration and class
+    /// oracle; hints grant no Native class identity or execution entry.
     async fn analyse_with_workspace_classes(
         &self,
         uri: &Uri,
         source: &str,
         dialect: &'static tcl_dialect::DialectProfile,
     ) -> Arc<AnalysisResult> {
+        let base = self
+            .analysis_for(uri, Arc::from(source), dialect.name.to_owned())
+            .await;
+        self.analyse_with_workspace_classes_from_analysis(uri, source, dialect, base)
+            .await
+    }
+
+    async fn analyse_with_workspace_classes_from_analysis(
+        &self,
+        uri: &Uri,
+        source: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+        base: Arc<AnalysisResult>,
+    ) -> Arc<AnalysisResult> {
+        // Typed unavailable status and missing/stale source ownership are
+        // terminal before either a cache hit or a secondary source walk.
+        if tcl_compiler::source_graph::current_analysis(source, &base).is_none() {
+            return base;
+        }
+        let Some(input) = base.resolved_input.clone() else {
+            return base;
+        };
+        let resource = self.resource_analyser_inputs(Some(uri)).await;
         let (workspace_classes, workspace_bare_word_classes) = {
             let index = self.workspace_index.read().await;
             (
@@ -16188,28 +16232,40 @@ impl Backend {
             .lock()
             .await
             .get(uri)
-            .filter(|entry| entry.fingerprint == fingerprint)
+            .filter(|entry| {
+                entry.fingerprint == fingerprint
+                    && entry.source_analysis.as_ref() == Some(&base)
+                    && entry.resource_inputs.as_ref() == Some(&resource)
+                    && tcl_compiler::source_graph::current_analysis(source, &entry.analysis)
+                        .is_some()
+            })
         {
             return Arc::clone(&hit.analysis);
         }
         let owned_source = source.to_owned();
-        let owned_dialect = dialect.to_owned();
+        let analysis_resource = resource.clone();
         let analysis: Arc<AnalysisResult> = crate::rt::spawn_blocking(move || {
             Arc::new(
-                tcl_compiler::analyser::Analyser::new()
+                analysis_resource
+                    .apply(tcl_compiler::analyser::Analyser::new())
+                    .with_resolved_input(input.clone())
                     .with_workspace_classes(workspace_classes)
                     .with_workspace_bare_word_classes(workspace_bare_word_classes)
                     .with_workspace_class_factories(workspace_class_factories)
-                    .analyse(&owned_source, owned_dialect.name)
-                    .clone(),
+                    .analyse(&owned_source, input.analyser_profile().name),
             )
         })
         .await
-        .unwrap_or_default();
+        .unwrap_or_else(|_| Arc::clone(&base));
+        if tcl_compiler::source_graph::current_analysis(source, &analysis).is_none() {
+            return analysis;
+        }
         self.workspace_class_analyses.lock().await.insert(
             uri.clone(),
             WorkspaceClassAnalysis {
                 fingerprint,
+                source_analysis: Some(base),
+                resource_inputs: Some(resource),
                 analysis: Arc::clone(&analysis),
             },
         );
@@ -25066,9 +25122,9 @@ enum RangeSettleOutcome {
     /// Both enriched reads landed inside the fast-path budget, so the response
     /// *was* the enriched viewport and there is nothing to converge to.
     ServedEnriched,
-    /// The document has no compilation-unit / analysis handles at all (an
-    /// unindexed buffer, or a `did_close` racing the two reads), so there is no
-    /// enriched tier for this request to converge to.
+    /// The document has no database compilation-unit / analysis handles (an
+    /// unindexed buffer, or a `did_close` racing the two reads). Its configured
+    /// source projection has no pending database tier to converge to.
     NoAnalysis,
     /// A convergence continuation for this document was already in flight, so
     /// no second one was detached: the pending one's workspace-scoped
@@ -25124,6 +25180,14 @@ fn unindexed_semantic_tokens(
     text: &str,
     analysis: &AnalysisResult,
 ) -> core_semantic_tokens::SemanticTokens {
+    unindexed_semantic_tokens_for_range(text, analysis, None)
+}
+
+fn unindexed_semantic_tokens_for_range(
+    text: &str,
+    analysis: &AnalysisResult,
+    range: Option<CoreLspRange>,
+) -> core_semantic_tokens::SemanticTokens {
     let Some(input) = analysis.resolved_input.as_ref() else {
         return core_semantic_tokens::SemanticTokens::default();
     };
@@ -25136,13 +25200,24 @@ fn unindexed_semantic_tokens(
     ) else {
         return core_semantic_tokens::SemanticTokens::default();
     };
-    core_semantic_tokens::full_with_cu_and_analysis(
-        text,
-        input.analyser_profile(),
-        context.commands(),
-        Some(&cu),
-        Some(analysis),
-    )
+    if let Some(range) = range {
+        core_semantic_tokens::range_with_cu_and_analysis(
+            text,
+            input.analyser_profile(),
+            range,
+            context.commands(),
+            Some(&cu),
+            Some(analysis),
+        )
+    } else {
+        core_semantic_tokens::full_with_cu_and_analysis(
+            text,
+            input.analyser_profile(),
+            context.commands(),
+            Some(&cu),
+            Some(analysis),
+        )
+    }
 }
 
 /// [`code_action_report`]'s inputs beyond the document and its analysis,
@@ -27610,6 +27685,14 @@ impl LanguageServer for Backend {
         // continuation below (see `race_range_enriched_reads`).
         let (cached_cu, cached_analysis, pending, had_analysis_handles) =
             self.race_range_enriched_reads(uri).await;
+        let cached_analysis = if had_analysis_handles {
+            cached_analysis
+        } else {
+            Some(
+                self.fresh_analysis_for(uri, Arc::clone(&doc.text), doc.dialect.clone())
+                    .await,
+            )
+        };
         // Distinguishes the two no-continuation cases for the settled marker
         // below: the enriched reads landed inside the budget (so this response
         // *is* the enriched viewport), versus the document having no analysis
@@ -27629,6 +27712,14 @@ impl LanguageServer for Backend {
         let serve_dialect = dialect.clone();
         let serve_registry = Arc::clone(&registry);
         let core_data = crate::rt::spawn_blocking(move || {
+            if !had_analysis_handles {
+                return cached_analysis
+                    .as_deref()
+                    .map_or_else(Vec::new, |analysis| {
+                        unindexed_semantic_tokens_for_range(&serve_text, analysis, Some(core_range))
+                            .data
+                    });
+            }
             core_semantic_tokens::range_with_cu_and_analysis(
                 &serve_text,
                 tcl_lsp_core::profile_for_dialect(&serve_dialect),
@@ -58260,6 +58351,8 @@ proc p {} {
             old.clone(),
             WorkspaceClassAnalysis {
                 fingerprint: (0, 0, 0, 0),
+                source_analysis: None,
+                resource_inputs: None,
                 analysis: Arc::default(),
             },
         );
@@ -58359,6 +58452,8 @@ proc p {} {
             uri.clone(),
             WorkspaceClassAnalysis {
                 fingerprint: (0, 0, 0, 0),
+                source_analysis: None,
+                resource_inputs: None,
                 analysis: Arc::default(),
             },
         );

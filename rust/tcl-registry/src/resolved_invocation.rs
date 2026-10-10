@@ -8553,7 +8553,11 @@ mod logical_binding_result_tests {
 
 #[cfg(test)]
 mod logical_frame_source_role_tests {
-    use crate::{ArgRole, InvocationDialect, InvocationWord, InvocationWords};
+    use crate::value_transfer::OperandId;
+    use crate::{
+        ArgRole, CommandRegistry, FrameLevel, InvocationArguments, InvocationDialect,
+        InvocationResolutionUnresolved, InvocationWord, InvocationWords, TclType,
+    };
 
     #[test]
     fn logical_frame_source_roles_use_consensus_without_native_frame_facts() {
@@ -9076,6 +9080,38 @@ mod logical_frame_source_role_tests {
 }
 
 impl ResolvedInvocation<'_, '_> {
+    /// Original effective operands of a selected conditional index schema.
+    /// Unknown selectors, expansions and incompatible shapes supply no advice.
+    /// Selection does not establish a native handler or substituted value.
+    #[must_use]
+    pub fn authored_source_index_bounds(&self) -> Option<crate::SourceIndexBoundsInvocation> {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let selected = self.semantics.script_metadata;
+        let declared = selected
+            .subcommand
+            .map_or(selected.command.source_index_bounds, |sub| {
+                sub.source_index_bounds
+            });
+        let operation = declared
+            .or_else(|| crate::SourceIndexBounds::from_operation(self.semantics.operation))?;
+        let count = self.words.arguments().exact_argv_len()?;
+        let first = self.semantics.argument_offset;
+        let local_count = count.checked_sub(first)?;
+        let arity = self.authored_source_arity()?;
+        if arity.count.indeterminate
+            || !arity.arity.accepts(arity.count.minimum)
+            || !operation.accepts_argument_count(local_count)
+        {
+            return None;
+        }
+        Some(crate::SourceIndexBoundsInvocation {
+            operation,
+            arguments: first..count,
+            dialect: self.words.arguments().dialect(),
+        })
+    }
+
     /// Select the actual authored source path operation and complete effective
     /// post-head argument range. Bound prefix values retain their ordinals;
     /// unknown expansion/selectors and unmatched forms supply no algebra.

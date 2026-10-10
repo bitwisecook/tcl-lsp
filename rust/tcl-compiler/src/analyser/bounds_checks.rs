@@ -35,6 +35,9 @@
 //! ([`LoopTerminationCandidate::settle`]); a loop no unit holds keeps what
 //! its condition's text says.
 
+mod source_index;
+pub(super) use source_index::original_index_diagnostics;
+
 use tcl_core_types::DiagCode;
 use tcl_lexer::{ExprToken, ExprTokenType, Token, TokenType, tokenise_expr_checked_with_grammar};
 
@@ -56,7 +59,10 @@ impl<'a> BoundsMetadataContext<'a> {
         match self {
             Self::Retained(context) => context.commands(),
             #[cfg(test)]
-            Self::Standalone(registry) => registry.unwrap_or_else(tcl_registry::default_registry),
+            Self::Standalone(registry) => match registry {
+                Some(registry) => registry,
+                None => tcl_registry::default_registry(),
+            },
         }
     }
 
@@ -1044,122 +1050,6 @@ fn script_words<'c>(
         .collect()
 }
 
-/// W230: a constant list literal with a constant out-of-range index
-/// (`lindex`) or a provably-empty slice (`lrange` / `lreplace`)
-/// silently returns empty / clamps.  `args` / `arg_tokens` exclude the
-/// command name.  (W231 `lset` needs const-var tracking and is handled
-/// separately.)
-pub(crate) fn list_index_diagnostics(
-    cmd_name: &str,
-    args: &[String],
-    arg_tokens: &[Token],
-    numbers: tcl_dialect::NumberSyntax,
-    rules: tcl_syntax::word_rules::WordValueRules,
-) -> Vec<Diagnostic> {
-    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
-    if !matches!(cmd_name, "lindex" | "lrange" | "lreplace")
-        || args.len() < 2
-        || arg_tokens.len() < 2
-    {
-        return Vec::new();
-    }
-    let list_tok = &arg_tokens[0];
-    if !is_braced_or_esc(list_tok) || has_subst(&args[0], list_tok) {
-        return Vec::new();
-    }
-    // `args[0]` already has its outer `{…}` delimiter stripped by the
-    // segmenter, so split the list content directly — a second
-    // `strip_braces` here would wrongly peel a single-element list like
-    // `{{a b c}}` (segmented to `{a b c}`) down to its three inner words.
-    let length = i64::try_from(crate::tcl_expr_eval::split_tcl_list(&args[0], rules).len())
-        .unwrap_or(i64::MAX);
-
-    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
-    if cmd_name == "lindex" {
-        return lindex_diagnostics(args, arg_tokens, length, numbers);
-    }
-
-    // lrange / lreplace: a (first, last) pair that resolves to an empty
-    // slice.
-    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
-    if args.len() < 3 || arg_tokens.len() < 3 || (cmd_name == "lrange" && args.len() != 3) {
-        return Vec::new();
-    }
-    let (lo_text, hi_text) = (&args[1], &args[2]);
-    let (lo_token, hi_token) = (&arg_tokens[1], &arg_tokens[2]);
-    if has_subst(lo_text, lo_token)
-        || !is_literal_index(lo_text, numbers)
-        || has_subst(hi_text, hi_token)
-        || !is_literal_index(hi_text, numbers)
-    {
-        return Vec::new();
-    }
-    let (Some(lo_index), Some(hi_index)) = (
-        resolve_index(lo_text, length, numbers),
-        resolve_index(hi_text, length, numbers),
-    ) else {
-        return Vec::new();
-    };
-    if !pair_slice_empty(lo_index, hi_index, length) {
-        return Vec::new();
-    }
-    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
-    let verb = if cmd_name == "lrange" {
-        "lrange slice is empty".to_string()
-    } else if lo_index < 0 && hi_index < 0 {
-        "lreplace prepends instead of replacing (both indices resolve before the list)".to_string()
-    } else if lo_index >= length && hi_index >= length {
-        "lreplace appends instead of replacing (both indices resolve past the list)".to_string()
-    } else {
-        "lreplace touches no element (first > last after clamping)".to_string()
-    };
-    vec![crate::analyser::types::Diagnostic::new(
-        DiagCode::W230,
-        tcl_lexer::Span::new(lo_token.span.start(), hi_token.span.end()),
-        format!(
-            "{verb}: first='{lo_text}' resolves to {lo_index}, last='{hi_text}' resolves \
-             to {hi_index} (list has {length} element{}).",
-            if length == 1 { "" } else { "s" }
-        ),
-        Severity::Warning,
-    )]
-}
-
-/// The per-index `lindex` arm of W230.
-fn lindex_diagnostics(
-    args: &[String],
-    arg_tokens: &[Token],
-    length: i64,
-    numbers: tcl_dialect::NumberSyntax,
-) -> Vec<Diagnostic> {
-    let mut out = Vec::new();
-    for (pos, idx_text) in args.iter().enumerate().skip(1) {
-        let Some(idx_tok) = arg_tokens.get(pos) else {
-            continue;
-        };
-        if has_subst(idx_text, idx_tok) || !is_literal_index(idx_text, numbers) {
-            continue;
-        }
-        let Some(resolved) = resolve_index(idx_text, length, numbers) else {
-            continue;
-        };
-        if (0..length).contains(&resolved) {
-            continue;
-        }
-        out.push(crate::analyser::types::Diagnostic::new(
-            DiagCode::W230,
-            idx_tok.span,
-            format!(
-                "Index '{}' {}; lindex silently returns empty string.",
-                idx_text.trim(),
-                describe_index(resolved, length)
-            ),
-            Severity::Warning,
-        ));
-    }
-    out
-}
-
 /// W231: an `lset` with a constant index known to be out of range.
 /// Unlike `lindex` (which silently returns empty), `lset` raises a
 /// runtime error; a plain negative literal always errors, and — when the
@@ -1504,167 +1394,6 @@ fn pair_slice_empty(first: i64, last: i64, length: i64) -> bool {
     both_below || both_above || clamped_first > clamped_last
 }
 
-/// W232: a constant `string index` / `range` / `replace` / `insert`
-/// into a literal string with a constant out-of-range (or negative)
-/// index returns empty / is a no-op.
-pub(crate) fn string_index_diagnostics(
-    cmd_name: &str,
-    args: &[String],
-    arg_tokens: &[Token],
-    numbers: tcl_dialect::NumberSyntax,
-) -> Vec<Diagnostic> {
-    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
-    if cmd_name != "string" || args.len() < 2 {
-        return Vec::new();
-    }
-    let sub = args[0].as_str();
-    let min_args = match sub {
-        "index" => 3,
-        "range" | "replace" | "insert" => 4,
-        _ => return Vec::new(),
-    };
-    if args.len() < min_args || arg_tokens.len() < min_args {
-        return Vec::new();
-    }
-    let str_tok = &arg_tokens[1];
-    let str_text = &args[1];
-    // Safe runtime length: braced strings do no backslash processing;
-    // a backslash-free ESC word is byte-identical to its runtime form.
-    // Back off (None) otherwise.
-    let str_len: Option<i64> = if has_subst(str_text, str_tok) || !is_braced_or_esc(str_tok) {
-        None
-    } else if str_tok.kind == tcl_lexer::TokenType::Str {
-        // `str_text` already has its outer `{…}` delimiter stripped by
-        // the segmenter; a braced string does no backslash processing,
-        // so its char count is its runtime length.  A second
-        // `strip_braces` here would wrongly shorten a literal braced
-        // string such as `{{hello}}` (segmented to `{hello}`).
-        i64::try_from(str_text.chars().count()).ok()
-    } else if str_text.contains('\\') {
-        None
-    } else {
-        i64::try_from(str_text.chars().count()).ok()
-    };
-
-    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
-    if sub == "index" || sub == "insert" {
-        return string_single_index(sub, args, arg_tokens, str_len, numbers);
-    }
-    string_pair_index(sub, args, arg_tokens, str_len, numbers)
-}
-
-/// The single-index `string index` / `string insert` arm of W232.
-fn string_single_index(
-    sub: &str,
-    args: &[String],
-    arg_tokens: &[Token],
-    str_len: Option<i64>,
-    numbers: tcl_dialect::NumberSyntax,
-) -> Vec<Diagnostic> {
-    let (idx_text, idx_tok) = (&args[2], &arg_tokens[2]);
-    if has_subst(idx_text, idx_tok) || !is_literal_index(idx_text, numbers) {
-        return Vec::new();
-    }
-    let stripped = idx_text.trim();
-    // A plain negative literal is always invalid.
-    if let Some(n) = absolute_index(stripped, numbers)
-        && n < 0
-    {
-        return vec![crate::analyser::types::Diagnostic::new(
-            DiagCode::W232,
-            idx_tok.span,
-            format!("string {sub}: index '{stripped}' is negative; result is empty or a no-op."),
-            Severity::Warning,
-        )];
-    }
-    // `string insert` clamps other overshoots; only `string index`
-    // flags an in-bounds miss.
-    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
-    if sub == "index"
-        && let Some(len) = str_len
-        && let Some(resolved) = resolve_index(stripped, len, numbers)
-        && !(0..len).contains(&resolved)
-    {
-        return vec![crate::analyser::types::Diagnostic::new(
-            DiagCode::W232,
-            idx_tok.span,
-            format!(
-                "string index: '{stripped}' {}; returns empty string.",
-                describe_index_string(resolved, len)
-            ),
-            Severity::Warning,
-        )];
-    }
-    Vec::new()
-}
-
-/// The `string range` / `string replace` `(first, last)` arm of W232.
-fn string_pair_index(
-    sub: &str,
-    args: &[String],
-    arg_tokens: &[Token],
-    str_len: Option<i64>,
-    numbers: tcl_dialect::NumberSyntax,
-) -> Vec<Diagnostic> {
-    let (first_text, last_text) = (&args[2], &args[3]);
-    let (first_tok, last_tok) = (&arg_tokens[2], &arg_tokens[3]);
-    if has_subst(first_text, first_tok)
-        || !is_literal_index(first_text, numbers)
-        || has_subst(last_text, last_tok)
-        || !is_literal_index(last_text, numbers)
-    {
-        return Vec::new();
-    }
-    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
-    let verb = if sub == "range" {
-        "slice is empty"
-    } else {
-        "replace is a no-op"
-    };
-    let span = tcl_lexer::Span::new(first_tok.span.start(), last_tok.span.end());
-
-    // Both plain negative literals → always empty, even for a dynamic
-    // string.
-    if let (Some(f), Some(l)) = (
-        absolute_index(first_text.trim(), numbers),
-        absolute_index(last_text.trim(), numbers),
-    ) && f < 0
-        && l < 0
-    {
-        return vec![crate::analyser::types::Diagnostic::new(
-            DiagCode::W232,
-            span,
-            format!(
-                "string {sub}: both indices are negative ('{first_text}', '{last_text}'); \
-                     {verb}."
-            ),
-            Severity::Warning,
-        )];
-    }
-    let Some(len) = str_len else {
-        return Vec::new();
-    };
-    let (Some(first_val), Some(last_val)) = (
-        resolve_index(first_text, len, numbers),
-        resolve_index(last_text, len, numbers),
-    ) else {
-        return Vec::new();
-    };
-    if !pair_slice_empty(first_val, last_val, len) {
-        return Vec::new();
-    }
-    vec![crate::analyser::types::Diagnostic::new(
-        DiagCode::W232,
-        span,
-        format!(
-            "string {sub}: {verb}: first='{first_text}' resolves to {first_val}, \
-             last='{last_text}' resolves to {last_val} (string has {len} character{}).",
-            if len == 1 { "" } else { "s" }
-        ),
-        Severity::Warning,
-    )]
-}
-
 /// Human-readable description of a resolved out-of-range string index.
 fn describe_index_string(resolved: i64, length: i64) -> String {
     if resolved < 0 {
@@ -1675,14 +1404,6 @@ fn describe_index_string(resolved: i64, length: i64) -> String {
             if length == 1 { "" } else { "s" }
         )
     }
-}
-
-/// Token is a literal word (braced string or plain word).
-fn is_braced_or_esc(tok: &Token) -> bool {
-    matches!(
-        tok.kind,
-        tcl_lexer::TokenType::Str | tcl_lexer::TokenType::Esc
-    )
 }
 
 /// Word contains a variable / command substitution.
@@ -1808,7 +1529,7 @@ mod tests {
         assert_eq!(one.args().len(), 2, "iRules words: {:?}", one.texts);
         assert!(any_command_recursive(
             "cmd {a}{b}",
-            None,
+            BoundsMetadataContext::Standalone(None),
             config,
             &mut |cmd| { cmd.args().len() == 2 }
         ));
@@ -2404,8 +2125,21 @@ mod tests {
     }
 
     fn idx_codes_for(src: &str, dialect: &str) -> Vec<String> {
-        let mut a = Analyser::new();
-        a.analyse(src, dialect)
+        // Authored source number syntax and actual catalogue availability are
+        // independent of Native body entry or an executed handler.
+        let selected = tcl_dialect::DialectProfile::find(dialect).expect("authored bounds grammar");
+        let mut profile = tcl_dialect::DialectProfile::plain_tcl().clone();
+        profile.grammar = selected.grammar;
+        let profile = profile.intern();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment(dialect).default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        assert!(input.has_logical_source_name_context());
+        let mut a = Analyser::new().with_resolved_input(input);
+        a.analyse(src, "tcl")
             .diagnostics
             .iter()
             .filter(|d| matches!(d.code.as_str(), "W230" | "W232"))
@@ -2840,29 +2574,17 @@ mod tests {
 
     #[test]
     fn bounds_checks_recurse_into_command_substitutions() {
-        // The main walk never descends a `[…]` substitution, so the
-        // bounds family runs on its inner commands via the nested-bounds
-        // recursion.
-        assert!(has_code("set x [lindex {a b c} 9]\n", "W230"));
-        assert!(has_code(
-            "proc f {} { return [string index abc 99] }\n",
-            "W232"
-        ));
-        // Nested two deep: `[foo [string index abc 99]]`.
-        assert!(has_code(
-            "proc f {} { return [join [string index abc 99]] }\n",
-            "W232"
-        ));
-        // A bare (non-substituted) command is still checked exactly once —
-        // the recursion only enters `[…]`, so no double-fire.
-        let mut a = Analyser::new();
-        let n = a
-            .analyse("set x [lindex {a b c} 9]\n", "tcl8.6")
-            .diagnostics
-            .iter()
-            .filter(|d| d.code == DiagCode::W230)
-            .count();
-        assert_eq!(n, 1);
+        // Original authored nested-source geometry is queried once. This
+        // positive Logical fixture grants no Native child body activation.
+        assert_eq!(idx_codes("set x [lindex {a b c} 9]\n"), vec!["W230"]);
+        assert_eq!(
+            idx_codes("proc f {} { return [string index abc 99] }\n"),
+            vec!["W232"]
+        );
+        assert_eq!(
+            idx_codes("proc f {} { return [join [string index abc 99]] }\n"),
+            vec!["W232"]
+        );
     }
 
     #[test]

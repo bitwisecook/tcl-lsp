@@ -1354,6 +1354,10 @@ Path-aware checks then follow the value — e.g. the path-taint colours \
 that prove a user-influenced path stays inside a known root.",
     ),
     (
+        "source_index_bounds",
+        "Selects conditional bounds advice from the original index/container operands. Availability, aliases and original operand ownership remain separate; the descriptor proves no native handler, current value or successful result.",
+    ),
+    (
         "source_path_operation",
         "A source path operation selected from the current authored schema and exact argument values. It describes conditional navigation advice, without proving a runtime handler, current filename or filesystem result.",
     ),
@@ -1569,6 +1573,10 @@ Drives the binary-data corruption check.",
         "Ways a command changes which commands exist: defining a procedure, \
 renaming or deleting one, or creating an alias. Keeps \"unknown \
 command\" honest after such calls.",
+    ),
+    (
+        "sourceIndexBounds",
+        "The source index relationship vocabulary, independently of native operation identity or runtime values.",
     ),
     (
         "sourcePathOperation",

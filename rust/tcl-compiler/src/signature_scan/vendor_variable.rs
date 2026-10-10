@@ -473,7 +473,9 @@ mod tests {
             bigip: Some(tcl_dialect::model::Version::parse("17.1.0").unwrap()),
             ..Default::default()
         };
-        let context = environment.context_registry(&keyed, 0);
+        let context = environment
+            .context_registry(&keyed, 0)
+            .expect("authored keyed hosted context is available");
         let config = LexerConfig::from_grammar(environment.grammar());
         let input = crate::analyser::ResolvedAnalysisInput::new(
             environment.analyser_profile(),

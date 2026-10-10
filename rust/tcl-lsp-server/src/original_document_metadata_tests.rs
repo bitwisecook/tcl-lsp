@@ -41,12 +41,27 @@ fn is_variable(data: &[u32], source: &str, value: &str) -> bool {
     })
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn unindexed_semantic_tokens_keep_workspace_pack_roles() {
-    // naming.compiler.original-analysis-metadata-context
-    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-    // Authoring roles only; loading this spec grants no native command entry.
+fn whole_source_range(source: &str) -> CoreLspRange {
+    CoreLspRange {
+        start_line: 0,
+        start_character: 0,
+        end_line: 0,
+        end_character: u32::try_from(source.len()).unwrap(),
+    }
+}
+
+async fn workspace_pack_backend() -> (Backend, Arc<CommandRegistry>) {
     let backend = crate::tests::test_backend();
+    let registry = install_workspace_read_pack(&backend, 1, true).await;
+    (backend, registry)
+}
+
+async fn install_workspace_read_pack(
+    backend: &Backend,
+    sequence: u64,
+    reads: bool,
+) -> Arc<CommandRegistry> {
+    let role = if reads { "arg 0 -role VarRead" } else { "" };
     let packs = tcl_spectcl::pack::load_in_memory(vec![(
         tcl_spectcl::PackFile {
             tier: tcl_spectcl::Tier::Workspace,
@@ -54,22 +69,26 @@ async fn unindexed_semantic_tokens_keep_workspace_pack_roles() {
             origin: tcl_spectcl::discovery::Origin::DotDir,
             dependency_tier: None,
         },
-        "speclib unindexed_metadata 1.0 {
-command unindexed_metadata::read {
-arity 1
-arg 0 -role VarRead
-}
-}
-"
-        .to_owned(),
+        format!(
+            "speclib unindexed_metadata 1.0 {{\ncommand unindexed_metadata::read {{\narity 1\n{role}\n}}\n}}\n"
+        ),
     )]);
     assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
     let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &packs);
     *backend.spec_packs.lock().await = PublishedPackSet {
-        seq: 1,
+        seq: sequence,
         packs: Arc::new(packs),
     };
     backend.sync_db_config().await;
+    registry
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn unindexed_semantic_tokens_keep_workspace_pack_roles() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // Authoring roles only; loading this spec grants no native command entry.
+    let (backend, registry) = workspace_pack_backend().await;
     let uri = Uri::from_str("file:///workspace/unindexed-metadata.tcl").unwrap();
     assert!(!backend.db_files.lock().await.contains_key(&uri));
     let source = "unindexed_metadata::read retained";
@@ -89,6 +108,52 @@ arg 0 -role VarRead
             .snapshot()
             .semantic_key(),
         registry.snapshot().semantic_key()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn unindexed_range_request_keeps_workspace_pack_roles() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // The public viewport provider consumes the actual workspace source roles.
+    let (backend, _) = workspace_pack_backend().await;
+    let uri = Uri::from_str("file:///workspace/unindexed-viewport.tcl").unwrap();
+    let source = "unindexed_metadata::read retained";
+    let document = DocumentState::new(source.to_owned(), "tcl".to_owned());
+    backend
+        .documents
+        .lock("test")
+        .await
+        .insert(uri.clone(), document.clone());
+    assert!(!backend.db_files.lock().await.contains_key(&uri));
+    let result = backend
+        .semantic_tokens_range(SemanticTokensRangeParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            range: Range {
+                start: Position::new(0, 0),
+                end: Position::new(0, u32::try_from(source.len()).unwrap()),
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        })
+        .await
+        .unwrap();
+    let Some(SemanticTokensRangeResult::Tokens(tokens)) = result else {
+        panic!("the unindexed document has a viewport response");
+    };
+    let full = backend
+        .semantic_tokens_core_data(&uri, &document)
+        .await
+        .unwrap();
+    assert!(is_variable(&full, source, "retained"));
+    assert_eq!(tokens.data, lift_semantic_token_data(&full));
+    assert!(!backend.db_files.lock().await.contains_key(&uri));
+    assert!(
+        backend
+            .semantic_tokens_convergence
+            .lock()
+            .unwrap()
+            .is_empty()
     );
 }
 
@@ -122,8 +187,29 @@ fn unindexed_tokens_refuse_withdrawn_source_metadata_and_availability() {
         source,
         "retained"
     ));
+    assert!(is_variable(
+        &unindexed_semantic_tokens_for_range(source, &analysis, Some(whole_source_range(source)))
+            .data,
+        source,
+        "retained"
+    ));
+    assert!(!is_variable(
+        &unindexed_semantic_tokens_for_range(
+            source,
+            &unavailable,
+            Some(whole_source_range(source))
+        )
+        .data,
+        source,
+        "retained"
+    ));
     let mut missing = analysis.clone();
     missing.resolved_input = None;
+    let mut unavailable_generation = analysis.clone();
+    unavailable_generation.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+        environment: "tcl8.6".to_owned(),
+        overlay: 0x347,
+    });
     let mut stale = analysis.clone();
     stale.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
     let mut foreign = analysis.clone();
@@ -132,8 +218,13 @@ fn unindexed_tokens_refuse_withdrawn_source_metadata_and_availability() {
         tcl_registry::model::resolve_environment("tcl9.1").default_context_registry(),
     )
     .resolved_input;
-    for refused in [missing, stale, foreign] {
+    for refused in [missing, unavailable_generation, stale, foreign] {
         assert!(unindexed_semantic_tokens(source, &refused).data.is_empty());
+        assert!(
+            unindexed_semantic_tokens_for_range(source, &refused, Some(whole_source_range(source)))
+                .data
+                .is_empty()
+        );
     }
     assert!(
         unindexed_semantic_tokens("metadata_read changed", &analysis)
@@ -201,4 +292,237 @@ async fn pull_compiler_and_code_actions_keep_supplied_diagnostic_context() {
         .compiler_diagnostics_for(&uri, source, &Arc::new(missing), &inputs.registry)
         .await;
     assert!(checks.checks.is_empty() && checks.optimisations.is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn unindexed_deep_compiler_checks_borrow_the_shared_base_input() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // Conditional Logical source advice retains its issuer; no execution entry.
+    let backend = crate::tests::test_backend();
+    let uri = Uri::from_str("file:///workspace/unindexed-deep.tcl").unwrap();
+    let context = tcl_registry::model::resolve_environment("tcl8.6").default_context_registry();
+    let registry = Arc::clone(context.commands());
+    let source = "proc subject {} {if {1} {puts retained} else {puts omitted}}";
+    let analysis = Arc::new(source_analysis(source, context));
+    let ctx = SalsaAnalysisCtx {
+        db: &backend.db,
+        uri: &uri,
+        file: None,
+        config: *backend.db_config.lock().await,
+        text: source,
+        dialect: tcl_lsp_core::profile_for_dialect("tcl"),
+    };
+    let walks = std::sync::atomic::AtomicUsize::new(0);
+    let base = async {
+        walks.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        ControlFlow::Continue(Arc::clone(&analysis))
+    }
+    .shared();
+    let (base_result, checks) = tokio::join!(
+        base.clone(),
+        compute_compiler_diags_after_base(&ctx, &registry, None, base),
+    );
+    assert_eq!(walks.load(std::sync::atomic::Ordering::Relaxed), 1);
+    let ControlFlow::Continue(base_analysis) = base_result else {
+        panic!("the original base analysis completed");
+    };
+    assert!(Arc::ptr_eq(&base_analysis, &analysis));
+    let ControlFlow::Continue(checks) = checks else {
+        panic!("the supplied compiler projection completed");
+    };
+    let diagnostic = checks
+        .checks
+        .iter()
+        .find(|diagnostic| diagnostic.code == DiagCode::O100)
+        .expect("the conditional source branch reaches the deep worker");
+    let issuer = diagnostic.source_context.as_ref().unwrap();
+    assert_eq!(
+        issuer.lexer_config(),
+        analysis.resolved_input.as_ref().unwrap().lexer_config()
+    );
+    assert_eq!(
+        issuer.registry().semantic_key(),
+        registry.snapshot().semantic_key()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn unindexed_deep_compiler_checks_refuse_missing_base_and_preserve_cancellation() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    let backend = crate::tests::test_backend();
+    let uri = Uri::from_str("file:///workspace/unindexed-deep-refused.tcl").unwrap();
+    let context = tcl_registry::model::resolve_environment("tcl8.6").default_context_registry();
+    let registry = Arc::clone(context.commands());
+    let source = "proc subject {} {if {1} {puts retained} else {puts omitted}}";
+    let analysis = source_analysis(source, context);
+    let ctx = SalsaAnalysisCtx {
+        db: &backend.db,
+        uri: &uri,
+        file: None,
+        config: *backend.db_config.lock().await,
+        text: source,
+        dialect: tcl_lsp_core::profile_for_dialect("tcl"),
+    };
+    let mut missing = analysis.clone();
+    missing.resolved_input = None;
+    let mut unavailable = analysis.clone();
+    unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+        environment: "tcl8.6".to_owned(),
+        overlay: 0x347,
+    });
+    let mut stale = analysis;
+    stale.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+    for refused in [missing, unavailable, stale] {
+        let result = compute_compiler_diags_after_base(
+            &ctx,
+            &registry,
+            None,
+            std::future::ready(ControlFlow::Continue(Arc::new(refused))),
+        )
+        .await;
+        let ControlFlow::Continue(checks) = result else {
+            panic!("refused metadata withholds only compiler advice");
+        };
+        assert!(checks.checks.is_empty() && checks.optimisations.is_empty());
+    }
+    let ControlFlow::Continue(checks) = compute_compiler_diags(&ctx, &registry, None, None).await
+    else {
+        panic!("missing supplied analysis withholds compiler advice");
+    };
+    assert!(checks.checks.is_empty() && checks.optimisations.is_empty());
+    for settled in [false, true] {
+        let result = compute_compiler_diags_after_base(
+            &ctx,
+            &registry,
+            None,
+            std::future::ready(ControlFlow::Break(settled)),
+        )
+        .await;
+        assert!(matches!(result, ControlFlow::Break(actual) if actual == settled));
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn workspace_class_analysis_keeps_actual_pack_input_and_reloads_changed_roles() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // The real secondary consumer keeps source hints separate from Native class identity.
+    let (backend, registry) = workspace_pack_backend().await;
+    let uri = Uri::from_str("file:///workspace/workspace-class-metadata.tcl").unwrap();
+    let source = "unindexed_metadata::read retained";
+    backend.db_set_source(&uri, source, "tcl".to_owned()).await;
+    let profile = tcl_lsp_core::profile_for_dialect("tcl");
+    let analysis = backend
+        .analyse_with_workspace_classes(&uri, source, profile)
+        .await;
+    assert_eq!(
+        analysis
+            .resolved_registry()
+            .unwrap()
+            .snapshot()
+            .semantic_key(),
+        registry.snapshot().semantic_key()
+    );
+    assert!(is_variable(
+        &unindexed_semantic_tokens(source, &analysis).data,
+        source,
+        "retained"
+    ));
+    let cached = backend
+        .analyse_with_workspace_classes(&uri, source, profile)
+        .await;
+    assert!(Arc::ptr_eq(&cached, &analysis));
+
+    let changed_registry = install_workspace_read_pack(&backend, 2, false).await;
+    let changed = backend
+        .analyse_with_workspace_classes(&uri, source, profile)
+        .await;
+    assert!(!Arc::ptr_eq(&changed, &analysis));
+    assert_eq!(
+        changed
+            .resolved_registry()
+            .unwrap()
+            .snapshot()
+            .semantic_key(),
+        changed_registry.snapshot().semantic_key()
+    );
+    assert!(!is_variable(
+        &unindexed_semantic_tokens(source, &changed).data,
+        source,
+        "retained"
+    ));
+    assert_ne!(changed.resolved_input, analysis.resolved_input);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn workspace_class_analysis_refuses_withdrawn_base_before_cached_hints() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    let (backend, _) = workspace_pack_backend().await;
+    let uri = Uri::from_str("file:///workspace/workspace-class-withdrawn.tcl").unwrap();
+    let source = "unindexed_metadata::read retained";
+    let profile = tcl_lsp_core::profile_for_dialect("tcl");
+    let base = backend
+        .fresh_analysis_for(&uri, Arc::from(source), "tcl".to_owned())
+        .await;
+    let current = backend
+        .analyse_with_workspace_classes_from_analysis(&uri, source, profile, Arc::clone(&base))
+        .await;
+    assert!(is_variable(
+        &unindexed_semantic_tokens(source, &current).data,
+        source,
+        "retained"
+    ));
+    let mut missing = (*base).clone();
+    missing.resolved_input = None;
+    let mut unavailable = (*base).clone();
+    unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+        environment: "tcl".to_owned(),
+        overlay: 0x350,
+    });
+    let mut stale = (*base).clone();
+    stale.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+    let mut foreign = (*base).clone();
+    foreign.resolved_input = Some(
+        source_analysis(
+            source,
+            tcl_registry::model::resolve_environment("tcl9.1").default_context_registry(),
+        )
+        .resolved_input
+        .unwrap(),
+    );
+    for withdrawn in [missing, unavailable, stale, foreign] {
+        let withdrawn = Arc::new(withdrawn);
+        let result = backend
+            .analyse_with_workspace_classes_from_analysis(
+                &uri,
+                source,
+                profile,
+                Arc::clone(&withdrawn),
+            )
+            .await;
+        assert!(Arc::ptr_eq(&result, &withdrawn));
+        assert!(tcl_compiler::source_graph::current_analysis(source, &result).is_none());
+        assert!(Arc::ptr_eq(
+            &backend
+                .workspace_class_analyses
+                .lock()
+                .await
+                .get(&uri)
+                .unwrap()
+                .analysis,
+            &current
+        ));
+    }
+    let stale_source = backend
+        .analyse_with_workspace_classes_from_analysis(
+            &uri,
+            "unindexed_metadata::read changed",
+            profile,
+            Arc::clone(&base),
+        )
+        .await;
+    assert!(Arc::ptr_eq(&stale_source, &base));
 }

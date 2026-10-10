@@ -16,226 +16,225 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Whether a call to a procedure completes normally whatever its arguments
-//! hold ([`super::ProcSummary::completes`]), and the walk over a word's
-//! substitutions that the summary and the dead-store passes' raise proof
-//! share.
+//! Conditional procedure completion under one genuine Logical source Module.
 //!
-//! A store whose value runs a command can be deleted only where the command
-//! cannot raise, and purity says a call changes nothing, not that it
-//! completes. So the summary states completion apart: a
-//! procedure completes where its body is straight-line — assignments to its
-//! own scalars, calls and a `return` — every variable it reads is a parameter
-//! or a scalar an earlier statement set, and every command it runs completes
-//! whatever its words hold: a registry command whose resolved invocation
-//! declares the normal completion alone, under a word count its arity
-//! accepts, or a procedure of the module that completes in turn, called with
-//! a word count its parameters accept. A recursion never completes, since the
-//! interpreter's nesting limit can end it; for a call that does not recurse
-//! that limit is set aside, as every fold sets it aside.
+//! The walk shares original declaration/allocation, effective argument and child
+//! invocation owners with the deletion consumer. It models straight-line local
+//! scalar stores, returns and selected calls whose argument counts and normal
+//! source completion are proved. It preserves every original child horizon and
+//! the independently selected formal grammar. Missing, foreign or Native-only
+//! carriers provide no conditional completion. Runtime entry, traces, activation,
+//! no-error and edit permission remain independent prerequisites.
 
 use std::collections::{HashMap, HashSet};
 
+use tcl_registry::CommandRegistry;
 use tcl_registry::completion::{CompletionCode, CompletionCodeDomain};
 
-use crate::command_binding::ModuleCommandMutations;
-use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
-use crate::ir::{CommandTokens, Script, Statement, WordExpr, WordPart};
+use crate::ir::{CommandTokens, Module, Script, Statement, WordExpr, WordPart};
 
-/// Whether a command head that names no procedure of the module, with its
-/// arguments' spellings, is a registry command that completes normally
-/// whatever its words hold.
-pub(crate) type RegistryCompletes<'w> = &'w dyn Fn(&str, &[&str]) -> bool;
-
-/// A walk over the words a statement evaluates: it collects the procedures
-/// of the module the commands it substitutes call and the variables it
-/// reads, and fails on a command that may raise whatever its words hold.
+/// Conditional no-error source walk under one genuine Logical Module.
+/// Every child retains its original point/vector; source syntax does not supply
+/// Native normal completion, entered frames or executable erasure permission.
 pub(crate) struct CompletionWalk<'w> {
-    /// The grammar the words were lexed under.
-    config: tcl_lexer::LexerConfig,
-    /// The procedure of the module a command head names, where it names one.
-    procedure: &'w dyn Fn(&str) -> Option<String>,
-    /// What answers for a head that names no procedure of the module;
-    /// `None` takes no registry command.
-    registry: Option<RegistryCompletes<'w>>,
-    /// Each procedure of the module a command calls, with the number of
-    /// words after its head.
+    module: &'w Module,
+    registry: &'w CommandRegistry,
+    registry_commands: bool,
     pub(crate) calls: Vec<(String, usize)>,
-    /// Each variable a word reads, as it names it.
     pub(crate) reads: Vec<String>,
 }
 
 impl<'w> CompletionWalk<'w> {
-    /// A walk resolving heads through `procedure`, taking a registry command
-    /// where `registry` answers for it.
-    pub(crate) fn new(
-        config: tcl_lexer::LexerConfig,
-        procedure: &'w dyn Fn(&str) -> Option<String>,
-        registry: Option<RegistryCompletes<'w>>,
-    ) -> Self {
-        Self {
-            config,
-            procedure,
+    pub(crate) fn for_module(
+        module: &'w Module,
+        registry: &'w CommandRegistry,
+        registry_commands: bool,
+    ) -> Option<Self> {
+        if !module
+            .retained_source_bindings
+            .as_ref()?
+            .matches_module(module, registry)
+            || !crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?
+                .permits_logical_source_names()
+        {
+            return None;
+        }
+        Some(Self {
+            module,
             registry,
+            registry_commands,
             calls: Vec::new(),
             reads: Vec::new(),
+        })
+    }
+
+    /// One authentic written operand, evaluated in its original parent horizon.
+    pub(crate) fn word_in(&mut self, parent: &CommandTokens, word: &WordExpr) -> bool {
+        if !parent.words().contains(word) || !self.word(word) {
+            return false;
         }
+        self.substitutions(parent, Some(word.source().span))
     }
 
-    /// Whether evaluating `word` cannot raise where every variable it reads
-    /// is set as a scalar and every procedure it calls completes: its text is
-    /// literal or substitutes a scalar variable or a command that completes.
-    /// An element read, an expansion, a word the lexer could not model and a
-    /// word the release's parser rejects may raise.
-    pub(crate) fn word(&mut self, word: &WordExpr) -> bool {
-        self.word_at(word, 0)
+    fn command(&mut self, tokens: &CommandTokens) -> bool {
+        self.select(tokens)
+            && tokens.words().iter().all(|word| self.word(word))
+            && self.substitutions(tokens, None)
     }
 
-    /// Whether running the command `words` spell cannot raise on those
-    /// terms ([`Self::word`]).
-    pub(crate) fn command(&mut self, words: &[WordExpr]) -> bool {
-        self.command_at(words, 0)
-    }
-
-    fn word_at(&mut self, word: &WordExpr, depth: u32) -> bool {
+    /// Lexical variable-read obligations only. The shared child inventory
+    /// separately authenticates every command substitution's geometry and lookup.
+    fn word(&mut self, word: &WordExpr) -> bool {
         match word {
-            WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => true,
+            WordExpr::Literal { .. }
+            | WordExpr::BracedLiteral { .. }
+            | WordExpr::CommandSubstitution { .. } => true,
             WordExpr::Variable { spelling, .. } => self.read(spelling),
-            WordExpr::CommandSubstitution { spelling, .. } => self.substitution(spelling, depth),
             WordExpr::Template {
                 rejected: Some(_), ..
             }
             | WordExpr::Expand { .. }
             | WordExpr::Opaque { .. } => false,
             WordExpr::Template { parts, .. } => parts.iter().all(|part| match part {
-                WordPart::Text { .. } => true,
+                WordPart::Text { .. } | WordPart::CommandSubstitution { .. } => true,
                 WordPart::Variable { spelling, .. } => self.read(spelling),
-                WordPart::CommandSubstitution { spelling, .. } => {
-                    self.substitution(spelling, depth)
-                }
                 WordPart::Opaque { .. } => false,
             }),
         }
     }
 
-    /// A variable substitution: a whole scalar name, recorded as read.
     fn read(&mut self, spelling: &str) -> bool {
-        crate::value_shapes::whole_word_scalar_var_name(spelling)
-            .map(|name| self.reads.push(name.to_owned()))
-            .is_some()
-    }
-
-    /// A command substitution: each command of its script, every one parsed
-    /// whole.
-    fn substitution(&mut self, spelling: &str, depth: u32) -> bool {
-        if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
-            return false;
-        }
-        let Some(script) = spelling
-            .strip_prefix('[')
-            .and_then(|inner| inner.strip_suffix(']'))
+        let config = self.module.native_lexer_config().nested();
+        let Ok(Some(reference)) = tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), config)
         else {
             return false;
         };
-        let config = self.config;
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(script, 0, config);
-        if commands.iter().any(|command| command.is_partial) {
-            return false;
-        }
-        let map = tcl_lexer::SourceMap::new(script);
-        commands.iter().all(|command| {
-            let tokens = CommandTokens::from_segmented(&map, config, command);
-            self.command_at(&tokens.word_exprs, depth + 1)
-        })
-    }
-
-    fn command_at(&mut self, words: &[WordExpr], depth: u32) -> bool {
-        let Some((head, arguments)) = words.split_first() else {
-            return true;
-        };
-        let (WordExpr::Literal { text, .. } | WordExpr::BracedLiteral { text, .. }) = head else {
-            return false;
-        };
-        if arguments
-            .iter()
-            .any(|word| matches!(word, WordExpr::Expand { .. }))
+        if reference.index.is_some()
+            || tcl_syntax::naming::split_element_ref_bytes(reference.name).is_some()
         {
             return false;
         }
-        if let Some(callee) = (self.procedure)(text) {
-            self.calls.push((callee, arguments.len()));
-        } else {
-            let spellings: Vec<String> = arguments.iter().map(WordExpr::legacy_text).collect();
-            let spellings: Vec<&str> = spellings.iter().map(String::as_str).collect();
-            if !self
-                .registry
-                .is_some_and(|completes| completes(text, &spellings))
-            {
+        let Ok(Some(name)) =
+            tcl_syntax::naming::variable_reference_root_bytes(spelling.as_bytes(), config)
+        else {
+            return false;
+        };
+        if name.is_empty() {
+            return false;
+        }
+        let Ok(name) = std::str::from_utf8(name) else {
+            return false;
+        };
+        self.reads.push(name.to_owned());
+        true
+    }
+
+    fn substitutions(&mut self, parent: &CommandTokens, within: Option<tcl_lexer::Span>) -> bool {
+        let Some(binding) = parent.source_binding.as_ref() else {
+            return false;
+        };
+        let Some(metadata) =
+            binding.original_invocation_metadata_for_module(parent, self.module, self.registry)
+        else {
+            return false;
+        };
+        let Some(children) = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+            parent,
+            self.module.native_lexer_config(),
+            self.registry,
+            metadata,
+        ) else {
+            return false;
+        };
+        children
+            .into_iter()
+            .filter(|child| {
+                within.is_none_or(|span| {
+                    span.start() <= child.span.start() && child.span.end() <= span.end()
+                })
+            })
+            .all(|child| {
+                child.tokens.as_ref().is_some_and(|tokens| {
+                    self.select(tokens) && tokens.words().iter().all(|word| self.word(word))
+                })
+            })
+    }
+
+    fn select(&mut self, tokens: &CommandTokens) -> bool {
+        if let Some(calls) = crate::registry_invocation::original_logical_procedure_calls_for_module(
+            tokens,
+            self.module,
+            self.registry,
+        ) {
+            if calls.iter().any(|call| !call.accepts_arguments()) {
                 return false;
             }
+            for call in calls {
+                let Some(count) = call.argument_count() else {
+                    return false;
+                };
+                self.calls
+                    .push((call.procedure().qualified_name.clone(), count));
+            }
+            return true;
         }
-        arguments.iter().all(|word| self.word_at(word, depth))
+        self.registry_commands
+            && self.invocation(tokens).is_some_and(|invocation| {
+                invocation.facts.arity_accepts_frozen_arguments() == Some(true)
+                    && matches!(invocation.facts.completion.codes,
+                    CompletionCodeDomain::Exact(codes) if codes == [CompletionCode::Ok])
+            })
+    }
+
+    fn invocation(
+        &self,
+        tokens: &CommandTokens,
+    ) -> Option<crate::registry_invocation::ResolvedStatementInvocation> {
+        let metadata = tokens
+            .source_binding
+            .as_ref()?
+            .original_invocation_metadata_for_module(tokens, self.module, self.registry)?;
+        crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            self.registry,
+            metadata,
+            tokens,
+        )
     }
 }
 
-/// Whether each procedure of `ir_module` completes normally whatever its
-/// arguments hold, for a call whose word count its parameters accept:
-/// a least fixpoint over the calls each straight-line body makes, so
-/// a recursion never completes. The registry commands a body runs are read
-/// from the document's command surface as the module leaves them: the module
-/// must trust the head's builtin binding, and a command the document
-/// declares answers alone, with no completion stated. A procedure a body
-/// calls must be defined where the body runs: `defined` answers
-/// whether a callee's `proc` statement surely runs before the load may first
-/// run the caller.
+/// Conditional normal-completion model for the Module's original Logical
+/// procedure bodies. The complete source owner, selected formal grammar and
+/// original point/child receipts are mandatory. Missing or Native-only owners
+/// state no completion; physical Native entry consumes its independent proofs.
 pub(super) fn procedures_complete(
-    ir_module: &crate::ir::Module,
-    surface: tcl_registry::model::DocumentCommandSurface<'_>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
-    mutations: &ModuleCommandMutations,
+    module: &Module,
+    registry: &CommandRegistry,
     defined: &dyn Fn(&str, &str) -> bool,
 ) -> HashMap<String, bool> {
-    let config = tcl_lexer::LexerConfig::for_profile(dialect);
-    let registry = surface.commands();
-    let registry_completes = |head: &str, arguments: &[&str]| {
-        !surface.declares(head)
-            && mutations.trusts(head)
-            && registry
-                .resolve_invocation(head, arguments, registry.own_surface_query())
-                .is_some_and(|invocation| {
-                    let semantics = invocation.semantics;
-                    matches!(
-                        semantics.completion.codes,
-                        CompletionCodeDomain::Exact(codes) if codes == [CompletionCode::Ok]
-                    ) && arguments
-                        .len()
-                        .checked_sub(semantics.argument_offset)
-                        .and_then(|count| u16::try_from(count).ok())
-                        .is_some_and(|count| semantics.arity.accepts(count))
-                })
-    };
-    let trusts = |name: &str| mutations.trusts(name);
-    let calls: HashMap<&str, Vec<(String, usize)>> = ir_module
+    let calls: HashMap<&str, Vec<(String, usize)>> = module
         .procedures
         .iter()
-        .filter_map(|(qname, proc)| {
-            let procedure = |head: &str| {
-                super::resolve_internal_call_with(head, qname, |candidate| {
-                    ir_module.procedures.contains_key(candidate)
-                })
-            };
+        .filter_map(|(qname, procedure)| {
+            if qname != &procedure.qualified_name {
+                return None;
+            }
+            let bound = crate::registry_invocation::original_procedure_scalar_bindings(
+                module, procedure, registry,
+            )?;
+            if !module.traced_commands.is_empty()
+                || module.has_dynamic_trace
+                || !module.traced_variables.is_empty()
+            {
+                return None;
+            }
             let mut scan = BodyScan {
-                walk: CompletionWalk::new(config, &procedure, Some(&registry_completes)),
-                bound: proc.params.iter().cloned().collect(),
-                trusts: &trusts,
+                walk: CompletionWalk::for_module(module, registry, true)?,
+                bound,
             };
-            scan.script(&proc.body, 0)
+            scan.script(&procedure.body)
                 .then_some((qname.as_str(), scan.walk.calls))
         })
         .collect();
-    let stands = |qname: &str| {
-        !ir_module.redefined_procedures.contains(qname) && mutations.trusts_proc_binding(qname)
-    };
     let mut completes: HashSet<&str> = HashSet::new();
     loop {
         let before = completes.len();
@@ -243,16 +242,20 @@ pub(super) fn procedures_complete(
             if completes.contains(qname) {
                 continue;
             }
-            let each_completes = callees.iter().all(|(callee, count)| {
+            if callees.iter().all(|(callee, count)| {
                 completes.contains(callee.as_str())
-                    && stands(callee)
+                    && !module.redefined_procedures.contains(callee)
                     && defined(callee, qname)
-                    && ir_module.procedures.get(callee).is_some_and(|proc| {
-                        u16::try_from(*count)
-                            .is_ok_and(|count| super::arity_from_names(&proc.params).accepts(count))
-                    })
-            });
-            if each_completes {
+                    && module
+                        .procedures
+                        .get(callee)
+                        .and_then(|procedure| {
+                            crate::registry_invocation::original_procedure_formal_count_shape(
+                                module, procedure, registry,
+                            )
+                        })
+                        .is_some_and(|shape| shape.accepts(*count))
+            }) {
                 completes.insert(qname);
             }
         }
@@ -260,76 +263,87 @@ pub(super) fn procedures_complete(
             break;
         }
     }
-    ir_module
+    module
         .procedures
         .keys()
         .map(|qname| (qname.clone(), completes.contains(qname.as_str())))
         .collect()
 }
 
-/// A straight-line body's statements in order, with the scalars set so far.
-struct BodyScan<'s, 'w> {
+/// Straight-line local scalar bindings, independent of any Native activation.
+struct BodyScan<'w> {
     walk: CompletionWalk<'w>,
-    /// The parameters, and each scalar an earlier statement set.
     bound: HashSet<String>,
-    /// Whether the module trusts a command's builtin binding: the typed
-    /// statements mean `set` and `return` only while it does.
-    trusts: &'s dyn Fn(&str) -> bool,
 }
 
-impl BodyScan<'_, '_> {
-    /// Whether every statement of `script` completes normally.
-    fn script(&mut self, script: &Script, depth: u32) -> bool {
-        if super::MAX_INTERPROCEDURAL_WALK_DEPTH.exceeded(depth) {
-            return false;
-        }
-        script
-            .statements
-            .iter()
-            .all(|statement| self.statement(statement, depth))
+impl BodyScan<'_> {
+    fn script(&mut self, script: &Script) -> bool {
+        script.statements.iter().all(|statement| {
+            script
+                .retained_source_tokens_for_statement(statement)
+                .is_some_and(|tokens| self.statement(statement, tokens))
+        })
     }
 
-    /// Whether `statement` completes normally: an assignment to one of the
-    /// procedure's own scalars, a call, or a `return` — none an expression,
-    /// an `incr`, a control-flow command or a barrier, each of which may
-    /// raise on what it reads.
-    fn statement(&mut self, statement: &Statement, depth: u32) -> bool {
+    fn statement(&mut self, statement: &Statement, tokens: &CommandTokens) -> bool {
         if statement.synthetic_marker().is_some() {
             return false;
         }
         match statement {
-            Statement::Block { body, .. } => self.script(body, depth + 1),
-            Statement::AssignConst { name, .. } => self.assign(name, None),
-            Statement::AssignValue { name, tokens, .. } => {
-                let Some([_, _, value]) =
-                    tokens.as_ref().map(|tokens| tokens.word_exprs.as_slice())
-                else {
+            Statement::AssignConst { name, .. } => self.assign(name, tokens, None),
+            Statement::AssignValue { name, .. } => {
+                let [_, _, value] = tokens.words() else {
                     return false;
                 };
-                self.assign(name, Some(value))
+                self.assign(name, tokens, Some(value))
             }
             Statement::Call {
-                tokens: Some(tokens),
                 foreach_groups: None,
                 ..
-            } => self.reading(|walk| walk.command(&tokens.word_exprs)),
-            Statement::Return { value: None, .. } => (self.trusts)("return"),
+            } => self.reading(|walk| walk.command(tokens)),
             Statement::Return {
                 expr: None,
-                value_word: Some(word),
+                value_word,
+                value,
                 ..
-            } => (self.trusts)("return") && self.reading(|walk| walk.word(word)),
+            } => {
+                let Some(invocation) = self.walk.invocation(tokens) else {
+                    return false;
+                };
+                if invocation.facts.operation
+                    != tcl_registry::SemanticOperationId::StructuredLowering(
+                        tcl_registry::hooks::LoweringHookId::Return,
+                    )
+                    || invocation.facts.arity_accepts_frozen_arguments() != Some(true)
+                    || invocation.effective.words.len() != 1 + usize::from(value.is_some())
+                {
+                    return false;
+                }
+                match value_word {
+                    Some(word) => self.reading(|walk| walk.word_in(tokens, word)),
+                    None => value.is_none() && self.walk.substitutions(tokens, None),
+                }
+            }
             _ => false,
         }
     }
 
-    /// An assignment of `value` (none for a literal) to `name`: a plain
-    /// scalar of the procedure's own frame, under the builtin `set`.
-    fn assign(&mut self, name: &str, value: Option<&WordExpr>) -> bool {
-        if !(self.trusts)("set")
-            || crate::naming::normalise_var_name(name) != name
-            || name.contains("::")
-            || value.is_some_and(|value| !self.reading(|walk| walk.word(value)))
+    fn assign(&mut self, name: &str, tokens: &CommandTokens, value: Option<&WordExpr>) -> bool {
+        let Some(invocation) = self.walk.invocation(tokens) else {
+            return false;
+        };
+        if invocation.facts.operation
+            != tcl_registry::SemanticOperationId::StructuredLowering(
+                tcl_registry::hooks::LoweringHookId::Set,
+            )
+            || invocation.facts.arity_accepts_frozen_arguments() != Some(true)
+            || invocation.effective.words.len() != 3
+            || invocation.argument_literal(0).as_deref() != Some(name)
+            || tcl_syntax::naming::split_element_ref_bytes(name.as_bytes()).is_some()
+            || tcl_syntax::naming::is_qualified(name.as_bytes())
+            || name.is_empty()
+            || value.is_some_and(|value| !self.reading(|walk| walk.word_in(tokens, value)))
+            || (value.is_none() && !self.walk.substitutions(tokens, None))
         {
             return false;
         }
@@ -337,7 +351,6 @@ impl BodyScan<'_, '_> {
         true
     }
 
-    /// Whether `evaluate` succeeds and reads only scalars already set.
     fn reading(&mut self, evaluate: impl FnOnce(&mut CompletionWalk<'_>) -> bool) -> bool {
         let first = self.walk.reads.len();
         evaluate(&mut self.walk)
@@ -348,38 +361,75 @@ impl BodyScan<'_, '_> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use std::collections::HashMap;
 
     use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
 
     const DIALECT: &str = "tcl8.6";
 
-    /// Each procedure's summary of `source` under `dialect`, in a unit built
-    /// as the optimiser builds one: the document's own declarations reach the
-    /// lowering and the summary.
-    fn summaries(
+    pub(crate) fn logical_unit(
         source: &str,
         dialect: &str,
-    ) -> HashMap<String, crate::interprocedural::ProcSummary> {
-        let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
-        let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+    ) -> (
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        CompilationUnit,
+    ) {
+        // Explicit conditional source model; this fixture grants no native
+        // worker, actual entry, normal completion or executable replacement.
+        let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+        let selected = environment.analyser_profile();
+        let mut profile = tcl_dialect::DialectProfile::projected_from_point(
+            "logical-procedure-completion-control",
+            &[],
+            "Logical procedure completion control",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+        );
+        profile.runtime_base = selected.runtime_base;
+        profile.grammar = selected.grammar;
+        let profile = profile.intern();
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        assert!(input.has_logical_source_name_context());
         let declared = crate::analyser::utils::document_declared_surface(source, None, dialect);
-        CompilationUnit::build_with_options(
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            logical_source_input: Some(input.clone()),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_source_entry(
             source,
             UnitBuildOptions {
                 registry,
                 defer_top_level: false,
-                config: tcl_lexer::LexerConfig::for_profile(Some(profile)),
+                config,
                 dialect: Some(profile),
                 external_call_sites: None,
                 declared_commands: Some(&declared),
             },
-        )
-        .with_interprocedural(registry, Some(profile))
-        .interproc
-        .expect("the summaries")
-        .procedures
+            &entry,
+        );
+        (context, unit)
+    }
+
+    /// Conditional summaries under the actual source and selected grammar.
+    fn summaries(
+        source: &str,
+        dialect: &str,
+    ) -> HashMap<String, crate::interprocedural::ProcSummary> {
+        let (context, unit) = logical_unit(source, dialect);
+        let profile = unit.ir_module.dialect_profile;
+        unit.with_interprocedural(context.commands(), profile)
+            .interproc
+            .expect("the summaries")
+            .procedures
     }
 
     /// Whether each procedure of `source` completes, by its summary.
@@ -415,6 +465,9 @@ mod tests {
     /// caller follows its callees' definitions.
     #[test]
     fn a_callee_counts_as_defined_only_where_its_definition_surely_ran() {
+        // naming.interprocedural.original-procedure-completion-source-context
+        // docs/design/analysis/name-resolution-proofs/interprocedural-original-procedure-completion-source-context.md
+        // Conditional Logical model only; no Native invocation is asserted.
         let main = "proc main {} {set a [label abc]; return 1}\n";
         let label = "proc label {x} {return [string length $x]}\n";
         for run in [
@@ -469,6 +522,9 @@ mod tests {
     /// `{*}` under 8.4, which reads it as a braced word.
     #[test]
     fn a_word_the_release_rejects_never_completes() {
+        // naming.interprocedural.original-procedure-completion-source-context
+        // docs/design/analysis/name-resolution-proofs/interprocedural-original-procedure-completion-source-context.md
+        // Conditional Logical model only; no Native invocation is asserted.
         for (body, dialects) in [
             (
                 "return [string length \"a\"b]",
@@ -499,6 +555,9 @@ mod tests {
     /// scalar the body set, and a call with the word count the callee takes.
     #[test]
     fn a_body_of_commands_that_complete_completes() {
+        // naming.interprocedural.original-procedure-completion-source-context
+        // docs/design/analysis/name-resolution-proofs/interprocedural-original-procedure-completion-source-context.md
+        // Conditional Logical model only; no Native invocation is asserted.
         let completes = completes(
             "proc one {} {return 1}\n\
              proc empty {} {}\n\
@@ -523,6 +582,9 @@ mod tests {
     /// which the nesting limit ends.
     #[test]
     fn a_body_that_may_raise_does_not_complete() {
+        // naming.interprocedural.original-procedure-completion-source-context
+        // docs/design/analysis/name-resolution-proofs/interprocedural-original-procedure-completion-source-context.md
+        // Conditional Logical model only; no Native invocation is asserted.
         let completes = completes(
             "proc add {a b} {expr {$a + $b}}\n\
              proc sum {a} {return [expr {$a + 1}]}\n\
@@ -572,6 +634,9 @@ mod tests {
     /// nothing, not that it completes.
     #[test]
     fn a_rebound_or_declared_head_states_no_completion() {
+        // naming.interprocedural.original-procedure-completion-source-context
+        // docs/design/analysis/name-resolution-proofs/interprocedural-original-procedure-completion-source-context.md
+        // Conditional Logical model only; no Native invocation is asserted.
         let shadowed = completes(
             "proc string {args} {error boom}\nproc len {x} {return [string length $x]}\n",
         );
@@ -600,6 +665,9 @@ mod tests {
     /// states no completion.
     #[test]
     fn the_ir_only_summary_states_no_completion() {
+        // naming.interprocedural.original-procedure-completion-source-context
+        // docs/design/analysis/name-resolution-proofs/interprocedural-original-procedure-completion-source-context.md
+        // Conditional Logical model only; no Native invocation is asserted.
         let profile = tcl_registry::model::ingress::resolve_environment(DIALECT).analyser_profile();
         let registry = tcl_registry::model::ingress::static_context_for(DIALECT).commands();
         let ir = crate::lowering::lower_to_ir("proc one {} {return 1}\n", registry);
@@ -613,5 +681,209 @@ mod tests {
         );
         assert!(!summaries.procedures["::one"].completes);
         assert!(completes("proc one {} {return 1}\n")["::one"]);
+    }
+    #[test]
+    fn original_completion_keeps_alias_prefixes_defaults_and_child_horizons() {
+        // naming.interprocedural.original-procedure-completion-source-context
+        // docs/design/analysis/name-resolution-proofs/interprocedural-original-procedure-completion-source-context.md
+        // Source-model completion, independent of Native entry and edit licence.
+        for source in [
+            "proc leaf {{x VALUE}} {return $x}; proc p {} {return [leaf]}",
+            "proc leaf {x y} {return $y}; interp alias {} fixed {} leaf FIRST; proc p {x} {return [fixed $x]}",
+            "proc leaf {x} {return $x}; rename leaf moved; proc p {x} {return [moved $x]}",
+            "interp alias {} length_of {} string length; proc p {x} {return [length_of $x]}",
+            "proc leaf {x} {return $x}; proc p {} {return [leaf [string length VALUE]]}",
+        ] {
+            assert!(completes(source)["::p"], "{source}");
+        }
+        for source in [
+            "proc leaf {x y} {return $y}; interp alias {} fixed {} leaf FIRST; proc p {} {return [fixed]}",
+            "proc leaf {} {return OK}; proc other {} {error STOP}; interp alias {} called {} other; proc p {} {return [called]}",
+            "proc leaf {x} {return $x}; proc p {} {return [leaf [error STOP]]}",
+            "proc p {x} {return [string length $x]}; proc string args {error STOP}",
+            "proc p {x} {return [unknown_worker $x]}",
+        ] {
+            assert!(!completes(source)["::p"], "{source}");
+        }
+    }
+
+    #[test]
+    fn original_completion_keeps_selected_scalar_reference_and_element_obligations() {
+        // naming.interprocedural.original-procedure-completion-source-context
+        // docs/design/analysis/name-resolution-proofs/interprocedural-original-procedure-completion-source-context.md
+        for source in [
+            "proc p {café} {return ${café}}",
+            "proc p {{scalar(open}} {return ${scalar(open}}",
+            "proc p {{scalar(k)tail}} {return ${scalar(k)tail}}",
+            "proc p {{$literal}} {return ${$literal}}",
+            "proc p {} {set {scalar(open} VALUE; return ${scalar(open}}",
+        ] {
+            assert!(completes(source)["::p"], "{source}");
+        }
+        for source in [
+            "proc p {a} {return $a(k)}",
+            "proc p {a} {return ${a(k)}}",
+            "proc p {a i} {return $a($i)}",
+            "proc p {} {return ${café}}",
+        ] {
+            assert!(!completes(source)["::p"], "{source}");
+        }
+        // The lexical obligation helper is tested independently here. These
+        // spellings are not promoted into an original procedure source carrier.
+        let (context8, unit8) = logical_unit("proc p {} {return OK}", "tcl8.6");
+        let mut first_close =
+            super::CompletionWalk::for_module(&unit8.ir_module, context8.commands(), true).unwrap();
+        assert!(first_close.read("${a{b}"));
+        assert_eq!(first_close.reads, ["a{b"]);
+        let (context9, unit9) = logical_unit("proc p {} {return OK}", "tcl9.0");
+        let mut nested =
+            super::CompletionWalk::for_module(&unit9.ir_module, context9.commands(), true).unwrap();
+        assert!(!nested.read("${a{b}"));
+        assert!(nested.read("${a{b}c}"));
+        assert_eq!(nested.reads, ["a{b}c"]);
+    }
+
+    #[test]
+    fn original_completion_declines_missing_foreign_native_and_mutated_headers() {
+        // naming.interprocedural.original-procedure-completion-source-context
+        // docs/design/analysis/name-resolution-proofs/interprocedural-original-procedure-completion-source-context.md
+        let source = "proc leaf {x} {return $x}; proc p {x} {return [leaf $x]}";
+        let (context, unit) = logical_unit(source, DIALECT);
+        let module = &unit.ir_module;
+        assert!(super::procedures_complete(module, context.commands(), &|_, _| true)["::p"]);
+        let mutations: &[fn(&mut crate::ir::Module)] = &[
+            |module| {
+                let procedure = module.procedures.remove("::leaf").unwrap();
+                module.procedures.insert("::other".into(), procedure);
+            },
+            |module| module.source_metadata_input = None,
+            |module| module.lexer_config.strict_quoting = !module.lexer_config.strict_quoting,
+            |module| module.source = tcl_lexer::SourceImage::document("return OTHER"),
+            |module| module.procedures.get_mut("::leaf").unwrap().qualified_name = "::other".into(),
+            |module| module.procedures.get_mut("::leaf").unwrap().params_raw = "{x DEFAULT}".into(),
+            |module| module.procedures.get_mut("::leaf").unwrap().params = vec!["y".into()],
+            |module| module.procedures.get_mut("::leaf").unwrap().body_offset += 1,
+            |module| {
+                module.procedures.get_mut("::leaf").unwrap().body_source =
+                    Some("return OTHER".into())
+            },
+            |module| {
+                module
+                    .procedures
+                    .get_mut("::leaf")
+                    .unwrap()
+                    .body
+                    .statements
+                    .clear()
+            },
+        ];
+        for change in mutations {
+            let mut changed = module.clone();
+            change(&mut changed);
+            assert!(!super::procedures_complete(&changed, context.commands(), &|_, _| true)["::p"]);
+        }
+        let mut foreign_key = module.clone();
+        let procedure = foreign_key.procedures.remove("::leaf").unwrap();
+        foreign_key.procedures.insert("::other".into(), procedure);
+        let summaries = super::procedures_complete(&foreign_key, context.commands(), &|_, _| true);
+        assert!(!summaries["::other"]);
+        assert!(!summaries["::p"]);
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        assert!(!super::procedures_complete(module, foreign.commands(), &|_, _| true)["::p"]);
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let context = tcl_registry::model::ingress::resolve_environment(dialect)
+                .default_context_registry();
+            let profile = context.commands().profile().unwrap();
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::clone(&context),
+                tcl_lexer::LexerConfig::for_profile(Some(profile)),
+            );
+            let unit = CompilationUnit::build_with_analysis_input(
+                source,
+                UnitBuildOptions {
+                    registry: context.commands(),
+                    defer_top_level: false,
+                    config: input.lexer_config(),
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            );
+            assert!(
+                super::procedures_complete(&unit.ir_module, context.commands(), &|_, _| true)
+                    .values()
+                    .all(|complete| !complete),
+                "{dialect}: no Native entry/activation receipt"
+            );
+        }
+    }
+
+    #[test]
+    fn original_completion_retains_selected_jim_formal_binding_strategy() {
+        // naming.interprocedural.original-procedure-completion-source-context
+        // docs/design/analysis/name-resolution-proofs/interprocedural-original-procedure-completion-source-context.md
+        // Actual selected Jim syntax in an explicit Logical source model,
+        // independently of native Jim activation and public normal completion.
+        for (source, minimum, maximum, names) in [
+            (
+                "proc p {{x DEFAULT} y} {return $y}",
+                1,
+                Some(2),
+                vec!["x", "y"],
+            ),
+            ("proc p {args y} {return $y}", 1, None, vec!["args", "y"]),
+            (
+                "proc p {{args tail} y} {return $tail}",
+                1,
+                None,
+                vec!["tail", "y"],
+            ),
+        ] {
+            let (context, unit) = logical_unit(source, "jim");
+            let module = &unit.ir_module;
+            assert_eq!(
+                module.parameter_grammar(),
+                Some(tcl_dialect::ParameterGrammar::Jim)
+            );
+            let procedure = &module.procedures["::p"];
+            let shape = crate::registry_invocation::original_procedure_formal_count_shape(
+                module,
+                procedure,
+                context.commands(),
+            )
+            .unwrap();
+            assert_eq!((shape.minimum, shape.maximum), (minimum, maximum));
+            let actual = crate::registry_invocation::original_procedure_scalar_bindings(
+                module,
+                procedure,
+                context.commands(),
+            )
+            .unwrap();
+            assert_eq!(actual, names.into_iter().map(str::to_owned).collect());
+        }
+        for source in [
+            "proc p {&x} {return $x}",
+            "proc p {{&x DEFAULT}} {return $x}",
+            "proc p {{a(k)}} {return $a(k)}",
+        ] {
+            let (context, unit) = logical_unit(source, "jim");
+            let procedure = &unit.ir_module.procedures["::p"];
+            assert!(
+                crate::registry_invocation::original_procedure_scalar_bindings(
+                    &unit.ir_module,
+                    procedure,
+                    context.commands(),
+                )
+                .is_none()
+            );
+            assert!(
+                !super::procedures_complete(&unit.ir_module, context.commands(), &|_, _| true,)["::p"]
+            );
+        }
     }
 }

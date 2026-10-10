@@ -730,6 +730,52 @@ pub struct AnalyserConfig {
     pub package_provides: Vec<(String, Vec<String>)>,
 }
 
+fn document_analyser(
+    db: &dyn salsa::Database,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Analyser {
+    let disabled = config.disabled_diagnostics(db).iter().cloned().collect();
+    let extra = config.extra_commands(db).iter().cloned().collect();
+    Analyser::with_disabled_diagnostics(disabled)
+        .with_non_ascii_mode(config.non_ascii_mode(db))
+        .with_pack_overlay(config.spec_pack_key(db))
+        .with_extra_commands(extra)
+        .with_bigip_version(config.bigip_version(db).clone())
+        .with_declared_targets(config.targets(db).clone())
+        .with_package_provides(config.package_provides(db).clone())
+        .with_file_path(file.path(db).clone())
+        .with_workspace_class_factories(file.workspace_class_factories(db).clone())
+        .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone())
+}
+
+/// The checked document input shared by analysis and compilation. This query
+/// resolves context only; it performs no source walk and depends on no CU query.
+///
+/// # Errors
+/// An unavailable overlay remains a typed miss until its epoch changes.
+#[salsa::tracked(returns(clone))]
+pub fn document_analysis_input(
+    db: &dyn salsa::Database,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Result<Arc<tcl_compiler::analyser::ResolvedAnalysisInput>, OverlayMiss> {
+    if config.spec_pack_key(db) != 0 {
+        let _epoch = OverlayEpoch::try_get(db).map_or(0, |epoch| epoch.generation(db));
+    }
+    document_analyser(db, file, config)
+        .prepare_analysis_input(file.dialect(db))
+        .map(Arc::new)
+}
+
+fn unavailable_document_analysis(dialect: &str, miss: OverlayMiss) -> Arc<AnalysisResult> {
+    Arc::new(AnalysisResult {
+        dialect: dialect.to_owned(),
+        analysis_context_unavailable: Some(miss),
+        ..AnalysisResult::default()
+    })
+}
+
 /// Whole-file analysis, behind an `Arc` so reads bump a refcount rather than
 /// deep-clone.
 ///
@@ -763,19 +809,15 @@ pub fn file_analysis(
     config: AnalyserConfig,
 ) -> Arc<AnalysisResult> {
     let _sidecar_stubs_epoch = file.sidecar_stubs_epoch(db);
-    let disabled: HashSet<String> = config.disabled_diagnostics(db).iter().cloned().collect();
-    let extra: HashSet<String> = config.extra_commands(db).iter().cloned().collect();
-    let mut analyser = Analyser::with_disabled_diagnostics(disabled)
-        .with_non_ascii_mode(config.non_ascii_mode(db))
-        .with_pack_overlay(config.spec_pack_key(db))
-        .with_extra_commands(extra)
-        .with_bigip_version(config.bigip_version(db).clone())
-        .with_declared_targets(config.targets(db).clone())
-        .with_package_provides(config.package_provides(db).clone())
-        .with_file_path(file.path(db).clone())
-        .with_workspace_class_factories(file.workspace_class_factories(db).clone())
-        .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone());
-    Arc::new(analyser.analyse(file.text(db), file.dialect(db)))
+    let input = match document_analysis_input(db, file, config) {
+        Ok(input) => input,
+        Err(miss) => return unavailable_document_analysis(file.dialect(db), miss),
+    };
+    Arc::new(
+        document_analyser(db, file, config)
+            .with_resolved_input((*input).clone())
+            .analyse(file.text(db), file.dialect(db)),
+    )
 }
 
 /// Offset-stable item tree — the per-item firewall's foundation
@@ -2738,6 +2780,15 @@ fn build_unit_with_keys<'db>(
     source: &str,
     options: UnitBuildOptions<'_>,
 ) -> (CompilationUnit, HashMap<String, FnLatticeKey<'db>>) {
+    build_unit_with_keys_and_input(db, source, options, None)
+}
+
+fn build_unit_with_keys_and_input<'db>(
+    db: &'db dyn TclDb,
+    source: &str,
+    options: UnitBuildOptions<'_>,
+    input: Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
+) -> (CompilationUnit, HashMap<String, FnLatticeKey<'db>>) {
     let UnitBuildOptions { registry, .. } = options;
     let dialect = options.dialect;
     // Values, rather than an environment-name round trip, own memo identity.
@@ -2867,12 +2918,22 @@ fn build_unit_with_keys<'db>(
             );
             (*lower_proc_body(db, key)).clone()
         };
-        CompilationUnit::build_for_memoized_with_body_cache(
-            source,
-            options,
-            &mut lattice_memo,
-            &body_memo,
-        )
+        match input {
+            Some(input) => CompilationUnit::build_memoized_with_analysis_input(
+                source,
+                options,
+                &mut lattice_memo,
+                &body_memo,
+                None,
+                input,
+            ),
+            None => CompilationUnit::build_for_memoized_with_body_cache(
+                source,
+                options,
+                &mut lattice_memo,
+                &body_memo,
+            ),
+        }
     };
     // Memoise the per-procedure interprocedural taint re-run via `taint_cascade`.
     // The whole-module summary is still rebuilt here (it is the memo's input);
@@ -3376,7 +3437,6 @@ pub fn proc_taint_solve<'db>(
     overlay: u64,
 ) -> Option<Arc<CheckSolve>> {
     let dialect = file.dialect(db).clone();
-    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
     let Ok(registry) = unit_registry(db, &dialect, overlay) else {
         return abstain();
     };
@@ -3388,13 +3448,31 @@ pub fn proc_taint_solve<'db>(
         file.text(db),
         unit_build_options(db, file, cfg, registry, external.as_deref(), &declared),
     );
+    Some(solve_checks_for_unit(
+        db,
+        &dialect,
+        registry,
+        cu,
+        &lattice_keys,
+        tcl_lsp_core::stated_profile_for_dialect(&dialect),
+    ))
+}
+
+fn solve_checks_for_unit<'db>(
+    db: &'db dyn TclDb,
+    dialect: &str,
+    registry: &CommandRegistry,
+    cu: CompilationUnit,
+    lattice_keys: &HashMap<String, FnLatticeKey<'db>>,
+    dialect_opt: Option<&'static tcl_dialect::DialectProfile>,
+) -> Arc<CheckSolve> {
     let interproc = cu.interproc.as_ref();
 
     let taints = tcl_compiler::taint_interproc::solve_interprocedural_taints_with(
         &cu,
         registry,
         dialect_opt,
-        &mut |qname, params, fu, known, summaries| match memo_key(db, &lattice_keys, qname) {
+        &mut |qname, params, fu, known, summaries| match memo_key(db, lattice_keys, qname) {
             // Memoised path: the proc has an offset-0 baseline key.
             Some(lattice_key) => {
                 let body_source = cu
@@ -3410,7 +3488,7 @@ pub fn proc_taint_solve<'db>(
                     interproc,
                     summaries,
                     known,
-                    &dialect,
+                    dialect,
                 );
                 (*proc_summary_cascade(db, lattice_key, deps_key)).clone()
             }
@@ -3439,7 +3517,7 @@ pub fn proc_taint_solve<'db>(
     // (no offset add).
     let mut fn_checks: Vec<CompilerCheck> = Vec::new();
     for fu in cu.analysable_functions() {
-        match memo_key(db, &lattice_keys, &fu.name) {
+        match memo_key(db, lattice_keys, &fu.name) {
             Some(key) => {
                 let body_offset = cu
                     .ir_module
@@ -3503,18 +3581,12 @@ pub fn proc_taint_solve<'db>(
         }
     }
 
-    let optimisations = solve_optimisations(
-        db,
-        &cu,
-        &lattice_keys,
-        registry,
-        tcl_lsp_core::stated_profile_for_dialect(&dialect),
-    );
-    Some(Arc::new(CheckSolve {
+    let optimisations = solve_optimisations(db, &cu, lattice_keys, registry, dialect_opt);
+    Arc::new(CheckSolve {
         taints,
         fn_checks,
         optimisations,
-    }))
+    })
 }
 
 /// Hashable normalisation of a callee's `ConstantReturn` (`f64` isn't `Hash`/`Eq`)
@@ -4348,6 +4420,86 @@ pub fn compilation_unit<'db>(
     )))
 }
 
+/// Memoised source compilation under the document's checked complete input.
+/// Missing context or a stale requested grammar withholds the unit.
+#[salsa::tracked(lru = 512, returns(clone))]
+pub fn compilation_unit_for_config<'db>(
+    db: &'db dyn TclDb,
+    file: SourceFile,
+    cfg: LexerCfgKey<'db>,
+    config: AnalyserConfig,
+) -> Option<Arc<CompilationUnit>> {
+    let input = document_analysis_input(db, file, config).ok()?;
+    let registry = input.borrowed_context_registry().commands();
+    let external = file.external_call_sites(db).clone();
+    let declared = declared_command_surface(db, file);
+    let options = supplied_unit_build_options(
+        db,
+        file,
+        cfg,
+        registry,
+        external.as_deref(),
+        &declared,
+        &input,
+    )?;
+    Some(Arc::new(
+        build_unit_with_keys_and_input(db, file.text(db), options, Some(&input)).0,
+    ))
+}
+
+#[salsa::tracked(lru = 512, returns(clone))]
+pub fn proc_taint_solve_for_config<'db>(
+    db: &'db dyn TclDb,
+    file: SourceFile,
+    cfg: LexerCfgKey<'db>,
+    config: AnalyserConfig,
+) -> Option<Arc<CheckSolve>> {
+    let input = document_analysis_input(db, file, config).ok()?;
+    let registry = input.borrowed_context_registry().commands();
+    let external = file.external_call_sites(db).clone();
+    let declared = declared_command_surface(db, file);
+    let options = supplied_unit_build_options(
+        db,
+        file,
+        cfg,
+        registry,
+        external.as_deref(),
+        &declared,
+        &input,
+    )?;
+    let (cu, keys) = build_unit_with_keys_and_input(db, file.text(db), options, Some(&input));
+    Some(solve_checks_for_unit(
+        db,
+        file.dialect(db),
+        registry,
+        cu,
+        &keys,
+        Some(input.unit_profile()),
+    ))
+}
+
+fn supplied_unit_build_options<'a>(
+    db: &dyn TclDb,
+    file: SourceFile,
+    cfg: LexerCfgKey<'_>,
+    registry: &'a CommandRegistry,
+    external: Option<&'a CallSiteEvidence>,
+    declared: &'a DeclaredSurface,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+) -> Option<UnitBuildOptions<'a>> {
+    tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+        registry,
+        input,
+        cfg.to_config(db),
+        Some(input.unit_profile()),
+    )?;
+    Some(UnitBuildOptions {
+        dialect: Some(input.unit_profile()),
+        config: input.lexer_config(),
+        ..unit_build_options(db, file, cfg, registry, external, declared)
+    })
+}
+
 /// Incremental whole-file analysis: the per-item path with each `proc` body's
 /// isolated analysis memoised via [`item_body_analysis`], so a body edit
 /// recomputes one body + the cheap shell instead of the whole walk; the
@@ -4375,20 +4527,14 @@ pub fn file_analysis_incremental(
     let _sidecar_stubs_epoch = file.sidecar_stubs_epoch(db);
     let disabled_vec = config.disabled_diagnostics(db).clone();
     let non_ascii = config.non_ascii_mode(db);
-    let extra_commands: HashSet<String> = config.extra_commands(db).iter().cloned().collect();
     let dialect = file.dialect(db).clone();
     let text = file.text(db).clone();
     let workspace_class_factories = file.workspace_class_factories(db).clone();
-    let mut analyser = Analyser::with_disabled_diagnostics(disabled_vec.iter().cloned().collect())
-        .with_non_ascii_mode(non_ascii)
-        .with_pack_overlay(config.spec_pack_key(db))
-        .with_extra_commands(extra_commands)
-        .with_bigip_version(config.bigip_version(db).clone())
-        .with_declared_targets(config.targets(db).clone())
-        .with_package_provides(config.package_provides(db).clone())
-        .with_file_path(file.path(db).clone())
-        .with_workspace_class_factories(workspace_class_factories.clone())
-        .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone());
+    let input = match document_analysis_input(db, file, config) {
+        Ok(input) => input,
+        Err(miss) => return unavailable_document_analysis(&dialect, miss),
+    };
+    let mut analyser = document_analyser(db, file, config).with_resolved_input((*input).clone());
 
     // Build the CFG/SSA tail's compilation unit with per-procedure lattices
     // memoised by `function_lattice`, and feed it through the analyser's
@@ -4400,10 +4546,9 @@ pub fn file_analysis_incremental(
     // for *every* environment, because both consumers intern the same
     // environment id.
     let cfg_key = lexer_cfg_key(db, &dialect);
-    // Without the packs' generation there is no shared unit, and the analyser
-    // builds its own against the registry it reads (the plain one until the
-    // packs are installed): analysis advises and runs again once they are.
-    if let Some(unit) = compilation_unit(db, file, cfg_key, config.spec_pack_key(db)) {
+    // The input was checked before either producer walked source. A missing
+    // generation returns above; it cannot reopen standalone compilation.
+    if let Some(unit) = compilation_unit_for_config(db, file, cfg_key, config) {
         analyser.set_cu_override(unit);
     }
 
@@ -4492,20 +4637,17 @@ pub fn compiler_check_diagnostics(
     config: AnalyserConfig,
 ) -> Arc<CompilerDiagnostics> {
     let dialect = file.dialect(db).clone();
-    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
-    let overlay = config.spec_pack_key(db);
-    // No packs installed, no unit and no rewrites: nothing is offered in place
-    // of what the workspace's own declarations would have decided.
-    let Ok(registry) = unit_registry(db, &dialect, overlay) else {
+    let Ok(input) = document_analysis_input(db, file, config) else {
         return abstain_diagnostics();
     };
-    let registry: &CommandRegistry = &registry;
+    let registry: &CommandRegistry = input.borrowed_context_registry().commands();
+    let dialect_opt = Some(input.unit_profile());
     // Share the analyser tail's build via the [`compilation_unit`] query when the
     // dialect's lexer config matches the default (every dialect but `tcl8.4` /
     // `f5-irules`): the optimiser lowers with the dialect config, so a matching
     // config interns the same `LexerCfgKey` and reuses the same per-edit build.
     let cfg_key = lexer_cfg_key(db, &dialect);
-    let Some(cu) = compilation_unit(db, file, cfg_key, overlay) else {
+    let Some(cu) = compilation_unit_for_config(db, file, cfg_key, config) else {
         return abstain_diagnostics();
     };
     // Both halves of `run_all_checks` come from the memoised [`proc_taint_solve`]:
@@ -4517,7 +4659,7 @@ pub fn compiler_check_diagnostics(
     // into the same deterministic order `run_all_checks` produces.  Byte-identical
     // to the in-line build; guarded by the corpus differential.  Optimiser
     // unchanged.
-    let Some(solve) = proc_taint_solve(db, file, cfg_key, overlay) else {
+    let Some(solve) = proc_taint_solve_for_config(db, file, cfg_key, config) else {
         return abstain_diagnostics();
     };
     let mut checks = solve.fn_checks.clone();
@@ -4695,7 +4837,7 @@ pub fn document_compilation_unit_for(
     config: AnalyserConfig,
 ) -> Option<Arc<CompilationUnit>> {
     let cfg_key = lexer_cfg_key(db, file.dialect(db));
-    compilation_unit(db, file, cfg_key, config.spec_pack_key(db))
+    compilation_unit_for_config(db, file, cfg_key, config)
 }
 
 /// Semantic tokens — wraps `semantic_tokens::full_with_cu`; reads the durable
@@ -4964,6 +5106,9 @@ mod value_transfer_parity;
 
 #[cfg(test)]
 mod original_uncached_metadata_tests;
+
+#[cfg(test)]
+mod original_tracked_metadata_tests;
 
 #[cfg(test)]
 mod tests {

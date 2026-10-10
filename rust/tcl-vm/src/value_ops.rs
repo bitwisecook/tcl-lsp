@@ -1098,13 +1098,17 @@ mod raw_value_tests {
         vm.set_dialect_profile(jim);
         assert!(vm.native_fixed_math_prerequisite().is_none());
         let error = tcl_cmd_core::index::resolve_for_ops(&mut vm, "0 && sqrt(1)", 2).unwrap_err();
-        assert!(error.native_access_refusal().is_some());
+        let original = error
+            .native_access_refusal()
+            .expect("actual fixed-table refusal");
         let completion = crate::command::completion_from_cmd_error(&mut vm, error);
         assert_eq!(completion.code, tcl_runtime_api::Code::Error);
-        assert!(matches!(
+        assert_eq!(
             vm.execution_refusal,
-            Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(_))
-        ));
+            Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                original
+            ))
+        );
     }
 
     #[test]
@@ -1196,12 +1200,29 @@ mod raw_value_tests {
         assert!(vm.execution_refusal.is_none());
         let value = Value::from_string_bytes(vec![0xff]);
         let error = tcl_cmd_core::CmdError::from(value.try_to_str().unwrap_err());
+        let original = error
+            .native_access_refusal()
+            .expect("original Unicode refusal");
         let _ = crate::command::completion_from_cmd_error(&mut vm, error);
-        assert!(matches!(
+        assert_eq!(
             vm.execution_refusal,
-            Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(_))
-        ));
+            Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                original
+            ))
+        );
         assert_eq!(value.string_bytes().as_ref(), &[0xff]);
+        let later_value = Value::from_string_bytes(vec![b'A', 0xff]);
+        let later_error = tcl_cmd_core::CmdError::from(later_value.try_to_str().unwrap_err());
+        assert_ne!(later_error.native_access_refusal(), Some(original));
+        let _ = crate::command::completion_from_cmd_error(&mut vm, later_error);
+        let _ = vm.refuse_host_command("later host callback refusal".into());
+        assert_eq!(
+            vm.execution_refusal,
+            Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                original
+            ))
+        );
+        assert_eq!(later_value.string_bytes().as_ref(), &[b'A', 0xff]);
     }
 
     #[test]
@@ -1408,15 +1429,20 @@ mod raw_value_tests {
             &[0]
         );
         let error = tcl_cmd_core::string::index(&mut vm, &unowned, &Value::int(3)).unwrap_err();
+        let original = error
+            .native_access_refusal()
+            .expect("original string-access refusal");
         assert!(matches!(
-            error.native_access_refusal(),
-            Some(tcl_syntax::raw_string::NativeValueAccessRefusal::StringAccess(_))
+            original,
+            tcl_syntax::raw_string::NativeValueAccessRefusal::StringAccess(_)
         ));
         let _ = crate::command::completion_from_cmd_error(&mut vm, error);
-        assert!(matches!(
+        assert_eq!(
             vm.execution_refusal,
-            Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(_))
-        ));
+            Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                original
+            ))
+        );
     }
 }
 

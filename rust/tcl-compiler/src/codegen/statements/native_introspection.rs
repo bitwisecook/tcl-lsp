@@ -24,8 +24,13 @@ use tcl_registry::native_introspection_compilation::{
     NativeIntrospectionInstruction, NativeIntrospectionKind as Kind,
 };
 
+#[cfg(test)]
+#[path = "native_introspection_tests.rs"]
+mod tests;
+
 impl CodegenCtx<'_> {
     pub(super) fn append_native_introspection_tasks(
+        &mut self,
         command: &tcl_lexer::NativeScriptCommandWords,
         recipe: NativeIntrospectionInstruction,
         version: tcl_dialect::TclVersion,
@@ -48,6 +53,18 @@ impl CodegenCtx<'_> {
             };
             operations.push(task);
         }
+        if recipe.kind == Kind::InfoCommands {
+            let empty_result = self.fresh_label("native_info_commands_empty");
+            operations.extend([
+                Task::SwitchOperation(Op::RESOLVE_CMD, Vec::new(), version),
+                Task::Operation(Op::DUP, Vec::new()),
+                Task::SwitchOperation(Op::STR_LEN, Vec::new(), version),
+                Task::Operation(Op::JUMP_FALSE1, vec![Operand::Label(empty_result.clone())]),
+                Task::SwitchOperation(Op::LIST, vec![Operand::Imm(1)], version),
+                Task::Label(empty_result),
+            ]);
+            return true;
+        }
         let (op, operands) = match recipe.kind {
             Kind::NamespaceCurrent => (Op::CURRENT_NAMESPACE, Vec::new()),
             Kind::NamespaceOrigin => (Op::ORIGIN_CMD, Vec::new()),
@@ -60,6 +77,7 @@ impl CodegenCtx<'_> {
                 },
                 Vec::new(),
             ),
+            Kind::InfoCommands => unreachable!("original command result handled above"),
         };
         operations.push(Task::SwitchOperation(op, operands, version));
         true

@@ -1,0 +1,1 @@
+proc work {} {set d {k BASE};set c [catch {dict update d k x {proc rootobserver {a b c} {error WRITE};trace add variable d write rootobserver}} m];catch {trace remove variable d read rootobserver};catch {trace remove variable d write rootobserver};catch {trace remove variable x read localobserver};set dc [catch {set d} dv];list $c $m $dc $dv};work

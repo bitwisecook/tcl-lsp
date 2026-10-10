@@ -2034,7 +2034,10 @@ mod tests {
             BytecodeCompileService::for_profile(early),
         ] {
             for profile in [early as &'static DialectProfile, late] {
-                let view = service.registry.registry_for_profile(profile);
+                let view = service
+                    .registry
+                    .registry_for_profile(profile)
+                    .expect("an installed standalone profile generation");
                 assert_eq!(
                     view.as_ref().profile().unwrap().cache_key(),
                     profile.cache_key()

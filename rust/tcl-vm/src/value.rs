@@ -4693,6 +4693,46 @@ impl Value {
         )
     }
 
+    /// Retain original arguments at a reached C error-context capture.
+    /// A diagnostic argv view owns no native member references before this
+    /// event. Capture creates an owning List without reconstructing strings;
+    /// an already owned context keeps its original header.
+    pub(crate) fn capture_native_error_context(
+        &self,
+        protocol: NativeStringProtocol,
+    ) -> Result<Self, ValueError> {
+        self.check_native_header()?;
+        if !protocol
+            .tcl_version()
+            .is_some_and(tcl_dialect::TclVersion::has_error_stack)
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "native C error-context capture",
+            ));
+        }
+        let primary = self.0.intrep.borrow();
+        if let IntRep::List {
+            items,
+            string_protocol,
+            ..
+        } = &*primary
+        {
+            if string_protocol
+                .get()
+                .is_some_and(|retained| retained != protocol)
+            {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "foreign native error-context List backing",
+                ));
+            }
+            let members = items.elements()?;
+            if !items.owns_native_header() {
+                return Ok(Self::native_list_constructor(members.to_vec(), protocol));
+            }
+        }
+        Ok(self.clone())
+    }
+
     /// Materialize the native error list only at actual capture. This is when
     /// Jim's `Jim_NewListObj` acquires references to the original argv objects.
     pub(crate) fn capture_invocation_list(&self) -> Self {

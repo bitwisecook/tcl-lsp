@@ -553,7 +553,8 @@ mod tests {
             footprint
                 .script_writes("set ::observed VALUE")
                 .names
-                .contains("::observed")
+                .iter()
+                .any(|name| name == "::observed")
         );
         assert!(matches!(
             footprint.deferred_namespace(Some(tcl_registry::ScriptLookupScope::GlobalFrame)),
@@ -711,7 +712,8 @@ mod tests {
             footprint
                 .script_writes("set ::observed VALUE")
                 .names
-                .contains("::observed")
+                .iter()
+                .any(|name| name == "::observed")
         );
         let mut changed = root.ir_module.clone();
         let mut config = original.lexer_config();

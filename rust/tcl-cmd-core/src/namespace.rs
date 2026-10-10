@@ -609,11 +609,23 @@ pub fn which_command_bytes_checked<O: Namespaces + ?Sized>(
     name: &[u8],
 ) -> Result<Option<Vec<u8>>, tcl_syntax::value::ValueError> {
     match ops.find_command_bytes_checked(ops.current(), name)? {
-        Some(id) => ops.command_name_bytes(id).map(Some).ok_or(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable("command name reporting"),
-        ),
+        Some(id) => command_name_from_command_checked(ops, id).map(Some),
         None => Ok(None),
     }
+}
+
+/// Report the current full name of an already selected command token. Imports
+/// keep their own names here; origin reporting is a separate query.
+///
+/// # Errors
+/// Refuses when the actual selected token cannot report its current name.
+pub fn command_name_from_command_checked<O: Namespaces + ?Sized>(
+    ops: &O,
+    command: tcl_runtime_api::CommandId,
+) -> Result<Vec<u8>, tcl_syntax::value::ValueError> {
+    ops.command_name_bytes(command).ok_or(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable("command name reporting"),
+    )
 }
 
 /// Checked native namespace-variable query, independently of scalar access.

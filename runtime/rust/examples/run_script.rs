@@ -208,7 +208,13 @@ fn run() -> i32 {
         let pre = format!(
             "package require tcltest\nnamespace import -force ::tcltest::*\nsource {overlay}\n"
         );
-        let completion = interp.eval_completion(pre.as_bytes());
+        let completion = match interp.eval_completion(pre.as_bytes()) {
+            Ok(completion) => completion,
+            Err(error) => {
+                eprintln!("run_script: execution refused: {error}");
+                return 2;
+            }
+        };
         if completion.code == CompletionCode::Error {
             return write_result_line(
                 &mut std::io::stderr().lock(),
@@ -227,6 +233,13 @@ fn run() -> i32 {
     let completion = match &path {
         Some(p) => interp.eval_sourced_completion(&src, p.as_bytes()),
         None => interp.eval_completion(&src),
+    };
+    let completion = match completion {
+        Ok(completion) => completion,
+        Err(error) => {
+            eprintln!("run_script: execution refused: {error}");
+            return 2;
+        }
     };
     // Print the script's final result (if any), like an interactive evaluation
     // — unless `--quiet` asked for `tclsh script.tcl`'s actual non-interactive
