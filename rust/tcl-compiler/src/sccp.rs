@@ -4549,25 +4549,6 @@ impl DefValues {
                 .map_or(ExistenceStep::UNKNOWN, |answer| answer.existence),
         }
     }
-
-    /// The value of the statement's first named definition: the only one,
-    /// or the first variable a call's command names.
-    fn primary(&self, stmt_ssa: &SsaStatement, ssa: &SsaFunction) -> LatticeValue {
-        let key = if stmt_ssa.defs.len() == 1 {
-            stmt_ssa.defs.iter().next().map(|(&sym, &ver)| (sym, ver))
-        } else if let Statement::Call { defs, .. } = &stmt_ssa.statement {
-            defs.first()
-                .and_then(|name| ssa.var_symbol(crate::naming::normalise_var_name(name)))
-                .and_then(|sym| stmt_ssa.defs.get(&sym).map(|&ver| (sym, ver)))
-        } else {
-            None
-        };
-        match (self, key) {
-            (Self::Each(value, _), _) => value.clone(),
-            (Self::PerDef(_) | Self::Raised(_), Some(key)) => self.of(key),
-            (Self::PerDef(_) | Self::Raised(_), None) => LatticeValue::Overdefined,
-        }
-    }
 }
 
 /// [`evaluate_def_with_folds`] under one run's driver, for every

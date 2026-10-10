@@ -1491,6 +1491,7 @@ impl CfgBuilder<'_> {
     /// The completion code named by the handler under its retained source
     /// numeral grammar. Catalogue availability does not choose this grammar;
     /// unavailable input permits only selectors on which all grammars agree.
+    #[cfg(test)]
     fn handler_code(&self, handler: &crate::ir::TryHandler) -> Option<tcl_core_types::Code> {
         crate::executable_ir::try_handler_code_in(
             handler,

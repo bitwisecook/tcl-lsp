@@ -1477,7 +1477,13 @@ impl FunctionUnit {
             &ssa,
         );
         let rendered_props = propagate_rendered_props(&cfg, &ssa, &sccp, registry);
-        let instance_classes = instance_classes_for_function(&cfg, registry, None, false);
+        let instance_classes = instance_classes_for_function(
+            &cfg,
+            registry,
+            None,
+            false,
+            TaintSourceContext::for_input(registry, source_metadata_input, config),
+        );
         let taints = propagate_taints(
             &TaintGraph::new(&cfg, &ssa, &sccp),
             TaintPropagationInputs {
@@ -1838,7 +1844,13 @@ impl FunctionUnit {
         ia: &InterproceduralAnalysis,
         _dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> HashMap<ValueKey, TaintLattice> {
-        let instance_classes = instance_classes_for_function(&self.cfg, registry, Some(ia), true);
+        let instance_classes = instance_classes_for_function(
+            &self.cfg,
+            registry,
+            Some(ia),
+            true,
+            TaintSourceContext::for_function(registry, self),
+        );
         propagate_taints(
             &TaintGraph::new(&self.cfg, &self.ssa, &self.sccp),
             TaintPropagationInputs {
@@ -3213,8 +3225,13 @@ impl CompilationUnit {
         // Re-run taint with the new summary + dialect. We borrow
         // `interproc` immutably while each function unit re-runs
         // `propagate_taints`.
-        let top_instance_classes =
-            instance_classes_for_function(&self.top_level.cfg, registry, Some(&interproc), false);
+        let top_instance_classes = instance_classes_for_function(
+            &self.top_level.cfg,
+            registry,
+            Some(&interproc),
+            false,
+            TaintSourceContext::for_module_function(registry, &self.ir_module, &self.top_level),
+        );
         self.top_level.taints = Arc::new(propagate_taints(
             &TaintGraph::new(
                 &self.top_level.cfg,
@@ -3236,8 +3253,13 @@ impl CompilationUnit {
             },
         ));
         for fu in self.procedures.values_mut() {
-            let instance_classes =
-                instance_classes_for_function(&fu.cfg, registry, Some(&interproc), true);
+            let instance_classes = instance_classes_for_function(
+                &fu.cfg,
+                registry,
+                Some(&interproc),
+                true,
+                TaintSourceContext::for_module_function(registry, &self.ir_module, fu),
+            );
             fu.taints = Arc::new(propagate_taints(
                 &TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp),
                 TaintPropagationInputs {

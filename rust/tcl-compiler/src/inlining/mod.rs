@@ -82,7 +82,7 @@ mod rename;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use tcl_lexer::Span;
+use tcl_lexer::{LexerConfig, Span};
 
 use crate::expr_ast::ExprNode;
 use crate::ir::{
@@ -133,29 +133,37 @@ struct ProcedureDefinitionIdentity {
 #[derive(Debug, Clone)]
 enum InlineSpec {
     /// v0 — empty body; the call vanishes.
-    Empty(ProcedureDefinitionIdentity),
+    Empty(ProcedureDefinitionIdentity, LexerConfig),
     /// v1 / v2 — splice these body statements verbatim.
-    Verbatim(Script, ProcedureDefinitionIdentity),
+    Verbatim(Script, ProcedureDefinitionIdentity, LexerConfig),
     /// v3 — parameterised; rewrite per call site from this proc, whose
     /// `params_raw` is parsed under the **module's** word-value rules
     /// ([`WordValueRules`]) rather than a re-derived C Tcl default.
-    Parameterised(Procedure, WordValueRules),
+    Parameterised(Procedure, WordValueRules, LexerConfig),
 }
 
 impl InlineSpec {
     /// The statements of the body the definition has.
     fn body_statements(&self) -> &[Statement] {
         match self {
-            Self::Empty(_) => &[],
-            Self::Verbatim(body, _) => &body.statements,
-            Self::Parameterised(proc, _) => &proc.body.statements,
+            Self::Empty(_, _) => &[],
+            Self::Verbatim(body, _, _) => &body.statements,
+            Self::Parameterised(proc, _, _) => &proc.body.statements,
+        }
+    }
+
+    fn lexer_config(&self) -> LexerConfig {
+        match self {
+            Self::Empty(_, config)
+            | Self::Verbatim(_, _, config)
+            | Self::Parameterised(_, _, config) => *config,
         }
     }
 
     fn definition(&self) -> ProcedureDefinitionIdentity {
         match self {
-            Self::Empty(definition) | Self::Verbatim(_, definition) => definition.clone(),
-            Self::Parameterised(proc, _) => procedure_definition(proc)
+            Self::Empty(definition, _) | Self::Verbatim(_, definition, _) => definition.clone(),
+            Self::Parameterised(proc, _, _) => procedure_definition(proc)
                 .expect("only source-backed procedures enter the inlining catalogue"),
         }
     }
@@ -411,21 +419,10 @@ pub fn classify_proc(
 
 // splice-eligibility
 
-/// Whether `command` is a frame-independent, splice-safe builtin — a
-/// wrapped call to one can be spliced into any caller's frame.  Membership
-/// is the registry's [`CommandRegistry::is_splice_safe`] classification
-/// (fully-lowered `FRAMELESS_RUNTIME` commands minus the frame-observing /
-/// frame-affecting / variable-name-operating traits), so frame-observing
-/// (`info` / `uplevel` / `upvar`) and frame-affecting control flow
-/// (`return` / `break` / `continue`) stay excluded without a name list
-/// here.
-fn command_is_splice_safe(command: &str, registry: &CommandRegistry) -> bool {
-    registry.is_splice_safe(command)
-}
-
 /// True iff `arg` contains a `[cmd …]` command substitution at brace
 /// depth zero (brace-aware, backslash-aware). False positives just
 /// decline a hoist, never inline an unsafe one.
+#[cfg(test)]
 fn arg_has_command_subst(arg: &str) -> bool {
     let mut depth = 0i32;
     let mut chars = arg.chars().peekable();
@@ -468,30 +465,25 @@ fn stmt_is_splice_eligible(
     stmt: &Statement,
     callee_qname: &str,
     summaries: &HashMap<String, ProcEscapeSummary>,
-    registry: &CommandRegistry,
+    source: frame::SourceContext<'_>,
 ) -> bool {
     let Statement::Call {
         command,
-        args,
         defs,
+        tokens: Some(tokens),
         ..
     } = stmt
     else {
         return false;
     };
-    if !defs.is_empty() {
+    let Some(invocation) = source.invocation(tokens) else {
         return false;
-    }
-    if !command_is_namespace_invariant(command, callee_qname, summaries) {
-        return false;
-    }
-    if !command_is_splice_safe(command, registry) {
-        return false;
-    }
-    if args.iter().any(|a| arg_has_command_subst(a)) {
-        return false;
-    }
-    true
+    };
+    defs.is_empty()
+        && command_is_namespace_invariant(command, callee_qname, summaries)
+        && tcl_registry::traits::is_splice_safe(invocation.facts.traits)
+        && crate::word_subst::checked_lifted_calls(tokens, source.config)
+            .is_some_and(|calls| calls.is_empty())
 }
 
 // v3 eligibility
@@ -501,7 +493,7 @@ fn v3_eligible(
     proc: &Procedure,
     qname: &str,
     summaries: &HashMap<String, ProcEscapeSummary>,
-    registry: &CommandRegistry,
+    source: frame::SourceContext<'_>,
 ) -> bool {
     if has_irreturn_in_unsafe_scope(&proc.body, false, 0) {
         return false;
@@ -510,7 +502,7 @@ fn v3_eligible(
         if matches!(stmt, Statement::Return { .. }) {
             continue; // top-level return is fine — handled by wrap or kept
         }
-        if !v3_stmt_eligible(stmt, qname, summaries, registry) {
+        if !v3_stmt_eligible(stmt, qname, summaries, source) {
             return false;
         }
     }
@@ -622,7 +614,7 @@ fn v3_stmt_eligible(
     stmt: &Statement,
     callee_qname: &str,
     summaries: &HashMap<String, ProcEscapeSummary>,
-    registry: &CommandRegistry,
+    source: frame::SourceContext<'_>,
 ) -> bool {
     match stmt {
         Statement::AssignConst { name, .. }
@@ -633,31 +625,31 @@ fn v3_stmt_eligible(
             // covers locals. Array writes (`arr(idx)`) qualify.
             !name.contains("::")
         }
-        Statement::Call { .. } => stmt_is_splice_eligible(stmt, callee_qname, summaries, registry),
+        Statement::Call { .. } => stmt_is_splice_eligible(stmt, callee_qname, summaries, source),
         Statement::ExprEval { .. } => true,
         Statement::If {
             clauses, else_body, ..
         } => {
             clauses
                 .iter()
-                .all(|c| v3_script_eligible(&c.body, callee_qname, summaries, registry))
+                .all(|c| v3_script_eligible(&c.body, callee_qname, summaries, source))
                 && else_body
                     .as_ref()
-                    .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries, registry))
+                    .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries, source))
         }
         Statement::For {
             init, next, body, ..
         } => {
-            v3_script_eligible(init, callee_qname, summaries, registry)
-                && v3_script_eligible(next, callee_qname, summaries, registry)
-                && v3_script_eligible(body, callee_qname, summaries, registry)
+            v3_script_eligible(init, callee_qname, summaries, source)
+                && v3_script_eligible(next, callee_qname, summaries, source)
+                && v3_script_eligible(body, callee_qname, summaries, source)
         }
         Statement::Block { body, .. }
         | Statement::While { body, .. }
         | Statement::Foreach { body, .. }
         | Statement::Catch { body, .. }
         | Statement::UpFrame { body, .. } => {
-            v3_script_eligible(body, callee_qname, summaries, registry)
+            v3_script_eligible(body, callee_qname, summaries, source)
         }
         Statement::Try {
             body,
@@ -665,13 +657,13 @@ fn v3_stmt_eligible(
             finally_body,
             ..
         } => {
-            v3_script_eligible(body, callee_qname, summaries, registry)
+            v3_script_eligible(body, callee_qname, summaries, source)
                 && handlers
                     .iter()
-                    .all(|h| v3_script_eligible(&h.body, callee_qname, summaries, registry))
+                    .all(|h| v3_script_eligible(&h.body, callee_qname, summaries, source))
                 && finally_body
                     .as_ref()
-                    .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries, registry))
+                    .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries, source))
         }
         Statement::Switch {
             arms, default_body, ..
@@ -679,10 +671,10 @@ fn v3_stmt_eligible(
             arms.iter().all(|a| {
                 a.body
                     .as_ref()
-                    .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries, registry))
+                    .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries, source))
             }) && default_body
                 .as_ref()
-                .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries, registry))
+                .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries, source))
         }
         // Return is handled by the caller; Barrier and anything else decline.
         _ => false,
@@ -696,7 +688,7 @@ fn v3_script_eligible(
     script: &Script,
     callee_qname: &str,
     summaries: &HashMap<String, ProcEscapeSummary>,
-    registry: &CommandRegistry,
+    source: frame::SourceContext<'_>,
 ) -> bool {
     if crate::native_compilation_admission::script_requires_admission(script) {
         return false;
@@ -705,7 +697,7 @@ fn v3_script_eligible(
         if matches!(stmt, Statement::Return { .. }) {
             continue;
         }
-        if !v3_stmt_eligible(stmt, callee_qname, summaries, registry) {
+        if !v3_stmt_eligible(stmt, callee_qname, summaries, source) {
             return false;
         }
     }
@@ -729,6 +721,9 @@ fn build_inlinable_map(
     if module.parameter_grammar() != Some(tcl_dialect::ParameterGrammar::Tcl) {
         return HashMap::new();
     }
+    let Some(source) = frame::SourceContext::for_module(module, registry) else {
+        return HashMap::new();
+    };
     let counts = count_static_calls(module, summaries);
     // The module's own dialect, resolved once here — the lowered module names
     // it, and this is the only point in the inliner's recursion that still
@@ -745,6 +740,19 @@ fn build_inlinable_map(
         if classify_proc(proc, summaries.get(qname), count) != InlineDecision::Always {
             continue;
         }
+        // Every binding strategy uses the same selected strict ParamList
+        // syntax, including exact-arity and empty-body calls. A displayed name
+        // vector cannot bypass the original declaration's validation.
+        let Some(parameters) = parse_params_with_defaults(&proc.params_raw, word_rules) else {
+            continue;
+        };
+        if !parameters
+            .iter()
+            .map(|(name, _)| name)
+            .eq(proc.params.iter())
+        {
+            continue;
+        }
         // Executable inlining is valid only when codegen can retain an exact
         // definition identity for runtime admission. Synthetic procedures have
         // no Tcl body source to validate, so leave their calls intact.
@@ -755,13 +763,13 @@ fn build_inlinable_map(
         // A body runs in a frame of its own. Spliced into a caller's, a name it
         // reads without having bound it would answer the caller's variable of
         // that spelling, so such a body stays a call.
-        if !frame::reads_only_bound_names(proc, registry) {
+        if !frame::reads_only_bound_names(proc, source) {
             continue;
         }
 
         // v0 — empty body.
         if proc.body.statements.is_empty() {
-            map.insert(qname.clone(), InlineSpec::Empty(definition));
+            map.insert(qname.clone(), InlineSpec::Empty(definition, source.config));
             continue;
         }
 
@@ -771,20 +779,20 @@ fn build_inlinable_map(
                 .body
                 .statements
                 .iter()
-                .all(|s| stmt_is_splice_eligible(s, qname, summaries, registry))
+                .all(|s| stmt_is_splice_eligible(s, qname, summaries, source))
         {
             map.insert(
                 qname.clone(),
-                InlineSpec::Verbatim(proc.body.clone(), definition),
+                InlineSpec::Verbatim(proc.body.clone(), definition, source.config),
             );
             continue;
         }
 
         // v3 — parameterised inline with α-renaming.
-        if v3_eligible(proc, qname, summaries, registry) {
+        if v3_eligible(proc, qname, summaries, source) {
             map.insert(
                 qname.clone(),
-                InlineSpec::Parameterised(proc.clone(), word_rules),
+                InlineSpec::Parameterised(proc.clone(), word_rules, source.config),
             );
         }
     }
@@ -1744,11 +1752,14 @@ fn splice_call_site(
     // first and in the global namespace after it. No spelling says that to a
     // caller in another namespace, so such a body is spliced only where it names
     // no command the IR keeps.
-    if foreign && defined_in != "::" && heads::names_a_command(spec.body_statements()) {
+    if foreign
+        && defined_in != "::"
+        && heads::names_a_command(spec.body_statements(), spec.lexer_config())
+    {
         return None;
     }
     let mut expansion = match spec {
-        InlineSpec::Empty(_) => {
+        InlineSpec::Empty(_, _) => {
             if !args.is_empty() {
                 return None;
             }
@@ -1760,7 +1771,7 @@ fn splice_call_site(
             }
             Some(InlineExpansion::without_bindings(Vec::new()))
         }
-        InlineSpec::Verbatim(body, _) => {
+        InlineSpec::Verbatim(body, _, _) => {
             if !args.is_empty() {
                 return None;
             }
@@ -1783,13 +1794,18 @@ fn splice_call_site(
                     .collect(),
             })
         }
-        InlineSpec::Parameterised(proc, rules) => splice_v3(call, proc, *rules, counter, site.tail),
+        InlineSpec::Parameterised(proc, rules, config) => {
+            splice_v3(call, proc, *rules, *config, counter, site.tail)
+        }
     }?;
     // A definition in the global namespace resolved each command it names there. A
     // caller in another namespace would resolve the same spelling from its own
     // first, and a command of that name defined there would answer in its place.
     if foreign && defined_in == "::" {
-        expansion.statements = heads::root(std::mem::take(&mut expansion.statements))?;
+        expansion.statements = heads::root(
+            std::mem::take(&mut expansion.statements),
+            spec.lexer_config(),
+        )?;
     }
     expansion.procedure_bindings.push(
         tcl_runtime_api::ProcedureBindingIdentity::in_rooted_namespace(
@@ -1814,6 +1830,7 @@ fn splice_v3(
     call: &Statement,
     proc: &Procedure,
     rules: WordValueRules,
+    config: LexerConfig,
     counter: &mut usize,
     tail: Tail,
 ) -> Option<InlineExpansion> {
@@ -1836,7 +1853,7 @@ fn splice_v3(
         return None;
     }
 
-    let (cid, mut rename, bindings) = build_param_bindings(call, proc, rules, counter)?;
+    let (cid, mut rename, bindings) = build_param_bindings(call, proc, rules, config, counter)?;
 
     // Mangle every locally-written variable too.
     for name in collect_local_names(&proc.body) {
@@ -1845,7 +1862,7 @@ fn splice_v3(
             .or_insert_with(|| format!("__inline_{cid}__{name}"));
     }
 
-    let renamed_body = rename::rewrite_script(&proc.body, &rename);
+    let renamed_body = rename::rewrite_script(&proc.body, &rename, config);
 
     let mut out = bindings;
     if body_has_non_trailing_return {
@@ -2239,6 +2256,7 @@ fn build_param_bindings(
     call: &Statement,
     proc: &Procedure,
     rules: WordValueRules,
+    config: LexerConfig,
     counter: &mut usize,
 ) -> Option<(usize, HashMap<String, String>, Vec<Statement>)> {
     let Statement::Call {
@@ -2304,7 +2322,7 @@ fn build_param_bindings(
                 // collapse inside `[list …]` — `[list ]` is a zero-element
                 // list, dropping the original one-element value. Decline so
                 // the call falls back to runtime dispatch with correct arity.
-                if w.is_empty() || !list_clean_for_splice(w) {
+                if w.is_empty() || !list_clean_for_splice(w, config) {
                     return None;
                 }
             }
@@ -2469,61 +2487,46 @@ fn parse_params_with_defaults(
 
 /// Return True iff `text` can be safely spliced verbatim into a Tcl
 /// `[list <e1> <e2> …]` synth as a single element.
-fn list_clean_for_splice(text: &str) -> bool {
-    if text.is_empty() {
-        return true;
+fn list_clean_for_splice(text: &str, config: LexerConfig) -> bool {
+    use tcl_lexer::word_parts::{SubstFlags, WordPart, decompose_spanned_checked};
+
+    let Ok(parts) = decompose_spanned_checked(text.as_bytes(), SubstFlags::default(), config)
+    else {
+        return false;
+    };
+    if parts
+        .iter()
+        .any(|part| matches!(part.part, WordPart::ParseError(_)))
+    {
+        return false;
     }
-    let chars: Vec<char> = text.chars().collect();
-    let n = chars.len();
-    let mut i = 0;
-    while i < n {
-        let ch = chars[i];
-        if ch == '\\' && i + 1 < n {
-            i += 2;
-            continue;
-        }
-        if ch == '$' && i + 1 < n && chars[i + 1] == '{' {
-            let mut j = i + 2;
-            while j < n && chars[j] != '}' {
-                j += 1;
-            }
-            if j >= n {
-                return false; // unbalanced ${
-            }
-            i = j + 1;
-            continue;
-        }
-        if ch == '[' {
-            let mut depth = 1;
-            let mut j = i + 1;
-            while j < n && depth > 0 {
-                let c2 = chars[j];
-                if c2 == '\\' && j + 1 < n {
-                    j += 2;
-                    continue;
-                }
-                if c2 == '[' {
-                    depth += 1;
-                } else if c2 == ']' {
-                    depth -= 1;
-                }
-                j += 1;
-            }
-            if depth != 0 {
-                return false; // unbalanced [
-            }
-            i = j;
-            continue;
-        }
-        if ch.is_whitespace() {
-            return false;
-        }
-        if ch == '{' || ch == '}' || ch == '"' {
-            return false;
-        }
-        i += 1;
-    }
-    true
+    // This generated word is lexical emission advice. The placeholder command
+    // selects no worker, source lookup or Native compilation entry.
+    let spelling = format!("__inline_list_argument {text}");
+    let Ok(end) = u32::try_from(spelling.len()) else {
+        return false;
+    };
+    let Ok(plan) = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(&spelling),
+        Span::new(0, end),
+        config,
+    ) else {
+        return false;
+    };
+    let [command] = plan.commands.as_slice() else {
+        return false;
+    };
+    let [_, word] = command.words.as_slice() else {
+        return false;
+    };
+    plan.fatal_tail.is_none()
+        && word.written_bytes() == text.as_bytes()
+        && word.span() == word.word_span()
+        && word.tokens().iter().all(|token| {
+            token.kind != tcl_lexer::TokenType::Str
+                && !token.in_quote
+                && !(token.kind == tcl_lexer::TokenType::Esc && token.content_offset != 0)
+        })
 }
 
 // local-name collection
@@ -2540,10 +2543,7 @@ fn record_local_base(name: &str, names: &mut HashSet<String>) {
     if name.contains("::") {
         return;
     }
-    let base = match name.find('(') {
-        Some(p) => &name[..p],
-        None => name,
-    };
+    let base = tcl_syntax::naming::split_element_ref(name).map_or(name, |(base, _)| base);
     if !base.is_empty() {
         names.insert(base.to_owned());
     }

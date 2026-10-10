@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-cmdcore264.elf",
+  "sha256": "06476c17b6ca7d90b7e76818cf19119098e322e965f4d61e1e72b2ebdc44535e",
+  "build_receipt": "/workspace/.proofs/integration-cmdcore-test-build264.json",
+  "build_receipt_sha256": "7699b635c317f1b17e3c6ba130d52bbe183fd20460f9d617770e0fc1dba745fa",
+  "source_snapshot_sha256": "604abfb7c0751a2e76361339ae019e0707dc76f767e273d1d24c43579740e4ed"
+}

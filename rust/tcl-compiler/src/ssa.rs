@@ -6453,22 +6453,6 @@ pub fn build_ssa_with_context(
     build_ssa_with_context_for_entry(func, registry, config, entry, None)
 }
 
-/// Explicit standalone SSA ingress with named incoming parameters.
-pub(crate) fn build_ssa_for_entry(
-    func: &cfg::Function,
-    registry: &CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-    entry_bindings: Option<&[String]>,
-) -> SsaFunction {
-    build_ssa_with_context_for_entry(
-        func,
-        registry,
-        config,
-        ResolveContext::for_function(&func.name),
-        entry_bindings,
-    )
-}
-
 /// Preserve exact entry cells while excluding unbound version-zero clobbers.
 pub(crate) fn build_ssa_with_context_for_entry(
     func: &cfg::Function,

@@ -1123,35 +1123,6 @@ pub(crate) fn variable_read_effects_from_commands<'a>(
     out
 }
 
-/// The variables a recovered command destroys — the targets of a
-/// [`Traits::DESTROYS_VARIABLE`] invocation (`unset x`), which
-/// [`variable_read_effects_from_commands`] records as reads of what they
-/// observe: an existence read, never a value read.
-#[must_use]
-pub(crate) fn destroyed_variables(
-    words: &[CommandWord],
-    registry: &CommandRegistry,
-) -> Vec<String> {
-    let Some(head) = words.first() else {
-        return Vec::new();
-    };
-    let args: Vec<InvocationWord<'_>> = words
-        .iter()
-        .skip(1)
-        .map(CommandWord::invocation_word)
-        .collect();
-    let words = InvocationWords::structured(head.invocation_word(), &args);
-    let destroys = registry
-        .resolve_structured_invocation(words, registry.own_surface_query())
-        .resolved()
-        .is_some_and(|call| call.semantics.traits.contains(Traits::DESTROYS_VARIABLE));
-    if destroys {
-        registry.variable_read_projection(words).literal_names
-    } else {
-        Vec::new()
-    }
-}
-
 /// Project variable writes from recursively recovered command substitutions.
 #[must_use]
 pub(crate) fn variable_write_effects_from_commands<'a>(

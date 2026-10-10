@@ -1273,10 +1273,7 @@ impl CodegenCtx<'_> {
         &self,
         word: Option<&WordExpr>,
     ) -> Option<crate::ir::CommandTokens> {
-        let mut nested = whole_word_command_tokens(
-            word?,
-            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
-        )?;
+        let mut nested = whole_word_command_tokens(word?, self.lexer_config())?;
         // Re-parsing preserves the original word's source address, but does
         // not itself carry the selected nested callable. Only the owning
         // invocation can supply that exact-site proof; an omitted site stays

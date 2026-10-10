@@ -52,18 +52,23 @@
 
 use std::collections::HashSet;
 
-use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
+use tcl_lexer::LexerConfig;
+#[cfg(test)]
+use tcl_lexer::{Lexer, SourceMap, TokenType};
 use tcl_registry::{CommandRegistry, Traits};
 
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{ExprNode, render_expr};
-use crate::ir::{Procedure, Script, Statement};
+use crate::ir::{CommandTokens, Module, Procedure, Script, Statement, WordExpr, WordPart};
+#[cfg(test)]
 use crate::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
-use crate::var_refs::{variable_name_role_words, vars_in_word};
+#[cfg(test)]
+use crate::var_refs::variable_name_role_words;
+use crate::var_refs::{VarReferenceScanner, VarScanOptions};
 
 /// Whether every variable `proc`'s body reads is bound when it is read.
-pub(super) fn reads_only_bound_names(proc: &Procedure, registry: &CommandRegistry) -> bool {
-    let frame = Frame { registry };
+pub(super) fn reads_only_bound_names(proc: &Procedure, source: SourceContext<'_>) -> bool {
+    let frame = Frame { source };
     let mut bound: HashSet<String> = proc
         .params
         .iter()
@@ -85,13 +90,68 @@ enum Exit {
     Returns,
 }
 
+/// Complete source metadata, distinct from runtime frame or splice admission.
+#[derive(Clone, Copy)]
+pub(super) struct SourceContext<'a> {
+    pub(super) registry: &'a CommandRegistry,
+    pub(super) metadata: crate::registry_invocation::InvocationMetadataContext<'a>,
+    pub(super) config: LexerConfig,
+    image: &'a tcl_lexer::SourceImage,
+}
+
+impl<'a> SourceContext<'a> {
+    pub(super) fn for_module(module: &'a Module, registry: &'a CommandRegistry) -> Option<Self> {
+        if !module
+            .retained_source_bindings
+            .as_ref()?
+            .matches_module(module, registry)
+        {
+            return None;
+        }
+        let metadata =
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
+        metadata.permits_logical_source_names().then_some(Self {
+            registry,
+            metadata,
+            config: module.lexer_config,
+            image: &module.source,
+        })
+    }
+
+    pub(super) fn invocation(
+        self,
+        tokens: &CommandTokens,
+    ) -> Option<crate::registry_invocation::ResolvedStatementInvocation> {
+        self.accepts_tokens(tokens)?;
+        crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            self.registry,
+            self.metadata,
+            tokens,
+        )
+        .filter(|invocation| {
+            invocation.facts.arg_roles_complete
+                && invocation.facts.arity_accepts_frozen_arguments() == Some(true)
+        })
+    }
+    fn accepts_tokens(self, tokens: &CommandTokens) -> Option<()> {
+        let binding = tokens.source_binding.as_ref()?;
+        (binding.logical_source_name_advice_input() == self.metadata.source_analysis_input()
+            && binding.source_origin()?.source_image() == self.image
+            && binding
+                .original_lexer_config_for_tokens(tokens)?
+                .normalized()
+                == self.config.normalized())
+        .then_some(())
+    }
+}
+
 struct Frame<'a> {
-    registry: &'a CommandRegistry,
+    source: SourceContext<'a>,
 }
 
 /// The variable a name addresses: an array element is its array.
 fn base(name: &str) -> &str {
-    name.split_once('(').map_or(name, |(array, _)| array)
+    tcl_syntax::naming::split_element_ref(name).map_or(name, |(array, _)| array)
 }
 
 /// A name that is not a local of the frame — one a namespace qualifies — is not
@@ -130,6 +190,8 @@ impl Frame<'_> {
             return None;
         }
         for statement in &script.statements {
+            let tokens = script.retained_source_tokens_for_statement(statement)?;
+            self.source_tokens(tokens, bound)?;
             if self.statement(statement, bound, depth)? == Exit::Returns {
                 return Some(Exit::Returns);
             }
@@ -394,33 +456,111 @@ impl Frame<'_> {
         Some(Exit::Falls)
     }
 
-    /// Every name `text`, read as a word, substitutes.
-    fn word(&self, text: &str, bound: &HashSet<String>) -> Option<()> {
-        if braced_reference_in_substitution(text)
-            || substitutes_a_command_beyond_values(text, self.registry, 0)
-        {
-            return None;
+    /// Original children retain their own point-specific source lookup. The
+    /// registry never selects a substitution from its written head here.
+    fn source_tokens(&self, tokens: &CommandTokens, bound: &HashSet<String>) -> Option<()> {
+        self.source.invocation(tokens)?;
+        for word in tokens.words() {
+            self.original_word_reads(word, bound)?;
         }
+        let calls = crate::word_subst::checked_lifted_calls(tokens, self.source.config)?;
+        for call in calls {
+            let child = call.tokens.as_ref()?;
+            let invocation = self.source.invocation(child)?;
+            if !invocation
+                .facts
+                .traits
+                .intersects(Traits::PURE | Traits::PURE_EVALUATION)
+                || invocation.facts.arg_roles.iter().any(|(_, role)| {
+                    role.names_variable()
+                        || matches!(
+                            role,
+                            tcl_registry::ArgRole::Body | tcl_registry::ArgRole::LambdaLiteral
+                        )
+                })
+            {
+                return None;
+            }
+            let roles = invocation.written_argument_roles();
+            for (index, word) in child.words().iter().skip(1).enumerate() {
+                if let WordExpr::BracedLiteral { text, .. } = word {
+                    let expression_role = roles
+                        .iter()
+                        .any(|(at, role)| *at == index && *role == tcl_registry::ArgRole::Expr);
+                    if expression_role {
+                        let input = self.source.metadata.source_analysis_input()?;
+                        let mut parser = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+                            input.unit_profile(),
+                        );
+                        parser.lexer_grammar =
+                            self.source.config.grammar_over(parser.lexer_grammar);
+                        let expression =
+                            crate::expr_parser::parse_expr_with_syntax_context(text, &parser);
+                        self.expression(&expression, bound)?;
+                    } else if text.contains('$') {
+                        // The recursive substitution rewrite cannot alter literal
+                        // data into a reference belonging to the caller's frame.
+                        return None;
+                    }
+                }
+            }
+        }
+        Some(())
+    }
+
+    fn original_word_reads(&self, word: &WordExpr, bound: &HashSet<String>) -> Option<()> {
+        match word {
+            WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => Some(()),
+            WordExpr::Variable { spelling, .. }
+            | WordExpr::CommandSubstitution { spelling, .. } => self.names(spelling, bound),
+            WordExpr::Template {
+                parts,
+                rejected: None,
+                ..
+            } => parts.iter().try_for_each(|part| match part {
+                WordPart::Text { .. } => Some(()),
+                WordPart::Variable { spelling, .. }
+                | WordPart::CommandSubstitution { spelling, .. } => self.names(spelling, bound),
+                WordPart::Opaque { .. } => None,
+            }),
+            WordExpr::Template {
+                rejected: Some(_), ..
+            }
+            | WordExpr::Expand { .. }
+            | WordExpr::Opaque { .. } => None,
+        }
+    }
+
+    /// Every lexical reference is read under this exact original grammar.
+    /// Variable-name command roles are handled by selected child metadata.
+    fn word(&self, text: &str, bound: &HashSet<String>) -> Option<()> {
         self.names(text, bound)
     }
 
     fn names(&self, text: &str, bound: &HashSet<String>) -> Option<()> {
-        vars_in_word(text, self.registry)
+        let parts = tcl_lexer::word_parts::decompose_spanned_checked(
+            text.as_bytes(),
+            tcl_lexer::word_parts::SubstFlags::default(),
+            self.source.config,
+        )
+        .ok()?;
+        if parts
+            .iter()
+            .any(|part| matches!(part.part, tcl_lexer::word_parts::WordPart::ParseError(_)))
+        {
+            return None;
+        }
+        VarReferenceScanner::with_config(VarScanOptions::default(), self.source.config)
+            .scan_word(text, self.source.registry)
             .iter()
             .try_for_each(|name| read(name, bound))
     }
 
-    /// Every name an expression reads, as its text spells them: a variable, a
-    /// quoted operand and a command it substitutes alike.
     fn expression(&self, expr: &ExprNode, bound: &HashSet<String>) -> Option<()> {
         if text_operand_substitutes(expr, 0) {
             return None;
         }
-        let text = render_expr(expr);
-        if substitutes_a_command_beyond_values(&text, self.registry, 0) {
-            return None;
-        }
-        self.names(&text, bound)
+        self.names(&render_expr(expr), bound)
     }
 }
 
@@ -431,15 +571,15 @@ fn read(name: &str, bound: &HashSet<String>) -> Option<()> {
     (!is_local(name) || bound.contains(name)).then_some(())
 }
 
-/// Whether `expr` has an operand the tree keeps as text that substitutes a
-/// variable: the rename leaves it as written.
+/// Whether `expr` contains opaque syntax or a substituting text operand the
+/// expression rename cannot project onto an original variable extent.
 fn text_operand_substitutes(expr: &ExprNode, depth: u32) -> bool {
     if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
         return true;
     }
     let next = depth + 1;
     match expr {
-        ExprNode::Command { text, .. } | ExprNode::Raw { text } => text.contains('$'),
+        ExprNode::Command { .. } | ExprNode::Raw { .. } => true,
         ExprNode::String { text, .. } => text.starts_with('"') && text.contains('$'),
         ExprNode::Binary { left, right, .. } => {
             text_operand_substitutes(left, next) || text_operand_substitutes(right, next)
@@ -462,6 +602,7 @@ fn text_operand_substitutes(expr: &ExprNode, depth: u32) -> bool {
 /// Whether `text` substitutes a command and holds a braced `$name`, other than as
 /// the one `expr` command it is: `[expr {$x}]` evaluates its braces and
 /// `[string length {$x}]` does not, and the rename must not tell them apart.
+#[cfg(test)]
 fn braced_reference_in_substitution(text: &str) -> bool {
     if !text.contains('$') || !text.contains('{') || !super::arg_has_command_subst(text) {
         return false;
@@ -480,6 +621,7 @@ fn braced_reference_in_substitution(text: &str) -> bool {
 /// variable's name, evaluates a script, or is not a command the registry knows,
 /// in the substitution or in any word of it that substitutes in turn. A braced
 /// word is read as well, for `expr` evaluates its braces.
+#[cfg(test)]
 fn substitutes_a_command_beyond_values(text: &str, registry: &CommandRegistry, depth: u32) -> bool {
     if super::MAX_INLINING_WALK_DEPTH.exceeded(depth) {
         return true;
@@ -512,6 +654,7 @@ fn substitutes_a_command_beyond_values(text: &str, registry: &CommandRegistry, d
 
 /// Whether `command` is not one that works on its values alone, or has a word
 /// that substitutes one that is not.
+#[cfg(test)]
 fn command_goes_beyond_values(
     command: &SegmentedCommand,
     registry: &CommandRegistry,
@@ -528,6 +671,7 @@ fn command_goes_beyond_values(
 /// Whether `head`, a literal word, names a command the registry knows reads and
 /// writes no variable by name, runs no script and does not depend on its frame:
 /// one a frame can be moved from under.
+#[cfg(test)]
 fn works_on_values(head: &str, registry: &CommandRegistry) -> bool {
     !head.is_empty()
         && !head.contains(['$', '[', ']', '\\', '{', '}', '"'])
@@ -545,21 +689,89 @@ mod tests {
     }
 
     #[test]
+    fn original_frame_context_keeps_selected_aliases_and_shadow_refusal() {
+        // naming.inlining.original-frame-source-context
+        // docs/design/analysis/name-resolution-proofs/inlining-original-frame-source-context.md
+        // Conditional Logical source eligibility; no Native activation is issued.
+        for source in [
+            "proc p {x} {return [string length $x]}",
+            "rename string ::moved_string; proc p {x} {return [::moved_string length $x]}",
+            "interp alias {} sl {} string length; proc p {x} {return [sl $x]}",
+            "proc p {x} {return [expr {$x + 1}]}",
+            "proc p {} {set {$literal} VALUE; return ${$literal}}",
+            "proc p {} {set {scalar(open} VALUE; return ${scalar(open}}",
+        ] {
+            let (context, module) = crate::inlining::tests::logical_module_for(source);
+            let selected = SourceContext::for_module(&module, context.commands()).unwrap();
+            assert!(
+                reads_only_bound_names(&module.procedures["::p"], selected),
+                "{source}"
+            );
+        }
+        for source in [
+            "proc string {args} {return 1}; proc p {x} {return [string length $x]}",
+            "proc p {x} {return [unknown_worker $x]}",
+            "proc p {x} {return [set y]}",
+            "proc p {x} {return [list {$x}]}",
+            "proc p {x} {return [expr {[set y]}]}",
+        ] {
+            let (context, module) = crate::inlining::tests::logical_module_for(source);
+            let selected = SourceContext::for_module(&module, context.commands()).unwrap();
+            assert!(
+                !reads_only_bound_names(&module.procedures["::p"], selected),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_frame_context_declines_missing_foreign_and_stale_carriers() {
+        // naming.inlining.original-frame-source-context
+        // docs/design/analysis/name-resolution-proofs/inlining-original-frame-source-context.md
+        let (context, original) =
+            crate::inlining::tests::logical_module_for("proc p {x} {return $x}; p 1");
+        let selected = SourceContext::for_module(&original, context.commands()).unwrap();
+        assert!(reads_only_bound_names(
+            &original.procedures["::p"],
+            selected
+        ));
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        assert!(SourceContext::for_module(&original, foreign.commands()).is_none());
+        let mut missing = original.clone();
+        missing.source_metadata_input = None;
+        assert!(SourceContext::for_module(&missing, context.commands()).is_none());
+        let mut changed_config = original.clone();
+        changed_config.lexer_config.strict_quoting = !changed_config.lexer_config.strict_quoting;
+        assert!(SourceContext::for_module(&changed_config, context.commands()).is_none());
+        let mut stale_source = original.clone();
+        stale_source.source = tcl_lexer::SourceImage::document("proc p {x} {return $missing}; p 1");
+        assert!(SourceContext::for_module(&stale_source, context.commands()).is_none());
+        let mut cooked = original.procedures["::p"].clone();
+        cooked.body.command_binding_sites = Default::default();
+        let Statement::Return { tokens, .. } = &mut cooked.body.statements[0] else {
+            panic!("genuine original return fixture");
+        };
+        *tokens = None;
+        assert!(!reads_only_bound_names(&cooked, selected));
+    }
+
+    #[test]
     fn native_dispatch_is_not_spliced_without_frame_or_head_rewrite_evidence() {
         let statement = crate::ir::native_call_for_test(b"helper $x");
-        let registry = CommandRegistry::build_default();
+        let (context, module) = crate::inlining::tests::logical_module_for("set x 1");
+        let source = SourceContext::for_module(&module, context.commands()).unwrap();
         let mut bound = HashSet::from(["x".to_owned()]);
         assert!(
-            Frame {
-                registry: &registry
-            }
-            .statement(&statement, &mut bound, 0)
-            .is_none()
+            Frame { source }
+                .statement(&statement, &mut bound, 0)
+                .is_none()
         );
-        assert!(super::super::heads::names_a_command(std::slice::from_ref(
-            &statement
-        )));
-        assert!(super::super::heads::root(vec![statement]).is_none());
+        assert!(super::super::heads::names_a_command(
+            std::slice::from_ref(&statement),
+            source.config
+        ));
+        assert!(super::super::heads::root(vec![statement], source.config).is_none());
     }
 
     #[test]

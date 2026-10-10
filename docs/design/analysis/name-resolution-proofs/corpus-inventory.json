@@ -1842,7 +1842,7 @@
         "naming.namespace-compiler.global-prefix-residual",
         "naming.namespace-compiler.qualified-variable-value-residual"
       ],
-      "reason": "Independent5 bodies×5 C declined-attempt literal/local observations; exact executed source and whole output checksums verified, distinct from20-body opcode matrix."
+      "reason": "Independent5 bodies\u00d75 C declined-attempt literal/local observations; exact executed source and whole output checksums verified, distinct from20-body opcode matrix."
     },
     {
       "path": "runtime/rust/tests/data/native_namespace_binding_artifacts/probe.c",
@@ -3232,7 +3232,7 @@
         "naming.list-storage.original-prefix-and-span-geometry",
         "naming.list-storage.original-shared-header-versus-store"
       ],
-      "reason": "Exact private probe SHA and both full output digests checked;144case×3snapshot rows each preserve real original/share/duplicate/result owners. Whole publication, unshared prefix/span and header-versus-store sharing are independently scoped; C8/Jim not-tested and native implementation hashes are not source excerpts."
+      "reason": "Exact private probe SHA and both full output digests checked;144case\u00d73snapshot rows each preserve real original/share/duplicate/result owners. Whole publication, unshared prefix/span and header-versus-store sharing are independently scoped; C8/Jim not-tested and native implementation hashes are not source excerpts."
     },
     {
       "path": "rust/tcl-cmd-core/tests/data/native_list_storage/probe.c",
@@ -64913,7 +64913,7 @@
         "naming.namespace-compiler.mixed-dynamic-prefix",
         "naming.namespace-compiler.literal-expansion-and-empty-call"
       ],
-      "reason": "Exact20 bodies×5 C original physical compiler observations: probe and all full stdout digests checked; separate hook/opcode/local purposes and bytecode-absence sentinel retained."
+      "reason": "Exact20 bodies\u00d75 C original physical compiler observations: probe and all full stdout digests checked; separate hook/opcode/local purposes and bytecode-absence sentinel retained."
     },
     {
       "path": "rust/tcl-registry/tests/data/native_namespace_command_teardown227/question.json",
@@ -65364,7 +65364,7 @@
       "proof_ids": [
         "naming.namespace-parser.final-original-token"
       ],
-      "reason": "Exact8 source parser controls×5 release stdout; original source checksum and every retained complete stdout matched, build attribution gaps preserved."
+      "reason": "Exact8 source parser controls\u00d75 release stdout; original source checksum and every retained complete stdout matched, build attribution gaps preserved."
     },
     {
       "path": "rust/tcl-registry/tests/data/native_namespace_final_token/probe.c",
@@ -102718,7 +102718,7 @@
       "proof_ids": [
         "naming.numeric.primitive-int-original-width-cache"
       ],
-      "reason": "Exact source checksum verified; each embedded original JSON row array exactly matches its retained TSV projection for14 cases×5 releases. No missing original full JSONL stdout/header/build/status data is invented."
+      "reason": "Exact source checksum verified; each embedded original JSON row array exactly matches its retained TSV projection for14 cases\u00d75 releases. No missing original full JSONL stdout/header/build/status data is invented."
     },
     {
       "path": "rust/tcl-syntax/tests/data/native_scalar_getters/int/probe.c",
@@ -102898,7 +102898,7 @@
         "naming.numeric.get-bignum-interpreter",
         "naming.numeric.increment-original-object"
       ],
-      "reason": "Exact source and six full JSONL SHA/status/row-count checks matched. Four×48 numeric windows assigned by actual stage, and two single compile-out sentinels retained as non-attempt limitations, not guest unavailable claims."
+      "reason": "Exact source and six full JSONL SHA/status/row-count checks matched. Four\u00d748 numeric windows assigned by actual stage, and two single compile-out sentinels retained as non-attempt limitations, not guest unavailable claims."
     },
     {
       "path": "rust/tcl-syntax/tests/data/native_scalar_getters/number/probe.c",
@@ -103654,7 +103654,7 @@
         "naming.variable.original-local-cache-before-getter",
         "naming.variable.original-local-cache-unavailable-updater"
       ],
-      "reason": "Exact source SHA and all 25 separate original process captures inspected; projected paths exactly derived. Fatal signals−6/−4 and empty stdout are retained as process outcomes, not erased or labeled ordinary guest Errors."
+      "reason": "Exact source SHA and all 25 separate original process captures inspected; projected paths exactly derived. Fatal signals\u22126/\u22124 and empty stdout are retained as process outcomes, not erased or labeled ordinary guest Errors."
     },
     {
       "path": "rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/paths.txt",
@@ -104463,8 +104463,8 @@
     },
     {
       "path": "rust/tcl-vm/tests/data/native_dictionary_body/README.md",
-      "sha256": "abfa0c00ff5bfb11318e431e64482287c4185c1a2b38a9a09683236ab1a64905",
-      "bytes": 985,
+      "sha256": "198e73618e232542ba8cd7c45589f3b3ede744f389d0fa30a5c9bc089f147146",
+      "bytes": 1754,
       "candidate": false
     },
     {

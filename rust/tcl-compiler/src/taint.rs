@@ -502,173 +502,17 @@ pub(crate) fn local_instance_classes(
     cfg: &CfgFunction,
     registry: &CommandRegistry,
 ) -> LocalInstanceClasses {
-    local_instance_classes_with_initial(cfg, registry, &InstanceClassState::new())
+    local_instance_classes_with_source(
+        cfg,
+        registry,
+        &InstanceClassState::new(),
+        TaintSourceContext::standalone(registry, registry.profile()),
+    )
 }
 
-fn factory_class<'a>(
-    registry: &'a CommandRegistry,
-    head: &str,
-    args: &[String],
-) -> Option<&'a str> {
-    if let Some(method) = args.first()
-        && registry
-            .exported_manufacturer_method(head, method)
-            .is_some()
-    {
-        return registry.object_class(head).map(|class| class.class_name);
-    }
-    registry
-        .get(head)
-        .filter(|spec| spec.creates_instance_at.is_some())
-        .and_then(|spec| spec.object_class)
-        .map(|class| class.class_name)
-}
-
-fn literal_receiver(name: &str) -> Option<&str> {
-    (!name.is_empty() && !name.starts_with(['$', '[', '{'])).then_some(name)
-}
-
-fn transfer_instance_statement(
-    state: &mut InstanceClassState,
-    statement: &Statement,
-    registry: &CommandRegistry,
-) {
-    if statement.has_opaque_native_accesses() {
-        state.clear();
-        return;
-    }
-    match statement {
-        Statement::Call {
-            command,
-            args,
-            defs,
-            ..
-        } => {
-            transfer_instance_lifecycle(state, command, args, registry);
-            // A registry-known write to a handle variable invalidates the old
-            // type unless this very statement installs a fresh factory fact.
-            for name in defs {
-                state.remove(normalise_var_name(name));
-            }
-            if let Some(spec) = registry.get(command)
-                && let Some(index) = spec.creates_instance_at
-                && let Some(name) = args.get(usize::from(index))
-                && let Some(name) = literal_receiver(name)
-            {
-                // Every naming factory replaces the command at this literal
-                // receiver, even when its registry row does not expose an
-                // object class. In that case the sound reaching fact is
-                // "untyped", not the previous constructor's stale class.
-                state.remove(name);
-                if let Some(class) = spec.object_class {
-                    state.insert(
-                        name.to_owned(),
-                        HashSet::from([class.class_name.to_owned()]),
-                    );
-                }
-            }
-        }
-        Statement::AssignValue { name, value, .. } => {
-            let name = normalise_var_name(name);
-            state.remove(name);
-            if let Some((head, args)) = parse_command_substitution_with_config(
-                value.trim(),
-                tcl_lexer::LexerConfig::for_profile(registry.profile()),
-            ) && let Some(class) = factory_class(registry, &head, &args)
-                && let Some(name) = literal_receiver(name)
-            {
-                state.insert(name.to_owned(), HashSet::from([class.to_owned()]));
-            }
-        }
-        Statement::AssignConst { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::Incr { name, .. } => {
-            state.remove(normalise_var_name(name));
-        }
-        _ => {}
-    }
-}
-
-/// Apply registry-declared command/object lifecycle changes to the local
-/// receiver-class map.  This is deliberately driven by the registry's
-/// command-table and teardown descriptors rather than by command-name
-/// switches: a rename moves the class fact, an alias/dynamic mutation clears
-/// it, and a Tk teardown removes the target window and its descendants.
-pub(crate) fn transfer_instance_lifecycle(
-    state: &mut InstanceClassState,
-    command: &str,
-    args: &[String],
-    registry: &CommandRegistry,
-) {
-    let transitions = crate::alias::command_table_transitions(registry, command, args);
-    if transitions.touches_command_bindings() {
-        for transition in transitions.command_bindings() {
-            match transition {
-                tcl_registry::CommandBindingTransition::Move { from, to } => {
-                    let (Some(old), Some(new)) = (from.literal(), to.literal()) else {
-                        state.clear();
-                        return;
-                    };
-                    let Some(old) = literal_receiver(old) else {
-                        state.clear();
-                        return;
-                    };
-                    if new.starts_with(['$', '[', '{']) {
-                        state.clear();
-                        return;
-                    }
-                    let class = state.remove(old);
-                    if !new.is_empty()
-                        && let Some(class) = class
-                    {
-                        state.insert(new.to_owned(), class);
-                    }
-                }
-                tcl_registry::CommandBindingTransition::Delete { name, .. } => {
-                    // The moved-away half of `rename OLD {}`: the receiver
-                    // identity at that name is gone.
-                    let Some(old) = name.literal().and_then(literal_receiver) else {
-                        state.clear();
-                        return;
-                    };
-                    state.remove(old);
-                }
-                tcl_registry::CommandBindingTransition::Alias { .. }
-                | tcl_registry::CommandBindingTransition::Unknown { .. } => {
-                    // An alias may target or replace any command, including a
-                    // registry-modelled instance command.  Without a precise
-                    // target proof all receiver identities become unknown, and
-                    // an unknown mutation proves nothing at all.
-                    state.clear();
-                    return;
-                }
-                // A definition binds a new name without disturbing an
-                // existing receiver identity.
-                tcl_registry::CommandBindingTransition::Define { .. } => {}
-            }
-        }
-        return;
-    }
-
-    // Tk's `destroy` is a registry-declared fire-and-forget teardown.  Use the
-    // package declaration to distinguish it from unrelated teardown commands
-    // such as `unset` and `after cancel`, while keeping the consumer generic.
-    let Some(spec) = registry.get(command) else {
-        return;
-    };
-    if !spec.traits.contains(Traits::FIRE_AND_FORGET_TEARDOWN)
-        || spec.required_package != Some("Tk")
-    {
-        return;
-    }
-    for target in args {
-        let Some(target) = literal_receiver(target) else {
-            state.clear();
-            return;
-        };
-        state.retain(|name, _| !tcl_registry::tk_geometry::widget_path_is_within(name, target));
-    }
-}
+mod instance_classes;
+pub(crate) use instance_classes::transfer_instance_command;
+use instance_classes::transfer_instance_statement;
 
 fn join_instance_predecessors<'a>(
     states: impl Iterator<Item = &'a InstanceClassState>,
@@ -695,6 +539,23 @@ pub(crate) fn local_instance_classes_with_initial(
     registry: &CommandRegistry,
     initial: &InstanceClassState,
 ) -> LocalInstanceClasses {
+    local_instance_classes_with_source(
+        cfg,
+        registry,
+        initial,
+        TaintSourceContext::for_cfg(registry, cfg),
+    )
+}
+
+fn local_instance_classes_with_source(
+    cfg: &CfgFunction,
+    registry: &CommandRegistry,
+    initial: &InstanceClassState,
+    source: TaintSourceContext<'_>,
+) -> LocalInstanceClasses {
+    if !source.allows_nominal_metadata() && source.metadata_context().is_none() {
+        return LocalInstanceClasses::default();
+    }
     let predecessors = cfg.predecessors();
     let mut outputs: HashMap<crate::cfg::BlockId, InstanceClassState> = HashMap::new();
     let mut changed = true;
@@ -716,7 +577,11 @@ pub(crate) fn local_instance_classes_with_initial(
                 joined
             };
             for statement in &block.statements {
-                transfer_instance_statement(&mut state, statement, registry);
+                let tokens = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+                    &cfg.command_binding_sites,
+                    statement,
+                );
+                transfer_instance_statement(&mut state, statement, registry, source, tokens);
             }
             if outputs.get(&block_id) != Some(&state) {
                 outputs.insert(block_id, state);
@@ -741,7 +606,11 @@ pub(crate) fn local_instance_classes_with_initial(
         };
         for statement in &block.statements {
             classes.at.insert(statement.span().start(), state.clone());
-            transfer_instance_statement(&mut state, statement, registry);
+            let tokens = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+                &cfg.command_binding_sites,
+                statement,
+            );
+            transfer_instance_statement(&mut state, statement, registry, source, tokens);
         }
         if let Some(span) = block
             .terminator
@@ -773,27 +642,62 @@ pub(crate) fn instance_class_solve_count() -> usize {
     INSTANCE_CLASS_SOLVES.with(std::cell::Cell::get)
 }
 
-/// Function-local receiver facts plus interpreter-global instance commands
-/// proven to exist at this procedure's earliest execution phase. The top-level
-/// function keeps only its local, source-ordered facts to avoid retroactively
-/// typing an earlier call.
+/// Local conditional receiver candidates plus source setup advice from the
+/// same complete Module interpretation. The top-level function keeps only
+/// source-ordered local candidates; none proves an existing Native object.
 pub(crate) fn instance_classes_for_function(
     cfg: &CfgFunction,
     registry: &CommandRegistry,
     interproc: Option<&InterproceduralAnalysis>,
     include_globals: bool,
+    source: TaintSourceContext<'_>,
 ) -> LocalInstanceClasses {
     #[cfg(test)]
     INSTANCE_CLASS_SOLVES.with(|count| count.set(count.get() + 1));
     let initial = if include_globals {
         interproc
+            .filter(|analysis| {
+                let Some(owner) = source.module_owner() else {
+                    return false;
+                };
+                let Some(producer) = analysis.global_instance_class_owner.as_deref() else {
+                    return false;
+                };
+                let input = source.metadata_context().and_then(
+                    crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
+                );
+                if producer != owner
+                    || input.is_none()
+                    || input != analysis.global_instance_class_input.as_ref()
+                {
+                    return false;
+                }
+                let mut observed = false;
+                for statement in cfg.blocks.values().flat_map(|block| &block.statements) {
+                    if let Some(tokens) =
+                        crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+                            &cfg.command_binding_sites,
+                            statement,
+                        )
+                    {
+                        if tokens.synthetic.is_some() {
+                            continue;
+                        }
+                        if !owner.owns_original_tokens(tokens) {
+                            return false;
+                        }
+                        observed = true;
+                    }
+                }
+                observed
+            })
             .and_then(|analysis| analysis.global_instance_classes.get(&cfg.name))
             .cloned()
             .unwrap_or_default()
     } else {
         InstanceClassState::new()
     };
-    local_instance_classes_with_initial(cfg, registry, &initial)
+    local_instance_classes_with_source(cfg, registry, &initial, source)
 }
 
 /// Bridge a registry colour to the compiler's mirror enum.
@@ -3446,6 +3350,7 @@ fn find_callback_substitution_warnings(
             registry,
             cu.interproc.as_ref(),
             fu.name != "::top",
+            source,
         );
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
@@ -7695,7 +7600,13 @@ mod tests {
                 .all(|key| taints.get(key) == Some(&TaintLattice::tainted()))
         );
         let mut classes = HashMap::from([("widget".into(), HashSet::from(["Entry".into()]))]);
-        transfer_instance_statement(&mut classes, &native, registry);
+        transfer_instance_statement(
+            &mut classes,
+            &native,
+            registry,
+            TaintSourceContext::for_input(registry, None, tcl_lexer::LexerConfig::default()),
+            None,
+        );
         assert!(classes.is_empty());
     }
 

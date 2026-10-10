@@ -1425,11 +1425,33 @@ fn walk_oo_statement(
 
 fn retained_substitution_calls(
     tokens: &CommandTokens,
+    module: &crate::ir::Module,
     registry: &CommandRegistry,
 ) -> Option<Vec<crate::word_subst::LiftedCall>> {
-    crate::word_subst::checked_lifted_calls(
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    if module.source_metadata_input.is_none()
+        && module.source_entry.metadata_context.is_standalone()
+    {
+        return crate::word_subst::checked_lifted_calls(
+            tokens,
+            tokens.native_lexer_config(module.lexer_config.nested()),
+        );
+    }
+    if !module
+        .retained_source_bindings
+        .as_deref()?
+        .matches_module(module, registry)
+    {
+        return None;
+    }
+    let metadata =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
+    crate::word_subst::checked_original_lifted_calls_with_metadata_context(
         tokens,
-        tokens.native_lexer_config(tcl_lexer::LexerConfig::for_profile(registry.profile())),
+        module.lexer_config.nested(),
+        registry,
+        metadata,
     )
 }
 
@@ -1532,7 +1554,7 @@ fn visit_oo_frame_folds(
     let actual =
         crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
     let metadata = actual.as_deref().map(Into::into);
-    let Some(calls) = retained_substitution_calls(tokens, registry) else {
+    let Some(calls) = retained_substitution_calls(tokens, &cu.ir_module, registry) else {
         return;
     };
     let mut rewrites: Vec<(tcl_lexer::Span, String)> = Vec::new();
@@ -1586,7 +1608,7 @@ fn try_oo_frame_return_fold(
     let actual =
         crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
     let metadata = actual.as_deref().map(Into::into);
-    let Some(calls) = retained_substitution_calls(tokens, registry) else {
+    let Some(calls) = retained_substitution_calls(tokens, &cu.ir_module, registry) else {
         return;
     };
     let mut roots = calls.iter().filter(|call| {
@@ -2209,7 +2231,7 @@ fn try_fold_return_terminator(
     // has builtin semantics.
     let collapse = tokens.and_then(|tokens| {
         let registry = ctx.registry?;
-        let calls = retained_substitution_calls(tokens, registry)?;
+        let calls = retained_substitution_calls(tokens, module, registry)?;
         let raw = value?.trim();
         let mut matching = calls.iter().filter(|call| {
             ctx.source
@@ -2476,7 +2498,7 @@ fn visit_call_cmd_subst_folds(
     let actual =
         crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
     let metadata = actual.as_deref().map(Into::into);
-    let Some(calls) = retained_substitution_calls(tokens, registry) else {
+    let Some(calls) = retained_substitution_calls(tokens, &cu.ir_module, registry) else {
         return;
     };
     for word in tokens.words() {
@@ -2806,7 +2828,7 @@ fn visit_string_interpolation_cmd_subs(
     let actual =
         crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
     let metadata = actual.as_deref().map(Into::into);
-    let Some(calls) = retained_substitution_calls(tokens, registry) else {
+    let Some(calls) = retained_substitution_calls(tokens, &cu.ir_module, registry) else {
         return;
     };
     let inside = text
@@ -2957,11 +2979,8 @@ fn visit_string_interpolation(
     if is_whole_word_cmd_subst(inside) {
         return;
     }
-    let Some(rewritten) = substitute_dollar_refs(
-        inside,
-        constants,
-        tcl_lexer::LexerConfig::for_profile(ctx.dialect),
-    ) else {
+    let Some(rewritten) = substitute_dollar_refs(inside, constants, ctx.lexer_config().nested())
+    else {
         return;
     };
     if rewritten == inside {
@@ -3067,8 +3086,7 @@ fn collect_var_refs(
                 // `$a(\x)`) names the element its value selects, not the one
                 // its spelling does, so it is left as written.
                 if tok.content_offset != 2
-                    && name
-                        .split_once('(')
+                    && tcl_syntax::naming::split_element_ref(name)
                         .is_some_and(|(_, index)| index.contains(['$', '[', '\\']))
                 {
                     continue;
@@ -3086,7 +3104,13 @@ fn collect_var_refs(
             }
             TokenType::Cmd => {
                 let inner = start + usize::from(tok.content_offset);
-                collect_var_refs(sm.token_text(tok), config, base + inner, cmd_depth + 1, out)?;
+                collect_var_refs(
+                    sm.token_text(tok),
+                    config.nested(),
+                    base + inner,
+                    cmd_depth + 1,
+                    out,
+                )?;
             }
             TokenType::ExprSugar => return None,
             _ => {}
@@ -3585,6 +3609,155 @@ mod tests {
         // An unterminated reference declines the whole rewrite rather than
         // inventing a name that runs to end-of-input.
         assert!(substitute_dollar_refs("v=${a{b", &c, braced(Tcl9Nesting)).is_none());
+    }
+
+    #[test]
+    fn interpolation_uses_retained_close_policy_over_catalogue_profile() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Lexical rewrite software control, not variable/frame or Native evidence.
+        let source = "\"v=${a{b}c}\"";
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut context =
+            PassContext::with_dialect(source, InterproceduralAnalysis::default(), Some(profile));
+        context.source_lexer_config = Some(tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::Tcl9Nesting,
+            ..tcl_lexer::LexerConfig::from_grammar(profile.grammar)
+        });
+        let constants = std::collections::HashMap::from([
+            ("a{b}c".into(), "NESTED".into()),
+            ("a{b".into(), "FIRST".into()),
+        ]);
+        visit_string_interpolation(
+            &mut context,
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            source,
+            &constants,
+        );
+        assert_eq!(context.optimisations.len(), 1);
+        assert_eq!(context.optimisations[0].replacement, "\"v=NESTED\"");
+        context.source_lexer_config = None;
+        context.optimisations.clear();
+        visit_string_interpolation(
+            &mut context,
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            source,
+            &constants,
+        );
+        assert_eq!(context.optimisations.len(), 1);
+        assert_eq!(context.optimisations[0].replacement, "\"v=FIRSTc}\"");
+    }
+
+    #[test]
+    fn interpolation_element_indices_keep_literal_braced_names_and_dynamic_refusal() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let constants = std::collections::HashMap::from([
+            ("a($idx)".into(), "ELEMENT".into()),
+            ("a($idx".into(), "SCALAR".into()),
+        ]);
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        assert_eq!(
+            substitute_dollar_refs("v=$a($idx)", &constants, config).as_deref(),
+            Some("v=$a($idx)")
+        );
+        assert_eq!(
+            substitute_dollar_refs("v=${a($idx)}", &constants, config).as_deref(),
+            Some("v=ELEMENT")
+        );
+        assert_eq!(
+            substitute_dollar_refs("v=${a($idx}", &constants, config).as_deref(),
+            Some("v=SCALAR")
+        );
+    }
+
+    #[test]
+    fn retained_substitution_inventory_keeps_module_input_config_and_availability() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional original child geometry, without handler or erasure permission.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let config = tcl_lexer::LexerConfig {
+            expand_syntax: false,
+            strict_quoting: true,
+            ..tcl_lexer::LexerConfig::from_grammar(profile.grammar)
+        };
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let unit = CompilationUnit::build_with_analysis_input(
+            "expr {[dict size [dict create key value]]}",
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        let module = &unit.ir_module;
+        let script = &module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(&script.statements[0])
+            .unwrap();
+        let calls = retained_substitution_calls(tokens, module, context.commands()).unwrap();
+        assert_eq!(calls.len(), 2);
+        assert!(
+            calls
+                .iter()
+                .all(|call| call.tokens.as_ref().is_some_and(|tokens| tokens
+                    .source_binding
+                    .as_ref()
+                    .is_some_and(|binding| binding.invocation_site().is_some())))
+        );
+        for change in 0..5 {
+            let mut changed = module.clone();
+            match change {
+                0 => changed.retained_source_bindings = None,
+                1 => changed.source_entry.unknown_entry = !changed.source_entry.unknown_entry,
+                2 => changed.top_level_namespace = "::other".into(),
+                3 => {
+                    changed.native_namespace =
+                        Some(tcl_core_types::ByteNamespacePath::from_segments(["other"]))
+                }
+                4 => changed.top_level_kind = crate::ir::TopLevelKind::ProcedureBody,
+                _ => unreachable!(),
+            }
+            assert!(
+                crate::registry_invocation::InvocationMetadataContext::for_module(
+                    context.commands(),
+                    &changed
+                )
+                .is_some()
+            );
+            assert!(retained_substitution_calls(tokens, &changed, context.commands()).is_none());
+        }
+        let mut changed = module.clone();
+        changed.lexer_config.expand_syntax = true;
+        assert!(retained_substitution_calls(tokens, &changed, context.commands()).is_none());
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(context.commands())),
+        );
+        assert!(std::sync::Arc::ptr_eq(older.commands(), context.commands()));
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        for supplied in [Some(older), Some(foreign), None] {
+            changed = module.clone();
+            changed.source_metadata_input = supplied.map(|availability| {
+                crate::analyser::ResolvedAnalysisInput::new(profile, profile, availability, config)
+            });
+            assert!(retained_substitution_calls(tokens, &changed, context.commands()).is_none());
+        }
     }
 
     #[test]
@@ -5402,7 +5575,8 @@ mod tests {
             .body
             .retained_source_tokens_for_statement(statement)
             .expect("original carrier");
-        let calls = retained_substitution_calls(tokens, registry).expect("complete children");
+        let calls = retained_substitution_calls(tokens, &cu.ir_module, registry)
+            .expect("complete children");
         let call = calls
             .iter()
             .find(|call| {
@@ -5514,7 +5688,7 @@ mod tests {
             .retained_source_tokens_for_statement(statement)
             .unwrap()
             .clone();
-        let calls = retained_substitution_calls(&tokens, registry).unwrap();
+        let calls = retained_substitution_calls(&tokens, &unit.ir_module, registry).unwrap();
         let call = calls.iter().find(|call| call.command == "expr").unwrap();
         let constants = std::collections::HashMap::new();
         let mut context = PassContext::new(&unit.source, InterproceduralAnalysis::default());
@@ -5564,7 +5738,7 @@ mod tests {
             .top_level
             .retained_source_tokens_for_statement(statement)
             .unwrap();
-        let calls = retained_substitution_calls(tokens, registry).unwrap();
+        let calls = retained_substitution_calls(tokens, &cu.ir_module, registry).unwrap();
         let outer = calls.iter().find(|call| call.command == "list").unwrap();
         assert_eq!(
             fold_retained_builtin(registry, outer, &calls, None, Some(current.into())),

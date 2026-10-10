@@ -51,7 +51,28 @@ use crate::ir::{IfClause, Script, Statement, SwitchArm, TryHandler};
 
 /// Return a new [`Script`] with `rename` applied everywhere reachable.
 #[must_use]
-pub(super) fn rewrite_script(script: &Script, rename: &HashMap<String, String>) -> Script {
+pub(super) fn rewrite_script(
+    script: &Script,
+    names: &HashMap<String, String>,
+    config: tcl_lexer::LexerConfig,
+) -> Script {
+    rewrite_script_in(script, &Rename { names, config })
+}
+
+struct Rename<'a> {
+    names: &'a HashMap<String, String>,
+    config: tcl_lexer::LexerConfig,
+}
+
+impl std::ops::Deref for Rename<'_> {
+    type Target = HashMap<String, String>;
+
+    fn deref(&self) -> &Self::Target {
+        self.names
+    }
+}
+
+fn rewrite_script_in(script: &Script, rename: &Rename<'_>) -> Script {
     if rename.is_empty() {
         return script.clone();
     }
@@ -76,10 +97,13 @@ pub(super) fn rewrite_script(script: &Script, rename: &HashMap<String, String>) 
 /// references. For `arr(idx)` shapes the array base carries the binding
 /// identity and the `(idx)` suffix is a substituted context whose own `$var`
 /// references are α-renamed too (see [`rewrite_array_index_tail`]).
-fn rename_var_name(name: &str, rename: &HashMap<String, String>) -> String {
-    if let Some(paren) = name.find('(') {
-        let base = &name[..paren];
-        let tail = &name[paren..];
+fn rename_var_name(name: &str, rename: &Rename<'_>) -> String {
+    rename_name(name, true, rename)
+}
+
+fn rename_name(name: &str, substitutes_index: bool, rename: &Rename<'_>) -> String {
+    if let Some((base, _)) = tcl_syntax::naming::split_element_ref(name) {
+        let tail = &name[base.len()..];
         // Both the array base *and* any `$var` inside the index need the
         // rename: `set arr($idx) …` substitutes `$idx`, so an inlined body's
         // index reference must map to the renamed inline local, not capture the
@@ -87,7 +111,11 @@ fn rename_var_name(name: &str, rename: &HashMap<String, String>) -> String {
         // is a tracked local; the tail is rewritten regardless (its `$var`
         // might be a local even when the base is a caller global).
         let renamed_base = rename.get(base).map_or(base, String::as_str);
-        format!("{renamed_base}{}", rewrite_array_index_tail(tail, rename))
+        if substitutes_index {
+            format!("{renamed_base}{}", rewrite_array_index_tail(tail, rename))
+        } else {
+            format!("{renamed_base}{tail}")
+        }
     } else {
         rename.get(name).cloned().unwrap_or_else(|| name.to_owned())
     }
@@ -98,7 +126,7 @@ fn rename_var_name(name: &str, rename: &HashMap<String, String>) -> String {
 /// inside it is α-renamed via the value-string rewriter rather than copied
 /// verbatim. A braced `${arr(idx)}` name is *not* a
 /// substituted context and must not be routed here.
-fn rewrite_array_index_tail(tail: &str, rename: &HashMap<String, String>) -> String {
+fn rewrite_array_index_tail(tail: &str, rename: &Rename<'_>) -> String {
     if tail.is_empty() {
         return String::new();
     }
@@ -107,11 +135,11 @@ fn rewrite_array_index_tail(tail: &str, rename: &HashMap<String, String>) -> Str
 
 /// Rename a binding-position local: a renamed name maps through, an
 /// untracked name passes through unchanged.
-fn rename_local(name: &str, rename: &HashMap<String, String>) -> String {
-    rename.get(name).cloned().unwrap_or_else(|| name.to_owned())
+fn rename_local(name: &str, rename: &Rename<'_>) -> String {
+    rename_name(name, false, rename)
 }
 
-fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
+fn rewrite_stmt(stmt: &Statement, rename: &Rename<'_>) -> Statement {
     match stmt {
         Statement::AssignConst { .. }
         | Statement::AssignValue { .. }
@@ -136,7 +164,7 @@ fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement
 
 /// Assignment-shaped statements: rename the LHS name and rewrite the RHS
 /// value / expression.
-fn rewrite_assign_like(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
+fn rewrite_assign_like(stmt: &Statement, rename: &Rename<'_>) -> Statement {
     match stmt {
         Statement::AssignConst {
             span,
@@ -146,7 +174,7 @@ fn rewrite_assign_like(stmt: &Statement, rename: &HashMap<String, String>) -> St
             value_span,
         } => Statement::AssignConst {
             span: *span,
-            name: rename_var_name(name, rename),
+            name: rename_name(name, !name_braced, rename),
             name_braced: *name_braced,
             value: value.clone(),
             value_span: *value_span,
@@ -160,7 +188,7 @@ fn rewrite_assign_like(stmt: &Statement, rename: &HashMap<String, String>) -> St
             tokens,
         } => Statement::AssignValue {
             span: *span,
-            name: rename_var_name(name, rename),
+            name: rename_name(name, !name_braced, rename),
             name_braced: *name_braced,
             value: rewrite_value_string(value, rename),
             value_needs_backsubst: *value_needs_backsubst,
@@ -176,7 +204,7 @@ fn rewrite_assign_like(stmt: &Statement, rename: &HashMap<String, String>) -> St
             ..
         } => Statement::AssignExpr {
             span: *span,
-            name: rename_var_name(name, rename),
+            name: rename_name(name, !name_braced, rename),
             name_braced: *name_braced,
             expr: rewrite_expr(expr, rename),
             command_binding: command_binding.clone(),
@@ -194,7 +222,7 @@ fn rewrite_assign_like(stmt: &Statement, rename: &HashMap<String, String>) -> St
             safe_on_uninit,
         } => Statement::Incr {
             span: *span,
-            name: rename_var_name(name, rename),
+            name: rename_name(name, !name_braced, rename),
             name_braced: *name_braced,
             // A braced amount substitutes nothing, so it names no variable
             // a rename could reach.
@@ -225,7 +253,7 @@ fn rewrite_assign_like(stmt: &Statement, rename: &HashMap<String, String>) -> St
 
 /// `Call` / `Return`: rewrite argument value strings and (for calls)
 /// `defs` / `reads` variable names.
-fn rewrite_call_like(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
+fn rewrite_call_like(stmt: &Statement, rename: &Rename<'_>) -> Statement {
     match stmt {
         Statement::Call {
             span,
@@ -293,7 +321,7 @@ fn rewrite_call_like(stmt: &Statement, rename: &HashMap<String, String>) -> Stat
 }
 
 /// `Block` / `UpFrame`: rewrite the nested body script.
-fn rewrite_block_like(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
+fn rewrite_block_like(stmt: &Statement, rename: &Rename<'_>) -> Statement {
     match stmt {
         Statement::Block {
             span,
@@ -303,7 +331,7 @@ fn rewrite_block_like(stmt: &Statement, rename: &HashMap<String, String>) -> Sta
             error_context,
         } => Statement::Block {
             span: *span,
-            body: rewrite_script(body, rename),
+            body: rewrite_script_in(body, rename),
             namespace: namespace.clone(),
             tokens: tokens.clone(),
             error_context: *error_context,
@@ -318,7 +346,7 @@ fn rewrite_block_like(stmt: &Statement, rename: &HashMap<String, String>) -> Sta
             span: *span,
             frame_shift: *frame_shift,
             absolute: *absolute,
-            body: rewrite_script(body, rename),
+            body: rewrite_script_in(body, rename),
             tokens: tokens.clone(),
         },
         _ => unreachable!("rewrite_block_like dispatched a non-block statement"),
@@ -326,7 +354,7 @@ fn rewrite_block_like(stmt: &Statement, rename: &HashMap<String, String>) -> Sta
 }
 
 /// `If` / `For` / `While`: rewrite conditions, sub-scripts, and bodies.
-fn rewrite_control_flow(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
+fn rewrite_control_flow(stmt: &Statement, rename: &Rename<'_>) -> Statement {
     match stmt {
         Statement::If {
             span,
@@ -341,11 +369,11 @@ fn rewrite_control_flow(stmt: &Statement, rename: &HashMap<String, String>) -> S
                     condition: rewrite_expr(&c.condition, rename),
                     condition_span: c.condition_span,
                     condition_base: None,
-                    body: rewrite_script(&c.body, rename),
+                    body: rewrite_script_in(&c.body, rename),
                     body_span: c.body_span,
                 })
                 .collect(),
-            else_body: else_body.as_ref().map(|b| rewrite_script(b, rename)),
+            else_body: else_body.as_ref().map(|b| rewrite_script_in(b, rename)),
             else_span: *else_span,
         },
         Statement::For {
@@ -363,14 +391,14 @@ fn rewrite_control_flow(stmt: &Statement, rename: &HashMap<String, String>) -> S
             ..
         } => Statement::For {
             span: *span,
-            init: rewrite_script(init, rename),
+            init: rewrite_script_in(init, rename),
             init_span: *init_span,
             condition: rewrite_expr(condition, rename),
             condition_span: *condition_span,
             condition_base: None,
-            next: rewrite_script(next, rename),
+            next: rewrite_script_in(next, rename),
             next_span: *next_span,
-            body: rewrite_script(body, rename),
+            body: rewrite_script_in(body, rename),
             body_span: *body_span,
             raw_args: raw_args.clone(),
             raw_tokens: raw_tokens.clone(),
@@ -389,7 +417,7 @@ fn rewrite_control_flow(stmt: &Statement, rename: &HashMap<String, String>) -> S
             condition: rewrite_expr(condition, rename),
             condition_span: *condition_span,
             condition_base: None,
-            body: rewrite_script(body, rename),
+            body: rewrite_script_in(body, rename),
             body_span: *body_span,
             raw_args: raw_args.clone(),
             raw_tokens: raw_tokens.clone(),
@@ -400,7 +428,7 @@ fn rewrite_control_flow(stmt: &Statement, rename: &HashMap<String, String>) -> S
 
 /// `Foreach` / `Catch` / `Try`: rewrite bodies plus the binding-position
 /// locals each introduces (loop vars, result/options vars, handler vars).
-fn rewrite_binding_scope(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
+fn rewrite_binding_scope(stmt: &Statement, rename: &Rename<'_>) -> Statement {
     match stmt {
         Statement::Foreach {
             span,
@@ -429,7 +457,7 @@ fn rewrite_binding_scope(stmt: &Statement, rename: &HashMap<String, String>) -> 
                     list_braced: it.list_braced,
                 })
                 .collect(),
-            body: rewrite_script(body, rename),
+            body: rewrite_script_in(body, rename),
             body_span: *body_span,
             is_lmap: *is_lmap,
             raw_args: raw_args.clone(),
@@ -447,7 +475,7 @@ fn rewrite_binding_scope(stmt: &Statement, rename: &HashMap<String, String>) -> 
             tokens,
         } => Statement::Catch {
             span: *span,
-            body: rewrite_script(body, rename),
+            body: rewrite_script_in(body, rename),
             body_span: *body_span,
             result_var: result_var.as_ref().map(|v| rename_local(v, rename)),
             options_var: options_var.as_ref().map(|v| rename_local(v, rename)),
@@ -464,7 +492,7 @@ fn rewrite_binding_scope(stmt: &Statement, rename: &HashMap<String, String>) -> 
             raw_args,
         } => Statement::Try {
             span: *span,
-            body: rewrite_script(body, rename),
+            body: rewrite_script_in(body, rename),
             body_span: *body_span,
             handlers: handlers
                 .iter()
@@ -474,12 +502,12 @@ fn rewrite_binding_scope(stmt: &Statement, rename: &HashMap<String, String>) -> 
                     trap_pattern: h.trap_pattern.clone(),
                     var_name: h.var_name.as_ref().map(|v| rename_local(v, rename)),
                     options_var: h.options_var.as_ref().map(|v| rename_local(v, rename)),
-                    body: rewrite_script(&h.body, rename),
+                    body: rewrite_script_in(&h.body, rename),
                     body_span: h.body_span,
                     fallthrough: h.fallthrough,
                 })
                 .collect(),
-            finally_body: finally_body.as_ref().map(|b| rewrite_script(b, rename)),
+            finally_body: finally_body.as_ref().map(|b| rewrite_script_in(b, rename)),
             finally_span: *finally_span,
             raw_args: raw_args.clone(),
         },
@@ -488,7 +516,7 @@ fn rewrite_binding_scope(stmt: &Statement, rename: &HashMap<String, String>) -> 
 }
 
 /// `Switch`: rewrite the subject value and each arm / default body.
-fn rewrite_switch(stmt: &Statement, rename: &HashMap<String, String>) -> Statement {
+fn rewrite_switch(stmt: &Statement, rename: &Rename<'_>) -> Statement {
     let Statement::Switch {
         span,
         subject,
@@ -531,12 +559,12 @@ fn rewrite_switch(stmt: &Statement, rename: &HashMap<String, String>) -> Stateme
                 pattern: a.pattern.clone(),
                 pattern_braced: a.pattern_braced,
                 pattern_span: a.pattern_span,
-                body: a.body.as_ref().map(|b| rewrite_script(b, rename)),
+                body: a.body.as_ref().map(|b| rewrite_script_in(b, rename)),
                 body_span: a.body_span,
                 fallthrough: a.fallthrough,
             })
             .collect(),
-        default_body: default_body.as_ref().map(|b| rewrite_script(b, rename)),
+        default_body: default_body.as_ref().map(|b| rewrite_script_in(b, rename)),
         default_span: *default_span,
         mode: *mode,
         nocase: *nocase,
@@ -549,109 +577,88 @@ fn rewrite_switch(stmt: &Statement, rename: &HashMap<String, String>) -> Stateme
 }
 
 /// Rewrite `$name` / `${name}` substitutions in `text`. Array-element
-/// references (`$arr(idx)`) rename the array name only — the index
-/// expression is preserved verbatim.,
-/// including the backslash-protection rule: `\$x` is a literal `$`, not
+/// references retain their original index extent and recursively rename only
+/// its enabled substitutions. Braced combined names keep literal index bytes.
+/// The backslash-protection rule also applies: `\$x` is a literal `$`, not
 /// a substitution, so its name is never renamed.
-fn rewrite_value_string(text: &str, rename: &HashMap<String, String>) -> String {
+fn rewrite_value_string(text: &str, rename: &Rename<'_>) -> String {
+    use tcl_lexer::word_parts::{SubstFlags, WordPart, decompose_spanned_checked, scan_var_ref};
+
     if text.is_empty() || rename.is_empty() {
         return text.to_owned();
     }
-
-    let chars: Vec<char> = text.chars().collect();
-    let n = chars.len();
-    let mut out = String::with_capacity(text.len());
-    let mut i = 0;
-    while i < n {
-        let ch = chars[i];
-        if ch == '\\' && i + 1 < n {
-            // Consume the backslash escape verbatim (`\$`, `\\`, `\n`…).
-            out.push(chars[i]);
-            out.push(chars[i + 1]);
-            i += 2;
-            continue;
-        }
-        if ch != '$' {
-            out.push(ch);
-            i += 1;
-            continue;
-        }
-        // Unescaped `$` — try to recognise a substitution.
-        if i + 1 < n && chars[i + 1] == '{' {
-            // `${name}` form. Tcl's `${…}` doesn't nest braces, so a
-            // plain scan to the next `}` suffices.
-            let mut j = i + 2;
-            while j < n && chars[j] != '}' {
-                j += 1;
+    let source = text.as_bytes();
+    let Ok(parts) = decompose_spanned_checked(source, SubstFlags::default(), rename.config) else {
+        return text.to_owned();
+    };
+    let mut output = String::with_capacity(text.len());
+    for part in parts {
+        let original = &text[part.start..part.end];
+        match part.part {
+            WordPart::Variable(_) => {
+                let Ok(Some(reference)) = scan_var_ref(original.as_bytes(), 0, rename.config)
+                else {
+                    output.push_str(original);
+                    continue;
+                };
+                let Some(root) = tcl_syntax::naming::variable_reference_root_bytes(
+                    original.as_bytes(),
+                    rename.config,
+                )
+                .ok()
+                .flatten() else {
+                    output.push_str(original);
+                    continue;
+                };
+                let Ok(root_text) = std::str::from_utf8(root) else {
+                    output.push_str(original);
+                    continue;
+                };
+                // The shared scanner borrows its literal name from this exact
+                // component. The root's bytes retain their original edit extent.
+                let Some(name_range) = reference.name_range_in(original.as_bytes()) else {
+                    output.push_str(original);
+                    continue;
+                };
+                let name_at = name_range.start;
+                output.push_str(&original[..name_at]);
+                output.push_str(rename.get(root_text).map_or(root_text, String::as_str));
+                let tail_at = name_at + root.len();
+                if let Some(index) = reference.index_range_in(original.as_bytes()) {
+                    output.push_str(&original[tail_at..index.start]);
+                    output.push_str(&rewrite_value_string(&original[index.clone()], rename));
+                    output.push_str(&original[index.end..]);
+                } else {
+                    // A braced combined name is literal: its element key is
+                    // never recursively substituted by this rewrite.
+                    output.push_str(&original[tail_at..]);
+                }
             }
-            if j >= n {
-                // Malformed `${` — emit verbatim.
-                out.push(ch);
-                i += 1;
-                continue;
+            WordPart::Command(_) | WordPart::Expression(_) => {
+                // The frame/source eligibility owner has independently proved
+                // every traversed command and every literal expression operand.
+                output.push_str(&original[..1]);
+                output.push_str(&rewrite_value_string(
+                    &original[1..original.len() - 1],
+                    rename,
+                ));
+                output.push_str(&original[original.len() - 1..]);
             }
-            let name: String = chars[i + 2..j].iter().collect();
-            let (base, tail) = split_array(&name);
-            if let Some(renamed) = rename.get(base) {
-                out.push_str("${");
-                out.push_str(renamed);
-                out.push_str(tail);
-                out.push('}');
-            } else {
-                out.extend(chars[i..=j].iter());
-            }
-            i = j + 1;
-            continue;
+            WordPart::Text(_) | WordPart::ParseError(_) => output.push_str(original),
         }
-        // `$name` form: greedy identifier + optional `(...)` array index.
-        let mut j = i + 1;
-        while j < n && (chars[j].is_alphanumeric() || chars[j] == '_') {
-            j += 1;
-        }
-        if j == i + 1 {
-            // Bare `$` followed by a non-identifier — leave verbatim.
-            out.push(ch);
-            i += 1;
-            continue;
-        }
-        if j < n
-            && chars[j] == '('
-            && let Some(off) = chars[j + 1..].iter().position(|&c| c == ')')
-        {
-            j = j + 1 + off + 1;
-        }
-        let name: String = chars[i + 1..j].iter().collect();
-        let (base, tail) = split_array(&name);
-        // Emit the base (renamed when it is a tracked local) followed by the
-        // rewritten index tail — the index is a substituted context, so a
-        // `$var` inside it (`$arr($idx)`) is α-renamed too instead of copied
-        // verbatim.
-        out.push('$');
-        out.push_str(rename.get(base).map_or(base, String::as_str));
-        out.push_str(&rewrite_array_index_tail(tail, rename));
-        i = j;
     }
-    out
-}
-
-/// Split a variable name into `(base, "(idx)")` for array references, or
-/// `(name, "")` for a plain name.
-fn split_array(name: &str) -> (&str, &str) {
-    match name.find('(') {
-        Some(p) => (&name[..p], &name[p..]),
-        None => (name, ""),
-    }
+    output
 }
 
 /// Walk an [`ExprNode`] tree and return a clone with `rename` applied to
 /// every [`ExprNode::Var`] name.
-fn rewrite_expr(node: &ExprNode, rename: &HashMap<String, String>) -> ExprNode {
+fn rewrite_expr(node: &ExprNode, rename: &Rename<'_>) -> ExprNode {
     // Public entry: the top of an expression tree is nesting depth 0; the
     // recursion cap lives in [`rewrite_expr_at`].
     rewrite_expr_at(node, rename, 0)
 }
 
-fn rewrite_expr_at(node: &ExprNode, rename: &HashMap<String, String>, depth: u32) -> ExprNode {
+fn rewrite_expr_at(node: &ExprNode, rename: &Rename<'_>, depth: u32) -> ExprNode {
     // Native-stack safety net: this both walks the input tree
     // and constructs a renamed clone, one native frame per level. Past the
     // cap, pass the node through *unchanged* (a full `clone`) — this stops
@@ -667,23 +674,11 @@ fn rewrite_expr_at(node: &ExprNode, rename: &HashMap<String, String>, depth: u32
             name,
             start,
             end,
-        } => match rename.get(name) {
-            Some(new_name) => {
-                // Update `text` so emitters that fall back on it stay
-                // coherent (`$x` → `$<renamed>`, `${x}` → `${<renamed>}`).
-                let new_text = if text.contains('{') {
-                    text.replace(&format!("{{{name}}}"), &format!("{{{new_name}}}"))
-                } else {
-                    format!("${new_name}")
-                };
-                ExprNode::Var {
-                    text: new_text,
-                    name: new_name.clone(),
-                    start: *start,
-                    end: *end,
-                }
-            }
-            None => node.clone(),
+        } => ExprNode::Var {
+            text: rewrite_value_string(text, rename),
+            name: rename.get(name).cloned().unwrap_or_else(|| name.clone()),
+            start: *start,
+            end: *end,
         },
         ExprNode::Binary { op, left, right } => ExprNode::Binary {
             op: *op,
@@ -737,6 +732,36 @@ fn rewrite_expr_at(node: &ExprNode, rename: &HashMap<String, String>, depth: u32
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn rewrite_value_string(text: &str, names: &HashMap<String, String>) -> String {
+        super::rewrite_value_string(
+            text,
+            &Rename {
+                names,
+                config: tcl_lexer::LexerConfig::default(),
+            },
+        )
+    }
+
+    fn rewrite_expr(node: &ExprNode, names: &HashMap<String, String>) -> ExprNode {
+        super::rewrite_expr(
+            node,
+            &Rename {
+                names,
+                config: tcl_lexer::LexerConfig::default(),
+            },
+        )
+    }
+
+    fn rename_var_name(text: &str, names: &HashMap<String, String>) -> String {
+        super::rename_var_name(
+            text,
+            &Rename {
+                names,
+                config: tcl_lexer::LexerConfig::default(),
+            },
+        )
+    }
 
     fn rn(pairs: &[(&str, &str)]) -> HashMap<String, String> {
         pairs
@@ -844,5 +869,105 @@ mod tests {
         // braces — so the index is not treated as a $var context.
         let r = rn(&[("arr", "z"), ("idx", "renamed")]);
         assert_eq!(rewrite_value_string("${arr(idx)}", &r), "${z(idx)}");
+    }
+    #[test]
+    fn original_rename_projection_keeps_selected_reference_grammar_and_literal_names() {
+        // naming.inlining.original-frame-source-context
+        // docs/design/analysis/name-resolution-proofs/inlining-original-frame-source-context.md
+        // Source edit projection only; native341 answers public expression results,
+        // not alpha-renaming, compiled frames or runtime execution.
+        let c8 = tcl_lexer::LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(Some(
+            "tcl8.6",
+        )));
+        let c9 = tcl_lexer::LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(Some(
+            "tcl9.0",
+        )));
+        let jim =
+            tcl_lexer::LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(Some("jim")));
+        let names = rn(&[
+            ("café", "unicode"),
+            ("caf", "ascii"),
+            ("$literal", "sigil"),
+            ("a{b", "first"),
+            ("a{b}c", "nested"),
+            ("scalar(open", "open"),
+            ("scalar(closed)tail", "tail"),
+            ("arr", "array"),
+            ("idx", "index"),
+        ]);
+        let c8_rename = Rename {
+            names: &names,
+            config: c8,
+        };
+        let c9_rename = Rename {
+            names: &names,
+            config: c9,
+        };
+        let jim_rename = Rename {
+            names: &names,
+            config: jim,
+        };
+        assert_eq!(super::rewrite_value_string("$café", &c8_rename), "$unicode");
+        assert_eq!(super::rewrite_value_string("$café", &jim_rename), "$asciié");
+        assert_eq!(
+            super::rewrite_value_string("${a{b}c}", &c8_rename),
+            "${first}c}"
+        );
+        assert_eq!(
+            super::rewrite_value_string("${a{b}c}", &c9_rename),
+            "${nested}"
+        );
+        for rename in [&c8_rename, &c9_rename, &jim_rename] {
+            assert_eq!(
+                super::rewrite_value_string("${$literal}", rename),
+                "${sigil}"
+            );
+            assert_eq!(
+                super::rewrite_value_string("${scalar(open}", rename),
+                "${open}"
+            );
+            assert_eq!(
+                super::rewrite_value_string("${scalar(closed)tail}", rename),
+                "${tail}"
+            );
+            assert_eq!(
+                super::rewrite_value_string("$arr($idx)", rename),
+                "$array($index)"
+            );
+            assert_eq!(
+                super::rewrite_value_string("${arr($idx)}", rename),
+                "${array($idx)}"
+            );
+            assert_eq!(
+                super::rewrite_value_string(r"\${$literal}", rename),
+                r"\${$literal}"
+            );
+            assert_eq!(super::rename_var_name("scalar(open", rename), "open");
+            assert_eq!(super::rename_var_name("scalar(closed)tail", rename), "tail");
+        }
+    }
+
+    #[test]
+    fn original_rename_projection_keeps_literal_binding_indices_and_unrenamed_roots() {
+        // naming.inlining.original-frame-source-context
+        // docs/design/analysis/name-resolution-proofs/inlining-original-frame-source-context.md
+        let names = rn(&[("arr", "array"), ("idx", "index")]);
+        let rename = Rename {
+            names: &names,
+            config: tcl_lexer::LexerConfig::default(),
+        };
+        assert_eq!(rename_name("arr($idx)", false, &rename), "array($idx)");
+        assert_eq!(rename_name("arr($idx)", true, &rename), "array($index)");
+        assert_eq!(rename_local("arr($idx)", &rename), "array($idx)");
+        let original = ExprNode::Var {
+            text: "$global($idx)".into(),
+            name: "global".into(),
+            start: 0,
+            end: 13,
+        };
+        assert!(matches!(super::rewrite_expr(&original, &rename),
+            ExprNode::Var { text, name, .. } if text == "$global($index)" && name == "global"));
+        let malformed = "${unterminated";
+        assert_eq!(super::rewrite_value_string(malformed, &rename), malformed);
     }
 }

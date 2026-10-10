@@ -456,7 +456,7 @@ impl Verb {
         match (self.name, arguments) {
             ("write", [target, value]) => Ok(Emission::Write {
                 target: self.reading.target(self.name, target)?,
-                value: text(value),
+                value: text(value)?,
             }),
             ("write", _) => Err(misuse(self.name, "expected TARGET VALUE")),
             (_, [target]) => Ok(Emission::Preserve {
@@ -576,7 +576,7 @@ fn constraint_slot(spelling: &str) -> Result<ConstraintSlot, EngineError> {
 fn alias_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
     let (local, target, level) = match arguments {
         [local, target] => (local, target, None),
-        [local, target, flag, level] if text(flag) == "-level" => (local, target, Some(level)),
+        [local, target, flag, level] if text(flag)? == "-level" => (local, target, Some(level)),
         _ => return Err(misuse("alias", "expected LOCAL TARGET ?-level LEVEL?")),
     };
     Ok(Emission::Transition(PackTransition::Alias {
@@ -813,6 +813,46 @@ fn evaluation_answer(emissions: Vec<Emission>, targets: &[usize]) -> HookAnswer 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn emitted_values_and_alias_flags_preserve_unicode_refusal() {
+        let sink = std::rc::Rc::new(super::Sink::default());
+        let reading = std::rc::Rc::new(super::Reading::default());
+        reading.set_targets(&[0]);
+        let verb = super::Verb {
+            name: "write",
+            family: tcl_registry::pack_hooks::HookFamily::Evaluate,
+            sink: std::rc::Rc::clone(&sink),
+            reading,
+        };
+        let raw = tcl_engine_api::Value::string_bytes(&b"value\xFF"[..]);
+        assert!(matches!(
+            verb.answer(&[tcl_engine_api::Value::Int(0), raw.clone()]),
+            Err(tcl_engine_api::EngineError::ExecutionRefusal(_))
+        ));
+        assert!(sink.drain().is_empty());
+        assert!(matches!(
+            super::alias_emission(&[
+                tcl_engine_api::Value::Int(0),
+                tcl_engine_api::Value::Int(1),
+                raw,
+                tcl_engine_api::Value::Int(0),
+            ]),
+            Err(tcl_engine_api::EngineError::ExecutionRefusal(_))
+        ));
+        verb.answer(&[
+            tcl_engine_api::Value::Int(0),
+            tcl_engine_api::Value::string_bytes(&b"k\0z"[..]),
+        ])
+        .unwrap();
+        assert_eq!(
+            sink.drain(),
+            [super::Emission::Write {
+                target: 0,
+                value: "k\0z".into()
+            }]
+        );
+    }
+
     #[test]
     fn metadata_requires_an_explicit_unicode_view_of_native_bytes() {
         let raw = tcl_engine_api::Value::string_bytes(&b"name\xFF"[..]);

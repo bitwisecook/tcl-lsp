@@ -107100,6 +107100,2689 @@
       "tests": [],
       "question_ids": [],
       "limits": "The locked, offline Registry/Compiler/VM no-run library test build closes at six TclError field errors in the tcl-engine-tclvm development dependency. Ordinary Compiler library compilation supplies no test assertion; test inventory is not reached. No executable pin, full gate pass or Native outcome follows."
+    },
+    {
+      "id": "rust.frozen262.integration-native-consumer-test-build262",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen262/integration-native-consumer-test-build262/receipt.json.gz",
+        "sha256": "35961f2daa15cebe28971cdae2b342358926a2619d159630ce5ee478325a6434",
+        "compression": "gzip",
+        "uncompressed_sha256": "28d680fddd89c5330ec70398b3d1ec920d1357a015f4be985da308f916a1b06b"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen262/integration-native-consumer-test-build262/tests.log",
+        "sha256": "53822ab73e08a1d11a8981a535b4f462bdb1576a8c7b0f66dd3abb31e41047ef"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-vm",
+        "-p",
+        "tcl-engine-tclvm",
+        "-p",
+        "tcl-cmd-core",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 32.92335425800411,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every distinct archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "These exact closed operations retain two failed aggregate no-run builds and one independently produced CmdCore libtest artifact. The 263 inventory executes no assertions; the complete 190-test command records 189 passes and one failure. The copied pin record is verified against the sealed original executable and the failed aggregate build receipt. Current delimiter repairs, other crates, later source images, external Native provider outcomes and full validation gates remain independent. No aggregate pass or successful VM comparator follows."
+    },
+    {
+      "id": "rust.frozen263.integration-native-consumer-test-build263",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen263/integration-native-consumer-test-build263/receipt.json.gz",
+        "sha256": "31b9bd3b286b248d8d6425a6ac598aa3a085911a5ca4b53a5750e158071ebd22",
+        "compression": "gzip",
+        "uncompressed_sha256": "4cb0275fb3b43bbff64786082ae9cc972b49387cc28377bc74113b5a60b1ba06"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen263/integration-native-consumer-test-build263/tests.log",
+        "sha256": "18641ec8271851acc88bef49786f197805acaa0e23feda2d8efb5b14951fb289"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-vm",
+        "-p",
+        "tcl-engine-tclvm",
+        "-p",
+        "tcl-cmd-core",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 88.0038727990177,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every distinct archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "These exact closed operations retain two failed aggregate no-run builds and one independently produced CmdCore libtest artifact. The 263 inventory executes no assertions; the complete 190-test command records 189 passes and one failure. The copied pin record is verified against the sealed original executable and the failed aggregate build receipt. Current delimiter repairs, other crates, later source images, external Native provider outcomes and full validation gates remain independent. No aggregate pass or successful VM comparator follows."
+    },
+    {
+      "id": "rust.frozen263.integration-cmdcore-inventory263",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen263/integration-cmdcore-inventory263/receipt.json.gz",
+        "sha256": "deed6530086229bda17ce3f8a4582a61cd03425c4e3e3e6e27bda6265fa966f6",
+        "compression": "gzip",
+        "uncompressed_sha256": "b1105b50d0a25a85e71240a4f7466c62733a936db360aad533053e4669ccbae4"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen263/integration-cmdcore-inventory263/tests.log",
+        "sha256": "dd3d59ebbe43e8220bf49dbdc7cb0a0b3f29c6b525e096cd001aaaa7d95a53c6"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-cmdcore263-partial.elf",
+        "--list",
+        "--format=terse"
+      ],
+      "exit": 0,
+      "seconds": 0.0028070529806427658,
+      "uniform_source": true,
+      "status": "listed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every distinct archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "These exact closed operations retain two failed aggregate no-run builds and one independently produced CmdCore libtest artifact. The 263 inventory executes no assertions; the complete 190-test command records 189 passes and one failure. The copied pin record is verified against the sealed original executable and the failed aggregate build receipt. Current delimiter repairs, other crates, later source images, external Native provider outcomes and full validation gates remain independent. No aggregate pass or successful VM comparator follows."
+    },
+    {
+      "id": "rust.frozen263.integration-cmdcore-full-tests263",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen263/integration-cmdcore-full-tests263/receipt.json.gz",
+        "sha256": "bf8a30dce2498da05a8847665c480471ab5d914df31989a1a86805f388a6f648",
+        "compression": "gzip",
+        "uncompressed_sha256": "7675029e01197da9727ccef8995478d5bf87d6bbf9e6f380e60d8e4d8f2da03f"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen263/integration-cmdcore-full-tests263/tests.log",
+        "sha256": "89de5969c8d79a1188a076b91d171b9643024d2e49b3944cb58e8c9485510e19"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-cmdcore263-partial.elf",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 0.20957937199273147,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 189,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 0
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every distinct archived source leaf is independently byte-checked."
+      },
+      "tests": [
+        {
+          "selector": "base32::tests::decode_answers_only_a_canonical_encoding",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "base32::tests::each_encoding_is_the_packages",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::base64_round_trips",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::base64_wraps_at_maxlen",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::format_a_field_with_huge_count_errors_not_panics",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::format_scan_round_trip",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::format_size_bound_covers_the_packed_output",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::hex_round_trips",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::native_decoder_options_and_strict_final_groups",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::packing_scalar_and_counted_doubles_never_formats_numeric_values",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::scan_a_field_with_huge_count_does_not_panic",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::scan_huge_field_count_does_not_overflow",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::scan_retains_single_and_counted_floating_representations",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::shared_specifier_table_covers_q_and_q_and_release_gate",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::short_specifier_is_a_field_not_a_modifier",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::specifier_min_version_matches_measured_releases",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::unsigned_suffix_follows_any_field_letter",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::uu_round_trips",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "case::tests::a_pattern_holding_whitespace_or_a_backslash_is_a_list",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "case::tests::case_selects_as_tcl_case_obj_cmd_does",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::a_files_bytes_decode_under_the_encoding_it_is_read_as",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::bidirectional_translation_commits_each_direction_in_order",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::bidirectional_translation_retains_both_directions",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::binary_and_explicit_utf8_are_distinct",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::binary_translation_is_release_aware",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::opaque_invalid_utf8_remains_byte_exact_on_a_utf8_channel",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::open_access_mode_uses_simple_and_tcl_list_grammars",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::replace_profile_and_crlf_translation_apply_to_all_newlines",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::strict_conversion_returns_the_written_prefix_and_eilseq",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::system_and_channel_encoding_errors_retain_tcl_identity",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::unicode_uses_native_endian_utf16",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "clock::tests::add_calendar_months",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "clock::tests::add_units_overflow_is_a_clean_error",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "clock::tests::civil_round_trips_and_known_dates",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "clock::tests::days_civil_inverse",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "clock::tests::read_uint_overflow_is_a_clean_error",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "clock::tests::render_matches_tclsh_specifiers",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "clock::tests::scan_with_format_parses_fields",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "clock::tests::specifiers_include_complete_locale_modifiers",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "encoding::native_controls::selected_utf8_units_match_all_55_original_c_conversion_windows",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.encoding.original-utf8-convertto-error-offset",
+            "naming.encoding.original-utf8-convertto-object-storage"
+          ],
+          "path": "rust/tcl-cmd-core/src/encoding/native_controls.rs"
+        },
+        {
+          "selector": "ensemble::tests::config_table_has_namespace_but_no_command",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "ensemble::tests::create_table_has_no_namespace_option",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "ensemble::tests::ensemble_subcommand_scan_matches_c",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "ensemble::tests::enumeration_keeps_the_comma_before_or_for_two",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "ensemble::tests::invocation_layout_supports_both_runtime_argv_shapes",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "ensemble::tests::miss_messages_match_tclsh",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "ensemble::usage_tests::retained_rewrites_preserve_non_unicode_argument_values",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "error::tests::byte_error_metadata_remains_guest_data_without_unicode_projection",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "error::tests::canonical_tcl_error_message_formats",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "error::tests::neutral_message_and_authenticated_arity_have_distinct_receipts",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "error::tests::primitive_failure_retains_origin_no_store_and_separate_eval_bytes",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "error::tests::result_construction_survives_error_receipt_roundtrip",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "event::tests::current_event_turn_preserves_original_scripts_and_live_cancellation",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.event.original-queue-and-port-transport"
+          ],
+          "path": "rust/tcl-cmd-core/src/event.rs"
+        },
+        {
+          "selector": "index::compiler_encoding_preserves_wide_target_uncertainty",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::a_literal_end_offset_past_int_compiles_apart_in_8_6",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::each_release_reads_an_index_as_its_tclsh_does",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::encodable_classifies_specs",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::index_numerals_follow_the_named_release",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::jim_literal_index_expressions_preserve_end_encoding",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::resolve_integer_and_end_forms",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::resolve_matches_tclsh_oracle",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::resolve_rejects_garbage_and_resolve_opt_returns_none",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::the_versionless_entry_follows_the_installed_grammar",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "info::tests::command_name_filter_keeps_native_scan_and_exact_key_purposes",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "info::tests::complete_matches_c_semantics",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "info::tests::native_variable_filter_preserves_order_and_duplicate_declarations",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "info::tests::variable_name_patterns_keep_original_counted_keys_and_native_scan_units",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "irules::tests::each_function_answers_only_what_the_reference_states",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "list::tests::a_runtime_reads_an_index_the_hosts_long_decides_as_its_host",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "list::tests::split_splits_as_tclsh_splits",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lsearch::tests::nocase_element_compare_folds_the_full_unicode_range",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lsearch::tests::regexp_compile_error_prefix_follows_the_release",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lsearch::tests::split_index_parses_list_specs",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lsearch::tests::validate_index_path_classifies_specs",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lseq::tests::as_number_parses_ints_doubles_and_precision",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lseq::tests::frac_digits_counts_fractional_part",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lseq::tests::materialization_capacity_is_a_host_refusal_without_guest_error_details",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "mathop::tests::eval_recognises_every_layer1_mathop_operator_and_nothing_else",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "mathop::tests::handler_identity_selects_only_registered_math_operators",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace::native_dispatch_diagnostic_tests::original_namespace_dispatch_errors_match_all_eighteen_native_results",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.namespace.dispatch-error-noun-and-ambiguity",
+            "naming.namespace.dispatch-prefix-worker-availability"
+          ],
+          "path": "rust/tcl-cmd-core/src/namespace.rs"
+        },
+        {
+          "selector": "namespace::tests::imported_command_candidate_uses_tcl_globs_and_colon_runs",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace::tests::qualifiers_and_tail_match_c",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace::tests::tcl_hash_statistics_match_dict_info_oracles",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace::tests::tcl_string_hash_order_matches_command_growth_oracles",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace::tests::tcl_string_hash_order_matches_namespace_children_oracle",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace::tests::tcl_string_hash_order_reinsert_moves_the_key_to_its_bucket_head",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace::tests::tcl_string_hash_order_retains_resize_after_deletion",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace::tests::which_request_matches_namespace_whichs_positional_option_rule",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_each_loop::result_construction_tests::empty_variable_diagnostic_retains_only_its_selected_native_producer",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_each_loop::tests::native_schedule_defers_body_and_advances_before_callbacks",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_info_level::tests::native_level_integer_error_retains_primitive_fields_and_string_producer",
+          "status": "failed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.compiler.introspection-source-and-effect-frontiers",
+            "naming.numeric.primitive-int-original-width-cache"
+          ],
+          "path": "rust/tcl-cmd-core/src/native_info_level.rs"
+        },
+        {
+          "selector": "native_info_level::tests::native_level_integer_refusal_does_not_acquire_a_guest_string_result",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_info_level::tests::native_level_primitive_result_cannot_borrow_another_protocol",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_info_level::tests::native_level_width_failure_keeps_the_fresh_result_producer",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.compiler.introspection-source-and-effect-frontiers"
+          ],
+          "path": "rust/tcl-cmd-core/src/native_info_level.rs"
+        },
+        {
+          "selector": "native_list_storage::tests::command_empty_range_keeps_c90_list_birth_separate_from_c91_and_opcode_empty",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.list.original-range-objects-and-instructions"
+          ],
+          "path": "rust/tcl-cmd-core/src/native_list_storage.rs"
+        },
+        {
+          "selector": "native_list_storage::tests::native_c9_span_uses_allocated_and_used_extents_in_native_order",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_list_storage::tests::range_storage_geometry_matches_288_actual_c9_owner_windows",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.list-storage.original-prefix-and-span-geometry",
+            "naming.list-storage.original-shared-header-versus-store",
+            "naming.list-storage.original-whole-header-publication"
+          ],
+          "path": "rust/tcl-cmd-core/src/native_list_storage.rs"
+        },
+        {
+          "selector": "native_numeric::float_tests::c84_fresh_calls_reset_and_cached_observations_preserve_real_thread_state",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_numeric::float_tests::c84_fresh_range_failures_precede_trailing_spelling_checks",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_numeric::float_tests::c84_reached_nonfinite_matches_six_native_state_windows",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_numeric::float_tests::float_error_precedence_matches_thirty_native_diagnostics",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_numeric::tests::original_jim_getters_match_native_numeric_state_frontiers",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "path::tests::each_part_of_a_name_reads_as_tclsh_reads_it",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::abbreviating_matches_exact_then_unique_prefix",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::ambiguous_and_missing_keys",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::byte_lookup_diagnostics_retain_native_words",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::choice_list_matches_c_join",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::dict_filter_type_noun_and_abbreviations",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::empty_key_never_abbreviates",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::empty_word_never_abbreviates",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::enumerate_names_join_shapes",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::error_messages_match_c_shapes",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::exact_beats_a_longer_entry_sharing_the_prefix",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::exact_match_always_wins",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::exact_only_reports_every_miss_as_bad",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::miss_messages_match_tclsh",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::tcloo_method_choices_omit_the_oxford_comma",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::the_error_noun_is_data",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::unique_prefix_matches_unless_exact",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::a_stopped_search_is_raised_at_run_time_and_typed_in_analysis",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::compile_error_prefix_follows_the_release",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::original_match_targets_are_borrowed_and_assigned_before_the_next_match",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::regex_error_wrapper_retains_arity_and_primitive_state_actions",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::regexp_about_keeps_cs_arity_and_inline_rules",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::regexp_about_reports_the_subexpression_count_and_info_list",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::regsub_all_with_the_literal_empty_pattern_substitutes_once_per_character",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::regsub_command_evaluates_the_prefix_from_9_0",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::regsub_command_is_refused_before_9_0_in_cs_own_words",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::regsub_empty_pattern_special_case_keeps_cs_guard_terms",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::regsub_without_an_evaluator_still_refuses_command",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::resolve_start_end_offset_saturates_without_overflow",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::resolve_start_handles_integer_and_end_forms",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::slice_match_guards_out_of_range_engine_offsets",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::the_pattern_cache_charges_a_compile_once_per_key",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::the_pattern_cache_stays_within_its_byte_bound",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "return_options::tests::jim_numeric_completion_code_has_no_string_preparation",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "return_options::tests::modern_merge_converts_only_last_control_and_keeps_original_custom_key",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "return_options::tests::modern_return_code_adds_a_boundary_but_jim_keeps_requested_code",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "return_options::tests::prefix_validation_preserves_native_cardinality_and_does_not_read_c_keys",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "return_options::tests::sequential_failure_does_not_prepare_later_pair",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "scan::tests::basic_int_string",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "scan::tests::eof_before_any_conversion",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "scan::tests::float_suppress_and_width",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "scan::tests::hex_and_char_and_set",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "scan::tests::huge_field_width_saturates_without_overflow",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "scan::tests::percent_n_and_a_suppressed_success_prevent_the_underflow",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "scan::tests::percent_n_reports_consumed",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "sort::tests::dictionary_orders_embedded_numbers",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "sort::tests::key_compare_modes",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "sort::tests::nocase_and_dictionary_fold_the_full_unicode_range",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "sort::tests::parse_wide_shares_the_canonical_integer_grammar",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::case_mapping_is_simple_not_full",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::string_compare_equal_share_option_and_unicode_semantics",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::string_last_basic",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::string_last_empty_haystack_is_minus_one_not_panic",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::string_last_empty_haystack_with_index_does_not_panic",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::string_last_finds_last_occurrence",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::string_repeat_bounds_the_result_before_allocating",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::totitle_first_char_uses_titlecase_not_uppercase",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::word_end_finds_word_boundaries",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::word_start_finds_word_boundaries",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::a_radix_integer_is_a_double_on_every_release",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::char_classes_failindex",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::empty_and_strict",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::failindex_counts_characters_not_bytes",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::failindex_is_where_the_numeral_parse_stopped",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::integer_class_boundedness_follows_the_release",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::integer_failindex",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::list_and_dict",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::numeric_classes_follow_the_emulated_release",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::integer_mode_coercion_errors_match_c",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::integer_mode_compares_numerically",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::integer_mode_option_conflicts_match_c",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::integer_option_exists_only_from_tcl91",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.switch-original-options-and-callback-observation"
+          ],
+          "path": "rust/tcl-cmd-core/src/switch.rs"
+        },
+        {
+          "selector": "switch::tests::option_table_matches_exact_and_unique_prefix",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::regexp_compile_error_prefix_follows_the_release",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::select_empty_patterns_is_no_match_not_underflow",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::select_exact_still_matches_after_guard",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::selection_and_continuations_use_original_c_string_extents",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::switch_error_message_formats",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::switch_nocase_exact_folds_the_full_unicode_range",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::tcl91_option_table_lists_integer_and_makes_i_ambiguous",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::usage_matches_native_release_and_argument_form",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "trace::tests::bad_operation_enumerates_table_order",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "trace::tests::legacy_letters_render_in_rwua_order",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "trace::tests::legacy_operation_extent_preserves_counted_empty_and_opaque_errors",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.variable.legacy-trace-operation-cstring"
+          ],
+          "path": "rust/tcl-cmd-core/src/trace.rs"
+        },
+        {
+          "selector": "trace::tests::legacy_variable_operations_are_flags_not_a_list",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "trace::tests::old_style_callbacks_get_the_letter",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "trace::tests::operations_are_a_canonical_set_in_info_order",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "trace::tests::option_word_resolves_against_the_release_option_set",
+          "status": "passed",
+          "purpose": "Actual libtest event from the sealed CmdCore263 partial artifact and its original frozen source; current edited definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [
+        "naming.compiler.introspection-source-and-effect-frontiers",
+        "naming.encoding.original-utf8-convertto-error-offset",
+        "naming.encoding.original-utf8-convertto-object-storage",
+        "naming.event.original-queue-and-port-transport",
+        "naming.list-storage.original-prefix-and-span-geometry",
+        "naming.list-storage.original-shared-header-versus-store",
+        "naming.list-storage.original-whole-header-publication",
+        "naming.list.original-range-objects-and-instructions",
+        "naming.namespace.dispatch-error-noun-and-ambiguity",
+        "naming.namespace.dispatch-prefix-worker-availability",
+        "naming.numeric.primitive-int-original-width-cache",
+        "naming.switch-original-options-and-callback-observation",
+        "naming.variable.legacy-trace-operation-cstring"
+      ],
+      "limits": "These exact closed operations retain two failed aggregate no-run builds and one independently produced CmdCore libtest artifact. The 263 inventory executes no assertions; the complete 190-test command records 189 passes and one failure. The copied pin record is verified against the sealed original executable and the failed aggregate build receipt. Current delimiter repairs, other crates, later source images, external Native provider outcomes and full validation gates remain independent. No aggregate pass or successful VM comparator follows.",
+      "framework": "rust-libtest"
+    },
+    {
+      "id": "rust.frozen264.integration-native-consumer-test-build264",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen264/integration-native-consumer-test-build264/receipt.json.gz",
+        "sha256": "5595d051bffebfb5c3a73b19918edc59105aa931ede8b0a6c63d2e2f29f5d894",
+        "compression": "gzip",
+        "uncompressed_sha256": "500118e08754ec242d1b0ebd0babc6e30dfd2a0e19209842b42b9e1333b0e67b"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen264/integration-native-consumer-test-build264/tests.log",
+        "sha256": "ac4c4113771596188663884698a0131b313df800bd187f60206c9623fb2af4f7"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-vm",
+        "-p",
+        "tcl-engine-tclvm",
+        "-p",
+        "tcl-cmd-core",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "seconds": 54.85426228499273,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "These four exact closed frozen264 operations retain a failed aggregate test build and a separate successful CmdCore-only test build, inventory and complete 190P run. The sealed pin belongs only to the independent CmdCore-only build. The aggregate emitted a different unpinned CmdCore test artifact before Compiler errors; it has no assigned assertion outcome. Other crates, current changes, later images, external Native execution and full validation gates remain independent. The zero-byte legacy inventory log has no original receipt or result."
+    },
+    {
+      "id": "rust.frozen264.integration-cmdcore-test-build264",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen264/integration-cmdcore-test-build264/receipt.json.gz",
+        "sha256": "595b240067ca5f186da31143ef8d3ca3c04a4e61383c79ba0ae170f6db53ca21",
+        "compression": "gzip",
+        "uncompressed_sha256": "7699b635c317f1b17e3c6ba130d52bbe183fd20460f9d617770e0fc1dba745fa"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen264/integration-cmdcore-test-build264/tests.log",
+        "sha256": "1d373331a2faf4a2a2b4ff68d8980784a2e27ef531d301ed20503ef8f9eecf5e"
+      },
+      "command": [
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--target-dir",
+        "/workspace/.targets/naming-upstream-clean",
+        "-p",
+        "tcl-cmd-core",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 0,
+      "seconds": 6.858041738014435,
+      "uniform_source": true,
+      "status": "compile-passed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "These four exact closed frozen264 operations retain a failed aggregate test build and a separate successful CmdCore-only test build, inventory and complete 190P run. The sealed pin belongs only to the independent CmdCore-only build. The aggregate emitted a different unpinned CmdCore test artifact before Compiler errors; it has no assigned assertion outcome. Other crates, current changes, later images, external Native execution and full validation gates remain independent. The zero-byte legacy inventory log has no original receipt or result."
+    },
+    {
+      "id": "rust.frozen264.integration-cmdcore-current-inventory264",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen264/integration-cmdcore-current-inventory264/receipt.json.gz",
+        "sha256": "2adbeebde9d48704096042fcd0c9e164fbe57f8f1f6d7bf32306d5b8d162c679",
+        "compression": "gzip",
+        "uncompressed_sha256": "01592df9b3fe2d4fd5f47b6a55245e71f3dd697ffb31ddd8ef8b219da60a061f"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen264/integration-cmdcore-current-inventory264/tests.log",
+        "sha256": "dd3d59ebbe43e8220bf49dbdc7cb0a0b3f29c6b525e096cd001aaaa7d95a53c6"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-cmdcore264.elf",
+        "--list",
+        "--format=terse"
+      ],
+      "exit": 0,
+      "seconds": 0.002504971023881808,
+      "uniform_source": true,
+      "status": "listed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "These four exact closed frozen264 operations retain a failed aggregate test build and a separate successful CmdCore-only test build, inventory and complete 190P run. The sealed pin belongs only to the independent CmdCore-only build. The aggregate emitted a different unpinned CmdCore test artifact before Compiler errors; it has no assigned assertion outcome. Other crates, current changes, later images, external Native execution and full validation gates remain independent. The zero-byte legacy inventory log has no original receipt or result."
+    },
+    {
+      "id": "rust.frozen264.integration-cmdcore-full-tests264",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen264/integration-cmdcore-full-tests264/receipt.json.gz",
+        "sha256": "1eb86ea3f0307efe6c145aebc9b118385ff9bf9824668f282fdc44e471647e32",
+        "compression": "gzip",
+        "uncompressed_sha256": "2c886c4f8e29cd91a5a257f433af1ced0648c192fd61757778a46c876551c10e"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen264/integration-cmdcore-full-tests264/tests.log",
+        "sha256": "ed022975d1cae8cde4a51cd5a40f7f35a3ba7c8bc699898df9ba5fd13f95a16e"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-cmdcore264.elf",
+        "--test-threads=1",
+        "--nocapture",
+        "--format=pretty"
+      ],
+      "exit": 0,
+      "seconds": 0.24787142398417927,
+      "uniform_source": true,
+      "status": "passed",
+      "result": {
+        "passed": 190,
+        "failed": 0,
+        "ignored": 0,
+        "filtered_out": 0
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains the full immutable source inventory, compile-source root, archive path and command association. Every archived source leaf is independently byte-checked."
+      },
+      "tests": [
+        {
+          "selector": "base32::tests::decode_answers_only_a_canonical_encoding",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "base32::tests::each_encoding_is_the_packages",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::base64_round_trips",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::base64_wraps_at_maxlen",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::format_a_field_with_huge_count_errors_not_panics",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::format_scan_round_trip",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::format_size_bound_covers_the_packed_output",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::hex_round_trips",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::native_decoder_options_and_strict_final_groups",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::packing_scalar_and_counted_doubles_never_formats_numeric_values",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::scan_a_field_with_huge_count_does_not_panic",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::scan_huge_field_count_does_not_overflow",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::scan_retains_single_and_counted_floating_representations",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::shared_specifier_table_covers_q_and_q_and_release_gate",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::short_specifier_is_a_field_not_a_modifier",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::specifier_min_version_matches_measured_releases",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::unsigned_suffix_follows_any_field_letter",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "binary::tests::uu_round_trips",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "case::tests::a_pattern_holding_whitespace_or_a_backslash_is_a_list",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "case::tests::case_selects_as_tcl_case_obj_cmd_does",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::a_files_bytes_decode_under_the_encoding_it_is_read_as",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::bidirectional_translation_commits_each_direction_in_order",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::bidirectional_translation_retains_both_directions",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::binary_and_explicit_utf8_are_distinct",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::binary_translation_is_release_aware",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::opaque_invalid_utf8_remains_byte_exact_on_a_utf8_channel",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::open_access_mode_uses_simple_and_tcl_list_grammars",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::replace_profile_and_crlf_translation_apply_to_all_newlines",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::strict_conversion_returns_the_written_prefix_and_eilseq",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::system_and_channel_encoding_errors_retain_tcl_identity",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "channel::tests::unicode_uses_native_endian_utf16",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "clock::tests::add_calendar_months",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "clock::tests::add_units_overflow_is_a_clean_error",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "clock::tests::civil_round_trips_and_known_dates",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "clock::tests::days_civil_inverse",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "clock::tests::read_uint_overflow_is_a_clean_error",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "clock::tests::render_matches_tclsh_specifiers",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "clock::tests::scan_with_format_parses_fields",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "clock::tests::specifiers_include_complete_locale_modifiers",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "encoding::native_controls::selected_utf8_units_match_all_55_original_c_conversion_windows",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.encoding.original-utf8-convertto-error-offset",
+            "naming.encoding.original-utf8-convertto-object-storage"
+          ],
+          "path": "rust/tcl-cmd-core/src/encoding/native_controls.rs"
+        },
+        {
+          "selector": "ensemble::tests::config_table_has_namespace_but_no_command",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "ensemble::tests::create_table_has_no_namespace_option",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "ensemble::tests::ensemble_subcommand_scan_matches_c",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "ensemble::tests::enumeration_keeps_the_comma_before_or_for_two",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "ensemble::tests::invocation_layout_supports_both_runtime_argv_shapes",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "ensemble::tests::miss_messages_match_tclsh",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "ensemble::usage_tests::retained_rewrites_preserve_non_unicode_argument_values",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "error::tests::byte_error_metadata_remains_guest_data_without_unicode_projection",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "error::tests::canonical_tcl_error_message_formats",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "error::tests::neutral_message_and_authenticated_arity_have_distinct_receipts",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "error::tests::primitive_failure_retains_origin_no_store_and_separate_eval_bytes",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "error::tests::result_construction_survives_error_receipt_roundtrip",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "event::tests::current_event_turn_preserves_original_scripts_and_live_cancellation",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.event.original-queue-and-port-transport"
+          ],
+          "path": "rust/tcl-cmd-core/src/event.rs"
+        },
+        {
+          "selector": "index::compiler_encoding_preserves_wide_target_uncertainty",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::a_literal_end_offset_past_int_compiles_apart_in_8_6",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::each_release_reads_an_index_as_its_tclsh_does",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::encodable_classifies_specs",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::index_numerals_follow_the_named_release",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::jim_literal_index_expressions_preserve_end_encoding",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::resolve_integer_and_end_forms",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::resolve_matches_tclsh_oracle",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::resolve_rejects_garbage_and_resolve_opt_returns_none",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "index::tests::the_versionless_entry_follows_the_installed_grammar",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "info::tests::command_name_filter_keeps_native_scan_and_exact_key_purposes",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "info::tests::complete_matches_c_semantics",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "info::tests::native_variable_filter_preserves_order_and_duplicate_declarations",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "info::tests::variable_name_patterns_keep_original_counted_keys_and_native_scan_units",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "irules::tests::each_function_answers_only_what_the_reference_states",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "list::tests::a_runtime_reads_an_index_the_hosts_long_decides_as_its_host",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "list::tests::split_splits_as_tclsh_splits",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lsearch::tests::nocase_element_compare_folds_the_full_unicode_range",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lsearch::tests::regexp_compile_error_prefix_follows_the_release",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lsearch::tests::split_index_parses_list_specs",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lsearch::tests::validate_index_path_classifies_specs",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lseq::tests::as_number_parses_ints_doubles_and_precision",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lseq::tests::frac_digits_counts_fractional_part",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lseq::tests::materialization_capacity_is_a_host_refusal_without_guest_error_details",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "mathop::tests::eval_recognises_every_layer1_mathop_operator_and_nothing_else",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "mathop::tests::handler_identity_selects_only_registered_math_operators",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace::native_dispatch_diagnostic_tests::original_namespace_dispatch_errors_match_all_eighteen_native_results",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.namespace.dispatch-error-noun-and-ambiguity",
+            "naming.namespace.dispatch-prefix-worker-availability"
+          ],
+          "path": "rust/tcl-cmd-core/src/namespace.rs"
+        },
+        {
+          "selector": "namespace::tests::imported_command_candidate_uses_tcl_globs_and_colon_runs",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace::tests::qualifiers_and_tail_match_c",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace::tests::tcl_hash_statistics_match_dict_info_oracles",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace::tests::tcl_string_hash_order_matches_command_growth_oracles",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace::tests::tcl_string_hash_order_matches_namespace_children_oracle",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace::tests::tcl_string_hash_order_reinsert_moves_the_key_to_its_bucket_head",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace::tests::tcl_string_hash_order_retains_resize_after_deletion",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "namespace::tests::which_request_matches_namespace_whichs_positional_option_rule",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_each_loop::result_construction_tests::empty_variable_diagnostic_retains_only_its_selected_native_producer",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_each_loop::tests::native_schedule_defers_body_and_advances_before_callbacks",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_info_level::tests::native_level_integer_error_retains_primitive_fields_and_string_producer",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.compiler.introspection-source-and-effect-frontiers",
+            "naming.numeric.primitive-int-original-width-cache"
+          ],
+          "path": "rust/tcl-cmd-core/src/native_info_level.rs"
+        },
+        {
+          "selector": "native_info_level::tests::native_level_integer_refusal_does_not_acquire_a_guest_string_result",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_info_level::tests::native_level_primitive_result_cannot_borrow_another_protocol",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_info_level::tests::native_level_width_failure_keeps_the_fresh_result_producer",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.compiler.introspection-source-and-effect-frontiers"
+          ],
+          "path": "rust/tcl-cmd-core/src/native_info_level.rs"
+        },
+        {
+          "selector": "native_list_storage::tests::command_empty_range_keeps_c90_list_birth_separate_from_c91_and_opcode_empty",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.list.original-range-objects-and-instructions"
+          ],
+          "path": "rust/tcl-cmd-core/src/native_list_storage.rs"
+        },
+        {
+          "selector": "native_list_storage::tests::native_c9_span_uses_allocated_and_used_extents_in_native_order",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_list_storage::tests::range_storage_geometry_matches_288_actual_c9_owner_windows",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.list-storage.original-prefix-and-span-geometry",
+            "naming.list-storage.original-shared-header-versus-store",
+            "naming.list-storage.original-whole-header-publication"
+          ],
+          "path": "rust/tcl-cmd-core/src/native_list_storage.rs"
+        },
+        {
+          "selector": "native_numeric::float_tests::c84_fresh_calls_reset_and_cached_observations_preserve_real_thread_state",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_numeric::float_tests::c84_fresh_range_failures_precede_trailing_spelling_checks",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_numeric::float_tests::c84_reached_nonfinite_matches_six_native_state_windows",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_numeric::float_tests::float_error_precedence_matches_thirty_native_diagnostics",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "native_numeric::tests::original_jim_getters_match_native_numeric_state_frontiers",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "path::tests::each_part_of_a_name_reads_as_tclsh_reads_it",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::abbreviating_matches_exact_then_unique_prefix",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::ambiguous_and_missing_keys",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::byte_lookup_diagnostics_retain_native_words",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::choice_list_matches_c_join",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::dict_filter_type_noun_and_abbreviations",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::empty_key_never_abbreviates",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::empty_word_never_abbreviates",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::enumerate_names_join_shapes",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::error_messages_match_c_shapes",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::exact_beats_a_longer_entry_sharing_the_prefix",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::exact_match_always_wins",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::exact_only_reports_every_miss_as_bad",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::miss_messages_match_tclsh",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::tcloo_method_choices_omit_the_oxford_comma",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::the_error_noun_is_data",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "prefix::tests::unique_prefix_matches_unless_exact",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::a_stopped_search_is_raised_at_run_time_and_typed_in_analysis",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::compile_error_prefix_follows_the_release",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::original_match_targets_are_borrowed_and_assigned_before_the_next_match",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::regex_error_wrapper_retains_arity_and_primitive_state_actions",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::regexp_about_keeps_cs_arity_and_inline_rules",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::regexp_about_reports_the_subexpression_count_and_info_list",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::regsub_all_with_the_literal_empty_pattern_substitutes_once_per_character",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::regsub_command_evaluates_the_prefix_from_9_0",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::regsub_command_is_refused_before_9_0_in_cs_own_words",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::regsub_empty_pattern_special_case_keeps_cs_guard_terms",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::regsub_without_an_evaluator_still_refuses_command",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::resolve_start_end_offset_saturates_without_overflow",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::resolve_start_handles_integer_and_end_forms",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::slice_match_guards_out_of_range_engine_offsets",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::the_pattern_cache_charges_a_compile_once_per_key",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "regex::tests::the_pattern_cache_stays_within_its_byte_bound",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "return_options::tests::jim_numeric_completion_code_has_no_string_preparation",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "return_options::tests::modern_merge_converts_only_last_control_and_keeps_original_custom_key",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "return_options::tests::modern_return_code_adds_a_boundary_but_jim_keeps_requested_code",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "return_options::tests::prefix_validation_preserves_native_cardinality_and_does_not_read_c_keys",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "return_options::tests::sequential_failure_does_not_prepare_later_pair",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "scan::tests::basic_int_string",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "scan::tests::eof_before_any_conversion",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "scan::tests::float_suppress_and_width",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "scan::tests::hex_and_char_and_set",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "scan::tests::huge_field_width_saturates_without_overflow",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "scan::tests::percent_n_and_a_suppressed_success_prevent_the_underflow",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "scan::tests::percent_n_reports_consumed",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "sort::tests::dictionary_orders_embedded_numbers",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "sort::tests::key_compare_modes",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "sort::tests::nocase_and_dictionary_fold_the_full_unicode_range",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "sort::tests::parse_wide_shares_the_canonical_integer_grammar",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::case_mapping_is_simple_not_full",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::string_compare_equal_share_option_and_unicode_semantics",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::string_last_basic",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::string_last_empty_haystack_is_minus_one_not_panic",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::string_last_empty_haystack_with_index_does_not_panic",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::string_last_finds_last_occurrence",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::string_repeat_bounds_the_result_before_allocating",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::totitle_first_char_uses_titlecase_not_uppercase",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::word_end_finds_word_boundaries",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string::tests::word_start_finds_word_boundaries",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::a_radix_integer_is_a_double_on_every_release",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::char_classes_failindex",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::empty_and_strict",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::failindex_counts_characters_not_bytes",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::failindex_is_where_the_numeral_parse_stopped",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::integer_class_boundedness_follows_the_release",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::integer_failindex",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::list_and_dict",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "string_is::tests::numeric_classes_follow_the_emulated_release",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::integer_mode_coercion_errors_match_c",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::integer_mode_compares_numerically",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::integer_mode_option_conflicts_match_c",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::integer_option_exists_only_from_tcl91",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.switch-original-options-and-callback-observation"
+          ],
+          "path": "rust/tcl-cmd-core/src/switch.rs"
+        },
+        {
+          "selector": "switch::tests::option_table_matches_exact_and_unique_prefix",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::regexp_compile_error_prefix_follows_the_release",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::select_empty_patterns_is_no_match_not_underflow",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::select_exact_still_matches_after_guard",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::selection_and_continuations_use_original_c_string_extents",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::switch_error_message_formats",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::switch_nocase_exact_folds_the_full_unicode_range",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::tcl91_option_table_lists_integer_and_makes_i_ambiguous",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "switch::tests::usage_matches_native_release_and_argument_form",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "trace::tests::bad_operation_enumerates_table_order",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "trace::tests::legacy_letters_render_in_rwua_order",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "trace::tests::legacy_operation_extent_preserves_counted_empty_and_opaque_errors",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": [
+            "naming.variable.legacy-trace-operation-cstring"
+          ],
+          "path": "rust/tcl-cmd-core/src/trace.rs"
+        },
+        {
+          "selector": "trace::tests::legacy_variable_operations_are_flags_not_a_list",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "trace::tests::old_style_callbacks_get_the_letter",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "trace::tests::operations_are_a_canonical_set_in_info_order",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "trace::tests::option_word_resolves_against_the_release_option_set",
+          "status": "passed",
+          "purpose": "Actual libtest event from the independently successful CmdCore-only264 build and its sealed original source; other crates, current definitions and external Native provider observations remain independent.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [
+        "naming.compiler.introspection-source-and-effect-frontiers",
+        "naming.encoding.original-utf8-convertto-error-offset",
+        "naming.encoding.original-utf8-convertto-object-storage",
+        "naming.event.original-queue-and-port-transport",
+        "naming.list-storage.original-prefix-and-span-geometry",
+        "naming.list-storage.original-shared-header-versus-store",
+        "naming.list-storage.original-whole-header-publication",
+        "naming.list.original-range-objects-and-instructions",
+        "naming.namespace.dispatch-error-noun-and-ambiguity",
+        "naming.namespace.dispatch-prefix-worker-availability",
+        "naming.numeric.primitive-int-original-width-cache",
+        "naming.switch-original-options-and-callback-observation",
+        "naming.variable.legacy-trace-operation-cstring"
+      ],
+      "limits": "These four exact closed frozen264 operations retain a failed aggregate test build and a separate successful CmdCore-only test build, inventory and complete 190P run. The sealed pin belongs only to the independent CmdCore-only build. The aggregate emitted a different unpinned CmdCore test artifact before Compiler errors; it has no assigned assertion outcome. Other crates, current changes, later images, external Native execution and full validation gates remain independent. The zero-byte legacy inventory log has no original receipt or result.",
+      "framework": "rust-libtest"
     }
   ]
 }

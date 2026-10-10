@@ -36,6 +36,7 @@ pub struct RetainedSourceModuleBindings {
     grammar: tcl_lexer::LexerConfig,
     namespace: String,
     native_namespace: Option<tcl_core_types::ByteNamespacePath>,
+    namespace_context: Option<super::SourceNamespaceKey>,
     kind: TopLevelKind,
     registry: RegistrySemanticKey,
     observed: ModuleCommandBindings,
@@ -59,10 +60,53 @@ impl RetainedSourceModuleBindings {
             grammar: module.native_lexer_config(),
             namespace: module.top_level_namespace.clone(),
             native_namespace: module.native_namespace.clone(),
+            namespace_context: module.top_level_namespace_context.clone(),
             kind: module.top_level_kind,
             registry: registry.snapshot().semantic_key(),
             observed: bindings.module_projection(module),
         }))
+    }
+
+    /// Check the same exact original Module inputs without deriving a clone.
+    /// This is a source-owner join, independently of any reached dispatch.
+    pub(crate) fn matches_module(&self, module: &Module, registry: &CommandRegistry) -> bool {
+        self.source == module.source
+            && self.entry == module.source_entry
+            && self.entry.metadata_context.source_analysis_input()
+                == module.source_metadata_input.as_ref()
+            && self.grammar == module.native_lexer_config()
+            && self.namespace == module.top_level_namespace
+            && self.native_namespace == module.native_namespace
+            && self.namespace_context == module.top_level_namespace_context
+            && self.kind == module.top_level_kind
+            && self.registry == registry.snapshot().semantic_key()
+    }
+
+    /// Authenticate a whole original function carrier against this Module's
+    /// source world. Equal spelling/configuration does not replace the retained
+    /// availability, entry or original invocation vector.
+    pub(crate) fn owns_original_tokens(&self, tokens: &crate::ir::CommandTokens) -> bool {
+        let Some(binding) = tokens.source_binding.as_ref() else {
+            return false;
+        };
+        let Some((image, _, _)) = binding.original_compiler_source(tokens) else {
+            return false;
+        };
+        let Some(snapshot) = binding
+            .lookup_state
+            .as_ref()
+            .or(binding.compiler_lookup_state.as_ref())
+        else {
+            return false;
+        };
+        let baseline = &snapshot.state.baseline;
+        image == &self.source
+            && baseline.metadata_context == self.entry.metadata_context
+            && baseline.logical_source_input == self.entry.logical_source_input
+            && baseline.vendor_source_input == self.entry.vendor_source_input
+            && baseline.native_entry == self.entry.native_entry
+            && baseline.execution_name_policy == self.entry.execution_name_policy
+            && baseline.registry_snapshot.as_ref() == Some(&self.registry)
     }
 
     pub(super) fn projection(
@@ -71,15 +115,7 @@ impl RetainedSourceModuleBindings {
         registry: &CommandRegistry,
         options: SourceAnalysisOptions<'_>,
     ) -> Option<ModuleCommandBindings> {
-        if self.source != module.source
-            || self.entry != module.source_entry
-            || self.entry.options() != options
-            || self.grammar != module.native_lexer_config()
-            || self.namespace != module.top_level_namespace
-            || self.native_namespace != module.native_namespace
-            || self.kind != module.top_level_kind
-            || self.registry != registry.snapshot().semantic_key()
-        {
+        if !self.matches_module(module, registry) || self.entry.options() != options {
             return None;
         }
         let mut observed = self.observed.clone();
@@ -210,6 +246,11 @@ mod tests {
             },
             |module| module.lexer_config.strict_quoting = !module.lexer_config.strict_quoting,
             |module| module.top_level_namespace = "::Other".to_owned(),
+            |module| {
+                module.top_level_namespace_context = Some(
+                    super::super::SourceNamespaceKey::authored("::DifferentTypedNamespace"),
+                );
+            },
             |module| module.top_level_kind = TopLevelKind::ProcedureBody,
             |module| module.source_entry.unknown_entry = !module.source_entry.unknown_entry,
             |module| {

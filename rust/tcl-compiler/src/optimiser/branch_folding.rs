@@ -266,7 +266,7 @@ fn branch_execution_equivalent(
     constants: &std::collections::HashMap<String, String>,
     span: tcl_lexer::Span,
 ) -> bool {
-    let original = crate::expr_parser::parse_expr_for_profile(original, ctx.dialect);
+    let original = branch_original_expression(ctx, original);
     let environment = constants
         .iter()
         .map(|(name, value)| {
@@ -278,6 +278,22 @@ fn branch_execution_equivalent(
         .collect();
     ctx.expression_rewrite_equivalence_at(&original, proposed, &environment, span)
         .is_ok()
+}
+
+/// Parse source topology under the retained lexical policy. This tree does
+/// not supply native preparation, operand objects or rewrite permission.
+fn branch_original_expression(ctx: &PassContext<'_>, source: &str) -> ExprNode {
+    let profile = ctx
+        .dialect
+        .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl);
+    let mut parser = tcl_syntax::expr::parser::ExprParseContext::for_profile(profile);
+    if ctx.dialect.is_none() {
+        // The explicit standalone boundary keeps its selected runtime numeral
+        // grammar; source lexer overrides do not choose a numeric policy.
+        parser.lexer_grammar.numbers = tcl_syntax::number::runtime_syntax();
+    }
+    parser.lexer_grammar = ctx.lexer_config().grammar_over(parser.lexer_grammar);
+    crate::expr_parser::parse_expr_with_syntax_context(source, &parser)
 }
 
 /// The branch-condition simplification cascade: the first transform that
@@ -449,6 +465,99 @@ mod tests {
 
     use super::super::{PassContext, PassId};
     use super::run;
+
+    #[test]
+    fn original_branch_source_parser_keeps_retained_grammar_and_numeric_axes() {
+        // naming.optimiser.original-branch-expression-source-grammar
+        // docs/design/analysis/name-resolution-proofs/original-branch-expression-source-grammar.md
+        // Source AST topology only, independent of native preparation/admission.
+        let old = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let new = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let mut ctx = PassContext {
+            dialect: Some(old),
+            source_lexer_config: Some(tcl_lexer::LexerConfig::for_profile(Some(new))),
+            ..PassContext::default()
+        };
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "${a{b}c}"),
+            ExprNode::Var { name, .. } if name == "a{b}c"
+        ));
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "${a{b}"),
+            ExprNode::Raw { .. }
+        ));
+        ctx.dialect = Some(new);
+        ctx.source_lexer_config = Some(tcl_lexer::LexerConfig::for_profile(Some(old)));
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "${a{b}"),
+            ExprNode::Var { name, .. } if name == "a{b"
+        ));
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "${a{b}c}"),
+            ExprNode::Raw { .. }
+        ));
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "${café}"),
+            ExprNode::Var { name, .. } if name == "café"
+        ));
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "${scalar(open}"),
+            ExprNode::Var { name, .. } if name == "scalar(open"
+        ));
+        // The lexer overlay cannot add Tcl 9 numeral forms to Tcl 8.4.
+        ctx.dialect = tcl_dialect::DialectProfile::find("tcl8.4");
+        ctx.source_lexer_config = Some(tcl_lexer::LexerConfig::for_profile(Some(new)));
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "0d10"),
+            ExprNode::Raw { .. }
+        ));
+        ctx.dialect = Some(new);
+        ctx.source_lexer_config = Some(tcl_lexer::LexerConfig::for_profile(Some(old)));
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "0d10"),
+            ExprNode::Literal { text, .. } if text == "0d10"
+        ));
+    }
+
+    #[test]
+    fn original_branch_source_topology_keeps_equivalence_permission_separate() {
+        // naming.optimiser.original-branch-expression-source-grammar
+        // docs/design/analysis/name-resolution-proofs/original-branch-expression-source-grammar.md
+        // Closed literal policy and missing original variable-object proof are
+        // separate obligations; this is no native execution observation.
+        let mut ctx = PassContext {
+            dialect: tcl_dialect::DialectProfile::find("tcl9.0"),
+            source_lexer_config: Some(tcl_lexer::LexerConfig::for_dialect("tcl8.6")),
+            ..PassContext::default()
+        };
+        assert!(super::branch_execution_equivalent(
+            &ctx,
+            "1 + 2",
+            "1 + 2",
+            &HashMap::new(),
+            Span::new(0, 5)
+        ));
+        let constants = HashMap::from([("scalar(open".to_owned(), "3".to_owned())]);
+        assert!(matches!(
+            super::branch_original_expression(&ctx, "${scalar(open}"),
+            ExprNode::Var { name, .. } if name == "scalar(open"
+        ));
+        assert!(!super::branch_execution_equivalent(
+            &ctx,
+            "${scalar(open}",
+            "3",
+            &constants,
+            Span::new(0, 14)
+        ));
+        ctx.dialect = None;
+        assert!(!super::branch_execution_equivalent(
+            &ctx,
+            "1 + 2",
+            "1 + 2",
+            &HashMap::new(),
+            Span::new(0, 5)
+        ));
+    }
 
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()

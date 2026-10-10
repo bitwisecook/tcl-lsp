@@ -19,6 +19,7 @@ pub(crate) struct TaintSourceContext<'a> {
     pub(super) config: LexerConfig,
     pub(super) dialect: Option<&'static DialectProfile>,
     standalone: bool,
+    module_owner: Option<&'a crate::command_binding::RetainedSourceModuleBindings>,
 }
 
 impl<'a> TaintSourceContext<'a> {
@@ -51,7 +52,35 @@ impl<'a> TaintSourceContext<'a> {
             config,
             dialect: input.map(ResolvedAnalysisInput::unit_profile),
             standalone: false,
+            module_owner: None,
         }
+    }
+
+    pub(crate) fn for_module(registry: &CommandRegistry, module: &'a crate::ir::Module) -> Self {
+        let module_owner = module
+            .retained_source_bindings
+            .as_deref()
+            .filter(|owner| owner.matches_module(module, registry));
+        Self {
+            metadata: module_owner
+                .and_then(|_| InvocationMetadataContext::for_module(registry, module)),
+            config: module.lexer_config,
+            dialect: module.dialect_profile,
+            standalone: false,
+            module_owner,
+        }
+    }
+
+    pub(crate) fn for_cfg(registry: &CommandRegistry, cfg: &'a crate::cfg::Function) -> Self {
+        if cfg.metadata_context.is_standalone() {
+            return Self::standalone(registry, registry.profile());
+        }
+        let input = cfg.metadata_context.source_analysis_input();
+        Self::for_input(
+            registry,
+            input,
+            input.map_or_else(LexerConfig::default, ResolvedAnalysisInput::lexer_config),
+        )
     }
 
     pub(crate) fn for_function(registry: &CommandRegistry, function: &'a FunctionUnit) -> Self {
@@ -64,11 +93,15 @@ impl<'a> TaintSourceContext<'a> {
 
     pub(crate) fn for_module_function(
         registry: &CommandRegistry,
-        module: &crate::ir::Module,
+        module: &'a crate::ir::Module,
         function: &'a FunctionUnit,
     ) -> Self {
+        let source = Self::for_module(registry, module);
         Self {
-            metadata: function.invocation_metadata_context_for_module(registry, module),
+            metadata: source
+                .metadata
+                .and_then(|_| function.invocation_metadata_context_for_module(registry, module)),
+            module_owner: source.module_owner,
             ..Self::for_function(registry, function)
         }
     }
@@ -86,7 +119,14 @@ impl<'a> TaintSourceContext<'a> {
             config: LexerConfig::for_profile(dialect),
             dialect,
             standalone: true,
+            module_owner: None,
         }
+    }
+
+    pub(super) const fn module_owner(
+        self,
+    ) -> Option<&'a crate::command_binding::RetainedSourceModuleBindings> {
+        self.module_owner
     }
 
     pub(super) const fn allows_nominal_metadata(self) -> bool {

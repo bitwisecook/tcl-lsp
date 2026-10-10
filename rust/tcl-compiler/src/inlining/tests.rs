@@ -28,6 +28,47 @@ use super::*;
 use crate::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
 
+pub(super) fn logical_module_for(
+    source: &str,
+) -> (std::sync::Arc<tcl_registry::model::ContextRegistry>, Module) {
+    let mut profile = tcl_dialect::DialectProfile::projected_from_point(
+        "logical-inlining-frame-control",
+        &[],
+        "Logical inlining frame control",
+        tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+    );
+    profile.runtime_base = Some(tcl_dialect::TclVersion::V8_6);
+    let profile = profile.intern();
+    let context =
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+    let input = crate::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        std::sync::Arc::clone(&context),
+        LexerConfig::for_profile(Some(profile)),
+    );
+    assert!(input.has_logical_source_name_context());
+    let entry = crate::command_binding::SourceAnalysisEntry {
+        logical_source_input: Some(input.clone()),
+        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        ..Default::default()
+    };
+    let module = crate::compilation_unit::CompilationUnit::build_with_source_entry(
+        source,
+        crate::compilation_unit::UnitBuildOptions {
+            registry: context.commands(),
+            defer_top_level: false,
+            config: input.lexer_config(),
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        &entry,
+    )
+    .ir_module;
+    (context, module)
+}
+
 fn module_for(source: &str) -> Module {
     CompilationUnit::build_for(source, &CommandRegistry::build_default(), false).ir_module
 }
@@ -98,7 +139,8 @@ fn inlined_native_top(source: &str) -> Vec<Statement> {
                     .get(name)
                     .is_some_and(ProcEscapeSummary::safe_to_inline),
                 count_statements(&procedure.body),
-                v3_eligible(procedure, name, &summaries, registry),
+                frame::SourceContext::for_module(&module, registry)
+                    .is_some_and(|source| v3_eligible(procedure, name, &summaries, source)),
                 procedure
                     .body
                     .statements
@@ -1477,4 +1519,99 @@ fn a_body_that_substitutes_a_command_stays_a_call_in_another_namespace() {
          proc ::app::caller {l} { w $l }",
     ));
     assert!(!call_heads(&own, "::app::caller").contains(&"w".to_owned()));
+}
+
+#[test]
+fn original_list_argument_projection_uses_selected_whole_word_syntax() {
+    // naming.inlining.original-frame-source-context
+    // docs/design/analysis/name-resolution-proofs/inlining-original-frame-source-context.md
+    // Generated source-word advice, independently of any list worker or frame.
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
+        let config = LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(Some(dialect)));
+        for source in [
+            "plain",
+            "$x",
+            "${literal$dollar}",
+            "$arr($idx)",
+            "[list a b]",
+            r"escaped\ space",
+            r"escaped\{brace",
+            "café",
+            "foo{bar}",
+        ] {
+            assert!(list_clean_for_splice(source, config), "{dialect}: {source}");
+        }
+        for source in [
+            "",
+            "two words",
+            "one; two",
+            "{literal}",
+            "\"literal\"",
+            "[unfinished",
+            "${unfinished",
+        ] {
+            assert!(
+                !list_clean_for_splice(source, config),
+                "{dialect}: {source}"
+            );
+        }
+    }
+    let c8 = LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(Some("tcl8.6")));
+    let c9 = LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(Some("tcl9.0")));
+    assert!(list_clean_for_splice("${a{b}c}", c8));
+    assert!(list_clean_for_splice("${a{b}c}", c9));
+    let mut names = HashSet::new();
+    record_local_base("scalar(open", &mut names);
+    record_local_base("scalar(closed)tail", &mut names);
+    record_local_base("arr(index)", &mut names);
+    assert_eq!(
+        names,
+        HashSet::from([
+            "scalar(open".to_owned(),
+            "scalar(closed)tail".to_owned(),
+            "arr".to_owned()
+        ])
+    );
+}
+
+#[test]
+fn original_inlining_eligibility_retains_whole_module_and_selected_frame_context() {
+    // naming.inlining.original-frame-source-context
+    // docs/design/analysis/name-resolution-proofs/inlining-original-frame-source-context.md
+    // Conditional Logical IR transform only; no Native cell or entry is issued.
+    let source = "proc ::p {x} {return $x}; p VALUE; puts after";
+    let (context, module) = logical_module_for(source);
+    let summaries =
+        crate::var_escape::analyse_var_escape_with_registry(&module, true, context.commands());
+    assert!(build_inlinable_map(&module, &summaries, context.commands()).contains_key("::p"));
+    assert!(has_inline_binding(
+        &inline_module(module.clone(), context.commands())
+            .top_level
+            .statements
+    ));
+    let mut stale = module.clone();
+    stale.source =
+        tcl_lexer::SourceImage::document("proc ::p {x} {return $missing}; p VALUE; puts after");
+    assert!(build_inlinable_map(&stale, &summaries, context.commands()).is_empty());
+    let mut missing = module.clone();
+    missing.source_metadata_input = None;
+    assert!(build_inlinable_map(&missing, &summaries, context.commands()).is_empty());
+    let mut names_only = module.clone();
+    names_only.procedures.get_mut("::p").unwrap().params_raw = "array(index)".to_owned();
+    assert!(build_inlinable_map(&names_only, &summaries, context.commands()).is_empty());
+    let mut mismatched_names = module.clone();
+    mismatched_names
+        .procedures
+        .get_mut("::p")
+        .unwrap()
+        .params_raw = "other".to_owned();
+    assert!(build_inlinable_map(&mismatched_names, &summaries, context.commands()).is_empty());
+    let mut missing_tokens = module.clone();
+    let proc = missing_tokens.procedures.get_mut("::p").unwrap();
+    proc.body.command_binding_sites = Default::default();
+    let Statement::Return { tokens, .. } = &mut proc.body.statements[0] else {
+        panic!("genuine original return fixture");
+    };
+    *tokens = None;
+    assert!(build_inlinable_map(&missing_tokens, &summaries, context.commands()).is_empty());
 }

@@ -146,7 +146,7 @@ mod tests {
                 include_str!("../../tcl-syntax/tests/data/native_scalar_getters/int/9.1.0.txt"),
             ),
         ] {
-            let original: Vec<_> = rows.lines().nth(10).unwrap().split("\\t").collect();
+            let original: Vec<_> = rows.lines().nth(10).unwrap().split('\t').collect();
             assert_eq!(&original[..4], &["10", "1", "777", "string"]);
             let getter = NativeScalarGetterProtocol::for_tcl_version(version);
             let record = getter

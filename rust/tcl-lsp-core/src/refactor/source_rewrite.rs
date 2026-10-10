@@ -52,6 +52,12 @@ pub(super) fn select(
         return None;
     }
     let registry = analysis.resolved_registry()?;
+    let metadata = tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+        registry,
+        analysis.resolved_input.as_ref()?,
+        config,
+        analysis.resolved_profile(),
+    )?;
     if analysis.allows_lexical_declaration_advice() {
         let command = super::find_command_at(source, cursor, None, registry, config)?;
         let realm = analysis.retained_command_realm()?;
@@ -60,7 +66,12 @@ pub(super) fn select(
             tcl_compiler::realm::RealmBindingFact::Command(name) => name,
             tcl_compiler::realm::RealmBindingFact::Rebound => return None,
         };
-        if registry.get(selected)?.lowering_hook != Some(hook) {
+        if metadata
+            .context()
+            .resolve_spec(registry, selected)?
+            .lowering_hook
+            != Some(hook)
+        {
             return None;
         }
         return Some((command, None));
@@ -114,13 +125,19 @@ fn original_command_at(
             // asserting expression evaluation or granting its replacement.
             let tokens = walk.tokens(source, &command);
             let advice =
-                tcl_compiler::registry_invocation::original_registry_invocation_assistance(
+                tcl_compiler::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
                     walk.nesting,
-                    None,
+                    Some(walk.metadata_context()?),
                     &tokens,
                 )?;
             let words = advice.unanimous_command_words()?;
-            if walk.nesting.get(words.command())?.lowering_hook == Some(hook) {
+            if walk
+                .metadata_context()?
+                .context()
+                .resolve_spec(walk.nesting, words.command())?
+                .lowering_hook
+                == Some(hook)
+            {
                 return Some(command);
             }
         }
@@ -199,6 +216,95 @@ mod tests {
                 )
                 .is_none(),
                 "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn source_rewrites_keep_actual_availability_and_command_horizons() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            surface: registry.get("dict").unwrap().surface,
+            ..registry.get("expr").unwrap().clone()
+        });
+        let commands = registry.snapshot().shared_registry();
+        let current = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.6")
+                .with_command_store(std::sync::Arc::clone(&commands)),
+        );
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4").with_command_store(commands),
+        );
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let source = "interp alias {} evaluate {} expr; evaluate 1 + 2";
+        let invocation_cursor = u32::try_from(source.rfind("evaluate").unwrap()).unwrap();
+        let analyse = |source: &str, context| {
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile, profile, context, config,
+            );
+            Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, profile.name)
+        };
+        let analysis = analyse(source, std::sync::Arc::clone(&current));
+        assert!(
+            select(
+                source,
+                invocation_cursor,
+                &analysis,
+                LoweringHookId::Expr,
+                RewriteObligation::ExpressionEvaluation
+            )
+            .is_some()
+        );
+        assert!(
+            select(
+                source,
+                invocation_cursor,
+                &analyse(source, older),
+                LoweringHookId::Expr,
+                RewriteObligation::ExpressionEvaluation
+            )
+            .is_none()
+        );
+
+        let replaced = "proc expr args {}; expr 1 + 2";
+        let cursor = u32::try_from(replaced.rfind("expr").unwrap()).unwrap();
+        assert!(
+            select(
+                replaced,
+                cursor,
+                &analyse(replaced, std::sync::Arc::clone(&current)),
+                LoweringHookId::Expr,
+                RewriteObligation::ExpressionEvaluation
+            )
+            .is_none()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        let mut foreign = analysis.clone();
+        foreign.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            config,
+        ));
+        let mut stale = analysis;
+        stale.body_lexer_config.as_mut().unwrap().braced_var =
+            tcl_dialect::BracedVarStyle::FirstClose;
+        for unavailable in [missing, foreign, stale] {
+            assert!(
+                select(
+                    source,
+                    invocation_cursor,
+                    &unavailable,
+                    LoweringHookId::Expr,
+                    RewriteObligation::ExpressionEvaluation
+                )
+                .is_none()
             );
         }
     }

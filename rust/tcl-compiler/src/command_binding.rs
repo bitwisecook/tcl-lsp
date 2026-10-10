@@ -11979,25 +11979,6 @@ impl ModuleCommandBindings {
             owner.metadata_context(registry).flatten(),
         );
     }
-    pub(crate) fn source_order_registry_barrier_for_command(
-        &mut self,
-        words: &[crate::ir_helpers::CommandWord],
-        conditional: bool,
-        registry: &CommandRegistry,
-        namespace: &crate::ir_helpers::ExecutionNamespace,
-        barrier_traits: tcl_registry::Traits,
-    ) -> bool {
-        let owner = self.baseline.metadata_context.clone();
-        self.source_order_registry_barrier_for_command_with_metadata_context(
-            words,
-            conditional,
-            registry,
-            namespace,
-            barrier_traits,
-            owner.metadata_context(registry).flatten(),
-        )
-    }
-
     /// Advance conditional source effects using the independently retained
     /// availability. Missing or foreign metadata widens instead of borrowing
     /// catalogue effects; this supplies no physical command execution.

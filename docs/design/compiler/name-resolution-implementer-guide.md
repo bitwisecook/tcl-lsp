@@ -9421,3 +9421,56 @@ supplied Native entry. None of these allocation purposes discharges retained
 Native body admission, current contents, trace or alias absence, numeric
 representation, or runtime observer guards. The [slot-purpose contract](../analysis/name-resolution-proofs/aot-original-slot-purpose.md)
 keeps declaration positions, authored storage and retained frames separate.
+
+## Original source context for procedure inlining
+
+The Compiler inliner selects `frame::SourceContext::for_module` before
+classifying any procedure, including an empty body. It joins the real
+`Module.source_metadata_input`, complete source image and channel, source
+entry, namespace, lexical configuration and command-store identity through
+`RetainedSourceModuleBindings::matches_module`. Missing input, changed source
+or a foreign store withdraws the catalogue. Only independently positive Logical
+source naming advice supplies this source recipe; a Native source carrier
+cannot borrow that applicability or a runtime activation.
+
+Use `SourceContext::invocation` for each original statement and nested call.
+It validates the statement's original source image, retained input and
+configuration before the shared
+`original_logical_operation_invocation_with_metadata_context` selects composed
+alias operands and operation facts. Accepted arity and complete roles remain
+required. `traits::is_splice_safe` consumes those selected traits; it does not
+resolve a printed head or issue frame, observer or edit permission. The bound
+name walk uses original statement tokens and the shared checked substitution
+inventory. A cooked word, an unavailable child, a variable-name operation or
+opaque expression operand retains the call.
+
+Every binding strategy parses the original `params_raw` through the shared
+strict ParamList owner and requires exact correspondence with `Procedure.params`.
+The transform supports only its selected Tcl positional/default/rest grammar.
+Unknown and Jim parameter axes retain dispatch; Jim's independent definition
+acceptance does not issue this Tcl activation or rewrite. Namespace spelling,
+purity, source grammar and count success cannot replace the separate original
+declaration identity, body admission, frame-read, command-qualification and
+result-use gates. Independently lowered reference bodies without a joined
+complete Module carrier retain dispatch rather than borrowing another source
+world. See the [formal boundary](../analysis/name-resolution-proofs/procedure-borrowed-slot-array-shaped-formal-boundary.md)
+and [readonly formal topology](../analysis/name-resolution-proofs/original-readonly-formal-topology.md).
+
+`rename::rewrite_script` carries the same complete `LexerConfig`. Variable
+edits use checked word decomposition, `scan_var_ref`, the shared
+`variable_reference_root_bytes` and `RawVarRef::name_range_in`/`index_range_in`
+extents. Equal-valued bytes in another allocation supply no source geometry.
+A separately substituted array index is renamed even when its root is unchanged;
+a braced combined name keeps its index literal. The closed `split_element_ref`
+owner leaves unmatched parentheses in scalar names. Escapes, Unicode bytes and
+the selected C8/C9/Jim delimiter rules remain lexical facts, independently of
+Native name lookup or edit permission. Generated list bindings use the shared
+whole-word lexical plan under this configuration; an argument must preserve
+one complete unexpanded original word before emission.
+
+The [source contract](../analysis/name-resolution-proofs/inlining-original-frame-source-context.md)
+distinguishes genuine positive source selection, aliases and moved commands
+from missing, stale, replaced and foreign inputs. Its lexical and inliner
+assertions are software contracts, not native execution or object/frame
+observations. Extensions must preserve those independent gates and bind new
+operand kinds through the shared source and variable owners.

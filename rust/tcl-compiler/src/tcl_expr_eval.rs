@@ -1308,14 +1308,6 @@ impl FoldOps<'_> {
         self.tower != Tower::Widens && past_the_wide_tower(value, self.octal, self.numbers)
     }
 
-    /// `Err` when any of `values` is past the target's tower.
-    fn within_tower(&self, values: &[&FoldValue]) -> Result<(), ()> {
-        if values.iter().any(|value| self.beyond_tower(value)) {
-            return Err(());
-        }
-        Ok(())
-    }
-
     /// Run the math function `name` — spelled as the program calls it —
     /// over `args` through the shared dispatcher, the one the runtime
     /// evaluates with; `Err` when it declines.

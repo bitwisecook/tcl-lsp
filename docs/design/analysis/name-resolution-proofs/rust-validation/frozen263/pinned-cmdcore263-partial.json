@@ -1,0 +1,8 @@
+{
+  "executable": "/workspace/.proofs/pinned-cmdcore263-partial.elf",
+  "sha256": "2726d7b241fe8968561791ec9df14daea5a3b1d2a76d9e027943e3c29034bde5",
+  "build_receipt": "/workspace/.proofs/integration-native-consumer-test-build263.json",
+  "build_receipt_sha256": "4cb0275fb3b43bbff64786082ae9cc972b49387cc28377bc74113b5a60b1ba06",
+  "source_snapshot_sha256": "8c4d0507fd2fc4b8343af059b298c178117f2dfafa1c2df3e002d3b7164c1eba",
+  "scope": "One explicit successful cmd-core libtest artifact in uniform-source failed aggregate no-run build; downstream spec-hooks dependency failed; no assertion outcome inferred."
+}

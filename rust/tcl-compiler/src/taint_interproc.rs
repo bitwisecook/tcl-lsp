@@ -560,7 +560,8 @@ fn infer_proc_summary_with_source(inputs: ProcSummaryInputs<'_>) -> ProcTaintSum
 
     // One index build for the baseline propagation and every scenario below.
     let graph = TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp);
-    let instance_classes = instance_classes_for_function(&fu.cfg, registry, interproc, true);
+    let instance_classes =
+        instance_classes_for_function(&fu.cfg, registry, interproc, true, source);
     let base_taints = run_propagation(
         &graph,
         fu,
@@ -1163,14 +1164,13 @@ fn solve_interprocedural_taints_with_seed_option(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
 ) -> InterprocTaintResult {
-    // `find_taint_warnings_for_cu` is also a public entry point on a freshly
-    // built unit, before `CompilationUnit::with_interprocedural` has attached
-    // the full call/effect summary.  Preserve the smaller but security-critical
-    // interpreter-global receiver facts in that mode: a top-level `ttk::entry
-    // .user` remains the same command inside a later callback procedure
-    // without retroactively typing a procedure invoked before construction.
+    // A fresh actual CU can retain conditional receiver setup before the full
+    // summary is attached. The map and its Module owner travel together; no
+    // callback frame or live object is supplied by these source candidates.
     let global_instance_classes =
         crate::interprocedural::global_instance_classes(&cu.ir_module, registry);
+    let global_source =
+        crate::interprocedural::global_instance_class_source(&cu.ir_module, registry);
     let fallback_interproc = crate::interprocedural::InterproceduralAnalysis {
         tainted_global_writes: crate::interprocedural::tainted_global_writes(
             &cu.ir_module,
@@ -1178,6 +1178,8 @@ fn solve_interprocedural_taints_with_seed_option(
             &global_instance_classes,
         ),
         global_instance_classes,
+        global_instance_class_input: global_source.as_ref().map(|(input, _)| input.clone()),
+        global_instance_class_owner: global_source.map(|(_, owner)| owner),
         ..crate::interprocedural::InterproceduralAnalysis::default()
     };
     let interproc = cu.interproc.as_ref().or(Some(&fallback_interproc));
@@ -1242,8 +1244,13 @@ fn solve_interprocedural_taints_with_context(
     let known: HashSet<String> = summaries.keys().cloned().collect();
 
     // Top-level taints under the converged summaries.
-    let top_instance_classes =
-        instance_classes_for_function(&cu.top_level.cfg, registry, interproc, false);
+    let top_instance_classes = instance_classes_for_function(
+        &cu.top_level.cfg,
+        registry,
+        interproc,
+        false,
+        TaintSourceContext::for_module_function(registry, &cu.ir_module, &cu.top_level),
+    );
     let top_taints = run_propagation(
         &TaintGraph::new(&cu.top_level.cfg, &cu.top_level.ssa, &cu.top_level.sccp),
         &cu.top_level,
@@ -1313,7 +1320,15 @@ fn solve_interprocedural_taints_with_context(
             .or_insert_with(|| TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp));
         let instance_classes = instance_classes_by_proc
             .entry(qname.clone())
-            .or_insert_with(|| instance_classes_for_function(&fu.cfg, registry, interproc, true));
+            .or_insert_with(|| {
+                instance_classes_for_function(
+                    &fu.cfg,
+                    registry,
+                    interproc,
+                    true,
+                    TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+                )
+            });
         let taints = run_propagation(
             graph,
             fu,

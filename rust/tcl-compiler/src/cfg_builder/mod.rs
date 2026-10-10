@@ -652,47 +652,6 @@ impl<'a> CfgBuilder<'a> {
         combined
     }
 
-    /// Whether a direct call's closed binding reaches a registry operation
-    /// whose declared barrier/evaluation traits invalidate scalar facts.
-    ///
-    /// `resolve_statement` includes terminal alias targets and the registry's
-    /// unresolved-command fallback, so the projection applies equally to a
-    /// builtin, an alias, and a missing command handled by a registered
-    /// fallback. Known safe handlers have no matching traits and keep their
-    /// existing scalar precision.
-    fn direct_registry_barrier(&self, stmt: &Statement) -> bool {
-        let Statement::Call { command, .. } = stmt else {
-            return false;
-        };
-        let Some(namespace) = self
-            .invocation_namespace
-            .for_invocation_context(command, stmt.tokens())
-        else {
-            return false;
-        };
-        let bindings = self
-            .source_binding_timeline
-            .as_ref()
-            .and_then(|timeline| timeline.before_direct_call(stmt.span()))
-            .unwrap_or(&self.command_bindings);
-        if bindings.target_may_be_unknown(command, namespace.as_ref()) {
-            return true;
-        }
-        let resolved = match self.command_classes.metadata_context() {
-            Some(Some(metadata)) => bindings.resolve_statement_with_metadata_context(
-                stmt,
-                self.registry,
-                Some(metadata),
-                namespace.as_ref(),
-            ),
-            Some(None) => bindings.resolve_statement(stmt, self.registry, namespace.as_ref()),
-            None => return true,
-        };
-        resolved
-            .iter()
-            .any(|invocation| invocation.facts.traits.intersects(REGISTRY_BARRIER_TRAITS))
-    }
-
     /// Whether any recovered command substitution reaches a registry operation
     /// with a barrier/evaluation trait. Substitutions execute before their
     /// host statement, so callers place the synthetic barrier before that

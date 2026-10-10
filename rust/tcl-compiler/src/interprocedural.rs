@@ -286,12 +286,18 @@ pub struct InterproceduralAnalysis {
     pub procedures: HashMap<String, ProcSummary>,
     /// Per-method summaries keyed by qualified name.
     pub methods: HashMap<String, MethodSummary>,
-    /// Registry-modelled object/widget commands proven to exist when each
-    /// procedure can run, keyed first by qualified procedure name. These
-    /// commands are interpreter-global, but eager top-level calls see only
-    /// constructors that precede them; callback-only procedures see completed
-    /// unconditional top-level setup.
+    /// Conditional object/widget class candidates from original top-level
+    /// source setup, keyed by procedure. Eager calls see earlier source
+    /// factories; callback-only procedure advice sees direct authored setup.
+    /// These labels prove no constructor completion or existing Native object.
     pub global_instance_classes: HashMap<String, crate::taint::InstanceClassState>,
+    /// Complete source metadata used to produce the conditional receiver map.
+    /// Equality of input alone cannot authenticate another Module's candidates.
+    pub global_instance_class_input: Option<crate::analyser::ResolvedAnalysisInput>,
+    /// Original Module interpretation accompanying the receiver candidates.
+    /// This supplies source correspondence, never a current object allocation.
+    pub global_instance_class_owner:
+        Option<std::sync::Arc<crate::command_binding::RetainedSourceModuleBindings>>,
     /// Global/namespace variables made externally controlled by a procedure's
     /// registry-declared instance-option configuration, closed transitively
     /// over the internal call graph.
@@ -958,10 +964,13 @@ fn build_interprocedural_analysis_inner(
         .map(TransferSummaries)
         .unwrap_or_default();
 
+    let global_source = global_instance_class_source(ir_module, registry);
     InterproceduralAnalysis {
         procedures,
         methods,
         global_instance_classes,
+        global_instance_class_input: global_source.as_ref().map(|(input, _)| input.clone()),
+        global_instance_class_owner: global_source.map(|(_, owner)| owner),
         tainted_global_writes,
         transfers,
     }
@@ -982,14 +991,11 @@ fn return_shape(summary: &ProcSummary) -> ReturnKind {
     }
 }
 
-/// Registry-modelled object/widget commands available at each procedure's
-/// earliest known execution phase.
-///
-/// Kept as a small standalone projection because the colour-aware taint solver
-/// can run on a [`CompilationUnit`](crate::compilation_unit::CompilationUnit)
-/// before the full call/effect summary has been attached.  Runtime-created
-/// command names are interpreter-global, so callback procedures still need
-/// these receiver facts in that mode.
+/// Conditional factory receiver candidates at each procedure's earliest
+/// original source phase. Availability and original naming operands must join
+/// the same retained Module interpretation. No factory execution, current
+/// command allocation, callback frame or instance dispatch follows from this
+/// reporting projection.
 #[must_use]
 pub(crate) fn global_instance_classes(
     ir_module: &crate::ir::Module,
@@ -1000,6 +1006,21 @@ pub(crate) fn global_instance_classes(
         registry,
         &EagerInvocations::of(ir_module, registry),
     )
+}
+
+/// Retain the producer's complete source world once for either interprocedural
+/// summaries or their smaller receiver-only projection.
+pub(crate) fn global_instance_class_source(
+    module: &crate::ir::Module,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<(
+    crate::analyser::ResolvedAnalysisInput,
+    std::sync::Arc<crate::command_binding::RetainedSourceModuleBindings>,
+)> {
+    let source = crate::taint::TaintSourceContext::for_module(registry, module);
+    let input = source.metadata_context()?.source_analysis_input()?.clone();
+    let owner = module.retained_source_bindings.as_ref()?;
+    Some((input, std::sync::Arc::clone(owner)))
 }
 
 /// [`global_instance_classes`] over the module's eager invocations, which a
@@ -1014,90 +1035,56 @@ pub(crate) fn global_instance_classes_with(
     registry: &tcl_registry::CommandRegistry,
     invocations: &EagerInvocations,
 ) -> HashMap<String, crate::taint::InstanceClassState> {
-    // Direct top-level constructors and lifecycle operations are unconditional;
-    // nested ones are may-execute invalidations. Processing both in source
-    // order means a later direct recreate restores a known receiver, while a
-    // conditional destroy/rename withdraws the proof instead of leaving a
-    // stale earlier class behind.
-    let constructor = |statement: &crate::ir::Statement| {
-        let crate::ir::Statement::Call { command, args, .. } = statement else {
-            return None;
-        };
-        let spec = registry.get(command)?;
-        let index = spec.creates_instance_at?;
-        let name = args.get(usize::from(index))?;
-        if name.is_empty() || name.starts_with(['$', '[', '{']) {
-            return None;
+    let source = crate::taint::TaintSourceContext::for_module(registry, ir_module);
+    // Each statement retains its own original words and lookup horizon.
+    // Nested source effects only withdraw candidates; they do not prove that
+    // a conditional factory, mutation or teardown actually ran.
+    let mut sites = Vec::new();
+    let mut scripts = vec![(&ir_module.top_level, true)];
+    while let Some((script, direct)) = scripts.pop() {
+        for statement in &script.statements {
+            let tokens = script.retained_source_tokens_for_statement(statement);
+            if tokens.is_some()
+                || matches!(
+                    statement,
+                    crate::ir::Statement::Call { .. }
+                        | crate::ir::Statement::Barrier { .. }
+                        | crate::ir::Statement::NativeCall { .. }
+                )
+            {
+                sites.push((statement, tokens, direct));
+            }
+            scripts.extend(
+                crate::ir_helpers::nested_bodies(statement)
+                    .into_iter()
+                    .map(|body| (body, false)),
+            );
         }
-        Some((
-            statement.span().start(),
-            name.clone(),
-            spec.object_class.map(|class| class.class_name.to_owned()),
-        ))
-    };
+    }
+    sites.sort_by_key(|(statement, _, _)| statement.span().start());
     ir_module
         .procedures
         .keys()
         .map(|qname| {
             let eager = invocations.named(qname);
             let mut classes = crate::taint::InstanceClassState::new();
-            let direct_positions: HashSet<u32> = ir_module
-                .top_level
-                .statements
-                .iter()
-                .map(|statement| statement.span().start())
-                .collect();
-
-            // The top level executes in source order before a callback-only
-            // procedure and up to the first eager call for an eagerly-called
-            // procedure.  Apply both factories and registry lifecycle moves
-            // here, rather than retaining a constructor-only side table.
-            for statement in &ir_module.top_level.statements {
-                let position = statement.span().start();
-                if eager.is_some_and(|call| position >= call) {
+            for &(statement, tokens, direct) in &sites {
+                if eager.is_some_and(|call| statement.span().start() >= call) {
                     continue;
                 }
-                let crate::ir::Statement::Call { command, args, .. } = statement else {
-                    continue;
-                };
-                crate::taint::transfer_instance_lifecycle(&mut classes, command, args, registry);
-                if let Some((_, receiver, class)) = constructor(statement) {
-                    classes.remove(&receiver);
-                    if let Some(class) = class {
-                        classes.insert(receiver, HashSet::from([class]));
-                    }
+                if direct {
+                    crate::taint::transfer_instance_command(&mut classes, registry, source, tokens);
+                } else {
+                    let mut candidate = classes.clone();
+                    crate::taint::transfer_instance_command(
+                        &mut candidate,
+                        registry,
+                        source,
+                        tokens,
+                    );
+                    classes.retain(|name, class| candidate.get(name) == Some(class));
                 }
             }
-
-            // A nested factory/lifecycle operation may or may not run before
-            // the procedure.  A conditional factory only kills the old name;
-            // a conditional rename, alias, or Tk teardown can touch any
-            // tracked receiver, so clear the complete map conservatively.
-            crate::ir::for_each_statement(&ir_module.top_level, &mut |statement| {
-                let position = statement.span().start();
-                if direct_positions.contains(&position)
-                    || eager.is_some_and(|call| position >= call)
-                {
-                    return;
-                }
-                let crate::ir::Statement::Call { command, args, .. } = statement else {
-                    return;
-                };
-                if constructor(statement).is_some() {
-                    if let Some((_, receiver, _)) = constructor(statement) {
-                        classes.remove(&receiver);
-                    }
-                } else if crate::alias::command_table_transitions(registry, command, args)
-                    .touches_command_bindings()
-                    || registry.get(command).is_some_and(|spec| {
-                        spec.traits
-                            .contains(tcl_registry::Traits::FIRE_AND_FORGET_TEARDOWN)
-                            && spec.required_package == Some("Tk")
-                    })
-                {
-                    classes.clear();
-                }
-            });
             (qname.clone(), classes)
         })
         .collect()

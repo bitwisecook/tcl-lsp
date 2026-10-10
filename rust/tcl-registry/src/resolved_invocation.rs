@@ -4104,6 +4104,27 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         (argument < count).then_some(AuthoredSourceCommandPublication { argument, kind })
     }
 
+    /// Conditional callable class of this selected factory descriptor.
+    /// Original operands and exported manufacturer visibility are retained;
+    /// this does not prove object creation, completion or method dispatch.
+    #[must_use]
+    pub fn authored_source_callable_factory_class(&self) -> Option<&'static str> {
+        let descriptors = self.authored_source_descriptors();
+        if descriptors.subcommand.is_some() {
+            return None;
+        }
+        if let Some(factory) = self.semantics.named_object_factory {
+            return Some(factory.class_name());
+        }
+        let class = descriptors.command.object_class?;
+        let method = crate::CommandRegistry::manufacturer_method_for_descriptor(
+            descriptors.command,
+            self.words.arguments().literal_at(0)?,
+        )?;
+        (method.visibility == crate::definer::MemberVisibility::Exported)
+            .then_some(class.class_name)
+    }
+
     /// Definition vocabulary of an actual authored script operand. Configure
     /// operations enter that vocabulary only for the body directly following
     /// their selected target; an inline method body remains ordinary Tcl.

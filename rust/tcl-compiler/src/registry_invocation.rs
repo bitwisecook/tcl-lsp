@@ -376,6 +376,20 @@ pub fn original_structured_invocation(
     logical_structured_invocation(registry, tokens, None).map(|selected| selected.invocation)
 }
 
+/// Select unchanged original source structure under the supplied metadata.
+/// Complete source consumers validate their input with
+/// [`InvocationMetadataContext::for_source_input`]. Missing ownership refuses;
+/// direct operand correspondence grants no entered frame or Normal completion.
+#[must_use]
+pub fn original_structured_invocation_with_metadata_context(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+) -> Option<ResolvedStatementInvocation> {
+    logical_structured_invocation_with_metadata_context(registry, context, tokens, None)
+        .map(|selected| selected.invocation)
+}
+
 /// Original declaration grammar, without a completed handler or CPP receipt.
 fn original_declared_structured_invocation<'a>(
     registry: &CommandRegistry,
@@ -666,7 +680,10 @@ pub fn resolved_tokens_invocation_in_context(
     )
 }
 
-pub(crate) fn resolved_tokens_invocation_with_metadata_context(
+/// Select retained invocation facts under the actual supplied metadata owner.
+/// Independent command, native handler and argument receipts remain required.
+#[must_use]
+pub fn resolved_tokens_invocation_with_metadata_context(
     registry: &CommandRegistry,
     context: Option<InvocationMetadataContext<'_>>,
     tokens: &CommandTokens,
@@ -3496,7 +3513,7 @@ impl ResolvedStatementInvocation {
 
     /// Query retained selected argv under the caller's whole metadata context.
     /// The context selects availability only; it grants no new handler proof.
-    pub(crate) fn with_metadata_schema<T>(
+    pub fn with_metadata_schema<T>(
         &self,
         registry: &CommandRegistry,
         context: InvocationMetadataContext<'_>,
@@ -4980,7 +4997,11 @@ pub fn original_registry_invocation_assistance(
     )
 }
 
-pub(crate) fn original_registry_invocation_assistance_with_metadata_context(
+/// Read conditional original Registry syntax with the supplied metadata owner.
+/// Source consumers retain complete input and reject missing ownership before
+/// calling; this readonly advice supplies no entered invocation or edit grant.
+#[must_use]
+pub fn original_registry_invocation_assistance_with_metadata_context(
     registry: &CommandRegistry,
     context: Option<InvocationMetadataContext<'_>>,
     tokens: &CommandTokens,

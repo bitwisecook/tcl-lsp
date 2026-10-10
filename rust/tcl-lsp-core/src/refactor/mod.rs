@@ -339,9 +339,23 @@ impl<'a> FrameWalk<'a> {
         source: &str,
         command: &SegmentedCommand,
     ) -> Option<tcl_compiler::registry_invocation::ResolvedStatementInvocation> {
-        tcl_compiler::registry_invocation::original_structured_invocation(
+        tcl_compiler::registry_invocation::original_structured_invocation_with_metadata_context(
             self.nesting,
+            self.metadata_context()?,
             &self.tokens(source, command),
+        )
+    }
+
+    /// Borrow complete metadata from this actual document owner. Missing,
+    /// foreign or changed source policy cannot reopen standalone assistance.
+    pub(crate) fn metadata_context(
+        &self,
+    ) -> Option<tcl_compiler::registry_invocation::InvocationMetadataContext<'a>> {
+        tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+            self.nesting,
+            self.analysis.resolved_input.as_ref()?,
+            self.config,
+            Some(self.dialect),
         )
     }
 

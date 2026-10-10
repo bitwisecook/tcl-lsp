@@ -19,6 +19,12 @@
 //! `minimize` (`minimise` / `repro`) verb: reduce a diagnostic to a minimal
 //! reproducer.
 //!
+//! Every candidate retains one complete analysis input. Variable proposals use
+//! the editor's atomic original-symbol rename planner, including selected
+//! command operands, alias coverage and array/root geometry. Missing source
+//! ownership withholds rename edits. Diagnostic preservation is the reducer's
+//! acceptance condition; it supplies no runtime equivalence claim.
+//!
 //! Two layers:
 //!
 //! - The engine: delta-debugging
@@ -36,27 +42,16 @@
 //! irrelevant to the reduction — both engines reduce to a snippet that still
 //! fires CODE.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
+use std::sync::Arc;
 
 use serde::Serialize;
 use tcl_cli_support::{OutputTarget, ensure_ascii, read_input_documents, write_text_output};
-use tcl_compiler::analyser::Analyser;
-use tcl_compiler::segmenter::segment_with_recovery;
-use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
+use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
+use tcl_lexer::{LexerConfig, LineIndex, SourceImage, Utf16Col};
 
 use crate::cli::InputArgs;
-
-/// Variable-target commands: arguments at these positions name a variable (not
-/// a value), so a rename must rewrite them alongside `$` references.
-fn var_target_positions(cmd: &str) -> Option<&'static [usize]> {
-    match cmd {
-        "set" | "variable" | "incr" | "append" | "lappend" => Some(&[0]),
-        "global" | "unset" => Some(&[0, 1, 2, 3, 4, 5, 6, 7]),
-        "lassign" => Some(&[1, 2, 3, 4, 5, 6, 7]),
-        _ => None,
-    }
-}
 
 /// Tcl specials / globals whose names are semantically load-bearing — never
 /// renamed.
@@ -95,14 +90,19 @@ pub enum MinimizeError {
     NotPresent,
 }
 
-/// Whether `code` fires anywhere in `source` under `dialect`.
-fn fires(source: &str, code: &str, dialect: &tcl_dialect::DialectProfile) -> bool {
+/// Analyse each candidate with the same complete command generation and grammar.
+fn analyse_source(source: &str, input: &ResolvedAnalysisInput) -> AnalysisResult {
     Analyser::new()
-        .with_pack_overlay(tcl_cli_support::spec_pack_key(dialect.name))
-        .analyse(source, dialect.name)
+        .with_resolved_input(input.clone())
+        .analyse(source, input.analyser_profile().name)
+}
+
+/// Whether `code` fires anywhere in `source` under the retained input.
+fn fires(source: &str, code: &str, input: &ResolvedAnalysisInput) -> bool {
+    analyse_source(source, input)
         .diagnostics
         .iter()
-        .any(|d| d.code.as_str() == code)
+        .any(|diagnostic| diagnostic.code.as_str() == code)
 }
 
 /// Zeller delta-debugging: minimise `units` keeping `test` true. Returns the
@@ -163,73 +163,80 @@ fn short_for(name: &str, names_seen: &mut HashMap<String, String>) -> Option<Str
     Some(short)
 }
 
-/// Return `(start, end, new_text)` byte-offset edits renaming user variables.
-/// Covers `$`/`${}` references (VAR tokens, base name only) and variable-target
-/// command arguments.
+/// Propose short names for authentic original variable symbols. The shared
+/// rename owner selects every operand, lexical root and alias occurrence using
+/// the complete current source, actual grammar and retained command world.
+/// Unavailable original metadata supplies no edits. This is reproducer editing,
+/// not the semantic equivalence contract required by the minifier.
 fn collect_rename_edits(
     source: &str,
-    config: LexerConfig,
+    analysis: &AnalysisResult,
     names_seen: &mut HashMap<String, String>,
 ) -> Vec<(usize, usize, String)> {
+    let Some(config) = analysis.body_lexer_config else {
+        return Vec::new();
+    };
+    if !analysis.matches_original_source_image(&SourceImage::document(source), config) {
+        return Vec::new();
+    }
+    let index = LineIndex::new(source);
+    let mut occurrences = analysis
+        .original_variable_symbols
+        .iter()
+        .collect::<Vec<_>>();
+    occurrences.sort_by_key(|occurrence| (occurrence.span().start(), occurrence.span().end()));
+    let mut selected = HashSet::new();
     let mut edits: Vec<(usize, usize, String)> = Vec::new();
-    let sm = SourceMap::new(source);
-
-    // 1. `$`/`${}` references — VAR tokens (rename the scalar/array base).
-    if let Ok(tokens) = Lexer::with_config(source, config).tokenise_all() {
-        for tok in &tokens {
-            if tok.kind != TokenType::Var {
-                continue;
-            }
-            let inner = sm.token_text(*tok);
-            let base = inner.split('(').next().unwrap_or(inner);
-            if let Some(short) = short_for(base, names_seen) {
-                let name_start = tok.span.start() as usize + tok.content_offset as usize;
-                edits.push((name_start, name_start + base.len(), short));
-            }
-        }
-    }
-
-    // 2. Variable-target command arguments (def sites: `set x`, `global a`).
-    // No registry is available in this identifier-renaming pass, so the
-    // known-command universe is empty (the recovery diagnostics are discarded
-    // below anyway; only the segmented command shapes matter here).
-    let (cmds, _) = segment_with_recovery(
-        source,
-        config,
-        &tcl_compiler::analyser::utils::RecoveryKnownCommands::default(),
-    );
-    for cmd in &cmds {
-        if cmd.texts.is_empty() {
+    for occurrence in occurrences {
+        let symbol = occurrence.symbol();
+        if !selected.insert(symbol) {
             continue;
         }
-        let Some(positions) = var_target_positions(&cmd.texts[0]) else {
+        let Some(name) = symbol
+            .rename_tail()
+            .and_then(|name| std::str::from_utf8(name).ok())
+        else {
             continue;
         };
-        let arg_tokens = if cmd.argv.len() > 1 {
-            &cmd.argv[1..]
-        } else {
-            &[][..]
+        let Some(short) = short_for(name, names_seen) else {
+            continue;
         };
-        for &pos in positions {
-            let Some(atok) = arg_tokens.get(pos) else {
-                continue;
-            };
-            // Only plain bare-literal names (not $-substituted / quoted / braced).
-            if atok.kind != TokenType::Esc {
-                continue;
-            }
-            let text = sm.token_text(*atok);
-            let base = text.split('(').next().unwrap_or(text);
-            if base != text {
-                continue;
-            }
-            if let Some(short) = short_for(base, names_seen) {
-                let start = atok.span.start() as usize;
-                edits.push((start, start + base.len(), short));
-            }
+        let Ok(plan) = tcl_lsp_core::variable_symbol::original_variable_rename_edits(
+            source, analysis, symbol, &short,
+        ) else {
+            continue;
+        };
+        let plan = plan
+            .into_iter()
+            .map(|edit| {
+                let start = index.offset_at_utf16(
+                    edit.range.start_line,
+                    Utf16Col::new(edit.range.start_character),
+                    source,
+                ) as usize;
+                let end = index.offset_at_utf16(
+                    edit.range.end_line,
+                    Utf16Col::new(edit.range.end_character),
+                    source,
+                ) as usize;
+                source.get(start..end).map(|_| (start, end, edit.new_text))
+            })
+            .collect::<Option<Vec<_>>>();
+        let Some(plan) = plan else {
+            continue;
+        };
+        // Two symbols can share one original list container. Accept the whole
+        // symbol's plan only when every edit is disjoint from previous plans;
+        // retaining just some occurrences would change the reproducer's names.
+        if plan.iter().any(|(start, end, _)| {
+            edits
+                .iter()
+                .any(|(prior_start, prior_end, _)| start < prior_end && prior_start < end)
+        }) {
+            continue;
         }
+        edits.extend(plan);
     }
-
     edits
 }
 
@@ -301,19 +308,41 @@ pub fn minimize_diagnostic(
     rename: bool,
     dialect: &tcl_dialect::DialectProfile,
 ) -> Result<MinimizeResult, MinimizeError> {
+    let dialect = dialect.intern();
+    let registry = tcl_cli_support::registry_for_dialect(dialect.name);
+    let generation = tcl_lsp_core::context_for_dialect_profile(dialect);
+    let context = Arc::new(generation.with_command_store(registry.snapshot().shared_registry()));
+    let input = ResolvedAnalysisInput::new(
+        dialect,
+        dialect,
+        context,
+        LexerConfig::for_file_grammar(dialect.grammar),
+    );
+    minimize_diagnostic_with_input(source, code, rename, &input)
+}
+
+/// Reduce a diagnostic while retaining the driver's actual availability, unit
+/// profile and full grammar. Every changed source receives a fresh analysis
+/// under this same immutable input; a supplied unknown remains unavailable.
+pub fn minimize_diagnostic_with_input(
+    source: &str,
+    code: &str,
+    rename: bool,
+    input: &ResolvedAnalysisInput,
+) -> Result<MinimizeResult, MinimizeError> {
     let original_lines = source.matches('\n').count() + 1;
-    if !fires(source, code, dialect) {
+    if !fires(source, code, input) {
         return Err(MinimizeError::NotPresent);
     }
 
     // 1. Structural reduction over lines.
     let units: Vec<String> = source.split('\n').map(str::to_owned).collect();
-    let test = |u: &[String]| fires(&u.join("\n"), code, dialect);
+    let test = |u: &[String]| fires(&u.join("\n"), code, input);
     let mut reduced = ddmin(units, &test).join("\n");
 
     // Dedent must not change the result; revert if it stops the diagnostic.
     let dedented = dedent(&reduced);
-    if fires(&dedented, code, dialect) {
+    if fires(&dedented, code, input) {
         reduced = dedented;
     }
 
@@ -321,21 +350,18 @@ pub fn minimize_diagnostic(
     let mut did_rename = false;
     if rename {
         let mut names_seen: HashMap<String, String> = HashMap::new();
-        let edits = collect_rename_edits(
-            &reduced,
-            LexerConfig::for_file_grammar(dialect.grammar),
-            &mut names_seen,
-        );
+        let analysis = analyse_source(&reduced, input);
+        let edits = collect_rename_edits(&reduced, &analysis, &mut names_seen);
         if !edits.is_empty() {
             let candidate = apply_edits(&reduced, &edits);
-            if fires(&candidate, code, dialect) {
+            if fires(&candidate, code, input) {
                 reduced = candidate;
                 did_rename = true;
             }
         }
     }
 
-    let reproduces = fires(&reduced, code, dialect);
+    let reproduces = fires(&reduced, code, input);
     let reduced_lines = reduced.matches('\n').count() + 1;
     Ok(MinimizeResult {
         source: reduced,
@@ -501,5 +527,120 @@ mod tests {
         assert_eq!(short_for("foo", &mut seen).as_deref(), Some("a"));
         assert_eq!(short_for("foo", &mut seen).as_deref(), Some("a"));
         assert_eq!(short_for("bar", &mut seen).as_deref(), Some("b"));
+    }
+
+    fn input_for(dialect: &str) -> ResolvedAnalysisInput {
+        let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+        ResolvedAnalysisInput::new(
+            environment.analyser_profile(),
+            environment.unit_profile(),
+            environment.default_context_registry(),
+            LexerConfig::for_file_grammar(environment.grammar()),
+        )
+    }
+
+    fn renamed_source(source: &str, input: &ResolvedAnalysisInput) -> String {
+        let analysis = analyse_source(source, input);
+        let edits = collect_rename_edits(source, &analysis, &mut HashMap::new());
+        apply_edits(source, &edits)
+    }
+
+    #[test]
+    fn minimise_variable_names_share_original_array_literal_and_unicode_geometry() {
+        // Source edit contract: naming.editor.original-variable-rename-lexical-geometry
+        // docs/design/analysis/name-resolution-proofs/editor-original-variable-rename-lexical-geometry.md
+        // These are CLI software controls, not native interpreter observations.
+        let input = input_for("tcl8.6");
+        for (source, expected) in [
+            (
+                "set long(index) 1; list $long(index) ${long(index)}",
+                "set a(index) 1; list $a(index) ${a(index)}",
+            ),
+            (
+                "set {long(open} 1; list ${long(open}",
+                "set {a} 1; list ${a}",
+            ),
+            ("set {$literal} 1; list ${$literal}", "set {a} 1; list ${a}"),
+            ("set λlong 1;\nlist $λlong", "set a 1;\nlist $a"),
+        ] {
+            assert_eq!(renamed_source(source, &input), expected, "{source:?}");
+        }
+    }
+
+    #[test]
+    fn minimise_variable_roles_follow_selected_renames_and_aliases() {
+        // Source edit contract: naming.editor.original-variable-rename-frame-currency
+        // docs/design/analysis/name-resolution-proofs/editor-original-variable-rename-frame-currency.md
+        let input = input_for("tcl8.6");
+        for (source, expected) in [
+            (
+                "rename set saved; saved long 1; list $long",
+                "rename set saved; saved a 1; list $a",
+            ),
+            (
+                "interp alias {} assign {} set; assign long 1; list $long",
+                "interp alias {} assign {} set; assign a 1; list $a",
+            ),
+            (
+                "rename set saved; interp alias {} set {} puts; saved long 1; set untouched; list $long",
+                "rename set saved; interp alias {} set {} puts; saved a 1; set untouched; list $a",
+            ),
+        ] {
+            assert_eq!(renamed_source(source, &input), expected, "{source:?}");
+        }
+        // The captured name has its own original container. It cannot be
+        // replaced by the written value operand of `assign`.
+        let captured = "interp alias {} assign {} set fixed; assign 1; list $fixed";
+        assert_eq!(renamed_source(captured, &input), captured);
+    }
+
+    #[test]
+    fn minimise_variable_edits_refuse_missing_stale_and_colliding_inputs() {
+        // Source edit contract: naming.editor.original-variable-rename-frame-currency
+        // docs/design/analysis/name-resolution-proofs/editor-original-variable-rename-frame-currency.md
+        let input = input_for("tcl8.6");
+        let source = "set long 1; list $long";
+        let mut analysis = analyse_source(source, &input);
+        assert!(!collect_rename_edits(source, &analysis, &mut HashMap::new()).is_empty());
+        assert!(
+            collect_rename_edits("set other 1; list $long", &analysis, &mut HashMap::new())
+                .is_empty()
+        );
+        analysis.resolved_input = None;
+        assert!(collect_rename_edits(source, &analysis, &mut HashMap::new()).is_empty());
+
+        let collision = "set long 1; set a 2; list $long $a";
+        let renamed = renamed_source(collision, &input);
+        assert!(renamed.starts_with("set long 1;"));
+        assert!(renamed.ends_with("list $long $b"));
+    }
+
+    #[test]
+    fn minimise_variable_edits_use_actual_availability_and_atomic_list_containers() {
+        // Actual source roles and edits are tested; no body entry or runtime
+        // availability is inferred from an assistance declaration.
+        let source = "lassign {1 2} first second; list $first $second";
+        assert_eq!(renamed_source(source, &input_for("tcl8.4")), source);
+        assert_eq!(
+            renamed_source(source, &input_for("tcl8.6")),
+            "lassign {1 2} a b; list $a $b"
+        );
+        let shared = "foreach {first second} {1 2} {list $first $second}";
+        assert_eq!(
+            renamed_source(shared, &input_for("tcl8.6")),
+            "foreach {a second} {1 2} {list $a $second}"
+        );
+    }
+
+    #[test]
+    fn minimise_diagnostic_retains_supplied_input_across_reduction() {
+        let input = input_for("tcl8.6");
+        let source = "# removable\nset unused 1";
+        let result = minimize_diagnostic_with_input(source, "W211", true, &input).unwrap();
+        assert!(result.reproduces);
+        assert!(result.reduced_lines < result.original_lines);
+        assert!(fires(&result.source, "W211", &input));
+        let analysis = analyse_source(&result.source, &input);
+        assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
     }
 }

@@ -87,7 +87,10 @@ impl DispatchFacts {
 
 /// Compute the per-method barrier for `cu` — see the module doc.
 pub(crate) fn compute(ir: &IrModule, registry: &CommandRegistry) -> MethodDispatchBarrier {
-    if ir.oo_evidence.dynamic_target || ir.oo_evidence.dynamic_class_relations {
+    if ir.oo_evidence.dynamic_target
+        || ir.oo_evidence.dynamic_class_relations
+        || dispatch_metadata(registry, ir).is_none()
+    {
         return MethodDispatchBarrier::bar_all();
     }
 
@@ -161,7 +164,7 @@ fn method_dispatch_facts<'a>(
     comp_of: &HashMap<String, usize>,
     proc_facts: &HashMap<&str, DispatchFacts>,
 ) -> HashMap<&'a str, DispatchFacts> {
-    let actual = crate::registry_invocation::retained_module_metadata_context(registry, ir);
+    let metadata = dispatch_metadata(registry, ir);
 
     let mut method_facts: HashMap<&str, DispatchFacts> = HashMap::new();
     for (qname, m) in &ir.methods {
@@ -176,7 +179,7 @@ fn method_dispatch_facts<'a>(
                 &body_def.body,
                 &body_def.execution_namespace,
                 &ScanEnv {
-                    metadata: actual.as_deref().map(Into::into),
+                    metadata,
                     registry,
                     comp_of,
                     proc_facts,
@@ -295,7 +298,7 @@ fn proc_dispatch_facts<'a>(
     registry: &CommandRegistry,
     comp_of: &HashMap<String, usize>,
 ) -> HashMap<&'a str, DispatchFacts> {
-    let actual = crate::registry_invocation::retained_module_metadata_context(registry, ir);
+    let metadata = dispatch_metadata(registry, ir);
 
     // Direct facts + direct proc callees per proc.
     let mut facts: HashMap<&str, DispatchFacts> = HashMap::new();
@@ -308,7 +311,7 @@ fn proc_dispatch_facts<'a>(
             &proc.body,
             &ExecutionNamespace::exact(namespace),
             &ScanEnv {
-                metadata: actual.as_deref().map(Into::into),
+                metadata,
                 registry,
                 comp_of,
                 proc_facts: &HashMap::new(),
@@ -348,12 +351,85 @@ fn proc_dispatch_facts<'a>(
 
 /// Everything [`collect_dispatches`] needs to classify one call head.
 struct ScanEnv<'a> {
-    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    // The outer option retains terminal supplied refusal. Some(None) is only
+    // the deliberately unprofiled standalone compatibility route.
+    metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>>,
     registry: &'a CommandRegistry,
     comp_of: &'a HashMap<String, usize>,
     proc_facts: &'a HashMap<&'a str, DispatchFacts>,
     ir: &'a IrModule,
     own_comp: Option<usize>,
+}
+
+fn dispatch_metadata<'a>(
+    registry: &CommandRegistry,
+    module: &'a IrModule,
+) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>> {
+    if module.source_metadata_input.is_none()
+        && module.source_entry.metadata_context.is_standalone()
+    {
+        module
+            .source_entry
+            .metadata_context
+            .metadata_context(registry)
+    } else {
+        if !module
+            .retained_source_bindings
+            .as_deref()?
+            .matches_module(module, registry)
+        {
+            return None;
+        }
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+            .map(Some)
+    }
+}
+
+impl ScanEnv<'_> {
+    fn original_substitutions(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<Vec<crate::word_subst::LiftedCall>> {
+        let metadata = self.metadata?;
+        if let Some(metadata) = metadata.filter(|metadata| !metadata.is_standalone()) {
+            return crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                tokens,
+                self.ir.lexer_config.nested(),
+                self.registry,
+                metadata,
+            );
+        }
+        // Explicit standalone assistance retains its original catalogue route.
+        let config = tokens.native_lexer_config(self.ir.lexer_config.nested());
+        crate::word_subst::checked_lifted_calls(tokens, config)?;
+        let surface = tcl_registry::model::DocumentCommandSurface::new(
+            self.registry,
+            self.ir.source_entry.declared_commands.as_ref(),
+        );
+        Some(crate::word_subst::lifted_calls_with_surface(
+            Some(tokens),
+            config,
+            &surface,
+        ))
+    }
+
+    fn substitutions(
+        &self,
+        statement: &Statement,
+    ) -> crate::ir_helpers::EvaluatedCommandSubstitutions {
+        if self.ir.source_metadata_input.is_none()
+            && self.ir.source_entry.metadata_context.is_standalone()
+        {
+            crate::ir_helpers::evaluated_command_substitutions(statement, self.registry)
+        } else {
+            crate::ir_helpers::evaluated_command_substitutions_with_metadata_context(
+                statement,
+                self.registry,
+                self.metadata.flatten(),
+                self.ir.lexer_config.nested(),
+            )
+        }
+    }
 }
 
 /// Walk a method body's direct `Call` heads and evaluated command
@@ -373,42 +449,37 @@ fn collect_dispatches(
         facts.anywhere = true;
         return;
     }
+    if !script.statements.is_empty() && env.metadata.is_none() {
+        facts.anywhere = true;
+        return;
+    }
     for statement in &script.statements {
         if let Some(tokens) = script.retained_source_tokens_for_statement(statement) {
+            let Some(children) = env.original_substitutions(tokens) else {
+                facts.anywhere = true;
+                return;
+            };
             if matches!(statement, Statement::Call { .. }) {
                 classify_tokens(tokens, env, facts, callees);
             }
-            let config = tokens
-                .native_lexer_config(tcl_lexer::LexerConfig::for_profile(env.registry.profile()));
-            if crate::word_subst::checked_lifted_calls(tokens, config).is_none() {
-                facts.anywhere = true;
-            } else {
-                let surface = tcl_registry::model::DocumentCommandSurface::new(
-                    env.registry,
-                    env.ir.source_entry.declared_commands.as_ref(),
-                );
-                let children =
-                    crate::word_subst::lifted_calls_with_surface(Some(tokens), config, &surface);
-                for child in children {
-                    if let Some(tokens) = child.tokens.as_ref() {
-                        classify_tokens(tokens, env, facts, callees);
-                    } else {
-                        facts.anywhere = true;
-                    }
-                }
-                if crate::ir_helpers::evaluated_command_substitutions(statement, env.registry)
-                    .opaque
-                {
+            for child in children {
+                if let Some(tokens) = child.tokens.as_ref() {
+                    classify_tokens(tokens, env, facts, callees);
+                } else {
                     facts.anywhere = true;
                 }
             }
-        } else if matches!(statement, Statement::Call { .. })
-            || crate::ir_helpers::evaluated_command_substitutions(statement, env.registry).opaque
-            || !crate::ir_helpers::evaluated_command_substitutions(statement, env.registry)
-                .commands
-                .is_empty()
-        {
-            facts.anywhere = true;
+            if env.substitutions(statement).opaque {
+                facts.anywhere = true;
+            }
+        } else {
+            let substitutions = env.substitutions(statement);
+            if matches!(statement, Statement::Call { .. })
+                || substitutions.opaque
+                || substitutions.all_commands().next().is_some()
+            {
+                facts.anywhere = true;
+            }
         }
         for (body, namespace) in
             crate::ir_helpers::nested_execution_bodies(statement, execution_namespace)
@@ -453,13 +524,21 @@ fn classify_tokens(
                 record_procedure(target, env, facts, callees);
             }
             _ if target.registry_backed => {
-                let Some(invocation) =
+                let metadata = env.metadata.flatten();
+                let invocation = if let Some(metadata) =
+                    metadata.filter(|metadata| metadata.permits_logical_source_names())
+                {
+                    crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+                        env.registry, metadata, tokens,
+                    )
+                } else {
                     crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
                         env.registry,
-                        env.metadata,
+                        metadata,
                         tokens,
                     )
-                else {
+                };
+                let Some(invocation) = invocation else {
                     facts.anywhere = true;
                     continue;
                 };
@@ -469,7 +548,7 @@ fn classify_tokens(
                 }
                 if let Some(call) = crate::registry_invocation::normal_user_procedure_invocation_with_metadata_context(
                     env.registry,
-                    env.metadata,
+                    env.metadata.flatten(),
                     tokens,
                 ) {
                     let selected = binding.lookup_command_word(&call.target);
@@ -601,6 +680,91 @@ mod tests {
         );
         assert!(compute(&module, registry).allows_locals("::C::safe"));
     }
+    #[test]
+    fn nested_dispatch_uses_retained_availability_and_source_grammar() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Source-only dispatch advice; Native frame and implementation entry stay absent.
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = current.commands();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&current),
+            config,
+        );
+        let mut module = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            "proc helper {} {return [expr {[dict size [dict create key value]]}]}",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        )
+        .ir_module;
+        assert!(module.source_entry.native_entry.is_none());
+        let components = std::collections::HashMap::new();
+        assert!(!super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere);
+        let original = module.clone();
+        for change in 0..6 {
+            module = original.clone();
+            match change {
+                0 => module.retained_source_bindings = None,
+                1 => module.source_entry.unknown_entry = !module.source_entry.unknown_entry,
+                2 => module.top_level_namespace = "::other".into(),
+                3 => {
+                    module.native_namespace =
+                        Some(tcl_core_types::ByteNamespacePath::from_segments(["other"]))
+                }
+                4 => module.top_level_kind = crate::ir::TopLevelKind::ProcedureBody,
+                5 => {
+                    module.source_entry.compilation_scope =
+                        tcl_runtime_api::SourceCompilationScope::EnteredSource
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                crate::registry_invocation::InvocationMetadataContext::for_module(
+                    registry, &module
+                )
+                .is_some()
+            );
+            assert!(
+                super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere,
+                "change {change}"
+            );
+        }
+        module = original;
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(registry)),
+        );
+        for context in [
+            older,
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+        ] {
+            module.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+                profile, profile, context, config,
+            ));
+            assert!(
+                super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere
+            );
+        }
+        module.source_metadata_input = None;
+        assert!(super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere);
+        module.source_metadata_input = Some(input);
+        module.lexer_config.expand_syntax = !module.lexer_config.expand_syntax;
+        assert!(super::proc_dispatch_facts(&module, registry, &components)["::helper"].anywhere);
+    }
+
     #[test]
     fn dispatch_metadata_requires_actual_module_availability() {
         // naming.compiler.original-analysis-metadata-context

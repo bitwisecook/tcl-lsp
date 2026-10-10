@@ -26,18 +26,21 @@
 //! of whatever fires it, so a plain name in it can be a variable the
 //! registering function holds.
 //!
-//! Which words are such scripts is the registry's answer
-//! ([`CommandRegistry::callback_script_indices`]): the words it states as
-//! deferred, less the body of a definition, which runs in a frame of its own.
-//! This module holds no command name. It reads each such word's text as the
+//! Supplied modules select callback operands from the original invocation's
+//! descriptor under the retained availability and installer command world.
+//! Missing metadata, unknown future scope and unreadable values remain opaque.
+//! Explicit standalone callers use [`CommandRegistry::callback_script_indices`].
+//! These source queries grant no callback entry, physical frame or store.
+//! This module holds no command name. It reads each selected value as the
 //! script it is, and collects every name a command of it writes, destroys or
 //! binds — the variable-name roles the registry gives each command, and the
-//! aliases a `global`, `upvar` or `variable` declares. A callback whose
-//! command is a procedure of the module (`after 100 tick`) writes what that
+//! aliases a `global`, `upvar` or `variable` declares. In standalone mode,
+//! a callback whose command is a procedure of the module (`after 100 tick`) writes what that
 //! procedure writes in the global frame
 //! ([`crate::cfg_builder::global_write_info`]).
 //!
-//! A callback word that is one `[…]` substitution of a command the registry
+//! Standalone mode also reads a callback word that is one `[…]` substitution
+//! of a command the registry
 //! states builds a command prefix (`after 100 [list tick $n]`, `-command [list
 //! set done 1]`) is read as the command it builds, and so is a command prefix
 //! the registry places at a word that more words follow (`interp alias {} safe
@@ -53,6 +56,8 @@
 //! (`after 100 {$cmd x}`), and a command that is neither a procedure of the
 //! module nor one of the registry (`after 100 finish`, an `interp alias`),
 //! whose code the module does not contain.
+
+mod supplied;
 
 use std::cell::OnceCell;
 use std::collections::HashMap;
@@ -83,6 +88,11 @@ use crate::registry_invocation::{EffectiveInvocationWord, InvocationMetadataCont
 /// `set id [after 100 { … }]` is as real as a bare one.
 #[must_use]
 pub(crate) fn scan_module(module: &Module, registry: &CommandRegistry) -> DeferredWrites {
+    if module.source_metadata_input.is_some()
+        || !module.source_entry.metadata_context.is_standalone()
+    {
+        return supplied::scan_module(module, registry);
+    }
     let mut scan = Scan {
         module,
         registry,
@@ -790,14 +800,18 @@ impl Scan<'_> {
 
     /// Record a name: without a leading `::`, and with an element's array.
     fn note(&mut self, name: &str) {
+        Self::note_name(&mut self.out, name);
+    }
+
+    fn note_name(out: &mut DeferredWrites, name: &str) {
         let name = name.strip_prefix("::").unwrap_or(name);
         if name.is_empty() {
             return;
         }
-        self.out.names.insert(name.to_owned());
+        out.names.insert(name.to_owned());
         let base = crate::sccp::place_base(name);
         if base != name {
-            self.out.names.insert(base.to_owned());
+            out.names.insert(base.to_owned());
         }
     }
 }
@@ -884,6 +898,88 @@ mod tests {
         let effects = scan_module(&stale, registry);
         assert!(effects.any);
         assert!(!effects.names.contains("done"));
+    }
+
+    fn supplied_module(
+        source: &str,
+        context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> Module {
+        let profile = crate::environment_ingress::resolve_environment("tcl").unit_profile();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(context),
+            LexerConfig::for_file_grammar(profile.grammar),
+        );
+        crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(context.commands(), input.lexer_config())
+                .with_resolved_analysis_input(input),
+            source,
+        )
+    }
+
+    #[test]
+    fn deferred_source_installers_keep_original_horizons_and_literal_names() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional source names only; the retained world is the installer's,
+        // not an observation of the command table when a future callback runs.
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let module = supplied_module(
+            "after 1 {set before VALUE}; proc set args {}; after 1 {set hidden VALUE}",
+            &context,
+        );
+        assert!(module.source_entry.native_entry.is_none());
+        let effects = scan_module(&module, context.commands());
+        assert!(effects.names.contains("before"));
+        assert!(!effects.names.contains("hidden"));
+        assert!(
+            effects.any,
+            "user callback command retains its unknown effects"
+        );
+
+        let module = supplied_module(
+            "rename set moved; interp alias {} put {} moved {$literal}; after 1 {put VALUE}",
+            &context,
+        );
+        let effects = scan_module(&module, context.commands());
+        assert!(effects.names.contains("$literal"));
+        assert!(!effects.names.contains("literal"));
+    }
+
+    #[test]
+    fn deferred_source_installers_use_actual_availability_and_refuse_missing_input() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let mut registry = CommandRegistry::build_default();
+        let installer = registry.get("after").unwrap().clone();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "later",
+            surface: registry.get("dict").unwrap().surface,
+            ..installer
+        });
+        let commands = registry.snapshot().shared_registry();
+        let current = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.6")
+                .with_command_store(std::sync::Arc::clone(&commands)),
+        );
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4").with_command_store(commands),
+        );
+        for (context, expected) in [(&current, true), (&older, false)] {
+            let module = supplied_module("later 1 {set done VALUE}", context);
+            let effects = scan_module(&module, context.commands());
+            assert_eq!(effects.names.contains("done"), expected, "{effects:?}");
+            if !expected {
+                assert!(effects.any, "unavailable installer keeps its residual");
+            }
+        }
+        let mut missing = supplied_module("later 1 {set done VALUE}", &current);
+        missing.source_metadata_input = None;
+        let effects = scan_module(&missing, current.commands());
+        assert!(effects.any);
+        assert!(effects.names.is_empty());
     }
 
     /// The callbacks `after`, `after idle`, `trace`, `bind`, `fileevent`,

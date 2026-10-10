@@ -127,13 +127,18 @@ fn unique_logical_command<'a>(
     analysis: &AnalysisResult,
     hook: LoweringHookId,
 ) -> Option<&'a str> {
-    let profile = analysis.resolved_profile()?;
-    let context = crate::document_context_for_profile(profile);
+    let context = tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+        registry,
+        analysis.resolved_input.as_ref()?,
+        analysis.body_lexer_config?,
+        analysis.resolved_profile(),
+    )?;
     let mut names = registry
         .command_names_for_semantic_operation(SemanticOperationId::StructuredLowering(hook))
         .filter(|name| {
-            registry
-                .get_for_surface(name, Some(context.authoring_query()))
+            context
+                .context()
+                .resolve_spec(registry, name)
                 .is_some_and(|spec| spec.lowering_hook == Some(hook))
         });
     let first = names.next()?;
@@ -182,18 +187,27 @@ fn original_assignment_candidate(
         || "No current original scalar availability and setter proposal is retained".to_owned();
     let config = analysis.body_lexer_config.ok_or_else(unavailable)?;
     let registry = analysis.resolved_registry().ok_or_else(unavailable)?;
-    let profile = analysis.resolved_profile().ok_or_else(unavailable)?;
+    let input = analysis.resolved_input.as_ref().ok_or_else(unavailable)?;
+    tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+        registry,
+        input,
+        config,
+        analysis.resolved_profile(),
+    )
+    .ok_or_else(unavailable)?;
     let image = SourceImage::document(source);
-    let unit = CompilationUnit::build_with_options(
+    let unit = CompilationUnit::build_with_analysis_input(
         source,
         UnitBuildOptions {
             registry,
             config,
-            dialect: Some(profile),
+            dialect: Some(input.unit_profile()),
             defer_top_level: false,
             external_call_sites: None,
             declared_commands: None,
         },
+        None,
+        input,
     );
     let mut found = false;
     for function in unit.analysable_body_function_units() {
@@ -350,6 +364,73 @@ mod tests {
             action.apply(source),
             "proc p {} {set result literal; puts $result}"
         );
+    }
+
+    #[test]
+    fn logical_extraction_keeps_supplied_availability_and_source_configuration() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            surface: registry.get("dict").unwrap().surface,
+            ..registry.get("set").unwrap().clone()
+        });
+        let commands = registry.snapshot().shared_registry();
+        let current = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.6")
+                .with_command_store(std::sync::Arc::clone(&commands)),
+        );
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4").with_command_store(commands),
+        );
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+            ..LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let source = "puts {salt and pepper}";
+        let index = LineIndex::new(source);
+        let end = u32::try_from(source.len()).unwrap();
+        let analyse = |context| {
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile, profile, context, config,
+            );
+            Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, profile.name)
+        };
+        let analysis = analyse(std::sync::Arc::clone(&current));
+        let action = extract_variable(source, (5, end), "seasoning", &analysis, &index)
+            .expect("available source setter");
+        assert!(action.disabled.is_none());
+        assert_eq!(
+            action.apply(source),
+            "set seasoning {salt and pepper}\nputs $seasoning"
+        );
+        assert!(extract_variable(source, (5, end), "seasoning", &analyse(older), &index).is_none());
+        assert!(
+            analysis
+                .resolved_input
+                .as_ref()
+                .unwrap()
+                .has_logical_source_name_context()
+        );
+
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(extract_variable(source, (5, end), "seasoning", &missing, &index).is_none());
+        let mut foreign = analysis.clone();
+        foreign.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
+            config,
+        ));
+        assert!(extract_variable(source, (5, end), "seasoning", &foreign, &index).is_none());
+        let mut stale = analysis;
+        stale.body_lexer_config.as_mut().unwrap().braced_var =
+            tcl_dialect::BracedVarStyle::Tcl9Nesting;
+        assert!(extract_variable(source, (5, end), "seasoning", &stale, &index).is_none());
     }
 
     #[test]

@@ -45,14 +45,15 @@
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
 use crate::ir::{CommandTokens, Script, Statement};
+use tcl_lexer::LexerConfig;
 
 /// `statements` with every command word not already absolute spelled from the
 /// global namespace, to the depth the inliner reads a body to; `None` when the
 /// body runs a command by a name the IR keeps as text.
-pub(super) fn root(mut statements: Vec<Statement>) -> Option<Vec<Statement>> {
+pub(super) fn root(mut statements: Vec<Statement>, config: LexerConfig) -> Option<Vec<Statement>> {
     if statements
         .iter()
-        .any(|statement| runs_a_command_by_name(statement, false, 0))
+        .any(|statement| runs_a_command_by_name(statement, false, config, 0))
     {
         return None;
     }
@@ -65,104 +66,141 @@ pub(super) fn root(mut statements: Vec<Statement>) -> Option<Vec<Statement>> {
 /// Whether `statements`, the body of a definition, name a command by a word
 /// the definition's own namespace resolves: a call head that is not absolute,
 /// or a command a word or an expression substitutes.
-pub(super) fn names_a_command(statements: &[Statement]) -> bool {
+pub(super) fn names_a_command(statements: &[Statement], config: LexerConfig) -> bool {
     statements
         .iter()
-        .any(|statement| runs_a_command_by_name(statement, true, 0))
+        .any(|statement| runs_a_command_by_name(statement, true, config, 0))
 }
 
-fn substitutes(text: &str) -> bool {
-    super::arg_has_command_subst(text)
+fn substitutes(text: &str, config: LexerConfig) -> bool {
+    use tcl_lexer::word_parts::{SubstFlags, WordPart, decompose_spanned_checked};
+    let Ok(parts) = decompose_spanned_checked(text.as_bytes(), SubstFlags::default(), config)
+    else {
+        return true;
+    };
+    let mut pending = parts.into_iter().map(|part| part.part).collect::<Vec<_>>();
+    while let Some(part) = pending.pop() {
+        match part {
+            WordPart::Command(_) | WordPart::Expression(_) | WordPart::ParseError(_) => {
+                return true;
+            }
+            WordPart::Variable(variable) => pending.extend(variable.index.into_iter().flatten()),
+            WordPart::Text(_) => {}
+        }
+    }
+    false
 }
 
 /// Whether an operand of `expr` is a command substitution, or text that may
 /// hold one.
-fn expression_substitutes(expr: &ExprNode, depth: u32) -> bool {
+fn expression_substitutes(expr: &ExprNode, config: LexerConfig, depth: u32) -> bool {
     if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
         return true;
     }
     let next = depth + 1;
     match expr {
         ExprNode::Command { .. } => true,
-        ExprNode::Raw { text } => text.contains('['),
-        ExprNode::String { text, .. } => text.starts_with('"') && text.contains('['),
+        ExprNode::Raw { text } => substitutes(text, config),
+        ExprNode::String { text, .. } => text.starts_with('"') && substitutes(text, config),
         ExprNode::Binary { left, right, .. } => {
-            expression_substitutes(left, next) || expression_substitutes(right, next)
+            expression_substitutes(left, config, next)
+                || expression_substitutes(right, config, next)
         }
-        ExprNode::Unary { operand, .. } => expression_substitutes(operand, next),
+        ExprNode::Unary { operand, .. } => expression_substitutes(operand, config, next),
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            expression_substitutes(condition, next)
-                || expression_substitutes(true_branch, next)
-                || expression_substitutes(false_branch, next)
+            expression_substitutes(condition, config, next)
+                || expression_substitutes(true_branch, config, next)
+                || expression_substitutes(false_branch, config, next)
         }
-        ExprNode::Call { args, .. } => args.iter().any(|arg| expression_substitutes(arg, next)),
-        ExprNode::Literal { .. } | ExprNode::Var { .. } | ExprNode::CompiledWord { .. } => false,
+        ExprNode::Call { args, .. } => args
+            .iter()
+            .any(|arg| expression_substitutes(arg, config, next)),
+        ExprNode::Var { text, .. } => substitutes(text, config),
+        ExprNode::Literal { .. } | ExprNode::CompiledWord { .. } => false,
     }
 }
 
 /// Whether a word of a call that is not braced substitutes a command.
-fn call_substitutes(args: &[String], tokens: Option<&CommandTokens>) -> bool {
+fn call_substitutes(args: &[String], tokens: Option<&CommandTokens>, config: LexerConfig) -> bool {
     args.iter().enumerate().any(|(index, arg)| {
-        !tokens.is_some_and(|tokens| tokens.arg_is_braced_literal(index)) && substitutes(arg)
+        !tokens.is_some_and(|tokens| tokens.arg_is_braced_literal(index))
+            && substitutes(arg, config)
     })
 }
 
-fn script_substitutes(script: &Script, heads: bool, depth: u32) -> bool {
+fn script_substitutes(script: &Script, heads: bool, config: LexerConfig, depth: u32) -> bool {
     super::MAX_INLINING_WALK_DEPTH.exceeded(depth)
         || script
             .statements
             .iter()
-            .any(|statement| runs_a_command_by_name(statement, heads, depth))
+            .any(|statement| runs_a_command_by_name(statement, heads, config, depth))
 }
 
 /// Whether a word of `statement`, or of a body inside it, substitutes a command,
 /// or, with `heads`, a call has a head that is not absolute. A braced word is
 /// literal, and a nested expression the statement consumed natively
 /// (`return [expr {…}]`) is read from its tree and not its text.
-fn runs_a_command_by_name(statement: &Statement, heads: bool, depth: u32) -> bool {
+fn runs_a_command_by_name(
+    statement: &Statement,
+    heads: bool,
+    config: LexerConfig,
+    depth: u32,
+) -> bool {
     let next = depth + 1;
     match statement {
         Statement::AssignConst { .. } => false,
-        Statement::AssignValue { value, .. } => substitutes(value),
+        Statement::AssignValue { value, .. } => substitutes(value, config),
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
-            expression_substitutes(expr, 0)
+            expression_substitutes(expr, config, 0)
         }
         Statement::Incr {
             amount,
             amount_braced,
             ..
-        } => !amount_braced && amount.as_deref().is_some_and(substitutes),
+        } => {
+            !amount_braced
+                && amount
+                    .as_deref()
+                    .is_some_and(|amount| substitutes(amount, config))
+        }
         Statement::Call {
             command,
             args,
             tokens,
             ..
-        } => (heads && !command.starts_with("::")) || call_substitutes(args, tokens.as_ref()),
+        } => {
+            (heads && !command.starts_with("::")) || call_substitutes(args, tokens.as_ref(), config)
+        }
         Statement::Return {
             value,
             expr,
             braced,
             ..
         } => match expr {
-            Some(expr) => expression_substitutes(expr, 0),
-            None => !braced && value.as_deref().is_some_and(substitutes),
+            Some(expr) => expression_substitutes(expr, config, 0),
+            None => {
+                !braced
+                    && value
+                        .as_deref()
+                        .is_some_and(|value| substitutes(value, config))
+            }
         },
         Statement::Block { body, .. } | Statement::Catch { body, .. } => {
-            script_substitutes(body, heads, next)
+            script_substitutes(body, heads, config, next)
         }
         Statement::If {
             clauses, else_body, ..
         } => {
             clauses.iter().any(|clause| {
-                expression_substitutes(&clause.condition, 0)
-                    || script_substitutes(&clause.body, heads, next)
+                expression_substitutes(&clause.condition, config, 0)
+                    || script_substitutes(&clause.body, heads, config, next)
             }) || else_body
                 .as_ref()
-                .is_some_and(|body| script_substitutes(body, heads, next))
+                .is_some_and(|body| script_substitutes(body, heads, config, next))
         }
         Statement::For {
             init,
@@ -171,21 +209,24 @@ fn runs_a_command_by_name(statement: &Statement, heads: bool, depth: u32) -> boo
             body,
             ..
         } => {
-            expression_substitutes(condition, 0)
-                || script_substitutes(init, heads, next)
-                || script_substitutes(step, heads, next)
-                || script_substitutes(body, heads, next)
+            expression_substitutes(condition, config, 0)
+                || script_substitutes(init, heads, config, next)
+                || script_substitutes(step, heads, config, next)
+                || script_substitutes(body, heads, config, next)
         }
         Statement::While {
             condition, body, ..
-        } => expression_substitutes(condition, 0) || script_substitutes(body, heads, next),
+        } => {
+            expression_substitutes(condition, config, 0)
+                || script_substitutes(body, heads, config, next)
+        }
         Statement::Foreach {
             iterators, body, ..
         } => {
             iterators
                 .iter()
-                .any(|iterator| !iterator.list_braced && substitutes(&iterator.list_arg))
-                || script_substitutes(body, heads, next)
+                .any(|iterator| !iterator.list_braced && substitutes(&iterator.list_arg, config))
+                || script_substitutes(body, heads, config, next)
         }
         Statement::Try {
             body,
@@ -193,13 +234,13 @@ fn runs_a_command_by_name(statement: &Statement, heads: bool, depth: u32) -> boo
             finally_body,
             ..
         } => {
-            script_substitutes(body, heads, next)
+            script_substitutes(body, heads, config, next)
                 || handlers
                     .iter()
-                    .any(|handler| script_substitutes(&handler.body, heads, next))
+                    .any(|handler| script_substitutes(&handler.body, heads, config, next))
                 || finally_body
                     .as_ref()
-                    .is_some_and(|body| script_substitutes(body, heads, next))
+                    .is_some_and(|body| script_substitutes(body, heads, config, next))
         }
         Statement::Switch {
             subject,
@@ -208,17 +249,17 @@ fn runs_a_command_by_name(statement: &Statement, heads: bool, depth: u32) -> boo
             default_body,
             ..
         } => {
-            (!subject_braced && substitutes(subject))
+            (!subject_braced && substitutes(subject, config))
                 || arms.iter().any(|arm| {
-                    (!arm.pattern_braced && substitutes(&arm.pattern))
+                    (!arm.pattern_braced && substitutes(&arm.pattern, config))
                         || arm
                             .body
                             .as_ref()
-                            .is_some_and(|body| script_substitutes(body, heads, next))
+                            .is_some_and(|body| script_substitutes(body, heads, config, next))
                 })
                 || default_body
                     .as_ref()
-                    .is_some_and(|body| script_substitutes(body, heads, next))
+                    .is_some_and(|body| script_substitutes(body, heads, config, next))
         }
         // Neither is read by the inliner's eligibility; a body with one is not spelled.
         Statement::UpFrame { .. } | Statement::Barrier { .. } | Statement::NativeCall { .. } => {
@@ -296,5 +337,30 @@ fn rooted(statement: &mut Statement, depth: u32) {
             }
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn original_head_namespace_scan_keeps_selected_word_and_index_grammar() {
+        // naming.inlining.original-frame-source-context
+        // docs/design/analysis/name-resolution-proofs/inlining-original-frame-source-context.md
+        // Source head-rewrite boundary, independent of native dispatch/frame.
+        let old = LexerConfig::for_dialect("tcl8.6");
+        let new = LexerConfig::for_dialect("tcl9.0");
+        assert!(!substitutes(r"literal\[data", old));
+        assert!(!substitutes("${array([literal])}", old));
+        assert!(substitutes("$array([selected])", old));
+        assert!(substitutes("$array($other([selected]))", new));
+        assert!(!substitutes("${café}", old));
+        assert!(!substitutes("${a{b}", old));
+        assert!(substitutes("${a{b}", new));
+        let mut jim = old;
+        jim.var_syntax = tcl_dialect::VarSyntax::Jim;
+        assert!(substitutes("$(1 + 2)", jim));
+        assert!(!substitutes("$(1 + 2)", old));
     }
 }

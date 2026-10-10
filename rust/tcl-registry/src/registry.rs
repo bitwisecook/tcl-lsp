@@ -2897,7 +2897,16 @@ impl CommandRegistry {
         head: &str,
         word: &str,
     ) -> Option<&'static crate::definer::ManufacturerMethod> {
-        let spec = self.get(head)?;
+        Self::manufacturer_method_for_descriptor(self.get(head)?, word)
+    }
+
+    /// Manufacturer vocabulary of one independently selected descriptor.
+    /// The caller retains availability and original invocation ownership.
+    #[must_use]
+    pub(crate) fn manufacturer_method_for_descriptor(
+        spec: &CommandSpec,
+        word: &str,
+    ) -> Option<&'static crate::definer::ManufacturerMethod> {
         if !spec.manufacturer_methods.is_empty() {
             return spec
                 .manufacturer_methods

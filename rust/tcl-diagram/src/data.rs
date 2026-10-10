@@ -65,6 +65,26 @@ struct DiagramContext<'a> {
     availability: &'a tcl_registry::model::ContextRegistry,
 }
 
+impl<'a> DiagramContext<'a> {
+    /// Borrow current source metadata, including independently selected
+    /// availability. Missing input cannot reopen catalogue compatibility.
+    fn metadata_context(
+        &self,
+    ) -> Option<tcl_compiler::registry_invocation::InvocationMetadataContext<'a>> {
+        let (_, config) = tcl_compiler::source_graph::current_analysis(self.source, self.analysis)?;
+        let input = self.analysis.resolved_input.as_ref()?;
+        if input.borrowed_context_registry().context() != self.availability.context() {
+            return None;
+        }
+        tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+            self.registry,
+            input,
+            config,
+            Some(input.unit_profile()),
+        )
+    }
+}
+
 /// A statically-known Tcl completion carried by the diagram JSON contract.
 ///
 /// This is deliberately smaller than Tcl's complete result/options triple:
@@ -116,32 +136,53 @@ fn command_completion(
     command: &str,
     args: &[String],
     tokens: Option<&CommandTokens>,
-    registry: &CommandRegistry,
-    original: bool,
+    context: &DiagramContext<'_>,
 ) -> DiagramCompletion {
-    if original {
+    let registry = context.registry;
+    if !context.analysis.allows_lexical_declaration_advice() {
         let Some(tokens) = tokens else {
             return DiagramCompletion::Normal;
         };
+        let Some(metadata) = context.metadata_context() else {
+            return DiagramCompletion::Normal;
+        };
         let Some(selected) =
-            tcl_compiler::registry_invocation::resolved_tokens_invocation(registry, None, tokens)
+            tcl_compiler::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                registry,
+                Some(metadata),
+                tokens,
+            )
         else {
             return DiagramCompletion::Normal;
         };
-        let (knowledge, coarse) = selected.with_argument_words(|words| {
-            (
-                registry.invocation_completion_knowledge(
-                    &selected.facts.canonical_command,
-                    words.arguments(),
-                    None,
-                ),
-                registry.invocation_completion_words(
-                    &selected.facts.canonical_command,
-                    words.arguments(),
-                    None,
-                ),
-            )
-        });
+        let Some(realm) = tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.invocation_realm())
+        else {
+            return DiagramCompletion::Normal;
+        };
+        let Some((knowledge, coarse)) =
+            selected.with_metadata_schema(registry, metadata, realm, |_| {
+                let query = Some(metadata.context().authoring_query().with_realm(realm));
+                Some(selected.with_argument_words(|words| {
+                    (
+                        registry.invocation_completion_knowledge(
+                            &selected.facts.canonical_command,
+                            words.arguments(),
+                            query,
+                        ),
+                        registry.invocation_completion_words(
+                            &selected.facts.canonical_command,
+                            words.arguments(),
+                            query,
+                        ),
+                    )
+                }))
+            })
+        else {
+            return DiagramCompletion::Normal;
+        };
         return completion_from_metadata(knowledge, coarse);
     }
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -440,9 +481,9 @@ fn registry_command(
         }
         let tokens = tokens?;
         let assistance =
-            tcl_compiler::registry_invocation::original_registry_invocation_assistance(
+            tcl_compiler::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
                 context.registry,
-                None,
+                Some(context.metadata_context()?),
                 tokens,
             )?;
         return Some(assistance.unanimous_command_words()?.command().to_owned());
@@ -703,13 +744,7 @@ fn walk_call(
     let completion = registry_command
         .as_deref()
         .map_or(DiagramCompletion::Normal, |command| {
-            command_completion(
-                command,
-                args,
-                tokens,
-                context.registry,
-                !context.analysis.allows_lexical_declaration_advice(),
-            )
+            command_completion(command, args, tokens, context)
         });
     // Keep an exact non-normal completion visible even when it is not a
     // diagram action (for example `error` / `throw`), so a surrounding try
@@ -838,13 +873,7 @@ fn walk_barrier(
     let completion = registry_command
         .as_deref()
         .map_or(DiagramCompletion::Normal, |command| {
-            command_completion(
-                command,
-                args,
-                tokens.as_ref(),
-                context.registry,
-                !context.analysis.allows_lexical_declaration_advice(),
-            )
+            command_completion(command, args, tokens.as_ref(), context)
         });
     (registry_command
         .as_deref()
@@ -1988,6 +2017,76 @@ mod original_source_tests {
             &context
         ));
         let _ = unit;
+    }
+
+    #[test]
+    fn original_diagram_metadata_keeps_actual_availability_and_source_currency() {
+        // naming.consumer.original-structural-diagrams
+        // docs/design/analysis/name-resolution-proofs/original-structural-diagrams.md
+        // Conditional source metadata only; no native invocation or completion
+        // is issued by the same-store availability controls.
+        let source = "throw ERR payload";
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let available =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(available.commands())),
+        );
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        for (availability, expected) in [(&available, Some("throw")), (&older, None)] {
+            let input =
+                ResolvedAnalysisInput::new(profile, profile, Arc::clone(availability), config);
+            let unit = CompilationUnit::build_with_analysis_input(
+                source,
+                tcl_compiler::compilation_unit::UnitBuildOptions {
+                    registry: availability.commands(),
+                    defer_top_level: false,
+                    config,
+                    dialect: Some(profile),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                &input,
+            );
+            let mut analyser = Analyser::new().with_resolved_input(input);
+            analyser.set_cu_override(Arc::new(unit.clone()));
+            let mut analysis = analyser.analyse(source, profile.name);
+            let names = HashSet::new();
+            let tokens = unit
+                .ir_module
+                .top_level
+                .retained_source_tokens_for_statement(&unit.ir_module.top_level.statements[0])
+                .unwrap();
+            let selected = |analysis: &AnalysisResult, text: &str| {
+                let context = DiagramContext {
+                    procedure_names: &names,
+                    identities: analysis.retained_command_realm().unwrap(),
+                    registry: availability.commands(),
+                    source: text,
+                    analysis,
+                    availability,
+                };
+                registry_command("counterfactual", None, "::", 0, Some(tokens), &context)
+            };
+            assert_eq!(selected(&analysis, source).as_deref(), expected);
+            assert!(selected(&analysis, "throw OTHER payload").is_none());
+            let original = analysis.resolved_input.take();
+            assert!(
+                selected(&analysis, source).is_none(),
+                "missing supplied input"
+            );
+            analysis.resolved_input = original;
+            let original_config = analysis.body_lexer_config;
+            analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+            assert!(
+                selected(&analysis, source).is_none(),
+                "changed source grammar"
+            );
+            analysis.body_lexer_config = original_config;
+            assert_eq!(selected(&analysis, source).as_deref(), expected);
+        }
     }
 
     #[test]

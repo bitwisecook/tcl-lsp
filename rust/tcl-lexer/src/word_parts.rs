@@ -270,16 +270,20 @@ pub struct RawVarRef<'s> {
 }
 
 impl RawVarRef<'_> {
+    /// Exact name extent in its original source allocation, including literal
+    /// braced names. Equal bytes in another allocation do not provide geometry.
+    /// This grants no receiver identity, lookup or edit permission.
+    #[must_use]
+    pub fn name_range_in(self, source: &[u8]) -> Option<std::ops::Range<usize>> {
+        original_borrowed_range(self.name, source)
+    }
+
     /// The exact borrowed index extent in its original source allocation.
     /// An empty index retains its position; another equal-valued allocation
     /// cannot supply source geometry for this reference.
     #[must_use]
     pub fn index_range_in(self, source: &[u8]) -> Option<std::ops::Range<usize>> {
-        let index = self.index?;
-        let start = (index.as_ptr() as usize).checked_sub(source.as_ptr() as usize)?;
-        let end = start.checked_add(index.len())?;
-        let original = source.get(start..end)?;
-        (std::ptr::eq(original.as_ptr(), index.as_ptr()) && original == index).then_some(start..end)
+        original_borrowed_range(self.index?, source)
     }
 
     /// Project the native token extent into the source map's span convention.
@@ -289,6 +293,13 @@ impl RawVarRef<'_> {
     pub fn source_span(self, source: &[u8], at: usize, base: u32) -> Option<crate::Span> {
         variable_source_span(source, at, self.next, base, self.name.is_empty())
     }
+}
+
+fn original_borrowed_range(bytes: &[u8], source: &[u8]) -> Option<std::ops::Range<usize>> {
+    let start = (bytes.as_ptr() as usize).checked_sub(source.as_ptr() as usize)?;
+    let end = start.checked_add(bytes.len())?;
+    let original = source.get(start..end)?;
+    (std::ptr::eq(original.as_ptr(), bytes.as_ptr()) && original == bytes).then_some(start..end)
 }
 
 fn variable_source_span(
@@ -1598,6 +1609,24 @@ mod tests {
 
     fn scalar(name: &[u8]) -> WordPart<'_> {
         WordPart::Variable(VarRef { name, index: None })
+    }
+
+    #[test]
+    fn original_name_extent_requires_the_actual_source_allocation() {
+        // naming.inlining.original-frame-source-context
+        // docs/design/analysis/name-resolution-proofs/inlining-original-frame-source-context.md
+        // Exact lexical extent only; no Native name, frame or edit grant.
+        for original in ["${café}", "${$literal}", "${arr(key)}", "${}", "$arr($key)"] {
+            let source = original.as_bytes().to_vec();
+            let reference = scan_var_ref(&source, 0, eight()).unwrap().unwrap();
+            let range = reference.name_range_in(&source).unwrap();
+            assert_eq!(&source[range], reference.name);
+            let equal_source = source.clone();
+            assert!(reference.name_range_in(&equal_source).is_none());
+        }
+        let source = "prefix${café}suffix".as_bytes().to_vec();
+        let reference = scan_var_ref(&source, 6, eight()).unwrap().unwrap();
+        assert_eq!(reference.name_range_in(&source), Some(8..13));
     }
 
     #[test]

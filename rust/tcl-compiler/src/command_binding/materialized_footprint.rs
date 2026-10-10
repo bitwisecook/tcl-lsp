@@ -49,6 +49,51 @@ impl SourceInvocationBinding {
         Some(advice.targets().to_vec())
     }
 
+    /// Select this installer's retained point input under the genuine Module
+    /// producer. Only its original root or nested input projection may supply
+    /// metadata; neither final Module bindings nor a reconstructed profile do.
+    pub(crate) fn original_materialized_footprint_for_module<'a>(
+        &'a self,
+        tokens: &CommandTokens,
+        module: &crate::ir::Module,
+        registry: &'a CommandRegistry,
+    ) -> Option<OriginalSourceMaterializedFootprint<'a>> {
+        // naming.diagnostic.original-materialized-write-footprint
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+        if !module
+            .retained_source_bindings
+            .as_deref()?
+            .matches_module(module, registry)
+        {
+            return None;
+        }
+        let module_metadata = InvocationMetadataContext::for_module(registry, module)?;
+        let module_input = module_metadata.source_analysis_input()?;
+        let point = self
+            .lookup_state
+            .as_ref()?
+            .state
+            .baseline
+            .metadata_context
+            .source_analysis_input()?;
+        if point != module_input && point != &module_input.for_nested_source() {
+            return None;
+        }
+        let config = self.original_lexer_config_for_tokens(tokens)?;
+        let metadata = InvocationMetadataContext::for_source_input(
+            registry,
+            point,
+            config,
+            Some(point.unit_profile()),
+        )?;
+        let site = self.invocation_site()?;
+        if !original_module_origin(&site.source, module) {
+            return None;
+        }
+        let source = site.source.source_image().try_text().ok()?;
+        self.original_materialized_footprint(tokens, source, registry, Some(metadata))
+    }
+
     /// Retain this genuine installer's closed source lookup independently of
     /// the child script's text. Missing source, context or namespace refuses.
     pub(crate) fn original_materialized_footprint<'a>(
@@ -115,7 +160,44 @@ impl SourceInvocationBinding {
     }
 }
 
-impl OriginalSourceMaterializedFootprint<'_> {
+fn original_module_origin(origin: &super::SourceOriginId, module: &crate::ir::Module) -> bool {
+    let mut origin = origin;
+    while let super::SourceOriginKind::Derived { parent, .. } = origin.kind() {
+        origin = &parent.source;
+    }
+    origin.source_image() == &module.source
+}
+
+impl<'a> OriginalSourceMaterializedFootprint<'a> {
+    /// The original installer snapshot, independently of final module state.
+    pub(crate) const fn bindings(&self) -> &ModuleCommandBindings {
+        self.state
+    }
+
+    /// Actual complete point input and availability retained by the issuer.
+    pub(crate) const fn metadata_context(&self) -> InvocationMetadataContext<'a> {
+        self.metadata
+    }
+
+    /// Exact nested lexical policy for materialized source-only inventories.
+    pub(crate) const fn lexer_config(&self) -> LexerConfig {
+        self.config
+    }
+
+    /// Only an authored global-frame callback recipe has a source coordinate
+    /// here. Future triggering/invoking frames require their separate owners.
+    pub(crate) fn deferred_namespace(
+        &self,
+        scope: Option<tcl_registry::ScriptLookupScope>,
+    ) -> Option<crate::ir::ExecutionNamespace> {
+        if scope != Some(tcl_registry::ScriptLookupScope::GlobalFrame) {
+            return None;
+        }
+        Some(crate::ir::ExecutionNamespace::SourceContext(
+            self.state.source_root_namespace_key()?,
+        ))
+    }
+
     /// Possible local output names, preserving current aliases and replacements.
     /// The materialized value receives no original child-source geometry.
     pub(crate) fn script_writes(&self, script: &str) -> crate::ir_helpers::VariableWriteEffects {
@@ -404,6 +486,198 @@ mod tests {
             None,
             &input,
         )
+    }
+
+    #[test]
+    fn original_installer_module_projection_keeps_snapshot_and_future_scope_refusal() {
+        // naming.diagnostic.original-materialized-write-footprint
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+        // Software source snapshot/lookup controls, not callback or frame entry.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = unit("eval set ::early VALUE; proc set args {}", &context);
+        let module = &unit.ir_module;
+        let script = &module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(&script.statements[0])
+            .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let footprint = binding
+            .original_materialized_footprint_for_module(tokens, module, context.commands())
+            .unwrap();
+        assert!(std::ptr::eq(
+            footprint.bindings(),
+            &binding.lookup_state.as_ref().unwrap().state
+        ));
+        assert_eq!(
+            footprint.metadata_context().source_analysis_input(),
+            module.source_metadata_input.as_ref()
+        );
+        assert_eq!(footprint.lexer_config(), module.lexer_config.nested());
+        assert!(
+            footprint
+                .script_writes("set ::observed VALUE")
+                .names
+                .contains("::observed")
+        );
+        assert!(matches!(
+            footprint.deferred_namespace(Some(tcl_registry::ScriptLookupScope::GlobalFrame)),
+            Some(crate::ir::ExecutionNamespace::SourceContext(_)),
+        ));
+        for scope in [
+            None,
+            Some(tcl_registry::ScriptLookupScope::InvokingFrame),
+            Some(tcl_registry::ScriptLookupScope::TriggerFrame),
+        ] {
+            assert!(footprint.deferred_namespace(scope).is_none());
+        }
+        let mut refused = module.clone();
+        refused.source_metadata_input = None;
+        assert!(
+            binding
+                .original_materialized_footprint_for_module(tokens, &refused, context.commands())
+                .is_none()
+        );
+        refused = module.clone();
+        refused.lexer_config.expand_syntax = !refused.lexer_config.expand_syntax;
+        assert!(
+            binding
+                .original_materialized_footprint_for_module(tokens, &refused, context.commands())
+                .is_none()
+        );
+        refused = module.clone();
+        refused.source = tcl_lexer::SourceImage::document("eval set ::different VALUE");
+        assert!(
+            binding
+                .original_materialized_footprint_for_module(tokens, &refused, context.commands())
+                .is_none()
+        );
+        let original = module.source_metadata_input.as_ref().unwrap();
+        refused = module.clone();
+        refused.source_metadata_input = Some(ResolvedAnalysisInput::new(
+            original.analyser_profile(),
+            original.unit_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            original.lexer_config(),
+        ));
+        assert!(
+            binding
+                .original_materialized_footprint_for_module(tokens, &refused, context.commands())
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_installer_module_projection_withdraws_changed_entry_and_frame_owner() {
+        // naming.diagnostic.original-materialized-write-footprint
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+        // Full source-owner reuse controls, independently of physical frame entry.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = unit("eval set ::original VALUE", &context);
+        let module = &unit.ir_module;
+        let owner = module.retained_source_bindings.as_ref().unwrap();
+        assert!(owner.matches_module(module, context.commands()));
+        let script = &module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(&script.statements[0])
+            .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(
+            binding
+                .original_materialized_footprint_for_module(tokens, module, context.commands())
+                .is_some()
+        );
+        for change in 0..7 {
+            let mut changed = module.clone();
+            match change {
+                0 => changed.retained_source_bindings = None,
+                1 => changed.source_entry.unknown_entry = !changed.source_entry.unknown_entry,
+                2 => {
+                    changed.source_entry.compilation_scope =
+                        tcl_runtime_api::SourceCompilationScope::EnteredSource
+                }
+                3 => changed.top_level_namespace = "::other".into(),
+                4 => {
+                    changed.native_namespace =
+                        Some(tcl_core_types::ByteNamespacePath::from_segments(["other"]))
+                }
+                5 => changed.top_level_kind = crate::ir::TopLevelKind::ProcedureBody,
+                6 => changed.source_entry.incoming_formals.push("new".into()),
+                _ => unreachable!(),
+            }
+            assert!(InvocationMetadataContext::for_module(context.commands(), &changed).is_some());
+            assert!(
+                binding
+                    .original_materialized_footprint_for_module(
+                        tokens,
+                        &changed,
+                        context.commands()
+                    )
+                    .is_none(),
+                "change {change} retained stale source interpretation"
+            );
+        }
+    }
+
+    #[test]
+    fn original_installer_module_projection_accepts_only_the_retained_nested_input() {
+        // naming.diagnostic.original-materialized-write-footprint
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
+        // Independently produced source points retain their explicit nested policy.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let source = "eval set ::nested VALUE";
+        let root = unit(source, &context);
+        let original = root.ir_module.source_metadata_input.as_ref().unwrap();
+        let input = original.for_nested_source();
+        let nested = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(input.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let script = &nested.ir_module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(&script.statements[0])
+            .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let footprint = binding
+            .original_materialized_footprint_for_module(tokens, &root.ir_module, context.commands())
+            .unwrap();
+        assert_eq!(
+            footprint.metadata_context().source_analysis_input(),
+            Some(&input)
+        );
+        assert!(
+            footprint
+                .script_writes("set ::observed VALUE")
+                .names
+                .contains("::observed")
+        );
+        let mut changed = root.ir_module.clone();
+        let mut config = original.lexer_config();
+        config.expand_syntax = !config.expand_syntax;
+        changed.lexer_config = config;
+        changed.source_metadata_input = Some(ResolvedAnalysisInput::new(
+            original.analyser_profile(),
+            original.unit_profile(),
+            Arc::clone(&context),
+            config,
+        ));
+        assert!(InvocationMetadataContext::for_module(context.commands(), &changed).is_some());
+        assert!(
+            binding
+                .original_materialized_footprint_for_module(tokens, &changed, context.commands())
+                .is_none()
+        );
     }
 
     #[test]

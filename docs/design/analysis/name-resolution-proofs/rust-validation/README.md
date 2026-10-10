@@ -1341,7 +1341,7 @@ Neither command executes assertions or supplies a completed requested test execu
 
 ## Retained source 201 commands
 
-Twelve exact operations retain one complete immutable source inventory and `uniform_source: true`. The requested twelve-package library/test build exits101 after185.62 seconds: two DB `Module` initialisers omit `source_metadata_input`. It executes no assertions and does not complete the requested package build. Independent Runtime and Compiler-only builds pass after54.48 and173.70 seconds, respectively; each rebuilt (`fresh: false`) executable is pinned to its actual successful build receipt and source inventory. Compiler and Runtime listing commands enumerate8420 and1249 tests without executing assertions.
+Twelve exact operations retain one complete immutable source inventory and `uniform_source: true`. The requested twelve-package library/test build exits101 after185.62 seconds: two DB `Module` initialisers omit `source_metadata_input`. It executes no assertions and does not complete the requested package build. Independent Runtime and Compiler-only builds pass after 54.48 and173.70 seconds, respectively; each rebuilt (`fresh: false`) executable is pinned to its actual successful build receipt and source inventory. Compiler and Runtime listing commands enumerate8420 and1249 tests without executing assertions.
 
 The Runtime finite union terminates with signal6 during the deep foreach assertion and supplies no final framework summary; all explicit pass/fail events and its incomplete assertion are retained. The independently executed union without deep controls completes37 passed and15 failed with1197 filtered. Compiler memo controls complete8 passed and1 failed with8411 filtered; the selected String-coordinate diagnostic control completes0 passed and1 failed with8419 filtered.
 
@@ -1984,3 +1984,39 @@ The exact `cargo check --locked --offline --target-dir /workspace/.targets/namin
 The [original receipt](frozen261/integration-compiler-vm-check261/receipt.json.gz) is retained as a lossless gzip payload with compressed and uncompressed SHA256. The [complete log](frozen261/integration-compiler-vm-check261/tests.log) preserves all diagnostics. Every immutable source archive leaf is independently checked against the original receipt map. Original command, paths, source association and timing remain unchanged.
 
 The separate `cargo test --locked --offline --target-dir /workspace/.targets/naming-upstream-clean -p tcl-registry -p tcl-compiler -p tcl-vm --lib --no-run --message-format=json` command closes with exit101 after 68.049132s and `uniform_source: true`. Six TclError field errors in the tcl-engine-tclvm development dependency block test construction. Ordinary Compiler library compilation supplies no unit-test result; test inventory is not reached. Its [exact original receipt](frozen261/integration-registry-compiler-vm-test-build261/receipt.json.gz) and [complete log](frozen261/integration-registry-compiler-vm-test-build261/tests.log) retain this independent outcome with no test pin or Native claim.
+
+## Native-consumer builds262/263 and CmdCore263 tests
+
+The locked, offline no-run builds for Registry, Compiler, VM, TclVM engine and CmdCore both close with exit101 and `uniform_source: true`. Build262 fails at three CmdCore test-fixture compile errors after 32.923354s and produces no test executable. Build263 fails at two SpecHooks dependency compile errors after 88.003873s. Its complete log independently contains one successful CmdCore libtest artifact with `fresh: false`; the failed aggregate build supplies no successful executable association for another crate.
+
+The [copied original partial-artifact pin record](frozen263/pinned-cmdcore263-partial.json) retains its exact build-receipt and source-snapshot hashes. Its sealed executable SHA256 is `2726d7b241fe8968561791ec9df14daea5a3b1d2a76d9e027943e3c29034bde5`; the original executable bytes are independently checked against that pin. The separate inventory lists 190 tests without executing assertions. The [exact full selection](frozen263/cmdcore-full-selection263.json) matches every inventory name, the pin and the list hash, with zero missing selectors.
+
+The complete single-threaded CmdCore263 test command closes after 0.209579s with 189 passes and one failure, zero ignored and zero filtered tests. The failing selector is `native_info_level::tests::native_level_integer_error_retains_primitive_fields_and_string_producer`. Its original panic and summary remain in the full log. The current tab-delimiter repair has no execution outcome under these receipts and does not change their failure. A valid partial artifact and 189 passing assertions do not imply aggregate build success, successful VM comparators or a Native provider outcome.
+
+All four original receipts retain their commands, timings and complete immutable source maps as lossless gzip payloads with compressed and uncompressed SHA256. Both source images are independently checked byte for byte; the three 263 operations share the exact same full source association. Other images, current definitions, external Native observations and full validation gates retain their own evidence.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [No-run build262](frozen262/integration-native-consumer-test-build262/receipt.json.gz) · [log](frozen262/integration-native-consumer-test-build262/tests.log) | Exit101; three CmdCore fixture compile errors; no test artifact |
+| [No-run build263](frozen263/integration-native-consumer-test-build263/receipt.json.gz) · [log](frozen263/integration-native-consumer-test-build263/tests.log) | Exit101; two SpecHooks dependency compile errors; one independently successful CmdCore libtest artifact |
+| [CmdCore263 inventory](frozen263/integration-cmdcore-inventory263/receipt.json.gz) · [log](frozen263/integration-cmdcore-inventory263/tests.log) | Exit0; 190 tests listed; no assertions |
+| [CmdCore263 full test run](frozen263/integration-cmdcore-full-tests263/receipt.json.gz) · [log](frozen263/integration-cmdcore-full-tests263/tests.log) | Exit101; 189 passed; one failed; original complete 190-test outcome |
+
+## Native-consumer build264 and independent CmdCore264 tests
+
+The locked, offline aggregate no-run build for Registry, Compiler, VM, TclVM engine and CmdCore closes with exit101 after 54.854262s and `uniform_source: true`. Two ordinary Compiler errors at word_subst.rs:177 and 262 concern retained SourceImage transport. The full log also records one CmdCore libtest artifact with `fresh: false`; that aggregate artifact has no sealed pin or assertion outcome assigned here. The failed aggregate build establishes no successful engine/spec construction or unit-test result.
+
+The separate locked, offline CmdCore-only no-run build succeeds after 6.858042s and emits a different CmdCore libtest artifact with `fresh: false`. Its [exact original pin record](frozen264/pinned-cmdcore264.json) retains the independent successful build-receipt and immutable source-snapshot association. The sealed executable bytes independently match SHA256 `06476c17b6ca7d90b7e76818cf19119098e322e965f4d61e1e72b2ebdc44535e`; the pin belongs solely to this CmdCore-only build.
+
+The separate current inventory lists 190 deterministic tests without assertions. The [unchanged full selection](frozen264/cmdcore-full-selection264.json) retains its exact inventory receipt/hash and all 190 selectors, matching every actual test event. The full single-threaded CmdCore264 run closes with exit0 after 0.247871s: 190 passed, zero failed, ignored or filtered. This outcome applies only to that original pin and frozen source. Earlier 263 failures remain unchanged, and this CmdCore run establishes no aggregate build pass, VM comparator result or external Native provider outcome.
+
+All four operations have `uniform_source: true` and retain the same full immutable source association. The original receipts are lossless gzip payloads with compressed and uncompressed SHA256; every archived source leaf is independently byte-checked. Commands, timings, summaries and complete logs retain their original bytes.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [Aggregate no-run build264](frozen264/integration-native-consumer-test-build264/receipt.json.gz) · [log](frozen264/integration-native-consumer-test-build264/tests.log) | Exit101; two ordinary Compiler SourceImage errors; one unpinned CmdCore artifact; no assertions |
+| [Independent CmdCore-only build264](frozen264/integration-cmdcore-test-build264/receipt.json.gz) · [log](frozen264/integration-cmdcore-test-build264/tests.log) | Exit0; independently sealed CmdCore libtest artifact; no assertions |
+| [Current CmdCore264 inventory](frozen264/integration-cmdcore-current-inventory264/receipt.json.gz) · [log](frozen264/integration-cmdcore-current-inventory264/tests.log) | Exit0; 190 tests listed; no assertions |
+| [Full CmdCore264 test run](frozen264/integration-cmdcore-full-tests264/receipt.json.gz) · [log](frozen264/integration-cmdcore-full-tests264/tests.log) | Exit0; 190 passed; zero failed, ignored or filtered |
+
+The separately retained [zero-byte legacy inventory log](frozen264/unclassified-original-log/integration-cmdcore-inventory264.log) has no original JSON receipt. It contains no inventory, command association, status or assertion evidence and is not a fifth validation operation.
