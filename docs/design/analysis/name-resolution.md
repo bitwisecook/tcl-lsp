@@ -61,6 +61,26 @@ actual `ContextRegistry`, selected vendor context and complete original word
 vector. Authored source roles remain separate from C/Jim parameter acceptance,
 lookup, successful stores and compiler admission.
 
+Original lexical derivation is retained by `SourceOriginId`. Its private lazy
+memo keys the exact offset, complete lexer configuration and complete original
+word vector within that immutable source image and channel. The canonical
+factory retains the validated native words and segmented command together.
+Origin clones share only this derived geometry; independent origins keep
+separate memos. Warmth changes no semantic equality, hash, ordering or Debug
+representation. Original point, full input, availability, lookup, frame and
+native admission guards remain independent.
+
+Deferred procedure namespace selection uses another derived index over an
+exact immutable command-table `Arc`. The existing procedure kind, original
+token origin, implementation generation and allocation select all matching
+namespace holders. Strong table retention plus `Arc::ptr_eq` authenticates
+reuse; displayed names, equal copied tables and address buckets do not.
+Existing COW mutation or replacement gives each changed table its own index,
+and collector clones reset their cache. The index retains no final world:
+original incoming and completion-outcome states, direct event/receiver/future
+entries, abrupt alternatives and process-exit exclusion keep their existing
+selection rules.
+
 Providers — rename, references, call hierarchy, linked editing,
 document highlight, go-to-implementation, signature help, inlay hints,
 hover, type hierarchy, type definition, workspace symbols, minify, and the

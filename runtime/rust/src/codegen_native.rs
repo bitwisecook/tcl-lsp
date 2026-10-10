@@ -1179,6 +1179,7 @@ mod original_expression_completion_tests {
     #[derive(Clone, Copy)]
     enum CallbackMode {
         True,
+        False,
         Guest(i32),
         ChangeWorld(i32),
     }
@@ -1201,7 +1202,14 @@ mod original_expression_completion_tests {
                 interp.set_result_bytes(b"true");
                 0
             }
+            CallbackMode::False => {
+                interp.set_result_bytes(b"false");
+                0
+            }
             CallbackMode::Guest(code) => {
+                if code == 2 {
+                    interp.set_return_state(1, Code::Ok);
+                }
                 interp.set_result_bytes(b"GUEST\0\xff");
                 interp.set_c_error_code(b"ORIGINAL CALLBACK CODE");
                 code
@@ -1421,6 +1429,70 @@ mod original_expression_completion_tests {
                 assert_eq!(interp.native_execution_refusal(), Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
                     tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("stale entered native operation"))));
             }
+        }
+    }
+
+    #[test]
+    fn original_combined_condition_keeps_return_continue_and_false_completion() {
+        // naming.numeric.original-primitive-boolean-vs-expression-truth
+        // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+        for mode in [
+            CallbackMode::False,
+            CallbackMode::Guest(2),
+            CallbackMode::Guest(4),
+        ] {
+            let (mut interp, host) = native();
+            let state = CallbackState {
+                calls: Cell::new(0),
+                mode,
+            };
+            install(&mut interp, &state);
+            let source = Owned::fresh(obj::new_string_bytes(b"[::boolean_probe]"));
+            let _entry = CurrentEntry::enter(&mut interp);
+            let mut completion = empty();
+            let mut truth = 777;
+            assert_eq!(
+                unsafe { tcl_codegen_expr_bool(source.as_ptr(), &mut completion, &mut truth) },
+                TCL_NATIVE_ABI_OK
+            );
+            let (code, option_code, level) = match mode {
+                CallbackMode::False => {
+                    assert_eq!(truth, 0);
+                    assert_eq!(
+                        host.doubles.borrow().len(),
+                        1,
+                        "one actual public result producer"
+                    );
+                    (0, b"0".as_slice(), b"0".as_slice())
+                }
+                CallbackMode::Guest(code) => {
+                    assert_eq!(truth, 777);
+                    assert_eq!(obj::bytes_of(completion.result), b"GUEST\0\xff");
+                    assert!(
+                        host.doubles.borrow().is_empty(),
+                        "Guest completion has no truth stage"
+                    );
+                    if code == 2 {
+                        (2, b"0".as_slice(), b"1".as_slice())
+                    } else {
+                        (4, b"4".as_slice(), b"0".as_slice())
+                    }
+                }
+                _ => unreachable!(),
+            };
+            assert_eq!(completion.code, code);
+            for (key, expected) in [
+                (b"-code".as_slice(), option_code),
+                (b"-level".as_slice(), level),
+            ] {
+                let value = crate::dict::dict_get(completion.options, key)
+                    .expect("actual completion dictionary")
+                    .expect("original option");
+                assert_eq!(obj::bytes_of(value), expected);
+            }
+            assert_eq!(state.calls.get(), 1);
+            assert!(!interp.host_refusal_pending());
+            release(completion);
         }
     }
 

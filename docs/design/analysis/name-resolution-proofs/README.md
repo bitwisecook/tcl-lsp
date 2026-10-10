@@ -5,13 +5,14 @@ trigger, competing interpretations and why the distinction matters to a
 consumer. The question, provider answers and conclusion keep the measured
 input, release and execution context explicit.
 
-Three kinds of evidence have different authority:
+Four kinds of evidence have different authority:
 
 | Kind | What it establishes |
 | --- | --- |
 | `native-observation` | The retained program's actual result on the recorded provider and channel. A guest error is an observation. It does not establish an unexecuted branch or a Rust implementation result. |
 | `source-anchor` | The attached source excerpt at its recorded revision. A C source inspection does not establish Jim or closed-source BIG-IP behaviour. |
 | `implementation-contract` | A Rust ownership, withdrawal or consumer invariant. Native observations can motivate it; they do not execute its assertions. |
+| `environment-observation` | A separately identified SDK/libc/tool environment's actual retained result, including failed execution. Its version/target/input channel and answers stay separate from the seven original Tcl/Jim/BIG-IP provider answers. |
 
 The records are in [manifest.json](manifest.json). Each has its own Markdown
 document. [schema.json](schema.json) describes the record fields;
@@ -23,7 +24,7 @@ captured guest rejection. Never infer a release from a pathname or another
 probe's build. Unrecorded versions, channels and build details stay explicit.
 Each `source-anchor` answer uses `inspected` and that provider's own pinned
 excerpt. An executed guest result belongs to a separate `native-observation`
-record; a C excerpt cannot supply a Jim or appliance answer.
+record; a C excerpt cannot supply a Jim or appliance answer. An environment record retains explicit measured-environment answers and keeps original providers unmeasured; matching widths or macros cannot certify another runtime library.
 
 [corpus-inventory.json](corpus-inventory.json) inventories exact files in the
 native/authored fixture directories and the resolution-2286 appliance bundle.
@@ -1165,3 +1166,4 @@ Provider-specific answers, original artifacts and limits are in each linked reco
 | [naming.source.jim-original-concatenation-ownership](jim-original-concatenation-ownership.md) | `implementation-contract` | How do Jim string cat zero, unary and multiple-operand owners preserve the original transfer/getter/backing order while refusing retired, foreign or selected-unavailable materialization without creating Native admission? |
 | [naming.numeric.original-logical-operand-truth-sites](numeric-original-logical-operand-truth-sites.md) | `native-observation` | For each actual held original x constructor, how do primitive/expression controls and left/right &&/\|\| truth sites differ between generic Tcl_EvalEx source evaluation and independently held original Tcl_EvalObjEx compiled-script entry, with actual original y Int1 for && or Int0 for \|\|, across all six providers and their actual ABI? Jim independently repeats its genuine Jim_EvalObj route without assuming a second engine. |
 | [naming.numeric.current-optimizer-boolean-result-production](numeric-current-optimizer-boolean-result-production.md) | `implementation-contract` | Which current configured C Tcl sources select numeric-conversion removal before a Boolean jump, and how does that source-level rule distinguish a reached TRY_CVT_TO_NUMERIC from inline and public-API result production? |
+| [naming.numeric.wasi-libc-environment](numeric-wasi-libc-environment.md) | `environment-observation` | For the actual pinned SDK34 wasm32-wasip1 C libc module run under Wasmtime49, what are C target sizes/limits, shared errno-cell identity, and reached integer/double conversion results, end offsets and independently seeded errno effects? |

@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Public primitive reads preserve original cache effects and nullable errors.
 
-use super::{Interp, TCL_ERROR, TclObj};
+use super::{Interp, TclObj, TCL_ERROR};
 use crate::{
-    interp::native_scalar_context::{self, NativeScalarAccess},
+    interp::{
+        native_operation_currency::{CheckedNumericEnvironment, NativeOperationCurrency},
+        native_scalar_context::{self, NativeScalarAccess},
+    },
     typed_value,
 };
 use core::ffi::c_int;
+use std::cell::Cell;
 use tcl_syntax::{
     scalar_getter::{NativeScalarGetterFailure, NativeScalarGetterKind, NativeScalarGetterValue},
     value::ValueError,
@@ -56,18 +60,28 @@ fn probe(
     kind: NativeScalarGetterKind,
 ) -> Result<Result<NativeScalarGetterValue, NativeScalarGetterFailure>, NativeScalarObjectAccessError>
 {
-    let environment = access
-        .host
-        .numeric_environment()
-        .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-    let outcome = typed_value::native_scalar_probe_with_environment(
+    let currency = NativeOperationCurrency::issue(&access.interpreter)
+        .map_err(NativeScalarObjectAccessError::Execution)?;
+    let environment = access.host.numeric_environment();
+    currency
+        .ensure_current_or_refuse()
+        .map_err(NativeScalarObjectAccessError::Execution)?;
+    let environment = environment.ok_or(ValueError::ScalarNumericInputUnavailable)?;
+    let abi = Cell::new(Some(access.c_integer_abi()));
+    let environment = CheckedNumericEnvironment::new(environment, Some(&currency), &abi);
+    let outcome = typed_value::native_scalar_probe_with_environment_and_currency(
         original,
         access.dialect,
         kind,
-        Some(environment),
-    )?;
+        Some(&environment),
+        Some(&currency),
+    );
+    // Preserve a reached first Host cause before a generic unavailable result.
+    currency
+        .ensure_current_or_refuse()
+        .map_err(NativeScalarObjectAccessError::Execution)?;
     access.ensure_current()?;
-    Ok(outcome)
+    Ok(outcome?)
 }
 
 fn guest_error(
@@ -77,9 +91,51 @@ fn guest_error(
     failure: NativeScalarGetterFailure,
 ) -> Result<ValueError, NativeScalarObjectAccessError> {
     let error =
-        typed_value::native_scalar_failure_presentation(original, access.dialect, kind, failure)?;
+        typed_value::native_scalar_failure_presentation(original, access.dialect, kind, failure);
     access.ensure_current()?;
-    Ok(ValueError::NativeScalarGetter(Box::new(error)))
+    Ok(ValueError::NativeScalarGetter(Box::new(error?)))
+}
+
+/// A conversion failure is distinct from inaccessible original engine data.
+pub(crate) enum ScalarReadError {
+    Access(NativeScalarObjectAccessError),
+    Guest(ValueError),
+}
+
+impl ScalarReadError {
+    /// Publish on the original supplied interpreter, preserving its first Host.
+    pub(crate) fn publish(self, interpreter: &mut Interp) -> c_int {
+        match self {
+            Self::Access(error) => {
+                // SAFETY: this reference is the live original interpreter.
+                unsafe { publish_access_error(interpreter, error) }
+            }
+            Self::Guest(error) => {
+                interpreter.report_cmd_error(error.into());
+                TCL_ERROR
+            }
+        }
+    }
+}
+
+/// The live primitive read shared by C extension and compiler transport.
+/// It probes once and renders only that reached failure. This result grants
+/// no expression-instruction purpose or C callback bookkeeping.
+pub(crate) fn read_scalar_for_interpreter(
+    interpreter: &Interp,
+    original: *mut TclObj,
+    kind: NativeScalarGetterKind,
+) -> Result<NativeScalarGetterValue, ScalarReadError> {
+    let access = native_scalar_context::scalar_access(Some(interpreter), original)
+        .map_err(ScalarReadError::Access)?;
+    match probe(&access, original, kind).map_err(ScalarReadError::Access)? {
+        Ok(value) => Ok(value),
+        Err(failure) => {
+            let error =
+                guest_error(&access, original, kind, failure).map_err(ScalarReadError::Access)?;
+            Err(ScalarReadError::Guest(error))
+        }
+    }
 }
 
 /// Execute once. Only a supplied interpreter renders a reached guest failure.
@@ -93,30 +149,20 @@ pub(super) unsafe fn read(
     kind: NativeScalarGetterKind,
 ) -> Result<NativeScalarGetterValue, c_int> {
     // SAFETY: the caller supplies this live interpreter or null.
-    let selected = native_scalar_context::scalar_access(unsafe { interpreter.as_ref() }, original);
-    let mut access = selected.map_err(|error| {
-        // SAFETY: forwarded from this entry's nullable-interpreter contract.
-        unsafe { publish_access_error(interpreter, error) }
-    })?;
-    let outcome = probe(&access, original, kind).map_err(|error| {
-        // SAFETY: as above; no guest publication is performed for host refusals.
-        unsafe { publish_access_error(interpreter, error) }
-    })?;
-    match outcome {
-        Ok(value) => Ok(value),
-        Err(_) if interpreter.is_null() => Err(TCL_ERROR),
-        Err(failure) => {
-            let error = guest_error(&access, original, kind, failure).map_err(|error| {
-                // SAFETY: as above, preserving the first actual host cause.
-                unsafe { publish_access_error(interpreter, error) }
-            })?;
-            access.interpreter.report_cmd_error(error.into());
-            if !access.interpreter.host_refusal_pending() {
-                access.interpreter.note_c_api_error();
+    if let Some(interpreter) = unsafe { interpreter.as_mut() } {
+        return read_scalar_for_interpreter(interpreter, original, kind).map_err(|error| {
+            let guest = matches!(&error, ScalarReadError::Guest(_));
+            let status = error.publish(interpreter);
+            if guest && !interpreter.host_refusal_pending() {
+                interpreter.note_c_api_error();
             }
-            Err(TCL_ERROR)
-        }
+            status
+        });
     }
+    let access = native_scalar_context::scalar_access(None, original).map_err(|_| TCL_ERROR)?;
+    probe(&access, original, kind)
+        .map_err(|_| TCL_ERROR)?
+        .map_err(|_| TCL_ERROR)
 }
 
 /// A host refusal never becomes a guest scalar message or synthesized code.

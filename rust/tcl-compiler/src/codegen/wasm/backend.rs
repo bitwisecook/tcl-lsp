@@ -33,9 +33,9 @@
 //! loop. This produces a *structurally valid* module
 //! (validated with `wasmtime compile`) against the `"tcl"` import ABI the WASM
 //! runtime provides (values are i32 `*mut TclObj` pointers into shared linear
-//! memory). The runtime side of that ABI is the leak-tested eval surface in
-//! `runtime/rust/src/codegen_abi.rs` (`tcl_eval_code`, `tcl_expr_bool`, the
-//! object and direct-operation helpers); an emitted module runs against it through the
+//! memory). The runtime ABI is defined by the owning evaluation and completion
+//! exports in `runtime/rust/src/codegen_abi.rs` and `codegen_native.rs`;
+//! an emitted module runs against it through the
 //! shared-memory dynamic link (`__memory_base` relocation), which the standalone
 //! `wasm_execute` test exercises with a stub provider.
 
@@ -146,10 +146,27 @@ struct Imports {
     /// completion propagates. Adopts (frees) its argument, so
     /// there is no result reference for the emitter to release.
     eval_code: u32,
-    /// `(expr_obj) -> i32` — evaluate a condition to a boolean.
-    expr_bool: u32,
+    /// Completion-bearing expression evaluation with caller-owned source.
+    condition: ConditionImports,
     aot: Option<AotImports>,
 }
+
+/// The general tier owns condition source and completion storage until the
+/// single cleanup block settles Host or Guest completion.
+#[derive(Clone, Copy)]
+struct ConditionImports {
+    frame_alloc: u32,
+    frame_free: u32,
+    string_owned: u32,
+    expr_bool_eval: u32,
+    completion_release: u32,
+    object_release: u32,
+}
+
+const CONDITION_SOURCE_OFFSET: i64 = 0;
+const CONDITION_COMPLETION_OFFSET: i64 = WASM32_POINTER_BYTES as i64;
+const CONDITION_TRUTH_OFFSET: i64 = CONDITION_COMPLETION_OFFSET + WASM32_COMPLETION_SIZE as i64;
+const CONDITION_FRAME_BYTES: i64 = CONDITION_TRUTH_OFFSET + WASM32_POINTER_BYTES as i64;
 
 /// Runtime ABI imports used by the semantic prebuilt-argv mode of the same
 /// module emitter.
@@ -439,7 +456,7 @@ impl WasmEmitter {
     }
 
     fn emit_general_refusal_return(&mut self, imports: Imports) {
-        if self.mode != FunctionMode::Top
+        if self.mode == FunctionMode::DirectProc
             && let Some(aot) = imports.aot
         {
             self.raw_call(aot.frame_pop);
@@ -1248,20 +1265,119 @@ impl WasmEmitter {
 
     /// [`Self::emit_completion_dispatch`] for a code already in `code_local`.
     fn dispatch_stashed_code(&mut self) {
-        // In a loop, codes 3/4 are a structural break/continue of *this* loop.
-        if let Some(frame) = self.loops.last() {
-            let break_block = frame.break_block;
-            let continue_block = frame.continue_block;
+        let enclosing = self
+            .loops
+            .last()
+            .map(|frame| (frame.break_block, frame.continue_block));
+        self.dispatch_stashed_code_in_loop(enclosing);
+    }
+
+    fn dispatch_stashed_code_in_loop(&mut self, enclosing: Option<(u32, u32)>) {
+        if let Some((break_block, continue_block)) = enclosing {
             self.emit_code_eq_branch(TCL_BREAK, break_block);
             self.emit_code_eq_branch(TCL_CONTINUE, continue_block);
         }
-
-        // Any remaining non-`OK` code (error/return/other, or break/continue with
-        // no enclosing loop) unwinds the function.
         self.local_get(self.code_local);
-        self.open_frame(WasmOp::If); // if (code != 0)
-        self.push(WasmOp::Return);
+        self.open_frame(WasmOp::If);
+        // Only a DirectProc has the frame emitted by emit_proc_prelude.
+        self.emit_general_refusal_return(self.general_imports());
         self.close_frame();
+    }
+
+    /// Evaluate through the existing raw-evaluation/result/truth owner once,
+    /// then release the source and completion before any structural edge.
+    fn emit_condition_expression(&mut self, text: &str, loop_header: bool) {
+        let imports = self.general_imports();
+        let condition = imports.condition;
+        let status_local = self.frame_local + 1;
+        let truth_local = self.frame_local + 2;
+        self.raw_call(imports.host_refusal_pending);
+        self.open_frame(WasmOp::If);
+        self.emit_general_refusal_return(imports);
+        self.close_frame();
+        self.push_i32(CONDITION_FRAME_BYTES);
+        self.push_i32(i64::from(WASM32_COMPLETION_ALIGN));
+        self.call(condition.frame_alloc);
+        self.local_set(self.frame_local);
+        self.local_get(self.frame_local);
+        self.push(WasmOp::I32Eqz);
+        self.open_frame(WasmOp::If);
+        self.emit_general_refusal_return(imports);
+        self.close_frame();
+        for offset in (0..CONDITION_FRAME_BYTES).step_by(WASM32_POINTER_BYTES as usize) {
+            self.local_get(self.frame_local);
+            self.push_i32(0);
+            self.store_i32(offset);
+        }
+        self.push_i32(0);
+        self.local_set(self.code_local);
+        self.push_i32(0);
+        self.local_set(status_local);
+        self.push_i32(0);
+        self.local_set(truth_local);
+
+        let abort = self.open_frame(WasmOp::Block);
+        self.invocation_abort = Some(abort);
+        self.local_get(self.frame_local);
+        self.push_text_pair(text);
+        self.call(condition.string_owned);
+        self.store_i32(CONDITION_SOURCE_OFFSET);
+        self.local_get(self.frame_local);
+        self.load_i32(CONDITION_SOURCE_OFFSET);
+        self.local_get(self.frame_local);
+        self.push_i32(CONDITION_COMPLETION_OFFSET);
+        self.push(WasmOp::I32Add);
+        self.local_get(self.frame_local);
+        self.push_i32(CONDITION_TRUTH_OFFSET);
+        self.push(WasmOp::I32Add);
+        self.call(condition.expr_bool_eval);
+        self.local_set(status_local);
+        self.local_get(status_local);
+        self.open_frame(WasmOp::If);
+        self.br(abort);
+        self.close_frame();
+        self.local_get(self.frame_local);
+        self.load_i32(CONDITION_COMPLETION_OFFSET + i64::from(WASM32_COMPLETION_CODE_OFFSET));
+        self.local_set(self.code_local);
+        self.local_get(self.code_local);
+        self.open_frame(WasmOp::If);
+        self.br(abort);
+        self.close_frame();
+        self.local_get(self.frame_local);
+        self.load_i32(CONDITION_TRUTH_OFFSET);
+        self.local_set(truth_local);
+        self.invocation_abort = None;
+        self.close_frame();
+
+        self.local_get(self.frame_local);
+        self.load_i32(CONDITION_SOURCE_OFFSET);
+        self.call(condition.object_release);
+        self.local_get(self.frame_local);
+        self.push_i32(CONDITION_COMPLETION_OFFSET);
+        self.push(WasmOp::I32Add);
+        self.call(condition.completion_release);
+        self.local_get(self.frame_local);
+        self.call(condition.frame_free);
+        self.push(WasmOp::Drop);
+        self.raw_call(imports.host_refusal_pending);
+        self.open_frame(WasmOp::If);
+        self.emit_general_refusal_return(imports);
+        self.close_frame();
+        self.local_get(status_local);
+        self.open_frame(WasmOp::If);
+        self.emit_general_refusal_return(imports);
+        self.close_frame();
+
+        // A loop test is outside its own body completion handler. Its failure
+        // belongs to the caller of the whole while/for, possibly an outer loop.
+        let enclosing = if loop_header {
+            self.loops.iter().rev().nth(1)
+        } else {
+            self.loops.last()
+        }
+        .map(|frame| (frame.break_block, frame.continue_block));
+        self.dispatch_stashed_code_in_loop(enclosing);
+        self.local_get(truth_local);
     }
 
     /// `if (code == want) br <target>` — a guarded structural branch the
@@ -1316,6 +1432,8 @@ impl WasmEmitter {
         };
         local_names.push("$code".to_string());
         local_names.push("$frame".to_string());
+        local_names.push("$condition_status".to_string());
+        local_names.push("$condition_truth".to_string());
         WasmFunction {
             name: name.to_string(),
             params,
@@ -1324,9 +1442,8 @@ impl WasmEmitter {
             } else {
                 Vec::new()
             },
-            // `$code` (the completion-dispatch scratch) and `$frame` (the leaf
-            // invocation's transient call frame).
-            locals: vec![ValType::I32; 2],
+            // Completion code, transient frame, condition transport and truth.
+            locals: vec![ValType::I32; 4],
             body: std::mem::take(&mut self.body),
             local_names,
             exported: true,
@@ -1355,9 +1472,7 @@ impl Emit for WasmEmitter {
     }
 
     fn begin_if(&mut self, cond_text: &str) {
-        // if (tcl_expr_bool(box(cond)))   — void block type (no result)
-        self.box_text(cond_text);
-        self.call(self.general_imports().expr_bool);
+        self.emit_condition_expression(cond_text, false);
         self.open_frame(WasmOp::If);
     }
 
@@ -1384,9 +1499,7 @@ impl Emit for WasmEmitter {
 
     fn loop_test(&mut self, cond_text: Option<&str>) {
         if let Some(cond) = cond_text {
-            // if (!tcl_expr_bool(box(cond))) br <break>
-            self.box_text(cond);
-            self.call(self.general_imports().expr_bool);
+            self.emit_condition_expression(cond, true);
             self.push(WasmOp::I32Eqz);
             if let Some(frame) = self.loops.last() {
                 let brk = frame.break_block;
@@ -1940,7 +2053,30 @@ fn general_import_id(imports: Imports, index: u32) -> Option<CodegenAbiImportId>
         ),
         (imports.obj_new_string, CodegenAbiImportId::ObjectNewString),
         (imports.eval_code, CodegenAbiImportId::EvalCode),
-        (imports.expr_bool, CodegenAbiImportId::ExprBool),
+        (
+            imports.condition.frame_alloc,
+            CodegenAbiImportId::CallFrameAlloc,
+        ),
+        (
+            imports.condition.frame_free,
+            CodegenAbiImportId::CallFrameFree,
+        ),
+        (
+            imports.condition.string_owned,
+            CodegenAbiImportId::NewOwnedString,
+        ),
+        (
+            imports.condition.expr_bool_eval,
+            CodegenAbiImportId::ExprBoolEval,
+        ),
+        (
+            imports.condition.completion_release,
+            CodegenAbiImportId::CompletionRelease,
+        ),
+        (
+            imports.condition.object_release,
+            CodegenAbiImportId::ObjectRelease,
+        ),
     ];
     if let Some(aot) = imports.aot {
         entries.push((aot.value_new_string, CodegenAbiImportId::ValueNewString));
@@ -2004,7 +2140,14 @@ fn add_general_imports(wasm: &mut WasmModule, analysis: bool) -> Imports {
         host_refusal_pending: add_codegen_import(wasm, CodegenAbiImportId::HostRefusalPending),
         obj_new_string: add_codegen_import(wasm, CodegenAbiImportId::ObjectNewString),
         eval_code: add_codegen_import(wasm, CodegenAbiImportId::EvalCode),
-        expr_bool: add_codegen_import(wasm, CodegenAbiImportId::ExprBool),
+        condition: ConditionImports {
+            frame_alloc: add_codegen_import(wasm, CodegenAbiImportId::CallFrameAlloc),
+            frame_free: add_codegen_import(wasm, CodegenAbiImportId::CallFrameFree),
+            string_owned: add_codegen_import(wasm, CodegenAbiImportId::NewOwnedString),
+            expr_bool_eval: add_codegen_import(wasm, CodegenAbiImportId::ExprBoolEval),
+            completion_release: add_codegen_import(wasm, CodegenAbiImportId::CompletionRelease),
+            object_release: add_codegen_import(wasm, CodegenAbiImportId::ObjectRelease),
+        },
         aot: None,
     };
     if analysis {

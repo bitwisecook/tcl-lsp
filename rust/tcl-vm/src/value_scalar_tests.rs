@@ -296,6 +296,13 @@ fn primitive_boolean_storage_and_followup_wide_match_all_native_fixtures() {
         b"2",
         b"1.5",
     ];
+    let native = crate::native_fixture::core(
+        tcl_registry::model::ingress::resolve_environment("tcl8.4").unit_profile(),
+    );
+    let environment = native
+        .host()
+        .numeric_environment()
+        .expect("the actual native host numeric environment");
     let mut count = 0;
     for (index, fixture) in FIXTURES.iter().enumerate() {
         let dialect = VERSIONS.get(index).map_or_else(
@@ -318,9 +325,8 @@ fn primitive_boolean_storage_and_followup_wide_match_all_native_fixtures() {
             let value = object;
             // Fresh C84 numeric Boolean requires the reached actual C stages;
             // the host layout does not donate object or expression authority.
-            let environment = tcl_host_c_abi::NativeNumericEnvironment;
             let boolean = value
-                .native_scalar_getter_with_environment(dialect, Kind::Boolean, Some(&environment))
+                .native_scalar_getter_with_environment(dialect, Kind::Boolean, Some(environment))
                 .map(|returned| match returned {
                     Returned::Boolean(value) => value,
                     _ => panic!("Boolean getter result"),

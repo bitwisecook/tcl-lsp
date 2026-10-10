@@ -43,7 +43,8 @@ use crate::obj::{self, TclObj, TclObjType, TclSize, TclWideInt};
 use crate::parse::{self, ListError};
 mod scalar;
 pub(crate) use scalar::publish_access_error as scalar_publish_access_error;
-pub use scalar::{NativeScalarObjectAccessError, bind_scalar_getter_context, probe_scalar_getter};
+pub(crate) use scalar::read_scalar_for_interpreter;
+pub use scalar::{bind_scalar_getter_context, probe_scalar_getter, NativeScalarObjectAccessError};
 use tcl_syntax::scalar_getter::{
     NativeScalarGetterKind as ScalarKind, NativeScalarGetterValue as ScalarValue,
 };

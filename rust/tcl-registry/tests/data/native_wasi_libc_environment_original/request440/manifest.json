@@ -1,0 +1,48 @@
+{
+  "name": "GrammarWasiNumericEnvironmentRetry440",
+  "status": "SEALED REQUEST ONLY; not compiled/launched by agent",
+  "request_path": "/tmp/grammar-wasi-numeric-request440/request.json",
+  "request_sha256": "5c3639b178e7ecf3705692a9032dd2e055acedea45dd8d1c9caa6f2e072031b8",
+  "probe_path": "/tmp/grammar-wasi-numeric-request440/probe.c",
+  "probe_sha256": "72ef687265e1f560b0164b4a1d5305ea554253f158a84f0bfebb1ac6488334b6",
+  "launcher_path": "/tmp/grammar-wasi-numeric-request440/launch.py",
+  "launcher_sha256": "f5fd0e5e8b8913ae50bd3e6ea350137d26c6f130cea8161a6743a15409e218da",
+  "runner_flags": [
+    "run",
+    "-C",
+    "cache=n"
+  ],
+  "original439": {
+    "request_path": "/tmp/grammar-wasi-numeric-request439/request.json",
+    "request_sha256": "f1797600873c7200254932fdfa784ebd33d040a7970e532bf4b319c8c86e64fc",
+    "receipt_path": "/tmp/native-wasi-numeric-environment439-capture/receipt.json",
+    "receipt_sha256": "1da0129cecabc101aa805f9772df70444d9eb4ef9209543809c6552e8ca702fc",
+    "status": "guest-or-shape-failed",
+    "execute_exit_code": 1,
+    "guest_observations": {
+      "ABI": 0,
+      "ERRNO_CELL": 0,
+      "CASE": 0,
+      "ROW": 0,
+      "ADAPTER": 0,
+      "SUMMARY": 0
+    },
+    "execute_stderr": {
+      "path": "/tmp/native-wasi-numeric-environment439-capture/execute.stderr",
+      "bytes": 122,
+      "sha256": "126dde7ec4b920da104103c18e2719e5a871390e460f2a48800f16613c3f2abc"
+    },
+    "all_input_pins_unchanged": true,
+    "scope": "Original439 compile/version queries succeeded; execution failed before guest rows because the Wasmtime cache directory was read-only. Original request/capture retained without modification."
+  },
+  "source_cases": 21,
+  "raw_libc_rows": 315,
+  "adapter_control_rows": 12,
+  "validation": {
+    "python_ast_parse": true,
+    "original_probe_and_cases_byte_identical": true,
+    "all_input_pins_exact": true,
+    "original439_receipt_exact": true,
+    "native_or_cargo_launched": false
+  }
+}

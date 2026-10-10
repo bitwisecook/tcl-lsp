@@ -1,0 +1,353 @@
+ABI	CHAR_BIT=8	char=1	int=4	long=4	long_long=8	double=8	pointer=4	CHAR_MIN=-128	CHAR_MAX=127	INT_MIN=-2147483648	INT_MAX=2147483647	UINT_MAX=4294967295	LONG_MIN=-2147483648	LONG_MAX=2147483647	ULONG_MAX=4294967295	LLONG_MIN=-9223372036854775808	LLONG_MAX=9223372036854775807	ULLONG_MAX=18446744073709551615	EDOM=18	ERANGE=68	DBL_MANT_DIG=53	DBL_MIN_EXP=-1021	DBL_MAX_EXP=1024	STDC_VERSION=199901
+ERRNO_CELL	seed_kind=0	seed=0	via_pointer=0	via_macro=123	same_cell=1	before_reset=0	after_reset=0
+ERRNO_CELL	seed_kind=1	seed=18	via_pointer=18	via_macro=123	same_cell=1	before_reset=18	after_reset=0
+ERRNO_CELL	seed_kind=2	seed=68	via_pointer=68	via_macro=123	same_cell=1	before_reset=68	after_reset=0
+CASE	case=0	name=empty	input_len=0	prefix_len=0	input=
+ROW	case=0	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=0	prefix_len=0	value=0
+ROW	case=0	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=0	prefix_len=0	value=0
+ROW	case=0	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=0	prefix_len=0	value=0
+ROW	case=0	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=0	prefix_len=0	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=0	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=0	prefix_len=0	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=0	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=0	prefix_len=0	value=0
+ROW	case=0	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=0	prefix_len=0	value=0
+ROW	case=0	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=0	prefix_len=0	value=0
+ROW	case=0	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=0	prefix_len=0	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=0	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=28	end=0	input_len=0	prefix_len=0	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=0	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=0	prefix_len=0	value=0
+ROW	case=0	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=0	prefix_len=0	value=0
+ROW	case=0	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=0	prefix_len=0	value=0
+ROW	case=0	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=0	prefix_len=0	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=0	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=28	end=0	input_len=0	prefix_len=0	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+CASE	case=1	name=bad	input_len=3	prefix_len=3	input=626164
+ROW	case=1	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=1	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=1	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=1	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=3	prefix_len=3	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=1	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=3	prefix_len=3	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=1	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=1	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=1	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=1	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=3	prefix_len=3	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=1	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=28	end=0	input_len=3	prefix_len=3	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=1	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=1	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=1	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=1	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=3	prefix_len=3	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=1	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=28	end=0	input_len=3	prefix_len=3	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+CASE	case=2	name=hex16	input_len=4	prefix_len=4	input=30783130
+ROW	case=2	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=4	input_len=4	prefix_len=4	value=16
+ROW	case=2	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=4	input_len=4	prefix_len=4	value=16
+ROW	case=2	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=4	input_len=4	prefix_len=4	value=16
+ROW	case=2	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=4	input_len=4	prefix_len=4	value=0x1p+4	double_bytes=0000000000003040	is_nan=0	is_infinite=0	signbit=0
+ROW	case=2	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=4	input_len=4	prefix_len=4	value=0x1p+4	double_bytes=0000000000003040	is_nan=0	is_infinite=0	signbit=0
+ROW	case=2	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=4	input_len=4	prefix_len=4	value=16
+ROW	case=2	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=4	input_len=4	prefix_len=4	value=16
+ROW	case=2	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=4	input_len=4	prefix_len=4	value=16
+ROW	case=2	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=4	input_len=4	prefix_len=4	value=0x1p+4	double_bytes=0000000000003040	is_nan=0	is_infinite=0	signbit=0
+ROW	case=2	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=0	end=4	input_len=4	prefix_len=4	value=0x1p+4	double_bytes=0000000000003040	is_nan=0	is_infinite=0	signbit=0
+ROW	case=2	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=4	input_len=4	prefix_len=4	value=16
+ROW	case=2	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=4	input_len=4	prefix_len=4	value=16
+ROW	case=2	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=4	input_len=4	prefix_len=4	value=16
+ROW	case=2	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=4	input_len=4	prefix_len=4	value=0x1p+4	double_bytes=0000000000003040	is_nan=0	is_infinite=0	signbit=0
+ROW	case=2	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=0	end=4	input_len=4	prefix_len=4	value=0x1p+4	double_bytes=0000000000003040	is_nan=0	is_infinite=0	signbit=0
+CASE	case=3	name=legacy_octal08	input_len=2	prefix_len=2	input=3038
+ROW	case=3	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=1	input_len=2	prefix_len=2	value=0
+ROW	case=3	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=1	input_len=2	prefix_len=2	value=0
+ROW	case=3	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=1	input_len=2	prefix_len=2	value=0
+ROW	case=3	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=0x1p+3	double_bytes=0000000000002040	is_nan=0	is_infinite=0	signbit=0
+ROW	case=3	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=0x1p+3	double_bytes=0000000000002040	is_nan=0	is_infinite=0	signbit=0
+ROW	case=3	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=1	input_len=2	prefix_len=2	value=0
+ROW	case=3	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=1	input_len=2	prefix_len=2	value=0
+ROW	case=3	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=1	input_len=2	prefix_len=2	value=0
+ROW	case=3	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=2	input_len=2	prefix_len=2	value=0x1p+3	double_bytes=0000000000002040	is_nan=0	is_infinite=0	signbit=0
+ROW	case=3	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=0x1p+3	double_bytes=0000000000002040	is_nan=0	is_infinite=0	signbit=0
+ROW	case=3	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=1	input_len=2	prefix_len=2	value=0
+ROW	case=3	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=1	input_len=2	prefix_len=2	value=0
+ROW	case=3	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=1	input_len=2	prefix_len=2	value=0
+ROW	case=3	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=2	input_len=2	prefix_len=2	value=0x1p+3	double_bytes=0000000000002040	is_nan=0	is_infinite=0	signbit=0
+ROW	case=3	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=0x1p+3	double_bytes=0000000000002040	is_nan=0	is_infinite=0	signbit=0
+CASE	case=4	name=space_sign_tail	input_len=9	prefix_len=9	input=20092d31377461696c
+ROW	case=4	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=5	input_len=9	prefix_len=9	value=-17
+ROW	case=4	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=5	input_len=9	prefix_len=9	value=4294967279
+ROW	case=4	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=5	input_len=9	prefix_len=9	value=18446744073709551599
+ROW	case=4	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=5	input_len=9	prefix_len=9	value=-0x1.1p+4	double_bytes=00000000000031c0	is_nan=0	is_infinite=0	signbit=1
+ROW	case=4	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=5	input_len=9	prefix_len=9	value=-0x1.1p+4	double_bytes=00000000000031c0	is_nan=0	is_infinite=0	signbit=1
+ROW	case=4	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=5	input_len=9	prefix_len=9	value=-17
+ROW	case=4	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=5	input_len=9	prefix_len=9	value=4294967279
+ROW	case=4	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=5	input_len=9	prefix_len=9	value=18446744073709551599
+ROW	case=4	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=5	input_len=9	prefix_len=9	value=-0x1.1p+4	double_bytes=00000000000031c0	is_nan=0	is_infinite=0	signbit=1
+ROW	case=4	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=0	end=5	input_len=9	prefix_len=9	value=-0x1.1p+4	double_bytes=00000000000031c0	is_nan=0	is_infinite=0	signbit=1
+ROW	case=4	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=5	input_len=9	prefix_len=9	value=-17
+ROW	case=4	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=5	input_len=9	prefix_len=9	value=4294967279
+ROW	case=4	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=5	input_len=9	prefix_len=9	value=18446744073709551599
+ROW	case=4	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=5	input_len=9	prefix_len=9	value=-0x1.1p+4	double_bytes=00000000000031c0	is_nan=0	is_infinite=0	signbit=1
+ROW	case=4	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=0	end=5	input_len=9	prefix_len=9	value=-0x1.1p+4	double_bytes=00000000000031c0	is_nan=0	is_infinite=0	signbit=1
+CASE	case=5	name=positive_sign	input_len=3	prefix_len=3	input=2b3137
+ROW	case=5	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=3	input_len=3	prefix_len=3	value=17
+ROW	case=5	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=3	input_len=3	prefix_len=3	value=17
+ROW	case=5	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=3	input_len=3	prefix_len=3	value=17
+ROW	case=5	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=3	input_len=3	prefix_len=3	value=0x1.1p+4	double_bytes=0000000000003140	is_nan=0	is_infinite=0	signbit=0
+ROW	case=5	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=3	input_len=3	prefix_len=3	value=0x1.1p+4	double_bytes=0000000000003140	is_nan=0	is_infinite=0	signbit=0
+ROW	case=5	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=3	input_len=3	prefix_len=3	value=17
+ROW	case=5	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=3	input_len=3	prefix_len=3	value=17
+ROW	case=5	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=3	input_len=3	prefix_len=3	value=17
+ROW	case=5	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=3	input_len=3	prefix_len=3	value=0x1.1p+4	double_bytes=0000000000003140	is_nan=0	is_infinite=0	signbit=0
+ROW	case=5	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=0	end=3	input_len=3	prefix_len=3	value=0x1.1p+4	double_bytes=0000000000003140	is_nan=0	is_infinite=0	signbit=0
+ROW	case=5	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=3	input_len=3	prefix_len=3	value=17
+ROW	case=5	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=3	input_len=3	prefix_len=3	value=17
+ROW	case=5	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=3	input_len=3	prefix_len=3	value=17
+ROW	case=5	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=3	input_len=3	prefix_len=3	value=0x1.1p+4	double_bytes=0000000000003140	is_nan=0	is_infinite=0	signbit=0
+ROW	case=5	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=0	end=3	input_len=3	prefix_len=3	value=0x1.1p+4	double_bytes=0000000000003140	is_nan=0	is_infinite=0	signbit=0
+CASE	case=6	name=negative_zero	input_len=2	prefix_len=2	input=2d30
+ROW	case=6	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=0
+ROW	case=6	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=0
+ROW	case=6	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=0
+ROW	case=6	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=-0x0p+0	double_bytes=0000000000000080	is_nan=0	is_infinite=0	signbit=1
+ROW	case=6	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=-0x0p+0	double_bytes=0000000000000080	is_nan=0	is_infinite=0	signbit=1
+ROW	case=6	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=2	input_len=2	prefix_len=2	value=0
+ROW	case=6	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=2	input_len=2	prefix_len=2	value=0
+ROW	case=6	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=2	input_len=2	prefix_len=2	value=0
+ROW	case=6	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=2	input_len=2	prefix_len=2	value=-0x0p+0	double_bytes=0000000000000080	is_nan=0	is_infinite=0	signbit=1
+ROW	case=6	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=-0x0p+0	double_bytes=0000000000000080	is_nan=0	is_infinite=0	signbit=1
+ROW	case=6	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=2	input_len=2	prefix_len=2	value=0
+ROW	case=6	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=2	input_len=2	prefix_len=2	value=0
+ROW	case=6	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=2	input_len=2	prefix_len=2	value=0
+ROW	case=6	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=2	input_len=2	prefix_len=2	value=-0x0p+0	double_bytes=0000000000000080	is_nan=0	is_infinite=0	signbit=1
+ROW	case=6	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=-0x0p+0	double_bytes=0000000000000080	is_nan=0	is_infinite=0	signbit=1
+CASE	case=7	name=negative_one	input_len=2	prefix_len=2	input=2d31
+ROW	case=7	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=-1
+ROW	case=7	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=4294967295
+ROW	case=7	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=18446744073709551615
+ROW	case=7	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=-0x1p+0	double_bytes=000000000000f0bf	is_nan=0	is_infinite=0	signbit=1
+ROW	case=7	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=-0x1p+0	double_bytes=000000000000f0bf	is_nan=0	is_infinite=0	signbit=1
+ROW	case=7	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=2	input_len=2	prefix_len=2	value=-1
+ROW	case=7	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=2	input_len=2	prefix_len=2	value=4294967295
+ROW	case=7	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=2	input_len=2	prefix_len=2	value=18446744073709551615
+ROW	case=7	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=2	input_len=2	prefix_len=2	value=-0x1p+0	double_bytes=000000000000f0bf	is_nan=0	is_infinite=0	signbit=1
+ROW	case=7	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=-0x1p+0	double_bytes=000000000000f0bf	is_nan=0	is_infinite=0	signbit=1
+ROW	case=7	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=2	input_len=2	prefix_len=2	value=-1
+ROW	case=7	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=2	input_len=2	prefix_len=2	value=4294967295
+ROW	case=7	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=2	input_len=2	prefix_len=2	value=18446744073709551615
+ROW	case=7	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=2	input_len=2	prefix_len=2	value=-0x1p+0	double_bytes=000000000000f0bf	is_nan=0	is_infinite=0	signbit=1
+ROW	case=7	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=0	end=2	input_len=2	prefix_len=2	value=-0x1p+0	double_bytes=000000000000f0bf	is_nan=0	is_infinite=0	signbit=1
+CASE	case=8	name=signed32_max	input_len=10	prefix_len=10	input=32313437343833363437
+ROW	case=8	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=10	input_len=10	prefix_len=10	value=2147483647
+ROW	case=8	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=10	input_len=10	prefix_len=10	value=2147483647
+ROW	case=8	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=10	input_len=10	prefix_len=10	value=2147483647
+ROW	case=8	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=10	input_len=10	prefix_len=10	value=0x1.fffffffcp+30	double_bytes=0000c0ffffffdf41	is_nan=0	is_infinite=0	signbit=0
+ROW	case=8	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=10	input_len=10	prefix_len=10	value=0x1.fffffffcp+30	double_bytes=0000c0ffffffdf41	is_nan=0	is_infinite=0	signbit=0
+ROW	case=8	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=10	input_len=10	prefix_len=10	value=2147483647
+ROW	case=8	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=10	input_len=10	prefix_len=10	value=2147483647
+ROW	case=8	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=10	input_len=10	prefix_len=10	value=2147483647
+ROW	case=8	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=10	input_len=10	prefix_len=10	value=0x1.fffffffcp+30	double_bytes=0000c0ffffffdf41	is_nan=0	is_infinite=0	signbit=0
+ROW	case=8	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=0	end=10	input_len=10	prefix_len=10	value=0x1.fffffffcp+30	double_bytes=0000c0ffffffdf41	is_nan=0	is_infinite=0	signbit=0
+ROW	case=8	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=10	input_len=10	prefix_len=10	value=2147483647
+ROW	case=8	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=10	input_len=10	prefix_len=10	value=2147483647
+ROW	case=8	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=10	input_len=10	prefix_len=10	value=2147483647
+ROW	case=8	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=10	input_len=10	prefix_len=10	value=0x1.fffffffcp+30	double_bytes=0000c0ffffffdf41	is_nan=0	is_infinite=0	signbit=0
+ROW	case=8	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=0	end=10	input_len=10	prefix_len=10	value=0x1.fffffffcp+30	double_bytes=0000c0ffffffdf41	is_nan=0	is_infinite=0	signbit=0
+CASE	case=9	name=signed32_overflow	input_len=10	prefix_len=10	input=32313437343833363438
+ROW	case=9	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=68	end=10	input_len=10	prefix_len=10	value=2147483647
+ROW	case=9	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=10	input_len=10	prefix_len=10	value=2147483648
+ROW	case=9	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=10	input_len=10	prefix_len=10	value=2147483648
+ROW	case=9	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=10	input_len=10	prefix_len=10	value=0x1p+31	double_bytes=000000000000e041	is_nan=0	is_infinite=0	signbit=0
+ROW	case=9	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=10	input_len=10	prefix_len=10	value=0x1p+31	double_bytes=000000000000e041	is_nan=0	is_infinite=0	signbit=0
+ROW	case=9	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=68	end=10	input_len=10	prefix_len=10	value=2147483647
+ROW	case=9	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=10	input_len=10	prefix_len=10	value=2147483648
+ROW	case=9	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=10	input_len=10	prefix_len=10	value=2147483648
+ROW	case=9	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=10	input_len=10	prefix_len=10	value=0x1p+31	double_bytes=000000000000e041	is_nan=0	is_infinite=0	signbit=0
+ROW	case=9	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=0	end=10	input_len=10	prefix_len=10	value=0x1p+31	double_bytes=000000000000e041	is_nan=0	is_infinite=0	signbit=0
+ROW	case=9	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=10	input_len=10	prefix_len=10	value=2147483647
+ROW	case=9	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=10	input_len=10	prefix_len=10	value=2147483648
+ROW	case=9	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=10	input_len=10	prefix_len=10	value=2147483648
+ROW	case=9	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=10	input_len=10	prefix_len=10	value=0x1p+31	double_bytes=000000000000e041	is_nan=0	is_infinite=0	signbit=0
+ROW	case=9	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=0	end=10	input_len=10	prefix_len=10	value=0x1p+31	double_bytes=000000000000e041	is_nan=0	is_infinite=0	signbit=0
+CASE	case=10	name=signed32_min	input_len=11	prefix_len=11	input=2d32313437343833363438
+ROW	case=10	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=11	input_len=11	prefix_len=11	value=-2147483648
+ROW	case=10	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=11	input_len=11	prefix_len=11	value=2147483648
+ROW	case=10	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=11	input_len=11	prefix_len=11	value=18446744071562067968
+ROW	case=10	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=11	input_len=11	prefix_len=11	value=-0x1p+31	double_bytes=000000000000e0c1	is_nan=0	is_infinite=0	signbit=1
+ROW	case=10	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=11	input_len=11	prefix_len=11	value=-0x1p+31	double_bytes=000000000000e0c1	is_nan=0	is_infinite=0	signbit=1
+ROW	case=10	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=11	input_len=11	prefix_len=11	value=-2147483648
+ROW	case=10	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=11	input_len=11	prefix_len=11	value=2147483648
+ROW	case=10	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=11	input_len=11	prefix_len=11	value=18446744071562067968
+ROW	case=10	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=11	input_len=11	prefix_len=11	value=-0x1p+31	double_bytes=000000000000e0c1	is_nan=0	is_infinite=0	signbit=1
+ROW	case=10	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=0	end=11	input_len=11	prefix_len=11	value=-0x1p+31	double_bytes=000000000000e0c1	is_nan=0	is_infinite=0	signbit=1
+ROW	case=10	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=11	input_len=11	prefix_len=11	value=-2147483648
+ROW	case=10	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=11	input_len=11	prefix_len=11	value=2147483648
+ROW	case=10	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=11	input_len=11	prefix_len=11	value=18446744071562067968
+ROW	case=10	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=11	input_len=11	prefix_len=11	value=-0x1p+31	double_bytes=000000000000e0c1	is_nan=0	is_infinite=0	signbit=1
+ROW	case=10	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=0	end=11	input_len=11	prefix_len=11	value=-0x1p+31	double_bytes=000000000000e0c1	is_nan=0	is_infinite=0	signbit=1
+CASE	case=11	name=signed32_underflow	input_len=11	prefix_len=11	input=2d32313437343833363439
+ROW	case=11	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=68	end=11	input_len=11	prefix_len=11	value=-2147483648
+ROW	case=11	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=11	input_len=11	prefix_len=11	value=2147483647
+ROW	case=11	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=11	input_len=11	prefix_len=11	value=18446744071562067967
+ROW	case=11	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=11	input_len=11	prefix_len=11	value=-0x1.00000002p+31	double_bytes=000020000000e0c1	is_nan=0	is_infinite=0	signbit=1
+ROW	case=11	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=11	input_len=11	prefix_len=11	value=-0x1.00000002p+31	double_bytes=000020000000e0c1	is_nan=0	is_infinite=0	signbit=1
+ROW	case=11	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=68	end=11	input_len=11	prefix_len=11	value=-2147483648
+ROW	case=11	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=11	input_len=11	prefix_len=11	value=2147483647
+ROW	case=11	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=11	input_len=11	prefix_len=11	value=18446744071562067967
+ROW	case=11	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=11	input_len=11	prefix_len=11	value=-0x1.00000002p+31	double_bytes=000020000000e0c1	is_nan=0	is_infinite=0	signbit=1
+ROW	case=11	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=0	end=11	input_len=11	prefix_len=11	value=-0x1.00000002p+31	double_bytes=000020000000e0c1	is_nan=0	is_infinite=0	signbit=1
+ROW	case=11	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=11	input_len=11	prefix_len=11	value=-2147483648
+ROW	case=11	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=11	input_len=11	prefix_len=11	value=2147483647
+ROW	case=11	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=11	input_len=11	prefix_len=11	value=18446744071562067967
+ROW	case=11	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=11	input_len=11	prefix_len=11	value=-0x1.00000002p+31	double_bytes=000020000000e0c1	is_nan=0	is_infinite=0	signbit=1
+ROW	case=11	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=0	end=11	input_len=11	prefix_len=11	value=-0x1.00000002p+31	double_bytes=000020000000e0c1	is_nan=0	is_infinite=0	signbit=1
+CASE	case=12	name=unsigned64_max	input_len=20	prefix_len=20	input=3138343436373434303733373039353531363135
+ROW	case=12	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=68	end=20	input_len=20	prefix_len=20	value=2147483647
+ROW	case=12	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=68	end=20	input_len=20	prefix_len=20	value=4294967295
+ROW	case=12	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=20	input_len=20	prefix_len=20	value=18446744073709551615
+ROW	case=12	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=20	input_len=20	prefix_len=20	value=0x1p+64	double_bytes=000000000000f043	is_nan=0	is_infinite=0	signbit=0
+ROW	case=12	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=20	input_len=20	prefix_len=20	value=0x1p+64	double_bytes=000000000000f043	is_nan=0	is_infinite=0	signbit=0
+ROW	case=12	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=68	end=20	input_len=20	prefix_len=20	value=2147483647
+ROW	case=12	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=68	end=20	input_len=20	prefix_len=20	value=4294967295
+ROW	case=12	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=20	input_len=20	prefix_len=20	value=18446744073709551615
+ROW	case=12	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=20	input_len=20	prefix_len=20	value=0x1p+64	double_bytes=000000000000f043	is_nan=0	is_infinite=0	signbit=0
+ROW	case=12	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=0	end=20	input_len=20	prefix_len=20	value=0x1p+64	double_bytes=000000000000f043	is_nan=0	is_infinite=0	signbit=0
+ROW	case=12	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=20	input_len=20	prefix_len=20	value=2147483647
+ROW	case=12	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=20	input_len=20	prefix_len=20	value=4294967295
+ROW	case=12	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=20	input_len=20	prefix_len=20	value=18446744073709551615
+ROW	case=12	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=20	input_len=20	prefix_len=20	value=0x1p+64	double_bytes=000000000000f043	is_nan=0	is_infinite=0	signbit=0
+ROW	case=12	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=0	end=20	input_len=20	prefix_len=20	value=0x1p+64	double_bytes=000000000000f043	is_nan=0	is_infinite=0	signbit=0
+CASE	case=13	name=unsigned64_overflow	input_len=20	prefix_len=20	input=3138343436373434303733373039353531363136
+ROW	case=13	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=68	end=20	input_len=20	prefix_len=20	value=2147483647
+ROW	case=13	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=68	end=20	input_len=20	prefix_len=20	value=4294967295
+ROW	case=13	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=68	end=20	input_len=20	prefix_len=20	value=18446744073709551615
+ROW	case=13	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=20	input_len=20	prefix_len=20	value=0x1p+64	double_bytes=000000000000f043	is_nan=0	is_infinite=0	signbit=0
+ROW	case=13	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=20	input_len=20	prefix_len=20	value=0x1p+64	double_bytes=000000000000f043	is_nan=0	is_infinite=0	signbit=0
+ROW	case=13	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=68	end=20	input_len=20	prefix_len=20	value=2147483647
+ROW	case=13	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=68	end=20	input_len=20	prefix_len=20	value=4294967295
+ROW	case=13	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=68	end=20	input_len=20	prefix_len=20	value=18446744073709551615
+ROW	case=13	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=20	input_len=20	prefix_len=20	value=0x1p+64	double_bytes=000000000000f043	is_nan=0	is_infinite=0	signbit=0
+ROW	case=13	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=0	end=20	input_len=20	prefix_len=20	value=0x1p+64	double_bytes=000000000000f043	is_nan=0	is_infinite=0	signbit=0
+ROW	case=13	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=20	input_len=20	prefix_len=20	value=2147483647
+ROW	case=13	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=20	input_len=20	prefix_len=20	value=4294967295
+ROW	case=13	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=20	input_len=20	prefix_len=20	value=18446744073709551615
+ROW	case=13	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=20	input_len=20	prefix_len=20	value=0x1p+64	double_bytes=000000000000f043	is_nan=0	is_infinite=0	signbit=0
+ROW	case=13	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=0	end=20	input_len=20	prefix_len=20	value=0x1p+64	double_bytes=000000000000f043	is_nan=0	is_infinite=0	signbit=0
+CASE	case=14	name=nan	input_len=3	prefix_len=3	input=4e614e
+ROW	case=14	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=14	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=14	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=14	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=3	input_len=3	prefix_len=3	value=nan	double_bytes=000000000000f87f	is_nan=1	is_infinite=0	signbit=0
+ROW	case=14	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=3	input_len=3	prefix_len=3	value=nan	double_bytes=000000000000f87f	is_nan=1	is_infinite=0	signbit=0
+ROW	case=14	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=14	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=14	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=14	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=3	input_len=3	prefix_len=3	value=nan	double_bytes=000000000000f87f	is_nan=1	is_infinite=0	signbit=0
+ROW	case=14	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=0	end=3	input_len=3	prefix_len=3	value=nan	double_bytes=000000000000f87f	is_nan=1	is_infinite=0	signbit=0
+ROW	case=14	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=14	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=14	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=14	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=3	input_len=3	prefix_len=3	value=nan	double_bytes=000000000000f87f	is_nan=1	is_infinite=0	signbit=0
+ROW	case=14	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=0	end=3	input_len=3	prefix_len=3	value=nan	double_bytes=000000000000f87f	is_nan=1	is_infinite=0	signbit=0
+CASE	case=15	name=positive_infinity	input_len=3	prefix_len=3	input=496e66
+ROW	case=15	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=15	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=15	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=15	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=3	input_len=3	prefix_len=3	value=inf	double_bytes=000000000000f07f	is_nan=0	is_infinite=1	signbit=0
+ROW	case=15	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=3	input_len=3	prefix_len=3	value=inf	double_bytes=000000000000f07f	is_nan=0	is_infinite=1	signbit=0
+ROW	case=15	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=15	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=15	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=15	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=3	input_len=3	prefix_len=3	value=inf	double_bytes=000000000000f07f	is_nan=0	is_infinite=1	signbit=0
+ROW	case=15	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=0	end=3	input_len=3	prefix_len=3	value=inf	double_bytes=000000000000f07f	is_nan=0	is_infinite=1	signbit=0
+ROW	case=15	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=15	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=15	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=3	prefix_len=3	value=0
+ROW	case=15	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=3	input_len=3	prefix_len=3	value=inf	double_bytes=000000000000f07f	is_nan=0	is_infinite=1	signbit=0
+ROW	case=15	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=0	end=3	input_len=3	prefix_len=3	value=inf	double_bytes=000000000000f07f	is_nan=0	is_infinite=1	signbit=0
+CASE	case=16	name=negative_infinity	input_len=4	prefix_len=4	input=2d496e66
+ROW	case=16	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=4	prefix_len=4	value=0
+ROW	case=16	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=4	prefix_len=4	value=0
+ROW	case=16	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=4	prefix_len=4	value=0
+ROW	case=16	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=4	input_len=4	prefix_len=4	value=-inf	double_bytes=000000000000f0ff	is_nan=0	is_infinite=1	signbit=1
+ROW	case=16	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=4	input_len=4	prefix_len=4	value=-inf	double_bytes=000000000000f0ff	is_nan=0	is_infinite=1	signbit=1
+ROW	case=16	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=4	prefix_len=4	value=0
+ROW	case=16	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=4	prefix_len=4	value=0
+ROW	case=16	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=4	prefix_len=4	value=0
+ROW	case=16	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=4	input_len=4	prefix_len=4	value=-inf	double_bytes=000000000000f0ff	is_nan=0	is_infinite=1	signbit=1
+ROW	case=16	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=0	end=4	input_len=4	prefix_len=4	value=-inf	double_bytes=000000000000f0ff	is_nan=0	is_infinite=1	signbit=1
+ROW	case=16	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=4	prefix_len=4	value=0
+ROW	case=16	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=4	prefix_len=4	value=0
+ROW	case=16	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=4	prefix_len=4	value=0
+ROW	case=16	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=4	input_len=4	prefix_len=4	value=-inf	double_bytes=000000000000f0ff	is_nan=0	is_infinite=1	signbit=1
+ROW	case=16	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=0	end=4	input_len=4	prefix_len=4	value=-inf	double_bytes=000000000000f0ff	is_nan=0	is_infinite=1	signbit=1
+CASE	case=17	name=double_overflow	input_len=6	prefix_len=6	input=316535303030
+ROW	case=17	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=1	input_len=6	prefix_len=6	value=1
+ROW	case=17	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=1	input_len=6	prefix_len=6	value=1
+ROW	case=17	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=1	input_len=6	prefix_len=6	value=1
+ROW	case=17	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=68	end=6	input_len=6	prefix_len=6	value=inf	double_bytes=000000000000f07f	is_nan=0	is_infinite=1	signbit=0
+ROW	case=17	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=68	end=6	input_len=6	prefix_len=6	value=inf	double_bytes=000000000000f07f	is_nan=0	is_infinite=1	signbit=0
+ROW	case=17	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=1	input_len=6	prefix_len=6	value=1
+ROW	case=17	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=1	input_len=6	prefix_len=6	value=1
+ROW	case=17	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=1	input_len=6	prefix_len=6	value=1
+ROW	case=17	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=68	end=6	input_len=6	prefix_len=6	value=inf	double_bytes=000000000000f07f	is_nan=0	is_infinite=1	signbit=0
+ROW	case=17	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=68	end=6	input_len=6	prefix_len=6	value=inf	double_bytes=000000000000f07f	is_nan=0	is_infinite=1	signbit=0
+ROW	case=17	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=1	input_len=6	prefix_len=6	value=1
+ROW	case=17	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=1	input_len=6	prefix_len=6	value=1
+ROW	case=17	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=1	input_len=6	prefix_len=6	value=1
+ROW	case=17	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=6	input_len=6	prefix_len=6	value=inf	double_bytes=000000000000f07f	is_nan=0	is_infinite=1	signbit=0
+ROW	case=17	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=68	end=6	input_len=6	prefix_len=6	value=inf	double_bytes=000000000000f07f	is_nan=0	is_infinite=1	signbit=0
+CASE	case=18	name=double_underflow	input_len=7	prefix_len=7	input=31652d35303030
+ROW	case=18	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=1	input_len=7	prefix_len=7	value=1
+ROW	case=18	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=1	input_len=7	prefix_len=7	value=1
+ROW	case=18	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=1	input_len=7	prefix_len=7	value=1
+ROW	case=18	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=68	end=7	input_len=7	prefix_len=7	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=18	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=68	end=7	input_len=7	prefix_len=7	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=18	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=1	input_len=7	prefix_len=7	value=1
+ROW	case=18	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=1	input_len=7	prefix_len=7	value=1
+ROW	case=18	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=1	input_len=7	prefix_len=7	value=1
+ROW	case=18	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=68	end=7	input_len=7	prefix_len=7	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=18	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=68	end=7	input_len=7	prefix_len=7	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=18	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=1	input_len=7	prefix_len=7	value=1
+ROW	case=18	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=1	input_len=7	prefix_len=7	value=1
+ROW	case=18	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=1	input_len=7	prefix_len=7	value=1
+ROW	case=18	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=7	input_len=7	prefix_len=7	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=18	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=68	end=7	input_len=7	prefix_len=7	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+CASE	case=19	name=counted_one_nul_x	input_len=3	prefix_len=1	input=310058
+ROW	case=19	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=1	input_len=3	prefix_len=1	value=1
+ROW	case=19	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=1	input_len=3	prefix_len=1	value=1
+ROW	case=19	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=1	input_len=3	prefix_len=1	value=1
+ROW	case=19	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=1	input_len=3	prefix_len=1	value=0x1p+0	double_bytes=000000000000f03f	is_nan=0	is_infinite=0	signbit=0
+ROW	case=19	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=0	end=1	input_len=3	prefix_len=1	value=0x1p+0	double_bytes=000000000000f03f	is_nan=0	is_infinite=0	signbit=0
+ROW	case=19	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=1	input_len=3	prefix_len=1	value=1
+ROW	case=19	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=1	input_len=3	prefix_len=1	value=1
+ROW	case=19	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=1	input_len=3	prefix_len=1	value=1
+ROW	case=19	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=18	end=1	input_len=3	prefix_len=1	value=0x1p+0	double_bytes=000000000000f03f	is_nan=0	is_infinite=0	signbit=0
+ROW	case=19	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=0	end=1	input_len=3	prefix_len=1	value=0x1p+0	double_bytes=000000000000f03f	is_nan=0	is_infinite=0	signbit=0
+ROW	case=19	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=1	input_len=3	prefix_len=1	value=1
+ROW	case=19	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=1	input_len=3	prefix_len=1	value=1
+ROW	case=19	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=1	input_len=3	prefix_len=1	value=1
+ROW	case=19	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=68	end=1	input_len=3	prefix_len=1	value=0x1p+0	double_bytes=000000000000f03f	is_nan=0	is_infinite=0	signbit=0
+ROW	case=19	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=0	end=1	input_len=3	prefix_len=1	value=0x1p+0	double_bytes=000000000000f03f	is_nan=0	is_infinite=0	signbit=0
+CASE	case=20	name=counted_initial_nul_one	input_len=2	prefix_len=0	input=0031
+ROW	case=20	worker=0	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=2	prefix_len=0	value=0
+ROW	case=20	worker=1	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=2	prefix_len=0	value=0
+ROW	case=20	worker=2	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=2	prefix_len=0	value=0
+ROW	case=20	worker=3	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=2	prefix_len=0	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=20	worker=4	seed_kind=0	seed=0	before=0	call_errno=0	after=28	end=0	input_len=2	prefix_len=0	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=20	worker=0	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=2	prefix_len=0	value=0
+ROW	case=20	worker=1	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=2	prefix_len=0	value=0
+ROW	case=20	worker=2	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=2	prefix_len=0	value=0
+ROW	case=20	worker=3	seed_kind=1	seed=18	before=18	call_errno=18	after=28	end=0	input_len=2	prefix_len=0	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=20	worker=4	seed_kind=1	seed=18	before=18	call_errno=0	after=28	end=0	input_len=2	prefix_len=0	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=20	worker=0	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=2	prefix_len=0	value=0
+ROW	case=20	worker=1	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=2	prefix_len=0	value=0
+ROW	case=20	worker=2	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=2	prefix_len=0	value=0
+ROW	case=20	worker=3	seed_kind=2	seed=68	before=68	call_errno=68	after=28	end=0	input_len=2	prefix_len=0	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ROW	case=20	worker=4	seed_kind=2	seed=68	before=68	call_errno=0	after=28	end=0	input_len=2	prefix_len=0	value=0x0p+0	double_bytes=0000000000000000	is_nan=0	is_infinite=0	signbit=0
+ADAPTER	seed_kind=0	seed=0	offset=0	call=executed	before=0	after=0	value=1	end=1	input_len=3	prefix_len=1
+ADAPTER	seed_kind=0	seed=0	offset=1	call=executed	before=0	after=28	value=0	end=1	input_len=3	prefix_len=1
+ADAPTER	seed_kind=0	seed=0	offset=2	call=rejected	before=0	after=0	input_len=3	prefix_len=1
+ADAPTER	seed_kind=0	seed=0	offset=3	call=rejected	before=0	after=0	input_len=3	prefix_len=1
+ADAPTER	seed_kind=1	seed=18	offset=0	call=executed	before=18	after=18	value=1	end=1	input_len=3	prefix_len=1
+ADAPTER	seed_kind=1	seed=18	offset=1	call=executed	before=18	after=28	value=0	end=1	input_len=3	prefix_len=1
+ADAPTER	seed_kind=1	seed=18	offset=2	call=rejected	before=18	after=18	input_len=3	prefix_len=1
+ADAPTER	seed_kind=1	seed=18	offset=3	call=rejected	before=18	after=18	input_len=3	prefix_len=1
+ADAPTER	seed_kind=2	seed=68	offset=0	call=executed	before=68	after=68	value=1	end=1	input_len=3	prefix_len=1
+ADAPTER	seed_kind=2	seed=68	offset=1	call=executed	before=68	after=28	value=0	end=1	input_len=3	prefix_len=1
+ADAPTER	seed_kind=2	seed=68	offset=2	call=rejected	before=68	after=68	input_len=3	prefix_len=1
+ADAPTER	seed_kind=2	seed=68	offset=3	call=rejected	before=68	after=68	input_len=3	prefix_len=1
+SUMMARY	cases=21	rows=315	errno_cells=3	adapter_rows=12

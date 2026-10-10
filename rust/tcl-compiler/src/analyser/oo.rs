@@ -6000,7 +6000,7 @@ _original_unknown $cmd $args";
                         )?;
                         Some(std::ptr::eq(
                             target_spec,
-                            schema.semantics.state_transitions.command,
+                            schema.authored_source_descriptors().command,
                         ))
                     },
                 )

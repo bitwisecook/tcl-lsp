@@ -16,43 +16,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **End-to-end execution** — a real emitted module *runs* under wasmtime.
+//! Execute emitted modules under wasmtime with a software ABI provider.
 //!
-//! `wasm_codegen.rs` proves the emitted bytes are structurally valid
-//! (`wasmtime compile`). This goes one step further: it **instantiates and
-//! invokes** the emitted `::top` on the wasmtime engine, proving the module
-//! actually runs — imports resolve against a real provider, the imported memory
-//! and data segments wire up, and the structured control flow + eval-fallback
-//! `call`s execute to completion without trapping.
+//! The imported memory and descriptor signatures use the actual code-generation
+//! ABI. The provider records evaluated source commands and writes controlled
+//! completion codes/truth values; these controls establish structured dispatch
+//! and ownership cleanup, not Native expression evaluation or object semantics.
+//! Successful conditions exercise both branches. Guest failures and first Host
+//! refusal must stop before any success truth value is used.
 //!
-//! The emitted module imports three `tcl_*` host functions and its linear memory
-//! from module `"tcl"` (the runtime's codegen ABI — `runtime/rust/codegen_abi.rs`
-//! now exports exactly this surface). Rather than link the whole runtime (the
-//! shared-memory dynamic-linking + `__memory_base` relocation that the
-//! whole-program artifact needs — a later increment), we satisfy those imports
-//! with a tiny **host stub** generated from the compiler's own WASM IR and
-//! `--preload`ed into wasmtime. The stub's `tcl_eval_code` returns `0` (`ok`, so
-//! the emitted completion-code dispatch always falls through) and `tcl_expr_bool`
-//! returns `0`, so every condition is false: each `if` takes its else, each loop
-//! exits immediately, and the invoked `::top` terminates without a real interp.
-//!
-//! Two tiers, both over the wasmtime CLI (no embedder crate):
-//!
-//! - **Tier 0** ([`emitted_modules_run_under_wasmtime`]) — *runnability*: the
-//!   module instantiates and `::top` runs to completion without trapping, across
-//!   the full snippet set (incl. nested loops, break/continue, mid-return). The
-//!   host stub is generated from the compiler's own WASM IR.
-//! - **Tier 1** ([`emitted_control_flow_runs_the_right_commands`]) —
-//!   *correctness*: a WASI-writing host stub prints each eval-fallback command's
-//!   text to stdout, so the test asserts the **exact executed command sequence**
-//!   — proving the emitted control flow takes the right branch / iterates as
-//!   structured. Driving `tcl_expr_bool` to `0` vs `1` exercises both the false
-//!   (else / loop-exit) and true (then) wiring.
-//!
-//! Backing the host with a real `Interp` to observe actual Tcl *side effects*
-//! (not just the command texts) is the next tier and needs the wasmtime embedder
-//! crate; running against the real runtime wasm needs the shared-memory dynamic
-//! link (`__memory_base` relocation) — both later increments.
+//! `wasm_real_link.rs` independently links the actual Runtime and retains its
+//! separate toolchain/admission requirements. This suite's stub outcome cannot
+//! establish that Runtime or a Native provider executed.
 
 use tcl_compiler::codegen::wasm::{
     GlobalInit, ValType, WasmCompileOptions, WasmFunction, WasmGlobal, WasmInstruction, WasmModule,
@@ -78,8 +53,8 @@ fn i32_const_0() -> WasmInstruction {
 /// the `tcl_*` functions the emitted module imports, with trivial bodies.
 /// `tcl_obj_new_string` returns a dummy `0` obj handle (the emitted module only
 /// passes it to `tcl_eval_code`, never dereferences it); `tcl_eval_code` returns
-/// `0` (the `ok` completion code, so nothing propagates) and `tcl_expr_bool`
-/// returns `0` (false) so all control flow terminates.
+/// `0` (the `ok` completion code, so nothing propagates). The combined Boolean
+/// export writes an OK completion and false truth, so all loops terminate.
 fn host_stub() -> WasmModule {
     let func =
         |name: &str, params: Vec<ValType>, results: Vec<ValType>, body: Vec<WasmInstruction>| {
@@ -118,10 +93,51 @@ fn host_stub() -> WasmModule {
             vec![i32_const_0()],
         ),
         func(
-            "tcl_expr_bool",
+            "tcl_obj_new_string_owned",
+            vec![ValType::I32, ValType::I32],
+            vec![ValType::I32],
+            vec![i32_const_0()],
+        ),
+        func(
+            "tcl_call_frame_alloc",
+            vec![ValType::I32, ValType::I32],
+            vec![ValType::I32],
+            vec![WasmInstruction::with_operands(
+                WasmOp::I32Const,
+                vec![0x80, 0xc0, 0x03],
+            )],
+        ),
+        func(
+            "tcl_call_frame_free",
             vec![ValType::I32],
             vec![ValType::I32],
             vec![i32_const_0()],
+        ),
+        func(
+            "tcl_obj_release",
+            vec![ValType::I32],
+            Vec::new(),
+            Vec::new(),
+        ),
+        func(
+            "tcl_completion_release",
+            vec![ValType::I32],
+            Vec::new(),
+            Vec::new(),
+        ),
+        func(
+            "tcl_codegen_expr_bool",
+            vec![ValType::I32; 3],
+            vec![ValType::I32],
+            vec![
+                WasmInstruction::with_operands(WasmOp::LocalGet, vec![1]),
+                i32_const_0(),
+                WasmInstruction::with_operands(WasmOp::I32Store, vec![2, 0]),
+                WasmInstruction::with_operands(WasmOp::LocalGet, vec![2]),
+                i32_const_0(),
+                WasmInstruction::with_operands(WasmOp::I32Store, vec![2, 0]),
+                i32_const_0(),
+            ],
         ),
     ];
     m
@@ -207,31 +223,81 @@ fn emitted_modules_run_under_wasmtime() {
 
 /// A **WASI-writing host stub** (WAT): `tcl_obj_new_string` packs the
 /// `(offset, len)` of the boxed string into one i32 (`ptr << 16 | len`), which
-/// `tcl_eval_code` unpacks and writes — the command text followed by a newline —
+/// `tcl_eval_code` unpacks and writes the command text followed by a newline
 /// to stdout via `fd_write`, then returns the fixed `eval_code` completion code
 /// (`0` = `ok`, so the emitted dispatch falls through; a non-zero drives the
 /// abrupt-completion paths — see [`emitted_completion_codes_propagate`]).
-/// `tcl_expr_bool` returns the fixed `expr_result`, so the test controls which
-/// branch the emitted control flow takes. (The scratch iovec at `0xF000` and the
+/// `tcl_codegen_expr_bool` writes an OK completion and the fixed `expr_result`
+/// truth, so the test controls which branch the emitted control flow takes. (The scratch iovec at `0xF000` and the
 /// newline iovec/byte at `0xF018` sit far above the emitted module's low-offset
 /// data — no collision.)
 fn wasi_recording_host(expr_result: u8, eval_code: u8) -> String {
+    condition_recording_host(expr_result, eval_code, 0, false, false, false)
+}
+
+/// Record actual emitted control/cleanup calls, with a software completion
+/// provider. The injected Guest codes exercise transport, not Native parsing.
+fn condition_recording_host(
+    expr_result: u8,
+    eval_code: u8,
+    condition_code: i32,
+    host_refusal: bool,
+    trace_cleanup: bool,
+    only_inner: bool,
+) -> String {
+    let host_refusal = i32::from(host_refusal);
+    let trace_cleanup = i32::from(trace_cleanup);
+    let only_inner = i32::from(only_inner);
     format!(
         r#"(module
   (import "wasi_snapshot_preview1" "fd_write"
     (func $fd_write (param i32 i32 i32 i32) (result i32)))
   (memory (export "memory") 1)
-  (func (export "tcl_obj_new_string") (param i32 i32) (result i32)
-    local.get 0 i32.const 16 i32.shl local.get 1 i32.or)
-  (func (export "tcl_eval_code") (param i32) (result i32)
-    (i32.store (i32.const 0xF000) (i32.shr_u (local.get 0) (i32.const 16)))
-    (i32.store (i32.const 0xF004) (i32.and (local.get 0) (i32.const 0xFFFF)))
+  (global $host (mut i32) (i32.const 0))
+  (global $outer (mut i32) (i32.const 0))
+  (func $line (param $ptr i32) (param $len i32)
+    (i32.store (i32.const 0xF000) (local.get $ptr))
+    (i32.store (i32.const 0xF004) (local.get $len))
     (drop (call $fd_write (i32.const 1) (i32.const 0xF000) (i32.const 1) (i32.const 0xF010)))
-    (drop (call $fd_write (i32.const 1) (i32.const 0xF018) (i32.const 1) (i32.const 0xF010)))
+    (drop (call $fd_write (i32.const 1) (i32.const 0xF018) (i32.const 1) (i32.const 0xF010))))
+  (func $box (param i32 i32) (result i32)
+    local.get 0 i32.const 16 i32.shl local.get 1 i32.or)
+  (export "tcl_obj_new_string" (func $box))
+  (export "tcl_obj_new_string_owned" (func $box))
+  (func (export "tcl_eval_code") (param i32) (result i32)
+    (call $line (i32.shr_u (local.get 0) (i32.const 16))
+      (i32.and (local.get 0) (i32.const 0xFFFF)))
     i32.const {eval_code})
-  (func (export "tcl_codegen_host_refusal_pending") (result i32) i32.const 0)
-  (func (export "tcl_expr_bool") (param i32) (result i32) i32.const {expr_result})
-  (data (i32.const 0xF018) "\20\f0\00\00\01\00\00\00\0a"))
+  (func (export "tcl_codegen_host_refusal_pending") (result i32) global.get $host)
+  (func (export "tcl_call_frame_alloc") (param i32 i32) (result i32) i32.const 0xE000)
+  (func (export "tcl_call_frame_free") (param i32) (result i32)
+    (if (i32.const {trace_cleanup}) (then (call $line (i32.const 0xF030) (i32.const 1))))
+    i32.const 0)
+  (func (export "tcl_obj_release") (param i32)
+    (if (i32.const {trace_cleanup}) (then (call $line (i32.const 0xF031) (i32.const 1)))))
+  (func (export "tcl_completion_release") (param i32)
+    (if (i32.const {trace_cleanup}) (then (call $line (i32.const 0xF032) (i32.const 1)))))
+  (func (export "tcl_codegen_expr_bool") (param $expr i32) (param $completion i32)
+    (param $truth i32) (result i32) (local $head i32) (local $code i32) (local $value i32)
+    (local.set $head (i32.load8_u offset=1 (i32.shr_u (local.get $expr) (i32.const 16))))
+    (if (i32.const {host_refusal}) (then (global.set $host (i32.const 1)) (return (i32.const -6))))
+    (if (i32.eq (i32.const {condition_code}) (i32.const -99)) (then (return (i32.const 1))))
+    (local.set $code (i32.const {condition_code}))
+    (local.set $value (i32.const {expr_result}))
+    (if (i32.const {only_inner})
+      (then
+        (if (i32.eq (local.get $head) (i32.const 111))
+          (then
+            (local.set $code (i32.const 0))
+            (local.set $value (i32.eqz (global.get $outer)))
+            (global.set $outer (i32.add (global.get $outer) (i32.const 1)))))))
+    (i32.store (local.get $completion) (local.get $code))
+    (i32.store offset=4 (local.get $completion) (i32.const 0))
+    (i32.store offset=8 (local.get $completion) (i32.const 0))
+    (if (i32.eqz (local.get $code)) (then (i32.store (local.get $truth) (local.get $value))))
+    i32.const 0)
+  (data (i32.const 0xF018) "\20\f0\00\00\01\00\00\00\0a")
+  (data (i32.const 0xF030) "FSC"))
 "#
     )
 }
@@ -249,10 +315,14 @@ fn run_capture(src: &str, expr_result: u8, tag: &str) -> String {
 /// terminate (`error`/`return`/`break`) are safe with a `true` guard — a fixed
 /// `continue` (4) under a `true` condition would iterate forever.
 fn run_capture_code(src: &str, expr_result: u8, eval_code: u8, tag: &str) -> String {
+    run_capture_host(src, wasi_recording_host(expr_result, eval_code), tag)
+}
+
+fn run_capture_host(src: &str, host_source: String, tag: &str) -> String {
     let tmp = std::env::temp_dir();
     let host = tmp.join(format!("tcl_e2e_wasi_{tag}.wat"));
     let user = tmp.join(format!("tcl_e2e_wuser_{tag}.wasm"));
-    std::fs::write(&host, wasi_recording_host(expr_result, eval_code)).expect("write host");
+    std::fs::write(&host, host_source).expect("write host");
     std::fs::write(&user, compile_user(src).to_bytes()).expect("write user module");
     let out = std::process::Command::new("wasmtime")
         .arg("run")
@@ -275,7 +345,8 @@ fn run_capture_code(src: &str, expr_result: u8, eval_code: u8, tag: &str) -> Str
 
 /// The emitted control flow executes the **right** commands: stdout is the exact
 /// sequence of eval-fallback texts for the branch/iteration the structure takes,
-/// with `tcl_expr_bool` forced to `0` (false) and `1` (true) to drive each side.
+/// with `tcl_codegen_expr_bool` writing `0` (false) and `1` (true) to its truth
+/// output to drive each side.
 #[test]
 fn emitted_control_flow_runs_the_right_commands() {
     if !have_wasmtime() {
@@ -329,7 +400,7 @@ fn emitted_control_flow_runs_the_right_commands() {
 /// an `error`/`return` unwinds the compiled function and a
 /// `break` re-enters the enclosing loop's exit — so an abrupt code inside a
 /// compiled `while` must not loop forever or run dead code. The recording
-/// host forces `tcl_expr_bool` to `1` (guard true) and `tcl_eval_code` to the
+/// host makes `tcl_codegen_expr_bool` write `1` (guard true) and `tcl_eval_code` to the
 /// code under test, so a *swallowed* code would iterate the `while {1}` forever;
 /// the tests terminate precisely because the code is honoured.
 #[test]
@@ -362,6 +433,118 @@ fn emitted_completion_codes_propagate() {
         run_capture_code("while {1} {puts body}\nputs after\n", 1, 3, "brkLoop"),
         "puts body\nputs after\n"
     );
+}
+
+/// These are executed emitted-module controls with a software ABI provider.
+/// They prove completion dispatch/cleanup, not Native expression equivalence.
+#[test]
+fn original_general_conditions_dispatch_guest_codes_before_truth() {
+    // naming.numeric.original-primitive-boolean-vs-expression-truth
+    // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+    if !have_wasmtime() {
+        eprintln!("wasmtime CLI unavailable; condition completion controls unexecuted");
+        return;
+    }
+    for code in [1, 2, 3, 4, 7] {
+        for (kind, source, prefix) in [
+            (
+                "if",
+                "if {[probe]} {puts WRONG} else {puts WRONG_ELSE}\nputs AFTER\n",
+                "",
+            ),
+            ("while", "while {[probe]} {puts WRONG}\nputs AFTER\n", ""),
+            (
+                "for",
+                "for {puts INIT} {[probe]} {puts STEP} {puts WRONG}\nputs AFTER\n",
+                "puts INIT\n",
+            ),
+        ] {
+            let out = run_capture_host(
+                source,
+                condition_recording_host(1, 0, code, false, true, false),
+                &format!("condition_{kind}_code{code}"),
+            );
+            assert_eq!(out, format!("{prefix}S\nC\nF\n"), "{kind} code{code}");
+        }
+    }
+    for (truth, branch) in [(0, "puts ELSE"), (1, "puts THEN")] {
+        let out = run_capture_host(
+            "if {[probe]} {puts THEN} else {puts ELSE}\nputs AFTER\n",
+            condition_recording_host(truth, 0, 0, false, true, false),
+            &format!("condition_success{truth}"),
+        );
+        assert_eq!(out, format!("S\nC\nF\n{branch}\nputs AFTER\n"));
+    }
+}
+
+#[test]
+fn original_general_nested_condition_completions_reach_the_owning_loop() {
+    // naming.numeric.original-primitive-boolean-vs-expression-truth
+    // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+    if !have_wasmtime() {
+        eprintln!("wasmtime CLI unavailable; nested condition controls unexecuted");
+        return;
+    }
+    for inner in [
+        "if {[inner]} {puts WRONG} else {puts WRONG_ELSE}",
+        "while {[inner]} {puts WRONG}",
+        "for {} {[inner]} {puts WRONG_STEP} {puts WRONG}",
+    ] {
+        for code in [1, 2, 3, 4, 7] {
+            let source =
+                format!("while {{[outer]}} {{{inner}\nputs WRONG_AFTER_INNER}}\nputs AFTER\n");
+            let out = run_capture_host(
+                &source,
+                condition_recording_host(1, 0, code, false, true, true),
+                &format!(
+                    "nested_condition_{}_code{code}",
+                    if inner.starts_with("if") {
+                        "if"
+                    } else if inner.starts_with("while") {
+                        "while"
+                    } else {
+                        "for"
+                    }
+                ),
+            );
+            let cleanup = "S\nC\nF\n";
+            let expected = match code {
+                3 => format!("{cleanup}{cleanup}puts AFTER\n"),
+                4 => format!("{cleanup}{cleanup}{cleanup}puts AFTER\n"),
+                _ => format!("{cleanup}{cleanup}"),
+            };
+            assert_eq!(out, expected, "{inner} code{code}");
+        }
+    }
+}
+
+#[test]
+fn original_general_condition_host_refusal_cleans_before_any_guest_branch() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    if !have_wasmtime() {
+        eprintln!("wasmtime CLI unavailable; condition first-Host control unexecuted");
+        return;
+    }
+    for (kind, source) in [
+        (
+            "if",
+            "if {[probe]} {puts WRONG} else {puts WRONG_ELSE}\nputs AFTER\n",
+        ),
+        ("while", "while {[probe]} {puts WRONG}\nputs AFTER\n"),
+    ] {
+        for (status, host_refusal) in [(3, true), (-99, false)] {
+            let out = run_capture_host(
+                source,
+                condition_recording_host(1, 0, status, host_refusal, true, false),
+                &format!("condition_refusal_{kind}_{status}"),
+            );
+            assert_eq!(
+                out, "S\nC\nF\n",
+                "Host or invalid transport bypasses Guest break/false dispatch"
+            );
+        }
+    }
 }
 
 /// A host stub standing in for the linked runtime's table half: it exports a

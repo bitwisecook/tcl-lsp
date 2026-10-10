@@ -34,7 +34,7 @@
 //!    [`SemanticOptimisationPassId::LegacyAnalysisSpecialisation`] tier.
 //! 2. **How much Tcl framing is left?** [`samples/wasm/budgets.tsv`] records,
 //!    per sample and plan, the number of `call` sites reaching
-//!    `tcl_eval_code` / `tcl_expr_bool` / `tcl_invoke_argv` and the number of
+//!    `tcl_eval_code` / `tcl_codegen_expr_bool` / `tcl_invoke_argv` and the number of
 //!    native 64-bit numeric instructions. A framing reduction lands as a
 //!    *reviewed golden diff* rather than an unmeasured claim.
 //!
@@ -194,7 +194,7 @@ const EXPECTED_DIVERGENCES: &[ExpectedDivergence] = &[
 struct Budget {
     /// `call` sites reaching `tcl_eval_code` — run-time re-parse of source.
     eval_code: usize,
-    /// `call` sites reaching `tcl_expr_bool` — a condition through the interp.
+    /// `call` sites reaching `tcl_codegen_expr_bool` — a condition through the interp.
     expr_bool: usize,
     /// `call` sites reaching `tcl_invoke_argv` — compiled words, runtime
     /// dispatch.
@@ -265,7 +265,7 @@ fn budget_of(module: &WasmModule) -> Budget {
             .map(|index| index as u64)
     };
     let eval_code = index_of(CodegenAbiImportId::EvalCode);
-    let expr_bool = index_of(CodegenAbiImportId::ExprBool);
+    let expr_bool = index_of(CodegenAbiImportId::ExprBoolEval);
     let invoke_argv = index_of(CodegenAbiImportId::InvokeArgv);
 
     let mut budget = Budget {

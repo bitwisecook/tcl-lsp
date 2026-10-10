@@ -22,6 +22,7 @@ DIRECTORY = Path("docs/design/analysis/name-resolution-proofs")
 PROVIDERS = {"tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim", "bigip"}
 CLASSIFICATIONS = {
     "native-observation",
+    "environment-observation",
     "authored-contract",
     "provider-scaffolding",
     "input-fixture",
@@ -329,6 +330,42 @@ def marked_questions(root: Path) -> list[tuple[str, str]]:
     return result
 
 
+def environment_errors(record: dict, evidence: dict, doc: str) -> list[str]:
+    """Keep measured non-Tcl environments independent of native providers."""
+    label = record["id"]
+    environments = record.get("environments", [])
+    if record["kind"] != "environment-observation":
+        return [f"{label}: environment answers require their own record kind"] if "environments" in record else []
+    errors = []
+    if not environments:
+        errors.append(f"{label}: environment observation has no environment answer")
+    if not any(item["status"] in {"observed", "failed"} for item in environments):
+        errors.append(f"{label}: environment observation has no captured result")
+    identifiers = [item["id"] for item in environments]
+    if len(identifiers) != len(set(identifiers)):
+        errors.append(f"{label}: duplicate environment answer")
+    if any(provider["status"] in {"observed", "unsupported", "inspected"} for provider in record["providers"]):
+        errors.append(f"{label}: environment result cannot issue a measured native-provider answer")
+    for item in environments:
+        context = f"{label}/{item['id']}"
+        measured = item["status"] in {"observed", "failed"}
+        if measured and not item["evidence"]:
+            errors.append(f"{context}: captured environment answer has no evidence")
+        for key in item["evidence"]:
+            if key not in evidence:
+                errors.append(f"{context}: unknown evidence ID {key}")
+        roles = {evidence[key]["role"] for key in item["evidence"] if key in evidence}
+        if measured and "provider" not in roles:
+            errors.append(f"{context}: captured environment answer has no provider record")
+        if item["status"] == "observed" and "observation" not in roles:
+            errors.append(f"{context}: observed environment answer has no observation")
+        if item["status"] == "failed" and not roles.intersection({"observation", "limitation"}):
+            errors.append(f"{context}: failed environment answer has no failure observation")
+        if normalized(item["answer"]) not in normalized(doc):
+            errors.append(f"{context}: document omits exact environment answer")
+    return errors
+
+
 def validate(root: Path, structure_only: bool = False) -> tuple[list[str], dict]:
     errors: list[str] = []
     schema = json.loads((root / DIRECTORY / "schema.json").read_text())
@@ -442,6 +479,7 @@ def validate(root: Path, structure_only: bool = False) -> tuple[list[str], dict]
                     errors.append(
                         f"{label}/{provider['id']}: source inspection lacks its own pinned excerpt"
                     )
+        errors.extend(environment_errors(record, evidence, doc))
         if record["kind"] == "native-observation" and not any(
             p["status"] in {"observed", "unsupported"} for p in providers
         ):
@@ -536,7 +574,7 @@ def validate(root: Path, structure_only: bool = False) -> tuple[list[str], dict]
         ids = row.get("proof_ids", [])
         if (
             classification
-            in {"native-observation", "authored-contract", "duplicate-evidence"}
+            in {"native-observation", "environment-observation", "authored-contract", "duplicate-evidence"}
             and not ids
         ):
             errors.append(f"census question association is absent: {name}")

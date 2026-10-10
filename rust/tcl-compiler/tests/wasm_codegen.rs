@@ -346,7 +346,7 @@ fn analysed_direct_call_preserves_static_and_dynamic_execution_traces() {
 /// stripping a trailing `}` off the slice can only ever delete a byte of real
 /// content: any clause whose last inner character is `}` — `${name}`, a
 /// trailing braced word, a nested dict/list literal — would be truncated, and
-/// the truncated text reaching `tcl_expr_bool` / `tcl_eval_code` raises an
+/// the truncated text reaching `tcl_codegen_expr_bool` / `tcl_eval_code` raises an
 /// unbalanced-brace parse error on code the user wrote correctly.
 ///
 /// Each vector below asserts the *exact* interned clause text, so a
@@ -453,7 +453,7 @@ fn clause_text_keeps_the_delimiters_of_a_substitution_condition_word() {
 /// always excludes the closer" assumption: the lexer's span *includes* the
 /// closing `"` exactly when the word ends in a substitution. Assuming
 /// otherwise emitted a stray trailing quote — `if "$a == $b"` became
-/// `$a == $b"`, which `tcl_expr_bool` rejects with `missing operator` on
+/// `$a == $b"`, which `tcl_codegen_expr_bool` rejects with `missing operator` on
 /// correct user code.
 ///
 /// `while` / `for` never reach this path (they gate on `arg_single` and
@@ -850,23 +850,26 @@ fn linear_top_level_eval_fallback() {
     // The eval-fallback import boundary is declared.
     assert!(wat.contains(r#""tcl_obj_new_string""#), "{wat}");
     assert!(wat.contains(r#""tcl_eval_code""#), "{wat}");
-    assert!(wat.contains(r#""tcl_expr_bool""#), "{wat}");
+    assert!(wat.contains(r#""tcl_codegen_expr_bool""#), "{wat}");
     assert!(wat.contains(r#""memory""#), "{wat}");
     // Both commands' source text is interned in the data section.
     assert!(wat.contains(r#""set x 5""#), "{wat}");
     assert!(wat.contains(r#""puts $x""#), "{wat}");
     // Exported top-level entry.
     assert!(wat.contains(r#"(export "::top")"#), "{wat}");
-    // Two eval-fallback sequences (box → eval_code → dispatch) ⇒ two `call 1`
-    // (`tcl_eval_code`, import index 1).
-    assert_eq!(m.to_wat().matches("\n        call 1").count(), 2, "{wat}");
+    // Both source commands reach the selected eval-code descriptor.
+    assert_eq!(
+        import_calls(&wat, CodegenAbiImportId::EvalCode.descriptor().name),
+        2,
+        "{wat}",
+    );
     // Valid module header.
     let bytes = m.to_bytes();
     assert_eq!(&bytes[0..4], b"\0asm", "wasm magic");
 }
 
 /// An `if`/`else` is recovered as **structured** WASM control flow, with the
-/// clean (brace-stripped) condition text interned for `tcl_expr_bool`.
+/// clean (brace-stripped) condition text interned for `tcl_codegen_expr_bool`.
 #[test]
 fn if_else_is_structured() {
     let mut m = compile_wasm("if {1} {puts a} else {puts b}\n");

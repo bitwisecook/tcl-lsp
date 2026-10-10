@@ -620,16 +620,23 @@ pub unsafe extern "C" fn tcl_value_get_wide_int(value: *mut TclObj, out: *mut i6
     if unsafe { (*interp).host_refusal_pending() } {
         return TCL_VALUE_GET_ERROR;
     }
-    match crate::typed_value::native_wide_int(value, unsafe {
-        (*interp).native_invocation_dialect()
-    }) {
-        Ok(parsed) => {
-            // SAFETY: `out` is writable aligned storage per the contract.
+    // The live scalar owner retains the actual engine, Host ABI and one probe.
+    let interp = unsafe { &mut *interp };
+    match crate::capi::read_scalar_for_interpreter(
+        interp,
+        value,
+        tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
+    ) {
+        Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(parsed)) => {
+            // SAFETY: out is writable aligned storage per the contract.
             unsafe { out.write(parsed) };
             TCL_VALUE_GET_OK
         }
-        // SAFETY: `interp` is the live current interpreter.
-        Err(error) => unsafe { typed_read_error(interp, error) },
+        Ok(_) => unexpected_scalar_output(interp),
+        Err(error) => {
+            error.publish(interp);
+            TCL_VALUE_GET_ERROR
+        }
     }
 }
 
@@ -651,15 +658,22 @@ pub unsafe extern "C" fn tcl_value_get_double(value: *mut TclObj, out: *mut f64)
     if unsafe { (*interp).host_refusal_pending() } {
         return TCL_VALUE_GET_ERROR;
     }
-    match crate::typed_value::native_double(value, unsafe { (*interp).native_invocation_dialect() })
-    {
-        Ok(parsed) => {
-            // SAFETY: `out` is writable aligned storage per the contract.
+    let interp = unsafe { &mut *interp };
+    match crate::capi::read_scalar_for_interpreter(
+        interp,
+        value,
+        tcl_syntax::scalar_getter::NativeScalarGetterKind::Double,
+    ) {
+        Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Double(parsed)) => {
+            // SAFETY: out is writable aligned storage per the contract.
             unsafe { out.write(parsed) };
             TCL_VALUE_GET_OK
         }
-        // SAFETY: `interp` is the live current interpreter.
-        Err(error) => unsafe { typed_read_error(interp, error) },
+        Ok(_) => unexpected_scalar_output(interp),
+        Err(error) => {
+            error.publish(interp);
+            TCL_VALUE_GET_ERROR
+        }
     }
 }
 
@@ -681,17 +695,30 @@ pub unsafe extern "C" fn tcl_value_get_bool(value: *mut TclObj, out: *mut i32) -
     if unsafe { (*interp).host_refusal_pending() } {
         return TCL_VALUE_GET_ERROR;
     }
-    match crate::typed_value::native_boolean(value, unsafe {
-        (*interp).native_invocation_dialect()
-    }) {
-        Ok(parsed) => {
-            // SAFETY: `out` is writable aligned storage per the contract.
-            unsafe { out.write(i32::from(parsed)) };
+    let interp = unsafe { &mut *interp };
+    match crate::capi::read_scalar_for_interpreter(
+        interp,
+        value,
+        tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
+    ) {
+        Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(parsed)) => {
+            // This is only the truth projection of the primitive's raw C int.
+            unsafe { out.write(i32::from(parsed.is_true())) };
             TCL_VALUE_GET_OK
         }
-        // SAFETY: `interp` is the live current interpreter.
-        Err(error) => unsafe { typed_read_error(interp, error) },
+        Ok(_) => unexpected_scalar_output(interp),
+        Err(error) => {
+            error.publish(interp);
+            TCL_VALUE_GET_ERROR
+        }
     }
+}
+
+fn unexpected_scalar_output(interpreter: &mut Interp) -> i32 {
+    interpreter.refuse_native_access(
+        tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
+    );
+    TCL_VALUE_GET_ERROR
 }
 
 /// Convert the original value at a reached expression operand instruction.
@@ -3420,6 +3447,430 @@ mod tests {
         // SAFETY: `value` is live and `out` is local aligned storage.
         let status = unsafe { tcl_value_get_bool(value, &mut out) };
         (status, out)
+    }
+
+    fn scalar_interpreter(environment: &str) -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            tcl_registry::model::resolve_environment(environment).unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn boxed_primitive_reads_share_actual_environment_and_raw_boolean_projection() {
+        // Software adapters: naming.numeric.original-capi-scalar-publication-width
+        // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+        leak_free(|| unsafe {
+            for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+                let mut interp = scalar_interpreter(environment);
+                tcl_runtime_set_current_interp(&mut interp);
+                let wide = owned_word(b"0x10");
+                let double = owned_word(b"1.5");
+                assert_eq!(get_wide(wide), (TCL_VALUE_GET_OK, 16), "{environment}");
+                assert_eq!(get_double(double), (TCL_VALUE_GET_OK, 1.5), "{environment}");
+                assert_eq!(obj_bytes(wide), b"0x10");
+                assert_eq!(obj_bytes(double), b"1.5");
+                release_words(&[wide, double]);
+                for number in [17, 4_294_967_296] {
+                    let primitive = obj::Owned::fresh(obj::new_wide_int_obj(number));
+                    let boxed = obj::Owned::fresh(obj::new_wide_int_obj(number));
+                    let mut raw = 777;
+                    assert_eq!(
+                        crate::capi::Tcl_GetBooleanFromObj(
+                            &mut interp,
+                            primitive.as_ptr(),
+                            &mut raw,
+                        ),
+                        crate::capi::TCL_OK
+                    );
+                    let expected = if environment == "jim" {
+                        if number == 17 {
+                            17
+                        } else {
+                            0
+                        }
+                    } else {
+                        1
+                    };
+                    assert_eq!(raw, expected, "{environment}, {number}");
+                    assert_eq!(
+                        get_bool(boxed.as_ptr()),
+                        (TCL_VALUE_GET_OK, i32::from(raw != 0))
+                    );
+                    assert!(!interp.host_refusal_pending());
+                }
+                tcl_runtime_set_current_interp(ptr::null_mut());
+            }
+        });
+    }
+
+    struct ScalarNumericHost {
+        actual: Rc<dyn Host>,
+        interpreter: RefCell<Option<Interp>>,
+        double_calls: std::cell::Cell<usize>,
+        abi_calls: std::cell::Cell<usize>,
+        change_abi_context: std::cell::Cell<bool>,
+        abi_query_fails: std::cell::Cell<bool>,
+        abi_available: bool,
+        change_context: bool,
+    }
+
+    impl Host for ScalarNumericHost {
+        fn capabilities(&self) -> Capabilities {
+            self.actual.capabilities()
+        }
+        fn clock(&self) -> &dyn Clock {
+            self.actual.clock()
+        }
+        fn stdio(&self) -> &dyn StdIo {
+            self.actual.stdio()
+        }
+        fn env(&self) -> &dyn Env {
+            self.actual.env()
+        }
+        fn numeric_environment(&self) -> Option<&dyn tcl_platform::NumericEnvironment> {
+            self.abi_available.then_some(self)
+        }
+    }
+
+    impl ScalarNumericHost {
+        fn actual(&self) -> &dyn tcl_platform::NumericEnvironment {
+            self.actual
+                .numeric_environment()
+                .expect("actual native numeric environment")
+        }
+        fn change_and_restore_context(&self) {
+            let mut interp = self.interpreter.borrow().as_ref().unwrap().clone();
+            let original = interp.runtime_context();
+            let mut changed = original.clone();
+            changed.packages = vec![("boxed-scalar-currency".to_owned(), "1.0".to_owned())];
+            interp.pin_context(&changed).unwrap();
+            interp.pin_context(&original).unwrap();
+        }
+    }
+
+    impl tcl_platform::NumericEnvironment for ScalarNumericHost {
+        fn c_integer_abi(
+            &self,
+        ) -> Result<tcl_platform::NativeCIntegerAbi, tcl_platform::NumericEnvironmentUnavailable>
+        {
+            let result = self.actual().c_integer_abi();
+            self.abi_calls.set(self.abi_calls.get() + 1);
+            if self.change_abi_context.get() {
+                self.change_and_restore_context();
+            }
+            if self.abi_query_fails.get() {
+                Err(tcl_platform::NumericEnvironmentUnavailable::Target)
+            } else {
+                result
+            }
+        }
+        fn state(
+            &self,
+        ) -> Result<tcl_platform::NumericErrorState, tcl_platform::NumericEnvironmentUnavailable>
+        {
+            self.actual().state()
+        }
+        fn reset(&self) -> Result<(), tcl_platform::NumericEnvironmentUnavailable> {
+            self.actual().reset()
+        }
+        fn unsigned_c84(
+            &self,
+            input: &[u8],
+            offset: usize,
+            long: bool,
+        ) -> Result<
+            tcl_platform::UnsignedNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            self.actual().unsigned_c84(input, offset, long)
+        }
+        fn unsigned(
+            &self,
+            input: &[u8],
+            offset: usize,
+            base: u32,
+        ) -> Result<
+            tcl_platform::UnsignedNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            self.actual().unsigned(input, offset, base)
+        }
+        fn signed_long(
+            &self,
+            input: &[u8],
+            base: u32,
+        ) -> Result<
+            tcl_platform::SignedNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            self.actual().signed_long(input, base)
+        }
+        fn double(
+            &self,
+            input: &[u8],
+            reset: bool,
+        ) -> Result<
+            tcl_platform::DoubleNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            let result = self.actual().double(input, reset);
+            self.double_calls.set(self.double_calls.get() + 1);
+            if self.change_context {
+                self.change_and_restore_context();
+            }
+            result
+        }
+    }
+
+    fn scalar_host(
+        interp: &Interp,
+        abi_available: bool,
+        change_context: bool,
+    ) -> Rc<ScalarNumericHost> {
+        let host = Rc::new(ScalarNumericHost {
+            actual: interp.host(),
+            interpreter: RefCell::new(None),
+            double_calls: std::cell::Cell::new(0),
+            abi_calls: std::cell::Cell::new(0),
+            change_abi_context: std::cell::Cell::new(false),
+            abi_query_fails: std::cell::Cell::new(false),
+            abi_available,
+            change_context,
+        });
+        interp.set_host(host.clone());
+        host
+    }
+
+    #[test]
+    fn boxed_primitive_reads_keep_missing_abi_and_first_host_terminal() {
+        // Software owner: naming.numeric.original-capi-scalar-publication-width
+        // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+        leak_free(|| unsafe {
+            for first_host in [false, true] {
+                let mut interp = scalar_interpreter("tcl8.4");
+                let host = scalar_host(&interp, false, false);
+                interp.set_result_bytes(b"PRIOR\0\xff");
+                if first_host {
+                    interp.refuse_host_command("original first refusal");
+                }
+                let first = interp.native_execution_refusal();
+                let value = owned_word(b"17");
+                let before = obj::native_object_snapshot(value).unwrap();
+                tcl_runtime_set_current_interp(&mut interp);
+                assert_eq!(get_wide(value), (TCL_VALUE_GET_ERROR, i64::MIN));
+                let double = get_double(value);
+                assert_eq!(double.0, TCL_VALUE_GET_ERROR);
+                assert!(double.1.is_nan());
+                assert_eq!(get_bool(value), (TCL_VALUE_GET_ERROR, -1));
+                assert_eq!(host.double_calls.get(), 0);
+                assert_eq!(obj::native_object_snapshot(value).unwrap(), before);
+                assert_eq!(interp.result_bytes(), b"PRIOR\0\xff");
+                assert!(interp.host_refusal_pending());
+                if first_host {
+                    assert_eq!(interp.native_execution_refusal(), first);
+                }
+                release_words(&[value]);
+                tcl_runtime_set_current_interp(ptr::null_mut());
+            }
+        });
+    }
+
+    #[test]
+    fn boxed_primitive_reads_refuse_foreign_and_restored_engine_issuers() {
+        // Software owner: naming.numeric.original-capi-scalar-publication-width
+        // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+        leak_free(|| unsafe {
+            for foreign in [false, true] {
+                let mut owner = scalar_interpreter("tcl8.6");
+                let mut other = scalar_interpreter("tcl8.6");
+                let value = owned_word(b"17");
+                crate::capi::bind_scalar_getter_context(&owner, value).unwrap();
+                let before = obj::native_object_snapshot(value).unwrap();
+                let original = owner.runtime_context();
+                if !foreign {
+                    let mut changed = original.clone();
+                    changed.packages = vec![("boxed-scalar-owner".to_owned(), "1.0".to_owned())];
+                    owner.pin_context(&changed).unwrap();
+                    owner.pin_context(&original).unwrap();
+                }
+                let selected = if foreign { &mut other } else { &mut owner };
+                selected.set_result_bytes(b"UNCHANGED");
+                tcl_runtime_set_current_interp(selected);
+                assert_eq!(get_wide(value), (TCL_VALUE_GET_ERROR, i64::MIN));
+                assert_eq!(get_bool(value), (TCL_VALUE_GET_ERROR, -1));
+                assert!(selected.host_refusal_pending());
+                assert_eq!(selected.result_bytes(), b"UNCHANGED");
+                assert_eq!(obj::native_object_snapshot(value).unwrap(), before);
+                release_words(&[value]);
+                tcl_runtime_set_current_interp(ptr::null_mut());
+            }
+        });
+    }
+
+    #[test]
+    fn boxed_primitive_host_change_and_restore_stops_before_cache_and_output() {
+        // Software currency: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        leak_free(|| unsafe {
+            for environment in ["tcl8.4", "jim"] {
+                let mut interp = scalar_interpreter(environment);
+                let host = scalar_host(&interp, true, true);
+                *host.interpreter.borrow_mut() = Some(interp.clone());
+                let context = interp.runtime_context();
+                let profile = interp.dialect_profile();
+                interp.set_result_bytes(b"PRIOR\0\xff");
+                let prior = interp.get_obj_result();
+                let value = owned_word(b"1.5");
+                let before = obj::native_object_snapshot(value).unwrap();
+                tcl_runtime_set_current_interp(&mut interp);
+                let outcome = get_double(value);
+                assert_eq!(outcome.0, TCL_VALUE_GET_ERROR);
+                assert!(outcome.1.is_nan());
+                assert_eq!(host.double_calls.get(), 1, "{environment}");
+                assert_eq!(interp.runtime_context(), context);
+                assert!(std::ptr::eq(interp.dialect_profile(), profile));
+                let first = interp.native_execution_refusal().unwrap();
+                assert_eq!(first, tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "stale entered native operation",
+                    ),
+                ));
+                assert_eq!(obj::native_object_snapshot(value).unwrap(), before);
+                assert_eq!(interp.get_obj_result(), prior);
+                assert_eq!(interp.result_bytes(), b"PRIOR\0\xff");
+                assert_eq!(get_bool(value), (TCL_VALUE_GET_ERROR, -1));
+                assert_eq!(host.double_calls.get(), 1);
+                assert_eq!(interp.native_execution_refusal(), Some(first));
+                tcl_runtime_set_current_interp(ptr::null_mut());
+                release_words(&[value]);
+                host.interpreter.borrow_mut().take();
+            }
+        });
+    }
+
+    #[test]
+    fn scalar_abi_query_change_and_restore_cannot_issue_or_refresh_a_receipt() {
+        // Software currency: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        leak_free(|| unsafe {
+            for retained in [false, true] {
+                for query_fails in [false, true] {
+                    let mut interp = scalar_interpreter("tcl8.6");
+                    let host = scalar_host(&interp, true, false);
+                    *host.interpreter.borrow_mut() = Some(interp.clone());
+                    let value = owned_word(b"1.5");
+                    if retained {
+                        crate::capi::bind_scalar_getter_context(&interp, value).unwrap();
+                    }
+                    let before = obj::native_object_snapshot(value).unwrap();
+                    let context = interp.runtime_context();
+                    let calls = host.abi_calls.get();
+                    host.change_abi_context.set(true);
+                    host.abi_query_fails.set(query_fails);
+                    interp.set_result_bytes(b"PRIOR");
+                    let error = crate::capi::probe_scalar_getter(
+                        if retained { None } else { Some(&interp) },
+                        value,
+                        tcl_syntax::scalar_getter::NativeScalarGetterKind::Double,
+                    )
+                    .unwrap_err();
+                    let first = interp.native_execution_refusal().unwrap();
+                    assert!(
+                        matches!(error, crate::capi::NativeScalarObjectAccessError::Execution(ref cause) if *cause == first)
+                    );
+                    assert_eq!(first, tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                        tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                            "stale entered native operation",
+                        ),
+                    ));
+                    assert_eq!(host.abi_calls.get(), calls + 1);
+                    assert_eq!(host.double_calls.get(), 0);
+                    assert_eq!(interp.runtime_context(), context);
+                    assert_eq!(obj::native_object_snapshot(value).unwrap(), before);
+                    assert_eq!(interp.result_bytes(), b"PRIOR");
+                    if !retained {
+                        assert!(obj::scalar_object_context(value).unwrap().is_none());
+                    }
+                    tcl_runtime_set_current_interp(&mut interp);
+                    let outcome = get_double(value);
+                    assert_eq!(outcome.0, TCL_VALUE_GET_ERROR);
+                    assert!(outcome.1.is_nan());
+                    assert_eq!(host.abi_calls.get(), calls + 1);
+                    assert_eq!(interp.native_execution_refusal(), Some(first));
+                    tcl_runtime_set_current_interp(ptr::null_mut());
+                    release_words(&[value]);
+                    host.interpreter.borrow_mut().take();
+                }
+            }
+        });
+    }
+
+    thread_local! {
+        static SCALAR_UPDATER_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    extern "C" fn scalar_context_changing_updater(value: *mut TclObj) {
+        SCALAR_UPDATER_CALLS.with(|calls| calls.set(calls.get() + 1));
+        // SAFETY: the actual caller retains this original interpreter for the
+        // updater. The clone shares its real state without borrowing it.
+        let mut interp = unsafe { current_interp().as_ref() }.unwrap().clone();
+        let original = interp.runtime_context();
+        let mut changed = original.clone();
+        changed.packages = vec![("boxed-scalar-updater".to_owned(), "1.0".to_owned())];
+        interp.pin_context(&changed).unwrap();
+        interp.pin_context(&original).unwrap();
+        // SAFETY: this actual descriptor owns the live original header.
+        unsafe { obj::set_native_updater_string_rep(value, b"17", false) };
+    }
+
+    static SCALAR_CONTEXT_TYPE: obj::TclObjType = obj::TclObjType {
+        name: c"originalScalarCurrency".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(scalar_context_changing_updater),
+        set_from_any_proc: None,
+    };
+
+    #[test]
+    fn boxed_primitive_updater_change_and_restore_keeps_only_reached_string_effects() {
+        // Software stages: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        leak_free(|| unsafe {
+            let mut interp = scalar_interpreter("tcl8.6");
+            let original = obj::Owned::fresh(obj::alloc_typed(&SCALAR_CONTEXT_TYPE, 0));
+            let value = original.as_ptr();
+            let context = interp.runtime_context();
+            let references = (*value).ref_count;
+            interp.set_result_bytes(b"PRIOR");
+            let result = interp.get_obj_result();
+            SCALAR_UPDATER_CALLS.with(|calls| calls.set(0));
+            tcl_runtime_set_current_interp(&mut interp);
+            assert_eq!(get_wide(value), (TCL_VALUE_GET_ERROR, i64::MIN));
+            let first = interp.native_execution_refusal().unwrap();
+            assert_eq!(
+                first,
+                tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "stale entered native operation",
+                    ),
+                )
+            );
+            SCALAR_UPDATER_CALLS.with(|calls| assert_eq!(calls.get(), 1));
+            assert_eq!(interp.runtime_context(), context);
+            assert_eq!(obj::bytes_of(value), b"17");
+            assert_eq!(obj::obj_type_ptr(value), &SCALAR_CONTEXT_TYPE as *const _);
+            assert!(obj::native_scalar_cache(value).unwrap().is_none());
+            assert_eq!((*value).ref_count, references);
+            assert_eq!(interp.get_obj_result(), result);
+            assert_eq!(interp.result_bytes(), b"PRIOR");
+            assert_eq!(get_bool(value), (TCL_VALUE_GET_ERROR, -1));
+            SCALAR_UPDATER_CALLS.with(|calls| assert_eq!(calls.get(), 1));
+            assert_eq!(interp.native_execution_refusal(), Some(first));
+            tcl_runtime_set_current_interp(ptr::null_mut());
+        });
     }
 
     /// A successful typed read caches the parsed rep onto the object — C's

@@ -96,7 +96,26 @@ pub(crate) fn native_scalar_probe_with_environment(
     >,
     tcl_syntax::value::ValueError,
 > {
+    native_scalar_probe_with_environment_and_currency(value, dialect, kind, environment, None)
+}
+
+/// The entered adapter checks reached String stages before later conversion
+/// and cache publication. Neutral utilities explicitly supply no currency.
+pub(crate) fn native_scalar_probe_with_environment_and_currency(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    environment: Option<&dyn tcl_platform::NumericEnvironment>,
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+) -> Result<
+    Result<
+        tcl_syntax::scalar_getter::NativeScalarGetterValue,
+        tcl_syntax::scalar_getter::NativeScalarGetterFailure,
+    >,
+    tcl_syntax::value::ValueError,
+> {
     use tcl_syntax::value::ValueError;
+    scalar_stage_current(currency)?;
     obj::check_native_liveness(value)?;
     let protocol = dialect
         .native_scalar_getter_protocol()
@@ -127,7 +146,9 @@ pub(crate) fn native_scalar_probe_with_environment(
     let conversion = if let Some(conversion) = cached {
         conversion
     } else {
-        let original = crate::bytearray::scalar_getter_string(value, protocol)?;
+        let original = crate::bytearray::scalar_getter_string(value, protocol);
+        scalar_stage_current(currency)?;
+        let original = original?;
         if protocol.is_jim084()
             && matches!(
                 kind,
@@ -136,9 +157,18 @@ pub(crate) fn native_scalar_probe_with_environment(
                     | tcl_syntax::scalar_getter::NativeScalarGetterKind::Double
             )
         {
-            crate::native_source::context(value)
-                .map_err(|_| ValueError::ScalarNumericInputUnavailable)?
-                .fresh_numeric_conversion(protocol, kind, &original)?
+            let context = crate::native_source::context(value)
+                .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+            if let Some(environment) = environment {
+                tcl_cmd_core::native_numeric::fresh_jim_conversion(
+                    protocol,
+                    kind,
+                    &original,
+                    environment,
+                )?
+            } else {
+                context.fresh_numeric_conversion(protocol, kind, &original)?
+            }
         } else if let Some(environment) =
             environment.filter(|_| protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4))
         {
@@ -157,12 +187,26 @@ pub(crate) fn native_scalar_probe_with_environment(
     };
     let (materialize, cache, outcome) = conversion.into_parts();
     if materialize {
-        crate::bytearray::scalar_getter_string(value, protocol)?;
+        let original = crate::bytearray::scalar_getter_string(value, protocol);
+        scalar_stage_current(currency)?;
+        original?;
     }
+    scalar_stage_current(currency)?;
     if let Some(cache) = cache {
         obj::adopt_native_scalar_cache(value, cache, protocol)?;
     }
     Ok(outcome)
+}
+
+fn scalar_stage_current(
+    currency: Option<&crate::interp::native_operation_currency::NativeOperationCurrency>,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    if let Some(currency) = currency {
+        currency
+            .ensure_current_or_refuse()
+            .map_err(|_| tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)?;
+    }
+    Ok(())
 }
 
 /// Probe the original C Number/Bignum primitive without guest error publication.

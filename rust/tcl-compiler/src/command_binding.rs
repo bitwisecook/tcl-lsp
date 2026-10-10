@@ -55,6 +55,7 @@ use tcl_registry::{
 };
 
 mod default_manufacture_advice;
+mod deferred_namespace_index;
 mod executed_expression_source;
 mod executed_script_source;
 mod frozen_arguments;
@@ -2956,6 +2957,7 @@ pub struct SourceCommandBindings {
     unrepresented_entries: SharedSourceInventory<pre_handler_failure::UnrepresentedEntries>,
     unpositioned_projections: SourceHeadProjectionCache,
     declaration_flow_cache: declaration_flow::SourceDeclarationFlowCache,
+    deferred_namespace_index: deferred_namespace_index::DeferredNamespaceIndexCache,
     root_origin: Option<Arc<SourceOriginId>>,
     origin_points: SharedSourceInventory<BTreeMap<Arc<SourceOriginId>, Vec<SourceBindingPoint>>>,
     implicit_math_invocations: SharedSourceInventory<ImplicitMathInvocations>,
@@ -5939,6 +5941,12 @@ fn trace_source_analysis(
             owners.len(),
             requests.saturating_sub(captures),
         );
+        let (requests, builds, rows, alternatives) =
+            bindings.deferred_namespace_index.trace_counts();
+        eprintln!(
+            "SOURCE_DEFERRED_INDEX_PHASE bytes={source_len} stage={stage} requests={requests} builds={builds} reuses={} scanned_rows={rows} scanned_alternatives={alternatives}",
+            requests.saturating_sub(builds),
+        );
     }
 }
 
@@ -6308,37 +6316,22 @@ impl SourceCommandBindings {
     }
 
     fn deferred_entry_bodies(&self, incoming: &ModuleCommandBindings) -> Vec<DeferredSourceBody> {
+        let namespaces = OnceLock::new();
         self.deferred
             .values()
             .flat_map(|root| {
                 if root.event.is_some() || root.receiver_method || root.future_frame.is_some() {
                     return vec![root.clone()];
                 }
-                let namespaces = incoming
-                    .bindings
-                    .iter()
-                    .flat_map(|(slot, bindings)| {
-                        bindings.iter().map(move |binding| (slot, binding))
-                    })
-                    .filter_map(|(slot, binding)| match binding {
-                        MayBinding::Target(target)
-                            if target.kind == BindingKind::Proc
-                                && target.implementation_generation
-                                    == root.implementation_generation
-                                && target.implementation_allocation
-                                    == root.implementation_allocation
-                                && target
-                                    .token
-                                    .as_ref()
-                                    .is_some_and(|identity| identity.origin == root.identity) =>
-                        {
-                            Some(slot.holder().into_owned())
-                        }
-                        _ => None,
-                    })
-                    .collect::<BTreeSet<_>>();
                 namespaces
+                    .get_or_init(|| {
+                        self.deferred_namespace_index
+                            .for_bindings(&incoming.bindings)
+                    })
+                    .for_implementation(&root.implementation_id())
                     .into_iter()
+                    .flatten()
+                    .cloned()
                     .map(|namespace_key| DeferredSourceBody {
                         namespace: namespace_key.display().unwrap_or_default(),
                         namespace_key,

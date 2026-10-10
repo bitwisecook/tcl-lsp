@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Selected scalar C ABI ownership, separate from object representations.
 
-use super::{Interp, InterpState};
+use super::{native_operation_currency::NativeOperationCurrency, Interp, InterpState};
 use crate::obj::{self, TclObj};
 use std::rc::{Rc, Weak};
 use tcl_platform::{Host, NativeCIntegerAbi};
 use tcl_registry::InvocationDialect;
-use tcl_runtime_api::{NativeExecutionError, RuntimeContext, guard::GuardDomain};
+use tcl_runtime_api::{guard::GuardDomain, NativeExecutionError, RuntimeContext};
 use tcl_syntax::{scalar_getter::NativeScalarGetterTarget, value::ValueError};
 
 /// A checked scalar access preserves an existing engine refusal or the exact
@@ -48,13 +48,14 @@ pub(crate) struct NativeScalarAccess {
 
 impl NativeScalarObjectContext {
     fn issue(interpreter: &Interp) -> Result<Rc<Self>, NativeScalarObjectAccessError> {
-        first_refusal(interpreter)?;
+        let currency = NativeOperationCurrency::issue(interpreter)
+            .map_err(NativeScalarObjectAccessError::Execution)?;
         let dialect = interpreter.native_invocation_dialect();
         dialect
             .native_scalar_getter_protocol()
             .ok_or_else(|| unavailable("native scalar C API execution protocol"))?;
         let host = interpreter.host();
-        let abi = selected_abi(&host)?;
+        let abi = selected_abi(&host, &currency)?;
         let epoch = interpreter
             .guards
             .borrow()
@@ -107,9 +108,17 @@ impl NativeScalarObjectContext {
             return Err(unavailable("stale native scalar object issuer"));
         }
         // Release every engine borrow before calling the actual Host adapter.
-        let abi = selected_abi(&host)?;
+        let currency = NativeOperationCurrency::issue(&interpreter)
+            .map_err(NativeScalarObjectAccessError::Execution)?;
+        let abi = selected_abi(&host, &currency);
+        currency
+            .ensure_current_or_refuse()
+            .map_err(NativeScalarObjectAccessError::Execution)?;
         first_refusal(&interpreter)?;
-        if abi != self.abi || !self.matches_current(&interpreter, &interpreter.host()) {
+        if !self.matches_current(&interpreter, &interpreter.host()) {
+            return Err(unavailable("stale native scalar object issuer"));
+        }
+        if abi? != self.abi {
             return Err(unavailable("stale native scalar object issuer"));
         }
         Ok(NativeScalarAccess {
@@ -128,12 +137,20 @@ fn first_refusal(interpreter: &Interp) -> Result<(), NativeScalarObjectAccessErr
     }
 }
 
-fn selected_abi(host: &Rc<dyn Host>) -> Result<NativeCIntegerAbi, NativeScalarObjectAccessError> {
-    let abi = host
-        .numeric_environment()
-        .ok_or(ValueError::ScalarNumericInputUnavailable)?
-        .c_integer_abi()
-        .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+fn selected_abi(
+    host: &Rc<dyn Host>,
+    currency: &NativeOperationCurrency,
+) -> Result<NativeCIntegerAbi, NativeScalarObjectAccessError> {
+    let environment = host.numeric_environment();
+    currency
+        .ensure_current_or_refuse()
+        .map_err(NativeScalarObjectAccessError::Execution)?;
+    let environment = environment.ok_or(ValueError::ScalarNumericInputUnavailable)?;
+    let abi = currency.host_call(|| environment.c_integer_abi());
+    currency
+        .ensure_current_or_refuse()
+        .map_err(NativeScalarObjectAccessError::Execution)?;
+    let abi = abi.map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
     NativeScalarGetterTarget::from_c_integer_abi(abi.char_bits, abi.int_bytes, abi.long_bytes)
         .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
     // These are output-layout checks after an actual Host ABI observation.
@@ -195,6 +212,11 @@ pub(crate) fn scalar_access(
 }
 
 impl NativeScalarAccess {
+    /// Descriptive ABI already retained by this exact original engine issuer.
+    pub(crate) fn c_integer_abi(&self) -> NativeCIntegerAbi {
+        self.issuer.abi
+    }
+
     pub(crate) fn ensure_current(&self) -> Result<(), NativeScalarObjectAccessError> {
         self.issuer.current().map(|_| ())
     }

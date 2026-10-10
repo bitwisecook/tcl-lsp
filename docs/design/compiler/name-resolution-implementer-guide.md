@@ -1232,6 +1232,43 @@ reconstruct those spans from token lengths or decode opaque names for storage.
 Native lexical provenance establishes no command implementation or native
 compiler permission.
 
+Within the Compiler, `SourceOriginId::original_lexical_command` derives the
+original command from that retained image, an exact offset, complete
+`LexerConfig` and complete original `WordExpr` vector. Its sealed
+`OriginalSourceCommandProjection` retains both the validated `NativeWord`
+vector and the corresponding `SegmentedCommand`. Positioned source consumers
+reuse this projection through their original origin; a new origin cannot
+borrow another origin's memo by matching text. The raw
+`original_native_compiler_words` adapter uses the same lexical factory for
+callers without that retained origin. A failed projection remains unavailable.
+
+The origin's clones share a lazy memo; independently constructed origins have
+separate memos. The key retains every word and its provenance, configuration
+and offset. Parsing runs outside the memo mutex through a per-entry `OnceLock`.
+Cache entries contain only original lexical geometry, and cache warmth is
+excluded from `SourceOriginId` equality, hashing, ordering and Debug output.
+Full input, current availability, source-point lookup, frame, compiler,
+observer and completion checks remain at their existing semantic owners.
+A successful lexical projection cannot satisfy any of those checks.
+
+Deferred procedure bodies use a separate retained-table namespace index in
+`SourceCommandBindings`. It maps the original procedure token, implementation
+generation and allocation to every matching slot's namespace holder. Each index
+retains the exact immutable command-table `Arc`; an address is only a bucket,
+and `Arc::ptr_eq` checks its actual owner. Equal copied tables build separate
+indexes. Keep every table update behind the existing COW mutation or table
+replacement seam, so a changed table detaches and gets a new index. A collector
+clone starts with an empty derived index cache; cache warmth affects neither
+semantic equality nor Debug output. Event, receiver and future-frame roots keep
+their direct entry rules. Incoming and completion-outcome worlds retain their
+own frame, metadata and lookup evidence; namespace indexing does not replace
+those worlds or completion alternatives.
+
+`TCL_LSP_TRACE_SOURCE_PHASES=1` reports lexical requests/captures and namespace
+index builds/scanned rows from the shared owners. Use the unchanged alias
+lifecycle and large multi-procedure controls to measure complete analyses;
+derived-cache counters alone do not establish execution facts or tractability.
+
 Executable word consumers use `NativeWord::executable_parts()`. Its arena owns
 one immutable source image and flat ordered lists; a variable index selects a
 child `PartListId` rather than recursively nested vectors. Traverse these lists

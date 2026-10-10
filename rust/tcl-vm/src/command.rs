@@ -3974,13 +3974,15 @@ mod tests {
             NativeScalarGetterKind::Double,
             NativeScalarGetterKind::Boolean,
         ] {
-            vm.restore_guest_error_code(super::Value::new_native_string_bytes(b"SEEDED CODE"));
-            let original = super::Value::new_native_string_bytes(b"bad");
+            vm.restore_guest_error_code(super::Value::new_native_string_bytes(
+                b"SEEDED CODE".as_slice(),
+            ));
+            let original = super::Value::new_native_string_bytes(b"bad".as_slice());
             let failure = original
                 .native_scalar_probe_with_environment(
                     dialect,
                     kind,
-                    Some(vm.host().numeric_environment()),
+                    vm.host().numeric_environment(),
                 )
                 .unwrap()
                 .unwrap_err();

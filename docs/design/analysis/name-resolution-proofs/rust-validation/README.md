@@ -2827,3 +2827,25 @@ separate Syntax/CmdCore/RuntimeAPI producer, strict pins and full assertions
 retain their own measured scope; no success is transferred to these failed
 commands. Original Native provider answers and mutable owner anchors remain
 unchanged, with no combined gate or later-source result inferred.
+
+## Source306 failed six-owner library-test build
+
+The exact Compiler/Registry/Syntax/CmdCore/VM/RuntimeAPI no-run command closes
+exit101 after 97.97169901599409 seconds with uniform_source true on the unchanged
+33006-leaf image, HEAD56331a02b691a085ded93416ce9dfe642f2070b0. The whole log
+retains two Compiler errors: E0609 for NativeImports.completion_release at
+native_emit.rs:1543 and E0369 for Option<StateTransitionDescriptor> inequality
+at source_structure.rs:1743. This is a compile-only operation with no Rust
+assertion, Native provider answer or overall gate result.
+
+The three Syntax/CmdCore/RuntimeAPI creation events are explicitly unsealed.
+No successful producer, strict image, inventory or assertion is admitted from
+this failed command. Source305's independently successful Syntax/Core/API
+operations and any other fresh producer retain their own measured scope.
+
+The [complete original receipt](frozen306/integration-shared-owner-own-test-build306/receipt.json.gz)
+is losslessly retained; decompression returns SHA-256 `c62946d0f659060066169f67f04a2e0d6f0123eac52bb02b2f4bcaa6bb7c35e4`. Its complete
+source/head/command/archive associations are unchanged and every source leaf
+is byte-verified. The [whole original log](frozen306/integration-shared-owner-own-test-build306/tests.log)
+has SHA-256 `cd3398370de3952b02110cb565f2e045dd0aba0584128e712d0d1bb29e0f5c80`. Original sources, outcomes and mutable proof anchors
+are preserved; no later-source result is donated to this operation.

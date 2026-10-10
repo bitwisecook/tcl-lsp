@@ -4,7 +4,10 @@
 //! actual interpreter, checked object/getter, host environment and result owner.
 
 use crate::{
-    interp::{native_operation_currency::NativeOperationCurrency, Interp},
+    interp::{
+        native_operation_currency::{CheckedNumericEnvironment, NativeOperationCurrency},
+        Interp,
+    },
     obj::{self, Owned, TclObj},
 };
 use std::{cell::Cell, rc::Rc};
@@ -82,7 +85,7 @@ impl<'a> OriginalOps<'a> {
         }
         Ok(())
     }
-    fn environment(&self) -> Result<Option<CheckedEnvironment<'_>>, CmdError> {
+    fn environment(&self) -> Result<Option<CheckedNumericEnvironment<'_>>, CmdError> {
         self.current()?;
         let actual = self.environment.or_else(|| {
             self.host
@@ -90,10 +93,8 @@ impl<'a> OriginalOps<'a> {
                 .and_then(|host| host.numeric_environment())
         });
         self.current()?;
-        Ok(actual.map(|actual| CheckedEnvironment {
-            actual,
-            currency: self.currency.as_ref(),
-            abi: &self.abi,
+        Ok(actual.map(|actual| {
+            CheckedNumericEnvironment::new(actual, self.currency.as_ref(), &self.abi)
         }))
     }
     fn scalar_probe(
@@ -102,13 +103,14 @@ impl<'a> OriginalOps<'a> {
         kind: Getter,
     ) -> Result<Result<GetterValue, Failure>, CmdError> {
         let environment = self.environment()?;
-        let result = super::native_scalar_probe_with_environment(
+        let result = super::native_scalar_probe_with_environment_and_currency(
             value,
             self.dialect,
             kind,
             environment
                 .as_ref()
                 .map(|actual| actual as &dyn tcl_platform::NumericEnvironment),
+            self.currency.as_ref(),
         );
         self.current()?;
         result.map_err(Into::into)
@@ -178,79 +180,6 @@ impl<'a> OriginalOps<'a> {
             obj::adopt_native_scalar_cache(value, cache, scalar)?;
         }
         Ok(outcome)
-    }
-}
-
-struct CheckedEnvironment<'a> {
-    actual: &'a dyn tcl_platform::NumericEnvironment,
-    currency: Option<&'a NativeOperationCurrency>,
-    abi: &'a Cell<Option<tcl_platform::NativeCIntegerAbi>>,
-}
-
-impl CheckedEnvironment<'_> {
-    fn call<T>(
-        &self,
-        operation: impl FnOnce() -> Result<T, tcl_platform::NumericEnvironmentUnavailable>,
-    ) -> Result<T, tcl_platform::NumericEnvironmentUnavailable> {
-        match self.currency {
-            Some(currency) => currency.host_call(operation),
-            None => operation(),
-        }
-    }
-}
-
-impl tcl_platform::NumericEnvironment for CheckedEnvironment<'_> {
-    fn c_integer_abi(
-        &self,
-    ) -> Result<tcl_platform::NativeCIntegerAbi, tcl_platform::NumericEnvironmentUnavailable> {
-        let actual = self.call(|| self.actual.c_integer_abi())?;
-        if self.abi.get().is_some_and(|before| before != actual) {
-            return Err(tcl_platform::NumericEnvironmentUnavailable::Target);
-        }
-        self.abi.set(Some(actual));
-        Ok(actual)
-    }
-    fn state(
-        &self,
-    ) -> Result<tcl_platform::NumericErrorState, tcl_platform::NumericEnvironmentUnavailable> {
-        self.call(|| self.actual.state())
-    }
-    fn reset(&self) -> Result<(), tcl_platform::NumericEnvironmentUnavailable> {
-        self.call(|| self.actual.reset())
-    }
-    fn unsigned_c84(
-        &self,
-        input: &[u8],
-        offset: usize,
-        long: bool,
-    ) -> Result<tcl_platform::UnsignedNumericConversion, tcl_platform::NumericEnvironmentUnavailable>
-    {
-        self.call(|| self.actual.unsigned_c84(input, offset, long))
-    }
-    fn unsigned(
-        &self,
-        input: &[u8],
-        offset: usize,
-        base: u32,
-    ) -> Result<tcl_platform::UnsignedNumericConversion, tcl_platform::NumericEnvironmentUnavailable>
-    {
-        self.call(|| self.actual.unsigned(input, offset, base))
-    }
-    fn signed_long(
-        &self,
-        input: &[u8],
-        base: u32,
-    ) -> Result<tcl_platform::SignedNumericConversion, tcl_platform::NumericEnvironmentUnavailable>
-    {
-        self.call(|| self.actual.signed_long(input, base))
-    }
-    fn double(
-        &self,
-        input: &[u8],
-        reset: bool,
-    ) -> Result<tcl_platform::DoubleNumericConversion, tcl_platform::NumericEnvironmentUnavailable>
-    {
-        self.call(|| self.actual.double(input, reset))
     }
 }
 

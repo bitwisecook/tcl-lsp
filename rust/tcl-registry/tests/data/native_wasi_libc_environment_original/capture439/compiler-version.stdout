@@ -1,0 +1,5 @@
+clang version 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)
+Target: wasm32-unknown-wasip1
+Thread model: posix
+InstalledDir: /workspace/.tools/wasi-sdk-34.0/bin
+Configuration file: /workspace/.tools/wasi-sdk-34.0/bin/clang.cfg

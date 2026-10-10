@@ -141888,6 +141888,368 @@
       "sha256": "38ae02388d270cef083244f2556e2040c82356aae54c39053433852c6e5edca8",
       "bytes": 4389,
       "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture439/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture439/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture439/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture439/compiler-version.stdout",
+      "sha256": "0430924d4e877049880fb4479cf6c6ad236262ac296ac8dbc125e206f86ea7dc",
+      "bytes": 276,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture439/execute.stderr",
+      "sha256": "126dde7ec4b920da104103c18e2719e5a871390e460f2a48800f16613c3f2abc",
+      "bytes": 122,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture439/execute.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture439/probe.wasm",
+      "sha256": "f314374afa31505d576ee60ff2081721aea8e2bed45411152723963e0eb2e418",
+      "bytes": 163689,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture439/receipt.json",
+      "sha256": "1da0129cecabc101aa805f9772df70444d9eb4ef9209543809c6552e8ca702fc",
+      "bytes": 20296,
+      "candidate": true,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.numeric.wasi-libc-environment"
+      ],
+      "reason": "Complete original measured SDK process receipt; failure439 and observed440 remain separate and native-provider answers are unmeasured."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture439/runner-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture439/runner-version.stdout",
+      "sha256": "06398cc44cd141ad1fff6d51c1138b1ad5c728e7e326d7cbbbff84ac59152438",
+      "bytes": 39,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture440/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture440/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture440/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture440/compiler-version.stdout",
+      "sha256": "0430924d4e877049880fb4479cf6c6ad236262ac296ac8dbc125e206f86ea7dc",
+      "bytes": 276,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture440/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture440/execute.stdout",
+      "sha256": "2d6e55524b603f3659ee76c0ea0c38a2a5a474e3883c871317211a6f43d258fa",
+      "bytes": 48354,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture440/probe.wasm",
+      "sha256": "f314374afa31505d576ee60ff2081721aea8e2bed45411152723963e0eb2e418",
+      "bytes": 163689,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture440/receipt.json",
+      "sha256": "778623026c9c51732b594d4b2b1254f917c141141dca0afd71fcd13fc37f6518",
+      "bytes": 22689,
+      "candidate": true,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.numeric.wasi-libc-environment"
+      ],
+      "reason": "Complete original measured SDK process receipt; failure439 and observed440 remain separate and native-provider answers are unmeasured."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture440/runner-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/capture440/runner-version.stdout",
+      "sha256": "06398cc44cd141ad1fff6d51c1138b1ad5c728e7e326d7cbbbff84ac59152438",
+      "bytes": 39,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/request439/cases.json",
+      "sha256": "951f0a9ad68761d254bcd60860bd5d727e9949cd54c1c3a5a995a245cb6d2c34",
+      "bytes": 2418,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.numeric.wasi-libc-environment"
+      ],
+      "reason": "Complete original fixed request/case metadata or explicit selected-input restoration mapping; no execution answer follows from input bytes."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/request439/launch.py",
+      "sha256": "f979423a31a23a3b31d0a161f02d763739aa0524a54c921bb3b45d15e82e593e",
+      "bytes": 4825,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/request439/manifest.json",
+      "sha256": "542ccd5a077b02f8babb9ef70206c25b62d702ab2a7f2d6030d2efaf98a95bbc",
+      "bytes": 862,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.numeric.wasi-libc-environment"
+      ],
+      "reason": "Complete original fixed request/case metadata or explicit selected-input restoration mapping; no execution answer follows from input bytes."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/request439/probe.c",
+      "sha256": "72ef687265e1f560b0164b4a1d5305ea554253f158a84f0bfebb1ac6488334b6",
+      "bytes": 8362,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/request439/request.json",
+      "sha256": "f1797600873c7200254932fdfa784ebd33d040a7970e532bf4b319c8c86e64fc",
+      "bytes": 12708,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.numeric.wasi-libc-environment"
+      ],
+      "reason": "Complete original fixed request/case metadata or explicit selected-input restoration mapping; no execution answer follows from input bytes."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/request440/cases.json",
+      "sha256": "951f0a9ad68761d254bcd60860bd5d727e9949cd54c1c3a5a995a245cb6d2c34",
+      "bytes": 2418,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.numeric.wasi-libc-environment"
+      ],
+      "reason": "Complete original fixed request/case metadata or explicit selected-input restoration mapping; no execution answer follows from input bytes."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/request440/launch.py",
+      "sha256": "f5fd0e5e8b8913ae50bd3e6ea350137d26c6f130cea8161a6743a15409e218da",
+      "bytes": 5053,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/request440/manifest.json",
+      "sha256": "5002eff306e1cac5a6a5ae7717c47d9c0a61d683f79d1678d2c3a253dfbfd4d4",
+      "bytes": 1972,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.numeric.wasi-libc-environment"
+      ],
+      "reason": "Complete original fixed request/case metadata or explicit selected-input restoration mapping; no execution answer follows from input bytes."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/request440/probe.c",
+      "sha256": "72ef687265e1f560b0164b4a1d5305ea554253f158a84f0bfebb1ac6488334b6",
+      "bytes": 8362,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/request440/request.json",
+      "sha256": "5c3639b178e7ecf3705692a9032dd2e055acedea45dd8d1c9caa6f2e072031b8",
+      "bytes": 14567,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.numeric.wasi-libc-environment"
+      ],
+      "reason": "Complete original fixed request/case metadata or explicit selected-input restoration mapping; no execution answer follows from input bytes."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-input-storage.json",
+      "sha256": "812a4b7c9f35a71716864e25d6df99a7399efc5ca1055f49969e752e493e4ab7",
+      "bytes": 13569,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.numeric.wasi-libc-environment"
+      ],
+      "reason": "Complete original fixed request/case metadata or explicit selected-input restoration mapping; no execution answer follows from input bytes."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/VERSION",
+      "sha256": "e21c031e944a05148f94958b580ce7238d47ddc4d388d7442c11da19ec53626a",
+      "bytes": 90,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/bin/clang",
+      "sha256": "061f88b9f4c48f3742434c2513d5038ab7fa4dc27abff5cb13b5eaedcb51d6ea",
+      "bytes": 118616,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/bin/clang++.cfg",
+      "sha256": "61c6cded13c3b915cf17bd2c3be30d23a9eba934c49d7ea55924c815ff7f9fce",
+      "bytes": 41,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/bin/clang.cfg",
+      "sha256": "61c6cded13c3b915cf17bd2c3be30d23a9eba934c49d7ea55924c815ff7f9fce",
+      "bytes": 41,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/bin/wasm-ld.gz",
+      "sha256": "162bca1fee8120ad4ba97f0ca72ec39f4db97d95c2976661facaa284ce447ae2",
+      "bytes": 1607199,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/lib/clang/23/include/stddef.h",
+      "sha256": "b3e62a046ddf28d09eedebe6eb9461cb7060e47cad2c69964b222c4eea10347e",
+      "bytes": 5053,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/include/wasm32-wasip1/__errno_values.h",
+      "sha256": "0e85b8495fe3518cf0bc6c09953ce09c0fb5617e6276eeb0ab32124bfeba9761",
+      "bytes": 1611,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/include/wasm32-wasip1/bits/alltypes.h",
+      "sha256": "c96ceaca634a361be4def3e9ff27dc12bb21cadaae67a46553e1559e52fc9cf4",
+      "bytes": 12767,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/include/wasm32-wasip1/errno.h",
+      "sha256": "0363d29bcfc19b71fd00e853818e5b70c200dc6dc6acf0d004d8914438e0db54",
+      "bytes": 800,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/include/wasm32-wasip1/features.h",
+      "sha256": "6d228e77b88b69f70f9157548b6ec673ffc6b998ce6035fbbee0caddb8442903",
+      "bytes": 865,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/include/wasm32-wasip1/float.h",
+      "sha256": "980312e40d6116dc9e1cf84710e10e9aacdeb2ddfc79a1b1f995718a0118ca9b",
+      "bytes": 1205,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/include/wasm32-wasip1/limits.h",
+      "sha256": "8095825cf6c9775c834bed141ff7e800d7394a9f4d1c5cd4712b8014408b2fbc",
+      "bytes": 4474,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/include/wasm32-wasip1/math.h",
+      "sha256": "6337f73bff74977b352e1cb6c63d794621c27444d77ae497eabb719cd3b1155e",
+      "bytes": 12438,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/include/wasm32-wasip1/stdio.h",
+      "sha256": "68af96bf70fb6d22c853050366feb94ea22e700a497aa642867e9dc1b07821c7",
+      "bytes": 7158,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/include/wasm32-wasip1/stdlib.h",
+      "sha256": "38c9f91ab4e32210d42bee4ba946f237fe130ec837d993dde1d3538417092185",
+      "bytes": 6141,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/include/wasm32-wasip1/string.h",
+      "sha256": "85eaadf7ab59b931fefe325a6d1f87728c0acbc5c0b0a81ef453e5021275b590",
+      "bytes": 3681,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/lib/wasm32-wasip1/crt1-command.o",
+      "sha256": "5c915e8a62ed0175d59e90514b208ae4ee7094ba57e1eb8019433bd41c1d3361",
+      "bytes": 1913,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/lib/wasm32-wasip1/libc.a.gz",
+      "sha256": "3d7f27afba877df439c8c170fa175ffed72c96cbb5a5afcaa32677170f3a2f9c",
+      "bytes": 1103059,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/lib/wasm32-wasip1/libm.a",
+      "sha256": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+      "bytes": 8,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasmtime-49.0.2/wasmtime.gz",
+      "sha256": "b4542bbc89b7cdeb5ec2561424c9c74f38126eb9719355153a218e20c3aa9c9a",
+      "bytes": 16128857,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/source-boundary-review.json",
+      "sha256": "63c5d13f42d22f8658a35f97b36250025eed081f417c0af8e591e8b9caad47b1",
+      "bytes": 10511,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.numeric.wasi-libc-environment"
+      ],
+      "reason": "Derived read-only source/row review, independently checked against complete original stdout; supplies no additional observation."
     }
   ]
 }

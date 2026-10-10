@@ -197080,6 +197080,55 @@
       "tests": [],
       "question_ids": [],
       "limits": "This exact no-run build closes with one Compiler ordinary-library E0308 at registry_invocation/source_structure.rs:1730: selected state-transition descriptors are supplied where std::ptr::eq expects the original CommandSpec/member descriptor identity. The Registry/VM-only command also reaches this Compiler dependency error. Neither failed log records a test executable creation event. No successful Compiler/Registry/VM producer, strict pin, inventory or assertion is admitted; the separate Syntax/CmdCore/RuntimeAPI producer and assertions keep their independently measured scope. Independent later producer/admission/assertion records retain their own source/command/image scope. No Native provider outcome, aggregate gate result or mutable anchor refresh is inferred."
+    },
+    {
+      "id": "rust.frozen306.integration-shared-owner-own-test-build306",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen306/integration-shared-owner-own-test-build306/receipt.json.gz",
+        "sha256": "1d9e38e99e940f32f991cb79270b316e4da7cb7db251aef72a73df77c37314e0",
+        "compression": "gzip",
+        "uncompressed_sha256": "c62946d0f659060066169f67f04a2e0d6f0123eac52bb02b2f4bcaa6bb7c35e4"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen306/integration-shared-owner-own-test-build306/tests.log",
+        "sha256": "cd3398370de3952b02110cb565f2e045dd0aba0584128e712d0d1bb29e0f5c80"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "-p",
+        "tcl-cmd-core",
+        "-p",
+        "tcl-vm",
+        "-p",
+        "tcl-runtime-api",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 97.97169901599409,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Complete unchanged decompressed original receipt retains all33006 source leaves and exact head/command/compile/archive associations, independently byte-verified."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "This exact six-package library-test no-run build closes exit101 with two Compiler E0609/E0369 errors: NativeImports has no completion_release field at native_emit.rs:1543, and Option<StateTransitionDescriptor> has no inequality operation at source_structure.rs:1743. Three Syntax/CmdCore/RuntimeAPI test executable creation events are retained as unsealed events only. The failed operation supplies no successful producer, strict pin, inventory or assertion for any package; independently successful operations retain their own command/source/image scope. No Native provider result, combined gate or mutable owner/evidence refresh is inferred."
     }
   ]
 }

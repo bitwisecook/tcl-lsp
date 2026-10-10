@@ -16,18 +16,29 @@
       "required": ["id", "kind", "document", "problem_statement", "question", "conclusion", "scope", "providers", "evidence", "source_anchors", "tests", "owners", "replay"],
       "properties": {
         "id": {"type": "string", "pattern": "^naming\\.[a-z0-9][a-z0-9._-]+$"},
-        "kind": {"enum": ["native-observation", "source-anchor", "implementation-contract"]},
+        "kind": {"enum": ["native-observation", "source-anchor", "implementation-contract", "environment-observation"]},
         "document": {"$ref": "#/$defs/text"},
         "problem_statement": {"$ref": "#/$defs/text"},
         "question": {"$ref": "#/$defs/text"},
         "conclusion": {"$ref": "#/$defs/text"},
         "scope": {"$ref": "#/$defs/text"},
         "providers": {"type": "array", "minItems": 7, "maxItems": 7, "items": {"$ref": "#/$defs/provider"}},
+        "environments": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/environment"}},
         "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
         "source_anchors": {"type": "array", "items": {"$ref": "#/$defs/source"}},
         "tests": {"type": "array", "items": {"$ref": "#/$defs/test"}},
         "owners": {"type": "array", "items": {"$ref": "#/$defs/owner"}},
         "replay": {"type":"object","additionalProperties":false,"required":["command","limitations"],"properties":{"command":{"type":"array","items":{"$ref":"#/$defs/text"}},"limitations":{"$ref":"#/$defs/text"}}}
+      }
+    },
+    "environment": {
+      "type":"object","additionalProperties":false,
+      "required":["id","version","build","target","input_channel","status","answer","evidence"],
+      "properties":{
+        "id":{"type":"string","pattern":"^[a-z0-9][a-z0-9._-]+$"},
+        "version":{"$ref":"#/$defs/text"},"build":{"$ref":"#/$defs/text"},"target":{"$ref":"#/$defs/text"},"input_channel":{"$ref":"#/$defs/text"},
+        "status":{"enum":["observed","failed","not-tested","unavailable"]},
+        "answer":{"$ref":"#/$defs/text"},"evidence":{"type":"array","items":{"$ref":"#/$defs/text"}}
       }
     },
     "provider": {
