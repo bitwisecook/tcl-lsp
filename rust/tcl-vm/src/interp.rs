@@ -2969,6 +2969,33 @@ impl InterpState {
         self.actual_native_invocation_dialect()
     }
 
+    /// Produce binary backing for the current invocation's explicit purpose.
+    /// `None` selects only the actual physical native engine. A supplied logical
+    /// provider requires the current authored F5 source ingress and retains its
+    /// sealed authored origin even when a different physical engine is present.
+    /// Unsupported logical purposes never fall back to native creation.
+    ///
+    /// # Errors
+    /// Refuses an unavailable producer without allocating or donating authority.
+    pub fn byte_array_result(
+        &self,
+        bytes: Rc<[u8]>,
+        provider: Option<tcl_registry::native_string_materialization::LogicalStringProvider>,
+    ) -> Result<Value, tcl_syntax::value::ValueError> {
+        let recipe = match provider {
+            Some(provider) => tcl_registry::InvocationDialect::of_profile(self.source_profile())
+                .byte_array_string_recipe(Some(provider))
+                .filter(|recipe| recipe.logical_provider() == Some(provider)),
+            None => self
+                .actual_native_invocation_dialect()
+                .byte_array_string_recipe(None),
+        }
+        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "byte-array result producer",
+        ))?;
+        Ok(Value::from_byte_array_recipe(bytes, recipe))
+    }
+
     /// Select native name semantics from the actual engine or an explicit
     /// authored logical provider. A compatible source version contributes no
     /// native authority; publication-time slots retain their original identity.
@@ -30088,3 +30115,89 @@ mod native_oo_bootstrap_inventory_tests {
 
 #[cfg(test)]
 mod native_child_alias_publication_tests;
+
+#[cfg(test)]
+mod byte_array_result_tests {
+    use super::*;
+    use tcl_registry::native_string_materialization::LogicalStringProvider;
+
+    #[test]
+    fn binary_producer_origin_survives_shared_materialisation_and_keeps_purposes_separate() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let source = tcl_dialect::DialectProfile::irules();
+        let host = crate::environment::profile_for_dialect("tcl9.0");
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(source);
+        assert!(vm.set_native_engine_profile(host));
+        let payload: Rc<[u8]> = Rc::from(b"\xff\0A".as_slice());
+        let authored = vm
+            .byte_array_result(
+                Rc::clone(&payload),
+                Some(LogicalStringProvider::Tcl84CoreSimulation),
+            )
+            .unwrap();
+        let actual = vm.byte_array_result(Rc::clone(&payload), None).unwrap();
+        let origin = authored.byte_array_origin().unwrap();
+        assert_eq!(
+            origin.logical_provider(),
+            Some(LogicalStringProvider::Tcl84CoreSimulation)
+        );
+        assert_eq!(
+            origin.protocol(),
+            tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4)
+        );
+        assert_eq!(actual.byte_array_origin().unwrap().logical_provider(), None);
+        assert_eq!(
+            actual.byte_array_origin().unwrap().protocol(),
+            tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V9_0)
+        );
+        assert!(authored.is_pure_byte_array());
+        let alias = authored.clone();
+        assert_eq!(
+            alias
+                .native_string_bytes(origin.protocol())
+                .unwrap()
+                .as_ref(),
+            b"\xc3\xbf\xc0\x80A"
+        );
+        assert_eq!(authored.byte_array_representation().unwrap(), payload);
+        assert_eq!(alias.byte_array_origin(), Some(origin));
+        assert_eq!(authored.byte_array_origin(), Some(origin));
+        let imported = Value::byte_array(Rc::clone(&payload));
+        assert_eq!(imported.byte_array_origin(), None);
+        imported.native_string_bytes(origin.protocol()).unwrap();
+        assert_eq!(imported.byte_array_origin(), None);
+        assert_eq!(imported.byte_array_representation().unwrap(), payload);
+        vm.active_native_profile = Some(host);
+        assert!(
+            vm.byte_array_result(
+                Rc::clone(&payload),
+                Some(LogicalStringProvider::Tcl84CoreSimulation)
+            )
+            .is_err()
+        );
+        assert!(vm.byte_array_result(payload, None).is_ok());
+        vm.active_native_profile = None;
+    }
+
+    #[test]
+    fn unsupported_declared_binary_purpose_refuses_without_native_fallback() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = Vm::new();
+        vm.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+        let payload: Rc<[u8]> = Rc::from(b"\xff\0A".as_slice());
+        assert!(vm.byte_array_result(Rc::clone(&payload), None).is_ok());
+        assert_eq!(
+            vm.byte_array_result(payload, Some(LogicalStringProvider::Tcl84CoreSimulation))
+                .unwrap_err()
+                .native_access_refusal(),
+            Some(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "byte-array result producer"
+                )
+            )
+        );
+    }
+}

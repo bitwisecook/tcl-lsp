@@ -502,8 +502,75 @@ The host drives the interpreter through the runtime's `tcl_engine_*` exports
 (`runtime/rust/src/engine_abi.rs`), which do across the module boundary what the
 native engine does in process: the command and value-size limits, the
 confinement, the whitelist, the pinned release, a unit's procedure, a package
-provided, and a host command's `return` and error. What the interpreter's counts
-cannot see is the host's to bound. Fuel stands in for the command count in a C
+provided, and a host command's `return` and error.
+
+Command installation uses `tcl_engine_create_command_counted` or
+`tcl_engine_define_unit_receipt`. Both return the original interpreter owner,
+interpreter identity, installed generation and one owned object containing the
+publication owner's exact qualified address. The address is replay data; the
+receipt grants access only in its issuing instance. `tcl_engine_restrict_receipts`
+keeps actual installed generations, including a host command renamed since its
+installation. A replacement at the old name has a different generation.
+`tcl_engine_command_receipt_current` checks the original owner and currently
+selected generation before a compiled handle can cause invocation effects.
+Deletion returns the actual selected command's retirement receipt. Consumers
+release the address object once, and retain counted bytes without stripping
+namespace separators or replacing non-Unicode bytes.
+
+A `WasmHandle` belongs to one logical engine and identifies its authored unit.
+The current session owns that unit's real installation receipt. Replay installs
+commands and units in the fresh interpreter and obtains fresh receipts; saved
+numbers grant no authority in the replacement instance. A missing parent
+namespace is an authentic publication refusal. Replay does not infer or create
+namespace state from a command spelling.
+
+Values cross the boundary through original selected producers. Strings retain
+exact counted bytes. Lists and dictionaries retain their original imported
+children. Byte arrays use the selected binary producer. Full scalar carriers
+use the shared `tcl_syntax::scalar_getter::carrier` codec, followed by independent
+runtime validation of descriptor origin and getter protocol. The codec preserves
+full integers, radix/digits, floating-point bits and Boolean origin; decoding
+supplies data, never native object authority. Resident spelling and recorded
+allocation kind are validated independently of the typed payload. Unknown or
+inconsistent storage and foreign descriptor origins refuse explicitly.
+
+WASM host callbacks currently support `MaterializedStrings`: the runtime's
+selected original string getter supplies exact bytes. `NativeObjectSnapshots`
+and `OriginalObjects` require a callback bridge this host does not provide, and
+refuse before invoking the host command. Value imports and byte materialisation
+do not grant original-object lifetime or mutation capabilities.
+
+`tcl_engine_complete_original` settles actual result and complete options through
+the same return-options owner as the native runtime engine. Guest errors retain
+result, error-code and options bytes. `tcl_engine_capture_original` transfers
+owned guest result/options only after successful original capture. Host failures
+remain the runtime's typed first cause, outside Tcl completion and `catch`.
+The host queries `tcl_engine_host_refusal_pending` immediately after an invocation
+and before reading completion output or calling a guest object getter. A host
+refusal leaves that output untouched. Its optional text export is presentation;
+consumers do not reparse it into semantic state. `tcl_engine_begin` clears the
+previous entry's admission state only at an independent public engine entry
+(installation, removal, compilation or invocation), never inside a callback,
+replay step or materialiser. Earlier guest effects remain available to a fresh
+entry after a host failure.
+
+Unicode-only catalogues require valid Unicode identities. The extension host
+refuses an opaque command inventory as `NotText`; the runtime backing report
+omits opaque names from its presentation. Counted publication and lookup retain
+those exact names independently.
+
+The VM's `byte_array_result(bytes, provider)` selects a producer from the current
+invocation. `None` uses its actual native engine; an explicit logical provider
+requires the current authored F5 source ingress and cannot fall back to native
+creation. Binary backing retains its sealed constructor recipe and logical
+origin before and after string materialisation. Imported backing and conversion
+caches without constructor receipts remain distinct. The iRule reference
+simulator selects its explicit Tcl 8.4 logical producer for binary answers and
+uses checked byte access before projecting inputs into its Unicode reference
+API. An unavailable getter or opaque Unicode input is a host refusal outside
+Tcl completion and `catch`.
+
+What the interpreter's counts cannot see is the host's to bound. Fuel stands in for the command count in a C
 command's own loop and in a loop that dispatches nothing; the epoch keeps the
 wall clock, since every WASI clock reads zero; and the memory's growth is capped
 by the value-size budget. An evaluation gets `FUEL_PER_COMMAND` (2,000,000

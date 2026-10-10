@@ -501,6 +501,7 @@ impl Analyser {
             return;
         };
         self.refine_original_path_arguments(&written, &original);
+        self.refine_original_pattern_arguments(&written, &original);
         let marks = (
             self.result.diagnostics.len(),
             self.dsl_gate_sites.len(),
@@ -514,7 +515,6 @@ impl Analyser {
         self.emit_binary_field_version_gates(&formats);
         self.record_dsl_format_sites(cmd_name, &formats);
         self.emit_w121_invalid_subnet_mask(&arguments, &argument_tokens);
-        self.emit_w303_redos(cmd_name, &arguments, &argument_tokens, site.cmd_tok);
         self.emit_w127_closed_value_args(Some(&original));
         self.emit_w127_closed_option_values(Some(&original));
         self.emit_w146_literal_argument_validation(Some(&original));

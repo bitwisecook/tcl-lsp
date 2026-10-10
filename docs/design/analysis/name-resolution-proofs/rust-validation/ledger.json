@@ -111284,6 +111284,1884 @@
           "scope": "Actual successful Cargo artifact event only; no sealed image, inventory or executed assertion."
         }
       ]
+    },
+    {
+      "id": "rust.frozen275.integration-vm-native-test-build275",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/integration-vm-native-test-build275/receipt.json.gz",
+        "sha256": "236d0257e4aa8ad5fe6abccbbeea356eca7a984f7d92022c2848a9c685f8fd85",
+        "compression": "gzip",
+        "uncompressed_sha256": "d46c409b9519e2fb6e6b0290a1580e570c248f1be271ce390e8ffcb32281c8c2"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/integration-vm-native-test-build275/tests.log",
+        "sha256": "308ee487744b52c6e7cfa7468e0ea80b5c88185858217c3a4ffc3fb6c770e904"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json-render-diagnostics"
+      ],
+      "exit": 0,
+      "seconds": 106.91609382201568,
+      "uniform_source": true,
+      "status": "compile-passed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. The independent VM-only no-run275 build emits its actual tcl_vm test executable, separately sealed as VM275. Construction is not an assertion result.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/pinned-vm275.elf.gz",
+        "sha256": "048318e0f2c7f88faafad32749c00346da5f7cbef33e752b4bd912382d0ee6c3",
+        "compression": "gzip",
+        "uncompressed_sha256": "bba0ef9a727d129bc8104b055c68e1ede3cdcbc704a917a187c4c92d822fdfc8",
+        "uncompressed_bytes": 101488232,
+        "compressed_bytes": 19859027,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/pinned-vm275.json",
+        "metadata_sha256": "90af6c4ece448864f24e062fa70e38eeaf23401f6bcc602725e55675e4350342",
+        "build_receipt_id": "rust.frozen275.integration-vm-native-test-build275",
+        "original_source_snapshot_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/source-snapshot.json.gz",
+          "sha256": "b29554d08269bc11121afd5dd5efedd689668452b1173c3c0a71c75ee881dfcb",
+          "compression": "gzip",
+          "uncompressed_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen275.integration-vm-current-inventory275",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/integration-vm-current-inventory275/receipt.json.gz",
+        "sha256": "f70fe0307b82a1b06de07eb2c223f2f8f10c195f47020ee0841e9b3c2734f886",
+        "compression": "gzip",
+        "uncompressed_sha256": "a8f5151f1802ec06cf29f70db4b3810d7f8eae13ed7919bc813dfe1ee5ffd39d"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/integration-vm-current-inventory275/tests.log",
+        "sha256": "79c9e546f92510c81f46a2a3d93e8e6dad8fcca5dabdb31ba7238603aecaf006"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm275.elf",
+        "--list"
+      ],
+      "exit": 0,
+      "seconds": 0.006932443997357041,
+      "uniform_source": true,
+      "status": "listed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. The independently built sealed VM275 ELF lists737 exact tests; listing grants no assertion result.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/pinned-vm275.elf.gz",
+        "sha256": "048318e0f2c7f88faafad32749c00346da5f7cbef33e752b4bd912382d0ee6c3",
+        "compression": "gzip",
+        "uncompressed_sha256": "bba0ef9a727d129bc8104b055c68e1ede3cdcbc704a917a187c4c92d822fdfc8",
+        "uncompressed_bytes": 101488232,
+        "compressed_bytes": 19859027,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/pinned-vm275.json",
+        "metadata_sha256": "90af6c4ece448864f24e062fa70e38eeaf23401f6bcc602725e55675e4350342",
+        "build_receipt_id": "rust.frozen275.integration-vm-native-test-build275",
+        "original_source_snapshot_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/source-snapshot.json.gz",
+          "sha256": "b29554d08269bc11121afd5dd5efedd689668452b1173c3c0a71c75ee881dfcb",
+          "compression": "gzip",
+          "uncompressed_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen275.integration-vm-native-frontier-tests275",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/integration-vm-native-frontier-tests275/receipt.json.gz",
+        "sha256": "70e8ae5c361de91eea48820b73a63b5a8910a5beaa619b04b33214dfe7b0b939",
+        "compression": "gzip",
+        "uncompressed_sha256": "a9eabb0d7c54656c8815dd036e6ab3daf1af9ed32d0491eb9483a173c9e511e0"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/integration-vm-native-frontier-tests275/tests.log",
+        "sha256": "3e4f5fe4bd0c673570d12ba94e36ae4b0bed33b4dbc96a0131911c459faea026"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-vm275.elf",
+        "--exact",
+        "cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows",
+        "cmd_dict::native_rmw_fixture_tests::c85_dictionary_write_error_retains_defined_host_storage",
+        "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+        "cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls",
+        "value::tests::byte_array_carrier_retains_original_storage_and_string_presence",
+        "interp::native_error_stack::tests::reached_error_capture_retains_original_argv_members_after_invocation_release",
+        "interp::native_error_stack::tests::reached_error_capture_declines_retired_argv_and_missing_protocol",
+        "interp::native_error_stack::tests::private_stack_retains_header_and_children_through_save_cow_and_restore",
+        "interp::native_error_stack::tests::reached_capture_adapters_preserve_typed_retired_foreign_and_first_causes",
+        "interp::native_error_stack::tests::reached_instruction_capture_preserves_missing_owner_refusal",
+        "cmd_dict::native_rmw_fixture_tests::c86_dictionary_write_error_retains_its_own_defined_host_storage",
+        "exec::active_manifest_tests::active_currency_rechecks_pack_claims_and_manifest_package_floors",
+        "exec::active_manifest_tests::compiled_entry_checks_retained_manifest_and_actual_pack_claims",
+        "exec::active_manifest_tests::refused_overlay_pin_preserves_the_active_artifact_identity",
+        "exec::active_manifest_tests::stale_pack_command_boundary_does_not_acknowledge_the_changed_epoch",
+        "interp::family_b_tests::explicit_host_engine_keeps_source_logical_and_availability_axes_separate",
+        "value_ops::raw_value_tests::safe_index_functions_require_the_actual_fixed_table",
+        "value_ops::raw_value_tests::portable_error_adapter_separates_raw_guest_result_from_unicode_refusal",
+        "value_ops::raw_value_tests::jim_range_retains_native_seek_and_cached_count_until_conversion",
+        "error::tests::typed_access_refusal_bypasses_catch_and_finally",
+        "cmd_lseq::tests::sequence_backend_capacity_bypasses_guest_capture_and_finally",
+        "command::tests::original_command_core_refusal_keeps_typed_first_host_cause",
+        "interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows",
+        "cmd_dict::native_rmw_fixture_tests::c86_dictionary_with_write_error_retains_independent_defined_host_storage",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit": 101,
+      "seconds": 165.0380868630018,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 21,
+        "failed": 3,
+        "ignored": 0,
+        "filtered_out": 713
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::c85_dictionary_write_error_retains_defined_host_storage",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.dictionary.c85-original-update-write-error-object-lifetime"
+          ]
+        },
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::c86_dictionary_with_write_error_retains_independent_defined_host_storage",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.dictionary.original-with-write-error-object-lifetime"
+          ]
+        },
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::c86_dictionary_write_error_retains_its_own_defined_host_storage",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.dictionary.original-update-write-error-object-lifetime"
+          ]
+        },
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.dictionary.c85-original-update-write-error-object-lifetime",
+            "naming.dictionary.update-with-body-and-observer-frontiers",
+            "naming.dictionary.original-update-write-error-object-lifetime",
+            "naming.dictionary.original-with-write-error-object-lifetime"
+          ]
+        },
+        {
+          "selector": "cmd_lseq::tests::sequence_backend_capacity_bypasses_guest_capture_and_finally",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls",
+          "status": "failed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls",
+          "status": "failed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "command::tests::original_command_core_refusal_keeps_typed_first_host_cause",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.interpreter.original-child-host-refusal-transport"
+          ]
+        },
+        {
+          "selector": "error::tests::typed_access_refusal_bypasses_catch_and_finally",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "exec::active_manifest_tests::active_currency_rechecks_pack_claims_and_manifest_package_floors",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.compiler.active-manifest-revalidation"
+          ]
+        },
+        {
+          "selector": "exec::active_manifest_tests::compiled_entry_checks_retained_manifest_and_actual_pack_claims",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.compiler.active-manifest-revalidation"
+          ]
+        },
+        {
+          "selector": "exec::active_manifest_tests::refused_overlay_pin_preserves_the_active_artifact_identity",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.compiler.active-manifest-revalidation"
+          ]
+        },
+        {
+          "selector": "exec::active_manifest_tests::stale_pack_command_boundary_does_not_acknowledge_the_changed_epoch",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.compiler.active-manifest-revalidation"
+          ]
+        },
+        {
+          "selector": "interp::family_b_tests::explicit_host_engine_keeps_source_logical_and_availability_axes_separate",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "interp::native_command_names::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows",
+          "status": "failed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.compiler.original-info-commands-literal-resolution"
+          ]
+        },
+        {
+          "selector": "interp::native_error_stack::tests::private_stack_retains_header_and_children_through_save_cow_and_restore",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "interp::native_error_stack::tests::reached_capture_adapters_preserve_typed_retired_foreign_and_first_causes",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.error.original-invocation-context-capture"
+          ]
+        },
+        {
+          "selector": "interp::native_error_stack::tests::reached_error_capture_declines_retired_argv_and_missing_protocol",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.error.original-invocation-context-capture"
+          ]
+        },
+        {
+          "selector": "interp::native_error_stack::tests::reached_error_capture_retains_original_argv_members_after_invocation_release",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.error.original-invocation-context-capture"
+          ]
+        },
+        {
+          "selector": "interp::native_error_stack::tests::reached_instruction_capture_preserves_missing_owner_refusal",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.error.original-invocation-context-capture"
+          ]
+        },
+        {
+          "selector": "value::tests::byte_array_carrier_retains_original_storage_and_string_presence",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "value_ops::raw_value_tests::jim_range_retains_native_seek_and_cached_count_until_conversion",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "value_ops::raw_value_tests::portable_error_adapter_separates_raw_guest_result_from_unicode_refusal",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        },
+        {
+          "selector": "value_ops::raw_value_tests::safe_index_functions_require_the_actual_fixed_table",
+          "status": "passed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": []
+        }
+      ],
+      "question_ids": [
+        "naming.compiler.active-manifest-revalidation",
+        "naming.compiler.original-info-commands-literal-resolution",
+        "naming.dictionary.c85-original-update-write-error-object-lifetime",
+        "naming.dictionary.original-update-write-error-object-lifetime",
+        "naming.dictionary.original-with-write-error-object-lifetime",
+        "naming.dictionary.update-with-body-and-observer-frontiers",
+        "naming.error.original-invocation-context-capture",
+        "naming.interpreter.original-child-host-refusal-transport"
+      ],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. The 24 exact-selector frontier run records 21 passed/3 failed; the isolated dictionary ownership diagnostic records its one failing selector. Their exact per-selector outcomes apply only to this sealed source/image, without aggregate success, other-backend or Native provider promotion.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/pinned-vm275.elf.gz",
+        "sha256": "048318e0f2c7f88faafad32749c00346da5f7cbef33e752b4bd912382d0ee6c3",
+        "compression": "gzip",
+        "uncompressed_sha256": "bba0ef9a727d129bc8104b055c68e1ede3cdcbc704a917a187c4c92d822fdfc8",
+        "uncompressed_bytes": 101488232,
+        "compressed_bytes": 19859027,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/pinned-vm275.json",
+        "metadata_sha256": "90af6c4ece448864f24e062fa70e38eeaf23401f6bcc602725e55675e4350342",
+        "build_receipt_id": "rust.frozen275.integration-vm-native-test-build275",
+        "original_source_snapshot_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/source-snapshot.json.gz",
+          "sha256": "b29554d08269bc11121afd5dd5efedd689668452b1173c3c0a71c75ee881dfcb",
+          "compression": "gzip",
+          "uncompressed_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen275.integration-compiler-registry-consumer-test-build275",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/integration-compiler-registry-consumer-test-build275/receipt.json.gz",
+        "sha256": "ef6a7631da62f18a0b1be7debf186595fc8f28d0d2bb7d6159c447a79fc4e766",
+        "compression": "gzip",
+        "uncompressed_sha256": "287207d8a4d0d53e0551ae7fb66aa0ec16f3e4d3a3e9f1ccd73d9975cff79635"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/integration-compiler-registry-consumer-test-build275/tests.log",
+        "sha256": "ad11905d468ca1ff54c3ee7058c0e403e5eae37e03aba34afaf7fe7ee634c275"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "-p",
+        "tcl-engine-tclvm",
+        "--lib",
+        "--no-run",
+        "--message-format=json-render-diagnostics"
+      ],
+      "exit": 101,
+      "seconds": 266.8834945030103,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. The four-crate no-run275 invocation stops at four Registry libtest E0599 calls to the removed native_command_admission method. Successful Syntax/Engine/Compiler libtest artifact events remain in the complete log, but this failed invocation seals no image, inventories no executable and executes no assertions. The independently successful Compiler-only producer is a separate operation.",
+      "unsealed_test_artifacts": [
+        {
+          "target": "tcl_syntax",
+          "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_syntax-54a8e65bf9653704",
+          "scope": "Actual Cargo compiler-artifact event only; this failed invocation supplies no sealed image, inventory or assertions."
+        },
+        {
+          "target": "tcl_engine_tclvm",
+          "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_engine_tclvm-fb346ec5c98debea",
+          "scope": "Actual Cargo compiler-artifact event only; this failed invocation supplies no sealed image, inventory or assertions."
+        },
+        {
+          "target": "tcl_compiler",
+          "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_compiler-b81535e91a89c5e2",
+          "scope": "Actual Cargo compiler-artifact event only; this failed invocation supplies no sealed image, inventory or assertions."
+        }
+      ]
+    },
+    {
+      "id": "rust.frozen275.integration-compiler-own-test-build275",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/integration-compiler-own-test-build275/receipt.json.gz",
+        "sha256": "8ad884334332d3243b2f05e83d040351b4fffd7d62b8fa250421c7e5a4dcc86d",
+        "compression": "gzip",
+        "uncompressed_sha256": "ccdc8f1ff5294bd2ea11911da026c82d27e324680dc410679b40079a2aeef550"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/integration-compiler-own-test-build275/tests.log",
+        "sha256": "2ac2b90cbe0be5d9e97447a0e45f073aa00c274dab418874210f684270aa3c69"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json-render-diagnostics"
+      ],
+      "exit": 0,
+      "seconds": 156.84361793502467,
+      "uniform_source": true,
+      "status": "compile-passed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. The independent Compiler-only no-run275 build succeeds and emits its actual tcl_compiler test executable. This record retains the successful artifact event, without a Compiler pin, inventory or assertion outcome; any independently sealed image/run has its own evidence.",
+      "compiled_test_artifacts": [
+        {
+          "target": "tcl_compiler",
+          "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_compiler-7528e034bafba336",
+          "scope": "Independent successful no-run producer artifact only; no Compiler image is sealed by this archive and no inventory or assertions are claimed."
+        }
+      ]
+    },
+    {
+      "id": "rust.frozen275.diagnostic-native275-dictionary345-ownership",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/diagnostic-native275-dictionary345-ownership/receipt.json.gz",
+        "sha256": "a8dee029a6543ae45d16166abdaf9b68a1be780bceba454b26eb4c987c7af407",
+        "compression": "gzip",
+        "uncompressed_sha256": "0ebe8b69ce889226abfc3563c08899a4a90bb3c7cb4acfa780e28ad33b56740b"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/diagnostic-native275-dictionary345-ownership/tests.log",
+        "sha256": "0fa21ba9deb6454cf254a6fb46e0b4d471c2547ac9aefe551066e67537ee71be"
+      },
+      "command": [
+        "env",
+        "RUST_BACKTRACE=1",
+        "TCL_LSP_ORACLE_PROGRESS=1",
+        "TCL_LSP_TRACE_NATIVE_OPTIONS=1",
+        "/workspace/.proofs/pinned-vm275.elf",
+        "--exact",
+        "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit": 101,
+      "seconds": 67.48500912502641,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 736
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived source leaf is independently byte-checked; a Git head label is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes",
+          "status": "failed",
+          "purpose": "Actual sealed VM275 ELF assertion under its original naming275 source image. Native windows and provider-purpose evidence remain separate.",
+          "proof_ids": [
+            "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+          ]
+        }
+      ],
+      "question_ids": [
+        "naming.variable.dictionary-rmw-command-versus-selected-local-cell"
+      ],
+      "limits": "Exact closed command and complete original frozen source association; later source definitions and other crates remain independent. No aggregate gate or external Native provider promotion. The 24 exact-selector frontier run records 21 passed/3 failed; the isolated dictionary ownership diagnostic records its one failing selector. Their exact per-selector outcomes apply only to this sealed source/image, without aggregate success, other-backend or Native provider promotion.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/pinned-vm275.elf.gz",
+        "sha256": "048318e0f2c7f88faafad32749c00346da5f7cbef33e752b4bd912382d0ee6c3",
+        "compression": "gzip",
+        "uncompressed_sha256": "bba0ef9a727d129bc8104b055c68e1ede3cdcbc704a917a187c4c92d822fdfc8",
+        "uncompressed_bytes": 101488232,
+        "compressed_bytes": 19859027,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/pinned-vm275.json",
+        "metadata_sha256": "90af6c4ece448864f24e062fa70e38eeaf23401f6bcc602725e55675e4350342",
+        "build_receipt_id": "rust.frozen275.integration-vm-native-test-build275",
+        "original_source_snapshot_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/source-snapshot.json.gz",
+          "sha256": "b29554d08269bc11121afd5dd5efedd689668452b1173c3c0a71c75ee881dfcb",
+          "compression": "gzip",
+          "uncompressed_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen275.integration-compiler-current-inventory275",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/integration-compiler-current-inventory275/receipt.json.gz",
+        "sha256": "8756475d960b181add72cb1c0fc4ede45b103f1f076ee41c4cca9326f027672a",
+        "compression": "gzip",
+        "uncompressed_sha256": "f2c7b5c038946d3665fb91310abd3c031b5450c1d2b3317fa2df85864e53a6be"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/integration-compiler-current-inventory275/tests.log",
+        "sha256": "41175a94fb57982c61698dbf6e203eaa9ff4fc62974565d55b78b40668ad0a74"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-compiler275.elf",
+        "--list"
+      ],
+      "exit": 0,
+      "seconds": 0.056977934000315145,
+      "uniform_source": true,
+      "status": "listed",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived leaf is independently byte-checked; a Git head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Exact closed original command, independently successful Compiler-only275 producer and sealed image, complete source association and per-selector outcomes. No aggregate gate, other image/backend assertion or external Native provider promotion. The actual inventory lists9067 exact tests and confers no assertion result.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-compiler-image/pinned-compiler275.elf.gz",
+        "sha256": "0c9c0a4a87ea0271ec42c817cf0bce5482f1845e82ab1d5edac6dd63a6bc3c36",
+        "compression": "gzip",
+        "uncompressed_sha256": "98ec7b75b4970c1a51861f1f3c7146392f480d279e402bba78e5e1ff4db4b6d9",
+        "uncompressed_bytes": 202851848,
+        "compressed_bytes": 39142526,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-compiler-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-compiler-image/pinned-compiler275.json",
+        "metadata_sha256": "c0ac33992f96a4808113f7f646b0edb334872263cb7005bb080c66c0b5503520",
+        "build_receipt_id": "rust.frozen275.integration-compiler-own-test-build275",
+        "original_source_snapshot_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/source-snapshot.json.gz",
+          "sha256": "b29554d08269bc11121afd5dd5efedd689668452b1173c3c0a71c75ee881dfcb",
+          "compression": "gzip",
+          "uncompressed_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2"
+        }
+      }
+    },
+    {
+      "id": "rust.frozen275.integration-compiler-focused-consumers275",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/integration-compiler-focused-consumers275/receipt.json.gz",
+        "sha256": "a1c0dac11c8de349f883fa09c8810b0a393203e7298cdb108f62fe8a0c9fc376",
+        "compression": "gzip",
+        "uncompressed_sha256": "49f9b37e013967b7c85e72e1a9ed37b8ebf2d3bb0232046d80210c3ff6a33f47"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/integration-compiler-focused-consumers275/tests.log",
+        "sha256": "7f52962843497e2fa87f4a38ed1e190b346e8aac8a7a998da1c28cb4e5338d28"
+      },
+      "command": [
+        "/workspace/.proofs/pinned-compiler275.elf",
+        "--exact",
+        "analyser::bounds_checks::source_index::tests::original_index_advice_retains_availability_and_refuses_missing_foreign_or_stale_owners",
+        "analyser::bounds_checks::source_index::tests::original_index_bounds_select_aliases_moves_and_reject_source_replacements",
+        "analyser::bounds_checks::source_index::tests::original_index_subjects_keep_captured_ordinals_unicode_and_written_pair_geometry",
+        "analyser::bounds_checks::source_index::tests::original_index_supplemental_values_keep_literal_subjects_and_nested_list_paths",
+        "analyser::bounds_checks::tests::bounds_checks_recurse_into_command_substitutions",
+        "analyser::bounds_checks::tests::index_diagnostics_use_the_document_number_syntax",
+        "analyser::bounds_checks::tests::w230_list_index_out_of_range",
+        "analyser::bounds_checks::tests::w230_lrange_lreplace_empty_slice",
+        "analyser::bounds_checks::tests::w230_single_element_nested_list_length",
+        "analyser::bounds_checks::tests::w232_braced_literal_string_length",
+        "analyser::bounds_checks::tests::w232_string_index_out_of_range",
+        "analyser::bounds_checks::tests::w232_string_range_replace_empty_slice",
+        "analyser::diagnostics::dataflow::issue996_tests::opaque_body_local_set_requires_original_body_owner",
+        "analyser::diagnostics::dataflow::issue996_tests::original_body_ownership_keeps_installer_horizon_and_child_refusal",
+        "analyser::diagnostics::dataflow::source_body_purpose_tests::original_reference_only_body_cannot_supply_local_store_suppression",
+        "analyser::diagnostics::proven::source_value_projection_tests::supplemental_values_cannot_resurrect_a_source_replaced_command",
+        "analyser::diagnostics::proven::source_value_projection_tests::supplemental_values_preserve_original_alias_operands_and_source_subjects",
+        "analyser::diagnostics::security::source_crossing::tests::original_crossing_advice_keeps_selected_option_availability_and_missing_owner_refusals",
+        "analyser::diagnostics::security::source_crossing::tests::original_frame_reparse_keeps_possible_layouts_alias_prefixes_and_whole_words",
+        "analyser::diagnostics::security::source_crossing::tests::original_interpreter_reparse_uses_selected_script_words_without_path_or_value_drift",
+        "analyser::diagnostics::security::source_reparse::tests::original_list_idiom_uses_the_child_schema_and_retains_concat_and_shadow_warnings",
+        "analyser::diagnostics::security::source_reparse::tests::original_nested_reparse_keeps_both_aliases_and_declines_replaced_child_or_parent",
+        "analyser::diagnostics::security::source_reparse::tests::original_reparse_diagnostics_keep_alias_targets_and_known_source_barriers",
+        "analyser::diagnostics::security::source_reparse::tests::original_reparse_fix_keeps_whole_quoted_unicode_span_and_review_premise",
+        "analyser::diagnostics::security::source_reparse::tests::original_reparse_selection_retains_actual_availability_and_unavailable_owner_refusals",
+        "analyser::diagnostics::security::source_template::tests::original_template_advice_keeps_actual_option_availability",
+        "analyser::diagnostics::security::source_template::tests::original_template_advice_refuses_missing_foreign_and_stale_source_owners",
+        "analyser::diagnostics::security::source_template::tests::original_template_diagnostics_follow_aliases_and_refuse_known_replacements",
+        "analyser::diagnostics::security::source_template::tests::original_template_refinement_requires_matching_cu_and_selected_switch_values",
+        "analyser::diagnostics::security::source_template::tests::original_template_subject_keeps_captured_switches_and_whole_unicode_word",
+        "analyser::diagnostics::tests::w101_anchors_at_the_substituted_argument",
+        "analyser::diagnostics::tests::w101_gate_trait_pair_keeps_eval_only",
+        "analyser::diagnostics::tests::w102_advice_never_mixes_switch_families",
+        "analyser::diagnostics::tests::w102_computed_switch_word_is_not_the_operand",
+        "analyser::diagnostics::tests::w102_message_narrows_with_flags",
+        "analyser::diagnostics::tests::w102_narrows_a_proven_switch_word",
+        "analyser::diagnostics::tests::w102_subst_variable_argument",
+        "analyser::diagnostics::tests::w102_tcl91_positive_family_backslashes_only_is_silent",
+        "analyser::diagnostics::tests::w301_uplevel_injection",
+        "analyser::diagnostics::tests::w309_eval_uplevel_with_subst",
+        "analyser::diagnostics::tests::w309_inner_subst_head_resolves_through_registry",
+        "analyser::diagnostics::tests::w312_interp_eval_injection",
+        "analyser::diagnostics::tests::w312_message_names_subcommand",
+        "analyser::diagnostics::tests::w312_registry_taint_list_widens_to_console_and_abbreviations",
+        "auto_path_eval::path_constants::original::tests::original_path_batches_reselect_current_realm_and_withdraw_stale_prefixes",
+        "auto_path_eval::path_constants::original::tests::original_path_folding_keeps_selected_first_close_variable_grammar",
+        "auto_path_eval::path_constants::original::tests::original_path_inventory_keeps_full_input_scalar_names_and_absolute_namespace_scopes",
+        "auto_path_eval::path_constants::original::tests::original_path_name_domains_keep_empty_scalar_and_parenthesised_namespace_literals",
+        "auto_path_eval::path_constants::original::tests::original_path_producer_full_chunked_and_restored_batches_keep_actual_input",
+        "auto_path_eval::path_constants::original::tests::original_path_producer_keeps_explicit_source_seed_and_declines_replaced_setter",
+        "auto_path_eval::source_expression::tests::original_source_path_parts_keep_selected_variable_roots_and_missing_premises",
+        "codegen::wasm::backend::tests::assignment_source_metadata_retains_nested_lexer_overlays",
+        "codegen::wasm::backend::tests::structural_assignments_need_unanimous_original_source_carriers",
+        "codegen::wasm::backend::tests::structural_assignments_require_actual_availability_and_grammar",
+        "codegen::wasm::pipeline::tests::incoming_native_operands_use_declared_arguments_without_inventing_ssa",
+        "command_binding::cfg_lookup_context::tests::original_cfg_binding_replay_keeps_native_move_and_delete_horizons",
+        "command_binding::cfg_lookup_context::tests::original_cfg_logical_lookup_keeps_its_positive_owner_separate_from_native_names",
+        "command_binding::cfg_lookup_context::tests::original_cfg_lookup_refuses_missing_foreign_and_changed_source_metadata",
+        "command_binding::cfg_lookup_context::tests::original_cfg_lookup_uses_per_point_native_namespace_not_reported_function_name",
+        "command_binding::declaration_preview::tests::nested_declared_layout_declines_lookup_after_unknown_variable_observers",
+        "command_binding::declaration_preview::tests::nested_declared_layout_keeps_original_scope_without_entered_authority",
+        "command_binding::declaration_preview::tests::nested_declared_layout_stops_before_condition_callbacks_or_aliases",
+        "command_binding::expression_operand_advice::tests::conditional_loop_expression_advice_keeps_original_child_read",
+        "command_binding::logical_definition::tests::logical_definition_declines_unknown_rebound_dynamic_and_invalid_inputs",
+        "command_binding::logical_definition::tests::logical_definition_publishes_general_static_procedures_in_the_authored_model",
+        "command_binding::logical_definition::tests::logical_model_roster_requires_the_complete_current_input_and_source_mode",
+        "command_binding::logical_operation::tests::logical_original_alias_capture_composes_registry_operations_at_the_call",
+        "command_binding::logical_operation::tests::logical_original_operation_refusals_do_not_recover_from_reporting_state",
+        "command_binding::logical_operation::tests::logical_original_transfers_preserve_moves_deletes_and_scalar_head_values",
+        "command_binding::logical_operation::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases",
+        "command_binding::tests::logical_command_layout_keeps_unknown_physical_frames_separate",
+        "common_aot_plan::tests::authored_program_storage_keeps_original_coverage_without_native_frame_or_body_grants",
+        "common_aot_plan::tests::declared_arguments_keep_distinct_reached_cells_and_exact_source_receipts",
+        "common_aot_plan::tests::declared_arguments_refuse_missing_owners_changed_contents_and_future_callers",
+        "common_aot_plan::tests::retained_native_program_coverage_does_not_donate_root_frame_slots",
+        "common_aot_plan::tests::unknown_actual_type_poisons_cross_call_formal_propagation",
+        "lowering::execution_regions::tests::captured_provider_metadata_keeps_actual_availability_and_missing_owner_refusal",
+        "lowering::execution_regions::tests::case_list_possible_regions_enter_bodies_as_list_elements",
+        "lowering::execution_regions::tests::conditional_case_sources_decline_replaced_handlers",
+        "lowering::execution_regions::tests::conditional_case_sources_do_not_claim_entered_bodies",
+        "lowering::execution_regions::tests::core_and_provider_namespace_shadows_withdraw_stock_proof",
+        "lowering::execution_regions::tests::helper_replacement_and_phase_hook_installation_decline_the_plan",
+        "lowering::execution_regions::tests::issue_2286_default_c_authoring_entry_uses_real_setup_definitions",
+        "lowering::execution_regions::tests::package_advertisement_and_replaced_wrapper_do_not_license_expansion",
+        "lowering::execution_regions::tests::qualified_and_imported_wrappers_share_the_same_lifecycle",
+        "lowering::execution_regions::tests::scoped_provider_lifecycle_retains_conditional_dependencies",
+        "lowering::tests::complete_logical_source_keeps_original_structure_and_native_absence",
+        "lowering::tests::complete_source_input_declines_changed_unit_profile_without_authoring_fallback",
+        "lowering::tests::deferred_command_prefix_does_not_create_a_runtime_barrier",
+        "lowering::tests::logical_original_declaration_layout_keeps_unicode_and_qualified_alias_heads",
+        "lowering::tests::namespace_directive_metadata_keeps_actual_availability_and_source_config",
+        "lowering::tests::reference_only_command_prefix_does_not_create_a_runtime_barrier",
+        "optimiser::elimination::source_purity::tests::literal_assignment_purity_keeps_no_evaluation_without_metadata",
+        "optimiser::elimination::source_purity::tests::logical_procedure_purity_joins_the_original_declaration_not_its_label",
+        "optimiser::elimination::source_purity::tests::native_substitution_metadata_does_not_borrow_logical_purity",
+        "optimiser::elimination::source_purity::tests::original_substitution_purity_keeps_alias_prefixes_and_target_barriers",
+        "optimiser::elimination::source_purity::tests::original_substitution_purity_requires_actual_availability_and_input",
+        "optimiser::elimination::source_reads::tests::original_hidden_read_names_keep_alias_horizons_and_literal_roots",
+        "optimiser::elimination::source_reads::tests::original_hidden_reads_keep_actual_availability_and_variable_grammar",
+        "optimiser::elimination::source_reads::tests::original_hidden_reads_refuse_missing_foreign_and_stale_inputs",
+        "optimiser::elimination::tests::resolved_store_observer_advice_preserves_literal_sigil_and_scalar_names",
+        "optimiser::expr_simplify::tests::original_expression_candidates_decline_missing_foreign_and_changed_module_inputs",
+        "optimiser::expr_simplify::tests::original_expression_candidates_keep_actual_config_alias_and_shadow_context",
+        "optimiser::manager::tests::supplied_multipass_refreshes_conditional_candidates_for_each_source_image",
+        "script_binds::tests::declaration_read_advice_requires_original_unchanged_body_and_formals",
+        "script_binds::tests::selected_formal_read_scope_follows_original_factory_aliases_and_replacements",
+        "script_binds::tests::selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate",
+        "ssa::tests::conditional_nested_expression_reads_keep_original_tokens_without_entry",
+        "ssa::tests::supplied_ssa_definition_and_lexical_reads_do_not_reconstruct_catalogue_roles",
+        "ssa::tests::supplied_ssa_role_scans_keep_actual_availability_grammar_and_missing_input",
+        "taint::tests::actual_option_advice_keeps_selected_terminator_availability_and_source_vector",
+        "taint::tests::actual_option_terminator_withdraws_possible_source_positions",
+        "taint::tests::actual_regexp_warning_refuses_missing_and_foreign_source_metadata",
+        "taint::tests::constant_command_head_candidates_use_retained_escape_grammar",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit": 101,
+      "seconds": 156.23021543299546,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 47,
+        "failed": 67,
+        "ignored": 0,
+        "filtered_out": 8953
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived leaf is independently byte-checked; a Git head is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "analyser::bounds_checks::source_index::tests::original_index_advice_retains_availability_and_refuses_missing_foreign_or_stale_owners",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.diagnostic.registry-source-ownership"
+          ]
+        },
+        {
+          "selector": "analyser::bounds_checks::source_index::tests::original_index_bounds_select_aliases_moves_and_reject_source_replacements",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.diagnostic.registry-source-ownership"
+          ]
+        },
+        {
+          "selector": "analyser::bounds_checks::source_index::tests::original_index_subjects_keep_captured_ordinals_unicode_and_written_pair_geometry",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.diagnostic.registry-source-ownership"
+          ]
+        },
+        {
+          "selector": "analyser::bounds_checks::source_index::tests::original_index_supplemental_values_keep_literal_subjects_and_nested_list_paths",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.diagnostic.registry-source-ownership"
+          ]
+        },
+        {
+          "selector": "analyser::bounds_checks::tests::bounds_checks_recurse_into_command_substitutions",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::bounds_checks::tests::index_diagnostics_use_the_document_number_syntax",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::bounds_checks::tests::w230_list_index_out_of_range",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::bounds_checks::tests::w230_lrange_lreplace_empty_slice",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::bounds_checks::tests::w230_single_element_nested_list_length",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::bounds_checks::tests::w232_braced_literal_string_length",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::bounds_checks::tests::w232_string_index_out_of_range",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::bounds_checks::tests::w232_string_range_replace_empty_slice",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::diagnostics::dataflow::issue996_tests::opaque_body_local_set_requires_original_body_owner",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.source.original-editor-body-structure"
+          ]
+        },
+        {
+          "selector": "analyser::diagnostics::dataflow::issue996_tests::original_body_ownership_keeps_installer_horizon_and_child_refusal",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.diagnostic.original-materialized-write-footprint"
+          ]
+        },
+        {
+          "selector": "analyser::diagnostics::dataflow::source_body_purpose_tests::original_reference_only_body_cannot_supply_local_store_suppression",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.source.original-script-region-purpose"
+          ]
+        },
+        {
+          "selector": "analyser::diagnostics::proven::source_value_projection_tests::supplemental_values_cannot_resurrect_a_source_replaced_command",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::diagnostics::proven::source_value_projection_tests::supplemental_values_preserve_original_alias_operands_and_source_subjects",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::diagnostics::security::source_crossing::tests::original_crossing_advice_keeps_selected_option_availability_and_missing_owner_refusals",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "analyser::diagnostics::security::source_crossing::tests::original_frame_reparse_keeps_possible_layouts_alias_prefixes_and_whole_words",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.diagnostic.registry-source-ownership"
+          ]
+        },
+        {
+          "selector": "analyser::diagnostics::security::source_crossing::tests::original_interpreter_reparse_uses_selected_script_words_without_path_or_value_drift",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.diagnostic.registry-source-ownership"
+          ]
+        },
+        {
+          "selector": "analyser::diagnostics::security::source_reparse::tests::original_list_idiom_uses_the_child_schema_and_retains_concat_and_shadow_warnings",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.diagnostic.registry-source-ownership"
+          ]
+        },
+        {
+          "selector": "analyser::diagnostics::security::source_reparse::tests::original_nested_reparse_keeps_both_aliases_and_declines_replaced_child_or_parent",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.diagnostic.registry-source-ownership"
+          ]
+        },
+        {
+          "selector": "analyser::diagnostics::security::source_reparse::tests::original_reparse_diagnostics_keep_alias_targets_and_known_source_barriers",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.diagnostic.registry-source-ownership"
+          ]
+        },
+        {
+          "selector": "analyser::diagnostics::security::source_reparse::tests::original_reparse_fix_keeps_whole_quoted_unicode_span_and_review_premise",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.diagnostic.registry-source-ownership"
+          ]
+        },
+        {
+          "selector": "analyser::diagnostics::security::source_reparse::tests::original_reparse_selection_retains_actual_availability_and_unavailable_owner_refusals",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "analyser::diagnostics::security::source_template::tests::original_template_advice_keeps_actual_option_availability",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "analyser::diagnostics::security::source_template::tests::original_template_advice_refuses_missing_foreign_and_stale_source_owners",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "analyser::diagnostics::security::source_template::tests::original_template_diagnostics_follow_aliases_and_refuse_known_replacements",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.diagnostic.registry-source-ownership"
+          ]
+        },
+        {
+          "selector": "analyser::diagnostics::security::source_template::tests::original_template_refinement_requires_matching_cu_and_selected_switch_values",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "analyser::diagnostics::security::source_template::tests::original_template_subject_keeps_captured_switches_and_whole_unicode_word",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.diagnostic.registry-source-ownership"
+          ]
+        },
+        {
+          "selector": "analyser::diagnostics::tests::w101_anchors_at_the_substituted_argument",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::diagnostics::tests::w101_gate_trait_pair_keeps_eval_only",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::diagnostics::tests::w102_advice_never_mixes_switch_families",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::diagnostics::tests::w102_computed_switch_word_is_not_the_operand",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::diagnostics::tests::w102_message_narrows_with_flags",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::diagnostics::tests::w102_narrows_a_proven_switch_word",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::diagnostics::tests::w102_subst_variable_argument",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::diagnostics::tests::w102_tcl91_positive_family_backslashes_only_is_silent",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::diagnostics::tests::w301_uplevel_injection",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::diagnostics::tests::w309_eval_uplevel_with_subst",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::diagnostics::tests::w309_inner_subst_head_resolves_through_registry",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::diagnostics::tests::w312_interp_eval_injection",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::diagnostics::tests::w312_message_names_subcommand",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "analyser::diagnostics::tests::w312_registry_taint_list_widens_to_console_and_abbreviations",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "auto_path_eval::path_constants::original::tests::original_path_batches_reselect_current_realm_and_withdraw_stale_prefixes",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.navigation.retained-path-source-inventory"
+          ]
+        },
+        {
+          "selector": "auto_path_eval::path_constants::original::tests::original_path_folding_keeps_selected_first_close_variable_grammar",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.navigation.retained-path-source-inventory"
+          ]
+        },
+        {
+          "selector": "auto_path_eval::path_constants::original::tests::original_path_inventory_keeps_full_input_scalar_names_and_absolute_namespace_scopes",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.navigation.retained-path-source-inventory"
+          ]
+        },
+        {
+          "selector": "auto_path_eval::path_constants::original::tests::original_path_name_domains_keep_empty_scalar_and_parenthesised_namespace_literals",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.navigation.retained-path-source-inventory"
+          ]
+        },
+        {
+          "selector": "auto_path_eval::path_constants::original::tests::original_path_producer_full_chunked_and_restored_batches_keep_actual_input",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.navigation.retained-path-source-inventory"
+          ]
+        },
+        {
+          "selector": "auto_path_eval::path_constants::original::tests::original_path_producer_keeps_explicit_source_seed_and_declines_replaced_setter",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.navigation.retained-path-source-inventory"
+          ]
+        },
+        {
+          "selector": "auto_path_eval::source_expression::tests::original_source_path_parts_keep_selected_variable_roots_and_missing_premises",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.navigation.retained-path-source-inventory",
+            "naming.source.original-crlf-evaluation-channels"
+          ]
+        },
+        {
+          "selector": "codegen::wasm::backend::tests::assignment_source_metadata_retains_nested_lexer_overlays",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "codegen::wasm::backend::tests::structural_assignments_need_unanimous_original_source_carriers",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "codegen::wasm::backend::tests::structural_assignments_require_actual_availability_and_grammar",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "codegen::wasm::pipeline::tests::incoming_native_operands_use_declared_arguments_without_inventing_ssa",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.variable.aot-original-slot-purpose"
+          ]
+        },
+        {
+          "selector": "command_binding::cfg_lookup_context::tests::original_cfg_binding_replay_keeps_native_move_and_delete_horizons",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "command_binding::cfg_lookup_context::tests::original_cfg_logical_lookup_keeps_its_positive_owner_separate_from_native_names",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "command_binding::cfg_lookup_context::tests::original_cfg_lookup_refuses_missing_foreign_and_changed_source_metadata",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "command_binding::cfg_lookup_context::tests::original_cfg_lookup_uses_per_point_native_namespace_not_reported_function_name",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "command_binding::declaration_preview::tests::nested_declared_layout_declines_lookup_after_unknown_variable_observers",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.source.original-registry-header-advice"
+          ]
+        },
+        {
+          "selector": "command_binding::declaration_preview::tests::nested_declared_layout_keeps_original_scope_without_entered_authority",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.source.original-registry-header-advice"
+          ]
+        },
+        {
+          "selector": "command_binding::declaration_preview::tests::nested_declared_layout_stops_before_condition_callbacks_or_aliases",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "command_binding::expression_operand_advice::tests::conditional_loop_expression_advice_keeps_original_child_read",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "command_binding::logical_definition::tests::logical_definition_declines_unknown_rebound_dynamic_and_invalid_inputs",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.source.logical-procedure-definition-model"
+          ]
+        },
+        {
+          "selector": "command_binding::logical_definition::tests::logical_definition_publishes_general_static_procedures_in_the_authored_model",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.source.logical-procedure-definition-model"
+          ]
+        },
+        {
+          "selector": "command_binding::logical_definition::tests::logical_model_roster_requires_the_complete_current_input_and_source_mode",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.source.logical-procedure-definition-model"
+          ]
+        },
+        {
+          "selector": "command_binding::logical_operation::tests::logical_original_alias_capture_composes_registry_operations_at_the_call",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.source.logical-original-operation-transfer"
+          ]
+        },
+        {
+          "selector": "command_binding::logical_operation::tests::logical_original_operation_refusals_do_not_recover_from_reporting_state",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.source.logical-original-operation-transfer"
+          ]
+        },
+        {
+          "selector": "command_binding::logical_operation::tests::logical_original_transfers_preserve_moves_deletes_and_scalar_head_values",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.source.logical-original-operation-transfer"
+          ]
+        },
+        {
+          "selector": "command_binding::logical_operation::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.source.logical-original-operation-transfer"
+          ]
+        },
+        {
+          "selector": "command_binding::tests::logical_command_layout_keeps_unknown_physical_frames_separate",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "common_aot_plan::tests::authored_program_storage_keeps_original_coverage_without_native_frame_or_body_grants",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.variable.aot-original-slot-purpose"
+          ]
+        },
+        {
+          "selector": "common_aot_plan::tests::declared_arguments_keep_distinct_reached_cells_and_exact_source_receipts",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.variable.aot-original-slot-purpose"
+          ]
+        },
+        {
+          "selector": "common_aot_plan::tests::declared_arguments_refuse_missing_owners_changed_contents_and_future_callers",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.variable.aot-original-slot-purpose"
+          ]
+        },
+        {
+          "selector": "common_aot_plan::tests::retained_native_program_coverage_does_not_donate_root_frame_slots",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.variable.aot-original-slot-purpose"
+          ]
+        },
+        {
+          "selector": "common_aot_plan::tests::unknown_actual_type_poisons_cross_call_formal_propagation",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.variable.aot-original-slot-purpose"
+          ]
+        },
+        {
+          "selector": "lowering::execution_regions::tests::captured_provider_metadata_keeps_actual_availability_and_missing_owner_refusal",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "lowering::execution_regions::tests::case_list_possible_regions_enter_bodies_as_list_elements",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::execution_regions::tests::conditional_case_sources_decline_replaced_handlers",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::execution_regions::tests::conditional_case_sources_do_not_claim_entered_bodies",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::execution_regions::tests::core_and_provider_namespace_shadows_withdraw_stock_proof",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::execution_regions::tests::helper_replacement_and_phase_hook_installation_decline_the_plan",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::execution_regions::tests::issue_2286_default_c_authoring_entry_uses_real_setup_definitions",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::execution_regions::tests::package_advertisement_and_replaced_wrapper_do_not_license_expansion",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::execution_regions::tests::qualified_and_imported_wrappers_share_the_same_lifecycle",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::execution_regions::tests::scoped_provider_lifecycle_retains_conditional_dependencies",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::tests::complete_logical_source_keeps_original_structure_and_native_absence",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "lowering::tests::complete_source_input_declines_changed_unit_profile_without_authoring_fallback",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "lowering::tests::deferred_command_prefix_does_not_create_a_runtime_barrier",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "lowering::tests::logical_original_declaration_layout_keeps_unicode_and_qualified_alias_heads",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "lowering::tests::namespace_directive_metadata_keeps_actual_availability_and_source_config",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "lowering::tests::reference_only_command_prefix_does_not_create_a_runtime_barrier",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "optimiser::elimination::source_purity::tests::literal_assignment_purity_keeps_no_evaluation_without_metadata",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "optimiser::elimination::source_purity::tests::logical_procedure_purity_joins_the_original_declaration_not_its_label",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "optimiser::elimination::source_purity::tests::native_substitution_metadata_does_not_borrow_logical_purity",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "optimiser::elimination::source_purity::tests::original_substitution_purity_keeps_alias_prefixes_and_target_barriers",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "optimiser::elimination::source_purity::tests::original_substitution_purity_requires_actual_availability_and_input",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "optimiser::elimination::source_reads::tests::original_hidden_read_names_keep_alias_horizons_and_literal_roots",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "optimiser::elimination::source_reads::tests::original_hidden_reads_keep_actual_availability_and_variable_grammar",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "optimiser::elimination::source_reads::tests::original_hidden_reads_refuse_missing_foreign_and_stale_inputs",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "optimiser::elimination::tests::resolved_store_observer_advice_preserves_literal_sigil_and_scalar_names",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "optimiser::expr_simplify::tests::original_expression_candidates_decline_missing_foreign_and_changed_module_inputs",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "optimiser::expr_simplify::tests::original_expression_candidates_keep_actual_config_alias_and_shadow_context",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "optimiser::manager::tests::supplied_multipass_refreshes_conditional_candidates_for_each_source_image",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "script_binds::tests::declaration_read_advice_requires_original_unchanged_body_and_formals",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "script_binds::tests::selected_formal_read_scope_follows_original_factory_aliases_and_replacements",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "script_binds::tests::selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "ssa::tests::conditional_nested_expression_reads_keep_original_tokens_without_entry",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": []
+        },
+        {
+          "selector": "ssa::tests::supplied_ssa_definition_and_lexical_reads_do_not_reconstruct_catalogue_roles",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "ssa::tests::supplied_ssa_role_scans_keep_actual_availability_grammar_and_missing_input",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "taint::tests::actual_option_advice_keeps_selected_terminator_availability_and_source_vector",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "taint::tests::actual_option_terminator_withdraws_possible_source_positions",
+          "status": "passed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "taint::tests::actual_regexp_warning_refuses_missing_and_foreign_source_metadata",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        },
+        {
+          "selector": "taint::tests::constant_command_head_candidates_use_retained_escape_grammar",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        }
+      ],
+      "question_ids": [
+        "naming.compiler.original-analysis-metadata-context",
+        "naming.diagnostic.original-materialized-write-footprint",
+        "naming.diagnostic.registry-source-ownership",
+        "naming.navigation.retained-path-source-inventory",
+        "naming.source.logical-original-operation-transfer",
+        "naming.source.logical-procedure-definition-model",
+        "naming.source.original-crlf-evaluation-channels",
+        "naming.source.original-editor-body-structure",
+        "naming.source.original-registry-header-advice",
+        "naming.source.original-script-region-purpose",
+        "naming.variable.aot-original-slot-purpose"
+      ],
+      "limits": "Exact closed original command, independently successful Compiler-only275 producer and sealed image, complete source association and per-selector outcomes. No aggregate gate, other image/backend assertion or external Native provider promotion. The original list-gated114 selection records47 passed/67 failed; every exact failure and its complete diagnostics remain retained.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-compiler-image/pinned-compiler275.elf.gz",
+        "sha256": "0c9c0a4a87ea0271ec42c817cf0bce5482f1845e82ab1d5edac6dd63a6bc3c36",
+        "compression": "gzip",
+        "uncompressed_sha256": "98ec7b75b4970c1a51861f1f3c7146392f480d279e402bba78e5e1ff4db4b6d9",
+        "uncompressed_bytes": 202851848,
+        "compressed_bytes": 39142526,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-compiler-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-compiler-image/pinned-compiler275.json",
+        "metadata_sha256": "c0ac33992f96a4808113f7f646b0edb334872263cb7005bb080c66c0b5503520",
+        "build_receipt_id": "rust.frozen275.integration-compiler-own-test-build275",
+        "original_source_snapshot_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/source-snapshot.json.gz",
+          "sha256": "b29554d08269bc11121afd5dd5efedd689668452b1173c3c0a71c75ee881dfcb",
+          "compression": "gzip",
+          "uncompressed_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2"
+        }
+      },
+      "requested_selectors": [
+        "analyser::bounds_checks::source_index::tests::original_index_advice_retains_availability_and_refuses_missing_foreign_or_stale_owners",
+        "analyser::bounds_checks::source_index::tests::original_index_bounds_select_aliases_moves_and_reject_source_replacements",
+        "analyser::bounds_checks::source_index::tests::original_index_subjects_keep_captured_ordinals_unicode_and_written_pair_geometry",
+        "analyser::bounds_checks::source_index::tests::original_index_supplemental_values_keep_literal_subjects_and_nested_list_paths",
+        "analyser::bounds_checks::tests::bounds_checks_recurse_into_command_substitutions",
+        "analyser::bounds_checks::tests::index_diagnostics_use_the_document_number_syntax",
+        "analyser::bounds_checks::tests::w230_list_index_out_of_range",
+        "analyser::bounds_checks::tests::w230_lrange_lreplace_empty_slice",
+        "analyser::bounds_checks::tests::w230_single_element_nested_list_length",
+        "analyser::bounds_checks::tests::w232_braced_literal_string_length",
+        "analyser::bounds_checks::tests::w232_string_index_out_of_range",
+        "analyser::bounds_checks::tests::w232_string_range_replace_empty_slice",
+        "analyser::diagnostics::dataflow::issue996_tests::opaque_body_local_set_requires_original_body_owner",
+        "analyser::diagnostics::dataflow::issue996_tests::original_body_ownership_keeps_installer_horizon_and_child_refusal",
+        "analyser::diagnostics::dataflow::source_body_purpose_tests::original_reference_only_body_cannot_supply_local_store_suppression",
+        "analyser::diagnostics::proven::source_value_projection_tests::supplemental_values_cannot_resurrect_a_source_replaced_command",
+        "analyser::diagnostics::proven::source_value_projection_tests::supplemental_values_preserve_original_alias_operands_and_source_subjects",
+        "analyser::diagnostics::security::source_crossing::tests::original_crossing_advice_keeps_selected_option_availability_and_missing_owner_refusals",
+        "analyser::diagnostics::security::source_crossing::tests::original_frame_reparse_keeps_possible_layouts_alias_prefixes_and_whole_words",
+        "analyser::diagnostics::security::source_crossing::tests::original_interpreter_reparse_uses_selected_script_words_without_path_or_value_drift",
+        "analyser::diagnostics::security::source_reparse::tests::original_list_idiom_uses_the_child_schema_and_retains_concat_and_shadow_warnings",
+        "analyser::diagnostics::security::source_reparse::tests::original_nested_reparse_keeps_both_aliases_and_declines_replaced_child_or_parent",
+        "analyser::diagnostics::security::source_reparse::tests::original_reparse_diagnostics_keep_alias_targets_and_known_source_barriers",
+        "analyser::diagnostics::security::source_reparse::tests::original_reparse_fix_keeps_whole_quoted_unicode_span_and_review_premise",
+        "analyser::diagnostics::security::source_reparse::tests::original_reparse_selection_retains_actual_availability_and_unavailable_owner_refusals",
+        "analyser::diagnostics::security::source_template::tests::original_template_advice_keeps_actual_option_availability",
+        "analyser::diagnostics::security::source_template::tests::original_template_advice_refuses_missing_foreign_and_stale_source_owners",
+        "analyser::diagnostics::security::source_template::tests::original_template_diagnostics_follow_aliases_and_refuse_known_replacements",
+        "analyser::diagnostics::security::source_template::tests::original_template_refinement_requires_matching_cu_and_selected_switch_values",
+        "analyser::diagnostics::security::source_template::tests::original_template_subject_keeps_captured_switches_and_whole_unicode_word",
+        "analyser::diagnostics::tests::w101_anchors_at_the_substituted_argument",
+        "analyser::diagnostics::tests::w101_gate_trait_pair_keeps_eval_only",
+        "analyser::diagnostics::tests::w102_advice_never_mixes_switch_families",
+        "analyser::diagnostics::tests::w102_computed_switch_word_is_not_the_operand",
+        "analyser::diagnostics::tests::w102_message_narrows_with_flags",
+        "analyser::diagnostics::tests::w102_narrows_a_proven_switch_word",
+        "analyser::diagnostics::tests::w102_subst_variable_argument",
+        "analyser::diagnostics::tests::w102_tcl91_positive_family_backslashes_only_is_silent",
+        "analyser::diagnostics::tests::w301_uplevel_injection",
+        "analyser::diagnostics::tests::w309_eval_uplevel_with_subst",
+        "analyser::diagnostics::tests::w309_inner_subst_head_resolves_through_registry",
+        "analyser::diagnostics::tests::w312_interp_eval_injection",
+        "analyser::diagnostics::tests::w312_message_names_subcommand",
+        "analyser::diagnostics::tests::w312_registry_taint_list_widens_to_console_and_abbreviations",
+        "auto_path_eval::path_constants::original::tests::original_path_batches_reselect_current_realm_and_withdraw_stale_prefixes",
+        "auto_path_eval::path_constants::original::tests::original_path_folding_keeps_selected_first_close_variable_grammar",
+        "auto_path_eval::path_constants::original::tests::original_path_inventory_keeps_full_input_scalar_names_and_absolute_namespace_scopes",
+        "auto_path_eval::path_constants::original::tests::original_path_name_domains_keep_empty_scalar_and_parenthesised_namespace_literals",
+        "auto_path_eval::path_constants::original::tests::original_path_producer_full_chunked_and_restored_batches_keep_actual_input",
+        "auto_path_eval::path_constants::original::tests::original_path_producer_keeps_explicit_source_seed_and_declines_replaced_setter",
+        "auto_path_eval::source_expression::tests::original_source_path_parts_keep_selected_variable_roots_and_missing_premises",
+        "codegen::wasm::backend::tests::assignment_source_metadata_retains_nested_lexer_overlays",
+        "codegen::wasm::backend::tests::structural_assignments_need_unanimous_original_source_carriers",
+        "codegen::wasm::backend::tests::structural_assignments_require_actual_availability_and_grammar",
+        "codegen::wasm::pipeline::tests::incoming_native_operands_use_declared_arguments_without_inventing_ssa",
+        "command_binding::cfg_lookup_context::tests::original_cfg_binding_replay_keeps_native_move_and_delete_horizons",
+        "command_binding::cfg_lookup_context::tests::original_cfg_logical_lookup_keeps_its_positive_owner_separate_from_native_names",
+        "command_binding::cfg_lookup_context::tests::original_cfg_lookup_refuses_missing_foreign_and_changed_source_metadata",
+        "command_binding::cfg_lookup_context::tests::original_cfg_lookup_uses_per_point_native_namespace_not_reported_function_name",
+        "command_binding::declaration_preview::tests::nested_declared_layout_declines_lookup_after_unknown_variable_observers",
+        "command_binding::declaration_preview::tests::nested_declared_layout_keeps_original_scope_without_entered_authority",
+        "command_binding::declaration_preview::tests::nested_declared_layout_stops_before_condition_callbacks_or_aliases",
+        "command_binding::expression_operand_advice::tests::conditional_loop_expression_advice_keeps_original_child_read",
+        "command_binding::logical_definition::tests::logical_definition_declines_unknown_rebound_dynamic_and_invalid_inputs",
+        "command_binding::logical_definition::tests::logical_definition_publishes_general_static_procedures_in_the_authored_model",
+        "command_binding::logical_definition::tests::logical_model_roster_requires_the_complete_current_input_and_source_mode",
+        "command_binding::logical_operation::tests::logical_original_alias_capture_composes_registry_operations_at_the_call",
+        "command_binding::logical_operation::tests::logical_original_operation_refusals_do_not_recover_from_reporting_state",
+        "command_binding::logical_operation::tests::logical_original_transfers_preserve_moves_deletes_and_scalar_head_values",
+        "command_binding::logical_operation::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases",
+        "command_binding::tests::logical_command_layout_keeps_unknown_physical_frames_separate",
+        "common_aot_plan::tests::authored_program_storage_keeps_original_coverage_without_native_frame_or_body_grants",
+        "common_aot_plan::tests::declared_arguments_keep_distinct_reached_cells_and_exact_source_receipts",
+        "common_aot_plan::tests::declared_arguments_refuse_missing_owners_changed_contents_and_future_callers",
+        "common_aot_plan::tests::retained_native_program_coverage_does_not_donate_root_frame_slots",
+        "common_aot_plan::tests::unknown_actual_type_poisons_cross_call_formal_propagation",
+        "lowering::execution_regions::tests::captured_provider_metadata_keeps_actual_availability_and_missing_owner_refusal",
+        "lowering::execution_regions::tests::case_list_possible_regions_enter_bodies_as_list_elements",
+        "lowering::execution_regions::tests::conditional_case_sources_decline_replaced_handlers",
+        "lowering::execution_regions::tests::conditional_case_sources_do_not_claim_entered_bodies",
+        "lowering::execution_regions::tests::core_and_provider_namespace_shadows_withdraw_stock_proof",
+        "lowering::execution_regions::tests::helper_replacement_and_phase_hook_installation_decline_the_plan",
+        "lowering::execution_regions::tests::issue_2286_default_c_authoring_entry_uses_real_setup_definitions",
+        "lowering::execution_regions::tests::package_advertisement_and_replaced_wrapper_do_not_license_expansion",
+        "lowering::execution_regions::tests::qualified_and_imported_wrappers_share_the_same_lifecycle",
+        "lowering::execution_regions::tests::scoped_provider_lifecycle_retains_conditional_dependencies",
+        "lowering::tests::complete_logical_source_keeps_original_structure_and_native_absence",
+        "lowering::tests::complete_source_input_declines_changed_unit_profile_without_authoring_fallback",
+        "lowering::tests::deferred_command_prefix_does_not_create_a_runtime_barrier",
+        "lowering::tests::logical_original_declaration_layout_keeps_unicode_and_qualified_alias_heads",
+        "lowering::tests::namespace_directive_metadata_keeps_actual_availability_and_source_config",
+        "lowering::tests::reference_only_command_prefix_does_not_create_a_runtime_barrier",
+        "optimiser::elimination::source_purity::tests::literal_assignment_purity_keeps_no_evaluation_without_metadata",
+        "optimiser::elimination::source_purity::tests::logical_procedure_purity_joins_the_original_declaration_not_its_label",
+        "optimiser::elimination::source_purity::tests::native_substitution_metadata_does_not_borrow_logical_purity",
+        "optimiser::elimination::source_purity::tests::original_substitution_purity_keeps_alias_prefixes_and_target_barriers",
+        "optimiser::elimination::source_purity::tests::original_substitution_purity_requires_actual_availability_and_input",
+        "optimiser::elimination::source_reads::tests::original_hidden_read_names_keep_alias_horizons_and_literal_roots",
+        "optimiser::elimination::source_reads::tests::original_hidden_reads_keep_actual_availability_and_variable_grammar",
+        "optimiser::elimination::source_reads::tests::original_hidden_reads_refuse_missing_foreign_and_stale_inputs",
+        "optimiser::elimination::tests::resolved_store_observer_advice_preserves_literal_sigil_and_scalar_names",
+        "optimiser::expr_simplify::tests::original_expression_candidates_decline_missing_foreign_and_changed_module_inputs",
+        "optimiser::expr_simplify::tests::original_expression_candidates_keep_actual_config_alias_and_shadow_context",
+        "optimiser::manager::tests::supplied_multipass_refreshes_conditional_candidates_for_each_source_image",
+        "script_binds::tests::declaration_read_advice_requires_original_unchanged_body_and_formals",
+        "script_binds::tests::selected_formal_read_scope_follows_original_factory_aliases_and_replacements",
+        "script_binds::tests::selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate",
+        "ssa::tests::conditional_nested_expression_reads_keep_original_tokens_without_entry",
+        "ssa::tests::supplied_ssa_definition_and_lexical_reads_do_not_reconstruct_catalogue_roles",
+        "ssa::tests::supplied_ssa_role_scans_keep_actual_availability_grammar_and_missing_input",
+        "taint::tests::actual_option_advice_keeps_selected_terminator_availability_and_source_vector",
+        "taint::tests::actual_option_terminator_withdraws_possible_source_positions",
+        "taint::tests::actual_regexp_warning_refuses_missing_and_foreign_source_metadata",
+        "taint::tests::constant_command_head_candidates_use_retained_escape_grammar"
+      ]
+    },
+    {
+      "id": "rust.frozen275.diagnostic-compiler-original-declarations275",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/diagnostic-compiler-original-declarations275/receipt.json.gz",
+        "sha256": "2eabf5c8f0599fb02661df9014aba4e8370125556f3dd39288051375d2a6b360",
+        "compression": "gzip",
+        "uncompressed_sha256": "2963fe4c6ce76e1c0b209b5a987528cf11a7c62be7798da2fc03d73f380de200"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/diagnostic-compiler-original-declarations275/tests.log",
+        "sha256": "151d25c247ea7bccdb5f7e09d4a9d7b5e5b4279f20fce62e34878ec29aad4dfa"
+      },
+      "command": [
+        "env",
+        "TCL_LSP_TRACE_ORIGINAL_DECLARATION=1",
+        "/workspace/.proofs/pinned-compiler275.elf",
+        "--exact",
+        "lowering::tests::complete_logical_source_keeps_original_structure_and_native_absence",
+        "command_binding::source_command_world::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 0.25393990002339706,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 9066
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived leaf is independently byte-checked; a Git head is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "lowering::tests::complete_logical_source_keeps_original_structure_and_native_absence",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.compiler.original-analysis-metadata-context"
+          ]
+        }
+      ],
+      "question_ids": [
+        "naming.compiler.original-analysis-metadata-context"
+      ],
+      "limits": "Exact closed original command, independently successful Compiler-only275 producer and sealed image, complete source association and per-selector outcomes. No aggregate gate, other image/backend assertion or external Native provider promotion. The diagnostic source association explicitly records validation_source_root=/workspace/.checkpoints/naming275; this unchanged validation archive does not change the independently recorded Compiler275 compile producer or executable identity. The original request names two selectors, but the source_command_world Unicode-transfer selector is absent from the9067-test inventory. Only the available declaration selector actually executes and fails. The unavailable request is preserved without a second-test or zero-filtered success claim.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-compiler-image/pinned-compiler275.elf.gz",
+        "sha256": "0c9c0a4a87ea0271ec42c817cf0bce5482f1845e82ab1d5edac6dd63a6bc3c36",
+        "compression": "gzip",
+        "uncompressed_sha256": "98ec7b75b4970c1a51861f1f3c7146392f480d279e402bba78e5e1ff4db4b6d9",
+        "uncompressed_bytes": 202851848,
+        "compressed_bytes": 39142526,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-compiler-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-compiler-image/pinned-compiler275.json",
+        "metadata_sha256": "c0ac33992f96a4808113f7f646b0edb334872263cb7005bb080c66c0b5503520",
+        "build_receipt_id": "rust.frozen275.integration-compiler-own-test-build275",
+        "original_source_snapshot_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/source-snapshot.json.gz",
+          "sha256": "b29554d08269bc11121afd5dd5efedd689668452b1173c3c0a71c75ee881dfcb",
+          "compression": "gzip",
+          "uncompressed_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2"
+        }
+      },
+      "requested_selectors": [
+        "lowering::tests::complete_logical_source_keeps_original_structure_and_native_absence",
+        "command_binding::source_command_world::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases"
+      ],
+      "unavailable_requested_selectors": [
+        "command_binding::source_command_world::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases"
+      ]
+    },
+    {
+      "id": "rust.frozen275.diagnostic-compiler-original-transfer275",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/diagnostic-compiler-original-transfer275/receipt.json.gz",
+        "sha256": "f9cfd1f1f3d5e4b9ea1a2a84ceeb6648eccd4209e34c36fca2f6126fa261eab7",
+        "compression": "gzip",
+        "uncompressed_sha256": "06ef64eaacca2e2ce4993e3fbbb8ffc1e45d67068dac0155ad105eb3d9dca16c"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/diagnostic-compiler-original-transfer275/tests.log",
+        "sha256": "361c1e58f74c1ee5fd0dd3c1afd57070f16659004a45d001e31d81f2f748e7a1"
+      },
+      "command": [
+        "env",
+        "TCL_LSP_TRACE_ORIGINAL_DECLARATION=1",
+        "/workspace/.proofs/pinned-compiler275.elf",
+        "--exact",
+        "command_binding::logical_operation::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "seconds": 0.6706881910213269,
+      "uniform_source": true,
+      "status": "failed",
+      "result": {
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "filtered_out": 9066
+      },
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The exact decompressed original receipt retains every frozen source hash, compile/archive root, head and command association. Every archived leaf is independently byte-checked; a Git head is not Native identity."
+      },
+      "tests": [
+        {
+          "selector": "command_binding::logical_operation::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases",
+          "status": "failed",
+          "purpose": "Actual software assertion under the exact independently sealed Compiler275 image and unchanged original source. Native provider-purpose evidence remains independent.",
+          "proof_ids": [
+            "naming.source.logical-original-operation-transfer"
+          ]
+        }
+      ],
+      "question_ids": [
+        "naming.source.logical-original-operation-transfer"
+      ],
+      "limits": "Exact closed original command, independently successful Compiler-only275 producer and sealed image, complete source association and per-selector outcomes. No aggregate gate, other image/backend assertion or external Native provider promotion. The diagnostic source association explicitly records validation_source_root=/workspace/.checkpoints/naming275; this unchanged validation archive does not change the independently recorded Compiler275 compile producer or executable identity. The corrected genuine logical_operation Unicode-transfer selector executes independently and fails. This exact command is separate from the earlier request that contained an unavailable selector.",
+      "sealed_image": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-compiler-image/pinned-compiler275.elf.gz",
+        "sha256": "0c9c0a4a87ea0271ec42c817cf0bce5482f1845e82ab1d5edac6dd63a6bc3c36",
+        "compression": "gzip",
+        "uncompressed_sha256": "98ec7b75b4970c1a51861f1f3c7146392f480d279e402bba78e5e1ff4db4b6d9",
+        "uncompressed_bytes": 202851848,
+        "compressed_bytes": 39142526,
+        "storage_metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-compiler-image/lossless-image-storage.json",
+        "metadata": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-compiler-image/pinned-compiler275.json",
+        "metadata_sha256": "c0ac33992f96a4808113f7f646b0edb334872263cb7005bb080c66c0b5503520",
+        "build_receipt_id": "rust.frozen275.integration-compiler-own-test-build275",
+        "original_source_snapshot_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2",
+        "source_snapshot": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image/source-snapshot.json.gz",
+          "sha256": "b29554d08269bc11121afd5dd5efedd689668452b1173c3c0a71c75ee881dfcb",
+          "compression": "gzip",
+          "uncompressed_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2"
+        }
+      },
+      "requested_selectors": [
+        "command_binding::logical_operation::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases"
+      ]
     }
   ]
 }

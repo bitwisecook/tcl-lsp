@@ -2932,7 +2932,8 @@ impl Interp {
     /// the commands that library defines, which exist once `init_library` has
     /// sourced it. A build without the numeric tower reports the commands a
     /// build with it registers as needing the tower. Names are without a
-    /// leading `::`, and a name this runtime does not mention is absent.
+    /// leading `::`. This Unicode catalogue omits opaque byte names; lookup and
+    /// publication retain those names independently through their counted APIs.
     #[must_use]
     pub fn backing_report(&self) -> Vec<(String, RegisteredBacking)> {
         let mut report = std::collections::BTreeMap::new();
@@ -2959,12 +2960,10 @@ impl Interp {
                         _ => continue,
                     };
                     let fqn = namespaces.command_fqn_at(ns, name);
-                    report.insert(
-                        String::from_utf8_lossy(&fqn)
-                            .trim_start_matches("::")
-                            .to_owned(),
-                        backing,
-                    );
+                    let Ok(text) = std::str::from_utf8(&fqn) else {
+                        continue;
+                    };
+                    report.insert(text.trim_start_matches("::").to_owned(), backing);
                 }
             }
             if !roots.is_empty() {
@@ -16372,6 +16371,29 @@ mod tests {
                 }
             }
             assert!(attested_names >= 10, "{attested_names}");
+        });
+    }
+
+    #[test]
+    fn unicode_backing_catalogue_omits_opaque_names_without_changing_command_identity() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        leak_free(|interp| {
+            interp.register_builtin(b"opaque_\xff", guarded_builtin);
+            interp.register_builtin("café".as_bytes(), guarded_builtin);
+            assert!(
+                interp
+                    .command_names()
+                    .iter()
+                    .any(|name| name == b"opaque_\xff")
+            );
+            let head = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"opaque_\xff"));
+            assert_eq!(interp.dispatch_invoke(&[head.as_ptr()]), Code::Ok);
+            assert!(interp.native_execution_refusal().is_none());
+            let report = interp.backing_report();
+            assert!(report.iter().any(|(name, backing)| name == "café" && *backing == RegisteredBacking::Builtin));
+            assert!(!report.iter().any(|(name, _)| name == "opaque_�"));
+            assert!(!report.iter().any(|(name, _)| name.starts_with("opaque_")));
         });
     }
 

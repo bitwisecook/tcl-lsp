@@ -2108,7 +2108,7 @@ fn lower_source_callers(
         .with_dialect(Some(dialect))
         .with_declared_commands(declared);
     if let Some(input) = supplied.input {
-        lowerer = lowerer.with_context_registry(input.context_registry());
+        lowerer = lowerer.with_resolved_analysis_input(input.clone());
     }
     if let Some(entry) = supplied.entry {
         lowerer.set_source_analysis_options(entry.options());
@@ -4216,6 +4216,63 @@ mod tests {
             assert!(evidence.get("::helper").unwrap().opaque_caller);
             assert_eq!(uniform(&evidence, "::helper", 0), None);
         }
+    }
+
+    #[test]
+    fn supplied_native_caller_scan_retains_source_input_without_entry_or_frame_donation() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let context = std::sync::Arc::new(crate::environment_ingress::context_for_profile(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        );
+        let registry = context.commands();
+        let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+            registry,
+            &input,
+            input.lexer_config(),
+            Some(profile),
+        );
+        let source = "proc helper {} {}; $command unknown";
+        let (module, cfg, _) = lower_source_callers(
+            source,
+            registry,
+            None,
+            profile,
+            SourceCallSiteEntry {
+                entry: Some(&entry),
+                input: Some(&input),
+            },
+        );
+        assert_eq!(module.source_metadata_input.as_ref(), Some(&input));
+        assert!(
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, &module)
+                .is_some()
+        );
+        assert_eq!(
+            cfg.top_level.metadata_context.source_analysis_input(),
+            Some(&input)
+        );
+        assert!(module.source_entry.unknown_entry);
+        assert!(module.source_entry.native_entry.is_none());
+        assert!(
+            module.procedures.is_empty(),
+            "source cards cannot grant a Native body entry"
+        );
+        let evidence = scan_source_call_sites_with_source_input(
+            source,
+            None,
+            &known(&["::helper"]),
+            &["::helper".to_owned()],
+            &input,
+            &entry,
+        );
+        assert!(evidence.get("::helper").unwrap().opaque_caller);
+        assert_eq!(uniform(&evidence, "::helper", 0), None);
     }
 
     #[test]

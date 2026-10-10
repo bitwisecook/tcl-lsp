@@ -47,17 +47,51 @@ struct PureFunction {
 
 impl NativeCommand for PureFunction {
     fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-        let texts: Vec<Rc<str>> = args.iter().map(Value::to_str).collect();
+        let mut texts: Vec<Rc<str>> = Vec::with_capacity(args.len());
+        for arg in args {
+            let bytes = match tcl_syntax::value::ValueOps::native_string_bytes(vm, arg) {
+                Ok(bytes) => bytes,
+                Err(error) => return refuse_value_access(vm, error),
+            };
+            let text = match std::str::from_utf8(&bytes) {
+                Ok(text) => Rc::from(text),
+                Err(error) => {
+                    return vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::ValueAccess(
+                        tcl_syntax::raw_string::UnicodeAccessError {
+                            valid_up_to: error.valid_up_to(),
+                            error_len: error.error_len(),
+                        }
+                        .into(),
+                    ));
+                }
+            };
+            texts.push(text);
+        }
         let words: Vec<&str> = texts.iter().map(AsRef::as_ref).collect();
         let value = match irules::call(self.command, &words) {
             Ok(Output::Text(text)) => Value::string(text),
             Ok(Output::Int(value)) => Value::int(value),
-            Ok(Output::Bytes(bytes)) => {
-                Value::string(bytes.iter().copied().map(char::from).collect::<String>())
-            }
+            Ok(Output::Bytes(bytes)) => match vm.byte_array_result(
+                Rc::from(bytes),
+                Some(
+                    tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+                ),
+            ) {
+                Ok(value) => value,
+                Err(error) => return refuse_value_access(vm, error),
+            },
             Err(irules::Unmodelled) => return self.stub(vm, args),
         };
         Completion::new(Code::Ok, value, Value::empty())
+    }
+}
+
+/// The reference core is a Unicode API. Its input and binary-producer failures
+/// are operational host refusals, independently of guest Tcl completion.
+fn refuse_value_access(vm: &mut Vm, error: tcl_syntax::value::ValueError) -> Completion<Value> {
+    match error.native_access_refusal() {
+        Some(refusal) => vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::ValueAccess(refusal)),
+        None => vm.refuse_host_command(error.to_string()),
     }
 }
 
@@ -699,5 +733,103 @@ mod stub_transport_tests {
         let selected = vm.try_eval_source("probe input").unwrap();
         assert_eq!(selected.result.string_bytes().as_ref(), b"ACTION");
         assert_eq!(calls.get(), 1);
+    }
+}
+
+#[cfg(test)]
+mod binary_boundary_tests {
+    use super::*;
+    use tcl_registry::native_string_materialization::LogicalStringProvider;
+
+    #[test]
+    fn reference_binary_output_retains_counted_payload_and_authored_constructor_origin() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut session = crate::LiveSession::new(
+            &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tcl"),
+        )
+        .unwrap();
+        let function = PureFunction {
+            command: "b64decode",
+            mock: "cmd_b64decode".into(),
+        };
+        let answer = function.invoke(session.vm_mut(), &[Value::string("/wBB")]);
+        assert_eq!(answer.code, Code::Ok);
+        assert_eq!(
+            answer.result.byte_array_representation().unwrap().as_ref(),
+            b"\xff\0A"
+        );
+        assert!(answer.result.resident_string_bytes().is_none());
+        let origin = answer.result.byte_array_origin().unwrap();
+        assert_eq!(
+            origin.logical_provider(),
+            Some(LogicalStringProvider::Tcl84CoreSimulation)
+        );
+        assert_eq!(
+            answer
+                .result
+                .native_string_bytes(origin.protocol())
+                .unwrap()
+                .as_ref(),
+            b"\xc3\xbf\xc0\x80A"
+        );
+        assert_eq!(answer.result.byte_array_origin(), Some(origin));
+        assert_eq!(
+            answer.result.byte_array_representation().unwrap().as_ref(),
+            b"\xff\0A"
+        );
+    }
+
+    #[test]
+    fn opaque_reference_input_keeps_typed_host_refusal_outside_guest_catch() {
+        // Software contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(profile);
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        ));
+        vm.register_native_command(
+            "probe",
+            Rc::new(PureFunction {
+                command: "b64encode",
+                mock: "cmd_probe".into(),
+            }),
+        );
+        vm.set_var("opaque", Value::from_string_bytes(b"\xff".as_slice()))
+            .unwrap();
+        let error = vm
+            .try_eval_source("set before BEFORE; catch {probe $opaque} captured; set after AFTER")
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::Unicode(
+                    tcl_syntax::raw_string::UnicodeAccessError {
+                        valid_up_to: 0,
+                        error_len: Some(1)
+                    }
+                )
+            )
+        ));
+        assert_eq!(
+            vm.get_var("before")
+                .unwrap()
+                .resident_string_bytes()
+                .unwrap()
+                .as_ref(),
+            b"BEFORE"
+        );
+        assert!(vm.get_var("captured").is_none());
+        assert!(vm.get_var("after").is_none());
+        assert_eq!(
+            vm.get_var("opaque")
+                .unwrap()
+                .resident_string_bytes()
+                .unwrap()
+                .as_ref(),
+            b"\xff"
+        );
     }
 }

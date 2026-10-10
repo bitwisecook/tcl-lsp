@@ -710,37 +710,20 @@ fn answer_values(interp: &mut Interp, value: &Value, options: &Value, code: Code
         Ok(value) => value,
         Err(error) => return fail(interp, error),
     };
-    if code == Code::Return || !matches!(options, Value::Empty) {
-        let options = match to_obj(interp, options) {
-            Ok(options) => options,
+    let options = if code == Code::Return || !matches!(options, Value::Empty) {
+        match to_obj(interp, options) {
+            Ok(options) => Some(options),
             Err(error) => return fail(interp, error),
-        };
-        let (mut ops, protocol) = match crate::return_options::NativeReturnOps::selected(interp) {
-            Ok(selected) => selected,
-            Err(error) => return interp.report_cmd_error(error),
-        };
-        let args = [obj::Owned::fresh(new_string(b"-options")), options, value];
-        let prepared = match tcl_cmd_core::return_options::prepare_return(
-            &mut ops,
-            protocol,
-            &args,
-            tcl_cmd_core::return_options::ReturnOptionsPurpose::InternalDictionary,
-        ) {
-            Ok(prepared) => prepared,
-            Err(error) => return interp.report_cmd_error(error),
-        };
-        let published = crate::return_options::publish(interp, &mut ops, prepared);
-        if interp.host_refusal_pending() {
-            return Code::Error;
         }
-        return if code == Code::Return {
-            published
-        } else {
-            code
-        };
-    }
-    interp.set_result(value.as_ptr());
-    code
+    } else {
+        None
+    };
+    crate::engine_abi::value_carriers::complete(
+        interp,
+        value.as_ptr(),
+        options.as_ref().map(obj::Owned::as_ptr),
+        code,
+    )
 }
 
 fn fail(interp: &mut Interp, error: EngineError) -> Code {
@@ -845,73 +828,26 @@ impl CommandRegistrar for RuntimeRegistrar<'_> {
 
 /// Import structured storage through its selected producer without text round trips.
 fn to_obj(interp: &mut Interp, value: &Value) -> Result<obj::Owned, EngineError> {
-    use tcl_syntax::scalar_getter::carrier;
     Ok(match value {
         Value::Empty => obj::Owned::fresh(new_string(b"")),
         Value::Str(text) => obj::Owned::fresh(new_string(text.as_bytes())),
         Value::StringBytes(bytes) => obj::Owned::fresh(new_string(bytes)),
-        Value::ByteArray(bytes) => {
-            obj::Owned::fresh(interp.new_native_byte_array(bytes).map_err(|_| {
-                host_error(interp).unwrap_or_else(|| {
-                    EngineError::ExecutionRefusal(
-                        "native byte-array producer is unavailable".into(),
-                    )
-                })
-            })?)
-        }
+        Value::ByteArray(bytes) => crate::engine_abi::value_carriers::byte_array(interp, bytes)
+            .map_err(|error| host_error(interp).unwrap_or_else(|| value_error(error)))?,
         Value::NativeScalar(cache) => {
-            let (cache, origin) = carrier::import_scalar(cache);
-            let protocol = interp
-                .native_invocation_dialect()
-                .native_scalar_getter_protocol()
-                .ok_or_else(|| {
-                    EngineError::ExecutionRefusal(
-                        "native scalar import protocol is unavailable".into(),
-                    )
-                })?;
-            if origin.is_some_and(|origin| protocol.tcl_version() != Some(origin))
-                || (matches!(
-                    cache,
-                    tcl_syntax::scalar_getter::NativeScalarCache::JimCoercedInteger(_)
-                ) && !protocol.is_jim084())
-            {
-                return Err(EngineError::ExecutionRefusal(
-                    "foreign native scalar descriptor origin".into(),
-                ));
-            }
-            let object = obj::Owned::fresh(obj::new_obj());
-            obj::adopt_native_scalar_cache(object.as_ptr(), cache, protocol)
-                .map_err(value_error)?;
-            obj::invalidate_string(object.as_ptr());
-            object
+            crate::engine_abi::value_carriers::scalar(interp, cache).map_err(value_error)?
         }
         Value::Resident {
             value,
             string,
             storage,
         } => {
-            let storage = carrier::import_storage(*storage);
-            if storage == tcl_syntax::native_string::NativeStringStorageIdentity::Unknown
-                || (storage
-                    == tcl_syntax::native_string::NativeStringStorageIdentity::CanonicalEmpty
-                    && !string.is_empty())
-            {
-                return Err(EngineError::ExecutionRefusal(
-                    "native resident storage identity is unavailable or inconsistent".into(),
-                ));
-            }
-            let object = to_obj(interp, value)?;
-            obj::invalidate_string(object.as_ptr());
-            // SAFETY: this independently owned original has the validated recorded storage kind.
-            unsafe {
-                obj::set_native_updater_string_rep(
-                    object.as_ptr(),
-                    string,
-                    storage
-                        == tcl_syntax::native_string::NativeStringStorageIdentity::CanonicalEmpty,
-                )
-            };
-            object
+            tcl_syntax::scalar_getter::carrier::checked_storage(*storage, string.len())
+                .map_err(value_error)?;
+            let original = to_obj(interp, value)?;
+            crate::engine_abi::value_carriers::resident(&original, string, *storage)
+                .map_err(value_error)?;
+            original
         }
         Value::Int(number) => obj::Owned::fresh(obj::new_wide_int_obj(*number)),
         Value::Double(number) => obj::Owned::fresh(obj::new_double_obj(*number)),

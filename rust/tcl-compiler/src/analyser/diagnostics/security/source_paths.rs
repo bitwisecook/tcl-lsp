@@ -8,7 +8,8 @@ use crate::analyser::diagnostic_registry::{
     OriginalDiagnosticInvocation, RegistrySourceDiagnosticKind,
 };
 use crate::analyser::state::Analyser;
-use crate::analyser::types::{Diagnostic, DiagnosticSubject, Severity};
+use crate::analyser::DiagnosticSubject;
+use crate::analyser::types::{Diagnostic, Severity};
 use tcl_core_types::DiagCode;
 use tcl_registry::Traits;
 

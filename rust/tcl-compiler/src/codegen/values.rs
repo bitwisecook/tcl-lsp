@@ -771,15 +771,6 @@ impl CodegenCtx<'_> {
     /// issuer. Unlocated/derived IR cannot manufacture lexical words.
     fn original_compiler_words(&self) -> Option<OriginalCompilerWords> {
         let tokens = self.invocation_tokens.as_deref()?;
-        if tokens.synthetic.is_some()
-            || tokens.words().is_empty()
-            || tokens
-                .words()
-                .iter()
-                .any(|word| word.source().provenance != crate::ir::Provenance::Source)
-        {
-            return None;
-        }
         let version = if let Some(entry) = self.native_entry {
             entry.execution_point?.tcl_version()?
         } else if let Some(binding) = tokens.source_binding.as_ref() {
@@ -792,6 +783,32 @@ impl CodegenCtx<'_> {
             )
             .tcl_version?
         };
+        let (words, protocol) = self.original_lexical_words()?;
+        Some(OriginalCompilerWords {
+            words,
+            version,
+            protocol,
+        })
+    }
+
+    /// Original lexical values use their retained source and String issuer.
+    /// They do not require a C-only command compiler or create a cache recipe.
+    fn original_lexical_words(
+        &self,
+    ) -> Option<(
+        Vec<tcl_lexer::NativeWord>,
+        tcl_syntax::native_string::NativeStringProtocol,
+    )> {
+        let tokens = self.invocation_tokens.as_deref()?;
+        if tokens.synthetic.is_some()
+            || tokens.words().is_empty()
+            || tokens
+                .words()
+                .iter()
+                .any(|word| word.source().provenance != crate::ir::Provenance::Source)
+        {
+            return None;
+        }
         let protocol = self.source_string_protocol?;
         if self
             .native_entry
@@ -813,11 +830,33 @@ impl CodegenCtx<'_> {
             tokens.words().first()?.source().span.start(),
             tokens.native_lexer_config(self.lexer_config()),
         )?;
-        Some(OriginalCompilerWords {
-            words,
-            version,
-            protocol,
-        })
+        Some((words, protocol))
+    }
+
+    /// Emit a retained written operand with the same source-channel and escape
+    /// rules as direct native source. Equal text alone does not locate a word.
+    pub(super) fn try_emit_original_operand_word(
+        &mut self,
+        value: &str,
+        word: &crate::ir::WordExpr,
+    ) -> bool {
+        if value != word.legacy_text() {
+            return false;
+        }
+        let Some(tokens) = self.invocation_tokens.as_deref() else {
+            return false;
+        };
+        let Some(index) = tokens.words().iter().position(|original| original == word) else {
+            return false;
+        };
+        let Some((words, _)) = self.original_lexical_words() else {
+            return false;
+        };
+        let Some(original) = words.get(index) else {
+            return false;
+        };
+        self.emit_original_native_word(original);
+        true
     }
 
     /// Project only this operand's original C variable compiler layout. A
@@ -1610,6 +1649,42 @@ mod tests {
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.store_var("x");
         assert_eq!(ctx.instructions[0].op, Op::STORE_STK);
+    }
+
+    #[test]
+    fn generic_original_operands_share_native_source_channel_and_escape_rules() {
+        // Software integration only. The original info-commands native
+        // comparison separately observes escaped-NUL versus counted raw NUL.
+        // docs/design/analysis/name-resolution-proofs/compiler-original-info-commands-literal-resolution.md
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+            let registry = CommandRegistry::build_default();
+            for (source, expected) in [
+                (r#"opaque "A\u0000B""#, b"A\xc0\x80B".as_slice()),
+                ("opaque \"A\0B\"", b"A\0B".as_slice()),
+            ] {
+                let image = tcl_lexer::SourceImage::native(source.as_bytes());
+                let tokens = increment_tokens(&image, config);
+                let mut context = CodegenCtx::new(false, &[], &registry);
+                context.invocation_dialect = Some(dialect);
+                context.source_string_protocol = dialect.native_source_string_protocol();
+                context.set_source_image(image);
+                context.with_invocation_tokens(Some(&tokens), |context| {
+                    let word = &tokens.words()[1];
+                    assert!(context.try_emit_original_operand_word(&word.legacy_text(), word));
+                    assert!(!context.try_emit_original_operand_word("derived", word));
+                });
+                assert!(
+                    context
+                        .literals
+                        .entries()
+                        .iter()
+                        .any(|literal| literal.bytes() == expected),
+                    "{version:?}/{source}"
+                );
+            }
+        }
     }
 
     fn increment_entry(

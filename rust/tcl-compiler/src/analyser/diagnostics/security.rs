@@ -32,6 +32,7 @@
 
 mod source_crossing;
 mod source_paths;
+mod source_patterns;
 mod source_reparse;
 mod source_template;
 
@@ -125,6 +126,9 @@ impl Analyser {
         let Some(index) = original.words().arguments().len().checked_sub(1) else {
             return Vec::new();
         };
+        if original.written_index(index).is_none() {
+            return Vec::new();
+        }
         let Some(last) = original.word(index) else {
             return Vec::new();
         };
@@ -146,57 +150,6 @@ impl Analyser {
                 }
             })
             .collect()
-    }
-
-    /// **W303.** Emit "regexp vulnerable to catastrophic backtracking
-    /// (`ReDoS`)" when a *literal* regex pattern in `regexp` / `regsub` /
-    /// `switch -regexp` contains a nested quantifier (`(a+)+`) or an
-    /// overlapping alternation (`(a|a)+`).  Variable / command-substituted
-    /// patterns are left alone (the literal text never matches the
-    /// detector).
-    pub(in crate::analyser) fn emit_w303_redos(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[tcl_lexer::Token],
-        cmd_tok: tcl_lexer::Token,
-    ) {
-        let takes_regex_pattern = self.command_takes_regex_pattern(cmd_name);
-        // `switch` stays name-guarded: its patterns are glob by default and
-        // regex only under `-regexp`, so its spec is not `PatternType::Regex`;
-        // the arm scan below is switch-form-specific.
-        if !takes_regex_pattern && cmd_name != "switch" {
-            return;
-        }
-        let patterns = find_regex_patterns_in_command(
-            &self.source,
-            takes_regex_pattern,
-            cmd_name,
-            args,
-            arg_tokens,
-            self.lexer_config(),
-            self.regex_pattern_source_index(cmd_name, arg_tokens, cmd_tok),
-        );
-        if patterns.is_empty() {
-            return;
-        }
-        // Nested quantifier `…+)+` / `…*)*` or overlapping alternation
-        // `(a|a)+`.
-        for (pattern, tok) in patterns {
-            if has_redos_shape(&pattern) {
-                self.result
-                    .diagnostics
-                    .push(crate::analyser::types::Diagnostic::new(
-                        DiagCode::W303,
-                        tok.span,
-                        "Regular expression may be vulnerable to catastrophic \
-backtracking (ReDoS). Nested quantifiers like (a+)+ can cause exponential \
-matching time on crafted input."
-                            .to_string(),
-                        Severity::Warning,
-                    ));
-            }
-        }
     }
 
     /// W306: live original lexical substitutions in an independently selected
@@ -419,6 +372,9 @@ matching time on crafted input."
                 continue;
             };
             hit.span = word.span();
+            if original.written_index(ordinal).is_none() {
+                hit.fixes.clear();
+            }
             for fix in &mut hit.fixes {
                 fix.span = word.span();
             }
@@ -553,6 +509,9 @@ matching time on crafted input."
                 continue;
             };
             hit.span = word.span();
+            if original.written_index(ordinal).is_none() {
+                hit.fixes.clear();
+            }
             for fix in &mut hit.fixes {
                 fix.span = word.span();
             }
@@ -581,6 +540,9 @@ matching time on crafted input."
                 continue;
             };
             hit.span = word.span();
+            if original.written_index(ordinal).is_none() {
+                hit.fixes.clear();
+            }
             for fix in &mut hit.fixes {
                 fix.span = word.span();
             }
@@ -976,86 +938,6 @@ fn is_literal_credential_value(value: &str, tok: &tcl_lexer::Token) -> bool {
         && !value.contains('[')
 }
 
-/// Return `(pattern_text, token)` pairs for every regex pattern
-/// argument in a command.  A `PatternType::Regex` command
-/// (`takes_regex_pattern` — `regexp` / `regsub`) contributes
-/// its first positional (option-skipping) argument; `switch -regexp`
-/// contributes every non-`default` pattern arm — inline pairs (form 1)
-/// or a single braced case list (form 2, split with list offsets via
-/// [`crate::segmenter::flatten_clause_list_elements_with_config`]).
-fn find_regex_patterns_in_command(
-    source: &str,
-    takes_regex_pattern: bool,
-    cmd_name: &str,
-    args: &[String],
-    arg_tokens: &[tcl_lexer::Token],
-    config: tcl_lexer::LexerConfig,
-    pattern_index: Option<usize>,
-) -> Vec<(String, tcl_lexer::Token)> {
-    if args.is_empty() || arg_tokens.is_empty() {
-        return Vec::new();
-    }
-    if takes_regex_pattern {
-        let Some(idx) = pattern_index else {
-            return Vec::new();
-        };
-        return match (args.get(idx), arg_tokens.get(idx)) {
-            (Some(text), Some(tok)) => vec![(text.clone(), *tok)],
-            _ => Vec::new(),
-        };
-    }
-    match cmd_name {
-        "switch" => {
-            let mut is_regexp = false;
-            let mut i = 0;
-            while i < args.len() && args[i].starts_with('-') {
-                if args[i] == "-regexp" {
-                    is_regexp = true;
-                }
-                if args[i] == "--" {
-                    i += 1;
-                    break;
-                }
-                i += 1;
-            }
-            if !is_regexp {
-                return Vec::new();
-            }
-            // Skip the `string` argument.
-            i += 1;
-            let mut results = Vec::new();
-            if i < args.len() && i == args.len() - 1 {
-                // Form 2: single braced case list.
-                if let Some(case_tok) = arg_tokens.get(i) {
-                    let elements = crate::segmenter::flatten_clause_list_elements_with_config(
-                        source, &args[i], *case_tok, config,
-                    );
-                    let mut j = 0;
-                    while j + 1 < elements.len() {
-                        let (text, tok) = &elements[j];
-                        if text != "default" {
-                            results.push((text.clone(), *tok));
-                        }
-                        j += 2;
-                    }
-                }
-            } else {
-                // Form 1: inline pattern/body pairs.
-                while i + 1 < args.len() {
-                    if let (Some(text), Some(tok)) = (args.get(i), arg_tokens.get(i))
-                        && text != "default"
-                    {
-                        results.push((text.clone(), *tok));
-                    }
-                    i += 2;
-                }
-            }
-            results
-        }
-        _ => Vec::new(),
-    }
-}
-
 /// The W102 finding for `cmd_name`'s template at `span`, naming the kinds
 /// `performed` still runs and the switches that would narrow them.
 fn w102_diagnostic(
@@ -1084,4 +966,108 @@ templating.",
 string will be evaluated. {advice}"
     );
     crate::analyser::types::Diagnostic::new(DiagCode::W102, span, message, Severity::Warning)
+}
+
+#[cfg(test)]
+mod original_capture_edit_tests {
+    use super::*;
+    use crate::analyser::{DiagnosticSubject, ResolvedAnalysisInput};
+
+    fn input() -> ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        assert!(input.has_logical_source_name_context());
+        input
+    }
+
+    #[test]
+    fn original_captured_advice_keeps_readonly_subjects_without_call_operand_edits() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let input = input();
+        for (written, captured, code, captured_text) in [
+            (
+                "catch {return VALUE}",
+                "interp alias {} capture {} catch {return VALUE}; capture",
+                DiagCode::W302,
+                None,
+            ),
+            (
+                "string is booleanx 1",
+                "interp alias {} classify {} string is booleanx; classify 1",
+                DiagCode::W127,
+                Some("booleanx"),
+            ),
+            (
+                "return -code errro VALUE",
+                "interp alias {} fail {} return -code errro; fail VALUE",
+                DiagCode::W127,
+                Some("errro"),
+            ),
+        ] {
+            let direct = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(written, "tcl");
+            let direct = direct
+                .diagnostics
+                .iter()
+                .find(|finding| finding.code == code)
+                .expect(written);
+            assert!(
+                !direct.fixes.is_empty(),
+                "genuine written operand retains existing proposal: {written}"
+            );
+            let result = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(captured, "tcl");
+            let finding = result
+                .diagnostics
+                .iter()
+                .find(|finding| finding.code == code)
+                .expect(captured);
+            assert!(
+                finding.fixes.is_empty(),
+                "capture owns no written operand here: {captured}"
+            );
+            let Some(DiagnosticSubject::RegistrySource(subject)) = finding.subject() else {
+                panic!("original captured source subject")
+            };
+            assert!(subject.written_argument().is_none());
+            if let Some(text) = captured_text {
+                assert_eq!(&captured[finding.span.as_range()], text);
+                assert!(finding.span.end() < u32::try_from(captured.rfind(';').unwrap()).unwrap());
+            }
+        }
+    }
+
+    #[test]
+    fn original_captured_case_action_is_not_a_written_quoting_operand() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let input = input();
+        let written = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse("switch -regexp subject literal BODY", "tcl");
+        assert!(
+            written
+                .diagnostics
+                .iter()
+                .any(|finding| finding.code == DiagCode::W106)
+        );
+        let captured = Analyser::new().with_resolved_input(input).analyse(
+            "interp alias {} choose {} switch -regexp subject literal BODY; choose",
+            "tcl",
+        );
+        assert!(
+            !captured
+                .diagnostics
+                .iter()
+                .any(|finding| finding.code == DiagCode::W106)
+        );
+    }
 }

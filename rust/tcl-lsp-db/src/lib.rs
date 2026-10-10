@@ -769,11 +769,10 @@ pub fn document_analysis_input(
 }
 
 fn unavailable_document_analysis(dialect: &str, miss: OverlayMiss) -> Arc<AnalysisResult> {
-    Arc::new(AnalysisResult {
-        dialect: dialect.to_owned(),
-        analysis_context_unavailable: Some(miss),
-        ..AnalysisResult::default()
-    })
+    let mut result = AnalysisResult::default();
+    result.dialect = dialect.to_owned();
+    result.analysis_context_unavailable = Some(miss);
+    Arc::new(result)
 }
 
 /// Whole-file analysis, behind an `Arc` so reads bump a refcount rather than
@@ -1119,18 +1118,30 @@ impl DispatchComponents {
 /// cross-file layer.
 #[salsa::tracked(returns(clone))]
 pub fn project_dispatch_components(db: &dyn TclDb, project: Project) -> Arc<DispatchComponents> {
-    let files = project.files(db);
+    merge_dispatch_components(project.files(db).iter().map(|&file| {
+        (
+            file.path(db).clone(),
+            file_link_targets(db, file),
+            file_decls(db, file),
+        )
+    }))
+}
+
+fn merge_dispatch_components(
+    rows: impl IntoIterator<Item = (Option<String>, Arc<BTreeSet<String>>, Arc<FileDecls>)>,
+) -> Arc<DispatchComponents> {
+    let rows: Vec<_> = rows.into_iter().collect();
     // Index files by path so `source` targets can be matched to project files.
     let mut by_path: HashMap<&str, usize> = HashMap::new();
-    for (i, f) in files.iter().enumerate() {
-        if let Some(p) = f.path(db).as_deref() {
+    for (i, (path, _, _)) in rows.iter().enumerate() {
+        if let Some(p) = path.as_deref() {
             by_path.insert(p, i);
         }
     }
     // Union-find over the undirected `source` graph.
-    let mut parent: Vec<usize> = (0..files.len()).collect();
-    for (i, f) in files.iter().enumerate() {
-        for target in file_link_targets(db, *f).iter() {
+    let mut parent: Vec<usize> = (0..rows.len()).collect();
+    for (i, (_, links, _)) in rows.iter().enumerate() {
+        for target in links.iter() {
             let Some(&j) = by_path.get(target.as_str()) else {
                 continue;
             };
@@ -1145,15 +1156,15 @@ pub fn project_dispatch_components(db: &dyn TclDb, project: Project) -> Arc<Disp
     }
     // Number the roots densely, then merge each component's declarations once.
     let mut number: HashMap<usize, usize> = HashMap::new();
-    let mut component_of: Vec<usize> = Vec::with_capacity(files.len());
-    for i in 0..files.len() {
+    let mut component_of: Vec<usize> = Vec::with_capacity(rows.len());
+    for i in 0..rows.len() {
         let root = component_root(&mut parent, i);
         let next = number.len();
         component_of.push(*number.entry(root).or_insert(next));
     }
     let mut merged: Vec<BTreeSet<String>> = vec![BTreeSet::new(); number.len()];
-    for (i, f) in files.iter().enumerate() {
-        merged[component_of[i]].extend(file_decls(db, *f).procs.iter().cloned());
+    for (i, (_, _, declarations)) in rows.iter().enumerate() {
+        merged[component_of[i]].extend(declarations.procs.iter().cloned());
     }
     Arc::new(DispatchComponents {
         component_of,
@@ -5010,6 +5021,10 @@ pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig)
     )
 }
 
+mod project_call_inputs;
+pub use project_call_inputs::{
+    file_external_call_sites_for_inputs, file_source_targets_for_inputs,
+};
 mod project_source_inputs;
 use project_source_inputs::{
     command_arity_for_inputs, original_command_signatures_for_inputs,

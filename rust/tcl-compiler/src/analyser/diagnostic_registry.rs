@@ -168,6 +168,8 @@ pub enum RegistrySourceDiagnosticKind {
     IndexBounds,
     /// A computed template under the selected original substitution grammar.
     TemplateSubstitution,
+    /// Literal shape advice for an original selected regular-expression pattern.
+    PatternShape,
     /// Original selected script-reparse operand and its nested source call.
     ScriptReparse,
     /// Selected channel path and possible original pipeline interpretation.
@@ -184,6 +186,7 @@ pub struct RegistrySourceDiagnosticSubject {
     kind: RegistrySourceDiagnosticKind,
     argument: Option<usize>,
     written_argument: Option<usize>,
+    list_element_path: Vec<usize>,
     span: Span,
     owning_package: Option<&'static str>,
     required_package: Option<&'static str>,
@@ -218,6 +221,12 @@ impl RegistrySourceDiagnosticSubject {
     #[must_use]
     pub const fn written_argument(&self) -> Option<usize> {
         self.written_argument
+    }
+    /// Original lexical list-field ancestry inside the effective operand.
+    /// These ordinals and extents supply no Native list object or child word.
+    #[must_use]
+    pub fn list_element_path(&self) -> &[usize] {
+        &self.list_element_path
     }
     /// Selected owning package metadata, separate from package installation.
     #[must_use]
@@ -345,10 +354,10 @@ impl OriginalDiagnosticInvocation {
         (!word.group().expand).then_some(operand)
     }
     pub(super) fn word(&self, argument: usize) -> Option<&NativeWord> {
-        self.operand(argument)?.word()
+        self.words.original_argument_word(argument)
     }
     pub(super) fn literal(&self, argument: usize) -> Option<&str> {
-        self.operand(argument)?;
+        self.word(argument)?;
         if let Some((_, value)) = self
             .supplemental_literals
             .iter()
@@ -422,8 +431,40 @@ impl OriginalDiagnosticInvocation {
                     .required_package,
                 required_package_key: self.required_package_key(),
                 supplemental_literals: self.supplemental_literals.clone(),
+                list_element_path: Vec::new(),
             },
         )))
+    }
+    /// Source-only child geometry comes from the complete original word and
+    /// selected lexical list grammar, never a reconstructed child token.
+    pub(super) fn list_element_subject(
+        &self,
+        kind: RegistrySourceDiagnosticKind,
+        argument: usize,
+        path: &[usize],
+    ) -> Option<super::DiagnosticSubject> {
+        let word = self.word(argument)?;
+        let mut elements = tcl_syntax::word_rules::original_static_word_list_elements(word)?;
+        let mut selected = None;
+        for (depth, &ordinal) in path.iter().enumerate() {
+            let element = elements.get(ordinal)?.clone();
+            if depth + 1 < path.len() {
+                elements = element.elements()?;
+            }
+            selected = Some(element);
+        }
+        let element = selected?;
+        (element.original_word() == word).then_some(())?;
+        let span = element.source_span()?;
+        let super::DiagnosticSubject::RegistrySource(mut subject) =
+            self.subject(kind, Some(argument))?
+        else {
+            return None;
+        };
+        let subject_data = Arc::make_mut(&mut subject);
+        subject_data.span = span;
+        subject_data.list_element_path = path.to_vec();
+        Some(super::DiagnosticSubject::RegistrySource(subject))
     }
     fn required_package_key(&self) -> Option<tcl_registry::native_package::NativePackageNameKey> {
         // naming.diagnostic.original-package-source-advice
@@ -478,6 +519,7 @@ impl OriginalDiagnosticInvocation {
                     .required_package,
                 required_package_key: self.required_package_key(),
                 supplemental_literals: self.supplemental_literals.clone(),
+                list_element_path: Vec::new(),
             },
         )))
     }
@@ -546,6 +588,7 @@ impl OriginalDiagnosticInvocation {
                     .required_package,
                 required_package_key: self.required_package_key(),
                 supplemental_literals: self.supplemental_literals.clone(),
+                list_element_path: Vec::new(),
             },
         )))
     }

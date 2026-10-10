@@ -140,7 +140,8 @@ impl AdviceNamingPolicy {
         }
     }
     fn logical_slot(bytes: &[u8]) -> Option<ByteCommandSlot> {
-        if !bytes.is_ascii() || bytes.contains(&0) {
+        std::str::from_utf8(bytes).ok()?;
+        if bytes.contains(&0) {
             return None;
         }
         tcl_syntax::naming::authored_source_command_slot(&ByteNamespacePath::root(), bytes)
@@ -745,9 +746,6 @@ impl AdviceGraph {
             {
                 continue;
             }
-            if matches!(policy, AdviceNamingPolicy::Logical(_)) && !command.is_ascii() {
-                continue;
-            }
             let key = match policy.native().map(NamePolicyProtocol::recipe) {
                 Some(NativeNameProtocol::C(_)) => {
                     let native = policy.native()?;
@@ -1173,10 +1171,9 @@ fn original_words(
                 .iter()
                 .enumerate()
                 .map(|(ordinal, original)| {
-                    let value =
-                        tcl_syntax::word_rules::original_static_word_ascii_presentation(original)
-                            .filter(|bytes| !bytes.contains(&0))
-                            .map(Arc::<[u8]>::from);
+                    let value = tcl_syntax::word_rules::original_static_word_source_bytes(original)
+                        .filter(|bytes| std::str::from_utf8(bytes).is_ok() && !bytes.contains(&0))
+                        .map(Arc::<[u8]>::from);
                     SourceAdviceWord {
                         original: original.clone(),
                         input: value.as_ref().map(|bytes| {

@@ -1197,3 +1197,92 @@ async fn configured_factory_rounds_refuse_stale_publication_and_withdraw_unavail
         assert!(caller.workspace_class_factories(&*db).is_none());
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn project_evidence_publication_withdraws_incomplete_checked_contributors() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // Actual host publication retains conditional caller facts, not Native entry.
+    use salsa::Setter as _;
+    let backend = crate::tests::test_backend();
+    let folder = Uri::from_str("file:///project-call357/callers").unwrap();
+    let library_uri = Uri::from_str("file:///project-call357/library.tcl").unwrap();
+    let caller_uri = Uri::from_str("file:///project-call357/callers/main.tcl").unwrap();
+    backend
+        .apply_folder_configs(vec![(
+            folder,
+            FolderConfig {
+                non_ascii_mode: Some(NonAsciiMode::Strict),
+                ..FolderConfig::default()
+            },
+        )])
+        .await;
+    backend
+        .db_set_source(
+            &library_uri,
+            "proc helper {mode} {return $mode}",
+            "tcl".to_owned(),
+        )
+        .await;
+    backend
+        .db_set_source(
+            &caller_uri,
+            "source ../library.tcl\n::helper kept",
+            "tcl".to_owned(),
+        )
+        .await;
+    let library_config = backend.resolved_db_config(&library_uri).await;
+    let caller_config = backend.resolved_db_config(&caller_uri).await;
+    assert_ne!(library_config, caller_config);
+    let handles = index_evidence_handles(&backend);
+    let first = sync_cross_file_evidence(&handles).await;
+    assert!(!first.changed.is_empty());
+    let library = *backend.db_files.lock().await.get(&library_uri).unwrap();
+    let caller = *backend.db_files.lock().await.get(&caller_uri).unwrap();
+    {
+        let db = backend.db.lock().await;
+        assert!(
+            library
+                .external_call_sites(&*db)
+                .as_ref()
+                .unwrap()
+                .get("::helper")
+                .is_some()
+        );
+    }
+    {
+        let mut db = backend.db.lock().await;
+        caller_config
+            .set_spec_pack_key(&mut *db)
+            .to(u64::MAX - 2357);
+    }
+    sync_cross_file_evidence(&handles).await;
+    {
+        let db = backend.db.lock().await;
+        assert!(tcl_lsp_db::document_analysis_input(&*db, library, library_config).is_ok());
+        assert!(tcl_lsp_db::document_analysis_input(&*db, caller, caller_config).is_err());
+        assert!(library.external_call_sites(&*db).is_none());
+        assert!(caller.external_call_sites(&*db).is_none());
+    }
+    let captured = capture_cross_file_evidence_snapshot(&handles)
+        .await
+        .unwrap();
+    let covered = files_with_covered_load_targets(
+        &captured.snapshot,
+        &captured.files,
+        &captured.members,
+        captured.project,
+    );
+    assert!(!covered.contains(&caller_uri));
+    drop(captured);
+    {
+        let mut db = backend.db.lock().await;
+        caller_config.set_spec_pack_key(&mut *db).to(0);
+    }
+    sync_cross_file_evidence(&handles).await;
+    {
+        let db = backend.db.lock().await;
+        assert!(library.external_call_sites(&*db).is_some());
+        assert!(caller.external_call_sites(&*db).is_some());
+    }
+}

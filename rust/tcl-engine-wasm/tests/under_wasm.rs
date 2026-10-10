@@ -487,7 +487,15 @@ fn what_was_set_up_survives_a_trap() {
         run(&mut engine, "return [made again]"),
         Ok("again".to_owned())
     );
-    let refused = |answer: Result<String, EngineError>, wanted: &str| matches!(answer, Err(EngineError::Script { message, .. }) if message.contains(wanted));
+    let refused = |answer: Result<String, EngineError>, wanted: &str| {
+        answer.err().is_some_and(|error| {
+            error.script_message_bytes().is_some_and(|bytes| {
+                bytes
+                    .windows(wanted.len())
+                    .any(|part| part == wanted.as_bytes())
+            })
+        })
+    };
     assert!(
         refused(
             run(&mut engine, "doomed x"),
@@ -879,4 +887,285 @@ fn an_extension_reads_nothing_of_the_machine() {
         "a zero clock, zero randomness, no environment"
     );
     assert_eq!(first, second, "two runs agree");
+}
+
+#[test]
+fn installed_receipts_keep_renamed_hosts_and_remove_old_name_replacements() {
+    // Software integration: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let Some(built) = built() else {
+        return;
+    };
+    let mut engine = WasmEngine::new(&built.runtime).unwrap();
+    engine.define_command("keeper", Rc::new(Echo)).unwrap();
+    run(
+        &mut engine,
+        "rename ::keeper ::moved; proc ::keeper {} {set ::replacement ran}; return READY",
+    )
+    .unwrap();
+    engine
+        .restrict_commands(&["set", "info", "list", "return"])
+        .unwrap();
+    assert_eq!(
+        run(
+            &mut engine,
+            "list [::moved ORIGINAL] [info commands ::keeper] [info exists ::replacement]"
+        ),
+        Ok("ORIGINAL {} 0".to_owned())
+    );
+}
+
+#[test]
+fn compiled_receipts_refuse_foreign_and_replaced_handles_before_effects() {
+    // Software integration: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let Some(built) = built() else {
+        return;
+    };
+    let mut engine = WasmEngine::new(&built.runtime).unwrap();
+    let handle = engine
+        .compile(CompileUnit {
+            name: "receipt",
+            parameters: &[],
+            body: "set ::original ran",
+        })
+        .unwrap();
+    let mut foreign = WasmEngine::new(&built.runtime).unwrap();
+    assert!(matches!(
+        foreign.invoke(&handle, &[]),
+        Err(EngineError::ExecutionRefusal(_))
+    ));
+    assert_eq!(
+        run(&mut foreign, "info exists ::original"),
+        Ok("0".to_owned())
+    );
+    run(&mut engine, "rename ::spectcl::unit::1 ::original_body; proc ::spectcl::unit::1 {} {set ::replacement ran}").unwrap();
+    assert!(matches!(
+        engine.invoke(&handle, &[]),
+        Err(EngineError::ExecutionRefusal(_))
+    ));
+    assert_eq!(
+        run(
+            &mut engine,
+            "list [info exists ::original] [info exists ::replacement]"
+        ),
+        Ok("0 0".to_owned())
+    );
+}
+
+struct OpaqueCompletion;
+impl HostCommand for OpaqueCompletion {
+    fn invoke(&self, arguments: &[Value]) -> Result<HostOutcome, EngineError> {
+        if arguments.first().and_then(Value::as_str) == Some("error") {
+            return Err(EngineError::ScriptBytes {
+                message: b"ERR\0\xff".to_vec(),
+                code: Some(b"HOST OPAQUE".to_vec()),
+                options: Some(
+                    b"-code 1 -level 0 -errorcode {HOST OPAQUE} -errorinfo {opaque\0\xff}".to_vec(),
+                ),
+            });
+        }
+        Ok(HostOutcome::ok(Value::string_bytes(
+            b"RESULT\0\xff".as_slice(),
+        )))
+    }
+}
+
+#[test]
+fn counted_publication_and_guest_completions_preserve_opaque_bytes() {
+    // Software integration: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let Some(built) = built() else {
+        return;
+    };
+    let mut engine = WasmEngine::new(&built.runtime).unwrap();
+    engine
+        .define_command_bytes("café\0unused".as_bytes(), Rc::new(OpaqueCompletion))
+        .unwrap();
+    let ok = engine
+        .compile(CompileUnit {
+            name: "opaque",
+            parameters: &[],
+            body: "::café",
+        })
+        .unwrap();
+    assert_eq!(
+        engine.invoke(&ok, &[]).unwrap().as_bytes(),
+        Some(b"RESULT\0\xff".as_slice())
+    );
+    let error = engine
+        .compile(CompileUnit {
+            name: "opaque error",
+            parameters: &[],
+            body: "::café error",
+        })
+        .unwrap();
+    let error = engine.invoke(&error, &[]).unwrap_err();
+    assert_eq!(error.script_message_bytes(), Some(b"ERR\0\xff".as_slice()));
+    assert_eq!(error.script_code_bytes(), Some(b"HOST OPAQUE".as_slice()));
+    assert!(
+        error
+            .script_options_bytes()
+            .unwrap()
+            .windows(8)
+            .any(|bytes| bytes == b"opaque\0\xff")
+    );
+}
+
+struct RefusingHost;
+impl HostCommand for RefusingHost {
+    fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+        Err(EngineError::ExecutionRefusal(
+            "actual host contract refusal".into(),
+        ))
+    }
+}
+
+#[test]
+fn host_refusal_bypasses_guest_catch_and_keeps_prior_effects() {
+    // Software integration: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // naming.interpreter.original-child-host-refusal-transport
+    let Some(built) = built() else {
+        return;
+    };
+    let mut engine = WasmEngine::new(&built.runtime).unwrap();
+    engine
+        .define_command("refuse", Rc::new(RefusingHost))
+        .unwrap();
+    assert!(matches!(
+        run(
+            &mut engine,
+            "set ::before reached; catch {refuse} result; set ::after caught"
+        ),
+        Err(EngineError::ExecutionRefusal(_))
+    ));
+    assert_eq!(
+        run(&mut engine, "list $::before [info exists ::after]"),
+        Ok("reached 0".to_owned())
+    );
+}
+
+#[test]
+fn structured_binary_and_scalar_inputs_use_selected_original_producers() {
+    // Software transport/integration: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let Some(built) = built() else {
+        return;
+    };
+    let mut engine = WasmEngine::new(&built.runtime).unwrap();
+    engine.set_release("tcl8.6").unwrap();
+    let binary = engine
+        .compile(CompileUnit {
+            name: "binary",
+            parameters: &["x"],
+            body: "binary encode hex $x",
+        })
+        .unwrap();
+    assert_eq!(
+        engine
+            .invoke(&binary, &[Value::byte_array(b"\xff\0A".as_slice())])
+            .unwrap()
+            .as_str(),
+        Some("ff0041")
+    );
+    let resident = engine
+        .compile(CompileUnit {
+            name: "resident",
+            parameters: &["x"],
+            body: "set x",
+        })
+        .unwrap();
+    let original = Value::NativeScalar(tcl_engine_api::NativeScalarCache::Integer(16))
+        .with_resident_string_storage(
+            b"0x10".as_slice(),
+            tcl_engine_api::NativeStringStorageIdentity::Allocated,
+        );
+    assert_eq!(
+        engine.invoke(&resident, &[original]).unwrap().as_bytes(),
+        Some(b"0x10".as_slice())
+    );
+    let foreign = Value::NativeScalar(tcl_engine_api::NativeScalarCache::WordBoolean {
+        value: true,
+        origin: tcl_engine_api::NativeCVersion::V8_5,
+    });
+    assert!(matches!(
+        engine.invoke(&resident, &[foreign]),
+        Err(EngineError::ExecutionRefusal(_))
+    ));
+    assert_eq!(
+        engine
+            .invoke(&resident, &[Value::string("NEXT")])
+            .unwrap()
+            .as_str(),
+        Some("NEXT")
+    );
+}
+
+struct OriginalView(std::rc::Rc<std::cell::Cell<usize>>);
+impl HostCommand for OriginalView {
+    fn argument_view(&self) -> tcl_engine_api::HostArgumentView {
+        tcl_engine_api::HostArgumentView::OriginalObjects
+    }
+    fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+        self.0.set(self.0.get() + 1);
+        Ok(HostOutcome::ok(Value::string("UNREACHED")))
+    }
+}
+
+#[test]
+fn original_object_callbacks_refuse_before_host_invocation_without_fake_snapshots() {
+    // Software limitation: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let Some(built) = built() else {
+        return;
+    };
+    let mut engine = WasmEngine::new(&built.runtime).unwrap();
+    let reached = Rc::new(std::cell::Cell::new(0));
+    engine
+        .define_command("original_view", Rc::new(OriginalView(Rc::clone(&reached))))
+        .unwrap();
+    assert!(matches!(
+        run(
+            &mut engine,
+            "set ::prior reached; catch {original_view x}; set ::later ran"
+        ),
+        Err(EngineError::ExecutionRefusal(_))
+    ));
+    assert_eq!(reached.get(), 0);
+    assert_eq!(
+        run(&mut engine, "list $::prior [info exists ::later]"),
+        Ok("reached 0".to_owned())
+    );
+}
+
+#[test]
+fn unicode_extension_inventory_refuses_an_opaque_counted_command_name() {
+    // Software contract: naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    let Some(built) = built() else {
+        return;
+    };
+    // The C source contains an explicit \xff byte escape, not U+00FF.
+    let source = written(
+        "opaque-inventory426.c",
+        r#"
+#include "tcl.h"
+static int Opaque(ClientData data, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)data; (void)interp; (void)objc; (void)objv;
+    return TCL_OK;
+}
+int OpaqueInventory_Init(Tcl_Interp *interp) {
+    Tcl_CreateObjCommand(interp, "opaque_\xff", Opaque, NULL, NULL);
+    return TCL_OK;
+}
+"#,
+    );
+    let module = side_module(&source, "OpaqueInventory");
+    let host = WasmExtensionHost::new(&built.runtime);
+    let result = host.load(&module, "OpaqueInventory");
+    assert!(
+        matches!(result, Err(DeclineReason::NotText)),
+        "the Unicode catalogue must not publish a replacement identity: {result:?}"
+    );
 }

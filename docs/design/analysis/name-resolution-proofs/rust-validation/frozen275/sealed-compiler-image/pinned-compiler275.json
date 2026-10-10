@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-compiler275.elf",
+  "sha256": "98ec7b75b4970c1a51861f1f3c7146392f480d279e402bba78e5e1ff4db4b6d9",
+  "build_receipt": "/workspace/.proofs/integration-compiler-own-test-build275.json",
+  "build_receipt_sha256": "ccdc8f1ff5294bd2ea11911da026c82d27e324680dc410679b40079a2aeef550",
+  "source_snapshot_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2"
+}

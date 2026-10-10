@@ -1,0 +1,274 @@
+
+running 1 test
+test command_binding::logical_operation::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases ... ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=18 stage=body-unavailable
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=38 stage=body-unavailable
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=18 stage=body-unavailable
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=38 stage=body-unavailable
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=layout logical=true frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=18 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=18 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+ORIGINAL_DECLARATION offset=38 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=38 stage=layout logical=true frame=Global targets=0 unknown=true absent=true opaque=true
+
+thread 'command_binding::logical_operation::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases' (962692) panicked at rust/tcl-compiler/src/command_binding/logical_operation.rs:426:13:
+assertion `left == right` failed: rename proc ::α; ::α subject {} {}; subject
+  left: Unknown
+ right: Present
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::logical_operation::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9066 filtered out; finished in 0.63s
+

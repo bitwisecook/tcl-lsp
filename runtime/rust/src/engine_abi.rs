@@ -83,7 +83,10 @@ pub unsafe extern "C" fn tcl_engine_set_limits(
 #[no_mangle]
 pub unsafe extern "C" fn tcl_engine_begin(interp: *mut Interp) {
     // SAFETY: caller guarantees a live interpreter.
-    unsafe { (*interp).begin_evaluation() }
+    unsafe {
+        (*interp).reset_native_compilation_admission();
+        (*interp).begin_evaluation();
+    }
 }
 
 /// `tcl_engine_exceeded(interp) -> kind` — the limit the evaluation outran
@@ -388,3 +391,6 @@ mod procedure_publication_tests {
 
 mod command_receipts;
 pub use command_receipts::*;
+
+pub(crate) mod value_carriers;
+pub use value_carriers::*;

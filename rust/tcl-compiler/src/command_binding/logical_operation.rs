@@ -195,7 +195,7 @@ fn scalar_store(
         || access.observed
         || access.kind != crate::place::PlaceKind::Scalar
         || access.index.is_some()
-        || !logical_cell_is_local(&access, state)
+        || !logical_cell_is_local(&access, state, context)
         || state.source_variables.root_contents_kind(&access)
             == Some(crate::var_resolve::RootContentsKind::Array)
         || state.source_variables.store_would_error(&access)
@@ -208,25 +208,54 @@ fn scalar_store(
     Some(())
 }
 
-fn logical_cell_is_local(access: &crate::place::Place, state: &ModuleCommandBindings) -> bool {
+/// Check an authored continuation's cell coordinate, independently of the
+/// storage-domain facet. This never selects a physical namespace or store.
+fn logical_cell_is_local(
+    access: &crate::place::Place,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> bool {
     use crate::place::CellOwner;
+    use tcl_registry::f5::VariableStorageDomain;
+    if super::logical_definition::logical_entry(state, context).is_none() {
+        return false;
+    }
+    let variables = &state.source_variables;
+    let namespace = context.namespace_identity();
     let Some(cell) = access.cell.as_ref() else {
         return false;
     };
-    cell.interpreter.is_none()
-        && cell.storage_domain.is_none()
-        && cell.execution.is_none()
-        && cell.generation != crate::place::CellGeneration::Unknown
-        && match &cell.owner {
-            CellOwner::Namespace(namespace) => namespace == &state.source_variables.namespace,
-            CellOwner::NamespaceIdentity(namespace) => {
-                matches!(namespace.as_ref(), SourceNamespaceKey::Authored(name) if name == &state.source_variables.namespace)
-            }
-            CellOwner::Activation(activation) => {
-                state.source_variables.activation.as_ref() == Some(activation)
-            }
-            _ => false,
+    if !matches!(namespace, SourceNamespaceKey::Authored(_))
+        || variables.namespace_identity.as_ref() != Some(&namespace)
+        || variables.interpreter.is_some()
+        || variables.execution.is_some()
+        || variables.hosted_execution_context.is_some()
+        || variables.execution_name_policy.is_some()
+        || cell.interpreter.is_some()
+        || cell.execution.is_some()
+        || cell.generation == crate::place::CellGeneration::Unknown
+        || cell.generation
+            != variables
+                .generations
+                .get(&crate::var_resolve::cell_key(access))
+                .copied()
+                .unwrap_or_default()
+    {
+        return false;
+    }
+    match &cell.owner {
+        CellOwner::Namespace(_) | CellOwner::NamespaceIdentity(_) => {
+            variables.namespace_footprint(access) == Some(namespace)
+                && matches!(
+                    cell.storage_domain,
+                    None | Some(VariableStorageDomain::InterpreterNamespace)
+                )
         }
+        CellOwner::Activation(activation) => {
+            variables.activation.as_ref() == Some(activation) && cell.storage_domain.is_none()
+        }
+        _ => false,
+    }
 }
 
 fn command_transfer(
@@ -408,6 +437,110 @@ mod tests {
         assert_eq!(binding.logical_source_name_advice_input(), Some(input));
         assert!(binding.original_recorded_head_name_input().is_none());
         binding
+    }
+
+    #[test]
+    fn logical_namespace_cell_continuation_keeps_the_independent_storage_facet() {
+        // naming.source.logical-original-operation-transfer
+        // docs/design/analysis/name-resolution-proofs/logical-original-operation-transfer.md
+        let input = input();
+        let registry = input.context_registry().commands();
+        let options = SourceAnalysisOptions::for_logical_source(&input).unwrap();
+        let binding = final_binding("set", &input);
+        let state = binding.lookup_state.as_ref().unwrap().state.clone();
+        let namespace = state.source_variables.namespace_identity.clone().unwrap();
+        let frame = state.variable_frame.clone();
+        let context = super::super::root_source_execution_context(
+            &frame,
+            &state.source_variables.namespace,
+            &namespace,
+            input.lexer_config(),
+            registry,
+            options,
+        );
+        let access = crate::var_resolve::resolve_literal_access(
+            "suffix",
+            &state.source_variables,
+            false,
+            registry,
+            tcl_registry::TraceOperation::Write,
+        );
+        let storage = Some(tcl_registry::f5::VariableStorageDomain::InterpreterNamespace);
+        assert_eq!(access.cell.as_ref().unwrap().storage_domain, storage);
+        assert!(logical_cell_is_local(&access, &state, context));
+        assert_eq!(access.cell.as_ref().unwrap().storage_domain, storage);
+        let mut worker = access.clone();
+        worker.cell.as_mut().unwrap().storage_domain =
+            Some(tcl_registry::f5::VariableStorageDomain::WorkerNamespace);
+        assert!(!logical_cell_is_local(&worker, &state, context));
+        let mut foreign = access.clone();
+        foreign.cell.as_mut().unwrap().owner = crate::place::CellOwner::Namespace("::other".into());
+        assert!(!logical_cell_is_local(&foreign, &state, context));
+        // A same-display Native coordinate supplies no authored correspondence.
+        let native = SourceNamespaceKey::Native(
+            tcl_runtime_api::native_compilation::NativeNamespaceContext {
+                interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity {
+                    owner: 37,
+                    interpreter: 13,
+                },
+                token: 99,
+                path: tcl_core_types::ByteNamespacePath::root(),
+            },
+        );
+        assert_eq!(native.display(), namespace.display());
+        let mut native_access = access.clone();
+        native_access.cell.as_mut().unwrap().owner =
+            crate::place::CellOwner::NamespaceIdentity(Box::new(native));
+        assert!(!logical_cell_is_local(&native_access, &state, context));
+        let mut recreated = access.clone();
+        recreated.cell.as_mut().unwrap().generation = crate::place::CellGeneration::After(17);
+        assert!(!logical_cell_is_local(&recreated, &state, context));
+        let mut physical = access.clone();
+        physical.cell.as_mut().unwrap().interpreter = Some("retained interpreter".into());
+        assert!(!logical_cell_is_local(&physical, &state, context));
+        let mut missing = state.clone();
+        missing.baseline.logical_source_input = None;
+        assert!(!logical_cell_is_local(&access, &missing, context));
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        assert!(!logical_cell_is_local(
+            &access,
+            &state,
+            SourceExecutionContext { config, ..context }
+        ));
+    }
+
+    #[test]
+    fn logical_scalar_continuation_keeps_original_values_and_captured_set_operands() {
+        // naming.source.logical-original-operation-transfer
+        // docs/design/analysis/name-resolution-proofs/logical-original-operation-transfer.md
+        let input = input();
+        for source in [
+            "proc foo_hi {} {}; rename foo_hi {}; set suffix _hi; foo$suffix",
+            "proc foo_hi {} {}; rename foo_hi {}; interp alias {} write {} set suffix; write _hi; foo$suffix",
+            "proc foo_é {} {}; rename foo_é {}; interp alias {} ::écrire {} set suffix; ::écrire _é; foo$suffix",
+        ] {
+            let binding = final_binding(source, &input);
+            assert_eq!(
+                binding.selected_slot_diagnostic_presence(),
+                SourceCommandSlotPresence::Absent,
+                "{source}"
+            );
+            assert!(binding.variable_context.execution_name_policy.is_none());
+            assert!(binding.variable_context.interpreter.is_none());
+            assert!(binding.variable_context.execution.is_none());
+        }
+        for source in [
+            "proc foo_hi {} {}; rename foo_hi {}; proc set args {}; set suffix _hi; foo$suffix",
+            "proc foo_hi {} {}; rename foo_hi {}; set suffix $unknown; foo$suffix",
+            "proc foo_hi {} {}; rename foo_hi {}; mystery; set suffix _hi; foo$suffix",
+        ] {
+            assert_eq!(
+                final_binding(source, &input).selected_slot_diagnostic_presence(),
+                SourceCommandSlotPresence::Unknown,
+                "{source}"
+            );
+        }
     }
 
     #[test]

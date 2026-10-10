@@ -649,7 +649,7 @@ impl super::CommandBindingRealm {
         {
             return None;
         }
-        if logical.is_some() && !logical_targets_match_advice(binding, &advice) {
+        if logical.is_some() && !logical_targets_match_advice(context, binding, &advice) {
             return None;
         }
         Some(advice)
@@ -658,6 +658,7 @@ impl super::CommandBindingRealm {
 
 /// Conditional Logical advice cannot override an actually selected target.
 fn logical_targets_match_advice(
+    context: &ContextRegistry,
     binding: &crate::command_binding::SourceInvocationBinding,
     advice: &OriginalSourceCommandTransitionAdvice,
 ) -> bool {
@@ -678,9 +679,18 @@ fn logical_targets_match_advice(
     let Some(prefix) = prefix else {
         return false;
     };
+    let Some(descriptor) = context
+        .context()
+        .resolve_spec(context.commands(), advice.command())
+    else {
+        return false;
+    };
     if binding.targets.iter().any(|target| {
         !target.registry_backed
-            || target.command != advice.command()
+            || !context
+                .context()
+                .resolve_spec(context.commands(), &target.command)
+                .is_some_and(|selected| std::ptr::eq(selected, descriptor))
             || target
                 .prepended
                 .iter()

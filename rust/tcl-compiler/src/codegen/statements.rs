@@ -1411,6 +1411,10 @@ impl CodegenCtx<'_> {
 
     pub(super) fn emit_word_from_source(&mut self, a: &str, braced: bool, word: Option<&WordExpr>) {
         let first = self.instructions.len();
+        if word.is_some_and(|word| self.try_emit_original_operand_word(a, word)) {
+            self.retain_literal_source_value_line(first, word);
+            return;
+        }
         if braced {
             self.push_lit_verbatim(a);
         } else if a.contains('\\') && !has_unescaped_subst(a) {

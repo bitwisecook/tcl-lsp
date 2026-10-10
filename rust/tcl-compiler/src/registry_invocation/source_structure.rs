@@ -244,6 +244,35 @@ impl OriginalRegistryWords {
     pub fn operands(&self) -> &[Option<OriginalOperandSource>] {
         &self.operands
     }
+    /// Genuine original whole word at this effective operand ordinal.
+    /// A captured prefix retains its allocation producer and explicit origin;
+    /// it gains no written operand at the current call or editable child word.
+    #[must_use]
+    pub fn original_argument_word(&self, argument: usize) -> Option<&tcl_lexer::NativeWord> {
+        use crate::registry_invocation::InvocationWordOrigin;
+        let origin = self.origins.get(argument.checked_add(1)?)?;
+        let word = match origin {
+            InvocationWordOrigin::Written(_) => self.operands.get(argument)?.as_ref()?.word()?,
+            InvocationWordOrigin::BindingPrefix(_) => {
+                let advice = match &self.source {
+                    OriginalRegistrySource::SourceTransitions(advice) => advice,
+                    _ => self.captured_values.as_ref()?,
+                };
+                advice
+                    .matches_source(&self.image, self.config)
+                    .then_some(())?;
+                let captured = advice.arguments().get(argument)?;
+                (captured.origin == *origin).then_some(())?;
+                &captured.original
+            }
+            InvocationWordOrigin::ResolvedHead | InvocationWordOrigin::ExpandedElement { .. } => {
+                return None;
+            }
+        };
+        (word.image() == &self.image && word.config() == self.config && !word.group().expand)
+            .then_some(word)
+    }
+
     /// Genuine readonly original value input at an effective operand ordinal.
     /// A captured alias prefix retains its separate declaration producer and
     /// conditional source obligations. It gains no call-site word extent,
@@ -2394,6 +2423,256 @@ mod tests {
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) -> Option<usize> {
         schema.authored_source_rule_procedure_operand()
+    }
+
+    fn logical_schema_input(
+        context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> crate::analyser::ResolvedAnalysisInput {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        assert!(input.has_logical_source_name_context());
+        input
+    }
+
+    fn last_logical_schema(
+        source: &str,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<OriginalRegistryWords> {
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "tcl");
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        )
+        .pop()?;
+        source_registry_words(source, &analysis, &segment)
+    }
+
+    #[test]
+    fn original_logical_schema_matches_selected_descriptors_without_slot_label_equality() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let input = logical_schema_input(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+        );
+        for (source, expected) in [
+            ("::eval $script", "eval"),
+            ("::subst $template", "subst"),
+            ("rename eval ::Held; ::Held $script", "eval"),
+            ("interp alias {} run {} eval; run $script", "eval"),
+            (
+                "interp alias {} run {} eval {set local}; run $script",
+                "eval",
+            ),
+        ] {
+            let words = last_logical_schema(source, &input).expect(source);
+            let expected = input
+                .borrowed_context_registry()
+                .context()
+                .resolve_spec(input.borrowed_context_registry().commands(), expected)
+                .unwrap();
+            let selected = words
+                .with_source_schema(input.borrowed_context_registry(), |schema| {
+                    schema.semantics.command
+                })
+                .unwrap();
+            assert!(std::ptr::eq(selected, expected), "{source}");
+            let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                panic!("independent Logical source purpose")
+            };
+            assert_eq!(advice.logical_source_input(), Some(&input));
+            assert!(words.head_source().unwrap().input().is_none());
+            assert!(!words.operands_preserve_source_lookup());
+        }
+        for source in [
+            "proc eval args {}; ::eval $script",
+            "interp alias {} run {} eval; rename eval {}; run $script",
+            "interp alias {} run {} eval; rename eval Held; run $script",
+            "interp alias {} run {} eval; proc eval args {}; run $script",
+        ] {
+            assert!(last_logical_schema(source, &input).is_none(), "{source}");
+        }
+    }
+
+    #[test]
+    fn original_logical_schema_keeps_same_store_availability_and_exact_source_owner() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut registry = baseline
+            .commands()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let mut command = registry.get("eval").unwrap().clone();
+        command.name = "eval_current";
+        command.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(command);
+        let current =
+            std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(registry)));
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(std::sync::Arc::clone(current.commands())),
+        );
+        assert!(std::sync::Arc::ptr_eq(current.commands(), older.commands()));
+        let input = logical_schema_input(current);
+        let source = "::eval_current $script";
+        let words = last_logical_schema(source, &input).expect("actual available descriptor");
+        assert!(last_logical_schema(source, &logical_schema_input(older)).is_none());
+        let original = crate::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "tcl");
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        )
+        .pop()
+        .unwrap();
+        for axis in 0..4 {
+            let mut analysis = original.clone();
+            match axis {
+                0 => analysis.resolved_input = None,
+                1 => {
+                    analysis.resolved_input = Some(logical_schema_input(
+                        tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                            .default_context_registry(),
+                    ))
+                }
+                2 => {
+                    analysis.body_lexer_config.as_mut().unwrap().strict_quoting =
+                        !input.lexer_config().strict_quoting
+                }
+                _ => analysis.body_lexer_config = None,
+            }
+            assert!(
+                source_registry_words(source, &analysis, &segment).is_none(),
+                "owner axis {axis}"
+            );
+        }
+        assert!(source_registry_words(&(source.to_owned() + " "), &original, &segment).is_none());
+        assert!(
+            words
+                .with_source_schema(
+                    &tcl_registry::model::ingress::resolve_environment("tcl8.6")
+                        .default_context_registry(),
+                    |_| ()
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn original_captured_word_projection_keeps_producer_geometry_and_origin() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let source = "interp alias {} pick {} list {CAPTURE $literal}; pick written";
+        let logical = logical_schema_input(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+        );
+        let native = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let native_segment = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            native.body_lexer_config.unwrap(),
+        )
+        .pop()
+        .unwrap();
+        for words in [
+            last_logical_schema(source, &logical).unwrap(),
+            source_registry_words(source, &native, &native_segment).unwrap(),
+        ] {
+            assert_eq!(
+                words.origins()[1],
+                crate::registry_invocation::InvocationWordOrigin::BindingPrefix(0)
+            );
+            assert!(
+                words.operands()[0].is_none(),
+                "no written call operand is fabricated"
+            );
+            let word = words
+                .original_argument_word(0)
+                .expect("authentic capture allocation word");
+            assert_eq!(&source[word.span().as_range()], "{CAPTURE $literal}");
+            assert!(word.span().end() < words.head_source().unwrap().span().start());
+            assert_eq!(
+                words.arguments()[0].literal_bytes(),
+                Some(b"CAPTURE $literal".as_slice())
+            );
+            assert_eq!(
+                &source[words.original_argument_word(1).unwrap().span().as_range()],
+                "written"
+            );
+            for axis in 0..4 {
+                let mut changed = words.clone();
+                match axis {
+                    0 => {
+                        changed.origins[1] =
+                            crate::registry_invocation::InvocationWordOrigin::BindingPrefix(1)
+                    }
+                    1 => changed.config.strict_quoting = !changed.config.strict_quoting,
+                    2 => changed.image = tcl_lexer::SourceImage::document("unrelated source"),
+                    _ => {
+                        changed.origins[1] =
+                            crate::registry_invocation::InvocationWordOrigin::Written(1)
+                    }
+                }
+                assert!(
+                    changed.original_argument_word(0).is_none(),
+                    "capture axis {axis}"
+                );
+            }
+        }
+        let words = last_logical_schema(source, &logical).unwrap();
+        assert!(
+            words
+                .with_source_value_projection(
+                    logical.borrowed_context_registry(),
+                    &[(0, "CHANGED")],
+                    |_| ()
+                )
+                .is_none(),
+            "capture cannot borrow a CU call operand"
+        );
+    }
+
+    #[test]
+    fn original_logical_payloads_keep_unicode_and_literal_sigils_without_native_names() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let input = logical_schema_input(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+        );
+        for (source, captured) in [
+            ("list {é $literal}", false),
+            ("rename list ::λ; ::λ {é $literal}", false),
+            ("interp alias {} κ {} list {é $literal}; κ written", true),
+            (
+                "interp alias {} pick {} list {é $literal}; rename pick ::κ; ::κ written",
+                true,
+            ),
+        ] {
+            let words = last_logical_schema(source, &input).expect(source);
+            assert_eq!(
+                words.arguments()[0].literal_bytes(),
+                Some("é $literal".as_bytes()),
+                "{source}"
+            );
+            let word = words.original_argument_word(0).unwrap();
+            assert_eq!(&source[word.span().as_range()], "{é $literal}");
+            assert_eq!(words.operands()[0].is_none(), captured);
+            assert!(words.original_argument_value_input(0).is_none());
+            let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                panic!("Logical source schema")
+            };
+            assert!(advice.original_head().native_input().is_none());
+            assert_eq!(advice.logical_source_input(), Some(&input));
+        }
     }
 
     #[test]

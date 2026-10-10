@@ -724,6 +724,9 @@ Use braces: {{ \u{2026} }}"
             return;
         };
         for body in bodies {
+            if original.written_index(body.argument).is_none() {
+                continue;
+            }
             let Some(word) = original.word(body.argument) else {
                 continue;
             };

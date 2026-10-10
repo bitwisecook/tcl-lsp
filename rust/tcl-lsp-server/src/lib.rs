@@ -5390,7 +5390,7 @@ async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> CrossFileEvidenc
     // anything, so no torn state can be observed afterwards.
     let pending = crate::rt::spawn_blocking(move || {
         salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
-            let covered = files_with_covered_load_targets(&snapshot, &files, &members);
+            let covered = files_with_covered_load_targets(&snapshot, &files, &members, project);
             files
                 .into_iter()
                 .filter_map(|(uri, file)| {
@@ -5765,7 +5765,8 @@ fn wanted_call_site_evidence(
 ) -> Option<Arc<tcl_compiler::unit_scope::CallSiteEvidence>> {
     covered
         .contains(uri)
-        .then(|| tcl_lsp_db::file_external_call_sites(db, file, project))
+        .then(|| tcl_lsp_db::file_external_call_sites_for_inputs(db, file, project))
+        .flatten()
 }
 
 /// Whether a file's stored cross-file evidence already equals what the project
@@ -5811,6 +5812,7 @@ fn files_with_covered_load_targets(
     db: &tcl_lsp_db::TclDatabase,
     files: &[(Uri, tcl_lsp_db::SourceFile)],
     members: &HashSet<Uri>,
+    project: tcl_lsp_db::Project,
 ) -> HashSet<Uri> {
     let known_paths: HashSet<std::path::PathBuf> = files
         .iter()
@@ -5821,18 +5823,20 @@ fn files_with_covered_load_targets(
         .iter()
         .filter(|(uri, _)| members.contains(uri))
         .filter(|(uri, file)| {
-            let Some(parent) = uri.to_file_path().map(|p| p.to_path_buf()) else {
-                return tcl_lsp_db::file_source_targets(db, *file).is_empty();
+            let Some(targets) = tcl_lsp_db::file_source_targets_for_inputs(db, *file, project)
+            else {
+                return false;
             };
-            tcl_lsp_db::file_source_targets(db, *file)
-                .iter()
-                .all(|site| {
-                    site.is_literal
-                        && known_paths.contains(&tcl_lsp_core::source_graph::resolve_source_target(
-                            &parent,
-                            &site.raw_path,
-                        ))
-                })
+            let Some(parent) = uri.to_file_path().map(|p| p.to_path_buf()) else {
+                return targets.is_empty();
+            };
+            targets.iter().all(|site| {
+                site.is_literal
+                    && known_paths.contains(&tcl_lsp_core::source_graph::resolve_source_target(
+                        &parent,
+                        &site.raw_path,
+                    ))
+            })
         })
         .map(|(uri, _)| uri.clone())
         .collect()
@@ -42784,8 +42788,12 @@ info exists ::N::v\uD800";
         let captured = capture_cross_file_evidence_snapshot(&handles)
             .await
             .expect("the project must remain initialised");
-        let covered =
-            files_with_covered_load_targets(&captured.snapshot, &captured.files, &captured.members);
+        let covered = files_with_covered_load_targets(
+            &captured.snapshot,
+            &captured.files,
+            &captured.members,
+            captured.project,
+        );
         assert!(
             !covered.contains(&main),
             "the current external target must defeat the stale covered index view",
@@ -43112,8 +43120,12 @@ info exists ::N::v\uD800";
             .expect("the evidence snapshot must finish after the writer")
             .expect("the evidence snapshot task must not panic")
             .expect("the project must remain initialised");
-        let covered =
-            files_with_covered_load_targets(&captured.snapshot, &captured.files, &captured.members);
+        let covered = files_with_covered_load_targets(
+            &captured.snapshot,
+            &captured.files,
+            &captured.members,
+            captured.project,
+        );
         assert!(
             !covered.contains(&main),
             "pre-removal coverage must not survive beside the post-removal project",
@@ -45970,6 +45982,89 @@ proc p {} {
         assert!(
             symbols.iter().any(|s| s.name.contains("IconList")),
             "outline names the class: {symbols:?}"
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[tokio::test]
+    async fn a_three_level_factory_scan_withdraws_descendants_when_the_source_root_disappears() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Public source indexing and reporting hints, without Native allocation or execution.
+        let root = unique_scratch_dir("factory-chain-withdrawal358");
+        for (name, source) in [
+            (
+                "maker.tcl",
+                "oo::class create ::MetaA {superclass oo::class}",
+            ),
+            (
+                "derived.tcl",
+                "::MetaA create ::MetaB {superclass oo::class}",
+            ),
+            ("consumer.tcl", "::MetaB create ::Made {method kept {} {}}"),
+            (
+                "independent.tcl",
+                "oo::class create ::Other {superclass oo::class}",
+            ),
+            (
+                "independent-consumer.tcl",
+                "::Other create ::Retained {method ok {} {}}",
+            ),
+        ] {
+            std::fs::write(
+                root.join(name),
+                format!("# tcl-dialect: tcl9.0\n{source}\n"),
+            )
+            .unwrap();
+        }
+        let backend = test_backend();
+        *backend.workspace_folders.lock().await = vec![Uri::from_file_path(&root).unwrap()];
+        backend.scan_workspace_folders().await;
+        {
+            let index = backend.workspace_index.read().await;
+            for name in ["::MetaA", "::MetaB", "::Made", "::Other", "::Retained"] {
+                assert_eq!(
+                    index.classes_named(name).len(),
+                    1,
+                    "initial source card {name}"
+                );
+            }
+        }
+        let (_, initial) = backend.published_class_factories_for_fresh_analysis().await;
+        let initial = initial.unwrap();
+        assert!(initial.contains_key("::MetaA"));
+        assert!(initial.contains_key("::MetaB"));
+        assert!(initial.contains_key("::Other"));
+        assert!(
+            scanned_analysis(&backend, &root, "consumer.tcl")
+                .await
+                .all_classes
+                .contains_key("::Made")
+        );
+
+        std::fs::write(root.join("maker.tcl"), "# source factory withdrawn\n").unwrap();
+        backend.scan_workspace_folders().await;
+        {
+            let index = backend.workspace_index.read().await;
+            for name in ["::MetaA", "::MetaB", "::Made"] {
+                assert!(
+                    index.classes_named(name).is_empty(),
+                    "withdrawn dependency {name}"
+                );
+            }
+            assert_eq!(index.classes_named("::Other").len(), 1);
+            assert_eq!(index.classes_named("::Retained").len(), 1);
+        }
+        let (_, current) = backend.published_class_factories_for_fresh_analysis().await;
+        let current = current.unwrap();
+        assert!(!current.contains_key("::MetaA"));
+        assert!(!current.contains_key("::MetaB"));
+        assert!(current.contains_key("::Other"));
+        assert!(
+            !scanned_analysis(&backend, &root, "consumer.tcl")
+                .await
+                .all_classes
+                .contains_key("::Made")
         );
         std::fs::remove_dir_all(&root).ok();
     }

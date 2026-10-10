@@ -16,11 +16,15 @@ project_callback_diagnostics_for_analysis requires actual retained input and mat
 
 Typed unavailable generation is terminal for a populated original callback lookup as well as positive Logical compatibility. Complete copied input, source coordinates and original callback cards cannot reopen the signature join after an OverlayMiss. The existing Logical-only legacy control additionally retains that refusal without changing its earlier linked row; Native/hosted or missing inputs cannot borrow display flags.
 
+Project callback advice uses each library’s published checked configuration and complete source input to obtain body-free original header signatures. Actual caller/registration/name/count subjects and known source barriers remain independently owned. Missing, conflicting or unavailable per-library mappings withhold external headers; source metadata does not install a callback or enter its body.
+
 ## Scope
 
 Four Database controls compare tracked/supplied results, exact current headers, foreign image/input/lookup refusal and positive Logical legacy admission. Four Server controls compare publication cache/full-pull typed subjects and ranges, feature/source/header changes, terminal local source barriers and code-action demand for the authentic external header query without an invented readonly signature edit. Provider-labelled source profiles do not execute native callbacks or network transports. Five marked package controls retain actual required-availability directives, genuine original rooted prefixes and typed source argument-count subjects. Exact finite or lower-bound schemas remain source metadata; missing package directives, even with a package require source line, cannot issue local-header advice. No package loader, actual callback entry or runtime argument vector is observed.
 
 One additional marked software control preserves a genuine positive original callback receipt while independently withdrawing the actual generation. This distinguishes source authority from receipt presence and supplies no installed callback, entered frame, Handler, runtime completion or call-site edit equivalence. All provider answers remain not tested.
+
+Two additional DB/Server source controls are linked without an executed assertion claim. Body-free signature equality and typed callback projection confer no Native callback publication, future target lookup, body/handler entry, physical frame or completed invocation. Standalone project APIs remain explicit and independent.
 
 ## Provider answers
 
@@ -105,6 +109,14 @@ A named test is a coverage binding, not a claim that it executed.
 - [rust/tcl-lsp-db/src/original_project_callback_projection_tests.rs](../../../../rust/tcl-lsp-db/src/original_project_callback_projection_tests.rs), `original_project_callback_projection_tests::supplied_project_callbacks_refuse_unavailable_generation_with_original_receipts` (linked): A genuine populated original callback signature lookup and complete source input remain insufficient after typed OverlayMiss generation withdrawal. Source-image/signature joins refuse and project callback advice retains only original analyser diagnostics; no callback execution is observed.
 
 These source/API bindings carry no executed assertion or Native provider result.
+
+- [rust/tcl-lsp-db/src/project_source_inputs.rs](../../../../rust/tcl-lsp-db/src/project_source_inputs.rs), `project_original_command_signatures_for_inputs`: Merge authentic body-free original library source headers under each file’s own checked complete input and actual selected declaration facts.
+- [rust/tcl-lsp-db/src/project_source_inputs.rs](../../../../rust/tcl-lsp-db/src/project_source_inputs.rs), `project_callback_diagnostics_for_analysis_with_inputs`: Join typed original caller/callback subjects with supplied per-library source headers, preserving original registration/name/count ownership and local known barriers.
+- [rust/tcl-lsp-db/src/project_source_inputs.rs](../../../../rust/tcl-lsp-db/src/project_source_inputs.rs), `project_callback_diagnostics_for_inputs`: Tracked Server callback projection retains actual supplied caller analysis and checked project input mode for push/pull/code-action consumers.
+- [rust/tcl-lsp-db/src/project_source_inputs/tests.rs](../../../../rust/tcl-lsp-db/src/project_source_inputs/tests.rs), `project_source_inputs::tests::supplied_callback_headers_use_the_librarys_checked_input_and_body_free_signature` (linked): Callback source projection borrows the library’s own checked input and body-free original header signature, without body or callback entry.
+- [rust/tcl-lsp-server/src/original_document_metadata_tests.rs](../../../../rust/tcl-lsp-server/src/original_document_metadata_tests.rs), `original_document_metadata_tests::callback_project_worker_uses_each_librarys_published_configuration` (linked): Server callback workers consume each library’s published checked configuration and retain typed original caller/header subjects.
+
+These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 
 ## Replay
 

@@ -118,6 +118,8 @@ enum RegistryPurposeDescription {
     OptionOnly,
     PatternSubstitution,
     IndexBounds,
+    /// Literal shape advice retains the selected original regex operand.
+    PatternShape,
     /// Original selected template operand, independent of its runtime value.
     TemplateSubstitution,
     /// Original selected script-reparse syntax, independent of execution.
@@ -151,6 +153,7 @@ impl From<tcl_compiler::analyser::RegistrySourceDiagnosticKind> for RegistryPurp
             Kind::CaseBody => Self::CaseBody,
             Kind::OptionOnly => Self::OptionOnly,
             Kind::PatternSubstitution => Self::PatternSubstitution,
+            Kind::PatternShape => Self::PatternShape,
             Kind::IndexBounds => Self::IndexBounds,
             Kind::TemplateSubstitution => Self::TemplateSubstitution,
             Kind::ScriptReparse => Self::ScriptReparse,
@@ -182,6 +185,7 @@ impl RegistryPurposeDescription {
             Self::CaseBody => code == "W106",
             Self::OptionOnly => code == "W217",
             Self::PatternSubstitution => code == "W306",
+            Self::PatternShape => code == "W303",
             Self::IndexBounds => matches!(code, "W230" | "W232"),
             Self::TemplateSubstitution => code == "W102",
             Self::ScriptReparse => matches!(code, "W101" | "W301" | "W309" | "W312"),
@@ -574,6 +578,12 @@ enum SubjectDescription {
             skip_serializing_if = "Vec::is_empty"
         )]
         supplemental_literals: Vec<SupplementalLiteralDescription>,
+        #[serde(
+            rename = "listElementPath",
+            default,
+            skip_serializing_if = "Vec::is_empty"
+        )]
+        list_element_path: Vec<usize>,
         command: String,
         argument: Option<usize>,
         #[serde(rename = "writtenArgument")]
@@ -1036,6 +1046,7 @@ impl DiagnosticSubjectData {
                             value: value.clone(),
                         })
                         .collect(),
+                    list_element_path: original.list_element_path().to_vec(),
                     command: original.words().command().to_owned(),
                     argument: original.argument(),
                     written_argument: original.written_argument(),
@@ -2055,6 +2066,72 @@ mod tests {
             assert!(DiagnosticSubjectData::from_value(&payload, code.as_str()).is_some());
             assert!(DiagnosticSubjectData::from_value(&payload, "W102").is_none());
             diagnostic.message = "translated 'open/source' with misleading values".to_owned();
+            diagnostic.fixes.clear();
+            assert_eq!(diagnostic_subject_data(&diagnostic), Some(payload));
+        }
+    }
+
+    #[test]
+    fn original_pattern_shape_transport_keeps_child_ancestry_and_value_premises() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        for (source, argument, written, list_path, literal) in [
+            (
+                "interp alias {} choose {} switch -regexp literal {(é+)+ {BODY}}; choose",
+                2,
+                None,
+                Some(0),
+                None,
+            ),
+            (
+                "proc f {} {set p {(a+)+}; regexp $p literal}",
+                0,
+                Some(0),
+                None,
+                Some("(a+)+"),
+            ),
+        ] {
+            let result = tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, "tcl");
+            let mut diagnostic = result
+                .diagnostics
+                .iter()
+                .find(|finding| finding.code == DiagCode::W303)
+                .expect("original selected pattern")
+                .clone();
+            let payload = diagnostic_subject_data(&diagnostic).unwrap();
+            assert_eq!(payload["subject"]["purpose"], "patternShape");
+            assert_eq!(payload["subject"]["argument"], argument);
+            assert_eq!(
+                payload["subject"]["writtenArgument"],
+                serde_json::json!(written)
+            );
+            if let Some(index) = list_path {
+                assert_eq!(
+                    payload["subject"]["listElementPath"],
+                    serde_json::json!([index])
+                );
+                assert_eq!(&source[diagnostic.span.as_range()], "(é+)+");
+            } else {
+                assert!(payload["subject"].get("listElementPath").is_none());
+            }
+            if let Some(literal) = literal {
+                assert_eq!(
+                    payload["subject"]["supplementalLiterals"][0]["value"],
+                    literal
+                );
+            }
+            assert!(DiagnosticSubjectData::from_value(&payload, "W303").is_some());
+            assert!(DiagnosticSubjectData::from_value(&payload, "W306").is_none());
+            diagnostic.message = "translated regexp/switch with invented operand text".to_owned();
             diagnostic.fixes.clear();
             assert_eq!(diagnostic_subject_data(&diagnostic), Some(payload));
         }

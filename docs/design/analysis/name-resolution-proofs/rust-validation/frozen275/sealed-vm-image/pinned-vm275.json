@@ -1,0 +1,45 @@
+{
+  "executable": "/workspace/.proofs/pinned-vm275.elf",
+  "sha256": "bba0ef9a727d129bc8104b055c68e1ede3cdcbc704a917a187c4c92d822fdfc8",
+  "bytes": 101488232,
+  "original_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_vm-872623e976969ce6",
+  "artifact": {
+    "reason": "compiler-artifact",
+    "package_id": "path+file:///workspace/.checkpoints/naming-validation/rust/tcl-vm#0.1.0",
+    "manifest_path": "/workspace/.checkpoints/naming-validation/rust/tcl-vm/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_vm",
+      "src_path": "/workspace/.checkpoints/naming-validation/rust/tcl-vm/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "features": [
+      "default",
+      "js-clock"
+    ],
+    "filenames": [
+      "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_vm-872623e976969ce6"
+    ],
+    "executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_vm-872623e976969ce6",
+    "fresh": false
+  },
+  "build_receipt": "/workspace/.proofs/integration-vm-native-test-build275.json",
+  "build_receipt_sha256": "d46c409b9519e2fb6e6b0290a1580e570c248f1be271ce390e8ffcb32281c8c2",
+  "source_snapshot": "/workspace/.checkpoints/naming275/snapshot.json",
+  "source_snapshot_sha256": "878a12b5112cf06b7ccf96093041088240dd0dabee29b9d72a0616b1b84845f2"
+}

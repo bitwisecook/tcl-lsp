@@ -2122,3 +2122,73 @@ The VM-only no-run build closes with two E0599 fixture errors caused by the miss
 | `integration-compiler-registry-consumer-test-build274` | `compile-blocked`, exit101, 323.043956s; no assertions | [Lossless original](frozen274/integration-compiler-registry-consumer-test-build274/receipt.json.gz) | [Whole log](frozen274/integration-compiler-registry-consumer-test-build274/tests.log) |
 
 Both original receipts have uniform_source=true, lossless gzip round trips and independently checked complete frozen source inventories. Stored and original receipt digests are retained; no mutable implementation pin, actual Native capture or provider answer is changed by this archive.
+
+## Sealed VM275 and independent unit construction
+
+The independent VM-only no-run275 build succeeds and yields the [lossless storage of the sealed actual VM275 image](frozen275/sealed-vm-image/pinned-vm275.elf.gz), [exact producer metadata](frozen275/sealed-vm-image/pinned-vm275.json) and [unchanged original source companion](frozen275/sealed-vm-image/source-snapshot.json.gz). Its inventory lists 737 tests. The list-gated 24-selector frontier records 21 passed/3 failed. The separate dictionary ownership diagnostic records 0 passed/1 failed. These actual software outcomes apply to this exact source/image; they supply no aggregate gate pass, other-backend result or external Native provider promotion.
+
+The four-crate Compiler/Registry/Syntax/Engine no-run build stops at four Registry libtest E0599 calls to native_command_admission. Its successful Syntax/Engine/Compiler artifact events remain in the complete log, without a sealed image or executed assertion from that failed invocation. The independent Compiler-only no-run build succeeds and emits its actual Compiler test artifact; this archive records that successful producer without a Compiler pin, inventory or assertion result. Each original command and full frozen naming275 source association remains unchanged.
+
+| Closed operation | Status | Recorded result | Exact receipt | Complete log |
+| --- | --- | --- | --- | --- |
+| `integration-vm-native-test-build275` | `compile-passed`, exit 0, 106.916094s | no assertions | [Original lossless receipt](frozen275/integration-vm-native-test-build275/receipt.json.gz) | [Whole log](frozen275/integration-vm-native-test-build275/tests.log) |
+| `integration-vm-current-inventory275` | `listed`, exit 0, 0.006932s | 737 listed, no assertions | [Original lossless receipt](frozen275/integration-vm-current-inventory275/receipt.json.gz) | [Whole log](frozen275/integration-vm-current-inventory275/tests.log) |
+| `integration-vm-native-frontier-tests275` | `failed`, exit 101, 165.038087s | 21 passed/3 failed | [Original lossless receipt](frozen275/integration-vm-native-frontier-tests275/receipt.json.gz) | [Whole log](frozen275/integration-vm-native-frontier-tests275/tests.log) |
+| `integration-compiler-registry-consumer-test-build275` | `compile-blocked`, exit 101, 266.883495s | no assertions | [Original lossless receipt](frozen275/integration-compiler-registry-consumer-test-build275/receipt.json.gz) | [Whole log](frozen275/integration-compiler-registry-consumer-test-build275/tests.log) |
+| `integration-compiler-own-test-build275` | `compile-passed`, exit 0, 156.843618s | no assertions | [Original lossless receipt](frozen275/integration-compiler-own-test-build275/receipt.json.gz) | [Whole log](frozen275/integration-compiler-own-test-build275/tests.log) |
+| `diagnostic-native275-dictionary345-ownership` | `failed`, exit 101, 67.485009s | 0 passed/1 failed | [Original lossless receipt](frozen275/diagnostic-native275-dictionary345-ownership/receipt.json.gz) | [Whole log](frozen275/diagnostic-native275-dictionary345-ownership/tests.log) |
+
+The [24-selector frontier selection](frozen275/selections/vm-native-frontier-selection275.json) remains the byte-identical original, checked against the 737-test inventory and actual libtest events. Its three failures remain both mathop controls at their C8.4 preflight refusal and the 186-window InfoCommands comparison at the original C8.4 qualified child String birth; that failure is separate from outer List storage. Passing dictionary observation windows, independent live host-storage, reached error capture/refusal, typed first-cause, active-manifest and other software controls do not grant defined native post-free contents, external provider equivalence, another image or an aggregate success. The dictionary ownership diagnostic retains the genuine retired CALL-child refusal in its whole log; its failure is not converted to a process comparison pass. Every receipt compresses losslessly with both digests retained. Every frozen source leaf and the sealed VM producer/hash association are independently checked. This archive launches no build, assertion or Native replay.
+
+The [image storage receipt](frozen275/sealed-vm-image/lossless-image-storage.json) retains stored gzip and original measured ELF digests/lengths. The original producer and source metadata remain unchanged. From the repository root, restore only after checking both identities:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-vm-image")
+record = json.loads((base / "lossless-image-storage.json").read_text())
+packed = (base / "pinned-vm275.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/pinned-vm275.elf")
+restored.write_bytes(original)
+restored.chmod(0o755)
+```
+
+Decompression restores the measured executable byte-for-byte. It is neither a new build nor an assertion or Native replay.
+
+## Sealed Compiler275 source and assertion receipts
+
+The [original pin metadata](frozen275/sealed-compiler-image/pinned-compiler275.json), [lossless measured Compiler ELF](frozen275/sealed-compiler-image/pinned-compiler275.elf.gz) and [storage identity receipt](frozen275/sealed-compiler-image/lossless-image-storage.json) retain the independently successful Compiler-only275 producer already recorded in the ledger. This image is not attributed to the failed four-crate invocation. Its [source companion](frozen275/sealed-vm-image/source-snapshot.json.gz) is byte-identical to the unchanged source association independently checked for the successful Compiler-only producer. Sharing that exact companion does not make Compiler and VM executable identities equivalent.
+
+The inventory lists9067 tests. The [original114-selector selection](frozen275/selections/compiler-focus-selection275.json) records47 passed/67 failed. Every failure remains in the whole log. The declaration trace requests two selectors, but the requested source_command_world Unicode-transfer name is absent from that inventory: only the declaration test actually executes and fails. The corrected logical_operation Unicode-transfer selector executes independently and fails in its own command. These actual outcomes provide neither aggregate success nor another image/backend or Native provider result.
+
+| Closed operation | Status | Recorded result | Exact receipt | Complete log |
+| --- | --- | --- | --- | --- |
+| `integration-compiler-current-inventory275` | `listed`, exit 0, 0.056978s | 9067 listed, no assertions | [Original lossless receipt](frozen275/integration-compiler-current-inventory275/receipt.json.gz) | [Whole log](frozen275/integration-compiler-current-inventory275/tests.log) |
+| `integration-compiler-focused-consumers275` | `failed`, exit 101, 156.230215s | 47 passed/67 failed | [Original lossless receipt](frozen275/integration-compiler-focused-consumers275/receipt.json.gz) | [Whole log](frozen275/integration-compiler-focused-consumers275/tests.log) |
+| `diagnostic-compiler-original-declarations275` | `failed`, exit 101, 0.253940s | 0 passed/1 failed | [Original lossless receipt](frozen275/diagnostic-compiler-original-declarations275/receipt.json.gz) | [Whole log](frozen275/diagnostic-compiler-original-declarations275/tests.log) |
+| `diagnostic-compiler-original-transfer275` | `failed`, exit 101, 0.670688s | 0 passed/1 failed | [Original lossless receipt](frozen275/diagnostic-compiler-original-transfer275/receipt.json.gz) | [Whole log](frozen275/diagnostic-compiler-original-transfer275/tests.log) |
+
+Every exact source association, pin digest, complete producer log and original selection is checked independently. The two trace requests retain their original commands and actual test counts. Receipt compression preserves the original bytes and digests. This record launches no build, assertion or Native replay. Restore the measured executable from the repository root only after checking both stored and original identities:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen275/sealed-compiler-image")
+record = json.loads((base / "lossless-image-storage.json").read_text())
+packed = (base / "pinned-compiler275.elf.gz").read_bytes()
+assert len(packed) == record["stored_bytes"]
+assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+original = gzip.decompress(packed)
+assert len(original) == record["original_bytes"]
+assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+restored = Path("/tmp/pinned-compiler275.elf")
+restored.write_bytes(original)
+restored.chmod(0o755)
+```
+
+Decompression restores the original measured ELF byte-for-byte; it supplies no new build or assertion outcome.

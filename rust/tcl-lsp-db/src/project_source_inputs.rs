@@ -14,25 +14,10 @@ pub fn item_tree_for_config(
     file: SourceFile,
     config: AnalyserConfig,
 ) -> Arc<ItemTree> {
-    let Ok(input) = document_analysis_input(db, file, config) else {
-        return Arc::new(ItemTree::default());
-    };
-    let mut analyser = document_analyser(db, file, config)
-        .with_resolved_input((*input).clone())
-        .structure_only();
-    let result = analyser.analyse(file.text(db), file.dialect(db));
-    if result.resolved_input.as_ref() != Some(input.as_ref())
-        || !result.matches_original_source_image(
-            &tcl_lexer::SourceImage::document(file.text(db)),
-            input.lexer_config(),
-        )
-    {
-        return Arc::new(ItemTree::default());
-    }
-    Arc::new(ItemTree::from_analysis(
-        &result,
-        &analyser.ensemble_namespaces,
-    ))
+    project_call_inputs::file_source_structure(db, file, config).map_or_else(
+        || Arc::new(ItemTree::default()),
+        |facts| Arc::clone(&facts.items),
+    )
 }
 
 /// Body-free source signatures share the existing item/header projection.

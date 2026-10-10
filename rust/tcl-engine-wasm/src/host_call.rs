@@ -27,25 +27,20 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
+use crate::command_receipts;
+use crate::session::{Exports, HostState, address};
 use tcl_engine_api::{
-    BudgetKind, CommandRegistrar, CompletionCode, EngineError, HostCommand, HostOutcome, Value,
+    BudgetKind, CommandRegistrar, EngineError, HostArgumentView, HostCommand, HostOutcome, Value,
 };
 use wasmtime::{Caller, Func, Store};
 
-use crate::session::{Exports, HostState, address, read_string};
-
-/// What a running host command set up through its door, for the engine to
-/// replay on a fresh instance.
+/// Authored setup retaining actual publication addresses for fresh replay.
 pub(crate) enum Defined {
-    /// A command defined, with its name.
-    Command(String, Rc<dyn HostCommand>),
-    /// A command removed.
-    Removed(String),
-    /// A package provided, with its version.
+    Command(Vec<u8>, Rc<dyn HostCommand>),
+    Removed(Vec<u8>),
     Package(String, String),
 }
 
-/// The host function every host command is registered with.
 pub(crate) fn procedure(store: &mut Store<HostState>) -> Func {
     Func::wrap(
         store,
@@ -58,8 +53,6 @@ pub(crate) fn procedure(store: &mut Store<HostState>) -> Func {
     )
 }
 
-/// Run the host command registered with `client` on the `count` words at
-/// `words`, as the interpreter calls a `Tcl_ObjCmdProc`.
 fn call(
     caller: &mut Caller<'_, HostState>,
     client: i32,
@@ -76,14 +69,38 @@ fn call(
         .ok()
         .and_then(|index| caller.data().commands.get(index).cloned())
         .ok_or_else(|| wasmtime::Error::msg("no host command at this client data"))?;
-    let count = usize::try_from(count).unwrap_or(0);
-    let mut table = vec![0; count * 4];
+    match command.argument_view() {
+        HostArgumentView::MaterializedStrings => {}
+        HostArgumentView::NativeObjectSnapshots => {
+            return refuse(
+                caller,
+                &exports,
+                interp,
+                "native object snapshot callbacks are unavailable across this WASM boundary",
+            );
+        }
+        HostArgumentView::OriginalObjects => {
+            return refuse(
+                caller,
+                &exports,
+                interp,
+                "original object callbacks are unavailable across this WASM boundary",
+            );
+        }
+    }
+    let count = usize::try_from(count)?;
+    let length = count
+        .checked_mul(4)
+        .ok_or_else(|| wasmtime::Error::msg("argument vector is too large"))?;
+    let mut table = vec![0; length];
     exports.memory.read(&*caller, address(words), &mut table)?;
     let mut arguments = Vec::with_capacity(count.saturating_sub(1));
     for word in table.as_chunks::<4>().0.iter().skip(1) {
-        let object = i32::from_le_bytes(*word);
-        let bytes = string_of(caller, &exports, object)?;
-        arguments.push(Value::string(String::from_utf8_lossy(&bytes)));
+        let original = i32::from_le_bytes(*word);
+        match command_receipts::string_bytes(caller, &exports, interp, original) {
+            Ok(bytes) => arguments.push(Value::string_bytes(bytes)),
+            Err(error) => return fail(caller, &exports, interp, error.into_engine_error()),
+        }
     }
     let outcome = catch_unwind(AssertUnwindSafe(|| {
         let mut registrar = WasmRegistrar {
@@ -98,107 +115,119 @@ fn call(
         Ok(Err(error)) => fail(caller, &exports, interp, error),
         Err(payload) => {
             caller.data_mut().panic = Some(payload);
-            fail(
-                caller,
-                &exports,
-                interp,
-                EngineError::Crashed("a host command panicked".to_owned()),
-            )
+            refuse(caller, &exports, interp, "a host command panicked")
         }
     }
 }
 
-/// The bytes of `object`'s string, through the runtime's own export.
-fn string_of(
+fn refuse(
     caller: &mut Caller<'_, HostState>,
     exports: &Exports,
-    object: i32,
-) -> wasmtime::Result<Vec<u8>> {
-    let cell = exports.alloc.call(&mut *caller, (4, 4))?;
-    let chars = exports.string_of.call(&mut *caller, (object, cell))?;
-    let bytes = read_string(&*caller, exports.memory, chars, cell)?;
-    exports.free.call(&mut *caller, cell)?;
-    Ok(bytes)
-}
-
-/// A fresh object holding `bytes`, owned by the caller.
-fn object(
-    caller: &mut Caller<'_, HostState>,
-    exports: &Exports,
-    bytes: &[u8],
+    interp: i32,
+    reason: &str,
 ) -> wasmtime::Result<i32> {
-    let length = i32::try_from(bytes.len())?;
-    let buffer = exports.alloc.call(&mut *caller, (length.max(1), 1))?;
-    exports.memory.write(&mut *caller, address(buffer), bytes)?;
-    let made = exports.new_string.call(&mut *caller, (buffer, length))?;
-    exports.free.call(&mut *caller, buffer)?;
-    Ok(made)
+    let (input, length) = command_receipts::buffer(caller, exports, reason.as_bytes())
+        .map_err(|error| wasmtime::Error::msg(error.into_engine_error().to_string()))?;
+    let code = exports
+        .refuse_host
+        .call(&mut *caller, (interp, input, length))?;
+    exports.free.call(&mut *caller, input)?;
+    Ok(code)
 }
 
-/// An interface value's text: a list's and a dict's are the Tcl list of their
-/// elements' texts, a double's is the runtime's own spelling of it.
-pub(crate) fn text_of(value: &Value) -> String {
-    match value {
-        Value::Empty => String::new(),
-        Value::Str(text) => text.to_string(),
-        Value::Int(number) => number.to_string(),
-        Value::Double(number) => tcl_syntax::number::format_double(*number),
-        Value::List(items) => tcl_syntax::list::join_list(items.iter().map(text_of)),
-        Value::Dict(entries) => tcl_syntax::list::join_list(
-            entries
-                .iter()
-                .flat_map(|(key, item)| [text_of(key), text_of(item)]),
-        ),
-    }
+fn imported(
+    caller: &mut Caller<'_, HostState>,
+    exports: &Exports,
+    interp: i32,
+    value: &Value,
+) -> Result<i32, EngineError> {
+    command_receipts::value(caller, exports, interp, value)
+        .map_err(crate::session::Failure::into_engine_error)
 }
 
-/// Leave a host command's outcome as the interpreter's result and answer its
-/// code; a `Return` takes effect as `return -options` does.
 fn answer(
     caller: &mut Caller<'_, HostState>,
     exports: &Exports,
     interp: i32,
     outcome: &HostOutcome,
 ) -> wasmtime::Result<i32> {
-    let value = object(caller, exports, text_of(&outcome.value).as_bytes())?;
-    let code = if outcome.code == CompletionCode::Return {
-        let options = object(caller, exports, text_of(&outcome.options).as_bytes())?;
-        let code = exports
-            .returning
-            .call(&mut *caller, (interp, options, value))?;
-        exports.release.call(&mut *caller, options)?;
-        code
-    } else {
-        exports.set_result.call(&mut *caller, (interp, value))?;
-        outcome.code.as_int()
+    let value = match imported(caller, exports, interp, &outcome.value) {
+        Ok(value) => value,
+        Err(error) => return fail(caller, exports, interp, error),
     };
+    let options = if matches!(outcome.options, Value::Empty) {
+        0
+    } else {
+        match imported(caller, exports, interp, &outcome.options) {
+            Ok(options) => options,
+            Err(error) => {
+                exports.release.call(&mut *caller, value)?;
+                return fail(caller, exports, interp, error);
+            }
+        }
+    };
+    let code = exports.complete.call(
+        &mut *caller,
+        (interp, value, options, outcome.code.as_int()),
+    )?;
     exports.release.call(&mut *caller, value)?;
+    if options != 0 {
+        exports.release.call(&mut *caller, options)?;
+    }
     Ok(code)
 }
 
-/// Leave a host command's failure as the interpreter's error and answer
-/// `TCL_ERROR`; a limit the command's own work outran stays that limit.
 fn fail(
     caller: &mut Caller<'_, HostState>,
     exports: &Exports,
     interp: i32,
     error: EngineError,
 ) -> wasmtime::Result<i32> {
-    let (message, code) = match error {
+    let (message, error_code, options) = match error {
         EngineError::BudgetExceeded(kind) => {
-            let kind = match kind {
-                BudgetKind::Commands => 1,
-                BudgetKind::WallClock => 2,
-                BudgetKind::ValueSize => 3,
-            };
-            return exports.exceed.call(&mut *caller, (interp, kind));
+            return exports.exceed.call(
+                &mut *caller,
+                (
+                    interp,
+                    match kind {
+                        BudgetKind::Commands => 1,
+                        BudgetKind::WallClock => 2,
+                        BudgetKind::ValueSize => 3,
+                    },
+                ),
+            );
         }
-        EngineError::Script { message, code } => (message, code),
-        other => (other.to_string(), None),
+        EngineError::Script { message, code } => {
+            (message.into_bytes(), code.map(String::into_bytes), None)
+        }
+        EngineError::ScriptBytes {
+            message,
+            code,
+            options,
+        } => (message, code, options),
+        EngineError::ExecutionRefusal(reason) => return refuse(caller, exports, interp, &reason),
+        EngineError::Compile(reason) | EngineError::Crashed(reason) => {
+            return refuse(caller, exports, interp, &reason);
+        }
+        EngineError::Unsupported(reason) => return refuse(caller, exports, interp, reason),
     };
-    let message = object(caller, exports, message.as_bytes())?;
-    let code = match code {
-        Some(code) => object(caller, exports, code.as_bytes())?,
+    if let Some(options) = options {
+        return answer(
+            caller,
+            exports,
+            interp,
+            &HostOutcome {
+                value: Value::string_bytes(message),
+                code: tcl_engine_api::CompletionCode::Error,
+                options: Value::string_bytes(options),
+            },
+        );
+    }
+    let message = command_receipts::object(caller, exports, &message)
+        .map_err(|error| wasmtime::Error::msg(error.into_engine_error().to_string()))?;
+    let code = match error_code {
+        Some(bytes) => command_receipts::object(caller, exports, &bytes)
+            .map_err(|error| wasmtime::Error::msg(error.into_engine_error().to_string()))?,
         None => 0,
     };
     let failed = exports.fail.call(&mut *caller, (interp, message, code))?;
@@ -209,26 +238,24 @@ fn fail(
     Ok(failed)
 }
 
-/// The door a running host command holds on a WASM engine: what is set up
-/// through it takes effect at once, and is recorded for the engine to replay
-/// on a fresh instance.
 struct WasmRegistrar<'a, 'b> {
     caller: &'a mut Caller<'b, HostState>,
     exports: &'a Exports,
     interp: i32,
 }
 
-impl WasmRegistrar<'_, '_> {
-    /// The interface's error for a call that trapped.
-    fn trapped(error: &wasmtime::Error) -> EngineError {
-        crate::session::trap_error(error)
-    }
-}
-
 impl CommandRegistrar for WasmRegistrar<'_, '_> {
     fn define_command(
         &mut self,
         name: &str,
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError> {
+        self.define_command_bytes(name.as_bytes(), command)
+    }
+
+    fn define_command_bytes(
+        &mut self,
+        name: &[u8],
         command: Rc<dyn HostCommand>,
     ) -> Result<(), EngineError> {
         let procedure = self
@@ -240,94 +267,82 @@ impl CommandRegistrar for WasmRegistrar<'_, '_> {
             ))?;
         let client = i32::try_from(self.caller.data().commands.len())
             .map_err(|_| EngineError::Unsupported("so many host commands"))?;
-        let text = c_string(self.caller, self.exports, name).map_err(|e| Self::trapped(&e))?;
-        let created = self
-            .exports
-            .create_command
-            .call(&mut *self.caller, (self.interp, text, procedure, client, 0))
-            .and_then(|_| self.exports.free.call(&mut *self.caller, text));
-        created.map_err(|error| Self::trapped(&error))?;
+        let receipt = command_receipts::create(
+            self.caller,
+            self.exports,
+            self.interp,
+            name,
+            procedure,
+            client,
+        )
+        .map_err(crate::session::Failure::into_engine_error)?;
         self.caller.data_mut().commands.push(Rc::clone(&command));
+        self.caller.data_mut().host_receipts.push(receipt.clone());
         self.caller
             .data_mut()
             .defined
-            .push(Defined::Command(name.to_owned(), command));
+            .push(Defined::Command(receipt.qualified, command));
         Ok(())
     }
 
     fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
-        let text = c_string(self.caller, self.exports, name).map_err(|e| Self::trapped(&e))?;
-        let removed = self
-            .exports
-            .delete_command
-            .call(&mut *self.caller, (self.interp, text))
-            .and_then(|code| {
-                self.exports.free.call(&mut *self.caller, text)?;
-                Ok(code == 0)
-            })
-            .map_err(|error| Self::trapped(&error))?;
-        self.caller
-            .data_mut()
-            .defined
-            .push(Defined::Removed(name.to_owned()));
-        Ok(removed)
+        self.remove_command_bytes(name.as_bytes())
+    }
+
+    fn remove_command_bytes(&mut self, name: &[u8]) -> Result<bool, EngineError> {
+        let receipt = command_receipts::remove(self.caller, self.exports, self.interp, name)
+            .map_err(crate::session::Failure::into_engine_error)?;
+        if let Some(receipt) = receipt {
+            self.caller
+                .data_mut()
+                .host_receipts
+                .retain(|known| known.generation != receipt.generation);
+            self.caller
+                .data_mut()
+                .defined
+                .push(Defined::Removed(receipt.qualified));
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     fn provide_package(&mut self, name: &str, version: &str) -> Result<(), EngineError> {
-        let provided = (|| -> wasmtime::Result<Result<(), EngineError>> {
-            let objects = [
-                object(self.caller, self.exports, name.as_bytes())?,
-                object(self.caller, self.exports, version.as_bytes())?,
-            ];
-            let code = self
-                .exports
-                .provide
-                .call(&mut *self.caller, (self.interp, objects[0], objects[1]))?;
-            for object in objects {
-                self.exports.release.call(&mut *self.caller, object)?;
-            }
+        let provided = (|| -> Result<(), crate::session::Failure> {
+            let name = command_receipts::object(self.caller, self.exports, name.as_bytes())?;
+            let version = command_receipts::object(self.caller, self.exports, version.as_bytes())?;
+            let code = command_receipts::call(
+                self.caller,
+                &self.exports.provide,
+                (self.interp, name, version),
+            )?;
+            command_receipts::call(self.caller, &self.exports.release, name)?;
+            command_receipts::call(self.caller, &self.exports.release, version)?;
+            command_receipts::settle(self.caller, self.exports, self.interp)?;
             if code == 0 {
-                return Ok(Ok(()));
+                Ok(())
+            } else {
+                let error =
+                    command_receipts::guest_error(self.caller, self.exports, self.interp, code)?;
+                match error {
+                    EngineError::ScriptBytes {
+                        message,
+                        code,
+                        options,
+                    } => Err(crate::session::Failure::Guest {
+                        message,
+                        code,
+                        options,
+                    }),
+                    _ => unreachable!("guest_error produces only actual guest failures"),
+                }
             }
-            let result = self
-                .exports
-                .get_result
-                .call(&mut *self.caller, self.interp)?;
-            let message = string_of(self.caller, self.exports, result)?;
-            let error_code = self
-                .exports
-                .error_code
-                .call(&mut *self.caller, self.interp)?;
-            let code_text = string_of(self.caller, self.exports, error_code)?;
-            self.exports.release.call(&mut *self.caller, error_code)?;
-            Ok(Err(EngineError::Script {
-                message: String::from_utf8_lossy(&message).into_owned(),
-                code: Some(String::from_utf8_lossy(&code_text).into_owned()),
-            }))
-        })()
-        .map_err(|error| Self::trapped(&error))?;
-        provided?;
+        })();
+        provided.map_err(crate::session::Failure::into_engine_error)?;
         self.caller
             .data_mut()
             .defined
             .push(Defined::Package(name.to_owned(), version.to_owned()));
         Ok(())
     }
-}
-
-/// A NUL-terminated copy of `text` in the runtime's heap; free it after.
-fn c_string(
-    caller: &mut Caller<'_, HostState>,
-    exports: &Exports,
-    text: &str,
-) -> wasmtime::Result<i32> {
-    let mut bytes = text.as_bytes().to_vec();
-    bytes.push(0);
-    let buffer = exports
-        .alloc
-        .call(&mut *caller, (i32::try_from(bytes.len())?, 1))?;
-    exports
-        .memory
-        .write(&mut *caller, address(buffer), &bytes)?;
-    Ok(buffer)
 }

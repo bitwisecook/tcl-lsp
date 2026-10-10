@@ -201,6 +201,9 @@ pub(crate) struct Frame {
     /// Original tailcall Lists retain their member headers through target completion.
     tailcall_owners: Vec<Value>,
     original_invocation: Option<Value>,
+    /// Original invoking stack references remain owned through the callee
+    /// activation; the reporting CallFrame separately borrows lifetime views.
+    _procedure_invocation: Option<(Value, Vec<Value>)>,
     /// Literal command tokens resolved at their command-head push, before the
     /// remaining words perform substitutions. Entries are keyed by the
     /// matching command continuation so nested substitutions compose without
@@ -593,6 +596,7 @@ impl Frame {
             stack: Vec::new(),
             tailcall_owners: Vec::new(),
             original_invocation: None,
+            _procedure_invocation: None,
             entered_commands: Vec::new(),
             chunk_native_compiler_selections: std::collections::HashSet::new(),
             entered_native_compiler_selections: Vec::new(),
@@ -1725,6 +1729,10 @@ impl Vm {
                 Ok(()) => {
                     self.install_native_procedure_binding(proc.declaration_binding);
                     let mut frame = Frame::new(proc.body, true);
+                    // The C bytecode caller keeps its operand stack until
+                    // TclNREvalObjv returns (tclExecute.c doInvocation/cleanupV).
+                    // Move those same owning references with this activation.
+                    frame._procedure_invocation = Some((invoked, argv));
                     frame.lambda_registration = lambda_registration;
                     self.push_frame(acts, frame);
                     TickAction::Resume
@@ -7660,9 +7668,7 @@ impl Vm {
             let present = res
                 .options
                 .native_return_options_nonempty(protocol)
-                .map_err(|error| {
-                    self.refuse_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(error))
-                })?;
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
             if present {
                 f.last_options = res.options;
             }
@@ -8965,12 +8971,9 @@ impl Vm {
         frame: crate::cmd_oo::OoFrame,
     ) -> Completion<Value> {
         let proc = &activation.proc;
-        if let Err(c) = self.enter_proc(
-            proc,
-            &activation.body,
-            &Value::from_native_string_bytes(proc.actual_command_slot().simple.as_bytes().to_vec()),
-            argv,
-        ) {
+        let invoked =
+            Value::from_native_string_bytes(proc.actual_command_slot().simple.as_bytes().to_vec());
+        if let Err(c) = self.enter_proc(proc, &activation.body, &invoked, argv) {
             return c;
         }
         if let Some(layout) = &activation.body.compiled_local_layout {
@@ -9210,6 +9213,60 @@ mod tests {
     use crate::value::Value;
     use tcl_bytecode::INDEX_END;
     use tcl_syntax::value::ValueOps;
+
+    #[test]
+    fn procedure_activation_retains_original_invocation_references_until_exit() {
+        // Source contract: naming.error.original-invocation-context-capture
+        // docs/design/analysis/name-resolution-proofs/error-original-invocation-context-capture.md
+        // This checks VM ownership, independently of native public stack bytes.
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile();
+        let mut vm = crate::native_fixture::interpreter(profile);
+        let invoked = Value::new_native_string_bytes(b"original-head".as_slice());
+        let argument = Value::new_native_string_bytes(b"original-argument".as_slice());
+        let head_loan = invoked.native_lifetime_lease();
+        let argument_loan = argument.native_lifetime_lease();
+        let mut frame = super::Frame::new(vm.current_placeholder_unit(), true);
+        frame._procedure_invocation = Some((invoked, vec![argument]));
+        let (head, arguments) = frame._procedure_invocation.as_ref().unwrap();
+        assert!(head.is_same_object(head_loan.value()));
+        assert!(arguments[0].is_same_object(argument_loan.value()));
+        assert_eq!(head.native_object_reference_count(), 1);
+        assert_eq!(arguments[0].native_object_reference_count(), 1);
+        assert!(head.native_object_is_live());
+        assert!(arguments[0].native_object_is_live());
+        drop(frame);
+        assert!(!head_loan.value().native_object_is_live());
+        assert!(!argument_loan.value().native_object_is_live());
+    }
+
+    #[test]
+    fn original_trace_procedure_heads_remain_live_during_their_actual_activation() {
+        // Source contract: naming.error.original-invocation-context-capture
+        // docs/design/analysis/name-resolution-proofs/error-original-invocation-context-capture.md
+        // The guest source is a software lifetime control, not a native fixture.
+        struct Inspect(std::rc::Rc<std::cell::Cell<usize>>);
+        impl crate::command::NativeCommand for Inspect {
+            fn invoke(&self, vm: &mut Vm, _: &[Value]) -> tcl_runtime_api::Completion<Value> {
+                let words = vm.frame_argv(vm.current_level()).unwrap();
+                let head = &words[0];
+                assert!(head.native_object_is_live());
+                assert!(head.native_object_reference_count() > 1);
+                self.0.set(self.0.get() + 1);
+                crate::interp::ok(Value::empty())
+            }
+        }
+        for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+            let mut vm = crate::native_fixture::interpreter(profile);
+            let count = std::rc::Rc::new(std::cell::Cell::new(0));
+            vm.register_native_command("inspect", std::rc::Rc::new(Inspect(count.clone())));
+            let completion = vm.try_eval_source(
+                "proc observer {n1 n2 op} {inspect; error READ_FAIL}; proc work {} {set d {k 3}; trace add variable d read observer; catch {dict lappend d k Y Z} m; trace remove variable d read observer; return $m}; work",
+            ).unwrap();
+            assert_eq!(completion.code, tcl_runtime_api::Code::Ok, "{engine}");
+            assert_eq!(count.get(), 1, "{engine}");
+        }
+    }
 
     #[test]
     fn direct_object_vector_errors_observe_original_words_at_the_native_frontier() {

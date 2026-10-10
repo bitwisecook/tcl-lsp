@@ -2032,16 +2032,8 @@ impl Analyser {
     /// dispatcher is at its line budget.
     fn emit_injection_diagnostics(
         &mut self,
-        site: &DispatchSite<'_>,
         original: Option<&super::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
-        let DispatchSite {
-            cmd_name,
-            args,
-            arg_tokens,
-            cmd_tok,
-            ..
-        } = *site;
         self.emit_w101_eval_string_concat(original);
         self.emit_w102_subst_injection(original);
         self.emit_w103_open_pipeline(original);
@@ -2049,7 +2041,7 @@ impl Analyser {
         self.emit_w309_eval_subst_double_decode(original);
         self.emit_w301_uplevel_injection(original);
         self.emit_w312_interp_eval_injection(original);
-        self.emit_w303_redos(cmd_name, args, arg_tokens, cmd_tok);
+        self.emit_w303_redos(original);
     }
 
     /// Registry-owned literal/value diagnostics. Kept as one dispatch-site
@@ -2176,7 +2168,7 @@ impl Analyser {
         self.emit_w002_disabled_command(unavailable, scope_path);
         self.emit_e004_clause_shape_diagnostic(original.as_ref());
         self.emit_w142_context_gate(original.as_ref());
-        self.emit_injection_diagnostics(site, original.as_ref());
+        self.emit_injection_diagnostics(original.as_ref());
         self.emit_w306_literal_expected(original.as_ref());
         // W310 runs for every command (it scans args for credential
         // option flags), so it takes no cmd_name guard.

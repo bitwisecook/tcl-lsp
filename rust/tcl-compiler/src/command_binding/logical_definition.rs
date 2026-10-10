@@ -262,7 +262,7 @@ pub(super) fn original_static_invocation_words(
 }
 
 pub(super) fn static_value(word: &NativeWord) -> Option<String> {
-    let bytes = tcl_syntax::word_rules::original_static_word_ascii_presentation(word)?;
+    let bytes = tcl_syntax::word_rules::original_static_word_source_bytes(word)?;
     if bytes.contains(&0) {
         return None;
     }
@@ -386,6 +386,65 @@ mod tests {
     }
 
     #[test]
+    fn logical_definition_keeps_unicode_moves_and_captured_factory_operands() {
+        // naming.source.logical-procedure-definition-model
+        // docs/design/analysis/name-resolution-proofs/logical-procedure-definition-model.md
+        // Original source values remain conditional authored data, without
+        // Native publication, handler entry or successful allocation.
+        let input = input();
+        for source in [
+            "proc café {} {}; café",
+            "rename proc ::α; ::α café {} {}; café",
+            "interp alias {} ::α {} proc; ::α café {} {}; café",
+            "rename proc ::α; interp alias {} ::β {} ::α café {}; ::β {return café}; café",
+            "interp alias {} ::造 {} proc café {}; ::造 {return café}; café",
+            "proc café {} {}; rename café déplacé; déplacé",
+        ] {
+            assert_eq!(
+                final_presence(source, &input),
+                SourceCommandSlotPresence::Present,
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn logical_static_values_keep_checked_source_and_native_channel_boundaries() {
+        // naming.source.logical-procedure-definition-model
+        // docs/design/analysis/name-resolution-proofs/logical-procedure-definition-model.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let project = |image: tcl_lexer::SourceImage| {
+            let tokens = tcl_lexer::Lexer::with_source_image(&image, config)
+                .tokenise_all()
+                .unwrap();
+            let commands = tcl_lexer::group_commands_bytes(&tokens, image.bytes(), config);
+            let word =
+                NativeWord::from_group(image, config, &tokens, &commands[0].words[0]).unwrap();
+            static_value(&word)
+        };
+        assert_eq!(
+            project(tcl_lexer::SourceImage::document("café")),
+            Some("café".into())
+        );
+        assert_eq!(
+            project(tcl_lexer::SourceImage::document(r"caf\u00e9")),
+            Some("café".into())
+        );
+        for source in ["café\0", r"café\u0000", r"café\uD800", "$name", "[name]"] {
+            assert_eq!(
+                project(tcl_lexer::SourceImage::document(source)),
+                None,
+                "{source:?}"
+            );
+        }
+        assert_eq!(
+            project(tcl_lexer::SourceImage::native("café".as_bytes().to_vec())),
+            None
+        );
+    }
+
+    #[test]
     fn logical_definition_declines_unknown_rebound_dynamic_and_invalid_inputs() {
         // naming.source.logical-procedure-definition-model
         // docs/design/analysis/name-resolution-proofs/logical-procedure-definition-model.md
@@ -494,7 +553,7 @@ mod tests {
             )),
             ..SourceAnalysisOptions::default()
         };
-        let source = tcl_lexer::SourceImage::document("proc defined {value} {return $value}");
+        let source = tcl_lexer::SourceImage::document("proc café {élan} {return $élan}");
         let origin = Arc::new(super::super::SourceOriginId::authored_image(source.clone()));
         let mut state = ModuleCommandBindings::initial_with_options(
             registry,
@@ -563,7 +622,7 @@ mod tests {
             state.original_command_world
         );
         assert!(
-            matches!(normal_state.binding_alternatives(&SourceCommandKey::authored("::defined")).iter().next(), Some(MayBinding::Target(target)) if target.kind == BindingKind::Proc && !target.registry_backed)
+            matches!(normal_state.binding_alternatives(&SourceCommandKey::authored("::café")).iter().next(), Some(MayBinding::Target(target)) if target.kind == BindingKind::Proc && !target.registry_backed)
         );
         let mut unsealed = options;
         unsealed.logical_source_input = None;

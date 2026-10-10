@@ -559,6 +559,9 @@ struct ByteArrayRep {
     bytes: Rc<[u8]>,
     /// Selected at native string ingress and retained with the physical backing.
     string_protocol: Cell<Option<tcl_syntax::native_string::NativeStringProtocol>>,
+    /// Constructor provenance is independent of the selected getter protocol.
+    /// Imported backing and string-to-byte conversions have no constructor receipt.
+    origin: Option<tcl_registry::native_string_materialization::ByteArrayStringRecipe>,
     /// A string conversion cache belongs to the selected conversion protocol.
     /// A real byte-array producer instead carries no conversion dependency.
     conversion: Option<tcl_registry::native_binary_value::NativeBinaryByteConversion>,
@@ -950,6 +953,7 @@ impl tcl_cmd_core::native_append::NativeAppendObjects for VmAppendObjects {
         *value.0.intrep.borrow_mut() = IntRep::ByteArray(Rc::new(ByteArrayRep {
             bytes,
             string_protocol: Cell::new(Some(protocol)),
+            origin: None,
             conversion: None,
             proper: true,
         }));
@@ -1420,6 +1424,7 @@ impl Value {
             IntRep::ByteArray(Rc::new(ByteArrayRep {
                 bytes: bytes.into(),
                 string_protocol: Cell::new(None),
+                origin: None,
                 conversion: None,
                 proper: true,
             })),
@@ -1431,6 +1436,19 @@ impl Value {
     pub fn byte_array_representation(&self) -> Option<Rc<[u8]>> {
         match &*self.0.intrep.borrow() {
             IntRep::ByteArray(bytes) => Some(Rc::clone(&bytes.bytes)),
+            _ => None,
+        }
+    }
+
+    /// Inspect the sealed constructor receipt without materialising a string.
+    /// A missing receipt identifies imported backing or a conversion cache;
+    /// it does not authenticate a native or authored producer.
+    #[must_use]
+    pub fn byte_array_origin(
+        &self,
+    ) -> Option<tcl_registry::native_string_materialization::ByteArrayStringRecipe> {
+        match &*self.0.intrep.borrow() {
+            IntRep::ByteArray(bytes) => bytes.origin,
             _ => None,
         }
     }
@@ -1469,6 +1487,7 @@ impl Value {
         *self.0.intrep.borrow_mut() = IntRep::ByteArray(Rc::new(ByteArrayRep {
             bytes: Rc::clone(&bytes),
             string_protocol: Cell::new(None),
+            origin: None,
             conversion: Some(conversion),
             proper,
         }));
@@ -1518,6 +1537,7 @@ impl Value {
         *self.0.intrep.borrow_mut() = IntRep::ByteArray(Rc::new(ByteArrayRep {
             bytes: Rc::clone(&bytes),
             string_protocol: Cell::new(Some(protocol)),
+            origin: None,
             conversion: Some(conversion),
             proper,
         }));
@@ -4032,15 +4052,27 @@ impl Value {
                 "native byte-array constructor",
             ),
         )?;
-        Ok(Self::from_raw_parts(
+        Ok(Self::from_byte_array_recipe(bytes, recipe))
+    }
+
+    /// Construct proper binary backing from its selected, sealed producer recipe.
+    /// The recipe retains an authored logical origin independently of its C updater.
+    /// It is data provenance; consumers require their own actual native authority.
+    #[must_use]
+    pub fn from_byte_array_recipe(
+        bytes: Rc<[u8]>,
+        recipe: tcl_registry::native_string_materialization::ByteArrayStringRecipe,
+    ) -> Self {
+        Self::from_raw_parts(
             None,
             IntRep::ByteArray(Rc::new(ByteArrayRep {
                 bytes,
                 string_protocol: Cell::new(Some(recipe.protocol())),
+                origin: Some(recipe),
                 conversion: None,
                 proper: true,
             })),
-        ))
+        )
     }
 
     /// Construct an actual C native String with retained Unicode-unit backing.

@@ -16,11 +16,15 @@ Owned publication receipts retain the actual Rust interpreter, original counted 
 
 Compiled Runtime handles carry the actual installed procedure generation and original interpreter. Their spelling does not admit replacement, retired or foreign bindings. Direct ABI definition shares original procedure storage and failure reporting. VM public variable/package APIs settle original complete Guest results/options separately from typed Host causes; earlier pending Host cause blocks new effects. Engine variable consumers and optional iRule stub actions preserve the same typed settlement and require actual selected members.
 
+Runtime and Wasm embedding share counted installed-generation/interpreter receipts, original scalar/binary producers and Guest completion/options transport. Compiled handles require the actual current receipt before effects. Neutral scalar wire encoding retains full independent origin/resident/storage facts and rejects malformed boundaries; it creates no Native authority. Host refusal remains outside Guest catch and preserves prior effects. NativeObjectSnapshots and OriginalObjects callback bridges are absent and refuse before invoking a host callback.
+
 ## Scope
 
 Ten fixed software controls bind eight Runtime embedding ownership/transport contracts and two neutral scalar codecs. Authored C-release fixtures select software protocols and storage constructors; they do not run or observe an external Tcl provider. The record contains no executed assertion claim. Private Rust namespace/binding generations are independent of C private table identity. Supported snapshot transport supplies no repeated original object header, C-produced getter/cache, native callback equivalence, deferred overlay admission, compiler instruction, physical frame or reached native Handler. Existing Native ABI experiments retain their separate measured scopes; all C/Jim/BIG-IP provider answers for this implementation question remain not tested.
 
 Eight additional Runtime/ABI/VM Engine/iRule software embedding controls carry no execution receipt or external provider experiment. Authentic original software storage, installed generations and Guest/Host settlement do not observe external C cache production, repeated header identity, native private tables, entered frame/callback, appliance behaviour or Native executable admission.
+
+Nine linked Runtime/Syntax/Wasm software controls retain bounded interface contracts without an executed assertion claim. Their exact outcomes belong to independent pinned Rust receipts. Codec data, receipt transport, shared producer selection and Guest/Host settlement establish no new C/Jim/BIG-IP behaviour, repeated private object identity, native-produced getter cache birth, body/frame entry or original-object callback authority. Independent Native ABI observations retain their existing distinct scope.
 
 ## Provider answers
 
@@ -122,6 +126,26 @@ A coverage binding records a defined assertion, not an executed result.
 - [rust/tcl-engine-tclvm/src/lib.rs](../../../../rust/tcl-engine-tclvm/src/lib.rs), `tests::variable_consumers_report_trace_host_refusal_without_guest_projection` (linked): VM Engine variable consumers report the same typed original trace host refusal and do not project it as a guest completion.
 
 These bindings are current software contracts without an executed assertion or external provider result.
+
+- [rust/tcl-syntax/src/scalar_getter/carrier.rs](../../../../rust/tcl-syntax/src/scalar_getter/carrier.rs), `encode_scalar`: Encode complete neutral scalar carrier facts with counted boundaries; transport preserves independently recorded origins/storage without issuing getter or object authority.
+- [rust/tcl-syntax/src/scalar_getter/carrier.rs](../../../../rust/tcl-syntax/src/scalar_getter/carrier.rs), `decode_scalar`: Reject malformed counted scalar wire records before importing independent scalar facts.
+- [runtime/rust/src/engine_abi/value_carriers.rs](../../../../runtime/rust/src/engine_abi/value_carriers.rs), `tcl_engine_new_scalar_carrier`: Use the actual selected original scalar producer and retain independent descriptor origin/resident spelling facts; foreign origin refuses through the Host channel.
+- [runtime/rust/src/engine_abi/value_carriers.rs](../../../../runtime/rust/src/engine_abi/value_carriers.rs), `tcl_engine_complete_original`: Transport authentic Guest completion options and opaque binary results through the shared original owner, retaining typed first Host cause separately.
+- [rust/tcl-engine-wasm/src/command_receipts.rs](../../../../rust/tcl-engine-wasm/src/command_receipts.rs), `CommandReceipt`: Retain the installed owner/interpreter/generation and counted qualified command name; receipt data supplies no authority for another instance.
+- [rust/tcl-engine-wasm/src/command_receipts.rs](../../../../rust/tcl-engine-wasm/src/command_receipts.rs), `current`: Check the original receipt against the actual current runtime installed-generation owner before compiled access or effects.
+- [rust/tcl-engine-wasm/src/session.rs](../../../../rust/tcl-engine-wasm/src/session.rs), `Session::guard_unit`: Require the actual interpreter and current installed receipt for compiled handles, independently of source or codec facts.
+- [rust/tcl-engine-wasm/src/host_call.rs](../../../../rust/tcl-engine-wasm/src/host_call.rs), `call`: Keep counted opaque inputs and Guest completion settlement separate from first-cause Host refusal; absent original-object callback bridges refuse before host invocation.
+- [rust/tcl-syntax/src/scalar_getter/carrier.rs](../../../../rust/tcl-syntax/src/scalar_getter/carrier.rs), `scalar_getter::carrier::tests::counted_scalar_wire_preserves_facts_and_rejects_malformed_boundaries` (linked): Lossless counted scalar wire transport retains independent facts and rejects malformed boundaries; codec data grants no Native authority.
+- [runtime/rust/src/engine_abi/value_carriers.rs](../../../../runtime/rust/src/engine_abi/value_carriers.rs), `engine_abi::value_carriers::tests::scalar_issuer_keeps_recorded_resident_spelling_and_refuses_foreign_origin` (linked): The selected actual scalar issuer retains recorded resident spelling and storage facts, refusing a foreign descriptor origin.
+- [runtime/rust/src/engine_abi/value_carriers.rs](../../../../runtime/rust/src/engine_abi/value_carriers.rs), `engine_abi::value_carriers::tests::original_completion_transport_retains_guest_options_and_binary_result` (linked): The shared original completion carrier preserves Guest options and opaque binary result independently of Host refusal.
+- [rust/tcl-engine-wasm/tests/under_wasm.rs](../../../../rust/tcl-engine-wasm/tests/under_wasm.rs), `installed_receipts_keep_renamed_hosts_and_remove_old_name_replacements` (linked): Installed-generation receipts retain renamed host publication and withdraw replaced original names.
+- [rust/tcl-engine-wasm/tests/under_wasm.rs](../../../../rust/tcl-engine-wasm/tests/under_wasm.rs), `compiled_receipts_refuse_foreign_and_replaced_handles_before_effects` (linked): Compiled handles require the actual interpreter and current installed generation before effects; foreign/replaced receipts refuse.
+- [rust/tcl-engine-wasm/tests/under_wasm.rs](../../../../rust/tcl-engine-wasm/tests/under_wasm.rs), `counted_publication_and_guest_completions_preserve_opaque_bytes` (linked): Counted command publication and Guest completion transport preserve opaque original bytes.
+- [rust/tcl-engine-wasm/tests/under_wasm.rs](../../../../rust/tcl-engine-wasm/tests/under_wasm.rs), `host_refusal_bypasses_guest_catch_and_keeps_prior_effects` (linked): Host refusal stays outside Guest catch and retains prior effects without converting refusal into a Guest completion.
+- [rust/tcl-engine-wasm/tests/under_wasm.rs](../../../../rust/tcl-engine-wasm/tests/under_wasm.rs), `structured_binary_and_scalar_inputs_use_selected_original_producers` (linked): Structured binary/scalar imports use authentic selected producers; retained carrier facts alone issue no Native object authority.
+- [rust/tcl-engine-wasm/tests/under_wasm.rs](../../../../rust/tcl-engine-wasm/tests/under_wasm.rs), `original_object_callbacks_refuse_before_host_invocation_without_fake_snapshots` (linked): Absent NativeObjectSnapshots and OriginalObjects callback bridges refuse before invoking the host, without fabricated snapshots.
+
+These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 
 ## Replay
 

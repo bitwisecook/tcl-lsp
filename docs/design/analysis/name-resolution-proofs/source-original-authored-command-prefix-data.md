@@ -64,8 +64,8 @@ No external provider is executed for this software question. Rust fixture protoc
 
 ## Exact evidence
 
-- `naming.source.original-authored-command-prefix-data.definition.0` (definition): [rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs). SHA-256 `81903657c7b10bfe9e1633cf7e6ba308d913650149f4d89603a767e3c5532c0d`. Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
-- `naming.source.original-authored-command-prefix-data.definition.1` (definition): [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs). SHA-256 `9eaab81e7b63a839bb579e887b83df01b115f2dad6c42969127e6d332b54e324`. Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
+- `naming.source.original-authored-command-prefix-data.definition.0` (implementation): [rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs). SHA-256 `81903657c7b10bfe9e1633cf7e6ba308d913650149f4d89603a767e3c5532c0d`. Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
+- `naming.source.original-authored-command-prefix-data.definition.1` (implementation): [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs). SHA-256 `9eaab81e7b63a839bb579e887b83df01b115f2dad6c42969127e6d332b54e324`. Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
 
 ## Source inspection
 

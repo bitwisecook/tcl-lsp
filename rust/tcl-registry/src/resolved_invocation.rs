@@ -3981,6 +3981,31 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .map(|layout| (case, layout))
     }
 
+    /// Original case-pattern layout from this already selected descriptor.
+    /// Unknown ordinary subjects/actions remain unknown. Exact cardinality,
+    /// options and their availability stay shared with the case grammar. The
+    /// caller must retain original literal fields before issuing child spans;
+    /// this supplies no matching, body entry or successful completion.
+    #[must_use]
+    pub fn authored_source_case_pattern_layout(
+        &self,
+    ) -> Option<(crate::CaseListSpec, crate::spec::CaseInvocation)> {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        if self.semantics.argument_offset != 0 {
+            return None;
+        }
+        let case = *self.semantics.options.case_list?;
+        let arguments = self.words.arguments();
+        let count = arguments.exact_argv_len()?;
+        let values = (0..count)
+            .map(|argument| arguments.literal_at(argument))
+            .collect::<Vec<_>>();
+        let options = self.semantics.options.available().collect::<Vec<_>>();
+        case.source_invocation_values(&values, &options, self.semantics.options.availability.query)
+            .map(|layout| (case, layout))
+    }
+
     /// Incomplete clause-list style from this actual source descriptor and
     /// exact unchanged argv. A complete flag-free odd list may be presented
     /// despite unavailable executable roles; no matching/body/Normal follows.
@@ -4944,6 +4969,70 @@ mod tests {
             registry.option_variable_scope("scope-owner", &["-g", "named"], 1, query),
             Some(crate::VariableScope::Global)
         );
+    }
+
+    #[test]
+    fn original_case_pattern_layout_keeps_unknown_payloads_and_actual_option_windows() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        let current =
+            crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let older = crate::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(current.commands()));
+        for (arguments, current_expected, older_expected) in [
+            (
+                vec![Literal("-regexp"), Dynamic, Literal("(a+)+ {BODY}")],
+                Some((Some(2), None)),
+                Some((Some(2), None)),
+            ),
+            (
+                vec![Literal("-regexp"), Dynamic, Literal("(a+)+"), Dynamic],
+                Some((None, Some(2))),
+                Some((None, Some(2))),
+            ),
+            (
+                vec![
+                    Literal("-regexp"),
+                    Literal("-matchvar"),
+                    Dynamic,
+                    Dynamic,
+                    Dynamic,
+                ],
+                Some((Some(4), None)),
+                None,
+            ),
+            (vec![Dynamic, Dynamic, Literal("(a+)+ {BODY}")], None, None),
+            (vec![Literal("-regexp"), Dynamic, Expanded], None, None),
+        ] {
+            for (context, expected) in [
+                (current.as_ref(), current_expected),
+                (&older, older_expected),
+            ] {
+                // Selected source layout, with no original Native dialect or argv grant.
+                let selected =
+                    crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                        context.commands(),
+                        Some(context.context()),
+                        crate::InvocationWords::structured(Literal("switch"), &arguments),
+                        tcl_dialect::model::InvocationRealm::RuleLoader,
+                    )
+                    .resolved()
+                    .unwrap();
+                let layout = selected.authored_source_case_pattern_layout();
+                assert_eq!(
+                    layout.map(|(_, invocation)| (
+                        invocation.clause_list_index,
+                        invocation.inline_clause_start
+                    )),
+                    expected,
+                    "{arguments:?}"
+                );
+                if let Some((_, invocation)) = layout {
+                    assert_eq!(invocation.mode, crate::spec::CaseMatchMode::Regexp);
+                }
+            }
+        }
     }
 
     #[test]

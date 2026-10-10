@@ -334,6 +334,55 @@ mod tests {
     }
 
     #[test]
+    fn closed_original_lookup_retains_missing_holder_absence_without_a_slot() {
+        // Software contract only: a closed retained namespace roster proves
+        // no named target, but does not supply an unknown-handler result.
+        // Provider bootstrap evidence: bootstrap-original-mathop-constructor-publication.md.
+        for version in tcl_dialect::TclVersion::ALL {
+            let (state, config, policy) = catalogue_state(version);
+            let root = state.source_root_namespace_key().unwrap();
+            let input = catalogue_input("::unregistered_holder::missing", config, policy);
+            let paths = state
+                .original_command_paths_for_input(&root, &input)
+                .unwrap();
+            assert!(!paths.is_empty());
+            assert!(paths.iter().all(Vec::is_empty));
+            let selected = state
+                .original_targets_for_input(
+                    &input,
+                    &root,
+                    super::super::CommandTargetLookup::NamedSlots,
+                )
+                .unwrap();
+            assert!(selected.targets.is_empty() && selected.may_be_absent && !selected.unknown);
+            let fallback = state
+                .original_targets_for_input(
+                    &input,
+                    &root,
+                    super::super::CommandTargetLookup::WithFallback,
+                )
+                .unwrap();
+            assert!(fallback.targets.is_empty() && fallback.may_be_absent && fallback.unknown);
+            assert!(state.original_definition_key(
+                &root, &input, CommandBindingDefinitionKind::Procedure,
+            ).is_none());
+            let mut open = state.clone();
+            super::super::Arc::make_mut(&mut open.baseline).unknown_entry = true;
+            assert!(
+                open.original_command_paths_for_input(&root, &input)
+                    .is_none()
+            );
+            let mut opaque = state.clone();
+            opaque.opaque_domain = true;
+            assert!(
+                opaque
+                    .original_command_paths_for_input(&root, &input)
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
     fn original_conditional_catalogue_keeps_unknowns_but_blocks_known_cells() {
         // Implementation contract: naming.compiler.conditional-registry-source-metadata
         // docs/design/analysis/name-resolution-proofs/conditional-registry-source-metadata.md
@@ -1232,12 +1281,12 @@ pub(super) fn original_operand(
         .cloned()
 }
 
-enum AdviceSlotKey {
+enum OriginalLookupSlot {
     Retained(SourceCommandKey),
     MissingHolder,
 }
 
-impl AdviceSlotKey {
+impl OriginalLookupSlot {
     fn key(self) -> Option<SourceCommandKey> {
         match self {
             Self::Retained(key) => Some(key),
@@ -1416,7 +1465,7 @@ impl ModuleCommandBindings {
                 path.into_iter()
                     .map(|slot| {
                         let key = self
-                            .original_advice_key_for_slot(&slot, input.policy())?
+                            .original_lookup_key_for_slot(&slot, input.policy())?
                             .key();
                         Some((slot, key))
                     })
@@ -1448,9 +1497,14 @@ impl ModuleCommandBindings {
         self.original_command_slot_paths_for_bytes(current, bytes, policy)?
             .into_iter()
             .map(|path| {
-                path.into_iter()
-                    .map(|slot| self.original_command_key_for_slot(&slot, policy))
-                    .collect::<Option<Vec<_>>>()
+                let mut retained = Vec::new();
+                for slot in path {
+                    match self.original_lookup_key_for_slot(&slot, policy)? {
+                        OriginalLookupSlot::Retained(key) => retained.push(key),
+                        OriginalLookupSlot::MissingHolder => {}
+                    }
+                }
+                Some(retained)
             })
             .collect()
     }
@@ -1844,7 +1898,7 @@ impl ModuleCommandBindings {
         for path in paths {
             let mut selected = None;
             for slot in path {
-                let key = self.original_advice_key_for_slot(slot, policy)?.key();
+                let key = self.original_lookup_key_for_slot(slot, policy)?.key();
                 if key
                     .as_ref()
                     .is_some_and(|key| self.bindings.contains_key(key))
@@ -1902,19 +1956,20 @@ impl ModuleCommandBindings {
     }
 
     // None is unknown geometry; MissingHolder is a known absent modelled holder.
-    // Only readonly advice can use the latter. Actual lookup stays strict.
-    fn original_advice_key_for_slot(
+    // Readonly lookup may omit a known absent holder. Publication still
+    // requires original_command_key_for_slot and its actual retained owner.
+    fn original_lookup_key_for_slot(
         &self,
         slot: &tcl_core_types::ByteCommandSlot,
         policy: tcl_syntax::naming::NamePolicyProtocol,
-    ) -> Option<AdviceSlotKey> {
+    ) -> Option<OriginalLookupSlot> {
         if let Some(key) = self.original_command_key_for_slot(slot, policy) {
             if let SourceCommandKey::Slot { namespace, .. } = &key
                 && self.unknown_lookup_namespaces.contains(namespace)
             {
                 return None;
             }
-            return Some(AdviceSlotKey::Retained(key));
+            return Some(OriginalLookupSlot::Retained(key));
         }
         let mut world = (*self.original_command_world).clone();
         if world.select_policy(self)? != policy || self.baseline.unknown_entry {
@@ -1930,7 +1985,7 @@ impl ModuleCommandBindings {
                 return None;
             }
         }
-        Some(AdviceSlotKey::MissingHolder)
+        Some(OriginalLookupSlot::MissingHolder)
     }
 
     /// Actual target selected by an explicit fixed Registry name proposal.
@@ -2040,7 +2095,7 @@ impl ModuleCommandBindings {
         for path in paths {
             let mut fallthrough = true;
             for slot in path {
-                let Some(key) = self.original_advice_key_for_slot(&slot, policy) else {
+                let Some(key) = self.original_lookup_key_for_slot(&slot, policy) else {
                     return Presence::Unknown;
                 };
                 let Some(key) = key.key() else {
@@ -2102,8 +2157,8 @@ impl ModuleCommandBindings {
         let qualifier_retained = !paths.is_empty()
             && paths.iter().all(|path| {
                 path.iter().any(|slot| {
-                    self.original_advice_key_for_slot(slot, policy)
-                        .is_some_and(|key| matches!(key, AdviceSlotKey::Retained(_)))
+                    self.original_lookup_key_for_slot(slot, policy)
+                        .is_some_and(|key| matches!(key, OriginalLookupSlot::Retained(_)))
                 })
             });
         let presence = self.original_slot_presence_in_paths(paths, policy);
@@ -2175,8 +2230,8 @@ impl ModuleCommandBindings {
                 !paths.is_empty()
                     && paths.iter().all(|path| {
                         path.iter().any(|slot| {
-                            self.original_advice_key_for_slot(slot, input.policy())
-                                .is_some_and(|key| matches!(key, AdviceSlotKey::Retained(_)))
+                            self.original_lookup_key_for_slot(slot, input.policy())
+                                .is_some_and(|key| matches!(key, OriginalLookupSlot::Retained(_)))
                         })
                     })
             })
