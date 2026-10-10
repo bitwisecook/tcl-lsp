@@ -16,11 +16,15 @@ transfer requires a positive actual retained Logical input, genuine whole Author
 
 Original scalar continuation retains actual Logical source values and captured setter operands while checking the current typed Authored namespace through the shared namespace footprint. Its independently retained InterpreterNamespace storage facet remains unchanged; source namespace spelling does not construct a physical owner.
 
+Conditional Logical dispatch queries retain the exact point-owned interpreted head, complete input/config/store and literal captured operands. A reporting name does not select the query target. Missing or changed metadata, withdrawn Logical input and uninterpreted heads keep the target unknown; a Native source query independently requires its authentic original head receipt.
+
 ## Scope
 
 Fixed source/API controls test static selected move/delete/scalar-head outcomes, captured alias composition and quiet scalar transfer with observer/foreign/missing-owner refusal. All seven providers are not tested. No C/Jim/BIG-IP interpreter stores or commands are executed by this proof; genuine full-source Logical W123 diagnostics are separate from Native head admission. Conditional original Unicode source heads and qualified definer aliases share the selected symbolic move/delete continuation. Native abrupt-edge classification and current runtime publication remain independent.
 
 Two additional software definitions retain conditional source-model continuation only. Native, worker, unknown or same-display foreign namespace, stale generations, changed configuration and missing full input refuse. No actual cell/store, physical frame, native naming/compiled recipe, Handler or Normal receipt follows.
+
+Three current query controls grant no Native execution target, handler envelope, compiler admission, evaluated argv, physical frame, cell contents or Normal completion. They are current source/API definitions without attached assertion results or original-provider observations.
 
 ## Provider answers
 
@@ -97,6 +101,13 @@ A named test is a coverage binding, not a claim that it executed.
 - [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs), `command_binding::logical_operation::tests::logical_scalar_continuation_keeps_original_values_and_captured_set_operands` (linked): Original scalar-store authored continuation only under genuine Logical/current source coordinate; existing central namespace_footprint checks typed Authored owner; independent InterpreterNamespace storage facet retained unchanged. Native/same-display foreign/worker/unknown or stale generations/missing input/configuration refuse. No physical cells, stores, naming/frame/compiler or Normal receipts.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
+
+- [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs), `SourceInvocationBinding::proved_target`: Project only the point-owned interpreted original head under its authenticated complete Logical source input, or the independent selected Native original head receipt; a reporting name supplies neither.
+- [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs), `command_binding::logical_operation::tests::logical_dispatch_projection_keeps_exact_targets_without_native_receipts` (linked): Genuine current Logical source projects exact package targets and literal captured require operands, including Unicode aliases, while Native head receipt, handler/entry/compiler/frame authorities remain absent.
+- [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs), `command_binding::logical_operation::tests::logical_dispatch_projection_refuses_missing_changed_and_uninterpreted_owners` (linked): Actual point-owned interpreted head and complete Logical baseline select query targets independently of the reporting name; missing/Standalone/foreign/changed metadata, missing Logical input/head and a dynamic head withdraw them.
+- [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs), `command_binding::logical_operation::tests::native_source_dispatch_requires_its_independent_original_head_receipt` (linked): A positively selected Native source recipe requires its independent original head receipt; removing that receipt withdraws targets and descriptors instead of borrowing a Logical lookup projection. No Native process or entered handler is observed.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

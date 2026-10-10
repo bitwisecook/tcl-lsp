@@ -28,16 +28,21 @@ fn interpreter_script_arguments(
     }
     let count = schema.words.arguments().exact_argv_len()?;
     let (roles, complete) = schema.authored_source_argument_roles();
-    if !complete {
-        return None;
-    }
-    let bodies = roles
-        .into_iter()
-        .filter_map(|(index, role)| {
-            (role == ArgRole::Body).then_some(schema.semantics.argument_offset + usize::from(index))
-        })
-        .filter(|index| *index < count)
-        .collect::<Vec<_>>();
+    // An unknown payload can leave the generic role resolver incomplete.
+    // The selected option grammar below independently retains its fixed
+    // prefix, widths and original possible command boundary.
+    let bodies = if complete {
+        roles
+            .into_iter()
+            .filter_map(|(index, role)| {
+                (role == ArgRole::Body)
+                    .then_some(schema.semantics.argument_offset + usize::from(index))
+            })
+            .filter(|index| *index < count)
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
     if let Some(first) = bodies.first().copied() {
         let concatenates = schema
             .semantics

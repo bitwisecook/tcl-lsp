@@ -2926,10 +2926,16 @@ mod tests {
         let alias = |local: &str, frame: CallerFrameSelection, variable: &str, target: usize| {
             StateTransition::VariableCellAlias(VariableCellAliasTransition {
                 destination: VariableAliasDestination::CurrentNamespaceOrLocal,
-                local: TransitionSubject::Literal(local.to_owned()),
+                local: TransitionSubject::LocatedLiteral {
+                    value: local.to_owned(),
+                    argument_index: target + 1,
+                },
                 target: VariableAliasTarget::CallerSelectedFrame {
                     frame,
-                    variable: TransitionSubject::Literal(variable.to_owned()),
+                    variable: TransitionSubject::LocatedLiteral {
+                        value: variable.to_owned(),
+                        argument_index: target,
+                    },
                 },
                 writes_value: false,
                 words: AliasWords {
@@ -2955,7 +2961,10 @@ mod tests {
                 .collect()
         };
         let level = |word: &str| {
-            CallerFrameSelection::Explicit(TransitionSubject::Literal(word.to_owned()))
+            CallerFrameSelection::Explicit(TransitionSubject::LocatedLiteral {
+                value: word.to_owned(),
+                argument_index: 0,
+            })
         };
 
         // `upvar`'s layout: an odd word count carries the level word.
@@ -3153,7 +3162,9 @@ mod tests {
     fn alias_and_binding_resolvers_abstain_on_a_dynamic_word() {
         use crate::InvocationWord::{Dynamic, Literal};
         use StateTransitionDomain::{CommandBindings, VariableCells};
-        let registry = crate::default_registry();
+        let context = crate::model::ingress::static_context_for("tcl9.0");
+        let registry = context.commands();
+        let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
         let cases: &[(&str, &[InvocationWord<'_>], usize, StateTransitionDomain)] = &[
             ("global", &[Dynamic, Literal("g")], 0, VariableCells),
             ("variable", &[Dynamic, Literal("1")], 0, VariableCells),
@@ -3211,8 +3222,8 @@ mod tests {
         for &(command, words, computed, domain) in cases {
             let invocation = registry
                 .resolve_structured_invocation(
-                    InvocationWords::structured(Literal(command), words),
-                    None,
+                    InvocationWords::structured(Literal(command), words).with_dialect(dialect),
+                    Some(context.context().authoring_query()),
                 )
                 .resolved()
                 .unwrap_or_else(|| panic!("`{command}` resolves"));

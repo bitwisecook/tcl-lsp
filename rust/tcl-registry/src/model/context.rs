@@ -435,7 +435,7 @@ impl ResolvedContext {
     /// excluded (`tcltest::bytestring` under 9.x — pinned by
     /// `an_unplaced_hosted_package_row_needs_an_explicit_require`).
     #[must_use]
-    fn package_provider_active(&self, package: &str) -> bool {
+    pub(crate) fn package_provider_active(&self, package: &str) -> bool {
         if vendor_surface_package(self.environment.id.as_str()) == Some(package) {
             return true;
         }

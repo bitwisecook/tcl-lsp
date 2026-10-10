@@ -2754,7 +2754,9 @@ mod tests {
         );
         let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
             .with_resolved_analysis_input(input);
-        let module = lowerer.lower(r"set value \U00000041");
+        let source = r"set value \U00000041";
+        lowerer.lower(source);
+        let module = lowerer.finish_module(source);
         let tokens = module
             .top_level
             .statements
@@ -2820,7 +2822,8 @@ mod tests {
         ] {
             let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
                 .with_resolved_analysis_input(input.clone());
-            let module = lowerer.lower(source);
+            lowerer.lower(source);
+            let module = lowerer.finish_module(source);
             let tokens = module
                 .top_level
                 .statements

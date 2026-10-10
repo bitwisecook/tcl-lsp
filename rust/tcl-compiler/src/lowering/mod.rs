@@ -9832,7 +9832,8 @@ mod tests {
         let source = "proc subject {} {return VALUE}; set result VALUE";
         let mut current = Lowerer::with_config(context.commands(), input.lexer_config())
             .with_resolved_analysis_input(input.clone());
-        let module = current.lower(source);
+        current.lower(source);
+        let module = current.finish_module(source);
         assert!(module.procedures.contains_key("::subject"));
         // Upstream keeps non-numeric bare literals as AssignValue so escape
         // spelling survives. This assertion covers IR/source ownership only.

@@ -45,6 +45,7 @@
 //! Original-source expression bracing consumes a separate bounded literal
 //! equivalence receipt. Dynamic expressions retain their written operands.
 
+mod analysis_layout;
 pub mod config;
 pub mod docstring;
 pub mod engine;
@@ -130,7 +131,18 @@ pub fn formatting_with_analysis(
     let Some(input) = original_formatting_input(source, analysis) else {
         return Vec::new();
     };
-    formatting_with_input(source, config, input)
+    let config = config.for_resolved_input(input);
+    if !engine::source_within_formatting_budget(&normalise_document_line_endings(source), &config) {
+        return Vec::new();
+    }
+    let context = input.context_registry();
+    let Some(layout) = engine::FormattingSourceLayout::with_analysis(source, analysis) else {
+        return Vec::new();
+    };
+    full_document_edit(
+        source,
+        engine::format_tcl_with_layout(source, &config, context.commands(), layout),
+    )
 }
 
 fn original_formatting_input<'a>(
@@ -189,7 +201,7 @@ pub fn range_formatting(
     config: &FormatterConfig,
     registry: &CommandRegistry,
 ) -> Vec<TextEdit> {
-    range_formatting_impl(source, range, config, registry, None)
+    range_formatting_impl(source, range, config, registry, None, None)
 }
 
 /// Format a selection using whole-document naming under the actual context.
@@ -202,7 +214,14 @@ pub fn range_formatting_with_input(
 ) -> Vec<TextEdit> {
     let config = config.for_resolved_input(input);
     let context = input.context_registry();
-    range_formatting_impl(source, range, &config, context.commands(), Some(input))
+    range_formatting_impl(
+        source,
+        range,
+        &config,
+        context.commands(),
+        Some(input),
+        None,
+    )
 }
 
 /// Format a selection only when the whole original analysis is still current.
@@ -216,7 +235,22 @@ pub fn range_formatting_with_analysis(
     let Some(input) = original_formatting_input(source, analysis) else {
         return Vec::new();
     };
-    range_formatting_with_input(source, range, config, input)
+    let config = config.for_resolved_input(input);
+    if !engine::source_within_formatting_budget(&normalise_document_line_endings(source), &config) {
+        return Vec::new();
+    }
+    let context = input.context_registry();
+    let Some(layout) = engine::FormattingSourceLayout::with_analysis(source, analysis) else {
+        return Vec::new();
+    };
+    range_formatting_impl(
+        source,
+        range,
+        &config,
+        context.commands(),
+        None,
+        Some(layout),
+    )
 }
 
 fn range_formatting_impl(
@@ -225,6 +259,7 @@ fn range_formatting_impl(
     config: &FormatterConfig,
     registry: &CommandRegistry,
     input: Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
+    layout: Option<engine::FormattingSourceLayout>,
 ) -> Vec<TextEdit> {
     // Tcl's source-channel boundary maps every document line ending to LF.
     // The normalised text is only an internal formatter input; raw spans and
@@ -264,10 +299,12 @@ fn range_formatting_impl(
     // The identity facts come from the **whole document**, not the slice: a
     // `rename` above the selection still governs what the selected commands
     // are.
-    let identities = input.map_or_else(
-        || engine::FormattingSourceLayout::new(&normalised, config, registry),
-        |input| engine::FormattingSourceLayout::with_input(&normalised, input),
-    );
+    let identities = layout.unwrap_or_else(|| {
+        input.map_or_else(
+            || engine::FormattingSourceLayout::new(&normalised, config, registry),
+            |input| engine::FormattingSourceLayout::with_input(&normalised, input),
+        )
+    });
     let index = LineIndex::new(&normalised);
     let slice_source_offset = index.line_start(start_line);
     let slice_source_end = if slice_end < lines.len() {
@@ -456,6 +493,133 @@ mod tests {
             assert_eq!(edits[0].range.end_line, 3);
             assert_eq!(edits[0].range.end_character, 0);
         }
+    }
+
+    #[test]
+    fn analysed_formatting_joins_complete_original_alias_words_across_crlf_and_unicode() {
+        // naming.editor.original-source-formatting
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
+        // Source layout/edit coordinates only; captured prefixes gain no written word.
+        use tcl_compiler::analyser::Analyser;
+        let source =
+            "interp alias {} choose {} if 1\r\nchoose {if 1 {puts α}}\r\nset data {a\r\nb}\r\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let config = FormatterConfig::default();
+        let edits = formatting_with_analysis(source, &config, &analysis);
+        assert_eq!(edits.len(), 1);
+        assert!(
+            edits[0].new_text.contains("choose {\r\n    if"),
+            "{}",
+            edits[0].new_text
+        );
+        assert!(
+            edits[0].new_text.contains("        puts α\r\n"),
+            "{}",
+            edits[0].new_text
+        );
+        assert!(edits[0].new_text.contains("set data {a\r\nb}"));
+        assert_eq!(edits[0].range.end_line, 4);
+        assert_eq!(edits[0].range.end_character, 0);
+        let selected = LspRange {
+            start_line: 1,
+            start_character: 0,
+            end_line: 1,
+            end_character: 30,
+        };
+        let range = range_formatting_with_analysis(source, selected, &config, &analysis);
+        assert_eq!(range.len(), 1);
+        assert!(range[0].new_text.contains("        puts α\r\n"));
+        assert_eq!(range[0].range.start_line, 1);
+        assert_eq!(range[0].range.end_line, 2);
+        let data = LspRange {
+            start_line: 3,
+            start_character: 0,
+            end_line: 3,
+            end_character: 1,
+        };
+        assert!(range_formatting_with_analysis(source, data, &config, &analysis).is_empty());
+    }
+
+    #[test]
+    fn analysed_formatting_keeps_replaced_unknown_and_provider_barrier_purposes_separate() {
+        // naming.editor.original-source-formatting
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
+        // The coverage field neither closes unknown dispatch nor cancels authentic syntax advice.
+        use tcl_compiler::analyser::Analyser;
+        let config = FormatterConfig::default();
+        for source in [
+            "proc if {args} {}; if 1 {puts α}\r\n",
+            "mystery 1 {puts α}\r\n",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let edits = formatting_with_analysis(source, &config, &analysis);
+            let output = edits.first().map_or(source, |edit| edit.new_text.as_str());
+            assert!(!output.contains("    puts α"), "{output}");
+            assert!(output.contains("{puts α}"), "{output}");
+        }
+        let source = "if 1 {puts α}\r\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        let positive = formatting_with_analysis(source, &config, &analysis);
+        assert_eq!(positive.len(), 1);
+        assert!(positive[0].new_text.contains("    puts α\r\n"));
+        analysis.has_dynamic_providers = true;
+        assert_eq!(
+            formatting_with_analysis(source, &config, &analysis),
+            positive
+        );
+    }
+
+    #[test]
+    fn analysed_formatting_retains_selected_definition_parent_body_geometry() {
+        // naming.editor.original-source-formatting
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
+        // Member script applicability comes from the genuine retained parent vocabulary.
+        use tcl_compiler::analyser::Analyser;
+        for ending in ["\n", "\r\n", "\r"] {
+            let source = format!("oo::class create C {{method m {{}} {{puts α}}}}{ending}");
+            let selected_source = tcl_lexer::normalise_lone_cr(&source);
+            let analysis = Analyser::new().analyse(&selected_source, "tcl");
+            let edits = formatting_with_analysis(&source, &FormatterConfig::default(), &analysis);
+            assert_eq!(edits.len(), 1, "{ending:?}");
+            let expected = format!("    method m {{}} {{{ending}        puts α{ending}    }}");
+            assert!(
+                edits[0].new_text.contains(&expected),
+                "{}",
+                edits[0].new_text
+            );
+        }
+    }
+
+    #[test]
+    fn analysed_formatting_member_vocabulary_precedes_same_spelling_global_alias() {
+        // naming.editor.original-source-formatting
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
+        // Genuine parent syntax; a global alias grants no member role or trait.
+        use tcl_compiler::analyser::Analyser;
+        let source =
+            "interp alias {} method {} if 1\r\noo::class create C {method m {} {puts α}}\r\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let edits = formatting_with_analysis(source, &FormatterConfig::default(), &analysis);
+        assert_eq!(edits.len(), 1);
+        assert!(
+            edits[0]
+                .new_text
+                .contains("    method m {} {\r\n        puts α\r\n    }"),
+            "{}",
+            edits[0].new_text,
+        );
+        let structure =
+            crate::source_structure::SourceSyntaxStructure::capture(source, &analysis).unwrap();
+        let head = u32::try_from(source.rfind("method m").unwrap()).unwrap();
+        let member = structure.definition_member_at(head).unwrap().unwrap();
+        assert_eq!(member.script_bodies().unwrap().len(), 1);
+        assert_eq!(member.script_bodies().unwrap()[0].argument(), 2);
+        let helper = "proc f {} {method m {} {puts α}}\r\n";
+        let analysis = Analyser::new().analyse(helper, "tcl");
+        let structure =
+            crate::source_structure::SourceSyntaxStructure::capture(helper, &analysis).unwrap();
+        let head = u32::try_from(helper.find("method m").unwrap()).unwrap();
+        assert!(structure.definition_member_at(head).unwrap().is_none());
     }
 
     fn range_fmt(source: &str, range: LspRange) -> Vec<TextEdit> {

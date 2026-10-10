@@ -93,6 +93,127 @@ impl std::hash::Hash for SourceImage {
     }
 }
 
+/// LF presentation of one authentic Document image, with checked source
+/// coordinates. This supplies document geometry only: original values,
+/// grammar, command identity and execution retain their independent owners.
+#[derive(Debug, Clone)]
+pub struct DocumentLineEndingProjection {
+    original: SourceImage,
+    normalised: String,
+    collapsed: Vec<(u32, u32)>,
+}
+
+impl DocumentLineEndingProjection {
+    /// Select Document newline translation. Native value images and source
+    /// beyond the shared offset range have no document projection.
+    #[must_use]
+    pub fn new(original: SourceImage) -> Option<Self> {
+        if original.channel() != SourceChannel::Document {
+            return None;
+        }
+        let text = original.try_text().ok()?;
+        u32::try_from(text.len()).ok()?;
+        let mut normalised = String::with_capacity(text.len());
+        let mut collapsed = Vec::new();
+        let mut start = 0;
+        let mut cursor = 0;
+        while cursor < text.len() {
+            if text.as_bytes()[cursor] != b'\r' {
+                cursor += 1;
+                continue;
+            }
+            normalised.push_str(text.get(start..cursor)?);
+            if text.as_bytes().get(cursor + 1) == Some(&b'\n') {
+                collapsed.push((
+                    u32::try_from(cursor + 1).ok()?,
+                    u32::try_from(normalised.len()).ok()?,
+                ));
+                cursor += 1;
+            }
+            normalised.push('\n');
+            cursor += 1;
+            start = cursor;
+        }
+        normalised.push_str(text.get(start..)?);
+        Some(Self {
+            original,
+            normalised,
+            collapsed,
+        })
+    }
+
+    /// Original complete image; LF presentation never replaces its identity.
+    #[must_use]
+    pub const fn original(&self) -> &SourceImage {
+        &self.original
+    }
+
+    /// Document presentation after CRLF and lone CR translation to LF.
+    #[must_use]
+    pub fn text(&self) -> &str {
+        &self.normalised
+    }
+
+    /// Map a Unicode byte boundary to the original document. The LF before
+    /// and after a collapsed CRLF map to the complete pair's two boundaries.
+    #[must_use]
+    pub fn original_offset(&self, offset: u32) -> Option<u32> {
+        self.normalised
+            .is_char_boundary(usize::try_from(offset).ok()?)
+            .then_some(())?;
+        let removed = self.collapsed.partition_point(|&(_, at)| at < offset);
+        let original = offset.checked_add(u32::try_from(removed).ok()?)?;
+        self.original
+            .try_text()
+            .ok()?
+            .is_char_boundary(usize::try_from(original).ok()?)
+            .then_some(original)
+    }
+
+    /// Map an original Unicode byte boundary to LF presentation. The boundary
+    /// between CR and LF has no image and cannot supply a fabricated extent.
+    #[must_use]
+    pub fn normalised_offset(&self, offset: u32) -> Option<u32> {
+        self.original
+            .try_text()
+            .ok()?
+            .is_char_boundary(usize::try_from(offset).ok()?)
+            .then_some(())?;
+        let removed = self.collapsed.partition_point(|&(at, _)| at < offset);
+        if self
+            .collapsed
+            .get(removed)
+            .is_some_and(|&(at, _)| at == offset)
+        {
+            return None;
+        }
+        let normalised = offset.checked_sub(u32::try_from(removed).ok()?)?;
+        self.normalised
+            .is_char_boundary(usize::try_from(normalised).ok()?)
+            .then_some(normalised)
+    }
+
+    /// Whole source extent addressed by an LF presentation span.
+    #[must_use]
+    pub fn original_span(&self, span: Span) -> Option<Span> {
+        (span.start() <= span.end()).then_some(())?;
+        Some(Span::new(
+            self.original_offset(span.start())?,
+            self.original_offset(span.end())?,
+        ))
+    }
+
+    /// LF presentation extent of a complete original span.
+    #[must_use]
+    pub fn normalised_span(&self, span: Span) -> Option<Span> {
+        (span.start() <= span.end()).then_some(())?;
+        Some(Span::new(
+            self.normalised_offset(span.start())?,
+            self.normalised_offset(span.end())?,
+        ))
+    }
+}
+
 impl SourceImage {
     /// Retain original native value bytes without decoding or rewriting them.
     #[must_use]
@@ -824,5 +945,71 @@ mod immutable_image_geometry_tests {
             );
         }
         assert_eq!(original.source_map().source_bytes(), bytes);
+    }
+}
+
+#[cfg(test)]
+mod document_line_ending_projection_tests {
+    use super::*;
+
+    #[test]
+    fn document_projection_round_trips_whole_unicode_words_across_mixed_endings() {
+        // naming.source.original-document-line-ending-projection
+        // docs/design/analysis/name-resolution-proofs/source-original-document-line-ending-projection.md
+        // Source geometry only; no native value, command or source-entry authority.
+        let original = "set café {α\r\nβ}\rset γ 3\n";
+        let projection =
+            DocumentLineEndingProjection::new(SourceImage::document(original)).unwrap();
+        assert_eq!(projection.text(), "set café {α\nβ}\nset γ 3\n");
+        assert_eq!(projection.original().bytes(), original.as_bytes());
+        let start = u32::try_from(projection.text().find('{').unwrap()).unwrap();
+        let end = u32::try_from(projection.text().find('}').unwrap() + 1).unwrap();
+        let span = Span::new(start, end);
+        let source_span = projection.original_span(span).unwrap();
+        assert_eq!(&original[source_span.as_range()], "{α\r\nβ}");
+        assert_eq!(projection.normalised_span(source_span), Some(span));
+        for offset in 0..=u32::try_from(projection.text().len()).unwrap() {
+            if projection.text().is_char_boundary(offset as usize) {
+                let source = projection.original_offset(offset).unwrap();
+                assert_eq!(projection.normalised_offset(source), Some(offset));
+            } else {
+                assert!(projection.original_offset(offset).is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn document_projection_refuses_collapsed_boundary_native_values_and_non_source_extents() {
+        // naming.source.original-document-line-ending-projection
+        // docs/design/analysis/name-resolution-proofs/source-original-document-line-ending-projection.md
+        // The missing boundary is an actual mapping refusal, not a shortened word.
+        let original = "é\r\nnext\r\n";
+        let projection =
+            DocumentLineEndingProjection::new(SourceImage::document(original)).unwrap();
+        assert!(projection.normalised_offset(3).is_none());
+        assert!(projection.normalised_span(Span::new(0, 3)).is_none());
+        assert!(projection.original_offset(1).is_none());
+        assert!(projection.normalised_offset(1).is_none());
+        assert!(projection.original_offset(100).is_none());
+        assert!(projection.normalised_offset(100).is_none());
+        assert!(
+            DocumentLineEndingProjection::new(SourceImage::native(original.as_bytes())).is_none()
+        );
+        assert!(
+            DocumentLineEndingProjection::new(SourceImage::from_bytes(
+                [0xff].as_slice(),
+                SourceChannel::Document,
+            ))
+            .is_none()
+        );
+        for source in ["", "set value 1\n", "set value 1\r", "set value 1\r\n"] {
+            let projection =
+                DocumentLineEndingProjection::new(SourceImage::document(source)).unwrap();
+            let whole = Span::new(0, u32::try_from(source.len()).unwrap());
+            assert_eq!(
+                projection.original_span(projection.normalised_span(whole).unwrap()),
+                Some(whole)
+            );
+        }
     }
 }

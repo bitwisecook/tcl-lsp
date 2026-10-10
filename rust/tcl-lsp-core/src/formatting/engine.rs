@@ -549,6 +549,7 @@ pub(crate) struct FormattingSourceLayout {
     realm: tcl_compiler::realm::CommandBindingRealm,
     analysis: Option<tcl_compiler::analyser::AnalysisResult>,
     input: tcl_compiler::analyser::ResolvedAnalysisInput,
+    original: Option<super::analysis_layout::AnalysisFormattingLayout>,
 }
 
 impl FormattingSourceLayout {
@@ -581,7 +582,33 @@ impl FormattingSourceLayout {
                 .unwrap_or_default(),
             analysis: Some(analysis),
             input: input.clone(),
+            original: None,
         }
+    }
+
+    pub(crate) fn with_analysis(
+        source: &str,
+        analysis: &tcl_compiler::analyser::AnalysisResult,
+    ) -> Option<Self> {
+        let original = super::analysis_layout::AnalysisFormattingLayout::capture(source, analysis)?;
+        Some(Self {
+            realm: analysis.retained_command_realm()?.clone(),
+            analysis: Some(analysis.clone()),
+            input: analysis.resolved_input.as_ref()?.clone(),
+            original: Some(original),
+        })
+    }
+
+    fn presentation_span(&self, span: tcl_lexer::Span) -> Option<tcl_lexer::Span> {
+        self.original
+            .as_ref()
+            .map_or(Some(span), |layout| layout.presentation_span(span))
+    }
+
+    fn original_offset(&self, offset: u32) -> Option<u32> {
+        self.original
+            .as_ref()
+            .map_or(Some(offset), |layout| layout.original_offset(offset))
     }
 }
 
@@ -644,29 +671,97 @@ fn identify_body_args(
         let Ok(whole) = std::str::from_utf8(image.bytes()) else {
             return;
         };
-        let Ok(start) = usize::try_from(source_offset) else {
+        let Some(head) = source_offset.checked_add(cmd.head_start) else {
             return;
         };
-        if whole.get(start..start.saturating_add(source.len())) != Some(source) {
-            return;
-        }
-        let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
-            source,
-            source_offset,
-            config.lexer_config(),
-        );
-        let head = source_offset.saturating_add(cmd.head_start);
-        let Some(segment) = segments.iter().find(|segment| {
-            segment
-                .argv
-                .first()
-                .is_some_and(|token| token.span.start() == head)
+        let aligned = if let Some(original) = &identities.original {
+            let Some((segment, words)) = original.command(
+                source,
+                source_offset,
+                head,
+                cmd.args.len(),
+                config.lexer_config(),
+            ) else {
+                return;
+            };
+            Some((segment.clone(), words))
+        } else {
+            let Ok(start) = usize::try_from(source_offset) else {
+                return;
+            };
+            if whole.get(start..start.saturating_add(source.len())) != Some(source) {
+                return;
+            }
+            None
+        };
+        let segments = if aligned.is_none() {
+            tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+                source,
+                source_offset,
+                config.lexer_config(),
+            )
+        } else {
+            Vec::new()
+        };
+        let Some(segment) = aligned.as_ref().map(|(segment, _)| segment).or_else(|| {
+            segments.iter().find(|segment| {
+                segment
+                    .argv
+                    .first()
+                    .is_some_and(|token| token.span.start() == head)
+            })
         }) else {
             return;
         };
+        if let (Some(original), Some((_, words))) = (&identities.original, &aligned) {
+            let bodies = match original.member_body_arguments(head, words) {
+                Ok(bodies) => bodies,
+                Err(_) => return,
+            };
+            if let Some(bodies) = bodies {
+                // The selected declaration vocabulary precedes global lookup even
+                // when an unrelated global command has the same member spelling.
+                for (arg, word) in cmd.args.iter_mut().zip(words) {
+                    arg.original_word = Some(word.clone());
+                }
+                for &written in &bodies {
+                    if let Some(arg) = cmd.args.get_mut(written)
+                        && arg.is_braced
+                    {
+                        arg.kind = ArgKind::Body;
+                    }
+                }
+                cmd.source_roles = Some(
+                    bodies
+                        .into_iter()
+                        .map(|written| (written, ArgRole::Body))
+                        .collect(),
+                );
+                return;
+            }
+        }
         let Some(selected) =
             crate::original_invocation::source_registry_words(whole, analysis, segment)
         else {
+            // The shared original syntax inventory retains declaration-member
+            // bodies independently of a global command schema. It donates no
+            // formal value, expression rewrite or executed member identity.
+            if let (Some(original), Some((_, words))) = (&identities.original, &aligned) {
+                let mut roles = Vec::new();
+                for (written, (arg, word)) in cmd.args.iter_mut().zip(words).enumerate().skip(1) {
+                    arg.original_word = Some(word.clone());
+                    if arg.is_braced
+                        && word
+                            .content_span()
+                            .ok()
+                            .is_some_and(|span| original.has_script(span))
+                    {
+                        arg.kind = ArgKind::Body;
+                        roles.push((written, ArgRole::Body));
+                    }
+                }
+                cmd.source_roles = Some(roles);
+            }
             return;
         };
         let logical = match &selected.source {
@@ -1879,14 +1974,17 @@ fn presentation_children(
             }
             let written = command.args.iter().position(|argument| {
                 argument.tokens.first().is_some_and(|first| {
-                    source_offset.checked_add(first.span.start()) == Some(parent.span().start())
+                    source_offset
+                        .checked_add(first.span.start())
+                        .and_then(|offset| identities.original_offset(offset))
+                        == Some(parent.span().start())
                 })
             });
             if let Some(written) = written
                 && (command.args[written].kind == ArgKind::Body
                     || case.is_some_and(|(ordinal, _)| ordinal == written))
             {
-                children.push(body.content_span());
+                children.push(identities.presentation_span(body.content_span())?);
             }
         }
     }
@@ -1903,11 +2001,12 @@ fn presentation_children(
         }
         if command.source_words.is_some() {
             if argument.kind == ArgKind::LambdaLiteral
+                && let Some(original) = argument.original_word.as_ref()
                 && let Some(body) =
-                    tcl_compiler::lambda_literal::split_original_lambda_literal(word)
+                    tcl_compiler::lambda_literal::split_original_lambda_literal(original)
                         .and_then(|lambda| lambda.braced_body())
             {
-                children.push(body);
+                children.push(identities.presentation_span(body)?);
             }
             continue;
         }
@@ -1975,9 +2074,14 @@ pub(crate) fn formatting_range_indent(
             .snapshot()
             .semantic_key()
             != registry.snapshot().semantic_key()
-        || identities.analysis.as_ref().is_some_and(|analysis| {
-            !analysis.matches_original_source_image(&image, config.lexer_config())
-        })
+        || identities.original.as_ref().map_or_else(
+            || {
+                identities.analysis.as_ref().is_some_and(|analysis| {
+                    !analysis.matches_original_source_image(&image, config.lexer_config())
+                })
+            },
+            |original| original.text() != source,
+        )
     {
         return None;
     }
@@ -2141,23 +2245,40 @@ pub(crate) fn format_body(
                 // for a non-literal (bare/quoted) body: its backslash escapes
                 // must be collapsed before the result is parsed as a script,
                 // exactly as Tcl's own list-then-script evaluation would.
-                let lambda_body_offset = commands[i].args[a].original_word.as_ref().map_or_else(
-                    || lambda_body_source_offset(source, source_offset, tok),
-                    |word| {
-                        tcl_compiler::lambda_literal::split_original_lambda_literal(word)
-                            .and_then(|elements| elements.braced_body())
-                            .filter(|span| {
-                                word.image()
-                                    .try_text()
-                                    .ok()
-                                    .and_then(|text| text.get(span.as_range()))
-                                    == Some(body_text.as_ref())
-                            })
-                            .map_or(u32::MAX, |span| span.start())
+                let original_body = commands[i].args[a].original_word.as_ref().and_then(|word| {
+                    tcl_compiler::lambda_literal::split_original_lambda_literal(word)
+                        .and_then(|elements| elements.braced_body())
+                        .filter(|span| {
+                            word.image()
+                                .try_text()
+                                .ok()
+                                .and_then(|text| text.get(span.as_range()))
+                                == Some(body_text.as_ref())
+                                || identities.original.as_ref().and_then(|layout| {
+                                    layout
+                                        .presentation_span(*span)
+                                        .and_then(|span| layout.text().get(span.as_range()))
+                                }) == Some(body_text.as_ref())
+                        })
+                });
+                let presented_body =
+                    original_body.and_then(|span| identities.presentation_span(span));
+                let lambda_body_offset = presented_body.map_or_else(
+                    || {
+                        if commands[i].args[a].original_word.is_some() {
+                            u32::MAX
+                        } else {
+                            lambda_body_source_offset(source, source_offset, tok)
+                        }
                     },
+                    |span| span.start(),
                 );
+                let presented_text = identities
+                    .original
+                    .as_ref()
+                    .and_then(|layout| layout.text().get(presented_body?.as_range()));
                 let formatted = format_body(
-                    &body_text,
+                    presented_text.unwrap_or(&body_text),
                     lambda_body_offset,
                     config,
                     registry,
@@ -2233,7 +2354,7 @@ pub(crate) fn trim_trailing_ws_preserving_literals(text: &str, config: &Formatte
 /// formatted source out.
 #[must_use]
 pub fn format_tcl(source: &str, config: &FormatterConfig, registry: &CommandRegistry) -> String {
-    format_tcl_impl(source, config, registry, None)
+    format_tcl_impl(source, config, registry, None, None)
 }
 
 /// Format using the caller's actual complete availability context and grammar.
@@ -2246,7 +2367,16 @@ pub fn format_tcl_with_input(
 ) -> String {
     let config = config.for_resolved_input(input);
     let context = input.context_registry();
-    format_tcl_impl(source, &config, context.commands(), Some(input))
+    format_tcl_impl(source, &config, context.commands(), Some(input), None)
+}
+
+pub(crate) fn format_tcl_with_layout(
+    source: &str,
+    config: &FormatterConfig,
+    registry: &CommandRegistry,
+    layout: FormattingSourceLayout,
+) -> String {
+    format_tcl_impl(source, config, registry, None, Some(layout))
 }
 
 fn format_tcl_impl(
@@ -2254,6 +2384,7 @@ fn format_tcl_impl(
     config: &FormatterConfig,
     registry: &CommandRegistry,
     input: Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
+    layout: Option<FormattingSourceLayout>,
 ) -> String {
     // Resolve this from the original document, before canonicalising its input
     // for Tcl parsing; output still honours the document's established EOL.
@@ -2271,10 +2402,12 @@ fn format_tcl_impl(
     let source = normalised;
     // The document's command-identity facts, computed once for the whole
     // file.  Empty — and lookup-free — unless the document binds something.
-    let identities = input.map_or_else(
-        || FormattingSourceLayout::new(&source, config, registry),
-        |input| FormattingSourceLayout::with_input(&source, input),
-    );
+    let identities = layout.unwrap_or_else(|| {
+        input.map_or_else(
+            || FormattingSourceLayout::new(&source, config, registry),
+            |input| FormattingSourceLayout::with_input(&source, input),
+        )
+    });
     let mut result = format_body(&source, 0, config, registry, &identities, 0);
 
     if config.trim_trailing_whitespace {
@@ -2793,6 +2926,40 @@ mod tests {
         assert!(command.logical_roles.is_none());
         assert!(command.logical_context.is_none());
         assert!(keyword_rewrites_for(&command, &registry, &foreign).is_empty());
+    }
+
+    #[test]
+    fn analysed_layout_retains_supplied_entry_and_provider_world_without_recapture() {
+        // naming.editor.original-source-formatting
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
+        // Actual source entry/provider coverage remains independent of source roles.
+        use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+        use tcl_compiler::command_binding::SourceAnalysisEntry;
+        let source = "if 1 {puts α}\r\n";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let mut entry = SourceAnalysisEntry::for_logical_source(&input).unwrap();
+        entry.unknown_entry = true;
+        let mut analysis = Analyser::new()
+            .with_resolved_input(input.clone())
+            .with_source_analysis_entry(std::sync::Arc::new(entry))
+            .analyse(source, profile.name);
+        analysis.has_dynamic_providers = true;
+        let layout = FormattingSourceLayout::with_analysis(source, &analysis).unwrap();
+        assert_eq!(layout.realm, *analysis.retained_command_realm().unwrap());
+        assert!(layout.analysis.as_ref().unwrap().has_dynamic_providers);
+        assert_eq!(layout.input, input);
+        let fresh =
+            FormattingSourceLayout::with_input(layout.original.as_ref().unwrap().text(), &input);
+        assert_ne!(
+            layout.realm, fresh.realm,
+            "unknown supplied history cannot become a fresh source world"
+        );
     }
 
     #[test]

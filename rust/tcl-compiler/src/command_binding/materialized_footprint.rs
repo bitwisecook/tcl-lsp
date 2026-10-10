@@ -263,11 +263,9 @@ impl<'a> OriginalSourceMaterializedFootprint<'a> {
             return unavailable();
         }
         let current = words.with_source_schema(&context, |schema| {
-            schema
-                .semantics
-                .body_interpreter
-                .resolve(schema.words.arguments())
-                == tcl_registry::InterpreterScope::Current
+            schema.semantics.body_interpreter.resolve_with(|ordinal| {
+                std::str::from_utf8(words.arguments().get(ordinal)?.literal_bytes()?).ok()
+            }) == tcl_registry::InterpreterScope::Current
         });
         if current != Some(true) {
             return unavailable();
@@ -280,7 +278,11 @@ impl<'a> OriginalSourceMaterializedFootprint<'a> {
                 .find_map(|(operand, value)| {
                     (operand.as_ref().and_then(|operand| operand.word())
                         == Some(body.original_container()))
-                    .then(|| value.as_registry_word().literal().map(str::to_owned))
+                    .then(|| {
+                        std::str::from_utf8(value.literal_bytes()?)
+                            .ok()
+                            .map(str::to_owned)
+                    })
                     .flatten()
                 })
         else {

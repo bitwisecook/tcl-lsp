@@ -5164,7 +5164,7 @@ mod source_body_purpose_tests {
                 ..CommandSpec::DEFAULT
             });
         }
-        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         let context = Arc::new(
             tcl_registry::model::context_for_profile(profile)
                 .with_command_store(Arc::new(registry)),
@@ -5176,6 +5176,7 @@ mod source_body_purpose_tests {
             Arc::clone(&context),
             config,
         );
+        assert!(input.has_logical_source_name_context());
         let analysis = crate::analyser::Analyser::new()
             .with_resolved_input(input)
             .analyse(source, "tcl");

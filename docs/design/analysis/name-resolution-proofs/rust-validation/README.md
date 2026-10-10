@@ -2164,7 +2164,7 @@ Decompression restores the measured executable byte-for-byte. It is neither a ne
 
 The [original pin metadata](frozen275/sealed-compiler-image/pinned-compiler275.json), [lossless measured Compiler ELF](frozen275/sealed-compiler-image/pinned-compiler275.elf.gz) and [storage identity receipt](frozen275/sealed-compiler-image/lossless-image-storage.json) retain the independently successful Compiler-only275 producer already recorded in the ledger. This image is not attributed to the failed four-crate invocation. Its [source companion](frozen275/sealed-vm-image/source-snapshot.json.gz) is byte-identical to the unchanged source association independently checked for the successful Compiler-only producer. Sharing that exact companion does not make Compiler and VM executable identities equivalent.
 
-The inventory lists9067 tests. The [original114-selector selection](frozen275/selections/compiler-focus-selection275.json) records47 passed/67 failed. Every failure remains in the whole log. The declaration trace requests two selectors, but the requested source_command_world Unicode-transfer name is absent from that inventory: only the declaration test actually executes and fails. The corrected logical_operation Unicode-transfer selector executes independently and fails in its own command. These actual outcomes provide neither aggregate success nor another image/backend or Native provider result.
+The inventory lists9067 tests. The [original 114-selector selection](frozen275/selections/compiler-focus-selection275.json) records47 passed/67 failed. Every failure remains in the whole log. The declaration trace requests two selectors, but the requested source_command_world Unicode-transfer name is absent from that inventory: only the declaration test actually executes and fails. The corrected logical_operation Unicode-transfer selector executes independently and fails in its own command. These actual outcomes provide neither aggregate success nor another image/backend or Native provider result.
 
 | Closed operation | Status | Recorded result | Exact receipt | Complete log |
 | --- | --- | --- | --- | --- |
@@ -2394,3 +2394,39 @@ restored.chmod(0o755)
 ```
 
 Restoration proves payload identity only; it supplies no new build, run, Native private/header/frame observation or current assertion pass.
+
+## Exact Source289 Compiler and Registry outcomes
+
+Six closed operations retain the same immutable source and exact original command receipts. The five-package no-run invocation fails 15 DB fixture/API errors and supplies no pin. Its independent Compiler/Registry no-run producer succeeds and yields the two separately sealed images. Actual inventories list 9,135 Compiler and 1,719 Registry tests. The focused Compiler command runs 210 tests and closes 135 passed/75 failed; the complete Registry command closes 1,700 passed/19 failed with no ignored or filtered tests. No aggregate gate or external Native provider pass follows.
+
+| Closed operation | Original outcome | Receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-compiler-registry-core-db-server-test-build289` | `compile-failed`, exit 101, 127.474772s; no assertions | [Receipt](frozen289/integration-compiler-registry-core-db-server-test-build289/receipt.json.gz) | [Log](frozen289/integration-compiler-registry-core-db-server-test-build289/tests.log) |
+| `integration-compiler-registry-own-test-build289` | `compile-passed`, exit 0, 226.707102s; no assertions | [Receipt](frozen289/integration-compiler-registry-own-test-build289/receipt.json.gz) | [Log](frozen289/integration-compiler-registry-own-test-build289/tests.log) |
+| `integration-compiler-inventory289` | `listed`, exit 0, 0.017769s; no assertions | [Receipt](frozen289/integration-compiler-inventory289/receipt.json.gz) | [Log](frozen289/integration-compiler-inventory289/tests.log) |
+| `integration-registry-inventory289` | `listed`, exit 0, 0.015690s; no assertions | [Receipt](frozen289/integration-registry-inventory289/receipt.json.gz) | [Log](frozen289/integration-registry-inventory289/tests.log) |
+| `integration-compiler-comprehensive-focus289` | `failed`, exit 101, 343.473291s; 135 passed/75 failed | [Receipt](frozen289/integration-compiler-comprehensive-focus289/receipt.json.gz) | [Log](frozen289/integration-compiler-comprehensive-focus289/tests.log) |
+| `integration-registry-complete-lib289` | `failed`, exit 101, 84.124573s; 1700 passed/19 failed | [Receipt](frozen289/integration-registry-complete-lib289/receipt.json.gz) | [Log](frozen289/integration-registry-complete-lib289/tests.log) |
+
+The [exact 210 selection](frozen289/selections/compiler-focus-selection289.json) retains the actual listed-image gate. The [original 114 subset record](frozen289/selections/original114-derived-outcome.json) preserves the unchanged original selection and derives 72 passed/42 failed from this same focus command; it is not another operation. The [complete source companion](frozen289/source-snapshot.json.gz) and each decompressed receipt retain the exact source associations. Current proof IDs attach only where the entire current source leaf matches the frozen producer.
+
+Both measured executable identities are preserved as lossless gzip: [Compiler storage](frozen289/sealed-compiler-image/lossless-image-storage.json) and [Registry storage](frozen289/sealed-registry-image/lossless-image-storage.json). Their original strict pins and successful producer remain distinct from the failed aggregate invocation. Full decompressed payload bytes, size and SHA256 were compared with each original measured ELF. Restore either image with both integrity checks:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+for kind in ("compiler", "registry"):
+    base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen289") / f"sealed-{kind}-image"
+    record = json.loads((base / "lossless-image-storage.json").read_text())
+    packed = (base / f"pinned-{kind}289.elf.gz").read_bytes()
+    assert len(packed) == record["stored_bytes"]
+    assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+    original = gzip.decompress(packed)
+    assert len(original) == record["original_bytes"]
+    assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+    restored = Path(f"/tmp/pinned-{kind}289.elf")
+    restored.write_bytes(original)
+    restored.chmod(0o755)
+```
+
+Restoration establishes exact measured image identity only; it does not perform another build/test or grant Native private object/frame/handler authority.

@@ -529,6 +529,14 @@ mod coroutine_name_tests {
         // docs/design/analysis/name-resolution-proofs/info-original-coroutine-name-compiler.md
         // The original hook/zero-worker-operand/opcode source is independent
         // from Native250 public coroutine holder/resumption observations.
+        // The source/word receipt does not select an entry protocol.
+        // This pure recipe control independently supplies script compilation;
+        // no physical procedure frame or reached coroutine is claimed.
+        let compilation = NativeCompilationContext {
+            mode: crate::native_compilation::NativeCompilationMode::BytecodeObject,
+            frame: crate::native_compilation::NativeCompilationFrame::ScriptCode,
+            ..NativeCompilationContext::default()
+        };
         for version in TclVersion::ALL {
             let dialect = crate::InvocationDialect::of_point(
                 tcl_dialect::model::DialectPoint::for_tcl_version(version),
@@ -573,7 +581,7 @@ mod coroutine_name_tests {
                     &words,
                     operand_from,
                     Some(dialect),
-                    NativeCompilationContext::default(),
+                    compilation,
                 );
                 assert_eq!(
                     selected,
@@ -587,12 +595,24 @@ mod coroutine_name_tests {
                         crate::native_compilation::NativeCompilationSelection::Generic
                     }
                 );
+                if version >= TclVersion::V8_6 {
+                    assert_eq!(
+                        spec.select_registered_worker_native_words(
+                            &words,
+                            operand_from,
+                            Some(dialect),
+                            NativeCompilationContext::default(),
+                        ),
+                        crate::native_compilation::NativeCompilationSelection::Unknown,
+                        "original words and a Native point cannot supply the missing entry mode"
+                    );
+                }
                 let result = compile_native_coroutine(
                     &words,
                     operand_from,
                     NativeCompilationGrammar::InfoCoroutine,
                     dialect,
-                    NativeCompilationContext::default(),
+                    compilation,
                 );
                 if version >= TclVersion::V8_6 && empty {
                     assert_eq!(result.unwrap().steps, [NativeCoroutineStep::Name]);

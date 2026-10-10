@@ -4,11 +4,11 @@
 
 //! Existing channel/file advice from selected original path operands.
 
+use crate::analyser::DiagnosticSubject;
 use crate::analyser::diagnostic_registry::{
     OriginalDiagnosticInvocation, RegistrySourceDiagnosticKind,
 };
 use crate::analyser::state::Analyser;
-use crate::analyser::DiagnosticSubject;
 use crate::analyser::types::{Diagnostic, Severity};
 use tcl_core_types::DiagCode;
 use tcl_registry::Traits;
@@ -453,6 +453,84 @@ mod tests {
         }
     }
 
+    fn trace_original_source_values(
+        unit: &crate::compilation_unit::CompilationUnit,
+        input: &ResolvedAnalysisInput,
+    ) {
+        if std::env::var_os("TCL_LSP_TRACE_DIAGNOSTIC_VALUES").is_none() {
+            return;
+        }
+        let module = &unit.ir_module;
+        let registry = input.borrowed_context_registry().commands();
+        let Some(function) = unit.function("::f") else {
+            return;
+        };
+        let metadata = function.invocation_metadata_context_for_module(registry, module);
+        eprintln!(
+            "[diagnostic-source-values] module_input={} module_config={} source_owner={} function_metadata={} logical_input={} symbols={}",
+            module.source_metadata_input.as_ref() == Some(input),
+            module.lexer_config == input.lexer_config(),
+            module
+                .retained_source_bindings
+                .as_ref()
+                .is_some_and(|owner| owner.matches_module(module, registry)),
+            metadata.is_some(),
+            input.has_logical_source_name_context(),
+            function.ssa.var_names().len(),
+        );
+        let mut blocks = function.ssa.blocks.iter().collect::<Vec<_>>();
+        blocks.sort_by_key(|(block, _)| **block);
+        for (block, contents) in blocks {
+            for (index, statement) in contents.statements.iter().enumerate() {
+                let tokens = statement.statement.tokens();
+                let mut uses = statement
+                    .uses
+                    .iter()
+                    .map(|(symbol, version)| (symbol.0, function.ssa.var_name(*symbol), *version))
+                    .collect::<Vec<_>>();
+                let mut defs = statement
+                    .defs
+                    .iter()
+                    .map(|(symbol, version)| (symbol.0, function.ssa.var_name(*symbol), *version))
+                    .collect::<Vec<_>>();
+                uses.sort_unstable();
+                defs.sort_unstable();
+                let logical_operation = metadata.zip(tokens).is_some_and(|(metadata, tokens)| {
+                    crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(registry, metadata, tokens).is_some()
+                });
+                eprintln!(
+                    "[diagnostic-source-values] statement={block:?}/{index} kind={:?} command={} span={:?} tokens={} binding={} logical_operation={} uses={uses:?} defs={defs:?}",
+                    std::mem::discriminant(&statement.statement),
+                    statement.statement.canonical_command_or_source(),
+                    statement.statement.span(),
+                    tokens.is_some(),
+                    tokens.is_some_and(|tokens| tokens.source_binding.is_some()),
+                    logical_operation,
+                );
+            }
+        }
+        let diagnostic = function.diagnostic_value_facts();
+        for (purpose, values) in [
+            ("execution", &function.sccp.values),
+            ("diagnostic", diagnostic.values()),
+        ] {
+            let mut ordered = values.iter().collect::<Vec<_>>();
+            ordered.sort_by_key(|(key, _)| **key);
+            for ((symbol, version), value) in ordered {
+                eprintln!(
+                    "[diagnostic-source-values] purpose={purpose} variable={} symbol={} version={version} value={value:?}",
+                    function.ssa.var_name(*symbol),
+                    symbol.0
+                );
+            }
+        }
+        eprintln!(
+            "[diagnostic-source-values] execution_blocks={:?} diagnostic_blocks={:?}",
+            function.sccp.executable_blocks,
+            diagnostic.executable_blocks()
+        );
+    }
+
     #[test]
     fn original_path_values_use_the_complete_cu_at_the_written_source_point() {
         // naming.compiler.original-analysis-metadata-context
@@ -498,6 +576,7 @@ mod tests {
         ] {
             let unit = cu(source, &input);
             assert!(unit.function("::f").is_some(), "actual source procedure");
+            trace_original_source_values(&unit, &input);
             let mut analyser = analyse(source, &input);
             queue_written(&mut analyser, source, call, code);
             analyser.emit_proven_word_diagnostics(&unit);

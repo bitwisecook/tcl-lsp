@@ -288,6 +288,7 @@ impl OriginalDiagnosticInvocation {
         };
         let image = self.head().image();
         image.bytes() == source.as_bytes()
+            && analysis.body_lexer_config == Some(input.lexer_config())
             && self.words.matches_source(image, input.lexer_config())
             && analysis.matches_original_source_image(image, input.lexer_config())
             && input.borrowed_context_registry().context() == self.context().context()

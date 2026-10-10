@@ -1,0 +1,20 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen289/sealed-compiler-image/pinned-compiler289.elf.gz",
+  "stored_sha256": "cf8bfa2f559c8b5a95135ece3cf87ad119ae837bd4dac5327bdfc919e2657088",
+  "stored_bytes": 39468361,
+  "original_sha256": "e6377f60fdd01f57a079e297205cfc8dd17850dbbf0e9e503a268d60de58afb2",
+  "original_bytes": 204436912,
+  "original_recorded_executable": "/workspace/.proofs/pinned-compiler289.elf",
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen289/sealed-compiler-image/pinned-compiler289.json",
+  "pin_metadata_sha256": "c06a3d82ea671c6f43b7390ca61c3bc53a8c2c34722c6466ecc6070b77e3de1c",
+  "build_receipt_id": "rust.frozen289.integration-compiler-registry-own-test-build289",
+  "build_receipt_sha256": "eb83ea853c351cb1f90d6a9256b0bea72000cbba23b97e279989c43fb8438bc1",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen289/source-snapshot.json.gz",
+    "sha256": "88129ff94fc3bb330092b7f2ee7595bff2622b3860a0ff77c15f4924d97902e7",
+    "compression": "gzip",
+    "uncompressed_sha256": "2c89844481fbaf339eab05f8304d9faaa871296ad31dea5f3943fa193cfd1051"
+  },
+  "verification": "Strict original successful producer/pin/source association retained. Complete gzip restoration independently byte/SHA/size compared with the measured ELF. No original unlink or new build/run."
+}

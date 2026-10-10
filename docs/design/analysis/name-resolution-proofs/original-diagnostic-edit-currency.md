@@ -14,9 +14,13 @@ Which independently retained source inputs must agree before primary diagnostic 
 
 DiagnosticEditSource borrows the actual current document and AnalysisResult and reuses WorkspaceDiagnosticSourceContext for whole Document image, full lexer configuration and Registry semantic currency. Primary code actions require this guard before any range action; published analyser fixes also match an independently present current code/span/fix, while messages and titles remain presentation. Compiler and DB diagnostic aggregates retain DiagnosticSourceContext after whole-document span rebasing; check_diagnostic_actions requires each issuer context to match the current guard before lifting fixes or emitting a suppression edit. Every edit extent must be in bounds and lie on actual UTF8 byte boundaries, including end-of-file insertions. Server bulk selection captures the guard on each freshly analysed source iteration and preserves each fix’s independent safety classification and non-overlap rules. The current Server action request uses the Registry retained by its actual analysis. Currency supplies no Native name, handler, cell, value, evaluation, equivalence or edit permission; those remain the fix issuer’s separate obligations.
 
+Compiler diagnostic edit currency retains the issuer complete actual Module ResolvedAnalysisInput, not only equal image/config/command-store labels. Generic fixes and typed context actions compare that input and actual availability generation with the current analysis. Missing Module input cannot issue source context; a same-store older availability request refuses even when original source geometry remains equal.
+
 ## Scope
 
 Document source edits and advice under actual retained Analysis source/config/Registry. SourceText and UTF8 edit geometry do not become native input, runtime identity or execution authority. The diagnostic title/message may change without changing the owned edit. Missing whole-source correspondence, missing or foreign compiler issuer context, unowned published fixes, invalid bounds and byte-interior UTF8 positions decline edits. Independently selected host filtering still decides which owned diagnostics are published. Broader structured diagnostic subjects remain separate from this source-currency contract.
+
+The two current source/API controls establish issuer correspondence only. Original fixes and typed subjects still supply their independent editing purposes; source currency grants no Native frame/Normal/effect, safe evaluation, rewrite equivalence or executed assertion result.
 
 ## Provider answers
 
@@ -84,6 +88,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs](../../../../rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs), `code_actions::diagnostic_currency::tests::original_diagnostic_source_extents_require_actual_byte_boundaries_and_channel` (linked): A genuine Document emoji extent and end-of-file insertion are valid; UTF8-interior/out-of-bounds positions decline, and identical Native bytes do not match the Document source owner.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs](../../../../rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs), `DiagnosticEditSource::matches_compiler_diagnostic`: Compare the original issuer full actual analysis input and availability generation with current analysis, alongside independent image/config/Registry/span/fix currency.
+- [rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs](../../../../rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs), `ContextDiagnosticData::matches`: Require the typed original subject and complete issuer input to match current source/config/store/generation before a context action; displayed prose does not select the owner.
+- [rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs](../../../../rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs), `code_actions::diagnostic_currency::tests::original_check_currency_refuses_same_store_changed_availability_and_missing_input` (linked): Generic compiler fix currency requires the issuer complete actual Module input; same command store and identical image/config with older availability still refuse, and missing Module input cannot issue compiler source context.
+- [rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs](../../../../rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs), `code_actions::diagnostic_context::tests::original_context_diagnostic_currency_keeps_the_complete_availability_owner` (linked): Typed diagnostic context actions retain complete issuer input/availability independently of original source/config/store equality; a same-store older availability request supplies no action despite identical original source geometry.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

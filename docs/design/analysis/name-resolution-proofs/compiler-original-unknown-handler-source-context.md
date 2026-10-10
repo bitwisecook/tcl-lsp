@@ -14,9 +14,13 @@ Which retained input and actual ContextRegistry admit secondary unknown-handler 
 
 Analyser::extract_unknown_proc_info_at retains actual ContextRegistry, original lexer configuration and unit profile in secondary lowering. Recursive original Statement metadata selection delegates to resolved_statement_invocation_in_context. An independently retained source-analysis entry keeps its own options. Standalone source dispatch assistance requires positively retained Logical input; Native, hosted and missing input cannot borrow nominal default or copied Registry labels. Empty bodies and conservative lowering-failure flags remain report shapes rather than executed worker facts. No C/Jim/BIG-IP unknown-handler invocation, installed worker, native frame, runtime effect closure or successful dispatch follows. SourceAnalysisOptions::for_logical_source requires the actual retained positive Logical input and keeps its selected source dialect and word grammar together. The secondary unknown-source driver passes those options to the same lowerer and retains the actual logical source input on the original binding; a nominal assistance profile or missing/Native/hosted input cannot construct that source driver. This supplies conditional source dispatch metadata without a Native entry, actual unknown-handler execution or hosted runtime purpose.
 
+Unknown-handler operation advice uses the actual complete source context through recursive statements and the genuine Logical selected operation descriptor. Whole original tokens and captured aliases retain availability and current selected roles. Capability flags withdraw when the original owner, metadata, selector or head is missing or changed; a presentation Registry cannot repair them.
+
 ## Scope
 
 Current source-only metadata extraction. A fixed control compares authentic Logical ingress against missing input, all five C releases, Jim and hosted inputs, and poisons a retired reporting Registry field without changing retained context. Existing dispatch/effect-report controls retain explicitly Logical fixtures. All seven providers are not tested.
+
+The two source controls describe conditional capability flags only. They attach no executed load/exec, Native handler, cell/frame, current argv or Normal completion and no assertion outcome. Original external provider answers remain unchanged.
 
 ## Provider answers
 
@@ -78,6 +82,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/oo.rs](../../../../rust/tcl-compiler/src/analyser/oo.rs), `analyser::oo::tests::original_unknown_source_context_requires_retained_logical_input_and_current_registry` (linked): Authentic retained Logical input constructs source options, selects its exact original switch metadata and persists on the source binding. Missing, Native, hosted and foreign context refuse; no profile-only reconstruction or Native unknown execution is granted.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-compiler/src/analyser/oo.rs](../../../../rust/tcl-compiler/src/analyser/oo.rs), `walk_unknown_stmt`: Preserve complete actual source metadata recursively; genuine Logical original operation descriptors supply conditional capability flags, independently of Native executed target selection.
+- [rust/tcl-compiler/src/analyser/oo.rs](../../../../rust/tcl-compiler/src/analyser/oo.rs), `analyser::oo::tests::original_unknown_operation_advice_keeps_actual_availability_and_captured_sources` (linked): Selected source auto-load capability keeps the actual full input and same-store availability under a Unicode captured package alias; a presentation Registry cannot replace that context, older availability and a genuine selected replacement withdraw the capability.
+- [rust/tcl-compiler/src/analyser/oo.rs](../../../../rust/tcl-compiler/src/analyser/oo.rs), `analyser::oo::tests::original_unknown_operation_advice_refuses_missing_foreign_changed_and_dynamic_source` (linked): Actual original statement bindings and complete metadata are required for conditional source operation flags; missing/availability-only/foreign/changed input, missing binding, dynamic captured selector/head and known replacement withhold the flag despite unchanged reporting text.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

@@ -988,7 +988,15 @@ mod tests {
         let inline = effects(spec, &["-inline", "a(b)", "ab"]);
         assert!(inline.suppresses(ArgRole::VarWrite));
         assert_eq!(inline.reserved_trailing_words(), None);
-        let about = effects(spec, &["-about", "a(b)"]);
+        let point = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let about = option_effects_with(
+            spec.options,
+            spec.option_effect_families,
+            InvocationArguments::literals(&["-about", "a(b)"]).with_dialect(point),
+            spec.reserved_trailing_words,
+            point.authoring_query(),
+            spec.prefix_matching,
+        );
         assert!(!about.suppresses(ArgRole::VarWrite));
         assert_eq!(about.reserved_trailing_words(), Some(1));
         // After `--`, `-inline` is the pattern.

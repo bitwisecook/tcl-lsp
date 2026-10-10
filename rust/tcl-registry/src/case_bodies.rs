@@ -52,7 +52,7 @@ impl CaseListSpec {
         let values = (0..count)
             .map(|index| arguments.literal_at(index))
             .collect::<Vec<_>>();
-        let layout = self.invocation_values(
+        let layout = self.possible_invocation_values(
             &values,
             options,
             arguments
@@ -247,6 +247,51 @@ mod tests {
         assert!(
             selection.no_match_possible,
             "event keyword does not imply exhaustive input matching"
+        );
+    }
+
+    #[test]
+    fn possible_case_subject_does_not_close_native_option_selection() {
+        // naming.source.original-editor-body-structure
+        // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+        // The original subject branch is conditional; it cannot select an
+        // unreadable option or provide a definite Native invocation layout.
+        use crate::InvocationWord::{Dynamic, Literal};
+        let registry = crate::CommandRegistry::build_default();
+        let options = registry
+            .get("switch")
+            .unwrap()
+            .options
+            .iter()
+            .collect::<Vec<_>>();
+        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+        let words = [Literal("-regexp"), Dynamic, Literal("a {BODY}")];
+        let possible = CaseListSpec::SWITCH
+            .possible_body_operands(
+                InvocationArguments::structured(&words).with_dialect(dialect),
+                &options,
+            )
+            .unwrap();
+        assert!(possible.selection_unknown);
+        assert_eq!(possible.bodies[0].argument, 2);
+        assert!(
+            CaseListSpec::SWITCH
+                .invocation_values(
+                    &[Some("-regexp"), None, Some("a {BODY}")],
+                    &options,
+                    dialect.authoring_query(),
+                )
+                .is_none()
+        );
+        assert!(
+            CaseListSpec::SWITCH
+                .source_invocation_values(
+                    &[None, None, Some("a {BODY}")],
+                    &options,
+                    dialect.authoring_query(),
+                )
+                .is_none(),
+            "an unknown active prefix cannot close selected source positions"
         );
     }
 

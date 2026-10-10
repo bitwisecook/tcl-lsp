@@ -22,8 +22,7 @@
 //! blocks, and control-structure bodies (`if`, `while`, `for`,
 //! `foreach`, `switch`, …).  The algorithm is a scope
 //! walk over the analyser's [`AnalysisResult`], a comment-line
-//! collector, and a registry-driven body-argument walker that
-//! recurses through nested braced bodies, followed by an overlap
+//! collector, and the shared original source-structure owner, followed by an overlap
 //! normalisation post-pass that trims partially overlapping
 //! siblings so VS Code's folding tree-builder doesn't drop them.
 //!
@@ -35,18 +34,12 @@
 //! [`AnalysisResult`]: tcl_compiler::analyser::AnalysisResult
 
 use std::collections::BTreeSet;
-use tcl_dialect::model::SurfaceQuery;
 
 use rustc_hash::FxHashSet;
 
 use tcl_compiler::analyser::{AnalysisResult, Scope, ScopeKind};
-use tcl_compiler::lambda_literal::split_lambda_literal;
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{Lexer, LexerConfig, LineIndex, TokenType};
-use tcl_registry::{ArgRole, CommandRegistry};
-
-use crate::oo_body::{HeadWords, is_member, member_block_indices_in, next_definition_grammar};
-use tcl_registry::definer::DefinitionBodyGrammar;
+use tcl_registry::CommandRegistry;
 
 /// LSP folding-range kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -131,9 +124,9 @@ pub fn folding_ranges_with_analysis(source: &str, analysis: &AnalysisResult) -> 
     if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
         return Vec::new();
     }
-    let Some(registry) = analysis.resolved_registry() else {
+    if analysis.resolved_registry().is_none() {
         return Vec::new();
-    };
+    }
     let line_index = LineIndex::new(source);
     let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
     let mut ranges = Vec::new();
@@ -149,23 +142,8 @@ pub fn folding_ranges_with_analysis(source: &str, analysis: &AnalysisResult) -> 
             &mut seen,
             &mut ranges,
         );
-        if let Some(identities) = analysis.retained_command_realm()
-            && let Some(input) = analysis.resolved_input.as_ref()
-        {
-            let context = input.context_registry();
-            let mut ctx = FoldCtx {
-                registry,
-                availability: Some(context.context().authoring_query()),
-                identities,
-                line_index: &line_index,
-                original_source: source,
-                seen: &mut seen,
-                ranges: &mut ranges,
-                config,
-            };
-            collect_body_folds(source, 0, 0, registry.document_grammar(), &mut ctx);
-        }
-    } else if let Some(structure) =
+    }
+    if let Some(structure) =
         crate::source_structure::SourceStructure::capture(source, Some(analysis), config)
     {
         for body in structure.bodies {
@@ -390,405 +368,6 @@ fn collect_continuation_folds(
     push_unique(seen, ranges, run_start, prev + 1, FoldKind::Region);
 }
 
-/// Recursively segment commands and emit folds for every multi-line
-/// `BODY`-roled argument.
-///
-/// `inside_oo_body` tracks whether we are recursing through the
-/// body of an outer OO definition command (`oo::class create` /
-/// `oo::define` / `oo::objdefine`). The inner OO commands
-/// (`method`, `constructor`, …) are body-bearing only inside that
-/// context — outside it, a user proc named `method` must not be
-/// misidentified.
-///
-/// Per-walk context for [`collect_body_folds`].
-///
-/// Bundles the immutable references that don't change across the
-/// recursive walk (`registry`, `line_index`, `original_source`)
-/// and the two mutable accumulators (`seen`, `ranges`).  Only
-/// `body_source`, `base_offset`, `depth`, and `inside_oo_body`
-/// vary per call — they stay as direct parameters.
-struct FoldCtx<'a> {
-    registry: &'a CommandRegistry,
-    /// Selected profile availability. Member layouts use this to reject a
-    /// version-gated option instead of treating it as a fixed-tail word.
-    availability: Option<SurfaceQuery<'a>>,
-    /// The document's statically proven command-identity facts, so a body-arg
-    /// role is resolved against the command a head *is* rather than the one it
-    /// is spelled as.  Empty — and lookup-free — for the
-    /// overwhelmingly common document that binds nothing.
-    identities: &'a tcl_compiler::realm::CommandBindingRealm,
-    line_index: &'a LineIndex,
-    original_source: &'a str,
-    seen: &'a mut FxHashSet<(u32, u32)>,
-    ranges: &'a mut Vec<FoldingRange>,
-    /// Dialect lexer config so body re-segmentation honours `{*}` / `}{`.
-    /// Whole-file lexer config; nested body slices take
-    /// [`tcl_lexer::LexerConfig::at_depth`] of it.
-    config: tcl_lexer::LexerConfig,
-}
-
-/// Recursion depth is capped at 20.
-/// Defensive recursion bound for nested-body fold collection, set to match the
-/// compiler analyser's `MAX_BODY_DEPTH` so deeply (but validly) nested code
-/// keeps full folding support. Real source never nests anywhere near this.
-const MAX_FOLD_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
-
-/// One segmented command's head, as written and as it resolves.
-///
-/// The written spelling is sliced from the command itself; the resolved name
-/// comes from the document's [`CommandBindingRealm`](tcl_compiler::realm::CommandBindingRealm)
-/// at the head's own byte offset, so a binding never retroactively re-tags an
-/// earlier call.  A document that binds nothing skips the lookup entirely.
-fn resolve_head<'a>(
-    identities: &'a tcl_compiler::realm::CommandBindingRealm,
-    cmd: &'a tcl_compiler::segmenter::SegmentedCommand,
-) -> HeadWords<'a> {
-    let at = cmd.argv.first().map_or(0, |t| t.span.start());
-    identities.head_words(cmd.name(), at)
-}
-
-#[allow(clippy::too_many_lines)] // registry case-list shapes share this generic walk
-fn collect_body_folds(
-    body_source: &str,
-    base_offset: u32,
-    depth: u32,
-    oo_grammar: Option<&'static DefinitionBodyGrammar>,
-    ctx: &mut FoldCtx<'_>,
-) {
-    if MAX_FOLD_DEPTH.exceeded(depth) {
-        return;
-    }
-    // The whole-file lexer rule (which may skip a leading byte-order mark)
-    // applies at the top level only — a mark at the head of a *nested* body
-    // slice is ordinary data.
-    let commands = segment_commands_with_offset_and_config(
-        body_source,
-        base_offset,
-        ctx.config.at_depth(depth),
-    );
-    let base_line = ctx.line_index.line_at(base_offset);
-    let comment_lines = tcl_lexer::comment_line_starts(body_source, ctx.config.at_depth(depth))
-        .into_iter()
-        .collect();
-    collect_comment_folds_from_facts(body_source, base_line, &comment_lines, ctx.seen, ctx.ranges);
-    for cmd in &commands {
-        if cmd.argv.is_empty() {
-            continue;
-        }
-        let args_borrow: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
-        // The head's *effective command identity*, resolved exactly as the
-        // semantic-token walk resolves it: a proven `interp alias` / `rename` /
-        // `namespace import` answers with the command the head really names, and
-        // a spelling whose binding was provably taken over answers with nothing,
-        // so no registry grammar is applied to it.  The member
-        // sub-keyword test below deliberately keeps the *written* spelling —
-        // `method` inside a class body is a lexical keyword, not a command
-        // binding a top-level `rename` could move.
-        let head = resolve_head(ctx.identities, cmd);
-
-        // Outer definer commands (`oo::class`, `oo::define`, `snit::type`, …)
-        // carry their body-arg shapes in the registry — `arg_indices_for_role`
-        // returns the right index. The context-sensitive member sub-keywords
-        // (`method`, `constructor`, `typemethod`, `self`, `property`, …) have
-        // no `CommandSpec`; their body indices come from the enclosing
-        // definition-body grammar ([`crate::oo_body`]).
-        let body_indices: Vec<usize> = match oo_grammar {
-            Some(g) if is_member(g, head.written) => {
-                member_block_indices_in(g, head.written, &args_borrow, ctx.availability)
-            }
-            // Every role that denotes a collapsible braced block, not just
-            // the executable one: `ArgRole::OpaqueScript` is script-shaped
-            // data a reader still wants to fold (SslicTcl's never-evaluated
-            // `predicate`), and asking the role rather than testing for `Body`
-            // is what stops this walk from deciding that for itself.
-            _ => {
-                let mut indices: Vec<usize> = ArgRole::ALL
-                    .iter()
-                    .filter(|role| role.folds_as_block())
-                    .flat_map(|&role| {
-                        ctx.registry
-                            .arg_indices_for_role(head.resolved, &args_borrow, role)
-                    })
-                    .collect();
-                indices.sort_unstable();
-                indices.dedup();
-                indices
-            }
-        };
-
-        // A clause-list command (`switch … {pat body …}`, Expect's `expect
-        // {…}`) marks that single trailing word `ArgRole::Body` too, but the
-        // word is a *list* of pattern/body pairs, not a script: re-segmenting
-        // it below would read each `pat body` pair as one bogus command, find
-        // no body role on it, and emit nothing for the arms — only the outer
-        // block folded.  Which word holds the list, and how the
-        // list is shaped, is registry data (`CommandSpec::case_list`), so this
-        // walk names no command.
-        let case_invocation = ctx.registry.get(head.resolved).and_then(|spec| {
-            let case = spec.case_list?;
-            ctx.registry
-                .case_invocation(head.resolved, &args_borrow, ctx.availability)
-                .map(|(_, invocation)| (case, invocation))
-        });
-        let case_list = case_invocation
-            .and_then(|(case, invocation)| invocation.clause_list_index.map(|index| (case, index)));
-
-        // The grammar the recursion into THIS command's bodies should carry:
-        // outer definer bodies switch to their grammar, member bodies switch
-        // off, everything else inherits.
-        let next_grammar = next_definition_grammar(head, &args_borrow, oo_grammar, ctx.registry);
-
-        // Case-list descriptors own their enclosing list independently of
-        // ordinary `ArgRole::Body`: Expect has no generic body role, whereas
-        // switch does. Handle it once here, then omit it from the body loop so
-        // switch retains exactly its former folds without duplicates.
-        if let Some((spec, case_idx)) = case_list
-            && let Some(&body_tok) = cmd.arg_tokens().get(case_idx)
-            && matches!(body_tok.kind, TokenType::Str)
-        {
-            emit_body_span_fold(
-                body_tok.span,
-                ctx.original_source,
-                ctx.line_index,
-                ctx.seen,
-                ctx.ranges,
-            );
-            collect_clause_folds(body_tok, spec, depth, ctx);
-        }
-
-        if let Some((spec, invocation)) = case_invocation
-            && let Some(start) = invocation.inline_clause_start
-            && let Some(clauses) = spec.inline_clauses(&args_borrow, start)
-        {
-            for clause in clauses {
-                let Some(body_index) = clause.body_index else {
-                    continue;
-                };
-                let Some(&body_tok) = cmd.arg_tokens().get(body_index) else {
-                    continue;
-                };
-                if !matches!(body_tok.kind, TokenType::Str) {
-                    continue;
-                }
-                emit_body_span_fold(
-                    body_tok.span,
-                    ctx.original_source,
-                    ctx.line_index,
-                    ctx.seen,
-                    ctx.ranges,
-                );
-                let content_start =
-                    body_tok.span.start() as usize + body_tok.content_offset as usize;
-                let raw_end = body_tok.span.end() as usize;
-                let bytes = ctx.original_source.as_bytes();
-                let content_end = if raw_end > content_start
-                    && raw_end - content_start == 1
-                    && bytes.get(raw_end - 1) == Some(&b'}')
-                {
-                    content_start
-                } else {
-                    raw_end
-                };
-                if let Some(inner) = ctx.original_source.get(content_start..content_end) {
-                    collect_body_folds(
-                        inner,
-                        u32::try_from(content_start).expect("content offset fits u32"),
-                        depth + 1,
-                        None,
-                        ctx,
-                    );
-                }
-            }
-        }
-
-        for idx in body_indices {
-            if case_list.is_some_and(|(_, case_idx)| case_idx == idx) {
-                continue;
-            }
-            let arg_tokens = cmd.arg_tokens();
-            if idx >= arg_tokens.len() {
-                continue;
-            }
-            let body_tok = arg_tokens[idx];
-            if !matches!(body_tok.kind, TokenType::Str) {
-                continue;
-            }
-            emit_body_span_fold(
-                body_tok.span,
-                ctx.original_source,
-                ctx.line_index,
-                ctx.seen,
-                ctx.ranges,
-            );
-
-            // Recurse into the body's content. The lexer's STR span
-            // includes the opening ``{``; for closed non-empty bodies
-            // it ends just before the closing ``}``, for closed empty
-            // bodies it includes the ``}`` (degenerate clamp), and for
-            // unclosed bodies it runs to EOF.  Slice the absolute
-            // source so recursive spans stay in original-source space.
-            let span = body_tok.span;
-            let content_start = span.start() as usize + body_tok.content_offset as usize;
-            let raw_end = span.end() as usize;
-            let bytes = ctx.original_source.as_bytes();
-            // Strip the trailing ``}`` for the empty-body clamp case
-            // so the sub-lexer doesn't see a stray close-brace.
-            let content_end = if raw_end > content_start
-                && raw_end - content_start == 1
-                && bytes.get(raw_end - 1) == Some(&b'}')
-            {
-                content_start
-            } else {
-                raw_end
-            };
-            if content_end <= content_start {
-                continue;
-            }
-            let inner = &ctx.original_source[content_start..content_end];
-            collect_body_folds(
-                inner,
-                u32::try_from(content_start).expect("content offset fits u32"),
-                depth + 1,
-                next_grammar,
-                ctx,
-            );
-        }
-
-        collect_lambda_folds(cmd, head.resolved, &args_borrow, depth, ctx);
-    }
-}
-
-/// `apply {argList body ?ns?} …` (and any future command sharing the shape) —
-/// fold the whole lambda literal as one region, but recurse only into the real
-/// body element (`split_lambda_literal`): the argument-list element
-/// is a plain word/list, not code, so re-segmenting the whole literal as a
-/// script would mis-read the params word as a command name and never find
-/// the real body's own nested folds.
-fn collect_lambda_folds(
-    cmd: &tcl_compiler::segmenter::SegmentedCommand,
-    resolved_head: &str,
-    args: &[&str],
-    depth: u32,
-    ctx: &mut FoldCtx<'_>,
-) {
-    for idx in ctx
-        .registry
-        .arg_indices_for_role(resolved_head, args, ArgRole::LambdaLiteral)
-    {
-        let arg_tokens = cmd.arg_tokens();
-        let Some(&lambda_tok) = arg_tokens.get(idx) else {
-            continue;
-        };
-        if !matches!(lambda_tok.kind, TokenType::Str) {
-            continue;
-        }
-        emit_body_span_fold(
-            lambda_tok.span,
-            ctx.original_source,
-            ctx.line_index,
-            ctx.seen,
-            ctx.ranges,
-        );
-        let Some(elems) = split_lambda_literal(ctx.original_source, lambda_tok) else {
-            continue;
-        };
-        let Some(body_span) = elems.body else {
-            continue;
-        };
-        let (bstart, bend) = (body_span.start() as usize, body_span.end() as usize);
-        if bend <= bstart {
-            continue;
-        }
-        let Some(inner) = ctx.original_source.get(bstart..bend) else {
-            continue;
-        };
-        // The body runs in a fresh, non-OO frame (`apply`'s own scope),
-        // never the enclosing definer's grammar.
-        collect_body_folds(inner, body_span.start(), depth + 1, None, ctx);
-    }
-}
-
-/// Fold every arm of a clause list: one region per arm body, recursing into
-/// each as a script so nested `if` / `foreach` / `proc` blocks inside an arm
-/// fold too.
-///
-/// `list_tok` is the braced clause-list word itself (already folded as one
-/// block by the caller).  The split is [`tcl_syntax::case_list`]'s — the same
-/// one the semantic-token walker and the iRules object walker use, so the
-/// three cannot disagree about where an arm's body is.  It is a **list**
-/// split, not a command segmentation: `;` and `#` are ordinary pattern text
-/// inside a clause list, which is Tcl's "comments don't work in `switch`"
-/// gotcha.
-///
-/// A `-` fall-through body and a single-line arm both fold to nothing — the
-/// shared `end_line > start_line` guard drops them — so no arm-specific
-/// filtering is needed here.
-fn collect_clause_folds(
-    list_tok: tcl_lexer::Token,
-    spec: &'static tcl_registry::CaseListSpec,
-    depth: u32,
-    ctx: &mut FoldCtx<'_>,
-) {
-    let content_start = list_tok.span.start() as usize + list_tok.content_offset as usize;
-    let content_end = list_tok.span.end() as usize;
-    if content_end <= content_start {
-        return;
-    }
-    let Some(inner) = ctx.original_source.get(content_start..content_end) else {
-        return;
-    };
-    let shape = tcl_syntax::case_list::CaseListShape {
-        clause_flags: spec.clause_flags,
-        clause_value_flags: spec.clause_value_flags,
-    };
-    for clause in tcl_syntax::case_list::split_case_list(inner, &shape) {
-        let Some(body) = clause.body else {
-            continue;
-        };
-        // Preserve the syntax owner's lexer-compatible arm range: it starts
-        // at `{` and ends at the closing brace. The content range below then
-        // excludes exactly the opener, without every consumer guessing at
-        // boundary arithmetic.
-        let token_range = body.token_range();
-        let (abs_start, abs_end) = (
-            content_start + token_range.start,
-            content_start + token_range.end,
-        );
-        let (Ok(start), Ok(end)) = (u32::try_from(abs_start), u32::try_from(abs_end)) else {
-            continue;
-        };
-        emit_body_span_fold(
-            tcl_lexer::Span::new(start, end),
-            ctx.original_source,
-            ctx.line_index,
-            ctx.seen,
-            ctx.ranges,
-        );
-        // Only a braced arm body is a script whose source slice is what runs;
-        // a bare or quoted one is substituted before the command sees it, so
-        // its text is not the script (the same rule `apply`'s lambda body
-        // follows).
-        if !body.braced {
-            continue;
-        }
-        let content_range = body.content_range();
-        let inner_start = content_start + content_range.start;
-        let inner_end = content_start + content_range.end;
-        if inner_end <= inner_start {
-            continue;
-        }
-        let Some(arm) = ctx.original_source.get(inner_start..inner_end) else {
-            continue;
-        };
-        let Ok(base) = u32::try_from(inner_start) else {
-            continue;
-        };
-        // An arm body runs in the caller's frame, never a definition-body
-        // grammar of its own.
-        collect_body_folds(arm, base, depth + 1, None, ctx);
-    }
-}
-
 /// Trim partially overlapping sibling folds so the returned ranges
 /// are pairwise disjoint or properly nested.
 ///
@@ -911,6 +490,7 @@ pub fn normalise_overlaps(ranges: Vec<FoldingRange>) -> Vec<FoldingRange> {
 mod tests {
     use std::collections::HashSet;
     use tcl_dialect::model::SurfaceLayer;
+    use tcl_registry::ArgRole;
 
     use super::*;
 
@@ -973,6 +553,70 @@ mod tests {
         let config = analysis.body_lexer_config.as_mut().unwrap();
         config.strict_quoting = !config.strict_quoting;
         assert!(folding_ranges_with_analysis(source, &analysis).is_empty());
+    }
+
+    fn logical_analysis_with_availability(source: &str, environment: &str) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let store =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let selected = tcl_registry::model::ingress::resolve_environment(environment)
+            .default_context_registry();
+        let context = std::sync::Arc::new(
+            selected.with_command_store(store.commands().snapshot().shared_registry()),
+        );
+        tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                context,
+                LexerConfig::for_profile(Some(profile)),
+            ))
+            .analyse(source, "presentation-only")
+    }
+
+    #[test]
+    fn original_folding_keeps_actual_availability_without_native_body_entry() {
+        // Implementation contract: naming.source.original-editor-body-structure
+        // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+        let source = "lmap x {a} {\n puts first\n puts second\n}\n";
+        let current = logical_analysis_with_availability(source, "tcl8.6");
+        assert!(current.allows_lexical_declaration_advice());
+        assert!(
+            folding_ranges_with_analysis(source, &current)
+                .iter()
+                .any(|fold| fold.start_line == 0 && fold.end_line == 2)
+        );
+        let older = logical_analysis_with_availability(source, "tcl8.4");
+        assert!(folding_ranges_with_analysis(source, &older).is_empty());
+        let mut missing = current.clone();
+        missing.resolved_input = None;
+        assert!(folding_ranges_with_analysis(source, &missing).is_empty());
+        let mut changed = current;
+        changed.resolved_input = older.resolved_input;
+        assert!(folding_ranges_with_analysis(source, &changed).is_empty());
+    }
+
+    #[test]
+    fn original_folding_keeps_captured_body_ordinals_and_source_replacements() {
+        // Implementation contract: naming.source.original-editor-body-structure
+        // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
+        let source = "interp alias {} selected {} if 1\nselected {\n puts first\n puts second\n}\n";
+        let analysis = logical_analysis_with_availability(source, "tcl8.6");
+        assert!(
+            folding_ranges_with_analysis(source, &analysis)
+                .iter()
+                .any(|fold| fold.start_line == 1 && fold.end_line == 3)
+        );
+        let replaced = "proc if args {}\ninterp alias {} selected {} if 1\nselected {\n puts first\n puts second\n}\n";
+        let unavailable = logical_analysis_with_availability(replaced, "tcl8.6");
+        assert!(
+            !folding_ranges_with_analysis(replaced, &unavailable)
+                .iter()
+                .any(|fold| fold.start_line == 2)
+        );
+        assert!(
+            folding_ranges_with_analysis(&source.replace("first", "other"), &analysis).is_empty()
+        );
     }
 
     #[test]

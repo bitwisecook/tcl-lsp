@@ -3380,7 +3380,7 @@ impl CommandRegistry {
             // names are not initial bindings until this context activates them.
             let binding_available = spec
                 .owning_package()
-                .is_none_or(|package| context.package_active(package));
+                .is_none_or(|package| context.package_provider_active(package));
             if binding_available && rooted_fallback_allowed(&canonical, spec) {
                 binding_names.insert(canonical.clone());
             }
@@ -12063,7 +12063,7 @@ mod tests {
             min_abbrev: None,
             effect: None,
         }];
-        fn roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+        fn literal_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
             let first =
                 crate::spec::leading_option_word_count_with(OPTIONS, args, PrefixMatching::Strict);
             [
@@ -12078,11 +12078,35 @@ mod tests {
             })
             .collect()
         }
+        fn layout_roles(
+            args: InvocationArguments<'_>,
+            options: crate::resolved_invocation::InvocationOptions<'_, '_>,
+        ) -> Option<Vec<(u8, ArgRole)>> {
+            let first = options.leading_word_count(args)?;
+            let count = args.exact_argv_len()?;
+            Some(
+                [
+                    (first, ArgRole::Pattern),
+                    (first + 2, ArgRole::FormatString),
+                ]
+                .into_iter()
+                .filter_map(|(index, role)| {
+                    (index < count)
+                        .then(|| u8::try_from(index).ok().map(|index| (index, role)))
+                        .flatten()
+                })
+                .collect(),
+            )
+        }
+        assert_eq!(
+            literal_roles(&["-skip", "1", "a", "s", "replacement"]),
+            vec![(2, ArgRole::Pattern), (4, ArgRole::FormatString)]
+        );
         const SPEC: CommandSpec = CommandSpec {
             name: "mutated-pattern-format-owner",
             options: OPTIONS,
             prefix_matching: PrefixMatching::Strict,
-            arg_role_resolver: Some(roles),
+            arg_role_layout_resolver: Some(layout_roles),
             pattern_type: Some(PatternType::Regex),
             format_string_type: Some(FormatType::Regsub),
             ..CommandSpec::DEFAULT
@@ -17081,13 +17105,19 @@ mod tests {
             reg.invocation_completion("return", &["-level", "$dynamic", "$w"], None),
             InvocationCompletion::Unknown,
         );
-        for invalid in [&["-level", "-1", "value"][..], &["value", "extra"][..]] {
+        for invalid in [&["-level", "-1", "value"][..]] {
             assert_eq!(
                 reg.invocation_completion("return", invalid, None),
                 InvocationCompletion::Terminates,
                 "native validation error ends the current path"
             );
         }
+        // Native worker383 ordinary_pair: C85–C91 catch=2/result empty;
+        // C84 catch=1. Custom option pairs are valid in this selected C9 context.
+        assert_eq!(
+            reg.invocation_completion("return", &["value", "extra"], None),
+            InvocationCompletion::ReturnsResult(None)
+        );
         // A registry that names no release answers only what every release
         // reads alike: 8.4 rejects `-level`, which 8.5 reads.
         assert_eq!(
@@ -17352,7 +17382,6 @@ mod tests {
                 &["-level", "-1", "payload"][..],
                 &["-code", "-level"][..],
                 &["-level", "-code"][..],
-                &["payload", "extra"][..],
             ] {
                 assert_eq!(
                     reg.exact_invocation_completion("return", args, None),
@@ -17360,7 +17389,8 @@ mod tests {
                     "{dialect}: {args:?}"
                 );
             }
-            // Two words are an option and its value, whatever the first
+            // Native worker383 confirms ordinary_pair catch=2/result empty
+            // for these exact C86/C90 workers. Two words are an option and its value, whatever the first
             // spells, which the options dictionary keeps: `proc p {} {return
             // payload extra}` returns the empty string (tclsh 8.6, 9.0).
             assert_eq!(

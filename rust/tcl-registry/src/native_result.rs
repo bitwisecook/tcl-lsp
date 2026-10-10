@@ -707,7 +707,15 @@ mod tests {
                     vec!["-code", "ok", "value"],
                     NativeResultSelection::Argument(2),
                 ),
-                (vec!["one", "two"], NativeResultSelection::InvalidArguments),
+                // Native worker383 ordinary_pair: C84 error, C85–C91 empty result.
+                (
+                    vec!["one", "two"],
+                    if version == tcl_dialect::TclVersion::V8_4 {
+                        NativeResultSelection::InvalidArguments
+                    } else {
+                        NativeResultSelection::EmptyString
+                    },
+                ),
                 (
                     vec!["-code", "wrong", "value"],
                     NativeResultSelection::InvalidArguments,

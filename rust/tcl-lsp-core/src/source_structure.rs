@@ -41,6 +41,8 @@ pub(crate) struct SourceStructure {
     pub(crate) commands: Vec<SegmentedCommand>,
     pub(crate) bodies: Vec<Span>,
     pub(crate) scripts: Vec<(Span, u32)>,
+    definition_members:
+        Vec<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberRegion>,
 }
 
 /// Readonly original script geometry from one complete retained analysis.
@@ -57,6 +59,37 @@ pub struct SourceSyntaxStructure {
 pub struct SourceSyntaxRegion {
     span: Span,
     tokens: Vec<Token>,
+}
+
+/// Readonly member selected by the genuine captured definition vocabulary.
+/// This owns no global command identity, frame, formal value or edit permission.
+pub(crate) struct SourceSyntaxDefinitionMember<'a> {
+    selection: &'a tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberRegion,
+    words: &'a [NativeWord],
+}
+
+/// Missing correspondence within an otherwise genuine member source query.
+#[derive(Debug)]
+pub(crate) enum SourceSyntaxMemberUnavailable {
+    /// More than one selected parent vocabulary reaches this original head.
+    AmbiguousVocabulary,
+    /// Supplied whole words or body extents differ from the retained member.
+    WordCorrespondence,
+}
+
+impl SourceSyntaxDefinitionMember<'_> {
+    /// Whole original member vector from the selected parent region.
+    pub(crate) const fn original_words(&self) -> &[NativeWord] {
+        self.words
+    }
+
+    /// Selected member scripts retain their original containers and ordinals.
+    pub(crate) fn script_bodies(
+        &self,
+    ) -> Option<Vec<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberScriptBody>>
+    {
+        self.selection.script_bodies(self.words)
+    }
 }
 
 impl SourceSyntaxRegion {
@@ -106,6 +139,30 @@ impl SourceSyntaxStructure {
     #[must_use]
     pub fn commands(&self) -> &[SegmentedCommand] {
         &self.structure.commands
+    }
+
+    /// Select a member at its actual original head before any global command
+    /// lookup. Ambiguous parent vocabularies decline without nominal fallback.
+    pub(crate) fn definition_member_at(
+        &self,
+        head: u32,
+    ) -> Result<Option<SourceSyntaxDefinitionMember<'_>>, SourceSyntaxMemberUnavailable> {
+        // naming.editor.original-source-formatting
+        // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
+        let mut selected = None;
+        for selection in &self.structure.definition_members {
+            let Some(words) = selection.original_command_words_at(head) else {
+                continue;
+            };
+            if selection.script_bodies(words).is_none() {
+                continue;
+            }
+            if selected.is_some() {
+                return Err(SourceSyntaxMemberUnavailable::AmbiguousVocabulary);
+            }
+            selected = Some(SourceSyntaxDefinitionMember { selection, words });
+        }
+        Ok(selected)
     }
 
     /// Original script interiors and their shared lexer nesting depth.
@@ -306,6 +363,7 @@ impl SourceStructure {
             commands: Vec::new(),
             bodies: Vec::new(),
             scripts: Vec::new(),
+            definition_members: Vec::new(),
         };
         let mut queue: VecDeque<PendingSourceRegion> =
             VecDeque::from([(Span::new(0, end), 0, None)]);
@@ -408,6 +466,11 @@ impl SourceStructure {
             };
             for command in &commands {
                 self.command_bodies(source, command, &context, queue);
+            }
+            if purpose == CapturePurpose::Readonly
+                && let Some(members) = definition_members
+            {
+                self.definition_members.push(members);
             }
         }
         self.commands.extend(commands);

@@ -779,7 +779,7 @@ impl CaseListSpec {
         options: &[&crate::hover::OptionSpec],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<CaseInvocation> {
-        self.invocation_values_with_clause_validation(args, options, dialect, true)
+        self.invocation_values_with_clause_validation(args, options, dialect, true, false)
     }
 
     /// Readonly outer source shape with unknown clause-list values retained.
@@ -792,7 +792,32 @@ impl CaseListSpec {
         options: &[&crate::hover::OptionSpec],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<CaseInvocation> {
-        self.invocation_values_with_clause_validation(args, options, dialect, false)
+        self.invocation_values_with_clause_validation(args, options, dialect, false, false)
+    }
+
+    /// One possible positional subject branch, with the original unknown value
+    /// retained. This does not resolve an unreadable option or its width; the
+    /// caller must retain a separate unknown selection/error continuation.
+    #[must_use]
+    pub fn possible_invocation_values(
+        self,
+        args: &[Option<&str>],
+        options: &[&crate::hover::OptionSpec],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<CaseInvocation> {
+        self.invocation_values_with_clause_validation(args, options, dialect, true, true)
+    }
+
+    /// Possible outer source positions without admitting an action/list value.
+    /// This carries no definite option selection or executable body authority.
+    #[must_use]
+    pub fn possible_source_invocation_values(
+        self,
+        args: &[Option<&str>],
+        options: &[&crate::hover::OptionSpec],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<CaseInvocation> {
+        self.invocation_values_with_clause_validation(args, options, dialect, false, true)
     }
 
     fn invocation_values_with_clause_validation(
@@ -801,6 +826,7 @@ impl CaseListSpec {
         options: &[&crate::hover::OptionSpec],
         dialect: Option<SurfaceQuery<'_>>,
         validate_clause_list: bool,
+        possible_subject: bool,
     ) -> Option<CaseInvocation> {
         let shape = tcl_syntax::case_list::CaseListShape {
             clause_flags: self.clause_flags,
@@ -808,8 +834,15 @@ impl CaseListSpec {
         };
         let per_clause_flags = self.subject_args == 0 && !self.clause_flags.is_empty();
         let sole_clause_list = per_clause_flags && args.len() == 1;
-        let scan =
-            self.scan_invocation_options(args, options, dialect, &shape, sole_clause_list)?;
+        let scan = self.scan_invocation_options(
+            args,
+            options,
+            dialect,
+            &shape,
+            sole_clause_list,
+            !validate_clause_list,
+            possible_subject,
+        )?;
         let mut i = scan.index;
         let mode = scan.mode.unwrap_or(self.default_mode);
         let special_option = scan.special_option;
@@ -925,6 +958,8 @@ impl CaseListSpec {
         dialect: Option<SurfaceQuery<'_>>,
         shape: &tcl_syntax::case_list::CaseListShape,
         sole_clause_list: bool,
+        source_shape: bool,
+        possible_subject: bool,
     ) -> Option<CaseOptionScan> {
         let mut scan = CaseOptionScan::default();
         // A sole subject-less clause-list word owns its own clause flags.
@@ -977,9 +1012,13 @@ impl CaseListSpec {
             if !scan.outer_options_ended
                 && !options.is_empty()
                 && args.get(scan.index) == Some(&None)
+                && !(self.subject_args == 1 && (possible_subject || source_shape && scan.index > 0))
             {
                 // An unreadable active candidate can still select an option;
                 // it does not establish the positional subject boundary.
+                // Source shape after a selected prefix and possible-body
+                // queries may retain a positional branch, without reading
+                // this value as an option or assigning it an option width.
                 return None;
             }
         }
@@ -1122,7 +1161,7 @@ impl CaseListSpec {
             return None;
         }
         let layout =
-            self.invocation_values_with_clause_validation(args, options, dialect, false)?;
+            self.invocation_values_with_clause_validation(args, options, dialect, false, false)?;
         let argument = layout.clause_list_index?;
         let elements = rules
             .split_list(args.get(argument).copied().flatten()?)

@@ -113,7 +113,7 @@ pub use ranges::{
     word_end_position, word_span, word_span_at,
 };
 pub use script::{CommandSpan, WordKind, WordSpan, group_commands, group_commands_bytes};
-pub use source_map::{SourceChannel, SourceImage, SourceMap};
+pub use source_map::{DocumentLineEndingProjection, SourceChannel, SourceImage, SourceMap};
 pub use span::Span;
 pub use structural_index::{
     BraceIndex, BracketIndex, ExprParenIndex, ParenBalance, command_boundaries, reparse_window,

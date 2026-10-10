@@ -3717,7 +3717,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .map(|index| arguments.literal_at(index))
             .collect::<Vec<_>>();
         let options = self.semantics.options.available().collect::<Vec<_>>();
-        let invocation = case.source_invocation_values(
+        let invocation = case.possible_source_invocation_values(
             &values,
             &options,
             self.semantics.options.availability.query,
@@ -4100,8 +4100,12 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             })
             .collect::<Vec<_>>();
         let options = self.semantics.options.available().collect::<Vec<_>>();
-        case.invocation_values(&values, &options, self.semantics.options.availability.query)
-            .map(|layout| (case, layout))
+        case.possible_invocation_values(
+            &values,
+            &options,
+            self.semantics.options.availability.query,
+        )
+        .map(|layout| (case, layout))
     }
 
     /// Original case-pattern layout from this already selected descriptor.
