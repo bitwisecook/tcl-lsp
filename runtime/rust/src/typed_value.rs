@@ -1094,7 +1094,21 @@ mod tests {
                     crate::native_source::bind_context(value.as_ptr(), context)
                         .expect("original scalar belongs to selected Jim fixture");
                 }
-                let boolean = native_boolean(value.as_ptr(), dialect);
+                // The fresh C84 numeric branch owns actual strtol/strtod and
+                // its independently supplied C target, not a profile default.
+                let environment = tcl_host_c_abi::NativeNumericEnvironment;
+                let boolean = native_scalar_getter_with_environment(
+                    value.as_ptr(),
+                    dialect,
+                    tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
+                    Some(&environment),
+                )
+                .map(|returned| match returned {
+                    tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(value) => {
+                        value.is_true()
+                    }
+                    _ => panic!("Boolean getter result"),
+                });
                 assert_eq!(
                     boolean.is_ok(),
                     field(line, "boolcode") == "0",

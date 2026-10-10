@@ -2957,6 +2957,22 @@ impl tcl_syntax::expr::ExprOps for OrderedProbe<'_> {
     fn to_bool(&mut self, value: &i64) -> Result<bool, Stop> {
         Ok(*value != 0)
     }
+    // Explicit mathematical adapter: no original native object/effect claim.
+    fn to_bool_for_purpose(
+        &mut self,
+        value: &i64,
+        _purpose: tcl_syntax::native_boolean_truth::NativeBooleanTruthPurpose,
+    ) -> Result<bool, Stop> {
+        self.to_bool(value)
+    }
+    fn logical_right_truth(
+        &mut self,
+        _left: &i64,
+        right: &i64,
+        _conjunction: bool,
+    ) -> Result<bool, Stop> {
+        self.to_bool(right)
+    }
     fn bool_value(&mut self, b: bool) -> i64 {
         i64::from(b)
     }

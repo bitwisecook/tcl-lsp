@@ -316,8 +316,11 @@ fn primitive_boolean_storage_and_followup_wide_match_all_native_fixtures() {
                 Value::from_string_bytes(input)
             };
             let value = object;
+            // Fresh C84 numeric Boolean requires the reached actual C stages;
+            // the host layout does not donate object or expression authority.
+            let environment = tcl_host_c_abi::NativeNumericEnvironment;
             let boolean = value
-                .native_scalar_getter(dialect, Kind::Boolean)
+                .native_scalar_getter_with_environment(dialect, Kind::Boolean, Some(&environment))
                 .map(|returned| match returned {
                     Returned::Boolean(value) => value,
                     _ => panic!("Boolean getter result"),

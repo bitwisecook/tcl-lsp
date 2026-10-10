@@ -4,7 +4,7 @@
 
 use tcl_platform::{
     DoubleNumericConversion, NativeCIntegerAbi, NumericEnvironment, NumericEnvironmentUnavailable,
-    NumericErrorState, UnsignedNumericConversion,
+    NumericErrorState, SignedNumericConversion, UnsignedNumericConversion,
 };
 
 mod integer_formatter;
@@ -35,7 +35,7 @@ impl NativeNumericEnvironment {
 mod native {
     use super::{
         DoubleNumericConversion, NumericEnvironmentUnavailable, NumericErrorState,
-        UnsignedNumericConversion,
+        SignedNumericConversion, UnsignedNumericConversion,
     };
     use std::ffi::CString;
 
@@ -146,6 +146,39 @@ mod native {
             return Err(NumericEnvironmentUnavailable::Conversion);
         }
         Ok(UnsignedNumericConversion {
+            value,
+            end,
+            before,
+            after,
+        })
+    }
+
+    pub(super) fn signed_long(
+        bytes: &[u8],
+        base: u32,
+    ) -> Result<SignedNumericConversion, NumericEnvironmentUnavailable> {
+        let original = input(bytes);
+        if !(base == 0 || (2..=36).contains(&base)) || core::mem::size_of::<libc::c_long>() != 8 {
+            return Err(NumericEnvironmentUnavailable::Conversion);
+        }
+        let before = state();
+        let mut end = std::ptr::null_mut();
+        let radix =
+            libc::c_int::try_from(base).map_err(|_| NumericEnvironmentUnavailable::Conversion)?;
+        // SAFETY: original owns a NUL-terminated allocation through the C call
+        // and end-pointer observation. The admitted radix is valid for strtol.
+        let (value, consumed) = unsafe {
+            let value = libc::strtol(original.as_ptr(), &raw mut end, radix);
+            (value, end.offset_from(original.as_ptr()))
+        };
+        let after = state();
+        let value = i64::try_from(value).map_err(|_| NumericEnvironmentUnavailable::Conversion)?;
+        let end =
+            usize::try_from(consumed).map_err(|_| NumericEnvironmentUnavailable::Conversion)?;
+        if end > original.as_bytes().len() {
+            return Err(NumericEnvironmentUnavailable::Conversion);
+        }
+        Ok(SignedNumericConversion {
             value,
             end,
             before,
@@ -292,6 +325,32 @@ impl NumericEnvironment for NativeNumericEnvironment {
         )))]
         {
             let _ = (input, offset, base);
+            Err(NumericEnvironmentUnavailable::Target)
+        }
+    }
+
+    fn signed_long(
+        &self,
+        input: &[u8],
+        base: u32,
+    ) -> Result<SignedNumericConversion, NumericEnvironmentUnavailable> {
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "macos",
+            target_os = "ios",
+            target_os = "freebsd"
+        ))]
+        {
+            native::signed_long(input, base)
+        }
+        #[cfg(not(any(
+            target_os = "linux",
+            target_os = "macos",
+            target_os = "ios",
+            target_os = "freebsd"
+        )))]
+        {
+            let _ = (input, base);
             Err(NumericEnvironmentUnavailable::Target)
         }
     }

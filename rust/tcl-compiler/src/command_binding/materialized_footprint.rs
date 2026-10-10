@@ -554,7 +554,7 @@ mod tests {
     use std::sync::Arc;
 
     fn unit(source: &str, context: &Arc<tcl_registry::model::ContextRegistry>) -> CompilationUnit {
-        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let input = ResolvedAnalysisInput::new(profile, profile, Arc::clone(context), config);
         CompilationUnit::build_with_analysis_input(

@@ -438,6 +438,25 @@ impl Analyser {
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) {
+        #[cfg(any(test, debug_assertions))]
+        let phase_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(std::time::Instant::now);
+        #[cfg(any(test, debug_assertions))]
+        let trace_phase = |stage: &'static str| {
+            if let Some(start) = phase_start {
+                eprintln!(
+                    "DIAGNOSTIC_CFG_EMISSION_PHASE bytes={} procedures={} methods={} body_units={} stage={stage} us={}",
+                    cu.source.len(),
+                    cu.procedures.len(),
+                    cu.methods.len(),
+                    cu.body_units.len(),
+                    start.elapsed().as_micros()
+                );
+            }
+        };
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("initial");
         self.settle_cu_derived_object_facts(cu, registry);
         self.settle_w123_widening(cu);
         self.loop_unseen_writes = super::bounds_checks::ModuleUnseenWrites::of(&cu.ir_module);
@@ -446,12 +465,16 @@ impl Analyser {
         // deleted earlier in the file via the flow-sensitive
         // command-binding lattice.  Independent of the CFG/SSA dead-store
         // machinery below, so run it up front against the same `cu`.
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("object-facts");
         self.emit_w128_renamed_command(cu, registry);
 
         // Compute the set of globals any
         // proc in this module writes to.  Top-level RBS (W210)
         // is suppressed for these variables — a helper proc may
         // populate them before the top-level read fires.
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("command-binding");
         let cell_facts = helpers::DiagnosticCellFacts {
             known_defined: globals_written_by_procs(cu, registry),
             externally_read: globals_read_by_procs(cu, registry),
@@ -530,6 +553,8 @@ impl Analyser {
         // ``CompilationUnit::functions``.
         // Iterate top-level explicitly so we can pass the IR
         // module through.
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("module-suppression");
         let module = crate::interprocedural::ModuleProcedures::of_unit(cu, registry);
         self.emit_cfg_ssa_diagnostics_for_function_with_cells(
             &cu.top_level,
@@ -541,6 +566,8 @@ impl Analyser {
         );
         self.emit_channel_diagnostics(&cu.top_level);
         self.emit_irules_cell_diagnostics(&cu.top_level, "::top", registry);
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("top-level");
         self.emit_procedure_body_diagnostics(
             cu,
             registry,
@@ -548,6 +575,8 @@ impl Analyser {
             (&unit_commands, &module),
         );
 
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("procedures");
         self.emit_fresh_frame_body_diagnostics(
             cu,
             registry,
@@ -557,18 +586,28 @@ impl Analyser {
 
         // Cross-function post-pass: resolve $var-as-command sites
         // collected during the walk.
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("fresh-bodies");
         self.emit_var_command_diagnostics(cu, registry);
 
         // W250 — instantiating an `oo::abstract` class.
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("variable-command");
         self.emit_abstract_instantiation_diagnostics(cu);
 
         // Resolve the constant-`$cmd` dispatch sites against the
         // flow-sensitive value model,
         // emitting the indirect head references and their writable
         // literal-anchored twins.
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("abstract-factory");
         self.settle_const_dispatches(cu);
         self.emit_w102_template_plans(cu);
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("constant-dispatch-and-template");
         self.emit_proven_word_diagnostics(cu);
+        #[cfg(any(test, debug_assertions))]
+        trace_phase("complete");
     }
 
     /// Emit per-procedure diagnostics using the same prepared cross-function

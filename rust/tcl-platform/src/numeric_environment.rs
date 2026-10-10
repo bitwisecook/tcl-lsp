@@ -25,6 +25,19 @@ pub struct UnsignedNumericConversion {
     pub after: NumericErrorState,
 }
 
+/// A reached signed C long conversion, retaining real thread-state effects.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SignedNumericConversion {
+    /// Exact signed long result under the independently checked host layout.
+    pub value: i64,
+    /// End-pointer byte offset in the original counted input.
+    pub end: usize,
+    /// Actual thread state before the C call, without an implicit reset.
+    pub before: NumericErrorState,
+    /// Actual thread state afterward; a successful call need not clear errno.
+    pub after: NumericErrorState,
+}
+
 /// A reached double C conversion with an explicit errno-reset purpose.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DoubleNumericConversion {
@@ -99,6 +112,18 @@ pub trait NumericEnvironment {
         offset: usize,
         base: u32,
     ) -> Result<UnsignedNumericConversion, NumericEnvironmentUnavailable>;
+
+    /// Execute strtol on original input under the actual host long layout.
+    /// Base is zero or 2..=36. This operation never resets errno; availability
+    /// and the caller's native purpose remain independent of input spelling.
+    fn signed_long(
+        &self,
+        input: &[u8],
+        base: u32,
+    ) -> Result<SignedNumericConversion, NumericEnvironmentUnavailable> {
+        let _ = (input, base);
+        Err(NumericEnvironmentUnavailable::Target)
+    }
 
     /// Execute strtod on original input. Reset is an explicit caller-selected
     /// native operation, not an inferred property of the current errno.

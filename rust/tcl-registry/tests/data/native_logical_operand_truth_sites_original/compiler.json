@@ -1,0 +1,11 @@
+{
+  "command": [
+    "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "--version"
+  ],
+  "exit": 0,
+  "executable": "/usr/bin/x86_64-linux-gnu-gcc-14",
+  "executable_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+  "stdout_sha256": "2ae7618a3dfad6644f70dbf191f205882a96d3aac6350978839c4c19389f95a5",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

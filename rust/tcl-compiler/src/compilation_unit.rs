@@ -738,6 +738,149 @@ enum RetainedSemanticDepth {
     Full,
 }
 
+// Optional phase measurements carry no source, cache or admission authority.
+#[cfg(any(test, debug_assertions))]
+#[derive(Default)]
+struct SourceFunctionPhaseTotals {
+    label: &'static str,
+    functions: usize,
+    blocks: usize,
+    statements: usize,
+    micros: [u128; 10],
+}
+
+#[cfg(any(test, debug_assertions))]
+std::thread_local! {
+    static SOURCE_FUNCTION_PHASE_TOTALS: std::cell::RefCell<Vec<SourceFunctionPhaseTotals>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+#[cfg(any(test, debug_assertions))]
+struct SourcePipelineTrace {
+    start: Option<std::time::Instant>,
+    label: &'static str,
+    bytes: usize,
+    procedures: usize,
+}
+
+#[cfg(any(test, debug_assertions))]
+impl SourcePipelineTrace {
+    fn new(label: &'static str, bytes: usize) -> Self {
+        let start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(std::time::Instant::now);
+        if start.is_some() {
+            SOURCE_FUNCTION_PHASE_TOTALS.with(|stack| {
+                stack.borrow_mut().push(SourceFunctionPhaseTotals {
+                    label,
+                    ..Default::default()
+                });
+            });
+        }
+        Self {
+            start,
+            label,
+            bytes,
+            procedures: 0,
+        }
+    }
+
+    fn phase(&self, stage: &'static str) {
+        if let Some(start) = self.start {
+            eprintln!(
+                "COMPILER_PIPELINE_PHASE pipeline={} bytes={} procedures={} stage={stage} us={}",
+                self.label,
+                self.bytes,
+                self.procedures,
+                start.elapsed().as_micros()
+            );
+        }
+    }
+}
+
+#[cfg(any(test, debug_assertions))]
+fn print_function_phase_totals(totals: &SourceFunctionPhaseTotals, final_summary: bool) {
+    eprintln!(
+        "COMPILER_FUNCTION_PHASE_TOTALS pipeline={} final={final_summary} functions={} blocks={} statements={} prepare_us={} ssa_us={} def_use_us={} dynamic_names_us={} sccp_us={} existence_us={} types_us={} rendered_us={} instance_classes_us={} taint_us={}",
+        totals.label,
+        totals.functions,
+        totals.blocks,
+        totals.statements,
+        totals.micros[0],
+        totals.micros[1],
+        totals.micros[2],
+        totals.micros[3],
+        totals.micros[4],
+        totals.micros[5],
+        totals.micros[6],
+        totals.micros[7],
+        totals.micros[8],
+        totals.micros[9]
+    );
+}
+
+#[cfg(any(test, debug_assertions))]
+impl Drop for SourcePipelineTrace {
+    fn drop(&mut self) {
+        if self.start.is_some() {
+            SOURCE_FUNCTION_PHASE_TOTALS.with(|stack| {
+                if let Some(totals) = stack.borrow_mut().pop()
+                    && totals.functions != 0
+                {
+                    print_function_phase_totals(&totals, true);
+                }
+            });
+        }
+    }
+}
+
+#[cfg(any(test, debug_assertions))]
+struct SourceFunctionPhaseTrace {
+    checkpoint: Option<std::time::Instant>,
+    micros: [u128; 10],
+}
+
+#[cfg(any(test, debug_assertions))]
+impl SourceFunctionPhaseTrace {
+    fn new() -> Self {
+        let enabled = SOURCE_FUNCTION_PHASE_TOTALS.with(|stack| !stack.borrow().is_empty());
+        Self {
+            checkpoint: enabled.then(std::time::Instant::now),
+            micros: [0; 10],
+        }
+    }
+
+    fn phase(&mut self, index: usize) {
+        if let Some(checkpoint) = self.checkpoint.as_mut() {
+            self.micros[index] += checkpoint.elapsed().as_micros();
+            *checkpoint = std::time::Instant::now();
+        }
+    }
+
+    fn finish(self, cfg: &CfgFunction) {
+        if self.checkpoint.is_none() {
+            return;
+        }
+        SOURCE_FUNCTION_PHASE_TOTALS.with(|stack| {
+            if let Some(totals) = stack.borrow_mut().last_mut() {
+                totals.functions += 1;
+                totals.blocks += cfg.blocks.len();
+                totals.statements += cfg
+                    .blocks
+                    .values()
+                    .map(|block| block.statements.len())
+                    .sum::<usize>();
+                for (total, micros) in totals.micros.iter_mut().zip(self.micros) {
+                    *total += micros;
+                }
+                if totals.functions.is_multiple_of(64) {
+                    print_function_phase_totals(totals, false);
+                }
+            }
+        });
+    }
+}
+
 impl FunctionUnit {
     /// Complete actual source input, independently of Native execution grants.
     #[must_use]
@@ -1331,6 +1474,8 @@ impl FunctionUnit {
         mut cfg: CfgFunction,
         inputs: FunctionBuildInputs<'_>,
     ) -> Self {
+        #[cfg(any(test, debug_assertions))]
+        let mut phase_trace = SourceFunctionPhaseTrace::new();
         let name = name.into();
         let existence = inputs.existence_entry(&name);
         // The request's tier: a context key names it, a detached build is
@@ -1380,6 +1525,8 @@ impl FunctionUnit {
                 Some(input.unit_profile()),
             )
         });
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase(0);
         let ssa = build_ssa_with_context_for_entry_and_metadata(
             &cfg,
             registry,
@@ -1388,7 +1535,12 @@ impl FunctionUnit {
             Some(params),
             metadata,
         );
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase(1);
         let def_use = build_def_use_chains(&ssa, Some(&cfg), config);
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase(2);
+
         // The registry carries its dialect profile's fold policy: the octal
         // rule, which fixes how a bare leading-zero literal (`08`, `010`) is
         // read when SCCP folds `==`/`!=` — octal in the 8.x runtimes (tcl8.x /
@@ -1403,6 +1555,8 @@ impl FunctionUnit {
         // SSA retains fresh stores and exact read origins across these effects;
         // the summary remains available for compatibility existence queries.
         let dynamic_names = crate::dynamic_names::dynamic_name_barrier(&cfg, registry, config);
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase(3);
         let mut sccp = crate::sccp::sccp_in_module(&crate::sccp::SolveInputs {
             cfg: &cfg,
             ssa: &ssa,
@@ -1437,6 +1591,8 @@ impl FunctionUnit {
             }),
             module: crate::sccp::ModuleRun::reading(procedures),
         });
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase(4);
         let value_inputs = inputs.value_fact_inputs(fold_policy);
         let semantic_value_projection =
             Arc::new(crate::sccp::SemanticValueProjection::new(value_inputs));
@@ -1467,6 +1623,8 @@ impl FunctionUnit {
             },
             config,
         );
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase(5);
         let type_metadata = TypePropagationMetadata {
             registry,
             context: source_metadata_input.and_then(|input| {
@@ -1496,7 +1654,11 @@ impl FunctionUnit {
             known_classes,
             &ssa,
         );
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase(6);
         let rendered_props = propagate_rendered_props(&cfg, &ssa, &sccp, registry);
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase(7);
         let instance_classes = instance_classes_for_function(
             &cfg,
             registry,
@@ -1504,6 +1666,8 @@ impl FunctionUnit {
             false,
             TaintSourceContext::for_input(registry, source_metadata_input, config),
         );
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase(8);
         let taints = propagate_taints(
             &TaintGraph::new(&cfg, &ssa, &sccp),
             TaintPropagationInputs {
@@ -1516,6 +1680,10 @@ impl FunctionUnit {
                 instance_classes: &instance_classes,
             },
         );
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase(9);
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.finish(&cfg);
         cfg.retain_math_invocations(&sccp.required_math_invocations);
         cfg.retain_expression_preparations(&sccp.required_expression_preparations);
         Self {
@@ -2044,6 +2212,10 @@ fn lower_and_build_cfg(
     // One lowerer shape for both paths, so the document's own declarations
     // (`UnitBuildOptions::declared_commands`) reach the memoised body-cache
     // build and the plain one identically.
+    #[cfg(any(test, debug_assertions))]
+    let mut lower_trace = SourcePipelineTrace::new("lower-cfg", source.len());
+    #[cfg(any(test, debug_assertions))]
+    lower_trace.phase("initial");
     let mut lowerer = crate::lowering::Lowerer::with_config(registry, options.config)
         .with_dialect(options.dialect)
         .with_declared_commands(options.declared_commands);
@@ -2088,12 +2260,23 @@ fn lower_and_build_cfg(
     // module-level passes so the synthesised child procs
     // appear in module.procedures for the inline_uplevel pass
     // and CFG construction.
+    #[cfg(any(test, debug_assertions))]
+    {
+        lower_trace.procedures = ir_module.procedures.len();
+        lower_trace.phase("lowered");
+    }
     crate::specialise_factories::specialise_factories(&mut ir_module, registry);
     // Run the inline_uplevel pass before CFG construction so
     // every passthrough callsite is replaced with a Statement::Block
     // that splices the body inline.
+    #[cfg(any(test, debug_assertions))]
+    lower_trace.phase("factories");
     crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
+    #[cfg(any(test, debug_assertions))]
+    lower_trace.phase("inline-uplevel");
     let cfg_context = prepare_cfg_context_bundle(&ir_module, registry);
+    #[cfg(any(test, debug_assertions))]
+    lower_trace.phase("prepared");
     let mut cfg_module = build_cfg_with_registry_and_context(
         &ir_module,
         options.defer_top_level,
@@ -2101,8 +2284,12 @@ fn lower_and_build_cfg(
         &cfg_context,
         options.config,
     );
+    #[cfg(any(test, debug_assertions))]
+    lower_trace.phase("cfg-built");
     let tainted_global_writes =
         crate::interprocedural::enrich_instance_taint_cfg(&ir_module, &mut cfg_module, registry);
+    #[cfg(any(test, debug_assertions))]
+    lower_trace.phase("enriched");
     (ir_module, cfg_module, tainted_global_writes, cfg_context)
 }
 
@@ -2819,8 +3006,17 @@ impl CompilationUnit {
         let UnitBuildOptions {
             registry, dialect, ..
         } = options;
+        #[cfg(any(test, debug_assertions))]
+        let mut phase_trace = SourcePipelineTrace::new("unit", source.len());
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase("initial");
         let (ir_module, cfg_module, tainted_global_writes, prepared_cfg_context) =
             lower_and_build_cfg(source, options, body_cache, entry, context, input);
+        #[cfg(any(test, debug_assertions))]
+        {
+            phase_trace.procedures = ir_module.procedures.len();
+            phase_trace.phase("lower-and-cfg");
+        }
         let (command_mutations, proc_binding_trust) =
             prepared_command_trust(&ir_module, registry, &prepared_cfg_context);
         // The module's analysis context: one value every per-procedure
@@ -2843,8 +3039,12 @@ impl CompilationUnit {
         let cfg_context = (cache.is_some()
             || crate::unit_scope::needs_extra_call_site_scan_contexts(&ir_module))
         .then_some(&prepared_cfg_context);
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase("module-context");
         let (call_site_constants, linkage, extra_callers) =
             resolve_unit_scope(&ir_module, &cfg_module, cfg_context, options);
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase("unit-scope");
         let has_cross_file_evidence = options.external_call_sites.is_some();
         let ModuleWideFacts {
             known_class_set,
@@ -2858,12 +3058,16 @@ impl CompilationUnit {
         let trace_facts = ModuleTraceFacts::of(&ir_module);
         // The module's procedures, each with its transfer summary: what a
         // lattice reading another procedure reads.
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase("module-facts");
         let module_procedures = module_procedures(
             (&ir_module, &cfg_module, &prepared_cfg_context),
             (&command_mutations, &proc_binding_trust),
             &analysis_context,
             (registry, options.config),
         );
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase("procedure-transfers");
         let top_level = FunctionUnit::build_top_level(
             cfg_module.top_level.clone(),
             UnitDialect {
@@ -2882,6 +3086,8 @@ impl CompilationUnit {
             Some(&ir_module.top_level),
             crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
         );
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase("top-level-lattice");
         let caller_view = crate::unit_scope::UnitCallerView {
             linkage,
             has_cross_file_evidence,
@@ -2909,6 +3115,8 @@ impl CompilationUnit {
             cache,
             options.config,
         );
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase("procedure-lattices");
         let mut procedures = built.procedures;
         let transfers = module_procedures.into_summaries();
         let body_unit_context = BodyUnitContext {
@@ -2920,12 +3128,16 @@ impl CompilationUnit {
         };
         let methods = Self::build_method_units(&ir_module, &extra_callers, body_unit_context);
         let body_units = Self::build_body_units(&ir_module, &extra_callers, body_unit_context);
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase("method-and-body-lattices");
         let connection_scope = Self::build_connection_scope(&procedures, registry, &ir_module);
         Self::drop_cross_event_existence_folds(
             &mut procedures,
             connection_scope.as_ref(),
             registry,
         );
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase("connection-scope");
         Self {
             source: source.to_owned(),
             ir_module,
@@ -3244,11 +3456,20 @@ impl CompilationUnit {
         registry: &CommandRegistry,
         dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> Self {
+        #[cfg(any(test, debug_assertions))]
+        let mut phase_trace = SourcePipelineTrace::new("interprocedural", self.source.len());
+        #[cfg(any(test, debug_assertions))]
+        {
+            phase_trace.procedures = self.procedures.len();
+            phase_trace.phase("initial");
+        }
         // Object-handle → class map (SSA/VTA-derived) so a `$g walk … -command
         // cb` instance-method callback becomes a call-graph / reachability edge.
         let object_types = crate::object_types::object_handle_classes(&self, registry);
         // The unit's own proven command-identity facts, so the call-graph scan
         // classifies a rebound head as the command it is.
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase("object-types");
         let identities = crate::realm::document_realm_bindings_with_source_entry(
             &self.source,
             self.ir_module.lexer_config,
@@ -3263,6 +3484,8 @@ impl CompilationUnit {
                     .with_resolved_analysis_input(input.clone())
             },
         );
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase("original-realm");
         let interproc = crate::interprocedural::build_interprocedural_analysis_for_unit(
             &self,
             registry,
@@ -3274,6 +3497,8 @@ impl CompilationUnit {
         // Re-run taint with the new summary + dialect. We borrow
         // `interproc` immutably while each function unit re-runs
         // `propagate_taints`.
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase("analysis");
         let top_instance_classes = instance_classes_for_function(
             &self.top_level.cfg,
             registry,
@@ -3301,6 +3526,8 @@ impl CompilationUnit {
                 instance_classes: &top_instance_classes,
             },
         ));
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase("top-level-taint");
         for fu in self.procedures.values_mut() {
             let instance_classes = instance_classes_for_function(
                 &fu.cfg,
@@ -3323,6 +3550,8 @@ impl CompilationUnit {
             ));
         }
 
+        #[cfg(any(test, debug_assertions))]
+        phase_trace.phase("procedure-taints");
         self.interproc = Some(interproc);
         self
     }

@@ -161,8 +161,7 @@ impl NativeScalarGetterTarget {
     fn jim_boolean(self, value: i64) -> NativeBooleanGetterValue {
         // Pinned Jim_GetBoolean's cast retains the captured C int's low bits.
         // This bounded recipe makes no claim for an unsupported C target.
-        let bytes = value.to_le_bytes();
-        NativeBooleanGetterValue(i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
+        NativeBooleanGetterValue(number::native_int32_low_bits(value))
     }
 }
 
@@ -322,6 +321,73 @@ pub struct NativeJimUnsignedStage {
 }
 
 impl NativeScalarGetterProtocol {
+    /// C8.4's original uncached word/early-invalid branch before numeric calls.
+    /// None requests the independent signed-long/double stages; this query
+    /// supplies no thread state, object or selected handler authority.
+    #[must_use]
+    pub fn c84_boolean_before_numeric(
+        self,
+        original: &[u8],
+    ) -> Option<NativeScalarGetterConversion> {
+        if self.tcl_version() != Some(TclVersion::V8_4) {
+            return None;
+        }
+        if let Some(value) = boolean84_word(original) {
+            return Some(boolean84_conversion(value));
+        }
+        if original.is_empty()
+            || original.iter().take(9).any(|byte| !byte.is_ascii())
+            || (original.len() >= 2
+                && original
+                    .first()
+                    .is_some_and(|byte| byte.eq_ignore_ascii_case(&b'o')))
+        {
+            return Some(self.invalid_conversion(NativeScalarGetterKind::Boolean, original));
+        }
+        None
+    }
+
+    /// Adopt the audited C8.4 TCL_WIDE_INT_IS_LONG library branch's strtol
+    /// result. Its signed long narrows to actual C int before truth projection.
+    /// None requires the independent strtod stage, not an integer parse failure.
+    /// The target facts do not select a library build or authenticate a C call.
+    #[must_use]
+    pub fn c84_boolean_from_long_host(
+        self,
+        original: &[u8],
+        _target: NativeScalarGetterTarget,
+        value: i64,
+        end: usize,
+    ) -> Option<NativeScalarGetterConversion> {
+        if self.tcl_version() != Some(TclVersion::V8_4)
+            || !c84_counted_numeric_complete(original, end)
+        {
+            return None;
+        }
+        Some(boolean84_conversion(
+            number::native_int32_low_bits(value) != 0,
+        ))
+    }
+
+    /// Adopt C8.4 Boolean's reached strtod fallback without selecting errno
+    /// resets or converting its range/domain state into a Boolean guest error.
+    #[must_use]
+    pub fn c84_boolean_from_double_host(
+        self,
+        original: &[u8],
+        value: f64,
+        end: usize,
+    ) -> Option<NativeScalarGetterConversion> {
+        if self.tcl_version() != Some(TclVersion::V8_4) {
+            return None;
+        }
+        Some(if c84_counted_numeric_complete(original, end) {
+            boolean84_conversion(value != 0.0)
+        } else {
+            self.invalid_conversion(NativeScalarGetterKind::Boolean, original)
+        })
+    }
+
     /// Adopt a fresh C8.4 strtod call, including its complete host errno facts.
     /// Existing cached Double conversions must not reach this constructor.
     #[must_use]
@@ -882,6 +948,8 @@ impl NativeScalarGetterProtocol {
     /// Parse materialized bytes without assuming a hidden native range state.
     /// Jim's signed boundary Wide values depend on retained native `errno`;
     /// those inputs abstain until the caller supplies that independent state.
+    /// C8.4 fresh numeric Boolean additionally requires an explicit target;
+    /// word and definite-invalid recipes remain available without target facts.
     #[must_use]
     pub fn fresh_conversion(
         self,
@@ -900,12 +968,14 @@ impl NativeScalarGetterProtocol {
         {
             return None;
         }
-        Some(self.fresh_conversion_known_with_range_error(kind, materialized, false))
+        self.fresh_conversion_known_with_range_error(kind, materialized, false)
     }
 
     /// Parse an actual primitive under explicit target availability. Modern C
     /// Long has its own unsigned-edge policy; this never delegates that policy
-    /// to the independently different public Wide getter.
+    /// to the independently different public Wide getter. C8.4 fresh numeric
+    /// Boolean retains the measured signed-long-to-C-int stage independently
+    /// of the already cached Wide truth recipe.
     ///
     /// # Errors
     /// Missing target facts refuse before native string reparsing can replace a
@@ -916,6 +986,16 @@ impl NativeScalarGetterProtocol {
         materialized: &[u8],
         target: Option<NativeScalarGetterTarget>,
     ) -> Result<Option<NativeScalarGetterConversion>, NativeScalarGetterTargetUnavailable> {
+        if self.tcl_version() == Some(TclVersion::V8_4) && kind == NativeScalarGetterKind::Boolean {
+            if let Some(conversion) = self.fresh_boolean84_without_target(materialized) {
+                return Ok(Some(conversion));
+            }
+            let target = target.ok_or(NativeScalarGetterTargetUnavailable)?;
+            return Ok(Some(Self::fresh_boolean84_with_target(
+                materialized,
+                target,
+            )));
+        }
         if kind != NativeScalarGetterKind::Long || self.tcl_version() == Some(TclVersion::V8_4) {
             return Ok(self.fresh_conversion(kind, materialized));
         }
@@ -970,7 +1050,7 @@ impl NativeScalarGetterProtocol {
         {
             return None;
         }
-        Some(self.fresh_conversion_known_with_range_error(kind, materialized, prior_range_error))
+        self.fresh_conversion_known_with_range_error(kind, materialized, prior_range_error)
     }
 
     fn fresh_conversion_known_with_range_error(
@@ -978,14 +1058,17 @@ impl NativeScalarGetterProtocol {
         kind: NativeScalarGetterKind,
         materialized: &[u8],
         prior_range_error: bool,
-    ) -> NativeScalarGetterConversion {
-        match kind {
+    ) -> Option<NativeScalarGetterConversion> {
+        if self.tcl_version() == Some(TclVersion::V8_4) && kind == NativeScalarGetterKind::Boolean {
+            return self.fresh_boolean84_without_target(materialized);
+        }
+        Some(match kind {
             NativeScalarGetterKind::Int => self.fresh_int(materialized),
             NativeScalarGetterKind::Long => self.fresh_long84(materialized),
             NativeScalarGetterKind::Wide => self.fresh_wide(materialized, prior_range_error),
             NativeScalarGetterKind::Double => self.fresh_double(materialized),
             NativeScalarGetterKind::Boolean => self.fresh_boolean(materialized),
-        }
+        })
     }
 
     /// Probe Jim's decimal `Jim_StringToWide` spelling without an object cache
@@ -1175,9 +1258,6 @@ impl NativeScalarGetterProtocol {
                 )),
             );
         }
-        if self.engine == Engine::Tcl(TclVersion::V8_4) {
-            return Self::fresh_boolean84(materialized);
-        }
         if let Ok(text) = std::str::from_utf8(materialized)
             && let Some(value) = crate::boolean::parse_boolean_strict(text)
         {
@@ -1204,20 +1284,38 @@ impl NativeScalarGetterProtocol {
         convert(Some(NativeScalarCache::Number(number)), outcome)
     }
 
-    fn fresh_boolean84(input: &[u8]) -> NativeScalarGetterConversion {
-        let Some(value) = boolean84_word(input).or_else(|| {
-            parse_number(input, TclVersion::V8_4, true)
-                .map(|number| number_truth(&number))
-                .or_else(|| float::parse_c_double(input).map(|number| number.value != 0.0))
-        }) else {
-            return Self::for_tcl_version(TclVersion::V8_4)
-                .invalid_conversion(NativeScalarGetterKind::Boolean, input);
-        };
-        convert(
-            Some(NativeScalarCache::WordBoolean(value)),
-            Ok(NativeScalarGetterValue::Boolean(
-                NativeBooleanGetterValue::normalized(value),
-            )),
+    fn fresh_boolean84_without_target(self, input: &[u8]) -> Option<NativeScalarGetterConversion> {
+        if let Some(conversion) = self.c84_boolean_before_numeric(input) {
+            return Some(conversion);
+        }
+        // Definite numeric rejection needs no width. A successful signed or
+        // floating spelling must retain the independent target and C stages.
+        if parse_number(input, TclVersion::V8_4, true).is_none()
+            && float::parse_c_double(input).is_none()
+        {
+            return Some(self.invalid_conversion(NativeScalarGetterKind::Boolean, input));
+        }
+        None
+    }
+
+    fn fresh_boolean84_with_target(
+        input: &[u8],
+        _target: NativeScalarGetterTarget,
+    ) -> NativeScalarGetterConversion {
+        let protocol = Self::for_tcl_version(TclVersion::V8_4);
+        if let Some(conversion) = protocol.c84_boolean_before_numeric(input) {
+            return conversion;
+        }
+        // Shared complete C8.4 integer grammar, then the signed-long payload
+        // projection and actual C-int narrowing. This pure recipe supplies no
+        // strtol execution/errno; the host adapter retains those separately.
+        let value = parse_number(input, TclVersion::V8_4, true)
+            .and_then(|number| number::native_signed64_saturating_integer(&number))
+            .map(|value| number::native_int32_low_bits(value) != 0)
+            .or_else(|| float::parse_c_double(input).map(|number| number.value != 0.0));
+        value.map_or_else(
+            || protocol.invalid_conversion(NativeScalarGetterKind::Boolean, input),
+            boolean84_conversion,
         )
     }
 
@@ -1331,6 +1429,17 @@ fn number_truth(number: &Number) -> bool {
         Number::Big { .. } | Number::Nan { .. } => true,
         Number::Double(value) => *value != 0.0,
     }
+}
+fn c84_counted_numeric_complete(input: &[u8], end: usize) -> bool {
+    end > 0 && end <= input.len() && input[end..].iter().all(u8::is_ascii_whitespace)
+}
+fn boolean84_conversion(value: bool) -> NativeScalarGetterConversion {
+    convert(
+        Some(NativeScalarCache::WordBoolean(value)),
+        Ok(NativeScalarGetterValue::Boolean(
+            NativeBooleanGetterValue::normalized(value),
+        )),
+    )
 }
 fn boolean84_word(input: &[u8]) -> Option<bool> {
     if input.is_empty() {

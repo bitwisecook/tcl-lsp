@@ -16,11 +16,15 @@ All five C releases catch wrong-argument errors for exact -all plus pattern, abb
 
 The linked pure usage-rendering control keeps selected procedure-name formatting separate from the final C/Jim message extent. A Jim NUL-bearing called name can clip the message at its formatter boundary while the counted C renderer retains its complete message.
 
+A marked shared VM definition binds the native_jim_info_command_inventory254 public subset (36 comparisons) independently of its other fixture groups.
+
 ## Scope
 
 Six unchanged original ASCII LF caught/public-list controls execute independently in fresh full-init counted C API processes. Exact originals, requests, driver, launcher, ELFs, whole streams/receipts and required provider pins are retained. The runtime problem hypothesis in the raw request remains an input premise, not a proved source cause. Rooted-nonroot and root/explicit-nons inputs retain independent question records; sorted caller-owned reports grant no successful scripted helper or Native handler/compiler admission. BIG-IP and executed Rust assertions are not tested. Linked Runtime and VM controls execute the unchanged source fixtures and compare all138 whole ORIGINAL completion/result windows across the four inventory/helper groups per backend, with private identity and META/version excluded from the behavioural result. Their linked status records source coverage, not an executed software pass.
 
 The renderer definition supplies no public helper dispatch, current binding, Native object/frame identity or original-provider completion. Actual helper arity windows retain their original measured scope.
+
+The shared body has138 public code/result comparisons across23 unchanged originals, but each question owns only its matching fixture group. It selects an actual software core/compiler and explicitly installs NamespaceEnsemble; this does not infer a full distribution, current helper roster, token/cache identity, native opcode or entered external handler. It launches no new original process and supplies no assertion outcome. Existing independent original channels remain unchanged.
 
 ## Provider answers
 
@@ -233,6 +237,12 @@ A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-registry/src/native_usage.rs](../../../../rust/tcl-registry/src/native_usage.rs), `NativeUsageProtocol::render_procedure_message`: Retain the selected original usage name and the separate final formatter extent; this pure renderer selects no current procedure/helper.
 - [rust/tcl-registry/src/native_usage.rs](../../../../rust/tcl-registry/src/native_usage.rs), `native_usage::tests::procedure_usage_preserves_the_selected_name_and_final_formatter_boundary` (linked): The usage renderer retains the selected called name and the independent final C/Jim formatter extent: Jim clips the NUL-bearing whole message while the counted C message retains the suffix. This is renderer policy, not a public helper invocation. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-vm/src/cmd_info.rs](../../../../rust/tcl-vm/src/cmd_info.rs), `info_command_listing`: Validate the actual original worker argv and reached usage rewrite before delegating public inventory to the shared command-list purpose; selected helper/library installation remains independent.
+- [rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs](../../../../rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs), `original_result`: Decode the exact original ORIGINAL completion/result-hex window; no private inventory/header observation follows from this parser.
+- [rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs](../../../../rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs), `cmd_info::native_jim_inventory_tests::original_jim_inventory_and_current_helper_sources_match_all_native_columns` (linked): Six original command-inventory option/scope programs retain their whole public codes/results under each of six selected cores. This question binds only the native_jim_info_command_inventory254 subset: 36 of the shared body's138 public comparisons.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 

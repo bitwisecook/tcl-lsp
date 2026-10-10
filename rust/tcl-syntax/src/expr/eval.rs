@@ -34,6 +34,8 @@
 
 use core::cmp::Ordering;
 
+use crate::native_boolean_truth::NativeBooleanTruthPurpose;
+
 use super::ast::{BinOp, ExprNode, ExprText, UnaryOp};
 
 /// Outcome of a numeric comparison between two number-classified operands.
@@ -251,8 +253,30 @@ pub trait ExprOps {
     /// `needle in list` membership (string equality of elements).
     fn in_list(&mut self, needle: &Self::Value, list: &Self::Value) -> Result<bool, Self::Error>;
 
-    /// Tcl boolean coercion (`Tcl_GetBoolean`) for conditions / `&&`/`||`/`!`.
+    /// The consumer's explicit mathematical or legacy Boolean projection.
+    /// Actual native expression sites use the separately selected purpose seam.
     fn to_bool(&mut self, value: &Self::Value) -> Result<bool, Self::Error>;
+    /// Convert the original operand at this reached expression instruction.
+    /// The default declines: a mathematical projection cannot donate native
+    /// cache, interpreter publication or result-production behaviour.
+    fn to_bool_for_purpose(
+        &mut self,
+        _value: &Self::Value,
+        _purpose: NativeBooleanTruthPurpose,
+    ) -> Result<bool, Self::Error> {
+        Err(self.unsupported("original Boolean operand purpose"))
+    }
+    /// Finish a reached logical right operand while retaining the original
+    /// left operand. C8.4 reconverts both operands at LAND/LOR; other selected
+    /// engines reach their own right-operand conversion.
+    fn logical_right_truth(
+        &mut self,
+        _left: &Self::Value,
+        _right: &Self::Value,
+        _conjunction: bool,
+    ) -> Result<bool, Self::Error> {
+        Err(self.unsupported("original logical final operands"))
+    }
     /// Construct a boolean result value (`0`/`1`).
     fn bool_value(&mut self, b: bool) -> Self::Value;
 
@@ -342,7 +366,7 @@ pub enum ExprEvalStep<V, Text = String> {
 }
 
 #[derive(Debug)]
-enum ExprTask<Text> {
+enum ExprTask<V, Text> {
     Node(ExprNode<Text>),
     Unary(UnaryOp),
     Binary(BinOp),
@@ -350,7 +374,10 @@ enum ExprTask<Text> {
         op: BinOp,
         right: ExprNode<Text>,
     },
-    Boolean,
+    Boolean {
+        left: V,
+        conjunction: bool,
+    },
     Ternary {
         when_true: ExprNode<Text>,
         when_false: ExprNode<Text>,
@@ -370,7 +397,7 @@ enum ExprTask<Text> {
 /// dispatches the public, shadowable `expr` command.
 #[derive(Debug)]
 pub struct ExprEvalState<V, Text = String> {
-    tasks: Vec<ExprTask<Text>>,
+    tasks: Vec<ExprTask<V, Text>>,
     values: Vec<V>,
     awaiting: bool,
 }
@@ -520,19 +547,24 @@ impl<V, Text: ExprText> ExprEvalState<V, Text> {
                 }
                 ExprTask::Logical { op, right } => {
                     let left = self.values.pop().expect("logical operand");
-                    let truth = ops.to_bool(&left)?;
                     let conjunction = matches!(op, BinOp::And | BinOp::WordAnd);
+                    let purpose = if conjunction {
+                        NativeBooleanTruthPurpose::LogicalAnd
+                    } else {
+                        NativeBooleanTruthPurpose::LogicalOr
+                    };
+                    let truth = ops.to_bool_for_purpose(&left, purpose)?;
                     if truth == conjunction {
-                        self.tasks.push(ExprTask::Boolean);
+                        self.tasks.push(ExprTask::Boolean { left, conjunction });
                         self.tasks.push(ExprTask::Node(right));
                     } else {
                         self.values.push(ops.bool_value(truth));
                     }
                     None
                 }
-                ExprTask::Boolean => {
+                ExprTask::Boolean { left, conjunction } => {
                     let value = self.values.pop().expect("boolean operand");
-                    let truth = ops.to_bool(&value)?;
+                    let truth = ops.logical_right_truth(&left, &value, conjunction)?;
                     self.values.push(ops.bool_value(truth));
                     None
                 }
@@ -541,11 +573,16 @@ impl<V, Text: ExprText> ExprEvalState<V, Text> {
                     when_false,
                 } => {
                     let condition = self.values.pop().expect("conditional operand");
-                    self.tasks.push(ExprTask::Node(if ops.to_bool(&condition)? {
-                        when_true
-                    } else {
-                        when_false
-                    }));
+                    self.tasks.push(ExprTask::Node(
+                        if ops.to_bool_for_purpose(
+                            &condition,
+                            NativeBooleanTruthPurpose::ConditionalJump,
+                        )? {
+                            when_true
+                        } else {
+                            when_false
+                        },
+                    ));
                     None
                 }
                 ExprTask::Call {
@@ -684,6 +721,8 @@ mod tests {
         /// When set, every quoted operand is recorded here and read back
         /// marked, so a test can tell which hook the walker called.
         quoted: Option<Vec<String>>,
+        purposes: Vec<(NativeBooleanTruthPurpose, V)>,
+        final_operands: Vec<(V, V, bool)>,
     }
 
     impl ExprOps for Ops {
@@ -778,6 +817,25 @@ mod tests {
                 V::Str(s) => s == "1" || s == "true",
             })
         }
+        // This adapter models mathematical values, not native headers or effects.
+        fn to_bool_for_purpose(
+            &mut self,
+            value: &V,
+            purpose: NativeBooleanTruthPurpose,
+        ) -> Result<bool, String> {
+            self.purposes.push((purpose, value.clone()));
+            self.to_bool(value)
+        }
+        fn logical_right_truth(
+            &mut self,
+            left: &V,
+            right: &V,
+            conjunction: bool,
+        ) -> Result<bool, String> {
+            self.final_operands
+                .push((left.clone(), right.clone(), conjunction));
+            self.to_bool(right)
+        }
         fn bool_value(&mut self, b: bool) -> V {
             V::Num(i64::from(b))
         }
@@ -786,6 +844,41 @@ mod tests {
         }
         // NB: `binary_other` intentionally left as the trait default so the
         // default (`Err(unsupported)`) body is exercised.
+    }
+
+    #[test]
+    fn reached_truth_purposes_retain_original_left_and_skip_unreached_right() {
+        // Software walker contract: this observes routing and retained values,
+        // independently of any native getter/cache or provider equivalence.
+        let mut ops = Ops::default();
+        assert_eq!(eval(&parse_expr("17 && 23", None), &mut ops), Ok(V::Num(1)));
+        assert_eq!(
+            ops.purposes,
+            [(NativeBooleanTruthPurpose::LogicalAnd, V::Num(17))]
+        );
+        assert_eq!(ops.final_operands, [(V::Num(17), V::Num(23), true)]);
+        ops.purposes.clear();
+        ops.final_operands.clear();
+        assert_eq!(
+            eval(&parse_expr("17 || [unreached]", None), &mut ops),
+            Ok(V::Num(1))
+        );
+        assert_eq!(
+            ops.purposes,
+            [(NativeBooleanTruthPurpose::LogicalOr, V::Num(17))]
+        );
+        assert!(ops.final_operands.is_empty());
+        assert!(ops.commands.is_empty());
+        ops.purposes.clear();
+        assert_eq!(
+            eval(&parse_expr("17 ? 31 : [unreached]", None), &mut ops),
+            Ok(V::Num(31))
+        );
+        assert_eq!(
+            ops.purposes,
+            [(NativeBooleanTruthPurpose::ConditionalJump, V::Num(17))]
+        );
+        assert!(ops.commands.is_empty());
     }
 
     fn eval_str(src: &str) -> Result<V, String> {

@@ -58,7 +58,8 @@ pub fn c84_nonfinite_error(
 }
 
 /// Execute only the fresh C8.4 primitive selected after original cache lookup.
-/// Reset and C-call effects are retained even when conversion rejects spelling.
+/// Selected reset and C-call effects survive rejected spelling. Boolean's
+/// signed-long/double stages preserve errno without selecting a reset.
 pub fn fresh_c84_conversion(
     protocol: NativeScalarGetterProtocol,
     kind: NativeScalarGetterKind,
@@ -68,6 +69,28 @@ pub fn fresh_c84_conversion(
     let unavailable = || ValueError::ScalarNumericInputUnavailable;
     if protocol.tcl_version() != Some(tcl_dialect::TclVersion::V8_4) {
         return Err(unavailable());
+    }
+    if kind == NativeScalarGetterKind::Boolean {
+        if let Some(conversion) = protocol.c84_boolean_before_numeric(original) {
+            return Ok(conversion);
+        }
+        let target = scalar_getter_target(environment)?;
+        let integer = environment
+            .signed_long(original, 0)
+            .map_err(|_| unavailable())?;
+        if let Some(conversion) =
+            protocol.c84_boolean_from_long_host(original, target, integer.value, integer.end)
+        {
+            return Ok(conversion);
+        }
+        // SetBooleanFromAny does not reset errno for either numeric stage and
+        // ignores ERANGE for Boolean acceptance. Preserve both real C effects.
+        let double = environment
+            .double(original, false)
+            .map_err(|_| unavailable())?;
+        return protocol
+            .c84_boolean_from_double_host(original, double.value, double.end)
+            .ok_or_else(unavailable);
     }
     if kind == NativeScalarGetterKind::Double {
         let executed = environment

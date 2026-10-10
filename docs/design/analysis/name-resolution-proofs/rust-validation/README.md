@@ -2491,7 +2491,7 @@ The [unchanged original receipt](frozen294/integration-vm-own-test-build294/rece
 
 ## Sealed Source295 VM image and separate dependency-blocked builds
 
-The successful independent VM no-run producer and its strict copied executable retain the exact source/pin association. The actual inventory lists 762 tests. The twenty-control software focus closes19 passed/1 failed: the foreign dictionary getter refusal fails while the other nineteen assertions pass, including genuine unknown-source actual-engine inventory and the three deferred Jim ownership controls. The unchanged Info186 comparator closes0 passed/1 failed at Jim absolute-existing with Guest1 versus observed0 and live/readable result headers; it establishes no whole comparator pass. Both independent Compiler dependency commands fail on the same two ordinary Core errors, each with one unsealed partial Syntax artifact event and no Compiler pin or assertions. Original provider observations remain independent.
+The successful independent VM no-run producer and its strict copied executable retain the exact source/pin association. The actual inventory lists 762 tests. The twenty-control software focus closes19 passed/1 failed: the foreign dictionary getter refusal fails while the other nineteen assertions pass, including genuine unknown-source actual-engine inventory and the three deferred Jim ownership controls. The unchanged Info186 comparator closes 0 passed/1 failed at Jim absolute-existing with Guest1 versus observed0 and live/readable result headers; it establishes no whole comparator pass. Both independent Compiler dependency commands fail on the same two ordinary Core errors, each with one unsealed partial Syntax artifact event and no Compiler pin or assertions. Original provider observations remain independent.
 
 | Exact closed operation | Recorded outcome | Original receipt | Whole log |
 | --- | --- | --- | --- |
@@ -2563,3 +2563,49 @@ restored.chmod(0o755)
 ```
 
 Restoration proves payload identity only and launches no assertion. Software materialisation/foreign seal/cache, deferred script ownership, completion options, binary origin and inventory-purpose assertions retain their own exact scopes; they do not produce an original Native header/cache/frame observation or application admission.
+
+## Source298 exact producer and closed attempts
+
+The independent Compiler/Registry/Syntax no-run producer succeeds and seals three authentic copied libtest images. Their complete inventories contain 9172,1722 and 635 tests respectively. The complete Registry run closes 1720 passed/2 failed; the complete Syntax run closes 634 passed/1 failed. The independent source-path trace closes 0 passed/1 failed. Both Compiler selections are interrupted without a final libtest summary: the 344-control request stops in an alias control, and the independently selected 342 controls stop in the large regexp fixture. Two separate 45-second alias traces are also killed without an assertion outcome. No timeout establishes an infinite loop or convergence property, and no partial Compiler log is an aggregate pass/fail result.
+
+| Closed operation | Exact outcome | Original receipt | Whole log |
+|---|---|---|---|
+| `integration-compiler-registry-syntax-own-test-build298` | `compile-passed`, exit 0, 310.564886s; compilation only | [Original receipt](frozen298/integration-compiler-registry-syntax-own-test-build298/receipt.json.gz) | [Whole log](frozen298/integration-compiler-registry-syntax-own-test-build298/tests.log) |
+| `integration-compiler-inventory298` | `listed`, exit 0, 0.014154s; listing only | [Original receipt](frozen298/integration-compiler-inventory298/receipt.json.gz) | [Whole log](frozen298/integration-compiler-inventory298/tests.log) |
+| `integration-registry-inventory298` | `listed`, exit 0, 0.008303s; listing only | [Original receipt](frozen298/integration-registry-inventory298/receipt.json.gz) | [Whole log](frozen298/integration-registry-inventory298/tests.log) |
+| `integration-syntax-inventory298` | `listed`, exit 0, 0.003648s; listing only | [Original receipt](frozen298/integration-syntax-inventory298/receipt.json.gz) | [Whole log](frozen298/integration-syntax-inventory298/tests.log) |
+| `integration-compiler-consumer-tests298` | `aborted`, exit -15, 463.911617s; no final assertion summary | [Original receipt](frozen298/integration-compiler-consumer-tests298/receipt.json.gz) | [Whole log](frozen298/integration-compiler-consumer-tests298/tests.log) |
+| `integration-compiler-other-consumer-tests298` | `aborted`, exit -15, 1374.014597s; no final assertion summary | [Original receipt](frozen298/integration-compiler-other-consumer-tests298/receipt.json.gz) | [Whole log](frozen298/integration-compiler-other-consumer-tests298/tests.log) |
+| `integration-compiler-alias-bounded-trace298` | `aborted`, exit -9, 45.022633s; no final assertion summary | [Original receipt](frozen298/integration-compiler-alias-bounded-trace298/receipt.json.gz) | [Whole log](frozen298/integration-compiler-alias-bounded-trace298/tests.log) |
+| `integration-compiler-alias-bounded-phase-trace298` | `aborted`, exit -9, 45.013868s; no final assertion summary | [Original receipt](frozen298/integration-compiler-alias-bounded-phase-trace298/receipt.json.gz) | [Whole log](frozen298/integration-compiler-alias-bounded-phase-trace298/tests.log) |
+| `integration-compiler-source-path-trace298` | `failed`, exit 101, 0.841776s; 0 passed/1 failed | [Original receipt](frozen298/integration-compiler-source-path-trace298/receipt.json.gz) | [Whole log](frozen298/integration-compiler-source-path-trace298/tests.log) |
+| `integration-registry-all-tests298` | `failed`, exit 101, 111.948334s; 1720 passed/2 failed | [Original receipt](frozen298/integration-registry-all-tests298/receipt.json.gz) | [Whole log](frozen298/integration-registry-all-tests298/tests.log) |
+| `integration-syntax-all-tests298` | `failed`, exit 101, 1.035825s; 634 passed/1 failed | [Original receipt](frozen298/integration-syntax-all-tests298/receipt.json.gz) | [Whole log](frozen298/integration-syntax-all-tests298/tests.log) |
+
+The [344-control selection](frozen298/selections/compiler-focus-selection298.json), [342-control selection](frozen298/selections/compiler-other-consumer-selection298.json) and [bounded-close record](frozen298/selections/compiler-consumer-bounded-close298.json) preserve distinct exact request and interruption purposes. The [Registry selection](frozen298/selections/registry-full-selection298.json) and [Syntax selection](frozen298/selections/syntax-full-selection298.json) preserve the complete admitted inventories. Every original receipt retains the same [full source companion](frozen298/source-snapshot.json.gz); all 356015 source associations across eleven receipts are independently verified. Current question/result links require whole source-leaf equality with that original producer; later changed controls receive no outcome.
+
+Restore each exact measured image with compressed and original integrity checks:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+for kind in ("compiler", "registry", "syntax"):
+    base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen298") / ("sealed-" + kind + "-image")
+    record = json.loads((base / "lossless-image-storage.json").read_text())
+    name = "pinned-" + kind + "298.elf"
+    packed = (base / (name + ".gz")).read_bytes()
+    assert len(packed) == record["stored_bytes"]
+    assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+    original = gzip.decompress(packed)
+    assert len(original) == record["original_bytes"]
+    assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+    restored = Path("/tmp") / name
+    restored.write_bytes(original)
+    restored.chmod(0o755)
+```
+
+Restoration checks payload identity and launches no test. These images retain every original byte and source association; no original image is removed by publication. Exact software assertion outcomes do not create external Native observations, private header/frame/cache proof, compiler or application admission, or an overall green gate.
+
+## Source299 independent failed no-run invocation
+
+The separate five-crate Source299 no-run command fails one CmdCore test import: DialectPoint and Release are imported from the crate root instead of their model owner. Its newly-created Syntax executable event remains unsealed. The invocation provides no successful aggregate producer, strict 299 pin, inventory or assertions; Source298 images and later corrected imports confer no 299 success. The [unchanged compressed receipt](frozen299/integration-shared-owner-own-test-build299/receipt.json.gz), [whole log](frozen299/integration-shared-owner-own-test-build299/tests.log) and [complete Source299 companion](frozen299/source-snapshot.json.gz) preserve the exact command, exit 101, 40.193293303018436s and all 32710 independently verified source leaves.

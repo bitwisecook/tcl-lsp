@@ -211,6 +211,33 @@ fn fresh_native_getter_grammar_value_and_cache_match_all_six_engines() {
     assert_eq!(count, 312);
 }
 
+fn fixture_fresh_conversion(
+    recipe: NativeScalarGetterProtocol,
+    kind: NativeScalarGetterKind,
+    input: &[u8],
+) -> Option<NativeScalarGetterConversion> {
+    if recipe.tcl_version() == Some(TclVersion::V8_4) && kind == NativeScalarGetterKind::Boolean {
+        let fixture = include_str!(
+            "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-live.stdout"
+        );
+        let abi = fixture
+            .lines()
+            .find(|line| line.starts_with("ABI\t"))
+            .unwrap();
+        let target = NativeScalarGetterTarget::from_c_integer_abi(
+            field(abi, "CHAR_BIT").parse().unwrap(),
+            field(abi, "int").parse().unwrap(),
+            field(abi, "long").parse().unwrap(),
+        )
+        .unwrap();
+        recipe
+            .fresh_conversion_with_target(kind, input, Some(target))
+            .unwrap()
+    } else {
+        recipe.fresh_conversion(kind, input)
+    }
+}
+
 #[test]
 fn storage_and_boolean_cache_are_independent_getter_axes() {
     let cases: [&[u8]; 7] = [
@@ -233,9 +260,8 @@ fn storage_and_boolean_cache_are_independent_getter_axes() {
                 NativeScalarStringStorage::RawString
             };
             let input = recipe.materialize(storage, cases[at]).unwrap();
-            let boolean = recipe
-                .fresh_conversion(NativeScalarGetterKind::Boolean, &input)
-                .unwrap();
+            let boolean =
+                fixture_fresh_conversion(recipe, NativeScalarGetterKind::Boolean, &input).unwrap();
             verify(&boolean, field(line, "boolcode"), field(line, "bool"), line);
             assert_eq!(
                 cache_kind(boolean.cache()),

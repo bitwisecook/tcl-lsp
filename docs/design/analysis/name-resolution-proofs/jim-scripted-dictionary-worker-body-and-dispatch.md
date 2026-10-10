@@ -14,9 +14,13 @@ What installed body/formal bytes and original dispatch/body completions do the s
 
 Fourteen native body/formal results and thirteen executable programs remain distinct. The original stdlib source owns these workers and their reference/upvar semantics. Selector abbreviation and wrong-arity/body outcomes retain their exact bytes; they grant no C dictionary opcode or physical header claim.
 
+A marked VM definition binds seven genuine scripted dictionary body/formal pairs and an independently constructed backend parameter-header identity control.
+
 ## Scope
 
 Only the original retained programs, capture windows and provider labels in the attached artifacts are covered. Version labels are original receipt metadata, not a fresh patchlevel query. Missing command/API doors and aborted processes stay distinct from successful guest completion. Source files/probes explain the observer protocol; no pinned engine implementation excerpt or executed Rust assertion is claimed. Different attempts and sources are retained separately, never treated as byte-identical duplicates.
+
+Exact captured public body/formal bytes do not expose the original Jim parameter object/header pointer. The additional identity equality belongs only to the selected backend declaration owner. No new original process or passing assertion, private dictionary worker/frame state, full distribution or generic Native handler admission is attached. Existing original public scripted-dictionary evidence remains unchanged.
 
 ## Provider answers
 
@@ -226,6 +230,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 No implementation binding is claimed by this observation record.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-vm/src/native_fixture.rs](../../../../rust/tcl-vm/src/native_fixture.rs), `interpreter_with_dictionary_library`: Construct the actual selected software core/compiler and explicitly choose only Dictionary for distribution specimens; library choice is independent of core/metadata availability.
+- [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs), `Vm::install_scripted_library`: Retain the explicitly selected shared scripted-library source and genuine procedure declarations under the actual backend bootstrap, rather than creating public wrappers from catalogue labels.
+- [rust/tcl-vm/src/cmd_dict/scripted_tests.rs](../../../../rust/tcl-vm/src/cmd_dict/scripted_tests.rs), `cmd_dict::scripted_tests::original_jim_dictionary_library_bodies_and_formals_are_real_procedures` (linked): The selected Jim software core/compiler explicitly loads Dictionary, then compares fourteen public body/formal byte windows for update/replace/lappend/append/incr/remove/for. Its info args result also equals this backend declaration's retained parameter header; that separate software identity assertion is not a native public pointer observation.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

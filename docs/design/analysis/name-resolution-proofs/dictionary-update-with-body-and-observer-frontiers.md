@@ -14,9 +14,13 @@ What original body/callback/key/result completions occur in the fixed compiled a
 
 The complete native process tables retain 329 code/result references. Seven signal-terminated write-error controls remain separately captured, never counted as positive comparisons. Tcl 8.4 dict absence and Jim trace absence do not establish entered body/writeback behavior. No private return state is inferred. The current whole-original VM definition preserves329 captured outer process-code references and compares326 whole result windows plus three bounded post-free C8.5/C8.6 update-error and C8.6 with-error diagnostic/read-status observations. These remaining fields, including outer code, are captured process observations rather than defined completion, storage/read or effect guarantees. The independent lifetime questions establish only their own selected current observer counters; they do not certify private headers in the older archived executable. This current source binding does not claim an executed assertion outcome.
 
+A marked direct VM ownership control binds independently owned dictionary children and exact replacement/release lifetimes.
+
 ## Scope
 
 Only the original retained programs, capture windows and provider labels in the attached artifacts are covered. Version labels are original receipt metadata, not a fresh patchlevel query. Missing command/API doors and aborted processes stay distinct from successful guest completion. Source files/probes explain the observer protocol; no pinned engine implementation excerpt or executed Rust assertion is claimed. Different attempts and sources are retained separately, never treated as byte-identical duplicates. Current comparator windows retain every unchanged original source and raw reference. Three separately measured lifetime edges exclude freed-value reproduction and keep all later fields as bounded observations. Safe own-host dictionary storage is a separate software policy; seven original signal controls remain separate captured failures.
+
+This constructed software dictionary uses selected recipes and counted keys; it does not execute original update/with writeback, establish a defined post-free original storage window or turn captured public process bytes into native child/header/refcount identity. The unchanged original lifetime, signal, observer and bounded completion observations retain their precise independent scopes. No passing software assertion is attached.
 
 ## Provider answers
 
@@ -2237,6 +2241,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/cmd_dict.rs](../../../../rust/tcl-vm/src/cmd_dict.rs), `cmd_dict::native_rmw_fixture_tests::dictionary_body_writeback_compares_original_native_observation_windows` (linked): Retain329 unchanged captured outer process-code references and326 complete results plus three bounded post-free observations: C8.5/C8.6 update-error and C8.6 with-error. Every later outer/result/diagnostic/caller-read field remains captured output without defined storage/completion/read/effect or another archived executable private lifetime; the original seven signal controls remain separate.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-vm/src/value.rs](../../../../rust/tcl-vm/src/value.rs), `PreparedNativeDictionary::set_member`: Delegate actual software member publication to the original dictionary owner; borrowed transport leases do not substitute for independently owned child references.
+- [rust/tcl-vm/src/value.rs](../../../../rust/tcl-vm/src/value.rs), `Value::set_native_dictionary_member_in_place`: Convert only the reached original key, check value liveness and own each stored child; replacement keeps its existing key and releases the replaced value under the retained protocol.
+- [rust/tcl-vm/src/value.rs](../../../../rust/tcl-vm/src/value.rs), `value::tests::native_dictionary_member_publication_owns_borrowed_live_children` (linked): A direct software Dictionary control across C8.5/C8.6/C9.0/C9.1/Jim recipes publishes borrowed live key/value children as owned members. Counted key replacement preserves the first key identity, retires the replaced value/unneeded replacement key, keeps the new value until dictionary release and checks resulting lifetime/refcounts. It invokes no native writeback program.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

@@ -537,6 +537,22 @@ impl ExprOps for Tower {
         }
     }
 
+    // Explicit mathematical adapter: no original native object/effect claim.
+    fn to_bool_for_purpose(
+        &mut self,
+        value: &Val,
+        _purpose: tcl_syntax::native_boolean_truth::NativeBooleanTruthPurpose,
+    ) -> Result<bool, EvalError> {
+        self.to_bool(value)
+    }
+    fn logical_right_truth(
+        &mut self,
+        _left: &Val,
+        right: &Val,
+        _conjunction: bool,
+    ) -> Result<bool, EvalError> {
+        self.to_bool(right)
+    }
     fn bool_value(&mut self, b: bool) -> Val {
         Val::N(Num::Int(i64::from(b)))
     }

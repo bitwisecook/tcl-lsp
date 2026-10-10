@@ -14,9 +14,13 @@ What public option/arity and caller-owned inventory results does the original ro
 
 The rooted nonroot Jim originals retain the same complete values as the unqualified nonroot controls: exact -all plus pattern reports namespace info cmd ?pattern? forwarding arity, -al and extra operands report info commands ?-all? ?pattern?, exact -all alone selects the retained local report, and absent/pattern forms retain their original distinct lists. Rooting the written head alone therefore supplies no direct-core selection fact. The five C releases retain their original rooted ::info commands ?pattern? wrong-argument messages for two-operand forms, empty literal -all pattern result, and identical caller-owned absent/pattern lists. All36 fresh processes and six compiler commands exit0 with empty stderr; all ORIGINAL values retain the source's own caught errors or lists at completion0. The request identifier and raw core-selection hypothesis do not turn these observed nonroot rows into private binding, table identity, general wrapper law or successful helper evidence.
 
+A marked shared VM definition binds the native_jim_rooted_info_command_inventory256 public subset (36 comparisons) independently of its other fixture groups.
+
 ## Scope
 
 Six untouched rooted-head ASCII LF sources retain the actual nonroot namespace activation. Whole public completions, source/request/driver/launcher bytes, ELFs, receipts/streams and required provider pins remain independently inspectable. Literal rooting is a measured spelling difference, not an actual handler/frame receipt. Root/explicit-nons controls have a distinct complete question; BIG-IP and executed software assertions are not tested. Linked Runtime and VM controls execute the unchanged source fixtures and compare all138 whole ORIGINAL completion/result windows across the four inventory/helper groups per backend, with private identity and META/version excluded from the behavioural result. Their linked status records source coverage, not an executed software pass.
+
+The shared body has138 public code/result comparisons across23 unchanged originals, but each question owns only its matching fixture group. It selects an actual software core/compiler and explicitly installs NamespaceEnsemble; this does not infer a full distribution, current helper roster, token/cache identity, native opcode or entered external handler. It launches no new original process and supplies no assertion outcome. Existing independent original channels remain unchanged.
 
 ## Provider answers
 
@@ -224,6 +228,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/cmd_info/native_jim_inventory_tests.rs](../../../../runtime/rust/src/cmd_info/native_jim_inventory_tests.rs), `cmd_info::native_jim_inventory_tests::original_jim_inventory_and_current_helper_sources_match_all_native_columns` (linked): Authentic selected native bootstrap executes all23 untouched originals across six providers and compares all138 full ORIGINAL code/result windows/backend, excluding host refusal. Original nonroot forwarding, root/nons inventory and current-helper declaration/replacement stay independently identified; no private table/header/frame claim.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-vm/src/cmd_info.rs](../../../../rust/tcl-vm/src/cmd_info.rs), `info_command_listing`: Validate the actual original worker argv and reached usage rewrite before delegating public inventory to the shared command-list purpose; selected helper/library installation remains independent.
+- [rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs](../../../../rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs), `original_result`: Decode the exact original ORIGINAL completion/result-hex window; no private inventory/header observation follows from this parser.
+- [rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs](../../../../rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs), `cmd_info::native_jim_inventory_tests::original_jim_inventory_and_current_helper_sources_match_all_native_columns` (linked): Six rooted command-inventory programs retain original option/scope/arity results without broadening unqualified current-namespace behavior. This question binds only the native_jim_rooted_info_command_inventory256 subset: 36 of the shared body's138 public comparisons.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

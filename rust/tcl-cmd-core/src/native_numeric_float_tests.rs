@@ -312,3 +312,253 @@ fn c84_fresh_range_failures_precede_trailing_spelling_checks() {
     assert!(conversion.outcome().is_err());
     assert_eq!(environment.state().unwrap().errno, 0);
 }
+
+#[test]
+fn original_c84_fresh_boolean_host_stages_match_public_primitive_value_cache_and_errno() {
+    // naming.numeric.original-capi-scalar-publication-width
+    // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+    // Actual host conversion effects, separately from expression truth and
+    // original object/handler admission. The pure value/cache recipe is joined
+    // only after the reached native signed-long/double stages.
+    let fixtures = [
+        include_str!(
+            "../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-live.stdout"
+        ),
+        include_str!(
+            "../../tcl-registry/tests/data/native_capi_scalar_publication_original/8.4.20/execute-null.stdout"
+        ),
+    ];
+    let inputs: [&[u8]; 20] = [
+        b"",
+        b"17",
+        b"2147483648",
+        b"4294967295",
+        b"4294967296",
+        b"-4294967295",
+        b"-2147483649",
+        b"9223372036854775807",
+        b"9223372036854775808",
+        b"18446744073709551615",
+        b"18446744073709551616",
+        b"-18446744073709551615",
+        b"-9223372036854775809",
+        b"08",
+        b"0o10",
+        b"true",
+        b"bad",
+        b"NaN",
+        b"1.0",
+        b"1\0X",
+    ];
+    let field = |line: &str, key: &str| -> String {
+        line.split('\t')
+            .find_map(|part| {
+                let (name, value) = part.split_once('=')?;
+                (name == key).then(|| value.to_owned())
+            })
+            .unwrap()
+    };
+    let protocol = NativeScalarGetterProtocol::for_tcl_version(tcl_dialect::TclVersion::V8_4);
+    let environment = tcl_host_c_abi::NativeNumericEnvironment;
+    let mut count = 0;
+    for fixture in fixtures {
+        let abi = fixture
+            .lines()
+            .find(|line| line.starts_with("ABI\t"))
+            .unwrap();
+        let actual = environment.c_integer_abi().unwrap();
+        assert_eq!(actual.char_bits.to_string(), field(abi, "CHAR_BIT"));
+        assert_eq!(actual.int_bytes.to_string(), field(abi, "int"));
+        assert_eq!(actual.long_bytes.to_string(), field(abi, "long"));
+        for case in (0..20).chain([27, 28]) {
+            let bytes = match case {
+                0..20 => inputs[case].to_vec(),
+                27 => protocol
+                    .materialize(
+                        tcl_syntax::scalar_getter::NativeScalarStringStorage::ByteArray,
+                        b"1\0X",
+                    )
+                    .unwrap(),
+                28 => [b'a'; 50].into_iter().chain("😀Z".bytes()).collect(),
+                _ => unreachable!(),
+            };
+            let observed = fixture
+                .lines()
+                .find(|line| {
+                    line.starts_with("ROW\t")
+                        && field(line, "case") == case.to_string()
+                        && field(line, "getter") == "4"
+                })
+                .unwrap();
+            // The original request explicitly resets errno before each getter.
+            // This harness operation is independent of SetBooleanFromAny.
+            environment.reset().unwrap();
+            let conversion = fresh_c84_conversion(
+                protocol,
+                NativeScalarGetterKind::Boolean,
+                &bytes,
+                &environment,
+            )
+            .unwrap();
+            assert_eq!(
+                conversion.outcome().is_ok(),
+                field(observed, "code") == "0",
+                "{observed}"
+            );
+            if let Ok(NativeScalarGetterValue::Boolean(value)) = conversion.outcome() {
+                assert_eq!(
+                    value.returned_integer().to_string(),
+                    field(observed, "int"),
+                    "{observed}"
+                );
+                assert!(matches!(
+                    conversion.cache(),
+                    Some(tcl_syntax::scalar_getter::NativeScalarCache::WordBoolean(_))
+                ));
+                assert_eq!(field(observed, "after"), "boolean");
+            } else {
+                assert!(conversion.cache().is_none());
+                assert_eq!(field(observed, "before"), field(observed, "after"));
+            }
+            assert_eq!(
+                environment.state().unwrap().errno.to_string(),
+                field(observed, "errno"),
+                "{observed}"
+            );
+            count += 1;
+        }
+    }
+    assert_eq!(count, 44);
+}
+
+struct ObservedBooleanEnvironment {
+    target: bool,
+    signed_calls: Cell<usize>,
+    double_calls: Cell<usize>,
+    resets: Cell<usize>,
+}
+impl NumericEnvironment for ObservedBooleanEnvironment {
+    fn c_integer_abi(
+        &self,
+    ) -> Result<tcl_platform::NativeCIntegerAbi, NumericEnvironmentUnavailable> {
+        if self.target {
+            tcl_host_c_abi::NativeNumericEnvironment.c_integer_abi()
+        } else {
+            Err(NumericEnvironmentUnavailable::Target)
+        }
+    }
+    fn state(&self) -> Result<NumericErrorState, NumericEnvironmentUnavailable> {
+        tcl_host_c_abi::NativeNumericEnvironment.state()
+    }
+    fn reset(&self) -> Result<(), NumericEnvironmentUnavailable> {
+        self.resets.set(self.resets.get() + 1);
+        Err(NumericEnvironmentUnavailable::Target)
+    }
+    fn signed_long(
+        &self,
+        input: &[u8],
+        base: u32,
+    ) -> Result<tcl_platform::SignedNumericConversion, NumericEnvironmentUnavailable> {
+        self.signed_calls.set(self.signed_calls.get() + 1);
+        tcl_host_c_abi::NativeNumericEnvironment.signed_long(input, base)
+    }
+    fn unsigned(
+        &self,
+        _: &[u8],
+        _: usize,
+        _: u32,
+    ) -> Result<UnsignedNumericConversion, NumericEnvironmentUnavailable> {
+        Err(NumericEnvironmentUnavailable::Target)
+    }
+    fn double(
+        &self,
+        input: &[u8],
+        reset: bool,
+    ) -> Result<DoubleNumericConversion, NumericEnvironmentUnavailable> {
+        self.double_calls.set(self.double_calls.get() + 1);
+        assert!(!reset, "Boolean fallback must not reset errno");
+        tcl_host_c_abi::NativeNumericEnvironment.double(input, reset)
+    }
+}
+
+#[test]
+fn c84_boolean_preserves_reached_errno_and_refuses_missing_target_before_numeric_calls() {
+    // naming.numeric.original-capi-scalar-publication-width
+    // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+    // Native-stage reachability and host availability software control. The
+    // deliberate prior ERANGE is not an inferred baseline or guest error code.
+    let protocol = NativeScalarGetterProtocol::for_tcl_version(tcl_dialect::TclVersion::V8_4);
+    let host = tcl_host_c_abi::NativeNumericEnvironment;
+    host.reset().unwrap();
+    let seed = host.signed_long(b"18446744073709551616", 0).unwrap();
+    assert!(seed.after.range_error);
+    let environment = ObservedBooleanEnvironment {
+        target: true,
+        signed_calls: Cell::new(0),
+        double_calls: Cell::new(0),
+        resets: Cell::new(0),
+    };
+    for (input, signed, double, expected) in [
+        (b"true".as_slice(), 0, 0, true),
+        (b"4294967296", 1, 0, false),
+        (b"1.5", 2, 1, true),
+        (b"NaN", 3, 2, true),
+    ] {
+        let conversion = fresh_c84_conversion(
+            protocol,
+            NativeScalarGetterKind::Boolean,
+            input,
+            &environment,
+        )
+        .unwrap();
+        let Ok(NativeScalarGetterValue::Boolean(value)) = conversion.outcome() else {
+            panic!("{conversion:?}");
+        };
+        assert_eq!(value.is_true(), expected);
+        assert_eq!(environment.signed_calls.get(), signed);
+        assert_eq!(environment.double_calls.get(), double);
+        assert_eq!(environment.state().unwrap().errno, seed.after.errno);
+        assert_eq!(environment.resets.get(), 0);
+    }
+    let unavailable = ObservedBooleanEnvironment {
+        target: false,
+        signed_calls: Cell::new(0),
+        double_calls: Cell::new(0),
+        resets: Cell::new(0),
+    };
+    assert!(
+        fresh_c84_conversion(
+            protocol,
+            NativeScalarGetterKind::Boolean,
+            b"4294967296",
+            &unavailable
+        )
+        .is_err()
+    );
+    assert_eq!(unavailable.signed_calls.get(), 0);
+    assert_eq!(unavailable.double_calls.get(), 0);
+    assert!(
+        fresh_c84_conversion(
+            protocol,
+            NativeScalarGetterKind::Boolean,
+            b"true",
+            &unavailable
+        )
+        .unwrap()
+        .outcome()
+        .is_ok()
+    );
+    assert!(
+        fresh_c84_conversion(
+            protocol,
+            NativeScalarGetterKind::Boolean,
+            b"offending",
+            &unavailable
+        )
+        .unwrap()
+        .outcome()
+        .is_err()
+    );
+    assert_eq!(unavailable.signed_calls.get(), 0);
+    host.reset().unwrap();
+}

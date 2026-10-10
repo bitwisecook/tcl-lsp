@@ -1,0 +1,789 @@
+{
+  "question_id": "naming.numeric.original-logical-operand-truth-sites",
+  "question": "For each actual held original x constructor, how do primitive/expression controls and left/right &&/|| truth sites differ between generic Tcl_EvalEx source evaluation and independently held original Tcl_EvalObjEx compiled-script entry, with actual original y Int1 for && or Int0 for ||, across all six providers and their actual ABI? Jim independently repeats its genuine Jim_EvalObj route without assuming a second engine.",
+  "status": "prepared-not-compiled-or-executed",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "jim"
+  ],
+  "bigip": "not-tested",
+  "probe_file": "/tmp/receiver-logical-operand-truth-request465/probe.c",
+  "probe_sha256": "a903921b852280ac8b37cec36b0d6fb8e6928d22c2589449ecc39e2d455e696f",
+  "compile": {
+    "language": "C99",
+    "C_defines": [],
+    "Jim_defines": [
+      "JIM_PROBE"
+    ],
+    "headers_and_libraries": "Actual Root-pinned provider SDK and configured full-init static library, unchanged source for all six providers; standard dependencies retained explicitly.",
+    "no_abi_width_macro_simulation": true
+  },
+  "execution": {
+    "argv": "probe.elf",
+    "processes": 6,
+    "rows_per_provider": 648,
+    "before_rows_per_provider": 648,
+    "fresh_each_row": "Fully initialized independent interpreter, original held x and actual public variable binding each row; logical rows bind independent original y Int1 for && or Int0 for ||. Workers10\u201317 additionally retain the exact original script object before public EvalObj entry. No x/y serialization.",
+    "timeout_seconds": 240
+  },
+  "source_files": [
+    {
+      "path": "/tmp/receiver-logical-operand-truth-request465/c-version.tcl",
+      "sha256": "94435c94329c585b6c1aeab67588b472dfce542e43c68cfc63a214ccdc6e72ea",
+      "bytes": 48
+    },
+    {
+      "path": "/tmp/receiver-logical-operand-truth-request465/expr-and-left.tcl",
+      "sha256": "4416144aef3d938549bd3dfe187115bff35296f61254eaaca53328afce705846",
+      "bytes": 16
+    },
+    {
+      "path": "/tmp/receiver-logical-operand-truth-request465/expr-and-right.tcl",
+      "sha256": "03f73e7e2523ea6ce21bcdea8e2266816bca96212eb00b799a7cdcbfb61768ad",
+      "bytes": 16
+    },
+    {
+      "path": "/tmp/receiver-logical-operand-truth-request465/expr-conditional.tcl",
+      "sha256": "73870a9985ea4613d4ec20ddccaf3419b96f4f25f90479295b127f3e430ae19d",
+      "bytes": 18
+    },
+    {
+      "path": "/tmp/receiver-logical-operand-truth-request465/expr-not.tcl",
+      "sha256": "8b51ac1aa2cb3651d723780b7fbc4e9fb417f95965d423d163d73a16febd6fe3",
+      "bytes": 12
+    },
+    {
+      "path": "/tmp/receiver-logical-operand-truth-request465/expr-or-left.tcl",
+      "sha256": "7df315aed9ca3277a7b4f34ecb361703563c5b24a21c541787aa5d315b33d004",
+      "bytes": 16
+    },
+    {
+      "path": "/tmp/receiver-logical-operand-truth-request465/expr-or-right.tcl",
+      "sha256": "545d2551b84c7f65b027fd810bb34b8972c317bed76a4e4c037f10648e0f6b89",
+      "bytes": 16
+    },
+    {
+      "path": "/tmp/receiver-logical-operand-truth-request465/expression-source.tcl",
+      "sha256": "266a697aba660c60c2f35b01b3438ba3f9fee2f3c2108858ff22d84c7dec7517",
+      "bytes": 3
+    },
+    {
+      "path": "/tmp/receiver-logical-operand-truth-request465/if.tcl",
+      "sha256": "ae874b930a6a01aede1cb532cd0cd04b76a313946372b30cfc172127bd2c28cb",
+      "bytes": 31
+    },
+    {
+      "path": "/tmp/receiver-logical-operand-truth-request465/jim-version.tcl",
+      "sha256": "67c43f03e646543de96a1a97809fc0ab06a21cf2db5be74389b56938db38ec21",
+      "bytes": 45
+    },
+    {
+      "path": "/tmp/receiver-logical-operand-truth-request465/while.tcl",
+      "sha256": "c5c3b0b07dc61b5589c25cf65f6c31f86fe26cecdbbbb948d197ce0212fe64bf",
+      "bytes": 68
+    }
+  ],
+  "source_execution": "Original workers0\u20139 retain the original API/generic eval entry. Workers10\u201317 select exact same saved sources as2\u20139 through separately retained original Script object and genuine Tcl_EvalObjEx(flags0) / Jim_EvalObj. No catch or rewritten x/y text; Jim repetition stays separately measured without assumed engine divergence.",
+  "case_map": {
+    "0": {
+      "constructor": "String",
+      "original_hex": "3137"
+    },
+    "1": {
+      "constructor": "String",
+      "original_hex": "30"
+    },
+    "2": {
+      "constructor": "String",
+      "original_hex": "2d30"
+    },
+    "3": {
+      "constructor": "String",
+      "original_hex": "2d302e30"
+    },
+    "4": {
+      "constructor": "String",
+      "original_hex": "34323934393637323936"
+    },
+    "5": {
+      "constructor": "String",
+      "original_hex": "4e614e"
+    },
+    "6": {
+      "constructor": "String",
+      "original_hex": "626164"
+    },
+    "7": {
+      "constructor": "String",
+      "original_hex": "6f6e"
+    },
+    "8": {
+      "constructor": "String",
+      "original_hex": "74727565"
+    },
+    "9": {
+      "constructor": "String",
+      "original_hex": "66616c7365"
+    },
+    "10": {
+      "constructor": "String",
+      "original_hex": "310058"
+    },
+    "11": {
+      "constructor": "String",
+      "original_hex": "300058"
+    },
+    "12": {
+      "constructor": "C NewIntObj / Jim NewIntObj",
+      "argument": "17"
+    },
+    "13": {
+      "constructor": "C NewIntObj / Jim NewIntObj",
+      "argument": "0"
+    },
+    "14": {
+      "constructor": "C NewIntObj / Jim NewIntObj",
+      "argument": "-17"
+    },
+    "15": {
+      "constructor": "C NewIntObj / Jim NewIntObj",
+      "argument": "INT_MAX"
+    },
+    "16": {
+      "constructor": "C NewIntObj / Jim NewIntObj",
+      "argument": "INT_MIN"
+    },
+    "17": {
+      "constructor": "C NewWideIntObj / Jim NewIntObj",
+      "argument": "2147483648"
+    },
+    "18": {
+      "constructor": "C NewWideIntObj / Jim NewIntObj",
+      "argument": "4294967295"
+    },
+    "19": {
+      "constructor": "C NewWideIntObj / Jim NewIntObj",
+      "argument": "4294967296"
+    },
+    "20": {
+      "constructor": "C NewWideIntObj / Jim NewIntObj",
+      "argument": "4294967297"
+    },
+    "21": {
+      "constructor": "C NewWideIntObj / Jim NewIntObj",
+      "argument": "-4294967296"
+    },
+    "22": {
+      "constructor": "C NewWideIntObj / Jim NewIntObj",
+      "argument": "-4294967295"
+    },
+    "23": {
+      "constructor": "C NewWideIntObj / Jim NewIntObj",
+      "argument": "9223372036854775807"
+    },
+    "24": {
+      "constructor": "C NewWideIntObj / Jim NewIntObj",
+      "argument": "-9223372036854775808"
+    },
+    "25": {
+      "constructor": "Double",
+      "argument": "17.0"
+    },
+    "26": {
+      "constructor": "Double",
+      "argument": "0.0"
+    },
+    "27": {
+      "constructor": "Double",
+      "argument": "-0.0"
+    },
+    "28": {
+      "constructor": "Double",
+      "argument": "NAN"
+    },
+    "29": {
+      "constructor": "Double",
+      "argument": "4294967296.0"
+    },
+    "30": {
+      "constructor": "Double",
+      "argument": "INFINITY"
+    },
+    "31": {
+      "constructor": "Double",
+      "argument": "-INFINITY"
+    },
+    "32": {
+      "constructor": "String",
+      "original_hex": "312e30"
+    },
+    "33": {
+      "constructor": "String",
+      "original_hex": "3038"
+    },
+    "34": {
+      "constructor": "String",
+      "original_hex": "39323233333732303336383534373735383038"
+    },
+    "35": {
+      "constructor": "String",
+      "original_hex": ""
+    }
+  },
+  "worker_map": {
+    "0": "Actual public Tcl_GetBooleanFromObj / Jim_GetBoolean on original held variable object; returned int is raw, not normalized by driver.",
+    "1": "Actual public Tcl_ExprBooleanObj / Jim_GetBoolFromExpr on original expression source $x; output begins sentinel777.",
+    "2": "Original source expr {!!$x}",
+    "3": "Original source expr {$x ? 1 : 0}",
+    "4": "Original source if {$x} {list 1} else {list 0}",
+    "5": "Original source one-iteration while {$x}, body increments iterations and unconditionally breaks.",
+    "6": "Original source expr {$x && $y}; original y Int1",
+    "7": "Original source expr {$y && $x}; original y Int1 ensures x right reached",
+    "8": "Original source expr {$x || $y}; original y Int0",
+    "9": "Original source expr {$y || $x}; original y Int0 ensures x right reached",
+    "10": "Independent held original Script object, actual Tcl_EvalObjEx(flags0) / Jim_EvalObj: Original source expr {!!$x}",
+    "11": "Independent held original Script object, actual Tcl_EvalObjEx(flags0) / Jim_EvalObj: Original source expr {$x ? 1 : 0}",
+    "12": "Independent held original Script object, actual Tcl_EvalObjEx(flags0) / Jim_EvalObj: Original source if {$x} {list 1} else {list 0}",
+    "13": "Independent held original Script object, actual Tcl_EvalObjEx(flags0) / Jim_EvalObj: Original source one-iteration while {$x}, body increments iterations and unconditionally breaks.",
+    "14": "Independent held original Script object, actual Tcl_EvalObjEx(flags0) / Jim_EvalObj: Original source expr {$x && $y}; original y Int1",
+    "15": "Independent held original Script object, actual Tcl_EvalObjEx(flags0) / Jim_EvalObj: Original source expr {$y && $x}; original y Int1 ensures x right reached",
+    "16": "Independent held original Script object, actual Tcl_EvalObjEx(flags0) / Jim_EvalObj: Original source expr {$x || $y}; original y Int0",
+    "17": "Independent held original Script object, actual Tcl_EvalObjEx(flags0) / Jim_EvalObj: Original source expr {$y || $x}; original y Int0 ensures x right reached"
+  },
+  "before_observers": "After actual public variable installation, before selected getter/evaluation, record original primary, resident string flag and actual variable object equality. No original string is requested or cache primed. Host owns original through all callbacks/evaluation. Logical rows additionally record real y integer argument/cache/residency/binding equality/native refcount, without reading its String. Object-eval rows retain and record actual script header primary/resident String/refcount before evaluation; no cache is forced.",
+  "after_observers": "After selected API returns, record code/sentinel/cache/residency/equality before public result String/error-code/input observers. Post-call errno is recorded only as ambient API-return observation, not a pure numeric-stage or freshness witness. Logical rows retain actual y and record its post-evaluation cache/residency/binding equality/native refcount. The original input String observer is x only. Object-eval rows also keep their script object live through post-evaluation public observers and record its public primary/resident String/refcount before result/error-code/input String observers; these observations grant no arbitrary compiled-artifact or handler receipt.",
+  "error_observer": "Primitive/API result bytes precede error-code observer. C8.5+ uses public ReturnOptions/dict errorcode; C8.4/Jim public global errorCode. Absent/private C8.4 state is not inferred. Script channels may perform their genuine evaluation error publication; distinct from direct primitive/API channels.",
+  "required_receipts": [
+    "Exact compile argv/stdout/stderr/exit/compiler --version",
+    "Actual library/config/header/source/executable SHA256 before and after each launch",
+    "Complete stdout/stderr/process status/argv/time",
+    "Actual runtime VERSION/BUILD/ABI rows",
+    "Independent exact CLI version source process/CLI executable SHA256/stdout/stderr/status",
+    "Source and request receipt hashes"
+  ],
+  "cli_sources": {
+    "C": "/tmp/receiver-logical-operand-truth-request465/c-version.tcl",
+    "Jim": "/tmp/receiver-logical-operand-truth-request465/jim-version.tcl"
+  },
+  "abi_scope": {
+    "actual": "Record sizeof int/long/wide/double/pointer, CHAR_BIT, signed integer limits, C Tcl_UniChar, actual Jim UTF8/configured revision.",
+    "wasm32_llp64": "not-tested unless genuinely separate native runnable provider SDKs/libraries are available; LP64 is not a substitute."
+  },
+  "purpose_limits": [
+    "Primitive integer Boolean return is separate from semantic truth and from expression result bytes.",
+    "Original object equality/refcount observations belong only to this public driver, not arbitrary runtime identity/frame admission.",
+    "No current implementation/Rust-test success claimed.",
+    "No numeric ABI inferred from nominal source profile or grammar.",
+    "No Native compiler/receiver/frame bootstrap capability from these rows.",
+    "Provider-specific failures or divergent channels remain full observations; no expectation projection from another route.",
+    "Both x operand positions are genuinely reached because y is an independently bound variable; this adds no claim about unexecuted short-circuit branches or source compiler admission elsewhere.",
+    "Actual public object-source evaluation is independent of generic source eval and arbitrary compiler ingress; all18workers stay separate, and no compile route result is inferred from another API."
+  ],
+  "parent_control": {
+    "question_id": "naming.numeric.original-primitive-boolean-vs-expression-truth",
+    "original_request_sha256": "a6581d45ee6b5f6403619c5d52c27ba8c4ec325881c4d7b98c30bb1eddb5e3f0",
+    "all_six_workers_retained": true,
+    "separate_capture_required": true
+  },
+  "source_pins": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclExecute.c",
+      "sha256": "970975c51cf8b78a291b92289cfeac8f023bd126c5d227ae5fa3c7d426a60c77",
+      "readonly_anchors": [
+        {
+          "line": 2280,
+          "text": "case INST_JUMP_FALSE4:"
+        },
+        {
+          "line": 2285,
+          "text": "case INST_JUMP_TRUE4:"
+        },
+        {
+          "line": 2290,
+          "text": "case INST_JUMP_FALSE1:"
+        },
+        {
+          "line": 2295,
+          "text": "case INST_JUMP_TRUE1:"
+        },
+        {
+          "line": 2342,
+          "text": "case INST_LOR:"
+        },
+        {
+          "line": 2343,
+          "text": "case INST_LAND:"
+        },
+        {
+          "line": 2670,
+          "text": "case INST_JUMP_FALSE1:"
+        },
+        {
+          "line": 2672,
+          "text": "case INST_JUMP_TRUE1:"
+        },
+        {
+          "line": 2674,
+          "text": "case INST_JUMP_FALSE4:"
+        },
+        {
+          "line": 2676,
+          "text": "case INST_JUMP_TRUE4:"
+        },
+        {
+          "line": 3139,
+          "text": "case INST_JUMP_FALSE1:"
+        },
+        {
+          "line": 3141,
+          "text": "case INST_JUMP_TRUE1:"
+        },
+        {
+          "line": 3143,
+          "text": "case INST_JUMP_FALSE4:"
+        },
+        {
+          "line": 3145,
+          "text": "case INST_JUMP_TRUE4:"
+        },
+        {
+          "line": 3993,
+          "text": "case INST_TRY_CVT_TO_NUMERIC:"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompExpr.c",
+      "sha256": "c4138e547b833c39d0c6da3bb4042fc7a7052a6146a2e7635aedcd53ac492514",
+      "readonly_anchors": [
+        {
+          "line": 279,
+          "text": "TclEmitOpcode(INST_TRY_CVT_TO_NUMERIC, envPtr);"
+        },
+        {
+          "line": 756,
+          "text": "TclEmitOpcode(INST_TRY_CVT_TO_NUMERIC, envPtr);"
+        },
+        {
+          "line": 779,
+          "text": "TclEmitOpcode(INST_TRY_CVT_TO_NUMERIC, envPtr);"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclExecute.c",
+      "sha256": "de5706aa9022663636927515066d4630cbfe8ded754dceaca7ae61ee8612b47d",
+      "readonly_anchors": [
+        {
+          "line": 3607,
+          "text": "case INST_JUMP_FALSE4:"
+        },
+        {
+          "line": 3612,
+          "text": "case INST_JUMP_TRUE4:"
+        },
+        {
+          "line": 3617,
+          "text": "case INST_JUMP_FALSE1:"
+        },
+        {
+          "line": 3622,
+          "text": "case INST_JUMP_TRUE1:"
+        },
+        {
+          "line": 3692,
+          "text": "case INST_LOR:"
+        },
+        {
+          "line": 3693,
+          "text": "case INST_LAND: {"
+        },
+        {
+          "line": 4140,
+          "text": "case INST_JUMP_FALSE1:"
+        },
+        {
+          "line": 4142,
+          "text": "case INST_JUMP_TRUE1:"
+        },
+        {
+          "line": 4144,
+          "text": "case INST_JUMP_FALSE4:"
+        },
+        {
+          "line": 4146,
+          "text": "case INST_JUMP_TRUE4:"
+        },
+        {
+          "line": 4211,
+          "text": "case INST_JUMP_FALSE1:"
+        },
+        {
+          "line": 4213,
+          "text": "case INST_JUMP_TRUE1:"
+        },
+        {
+          "line": 4215,
+          "text": "case INST_JUMP_FALSE4:"
+        },
+        {
+          "line": 4217,
+          "text": "case INST_JUMP_TRUE4:"
+        },
+        {
+          "line": 4797,
+          "text": "case INST_JUMP_FALSE1:"
+        },
+        {
+          "line": 4799,
+          "text": "case INST_JUMP_TRUE1:"
+        },
+        {
+          "line": 4801,
+          "text": "case INST_JUMP_FALSE4:"
+        },
+        {
+          "line": 4803,
+          "text": "case INST_JUMP_TRUE4:"
+        },
+        {
+          "line": 6457,
+          "text": "case INST_TRY_CVT_TO_NUMERIC: {"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompExpr.c",
+      "sha256": "0a6d97e0800151eeb85e60635c9862ac111022a56d8535d38d8d2fd34fd779f5",
+      "readonly_anchors": [
+        {
+          "line": 2252,
+          "text": "TclEmitOpcode(INST_TRY_CVT_TO_NUMERIC, envPtr);"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclExecute.c",
+      "sha256": "2a29cf5e54d1b2ac4ddf56a6f38556bbfb9c8e8913800377c84a6f0bb8caa491",
+      "readonly_anchors": [
+        {
+          "line": 321,
+          "text": "case INST_JUMP_FALSE1:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 324,
+          "text": "case INST_JUMP_TRUE1:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 327,
+          "text": "case INST_JUMP_FALSE4:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 330,
+          "text": "case INST_JUMP_TRUE4:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 347,
+          "text": "case INST_JUMP_FALSE1:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 350,
+          "text": "case INST_JUMP_TRUE1:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 353,
+          "text": "case INST_JUMP_FALSE4:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 356,
+          "text": "case INST_JUMP_TRUE4:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 4596,
+          "text": "case INST_JUMP_FALSE4:"
+        },
+        {
+          "line": 4601,
+          "text": "case INST_JUMP_TRUE4:"
+        },
+        {
+          "line": 4606,
+          "text": "case INST_JUMP_FALSE1:"
+        },
+        {
+          "line": 4611,
+          "text": "case INST_JUMP_TRUE1:"
+        },
+        {
+          "line": 4679,
+          "text": "case INST_LOR:"
+        },
+        {
+          "line": 4680,
+          "text": "case INST_LAND: {"
+        },
+        {
+          "line": 6733,
+          "text": "case INST_TRY_CVT_TO_NUMERIC:"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompExpr.c",
+      "sha256": "970b54cc3b24299ff47e64ec6dccc14fdbffd6fdc9f0904170c2071bfd3f8ca0",
+      "readonly_anchors": [
+        {
+          "line": 2337,
+          "text": "TclEmitOpcode(INST_TRY_CVT_TO_NUMERIC, envPtr);"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclExecute.c",
+      "sha256": "0c42699cdcf610813ce77e2a6fec505f12d82a87b110950c92824fdf30d3c42a",
+      "readonly_anchors": [
+        {
+          "line": 262,
+          "text": "case INST_JUMP_FALSE1:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 265,
+          "text": "case INST_JUMP_TRUE1:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 268,
+          "text": "case INST_JUMP_FALSE4:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 271,
+          "text": "case INST_JUMP_TRUE4:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 288,
+          "text": "case INST_JUMP_FALSE1:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 291,
+          "text": "case INST_JUMP_TRUE1:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 294,
+          "text": "case INST_JUMP_FALSE4:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 297,
+          "text": "case INST_JUMP_TRUE4:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 4239,
+          "text": "case INST_JUMP_FALSE4:"
+        },
+        {
+          "line": 4244,
+          "text": "case INST_JUMP_TRUE4:"
+        },
+        {
+          "line": 4249,
+          "text": "case INST_JUMP_FALSE1:"
+        },
+        {
+          "line": 4254,
+          "text": "case INST_JUMP_TRUE1:"
+        },
+        {
+          "line": 6335,
+          "text": "case INST_TRY_CVT_TO_NUMERIC:"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompExpr.c",
+      "sha256": "f82f94056112b9c76292b384ddb0f84b1d4889d1c14c4776fa0929e02767ded1",
+      "readonly_anchors": [
+        {
+          "line": 2402,
+          "text": "TclEmitOpcode(INST_TRY_CVT_TO_NUMERIC, envPtr);"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclExecute.c",
+      "sha256": "9dd4e9a080136f2ce36ee8f9acf4a30e770cc5fc417519468c785d76013151f4",
+      "readonly_anchors": [
+        {
+          "line": 285,
+          "text": "case INST_JUMP_FALSE1:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 287,
+          "text": "case INST_JUMP_TRUE1:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 289,
+          "text": "case INST_JUMP_FALSE:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 291,
+          "text": "case INST_JUMP_TRUE:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 307,
+          "text": "case INST_JUMP_FALSE1:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 309,
+          "text": "case INST_JUMP_TRUE1:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 311,
+          "text": "case INST_JUMP_FALSE:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 313,
+          "text": "case INST_JUMP_TRUE:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 330,
+          "text": "case INST_JUMP_FALSE:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 332,
+          "text": "case INST_JUMP_TRUE:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 348,
+          "text": "case INST_JUMP_FALSE:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 350,
+          "text": "case INST_JUMP_TRUE:\t\t\t\t\t\t\\"
+        },
+        {
+          "line": 4532,
+          "text": "case INST_JUMP_FALSE1:"
+        },
+        {
+          "line": 4539,
+          "text": "case INST_JUMP_TRUE1:"
+        },
+        {
+          "line": 4547,
+          "text": "case INST_JUMP_FALSE:"
+        },
+        {
+          "line": 4553,
+          "text": "case INST_JUMP_TRUE:"
+        },
+        {
+          "line": 6654,
+          "text": "case INST_TRY_CVT_TO_NUMERIC:"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompExpr.c",
+      "sha256": "16191591d5dd04ac05c3e3200799bf27167ec1d90c9985c3dbbed04e3c07d1b0",
+      "readonly_anchors": []
+    },
+    {
+      "path": "/workspace/.proofs/native-providers/jimtcl/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "readonly_anchors": [
+        {
+          "line": 8526,
+          "text": "static int JimExprGetTermBoolean(Jim_Interp *interp, struct JimExprNode *node);"
+        },
+        {
+          "line": 9147,
+          "text": "static int ExprBool(Jim_Interp *interp, Jim_Obj *obj)"
+        },
+        {
+          "line": 9172,
+          "text": "static int JimExprOpAnd(Jim_Interp *interp, struct JimExprNode *node)"
+        },
+        {
+          "line": 9189,
+          "text": "static int JimExprOpOr(Jim_Interp *interp, struct JimExprNode *node)"
+        },
+        {
+          "line": 10195,
+          "text": "static int JimExprGetTermBoolean(Jim_Interp *interp, struct JimExprNode *node)"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c",
+      "sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "readonly_anchors": [
+        {
+          "line": 3962,
+          "text": "Tcl_EvalEx(interp, script, numBytes, flags)"
+        },
+        {
+          "line": 5035,
+          "text": "Tcl_EvalObjEx(interp, objPtr, flags)"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c",
+      "sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "readonly_anchors": [
+        {
+          "line": 4117,
+          "text": "Tcl_EvalEx("
+        },
+        {
+          "line": 5124,
+          "text": "Tcl_EvalObjEx("
+        }
+      ]
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c",
+      "sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "readonly_anchors": [
+        {
+          "line": 5113,
+          "text": "Tcl_EvalEx("
+        },
+        {
+          "line": 6135,
+          "text": "Tcl_EvalObjEx("
+        }
+      ]
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c",
+      "sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+      "readonly_anchors": [
+        {
+          "line": 5271,
+          "text": "Tcl_EvalEx("
+        },
+        {
+          "line": 6231,
+          "text": "Tcl_EvalObjEx("
+        }
+      ]
+    },
+    {
+      "path": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c",
+      "sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+      "readonly_anchors": [
+        {
+          "line": 5240,
+          "text": "Tcl_EvalEx("
+        },
+        {
+          "line": 6189,
+          "text": "Tcl_EvalObjEx("
+        }
+      ]
+    }
+  ]
+}

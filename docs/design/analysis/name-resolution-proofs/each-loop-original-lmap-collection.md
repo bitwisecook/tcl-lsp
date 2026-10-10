@@ -14,9 +14,13 @@ What result and body/member windows are produced by lmap over two original value
 
 C8.6–9.1 and Jim enter two bodies and return normal result bytes BODY BODY with a List result before rendering. The first body v cell is the original first member; the second is a different member and the first member is refs1 after its replacement. C8.4/8.5 reject lmap by the measured invalid-command error and supply no supported collection windows.
 
+A marked VM control binds missing C8.4/C8.5 lmap lookup, constructed result String shape and shared backend result-header publication.
+
 ## Scope
 
 Selected cases [5] from ten exact direct original object-vector commands per provider. C Tcl_EvalObjv uses TCL_EVAL_GLOBAL; Jim uses Jim_EvalObjVector after core command registration. There is one explicit owning argv reference on each original root. Header primary/refcount/resident-string/backing counts and cell==member identity are sampled before result string rendering. C WRITE observation calls successful get with no READ traces installed; Jim installs no corresponding trace. Backing−1 is unobserved, never zero. No compiled foreach opcode or original document ingress claim. All original compile/processes succeed, but guest errors stay separate; original rust_comparisons0.
+
+This software same-header assertion does not extend original case4's public result/cache window into an observed external pointer identity or arbitrary result-header guarantee. It observes no loop body, entered lmap handler, element effect, compiled loop opcode or original process. Whole native each-loop observations remain separately scoped; no passing assertion is attached.
 
 ## Provider answers
 
@@ -134,6 +138,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/cmd_control/native_each_loop_tests.rs](../../../../rust/tcl-vm/src/cmd_control/native_each_loop_tests.rs), `cmd_control::native_each_loop_tests::generic_each_loops_match_all_406_original_native_physical_windows` (linked): Compares the selected cases within406 original/shimmer header windows; unavailable backing fields remain sentinels and no compiled opcode parity is claimed.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs), `Vm::command_lookup_error_value`: Use the actual reached original head and selected reporting/result-producer protocol for lookup failure; table key extent remains independently selected.
+- [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs), `Vm::publish_native_lookup_failure`: Publish failed lookup through the same backend interpreter completion owner despite the absence of an entered-handler epilogue.
+- [rust/tcl-vm/src/exec/native_missing_command_result_tests.rs](../../../../rust/tcl-vm/src/exec/native_missing_command_result_tests.rs), `exec::native_missing_command_result_tests::original_missing_lmap_lookup_publishes_the_same_native_result_header` (linked): Selected C8.4/C8.5 software cores receive original List arguments and an unbalanced-brace body, then missing lmap lookup returns Error. The completion and actual backend interpreter result share its constructed String header, and counted bytes equal invalid command name "lmap". No loop handler/body is entered.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

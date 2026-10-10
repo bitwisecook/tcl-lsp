@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-compiler298.elf",
+  "sha256": "219c07b9e80ae922ff842658e406b9ec9b75a5e793bd2b0852a5109644ce2ce7",
+  "build_receipt": "/workspace/.proofs/integration-compiler-registry-syntax-own-test-build298.json",
+  "build_receipt_sha256": "28968aac7539429ed7562ba58894c34793cb660df10f35246e3cc7f5d4520b87",
+  "source_snapshot_sha256": "f14ad6c22d3a7de6510b66a0691b357f8d33c14ceb25b2c1c49ae50b45b6bcdf"
+}

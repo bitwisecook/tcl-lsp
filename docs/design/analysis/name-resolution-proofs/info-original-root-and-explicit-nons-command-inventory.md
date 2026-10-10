@@ -16,11 +16,15 @@ Jim root exact -all with r2286 pattern reports {{::r2286 spaced} ::r2286_global 
 
 Original info option lookup and missing-selector usage are separate selected-dialect purposes. C8.4 option-table advice is withheld for newer C ensemble dispatch, Jim and missing or hosted native purpose.
 
+A marked shared VM definition binds the native_jim_core_command_inventory257 public subset (48 comparisons) independently of its other fixture groups.
+
 ## Scope
 
 Eight unchanged original ASCII LF sources retain genuine root versus nonroot activation, explicit original -nons words, caller-owned global/local commands and a literal-space command name. Counted C API evaluation introduces no outer source envelope. All exact inputs/requests/driver/launcher/ELFs/whole streams/receipts and independently required provider/archive/header/build/source pins are retained, with full Jim source and exact excerpt as separate source inspection. The two nonroot question records retain their own limited public forwarding answers. BIG-IP and executed software tests are not tested. Linked Runtime and VM controls execute the unchanged source fixtures and compare all138 whole ORIGINAL completion/result windows across the four inventory/helper groups per backend, with private identity and META/version excluded from the behavioural result. Their linked status records source coverage, not an executed software pass.
 
 This policy control grants no selected operation success, original handler table, Native entry or inventory execution outcome. Whole original inventory comparisons retain independent request and executable provenance.
+
+The shared body has138 public code/result comparisons across23 unchanged originals, but each question owns only its matching fixture group. It selects an actual software core/compiler and explicitly installs NamespaceEnsemble; this does not infer a full distribution, current helper roster, token/cache identity, native opcode or entered external handler. It launches no new original process and supplies no assertion outcome. Existing independent original channels remain unchanged.
 
 ## Provider answers
 
@@ -404,6 +408,12 @@ A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-registry/src/native_index_lookup.rs](../../../../rust/tcl-registry/src/native_index_lookup.rs), `InvocationDialect::native_info_original_option_protocol`: Select only the original C8.4 info option-table purpose; later ensemble and Jim dispatch remain distinct.
 - [rust/tcl-registry/src/native_index_lookup.rs](../../../../rust/tcl-registry/src/native_index_lookup.rs), `native_index_lookup::tests::original_info_option_lookup_is_separate_from_ensemble_and_jim_dispatch` (linked): The actual dialect selects the C8.4 original info option-table purpose and independently release-specific missing-selector usage; newer ensemble dispatch, Jim and unknown/hosted profiles cannot borrow that option protocol. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-vm/src/cmd_info.rs](../../../../rust/tcl-vm/src/cmd_info.rs), `info_command_listing`: Validate the actual original worker argv and reached usage rewrite before delegating public inventory to the shared command-list purpose; selected helper/library installation remains independent.
+- [rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs](../../../../rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs), `original_result`: Decode the exact original ORIGINAL completion/result-hex window; no private inventory/header observation follows from this parser.
+- [rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs](../../../../rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs), `cmd_info::native_jim_inventory_tests::original_jim_inventory_and_current_helper_sources_match_all_native_columns` (linked): Eight root/explicit-nons inventory programs preserve whole original option, absent-pattern and arity results; catalogue or root namespace reporting is not a physical table snapshot. This question binds only the native_jim_core_command_inventory257 subset: 48 of the shared body's138 public comparisons.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 

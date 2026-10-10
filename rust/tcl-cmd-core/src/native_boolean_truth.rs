@@ -217,7 +217,7 @@ pub fn original_boolean_truth<O: NativeBooleanTruthOps>(
 mod tests {
     use super::*;
     use std::collections::VecDeque;
-    use tcl_dialect::{DialectPoint, Release};
+    use tcl_dialect::model::{DialectPoint, Release};
     use tcl_runtime_api::NativeExecutionError;
     use tcl_syntax::{
         native_boolean_truth::NativeBooleanTruthPurpose, raw_string::NativeValueAccessRefusal,

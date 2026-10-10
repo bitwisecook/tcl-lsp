@@ -47,7 +47,7 @@ pub use integer_formatter::{
 };
 pub use numeric_environment::{
     DoubleNumericConversion, NativeCIntegerAbi, NumericEnvironment, NumericEnvironmentUnavailable,
-    NumericErrorState, UnsignedNumericConversion,
+    NumericErrorState, SignedNumericConversion, UnsignedNumericConversion,
 };
 
 /// What a host environment can do. A uniform query over the [`Host`] regardless

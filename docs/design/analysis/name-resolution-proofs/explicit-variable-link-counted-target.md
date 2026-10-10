@@ -16,11 +16,15 @@ C8.6/C9.0/C9.1 link local k to the full counted object namespace key k00tail or 
 
 A marked direct VarTable control separates counted-key declaration visibility, alias retention and undefined-value state.
 
+A marked CmdCore pure filtering control binds complete counted keys and selected variable-search units to the shared name-pattern owner.
+
 ## Scope
 
 Fresh class/object per original counted argv control. Eight names; link and write controls in v2, plus genuine link/partial-state controls in v1. V1 report and write-final-report recurse through a accidentally shadowing user varname method and cannot corroborate stock varname success. No private declaration, native header/cache, callback, compiler-local or Normal grant.
 
 The body constructs an implementation table directly; it observes no original provider NUL parsing, TclOO my variable invocation, C pointer/header, declaration instruction or native partial-state publication. The original counted explicit-variable operands and their independent public windows remain unchanged. No software passing outcome is attached.
+
+An authored_tcl recipe and constructed key vector supply no original provider NUL semantics, physical namespace variable cell, TclOO method/alias frame or current native scan/table admission. It observes no original process or passing software outcome. Original eight explicit-variable operands and independently captured public partial-state windows remain unchanged.
 
 ## Provider answers
 
@@ -157,6 +161,11 @@ A named test is a coverage binding, not a claim that it executed.
 - [runtime/rust/src/frame.rs](../../../../runtime/rust/src/frame.rs), `VarTable::mark_namespace_declared`: Retain declared namespace-cell visibility independently of a defined scalar value or active alias, using the complete software counted key.
 - [runtime/rust/src/frame.rs](../../../../runtime/rust/src/frame.rs), `VarTable::has_native_namespace_cell`: Report retained namespace-cell presence separately from scalar definition and value loading.
 - [runtime/rust/src/frame.rs](../../../../runtime/rust/src/frame.rs), `frame::native_inventory_tests::declared_undefined_namespace_cells_remain_visible_without_becoming_defined` (linked): A direct VarTable fixture uses counted k plus NUL plus tail, retains a scalar alias, then marks the namespace cell declared. Dropping the alias keeps the declared name visible while non_link_names is empty, is_set is false and load_scalar is None; removal withdraws visibility. These bytes are software table keys, not an original native name-input observation.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-cmd-core/src/info.rs](../../../../rust/tcl-cmd-core/src/info.rs), `filter_ordered_names`: Retain each complete original software counted key while applying the independently selected name-glob purpose; unavailable pattern purpose refuses rather than truncating a key.
+- [rust/tcl-cmd-core/src/info.rs](../../../../rust/tcl-cmd-core/src/info.rs), `info::tests::variable_name_patterns_keep_original_counted_keys_and_native_scan_units` (linked): Three selected C8.6/C9.0/C9.1 pure authored glob recipes filter ordered counted keys containing modified-NUL bytes, FF or raw NUL. Star retains all exact keys, the complete raw-NUL pattern selects only that key, and prefix k matches none. This does not invoke TclOO my variable or authenticate a native variable inventory.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 

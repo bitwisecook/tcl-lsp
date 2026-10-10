@@ -51,7 +51,7 @@ fn conversion(
         _ => None,
     };
     let prior = prior_kind
-        .and_then(|kind| recipe.fresh_conversion(kind, bytes))
+        .and_then(|kind| fixture_fresh_conversion(recipe, kind, bytes))
         .and_then(|conversion| conversion.cache().cloned());
     prior
         .as_ref()
@@ -59,7 +59,7 @@ fn conversion(
         .transpose()
         .unwrap()
         .flatten()
-        .or_else(|| recipe.fresh_conversion(kind, bytes))
+        .or_else(|| fixture_fresh_conversion(recipe, kind, bytes))
         .unwrap()
 }
 fn verify_line(index: usize, line: &str, seeded: bool) {

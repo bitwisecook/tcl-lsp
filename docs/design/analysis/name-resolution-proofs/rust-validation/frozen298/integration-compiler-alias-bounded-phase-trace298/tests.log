@@ -1,0 +1,611 @@
+
+running 1 test
+test analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque ... ANALYSER_PHASE bytes=272 stage=initial ms=0
+ANALYSER_PHASE bytes=272 stage=realm-start ms=0
+SOURCE_PHASE bytes=272 stage=initial ms=39 points=0 layouts=0
+SOURCE_PHASE bytes=272 stage=walk ms=3982 points=18 layouts=10
+SOURCE_LOOKUP_PHASE bytes=272 stage=walk calls=17189 ms=81
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=1
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=0 ms=0 roots=1 bytes=135 offset=126 outcomes=0 layouts=10
+SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=1 outcomes=0 layouts=10
+SOURCE_DEFERRED_PHASE stage=called ms=2644 roots=1 outcomes=0 layouts=10
+SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=0 visits=0 pending=5 layouts=10
+SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=25 visits=0 pending=0 layouts=10
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=10 layouts=10
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=75 visits=0 pending=0 layouts=10
+SOURCE_LAYOUT_PHASE stage=nested-drained ms=75 visits=0 pending=0 layouts=10
+SOURCE_LAYOUT_SYNTAX_SUMMARY visits=0 inputs=0 parsed_commands=0
+SOURCE_LAYOUT_PHASE stage=nested-complete ms=100 visits=0 pending=0 layouts=10
+SOURCE_DEFERRED_PHASE stage=layouts ms=2744 roots=1 outcomes=0 layouts=10
+SOURCE_PHASE bytes=272 stage=deferred ms=6727 points=18 layouts=10
+SOURCE_LOOKUP_PHASE bytes=272 stage=deferred calls=26880 ms=146
+SOURCE_PHASE bytes=272 stage=complete ms=6727 points=18 layouts=10
+ANALYSER_PHASE bytes=272 stage=realm-complete ms=6734
+ANALYSER_PHASE bytes=272 stage=retained-inventory ms=6737
+ANALYSER_PHASE bytes=272 stage=segmented ms=6739
+ANALYSER_PHASE bytes=272 stage=walk-start ms=6739
+SOURCE_INVOCATION_PROJECT site=0 ms=4 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=24 ms=4 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=61 ms=5 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=126 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=155 ms=4 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=178 ms=4 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=218 ms=4 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=108 ms=4 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=263 ms=0 targets=1 unknown=false
+ANALYSER_TOKEN_PREPARE bytes=272 site=0 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=272 site=0 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=scoped-bodies ms=36
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=variable-receivers ms=44
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=direct-invocations ms=49
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=nested-invocations ms=49
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=callback-invocations ms=54
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=command-name-invocations ms=54
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=namespace-role-facts ms=58
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=nested-diagnostics ms=63
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=variable-command-sites ms=67
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=procedure-resolution ms=84
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=expression-diagnostics ms=88
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=dispatch-diagnostics ms=107
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=handlers-complete ms=137
+ANALYSER_TOKEN_PREPARE bytes=272 site=24 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=272 site=24 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=scoped-bodies ms=28
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=variable-receivers ms=35
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=direct-invocations ms=40
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=nested-invocations ms=40
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=callback-invocations ms=45
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=command-name-invocations ms=45
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=namespace-role-facts ms=50
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=nested-diagnostics ms=54
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=variable-command-sites ms=57
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=procedure-resolution ms=72
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=expression-diagnostics ms=76
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=dispatch-diagnostics ms=94
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=handlers-complete ms=128
+ANALYSER_TOKEN_PREPARE bytes=272 site=61 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=272 site=61 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=scoped-bodies ms=30
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=variable-receivers ms=38
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=direct-invocations ms=44
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=nested-invocations ms=44
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=callback-invocations ms=52
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=command-name-invocations ms=53
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=namespace-role-facts ms=58
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=nested-diagnostics ms=62
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=variable-command-sites ms=66
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=procedure-resolution ms=81
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=expression-diagnostics ms=86
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=dispatch-diagnostics ms=105
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=handlers-complete ms=135
+ANALYSER_TOKEN_PREPARE bytes=272 site=108 ms=0 nested=4
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=272 site=108 ms=0 nested=4
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=scoped-bodies ms=28
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=variable-receivers ms=35
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=direct-invocations ms=40
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=nested-invocations ms=41
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=callback-invocations ms=45
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=command-name-invocations ms=45
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=namespace-role-facts ms=50
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=nested-diagnostics ms=54
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=variable-command-sites ms=57
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=procedure-resolution ms=71
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=expression-diagnostics ms=76
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=dispatch-diagnostics ms=93
+ANALYSER_TOKEN_PREPARE bytes=272 site=126 ms=0 nested=3
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=272 site=126 ms=0 nested=3
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=scoped-bodies ms=18
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=variable-receivers ms=23
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=direct-invocations ms=28
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=nested-invocations ms=29
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=callback-invocations ms=33
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=command-name-invocations ms=34
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=namespace-role-facts ms=38
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=nested-diagnostics ms=42
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=variable-command-sites ms=43
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=procedure-resolution ms=52
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=expression-diagnostics ms=56
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=dispatch-diagnostics ms=70
+ANALYSER_TOKEN_PREPARE bytes=272 site=155 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=155 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=272 site=155 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=155 stage=scoped-bodies ms=27
+ANALYSER_COMMAND_PHASE bytes=272 site=155 stage=variable-receivers ms=64
+ANALYSER_COMMAND_PHASE bytes=272 site=155 stage=direct-invocations ms=69
+ANALYSER_COMMAND_PHASE bytes=272 site=155 stage=nested-invocations ms=69
+ANALYSER_COMMAND_PHASE bytes=272 site=155 stage=callback-invocations ms=73
+ANALYSER_COMMAND_PHASE bytes=272 site=155 stage=command-name-invocations ms=73
+ANALYSER_COMMAND_PHASE bytes=272 site=155 stage=namespace-role-facts ms=77
+ANALYSER_COMMAND_PHASE bytes=272 site=155 stage=nested-diagnostics ms=81
+ANALYSER_COMMAND_PHASE bytes=272 site=155 stage=variable-command-sites ms=84
+ANALYSER_COMMAND_PHASE bytes=272 site=155 stage=procedure-resolution ms=98
+ANALYSER_COMMAND_PHASE bytes=272 site=155 stage=expression-diagnostics ms=102
+ANALYSER_COMMAND_PHASE bytes=272 site=155 stage=dispatch-diagnostics ms=120
+ANALYSER_COMMAND_PHASE bytes=272 site=155 stage=handlers-complete ms=173
+ANALYSER_TOKEN_PREPARE bytes=272 site=178 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=178 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=272 site=178 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=178 stage=scoped-bodies ms=27
+ANALYSER_COMMAND_PHASE bytes=272 site=178 stage=variable-receivers ms=34
+ANALYSER_COMMAND_PHASE bytes=272 site=178 stage=direct-invocations ms=38
+ANALYSER_COMMAND_PHASE bytes=272 site=178 stage=nested-invocations ms=38
+ANALYSER_COMMAND_PHASE bytes=272 site=178 stage=callback-invocations ms=42
+ANALYSER_COMMAND_PHASE bytes=272 site=178 stage=command-name-invocations ms=42
+ANALYSER_COMMAND_PHASE bytes=272 site=178 stage=namespace-role-facts ms=46
+ANALYSER_COMMAND_PHASE bytes=272 site=178 stage=nested-diagnostics ms=50
+ANALYSER_COMMAND_PHASE bytes=272 site=178 stage=variable-command-sites ms=53
+ANALYSER_COMMAND_PHASE bytes=272 site=178 stage=procedure-resolution ms=66
+ANALYSER_COMMAND_PHASE bytes=272 site=178 stage=expression-diagnostics ms=70
+ANALYSER_COMMAND_PHASE bytes=272 site=178 stage=dispatch-diagnostics ms=85
+ANALYSER_COMMAND_PHASE bytes=272 site=178 stage=handlers-complete ms=109
+SOURCE_INVOCATION_PROJECT site=194 ms=0 targets=0 unknown=true
+ANALYSER_TOKEN_PREPARE bytes=272 site=194 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=194 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=272 site=194 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=194 stage=scoped-bodies ms=27
+ANALYSER_COMMAND_PHASE bytes=272 site=194 stage=variable-receivers ms=40
+ANALYSER_COMMAND_PHASE bytes=272 site=194 stage=direct-invocations ms=47
+ANALYSER_COMMAND_PHASE bytes=272 site=194 stage=nested-invocations ms=47
+ANALYSER_COMMAND_PHASE bytes=272 site=194 stage=callback-invocations ms=54
+ANALYSER_COMMAND_PHASE bytes=272 site=194 stage=command-name-invocations ms=54
+ANALYSER_COMMAND_PHASE bytes=272 site=194 stage=namespace-role-facts ms=60
+ANALYSER_COMMAND_PHASE bytes=272 site=194 stage=nested-diagnostics ms=68
+ANALYSER_COMMAND_PHASE bytes=272 site=194 stage=variable-command-sites ms=68
+ANALYSER_COMMAND_PHASE bytes=272 site=194 stage=procedure-resolution ms=82
+ANALYSER_COMMAND_PHASE bytes=272 site=194 stage=expression-diagnostics ms=89
+ANALYSER_COMMAND_PHASE bytes=272 site=194 stage=dispatch-diagnostics ms=110
+ANALYSER_COMMAND_PHASE bytes=272 site=194 stage=handlers-complete ms=137
+ANALYSER_TOKEN_PREPARE bytes=272 site=218 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=218 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=272 site=218 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=218 stage=scoped-bodies ms=29
+ANALYSER_COMMAND_PHASE bytes=272 site=218 stage=variable-receivers ms=36
+ANALYSER_COMMAND_PHASE bytes=272 site=218 stage=direct-invocations ms=40
+ANALYSER_COMMAND_PHASE bytes=272 site=218 stage=nested-invocations ms=40
+ANALYSER_COMMAND_PHASE bytes=272 site=218 stage=callback-invocations ms=44
+ANALYSER_COMMAND_PHASE bytes=272 site=218 stage=command-name-invocations ms=45
+ANALYSER_COMMAND_PHASE bytes=272 site=218 stage=namespace-role-facts ms=48
+ANALYSER_COMMAND_PHASE bytes=272 site=218 stage=nested-diagnostics ms=52
+ANALYSER_COMMAND_PHASE bytes=272 site=218 stage=variable-command-sites ms=55
+ANALYSER_COMMAND_PHASE bytes=272 site=218 stage=procedure-resolution ms=68
+ANALYSER_COMMAND_PHASE bytes=272 site=218 stage=expression-diagnostics ms=72
+ANALYSER_COMMAND_PHASE bytes=272 site=218 stage=dispatch-diagnostics ms=87
+ANALYSER_COMMAND_PHASE bytes=272 site=218 stage=handlers-complete ms=111
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=handlers-complete ms=656
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=handlers-complete ms=776
+ANALYSER_TOKEN_PREPARE bytes=272 site=263 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=272 site=263 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=scoped-bodies ms=17
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=variable-receivers ms=24
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=direct-invocations ms=28
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=nested-invocations ms=28
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=callback-invocations ms=32
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=command-name-invocations ms=32
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=namespace-role-facts ms=36
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=nested-diagnostics ms=40
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=variable-command-sites ms=40
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=procedure-resolution ms=48
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=expression-diagnostics ms=51
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=dispatch-diagnostics ms=98
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=handlers-complete ms=113
+ANALYSER_PHASE bytes=272 stage=walk-complete ms=8146
+ANALYSER_PHASE bytes=272 stage=parameter-definitions ms=8150
+DIAGNOSTIC_PHASE bytes=272 stage=initial ms=0
+DIAGNOSTIC_PHASE bytes=272 stage=invocations ms=42
+DIAGNOSTIC_PHASE bytes=272 stage=variable-references ms=42
+DIAGNOSTIC_PHASE bytes=272 stage=command-diagnostics ms=211
+DIAGNOSTIC_PHASE bytes=272 stage=variable-usage ms=211
+LOWER_SOURCE_PHASE bytes=272 phase=entry ms=0 statements=0 procedures=0
+LOWER_SOURCE_PHASE bytes=272 phase=configured ms=0 statements=0 procedures=0
+SOURCE_PHASE bytes=272 stage=initial ms=22 points=0 layouts=0
+SOURCE_PHASE bytes=272 stage=walk ms=3910 points=18 layouts=10
+SOURCE_LOOKUP_PHASE bytes=272 stage=walk calls=17189 ms=81
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=1
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=0 ms=0 roots=1 bytes=135 offset=126 outcomes=0 layouts=10
+SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=1 outcomes=0 layouts=10
+SOURCE_DEFERRED_PHASE stage=called ms=2214 roots=1 outcomes=0 layouts=10
+SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=0 visits=0 pending=5 layouts=10
+SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=13 visits=0 pending=0 layouts=10
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=10 layouts=10
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=26 visits=0 pending=0 layouts=10
+SOURCE_LAYOUT_PHASE stage=nested-drained ms=26 visits=0 pending=0 layouts=10
+SOURCE_LAYOUT_SYNTAX_SUMMARY visits=0 inputs=0 parsed_commands=0
+SOURCE_LAYOUT_PHASE stage=nested-complete ms=39 visits=0 pending=0 layouts=10
+SOURCE_DEFERRED_PHASE stage=layouts ms=2254 roots=1 outcomes=0 layouts=10
+SOURCE_PHASE bytes=272 stage=deferred ms=6165 points=18 layouts=10
+SOURCE_LOOKUP_PHASE bytes=272 stage=deferred calls=26880 ms=136
+SOURCE_PHASE bytes=272 stage=complete ms=6165 points=18 layouts=10
+LOWER_SCRIPT_PHASE bytes=272 depth=1 phase=binding-analysis ms=6166 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=272 depth=1 phase=segmented ms=0 commands=5 statements=0
+LOWER_SCRIPT_PHASE bytes=272 depth=1 phase=commands ms=2431 commands=5 statements=5
+LOWER_SCRIPT_PHASE bytes=272 depth=1 phase=admission ms=2431 commands=5 statements=5
+LOWER_SCRIPT_PHASE bytes=272 depth=1 phase=source ms=2464 commands=5 statements=5
+LOWER_SCRIPT_PHASE bytes=272 depth=1 phase=script ms=8630 commands=0 statements=5
+LOWER_SCRIPT_PHASE bytes=272 depth=1 phase=restore ms=8630 commands=0 statements=5
+LOWER_SOURCE_PHASE bytes=272 phase=lowered ms=8630 statements=5 procedures=1
+SOURCE_PHASE bytes=272 stage=memo ms=0 points=18 layouts=10
+SOURCE_PHASE bytes=272 stage=memo ms=0 points=18 layouts=10
+DIAGNOSTIC_PHASE bytes=272 stage=cfg-ssa ms=15487
+DIAGNOSTIC_PHASE bytes=272 stage=complete ms=15488
+ANALYSER_PHASE bytes=272 stage=diagnostics-complete ms=23638
+ANALYSER_PHASE bytes=272 stage=complete ms=23638
+ANALYSER_PHASE bytes=272 stage=initial ms=0
+ANALYSER_PHASE bytes=272 stage=realm-start ms=0
+SOURCE_PHASE bytes=272 stage=initial ms=25 points=0 layouts=0
+SOURCE_PHASE bytes=272 stage=walk ms=45 points=10 layouts=5
+SOURCE_LOOKUP_PHASE bytes=272 stage=walk calls=57 ms=0
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=0
+SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=0 outcomes=0 layouts=5
+SOURCE_DEFERRED_PHASE stage=called ms=0 roots=0 outcomes=0 layouts=5
+SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=0 visits=0 pending=5 layouts=5
+SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=3 visits=0 pending=0 layouts=5
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=5 layouts=5
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=4 visits=0 pending=0 layouts=5
+SOURCE_LAYOUT_PHASE stage=nested-drained ms=4 visits=0 pending=0 layouts=5
+SOURCE_LAYOUT_SYNTAX_SUMMARY visits=0 inputs=0 parsed_commands=0
+SOURCE_LAYOUT_PHASE stage=nested-complete ms=8 visits=0 pending=0 layouts=5
+SOURCE_DEFERRED_PHASE stage=layouts ms=8 roots=0 outcomes=0 layouts=5
+SOURCE_PHASE bytes=272 stage=deferred ms=53 points=10 layouts=5
+SOURCE_LOOKUP_PHASE bytes=272 stage=deferred calls=65 ms=0
+SOURCE_PHASE bytes=272 stage=complete ms=53 points=10 layouts=5
+ANALYSER_PHASE bytes=272 stage=realm-complete ms=57
+ANALYSER_PHASE bytes=272 stage=retained-inventory ms=58
+ANALYSER_PHASE bytes=272 stage=segmented ms=59
+ANALYSER_PHASE bytes=272 stage=walk-start ms=59
+SOURCE_INVOCATION_PROJECT site=0 ms=2 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=24 ms=0 targets=0 unknown=true
+SOURCE_INVOCATION_PROJECT site=61 ms=0 targets=0 unknown=true
+SOURCE_INVOCATION_PROJECT site=108 ms=0 targets=0 unknown=true
+SOURCE_INVOCATION_PROJECT site=263 ms=0 targets=0 unknown=true
+ANALYSER_TOKEN_PREPARE bytes=272 site=0 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=272 site=0 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=scoped-bodies ms=27
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=variable-receivers ms=34
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=direct-invocations ms=38
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=nested-invocations ms=39
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=callback-invocations ms=43
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=command-name-invocations ms=43
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=namespace-role-facts ms=47
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=nested-diagnostics ms=52
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=variable-command-sites ms=55
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=procedure-resolution ms=70
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=expression-diagnostics ms=74
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=dispatch-diagnostics ms=91
+ANALYSER_COMMAND_PHASE bytes=272 site=0 stage=handlers-complete ms=120
+ANALYSER_TOKEN_PREPARE bytes=272 site=24 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=272 site=24 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=scoped-bodies ms=19
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=variable-receivers ms=23
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=direct-invocations ms=24
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=nested-invocations ms=25
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=callback-invocations ms=25
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=command-name-invocations ms=26
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=namespace-role-facts ms=27
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=nested-diagnostics ms=28
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=variable-command-sites ms=28
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=procedure-resolution ms=30
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=expression-diagnostics ms=31
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=dispatch-diagnostics ms=36
+ANALYSER_COMMAND_PHASE bytes=272 site=24 stage=handlers-complete ms=50
+ANALYSER_TOKEN_PREPARE bytes=272 site=61 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=272 site=61 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=scoped-bodies ms=20
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=variable-receivers ms=24
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=direct-invocations ms=26
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=nested-invocations ms=26
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=callback-invocations ms=28
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=command-name-invocations ms=28
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=namespace-role-facts ms=29
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=nested-diagnostics ms=30
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=variable-command-sites ms=31
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=procedure-resolution ms=33
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=expression-diagnostics ms=34
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=dispatch-diagnostics ms=40
+ANALYSER_COMMAND_PHASE bytes=272 site=61 stage=handlers-complete ms=49
+ANALYSER_TOKEN_PREPARE bytes=272 site=108 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=272 site=108 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=scoped-bodies ms=18
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=variable-receivers ms=22
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=direct-invocations ms=24
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=nested-invocations ms=24
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=callback-invocations ms=25
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=command-name-invocations ms=25
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=namespace-role-facts ms=26
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=nested-diagnostics ms=27
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=variable-command-sites ms=27
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=procedure-resolution ms=30
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=expression-diagnostics ms=31
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=dispatch-diagnostics ms=34
+SOURCE_INVOCATION_PROJECT site=126 ms=0 targets=0 unknown=true
+ANALYSER_TOKEN_PREPARE bytes=272 site=126 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=272 site=126 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=scoped-bodies ms=3
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=variable-receivers ms=5
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=direct-invocations ms=7
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=nested-invocations ms=8
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=callback-invocations ms=10
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=command-name-invocations ms=11
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=namespace-role-facts ms=13
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=nested-diagnostics ms=15
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=variable-command-sites ms=15
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=procedure-resolution ms=17
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=expression-diagnostics ms=19
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=dispatch-diagnostics ms=27
+ANALYSER_COMMAND_PHASE bytes=272 site=126 stage=handlers-complete ms=34
+ANALYSER_COMMAND_PHASE bytes=272 site=108 stage=handlers-complete ms=82
+ANALYSER_TOKEN_PREPARE bytes=272 site=263 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=272 site=263 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=scoped-bodies ms=15
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=variable-receivers ms=21
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=direct-invocations ms=25
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=nested-invocations ms=25
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=callback-invocations ms=28
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=command-name-invocations ms=28
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=namespace-role-facts ms=32
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=nested-diagnostics ms=35
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=variable-command-sites ms=35
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=procedure-resolution ms=42
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=expression-diagnostics ms=45
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=dispatch-diagnostics ms=65
+ANALYSER_COMMAND_PHASE bytes=272 site=263 stage=handlers-complete ms=78
+ANALYSER_PHASE bytes=272 stage=walk-complete ms=489
+ANALYSER_PHASE bytes=272 stage=parameter-definitions ms=490
+DIAGNOSTIC_PHASE bytes=272 stage=initial ms=0
+DIAGNOSTIC_PHASE bytes=272 stage=invocations ms=6
+DIAGNOSTIC_PHASE bytes=272 stage=variable-references ms=6
+DIAGNOSTIC_PHASE bytes=272 stage=command-diagnostics ms=53
+DIAGNOSTIC_PHASE bytes=272 stage=variable-usage ms=53
+LOWER_SOURCE_PHASE bytes=272 phase=entry ms=0 statements=0 procedures=0
+LOWER_SOURCE_PHASE bytes=272 phase=configured ms=0 statements=0 procedures=0
+SOURCE_PHASE bytes=272 stage=initial ms=21 points=0 layouts=0
+SOURCE_PHASE bytes=272 stage=walk ms=41 points=10 layouts=5
+SOURCE_LOOKUP_PHASE bytes=272 stage=walk calls=57 ms=0
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=0
+SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=0 outcomes=0 layouts=5
+SOURCE_DEFERRED_PHASE stage=called ms=0 roots=0 outcomes=0 layouts=5
+SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=0 visits=0 pending=5 layouts=5
+SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=3 visits=0 pending=0 layouts=5
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=5 layouts=5
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=4 visits=0 pending=0 layouts=5
+SOURCE_LAYOUT_PHASE stage=nested-drained ms=4 visits=0 pending=0 layouts=5
+SOURCE_LAYOUT_SYNTAX_SUMMARY visits=0 inputs=0 parsed_commands=0
+SOURCE_LAYOUT_PHASE stage=nested-complete ms=7 visits=0 pending=0 layouts=5
+SOURCE_DEFERRED_PHASE stage=layouts ms=8 roots=0 outcomes=0 layouts=5
+SOURCE_PHASE bytes=272 stage=deferred ms=49 points=10 layouts=5
+SOURCE_LOOKUP_PHASE bytes=272 stage=deferred calls=65 ms=0
+SOURCE_PHASE bytes=272 stage=complete ms=49 points=10 layouts=5
+LOWER_SCRIPT_PHASE bytes=272 depth=1 phase=binding-analysis ms=49 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=272 depth=1 phase=segmented ms=0 commands=5 statements=0
+LOWER_SCRIPT_PHASE bytes=272 depth=1 phase=commands ms=17 commands=5 statements=5
+LOWER_SCRIPT_PHASE bytes=272 depth=1 phase=admission ms=17 commands=5 statements=5
+LOWER_SCRIPT_PHASE bytes=272 depth=1 phase=source ms=25 commands=5 statements=5
+LOWER_SCRIPT_PHASE bytes=272 depth=1 phase=script ms=75 commands=0 statements=5
+LOWER_SCRIPT_PHASE bytes=272 depth=1 phase=restore ms=75 commands=0 statements=5
+LOWER_SOURCE_PHASE bytes=272 phase=lowered ms=75 statements=5 procedures=0
+SOURCE_PHASE bytes=272 stage=memo ms=0 points=10 layouts=5
+SOURCE_PHASE bytes=272 stage=memo ms=0 points=10 layouts=5
+DIAGNOSTIC_PHASE bytes=272 stage=cfg-ssa ms=255
+DIAGNOSTIC_PHASE bytes=272 stage=complete ms=255
+ANALYSER_PHASE bytes=272 stage=diagnostics-complete ms=745
+ANALYSER_PHASE bytes=272 stage=complete ms=745
+ANALYSER_PHASE bytes=316 stage=initial ms=0
+ANALYSER_PHASE bytes=316 stage=realm-start ms=0
+SOURCE_PHASE bytes=316 stage=initial ms=21 points=0 layouts=0
+SOURCE_PHASE bytes=316 stage=walk ms=1753 points=15 layouts=8
+SOURCE_LOOKUP_PHASE bytes=316 stage=walk calls=7836 ms=27
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=2
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=0 ms=0 roots=2 bytes=135 offset=170 outcomes=0 layouts=8
+SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=2 outcomes=0 layouts=8
+SOURCE_DEFERRED_PHASE stage=called ms=80 roots=2 outcomes=0 layouts=8
+SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=0 visits=0 pending=6 layouts=8
+SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=16 visits=0 pending=0 layouts=8
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=8 layouts=8
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=26 visits=0 pending=0 layouts=8
+SOURCE_LAYOUT_PHASE stage=nested-drained ms=26 visits=0 pending=0 layouts=8
+SOURCE_LAYOUT_SYNTAX_SUMMARY visits=0 inputs=0 parsed_commands=0
+SOURCE_LAYOUT_PHASE stage=nested-complete ms=43 visits=0 pending=0 layouts=8
+SOURCE_DEFERRED_PHASE stage=layouts ms=124 roots=2 outcomes=0 layouts=8
+SOURCE_PHASE bytes=316 stage=deferred ms=1878 points=15 layouts=8
+SOURCE_LOOKUP_PHASE bytes=316 stage=deferred calls=8283 ms=30
+SOURCE_PHASE bytes=316 stage=complete ms=1878 points=15 layouts=8
+ANALYSER_PHASE bytes=316 stage=realm-complete ms=1882
+ANALYSER_PHASE bytes=316 stage=retained-inventory ms=1883
+ANALYSER_PHASE bytes=316 stage=segmented ms=1884
+ANALYSER_PHASE bytes=316 stage=walk-start ms=1884
+SOURCE_INVOCATION_PROJECT site=0 ms=2 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=24 ms=2 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=88 ms=10 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=61 ms=2 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=105 ms=2 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=170 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=152 ms=2 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=307 ms=0 targets=1 unknown=false
+ANALYSER_TOKEN_PREPARE bytes=316 site=0 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=316 site=0 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=316 site=0 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=316 site=0 stage=scoped-bodies ms=27
+ANALYSER_COMMAND_PHASE bytes=316 site=0 stage=variable-receivers ms=34
+ANALYSER_COMMAND_PHASE bytes=316 site=0 stage=direct-invocations ms=39
+ANALYSER_COMMAND_PHASE bytes=316 site=0 stage=nested-invocations ms=39
+ANALYSER_COMMAND_PHASE bytes=316 site=0 stage=callback-invocations ms=43
+ANALYSER_COMMAND_PHASE bytes=316 site=0 stage=command-name-invocations ms=44
+ANALYSER_COMMAND_PHASE bytes=316 site=0 stage=namespace-role-facts ms=49
+ANALYSER_COMMAND_PHASE bytes=316 site=0 stage=nested-diagnostics ms=54
+ANALYSER_COMMAND_PHASE bytes=316 site=0 stage=variable-command-sites ms=57
+ANALYSER_COMMAND_PHASE bytes=316 site=0 stage=procedure-resolution ms=71
+ANALYSER_COMMAND_PHASE bytes=316 site=0 stage=expression-diagnostics ms=75
+ANALYSER_COMMAND_PHASE bytes=316 site=0 stage=dispatch-diagnostics ms=91
+ANALYSER_COMMAND_PHASE bytes=316 site=0 stage=handlers-complete ms=120
+ANALYSER_TOKEN_PREPARE bytes=316 site=24 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=316 site=24 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=316 site=24 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=316 site=24 stage=scoped-bodies ms=28
+ANALYSER_COMMAND_PHASE bytes=316 site=24 stage=variable-receivers ms=36
+ANALYSER_COMMAND_PHASE bytes=316 site=24 stage=direct-invocations ms=41
+ANALYSER_COMMAND_PHASE bytes=316 site=24 stage=nested-invocations ms=41
+ANALYSER_COMMAND_PHASE bytes=316 site=24 stage=callback-invocations ms=46
+ANALYSER_COMMAND_PHASE bytes=316 site=24 stage=command-name-invocations ms=46
+ANALYSER_COMMAND_PHASE bytes=316 site=24 stage=namespace-role-facts ms=51
+ANALYSER_COMMAND_PHASE bytes=316 site=24 stage=nested-diagnostics ms=55
+ANALYSER_COMMAND_PHASE bytes=316 site=24 stage=variable-command-sites ms=58
+ANALYSER_COMMAND_PHASE bytes=316 site=24 stage=procedure-resolution ms=73
+ANALYSER_COMMAND_PHASE bytes=316 site=24 stage=expression-diagnostics ms=78
+ANALYSER_COMMAND_PHASE bytes=316 site=24 stage=dispatch-diagnostics ms=96
+ANALYSER_COMMAND_PHASE bytes=316 site=24 stage=handlers-complete ms=131
+ANALYSER_TOKEN_PREPARE bytes=316 site=61 ms=0 nested=1
+ANALYSER_COMMAND_PHASE bytes=316 site=61 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=316 site=61 ms=0 nested=1
+ANALYSER_COMMAND_PHASE bytes=316 site=61 stage=scoped-bodies ms=28
+ANALYSER_COMMAND_PHASE bytes=316 site=61 stage=variable-receivers ms=36
+ANALYSER_COMMAND_PHASE bytes=316 site=61 stage=direct-invocations ms=41
+ANALYSER_COMMAND_PHASE bytes=316 site=61 stage=nested-invocations ms=41
+ANALYSER_COMMAND_PHASE bytes=316 site=61 stage=callback-invocations ms=45
+ANALYSER_COMMAND_PHASE bytes=316 site=61 stage=command-name-invocations ms=46
+ANALYSER_COMMAND_PHASE bytes=316 site=61 stage=namespace-role-facts ms=50
+ANALYSER_COMMAND_PHASE bytes=316 site=61 stage=nested-diagnostics ms=54
+ANALYSER_COMMAND_PHASE bytes=316 site=61 stage=variable-command-sites ms=57
+ANALYSER_COMMAND_PHASE bytes=316 site=61 stage=procedure-resolution ms=71
+ANALYSER_COMMAND_PHASE bytes=316 site=61 stage=expression-diagnostics ms=76
+ANALYSER_COMMAND_PHASE bytes=316 site=61 stage=dispatch-diagnostics ms=93
+ANALYSER_TOKEN_PREPARE bytes=316 site=88 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=316 site=88 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=316 site=88 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=316 site=88 stage=scoped-bodies ms=77
+ANALYSER_COMMAND_PHASE bytes=316 site=88 stage=variable-receivers ms=90
+ANALYSER_COMMAND_PHASE bytes=316 site=88 stage=direct-invocations ms=97
+ANALYSER_COMMAND_PHASE bytes=316 site=88 stage=nested-invocations ms=97
+ANALYSER_COMMAND_PHASE bytes=316 site=88 stage=callback-invocations ms=104
+ANALYSER_COMMAND_PHASE bytes=316 site=88 stage=command-name-invocations ms=105
+ANALYSER_COMMAND_PHASE bytes=316 site=88 stage=namespace-role-facts ms=111
+ANALYSER_COMMAND_PHASE bytes=316 site=88 stage=nested-diagnostics ms=118
+ANALYSER_COMMAND_PHASE bytes=316 site=88 stage=variable-command-sites ms=130
+ANALYSER_COMMAND_PHASE bytes=316 site=88 stage=procedure-resolution ms=165
+ANALYSER_COMMAND_PHASE bytes=316 site=88 stage=expression-diagnostics ms=171
+ANALYSER_COMMAND_PHASE bytes=316 site=88 stage=dispatch-diagnostics ms=204
+ANALYSER_COMMAND_PHASE bytes=316 site=88 stage=handlers-complete ms=263
+ANALYSER_COMMAND_PHASE bytes=316 site=61 stage=handlers-complete ms=413
+ANALYSER_TOKEN_PREPARE bytes=316 site=105 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=316 site=105 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=316 site=105 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=316 site=105 stage=scoped-bodies ms=31
+ANALYSER_COMMAND_PHASE bytes=316 site=105 stage=variable-receivers ms=39
+ANALYSER_COMMAND_PHASE bytes=316 site=105 stage=direct-invocations ms=44
+ANALYSER_COMMAND_PHASE bytes=316 site=105 stage=nested-invocations ms=44
+ANALYSER_COMMAND_PHASE bytes=316 site=105 stage=callback-invocations ms=53
+ANALYSER_COMMAND_PHASE bytes=316 site=105 stage=command-name-invocations ms=53
+ANALYSER_COMMAND_PHASE bytes=316 site=105 stage=namespace-role-facts ms=58
+ANALYSER_COMMAND_PHASE bytes=316 site=105 stage=nested-diagnostics ms=63
+ANALYSER_COMMAND_PHASE bytes=316 site=105 stage=variable-command-sites ms=67
+ANALYSER_COMMAND_PHASE bytes=316 site=105 stage=procedure-resolution ms=83
+ANALYSER_COMMAND_PHASE bytes=316 site=105 stage=expression-diagnostics ms=91
+ANALYSER_COMMAND_PHASE bytes=316 site=105 stage=dispatch-diagnostics ms=124
+ANALYSER_COMMAND_PHASE bytes=316 site=105 stage=handlers-complete ms=173
+ANALYSER_TOKEN_PREPARE bytes=316 site=152 ms=0 nested=1
+ANALYSER_COMMAND_PHASE bytes=316 site=152 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=316 site=152 ms=0 nested=1
+ANALYSER_COMMAND_PHASE bytes=316 site=152 stage=scoped-bodies ms=35
+ANALYSER_COMMAND_PHASE bytes=316 site=152 stage=variable-receivers ms=43
+ANALYSER_COMMAND_PHASE bytes=316 site=152 stage=direct-invocations ms=48
+ANALYSER_COMMAND_PHASE bytes=316 site=152 stage=nested-invocations ms=48
+ANALYSER_COMMAND_PHASE bytes=316 site=152 stage=callback-invocations ms=53
+ANALYSER_COMMAND_PHASE bytes=316 site=152 stage=command-name-invocations ms=53
+ANALYSER_COMMAND_PHASE bytes=316 site=152 stage=namespace-role-facts ms=57
+ANALYSER_COMMAND_PHASE bytes=316 site=152 stage=nested-diagnostics ms=62
+ANALYSER_COMMAND_PHASE bytes=316 site=152 stage=variable-command-sites ms=65
+ANALYSER_COMMAND_PHASE bytes=316 site=152 stage=procedure-resolution ms=80
+ANALYSER_COMMAND_PHASE bytes=316 site=152 stage=expression-diagnostics ms=84
+ANALYSER_COMMAND_PHASE bytes=316 site=152 stage=dispatch-diagnostics ms=101
+ANALYSER_TOKEN_PREPARE bytes=316 site=170 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=316 site=170 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=316 site=170 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=316 site=170 stage=scoped-bodies ms=24
+ANALYSER_COMMAND_PHASE bytes=316 site=170 stage=variable-receivers ms=33
+ANALYSER_COMMAND_PHASE bytes=316 site=170 stage=direct-invocations ms=39
+ANALYSER_COMMAND_PHASE bytes=316 site=170 stage=nested-invocations ms=39
+ANALYSER_COMMAND_PHASE bytes=316 site=170 stage=callback-invocations ms=45
+ANALYSER_COMMAND_PHASE bytes=316 site=170 stage=command-name-invocations ms=45
+ANALYSER_COMMAND_PHASE bytes=316 site=170 stage=namespace-role-facts ms=51
+ANALYSER_COMMAND_PHASE bytes=316 site=170 stage=nested-diagnostics ms=57
+ANALYSER_COMMAND_PHASE bytes=316 site=170 stage=variable-command-sites ms=58
+ANALYSER_COMMAND_PHASE bytes=316 site=170 stage=procedure-resolution ms=72
+ANALYSER_COMMAND_PHASE bytes=316 site=170 stage=expression-diagnostics ms=78
+ANALYSER_COMMAND_PHASE bytes=316 site=170 stage=dispatch-diagnostics ms=110
+ANALYSER_COMMAND_PHASE bytes=316 site=170 stage=handlers-complete ms=136
+ANALYSER_COMMAND_PHASE bytes=316 site=152 stage=handlers-complete ms=260
+ANALYSER_TOKEN_PREPARE bytes=316 site=307 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=316 site=307 stage=original-names ms=0
+ANALYSER_TOKEN_PREPARE bytes=316 site=307 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=316 site=307 stage=scoped-bodies ms=18
+ANALYSER_COMMAND_PHASE bytes=316 site=307 stage=variable-receivers ms=24
+ANALYSER_COMMAND_PHASE bytes=316 site=307 stage=direct-invocations ms=28
+ANALYSER_COMMAND_PHASE bytes=316 site=307 stage=nested-invocations ms=29
+ANALYSER_COMMAND_PHASE bytes=316 site=307 stage=callback-invocations ms=32
+ANALYSER_COMMAND_PHASE bytes=316 site=307 stage=command-name-invocations ms=32
+ANALYSER_COMMAND_PHASE bytes=316 site=307 stage=namespace-role-facts ms=36
+ANALYSER_COMMAND_PHASE bytes=316 site=307 stage=nested-diagnostics ms=40
+ANALYSER_COMMAND_PHASE bytes=316 site=307 stage=variable-command-sites ms=40
+ANALYSER_COMMAND_PHASE bytes=316 site=307 stage=procedure-resolution ms=48
+ANALYSER_COMMAND_PHASE bytes=316 site=307 stage=expression-diagnostics ms=52
+ANALYSER_COMMAND_PHASE bytes=316 site=307 stage=dispatch-diagnostics ms=72
+ANALYSER_COMMAND_PHASE bytes=316 site=307 stage=handlers-complete ms=87
+ANALYSER_PHASE bytes=316 stage=walk-complete ms=3164
+ANALYSER_PHASE bytes=316 stage=parameter-definitions ms=3168
+DIAGNOSTIC_PHASE bytes=316 stage=initial ms=0
+DIAGNOSTIC_PHASE bytes=316 stage=invocations ms=51
+DIAGNOSTIC_PHASE bytes=316 stage=variable-references ms=51
+DIAGNOSTIC_PHASE bytes=316 stage=command-diagnostics ms=222
+DIAGNOSTIC_PHASE bytes=316 stage=variable-usage ms=222
+LOWER_SOURCE_PHASE bytes=316 phase=entry ms=0 statements=0 procedures=0
+LOWER_SOURCE_PHASE bytes=316 phase=configured ms=0 statements=0 procedures=0
+SOURCE_PHASE bytes=316 stage=initial ms=21 points=0 layouts=0
+SOURCE_PHASE bytes=316 stage=walk ms=1746 points=15 layouts=8
+SOURCE_LOOKUP_PHASE bytes=316 stage=walk calls=7836 ms=29
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=2
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=0 ms=0 roots=2 bytes=135 offset=170 outcomes=0 layouts=8
+SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=2 outcomes=0 layouts=8
+SOURCE_DEFERRED_PHASE stage=called ms=82 roots=2 outcomes=0 layouts=8
+SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=0 visits=0 pending=6 layouts=8
+SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=17 visits=0 pending=0 layouts=8
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=8 layouts=8
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=22 visits=0 pending=0 layouts=8
+SOURCE_LAYOUT_PHASE stage=nested-drained ms=22 visits=0 pending=0 layouts=8
+SOURCE_LAYOUT_SYNTAX_SUMMARY visits=0 inputs=0 parsed_commands=0
+SOURCE_LAYOUT_PHASE stage=nested-complete ms=40 visits=0 pending=0 layouts=8
+SOURCE_DEFERRED_PHASE stage=layouts ms=122 roots=2 outcomes=0 layouts=8
+SOURCE_PHASE bytes=316 stage=deferred ms=1869 points=15 layouts=8
+SOURCE_LOOKUP_PHASE bytes=316 stage=deferred calls=8283 ms=32
+SOURCE_PHASE bytes=316 stage=complete ms=1869 points=15 layouts=8
+LOWER_SCRIPT_PHASE bytes=316 depth=1 phase=binding-analysis ms=1870 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=316 depth=1 phase=segmented ms=0 commands=6 statements=0
+LOWER_SCRIPT_PHASE bytes=316 depth=1 phase=commands ms=262 commands=6 statements=6
+LOWER_SCRIPT_PHASE bytes=316 depth=1 phase=admission ms=262 commands=6 statements=6
+LOWER_SCRIPT_PHASE bytes=316 depth=1 phase=source ms=305 commands=6 statements=6
+LOWER_SCRIPT_PHASE bytes=316 depth=1 phase=script ms=2175 commands=0 statements=6
+LOWER_SCRIPT_PHASE bytes=316 depth=1 phase=restore ms=2175 commands=0 statements=6
+LOWER_SOURCE_PHASE bytes=316 phase=lowered ms=2175 statements=6 procedures=2
+SOURCE_PHASE bytes=316 stage=memo ms=0 points=15 layouts=8
+SOURCE_PHASE bytes=316 stage=memo ms=0 points=15 layouts=8
+DIAGNOSTIC_PHASE bytes=316 stage=cfg-ssa ms=11506
+DIAGNOSTIC_PHASE bytes=316 stage=complete ms=11508
+ANALYSER_PHASE bytes=316 stage=diagnostics-complete ms=14676
+ANALYSER_PHASE bytes=316 stage=complete ms=14677
+ANALYSER_PHASE bytes=272 stage=initial ms=0
+ANALYSER_PHASE bytes=272 stage=realm-start ms=0
+SOURCE_PHASE bytes=272 stage=initial ms=26 points=0 layouts=0
+SOURCE_PHASE bytes=272 stage=walk ms=3980 points=18 layouts=10
+SOURCE_LOOKUP_PHASE bytes=272 stage=walk calls=17189 ms=90
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=1
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=0 ms=0 roots=1 bytes=126 offset=135 outcomes=0 layouts=10
+SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=1 outcomes=0 layouts=10

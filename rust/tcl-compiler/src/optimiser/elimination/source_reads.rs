@@ -303,8 +303,17 @@ mod tests {
                 .possible_names(&selected.top_level)
                 .contains("saved")
         );
-        let foreign =
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let mut foreign_store = CommandRegistry::build_default();
+        foreign_store.insert(tcl_registry::CommandSpec {
+            name: "foreign_read_axis",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let foreign = Arc::new(context.with_command_store(Arc::new(foreign_store)));
+        assert_ne!(
+            context.commands().snapshot().semantic_key(),
+            foreign.commands().snapshot().semantic_key(),
+            "the negative control changes the actual command store"
+        );
         let refused = reads(&selected, foreign.commands());
         assert!(refused.opaque && refused.names.is_empty());
         let mut stale = selected.ir_module.clone();

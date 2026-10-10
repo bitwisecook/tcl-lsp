@@ -65,6 +65,41 @@ pub const fn native_int32_low_bits(value: i64) -> i32 {
     i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
 }
 
+/// Saturate an already classified integer to the selected signed 64-bit bound.
+/// This projects the shared integer payload; it supplies no parser, target ABI,
+/// errno effect or original getter authority. Noninteger/malformed payloads refuse.
+#[must_use]
+pub fn native_signed64_saturating_integer(number: &Number) -> Option<i64> {
+    match number {
+        Number::Int(value) => Some(*value),
+        Number::Big {
+            negative,
+            radix,
+            digits,
+        } if !digits.is_empty() => {
+            let bound = if *negative {
+                i64::MIN.unsigned_abs()
+            } else {
+                i64::MAX.cast_unsigned()
+            };
+            let magnitude = digits.bytes().try_fold(0_u64, |magnitude, byte| {
+                Some(
+                    magnitude
+                        .saturating_mul(*radix as u64)
+                        .saturating_add(u64::from(digit_val(byte, *radix as u32)?))
+                        .min(bound),
+                )
+            })?;
+            Some(if *negative {
+                magnitude.wrapping_neg().cast_signed()
+            } else {
+                magnitude.cast_signed()
+            })
+        }
+        _ => None,
+    }
+}
+
 /// Byte extent consumed by actual native scalar numeric/boolean getters.
 /// This is separate from expression source, equality and membership grammar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

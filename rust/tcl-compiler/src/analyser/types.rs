@@ -3375,7 +3375,7 @@ impl AnalysisResult {
         image: &tcl_lexer::SourceImage,
         config: tcl_lexer::LexerConfig,
     ) -> bool {
-        if self.analysis_context_unavailable.is_some() {
+        if self.analysis_context_unavailable.is_some() || self.body_lexer_config != Some(config) {
             return false;
         }
         let Some(input) = self.resolved_input.as_ref() else {

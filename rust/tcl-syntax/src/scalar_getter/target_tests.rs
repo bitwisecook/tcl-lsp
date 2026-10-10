@@ -389,3 +389,208 @@ fn primitive_failure_string_obligation_refuses_operand_free_rendering_for_quoted
         None
     );
 }
+
+#[test]
+fn original_c84_fresh_boolean_narrows_signed_long_before_truth_and_cached_wide_does_not() {
+    // naming.numeric.original-capi-scalar-publication-width
+    // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+    // Public primitive value/cache fields only; expression and command truth
+    // follow their own measured purposes. The original C84 library config owns
+    // TCL_WIDE_INT_IS_LONG=1 independently of the probe translation unit macro.
+    let protocol = NativeScalarGetterProtocol::for_tcl_version(TclVersion::V8_4);
+    let original_strings: [&[u8]; 20] = [
+        b"",
+        b"17",
+        b"2147483648",
+        b"4294967295",
+        b"4294967296",
+        b"-4294967295",
+        b"-2147483649",
+        b"9223372036854775807",
+        b"9223372036854775808",
+        b"18446744073709551615",
+        b"18446744073709551616",
+        b"-18446744073709551615",
+        b"-9223372036854775809",
+        b"08",
+        b"0o10",
+        b"true",
+        b"bad",
+        b"NaN",
+        b"1.0",
+        b"1\0X",
+    ];
+    let library_config = include_str!(
+        "../../../tcl-registry/tests/data/native_capi_scalar_publication_original/original-inputs/workspace--tcl-lsp--tmp--tcl8.4.20--unix--tclConfig.sh"
+    );
+    assert!(
+        library_config
+            .lines()
+            .any(|line| line.starts_with("TCL_DEFS=") && line.contains("-DTCL_WIDE_INT_IS_LONG=1"))
+    );
+    let mut count = 0;
+    for fixture in [C_LIVE[0], C_NULL[0]] {
+        let target = target(fixture);
+        for case in 0..29 {
+            let (bytes, cache) = if case < 20 {
+                (original_strings[case].to_vec(), None)
+            } else {
+                match case {
+                    20 | 21 => (b"17".to_vec(), Some(NativeScalarCache::Tcl84Long(17))),
+                    22 => (
+                        b"17".to_vec(),
+                        Some(NativeScalarCache::Number(Number::Int(17))),
+                    ),
+                    23 => (
+                        b"17.0".to_vec(),
+                        Some(NativeScalarCache::Number(Number::Double(17.0))),
+                    ),
+                    24 => (
+                        b"nan".to_vec(),
+                        Some(NativeScalarCache::Number(Number::Double(f64::NAN))),
+                    ),
+                    25 => (b"1".to_vec(), Some(NativeScalarCache::WordBoolean(true))),
+                    26 => (
+                        b"4294967296".to_vec(),
+                        Some(NativeScalarCache::Number(Number::Int(4_294_967_296))),
+                    ),
+                    27 => (
+                        protocol
+                            .materialize(NativeScalarStringStorage::ByteArray, b"1\0X")
+                            .unwrap()
+                            .into_owned(),
+                        None,
+                    ),
+                    28 => ([b'a'; 50].into_iter().chain("😀Z".bytes()).collect(), None),
+                    _ => unreachable!(),
+                }
+            };
+            let actual = cache
+                .as_ref()
+                .and_then(|cache| {
+                    protocol
+                        .cached_conversion(NativeScalarGetterKind::Boolean, cache, None)
+                        .unwrap()
+                })
+                .unwrap_or_else(|| {
+                    protocol
+                        .fresh_conversion_with_target(
+                            NativeScalarGetterKind::Boolean,
+                            &bytes,
+                            Some(target),
+                        )
+                        .unwrap()
+                        .unwrap()
+                });
+            let observed = row(fixture, case, 4);
+            assert_eq!(
+                actual.outcome().is_ok(),
+                field(observed, "code") == "0",
+                "{observed}"
+            );
+            if let Ok(NativeScalarGetterValue::Boolean(value)) = actual.outcome() {
+                assert_eq!(
+                    value.returned_integer().to_string(),
+                    field(observed, "int"),
+                    "{observed}"
+                );
+                assert!(matches!(
+                    actual.cache().or(cache.as_ref()),
+                    Some(NativeScalarCache::WordBoolean(_))
+                ));
+                assert_eq!(field(observed, "after"), "boolean");
+            } else {
+                assert!(actual.cache().is_none());
+                assert_eq!(field(observed, "after"), field(observed, "before"));
+            }
+            if (20..=26).contains(&case) {
+                let expected_string = field(observed, "string_before") == "1"
+                    || actual.requires_string_materialization();
+                assert_eq!(
+                    expected_string,
+                    field(observed, "string_after") == "1",
+                    "{observed}"
+                );
+            }
+            count += 1;
+        }
+    }
+    assert_eq!(count, 58);
+    assert_eq!(field(row(C_LIVE[0], 4, 4), "int"), "0");
+    assert_eq!(field(row(C_LIVE[0], 26, 4), "int"), "1");
+}
+
+#[test]
+fn c84_fresh_numeric_boolean_requires_explicit_target_while_word_and_invalid_do_not() {
+    // naming.numeric.original-capi-scalar-publication-width
+    // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+    // Availability/value projection contract, not a Native execution receipt.
+    let protocol = NativeScalarGetterProtocol::for_tcl_version(TclVersion::V8_4);
+    for input in [b"17".as_slice(), b"4294967296", b"1.5", b"NaN", b"08"] {
+        assert!(
+            protocol
+                .fresh_conversion(NativeScalarGetterKind::Boolean, input)
+                .is_none()
+        );
+        assert_eq!(
+            protocol.fresh_conversion_with_target(NativeScalarGetterKind::Boolean, input, None),
+            Err(NativeScalarGetterTargetUnavailable)
+        );
+        assert!(
+            protocol
+                .fresh_conversion_with_range_error(NativeScalarGetterKind::Boolean, input, false)
+                .is_none()
+        );
+    }
+    for input in [
+        b"true".as_slice(),
+        b"1\0X",
+        b"",
+        b"bad",
+        b"offending",
+        b"\xff17",
+    ] {
+        assert!(
+            protocol
+                .fresh_conversion(NativeScalarGetterKind::Boolean, input)
+                .is_some()
+        );
+        assert!(
+            protocol
+                .fresh_conversion_with_target(NativeScalarGetterKind::Boolean, input, None)
+                .unwrap()
+                .is_some()
+        );
+    }
+    assert_eq!(
+        number::native_signed64_saturating_integer(&Number::Double(17.0)),
+        None
+    );
+    assert_eq!(
+        number::native_signed64_saturating_integer(&Number::Big {
+            negative: false,
+            radix: Radix::Dec,
+            digits: "x".into()
+        }),
+        None
+    );
+    // Geometry remains counted even though both libc stages stop at first NUL.
+    let target = target(C_LIVE[0]);
+    assert!(
+        protocol
+            .c84_boolean_from_long_host(b"17\0X", target, 17, 2)
+            .is_none()
+    );
+    assert_eq!(
+        protocol
+            .c84_boolean_from_double_host(b"17\0X", 17.0, 2)
+            .unwrap()
+            .outcome(),
+        Err(NativeScalarGetterFailure::Invalid)
+    );
+    assert!(
+        protocol
+            .c84_boolean_from_long_host(b"17", target, 17, 3)
+            .is_none()
+    );
+}

@@ -14,9 +14,13 @@ When original relative TclOO creation targets p occupied by an ordinary procedur
 
 C8.6/C9.0/C9.1 retain ORIGINAL0 `1 {can't create object "p": command already exists with that name} ORIGINAL_PROC 0`: creation is caught with code1, the original ordinary procedure remains callable and the original relative object query is empty. The separate copy-labelled input stops at ORIGINAL1 while attempting to create ::source, which already names the stock source command; no destination copy collision is reached there. C8.4/C8.5/Jim reach ORIGINAL0/NOT_APPLICABLE in both sources. All12 host processes and six compiler commands exit0 with empty stderr. Independent pinned C source explains its own inspected original naming/publication code; no private table/header/token identity, general object replacement policy, caller frame or Native compilation/Normal result is issued by public equality or source replay. For this question the Runtime control consumes both unchanged collision originals across six columns (12 comparisons), retaining failed ::source setup separately. VM consumes the one creation-collision original across six columns; no copy entry is inferred. Shared linked controls total48 Runtime and24 VM comparisons across the creation/collision/copy records; these are assertion definitions, not an executed pass or another native provider observation.
 
+A marked shared VM definition binds the one original create-over-command collision program as its independent 6-window public subset.
+
 ## Scope
 
 Two unchanged ASCII LF sources execute separately under full original provider initialisation and counted C API evaluation. The creation collision is a reached caught guest error; the copy-labelled input retains an independent setup failure before copying. All original input/requests/drivers/actual commands/ELFs/whole streams/receipts and required provider/archive/header/build/source pins are retained. Independently reached copy inputs have their own original-copy-holder-and-collision record. BIG-IP and Rust assertions are not tested. The Runtime original-source comparison explicitly installs the shared NativeScriptedLibrary::ALL distribution for its selected Jim full-initialisation source ingress, matching the original driver's full core/static-extension setup. This conformance bootstrap cannot turn a core-only constructor, authoring profile or metadata source carrier into a loaded library, current helper binding or Native worker. The exact original sources, provider rows and completion boundaries remain unchanged; the linked assertion is not a claimed executed pass.
+
+The fixture selects an actual software core/compiler and compares public original bytes, without launching new original processes or observing private native token/header/cache identity. Constructed-holder reporting and collision results remain separate original questions. No passing software outcome, oo::copy availability, copy permission, activation/frame or compiler instruction admission is attached.
 
 ## Provider answers
 
@@ -665,6 +669,11 @@ TclGetNamespaceForQualName(
 - [runtime/rust/src/cmd_oo/native_original_holder_tests.rs](../../../../runtime/rust/src/cmd_oo/native_original_holder_tests.rs), `cmd_oo::native_original_holder_tests::original_oo_publication_preserves_constructed_holder_and_collision_results` (linked): Compare the creation-collision original across six full columns; ordinary procedure preservation remains the measured value and no VM copy API or private slot identity is donated. Selected Jim full-init conformance ingress explicitly installs the shared source distribution; bootstrap is distinct from core-only and metadata purposes, with unchanged original rows and no executed pass claim.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-vm/src/cmd_oo/native_original_holder_tests.rs](../../../../rust/tcl-vm/src/cmd_oo/native_original_holder_tests.rs), `original_result`: Decode the exact original OO completion/result fields, preserving holder-creation and collision fixture groups independently of reporting labels.
+- [rust/tcl-vm/src/cmd_oo/native_original_holder_tests.rs](../../../../rust/tcl-vm/src/cmd_oo/native_original_holder_tests.rs), `cmd_oo::native_original_holder_tests::original_oo_publication_preserves_constructed_holder_and_collision_results` (linked): The shared VM body compares24 public completion/result windows across four unchanged ASCII originals and six selected core/compiler fixtures. This question binds only the one original create-over-command collision program, 6 of those windows; equal reporting names cannot prove holder equality and no oo::copy entry is inferred.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

@@ -16,11 +16,15 @@ Jim completes both original sources with guest code0. Each source reports origin
 
 A marked Runtime definition links twelve exact original public alias-diagnostic windows under the explicit selected-core and Jim binary-adapter fixture.
 
+A marked VM definition links twelve exact original alias-diagnostic windows under its explicit core/compiler and Jim byte-producer fixture.
+
 ## Scope
 
 Two unchanged ASCII LF originals with four name cases each. binary format H* produces NUL, UTF-8 and FF bytes at evaluation; there is no literal NUL/non-ASCII source. Each original executes independently in a fresh fully initialised provider through the unchanged counted-source CAPI driver. Complete original source/request/compiler/ELF/process/stdout/stderr/code/result/version and required pins are retained. No private object/header/key/lookup identity, physical cache, arbitrary error producer, Rust assertion or BIG-IP result is observed.
 
 The body does not replay external processes, inspect private slots/headers, infer a full Jim distribution or validate a source-character channel from binary-produced bytes. The exact original sources and C NOT_APPLICABLE/Jim result boundaries remain intact. No assertion outcome is attached; fixture selection cannot donate general worker, library or lookup authority.
+
+This source definition supplies no process replay or passing software outcome. Binary-produced bytes do not establish physical source-character ingress, a full Jim distribution, header/cache identity or private lookup extent. C unavailable branches remain independent original results, without substituting another alias API. Existing raw provider evidence is unchanged.
 
 ## Provider answers
 
@@ -223,6 +227,11 @@ A named test is a coverage binding, not a claim that it executed.
 
 - [runtime/rust/src/cmd_info/native_jim_inventory_tests.rs](../../../../runtime/rust/src/cmd_info/native_jim_inventory_tests.rs), `original_result`: Decode the retained original ORIGINAL code/result-hex fields for exact public comparisons; decoding supplies no header/cache/lookup identity or provider roster.
 - [runtime/rust/src/cmd_info/native_jim_inventory_tests.rs](../../../../runtime/rust/src/cmd_info/native_jim_inventory_tests.rs), `cmd_info::native_jim_inventory_tests::original_alias_diagnostic_extents_match_all_12_native_public_windows` (linked): Two unchanged ASCII fixture programs across six selected software cores compare all12 original public completion/result windows and require no pending Host cause. Jim explicitly installs only the byte-producing binary adapter; original C NOT_APPLICABLE branches remain unchanged. NUL, UTF8 e-acute and FF are produced at evaluation, not literal source characters.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs](../../../../rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs), `original_result`: Retain the original public alias diagnostic completion/result window without reconstructing a native name slot or header from diagnostic bytes.
+- [rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs](../../../../rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs), `cmd_info::native_jim_inventory_tests::original_alias_diagnostic_extents_match_all_12_native_public_windows` (linked): Two unchanged ASCII originals across six selected software cores compare all12 public code/result windows and require no Host cause. Jim registers only the binary byte producer; original C NOT_APPLICABLE branches remain. NUL, UTF8 e-acute and FF are evaluated binary-produced bytes, not source-character inputs.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
