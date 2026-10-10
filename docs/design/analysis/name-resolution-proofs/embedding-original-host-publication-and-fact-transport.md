@@ -42,6 +42,8 @@ The current VM Boolean adapters retain first Host refusal, earlier original resu
 
 The current Runtime unary classifier keeps neutral primitive Boolean classification separate from expression truth and preserves a complete Host cause ahead of diagnostic fallback/publication.
 
+Public compiled argv routes keep an actual activation refusal separate from Host settlement. A prior first Host withholds caller-output publication and preserves existing results, while a genuine Guest refusal retains its independently owned completion.
+
 ## Scope
 
 Ten fixed software controls bind eight Runtime embedding ownership/transport contracts and two neutral scalar codecs. Authored C-release fixtures select software protocols and storage constructors; they do not run or observe an external Tcl provider. The record contains no executed assertion claim. Private Rust namespace/binding generations are independent of C private table identity. Supported snapshot transport supplies no repeated original object header, C-produced getter/cache, native callback equivalence, deferred overlay admission, compiler instruction, physical frame or reached native Handler. Existing Native ABI experiments retain their separate measured scopes; all C/Jim/BIG-IP provider answers for this implementation question remain not tested.
@@ -73,6 +75,8 @@ These three controls are unexecuted current software/API contracts over authenti
 Both added definitions are unexecuted software contracts. Retired object leases establish no external private lifetime observation; NumericInstruction versus InlineExpression/result-only tag checks establish no native opcode, whole script, callback chronology, original process outcome or broader expression authority. All seven external provider statuses for this software question remain unchanged.
 
 Both added source controls are unexecuted. The independently retained Jim NumUnary excerpt is current source interpretation joined to an already pinned whole jim.c file, with version0.84-9-g5bac7c9; it supplies no new original unary execution/cache/object/header/pointer result and does not alter Native465 request/input/process data. Its selected fallback is a primitive Boolean classification, never a general expression truth or numeric acceptance grant. All seven provider outcomes for this software question remain unchanged.
+
+Both added Runtime473 source controls are unexecuted; Source305 predates this leaf. Their loop reaches the actual software Runtime bound only and records no original C nesting limit, fixed accepted activation count, callback chronology or external frame/body observation. They keep the real generic/intrinsic route and ownership/Guest-versus-Host purpose without changing any original-provider answer, evidence or Native ABI context.
 
 ## Provider answers
 
@@ -344,6 +348,13 @@ No assertion outcome is attached to these source bindings; software outcomes ret
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 The independent current Jim source interpretation retains the [exact source window](source-context/runtime-unary-original/JimExprOpNumUnary-8528-8624.c), [unchanged owner window record](source-context/runtime-unary-original/source-window.json) and [whole-file/version/input join](source-context/runtime-unary-original/source-interpretation-join.json). These are source records, with no new process or assertion outcome. Native465 whole request and Jim input receipt remain unchanged.
+
+- [runtime/rust/src/codegen_abi.rs](../../../../runtime/rust/src/codegen_abi.rs), `AbiActivation::enter`: Reach the actual live Runtime compiled-activation entry and return no held activation when that owner refuses. Public generic and intrinsic argv callers keep the existing first Host independently of the reached Guest completion; every genuinely held activation has its own paired leave.
+- [runtime/rust/src/codegen_abi.rs](../../../../runtime/rust/src/codegen_abi.rs), `write_completion`: Check the current interpreter first Host before publishing the already-owned captured completion. A pending Host releases only the locally captured handles and leaves caller-owned non-null output storage unchanged; a genuine Guest completion transfers its actual result/options ownership.
+- [runtime/rust/src/codegen_abi.rs](../../../../runtime/rust/src/codegen_abi.rs), `codegen_abi::tests::activation_refusal_preserves_first_host_and_all_caller_owned_outputs` (linked): Genuine C86 Runtime fixture repeatedly enters public compiled activations until its actual software bound refuses, without editing depth fields. With a prior typed Host cause and binary result, both public generic argv and StringLength intrinsic argv routes return HOST_REFUSED and preserve the full first cause, non-null caller-owned completion code/result/options and counts, caller argv counts and earlier result pointer/bytes. No original C depth/iteration/callback observation is measured.
+- [runtime/rust/src/codegen_abi.rs](../../../../runtime/rust/src/codegen_abi.rs), `codegen_abi::tests::activation_guest_refusal_keeps_its_real_owned_completion` (linked): The same actual compiled activation bound without a Host cause lets both public argv routes retain their genuine owned Guest error completion: ABI_OK with code1, non-null result/options, reached nested-evaluation message and -code1, no Host refusal and unchanged caller argv counts. Explicit release and matching activation leaves are exercised. Software settlement/ownership only, not an external C limit or frame/body observation.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

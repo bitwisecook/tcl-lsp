@@ -66,6 +66,7 @@ mod materialized_footprint;
 mod native_list_assignment;
 mod original_callback_lookup;
 mod original_compiler_effects;
+mod original_source_projection;
 mod pre_handler_failure;
 mod source_arguments;
 mod source_name_lookup;
@@ -371,6 +372,7 @@ pub struct SourceOriginId {
     kind: Arc<SourceOriginKind>,
     fingerprint: u64,
     activation_key: u64,
+    original_lexical_projection: Arc<original_source_projection::OriginalSourceProjectionMemo>,
 }
 
 #[derive(Default)]
@@ -538,7 +540,21 @@ impl SourceOriginId {
             kind,
             fingerprint,
             activation_key,
+            original_lexical_projection: Arc::default(),
         }
+    }
+
+    /// Reuse only derived lexical geometry of this immutable source instance.
+    /// Complete config, offset and original vector are matched independently
+    /// of every caller's current lookup, input, metadata and Native admission.
+    pub(crate) fn original_lexical_command(
+        &self,
+        words: &[crate::ir::WordExpr],
+        offset: u32,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<Arc<crate::registry_invocation::OriginalSourceCommandProjection>> {
+        self.original_lexical_projection
+            .capture(self.source_image(), words, offset, config)
     }
 
     const fn fingerprint(&self) -> u64 {
@@ -2078,13 +2094,10 @@ fn original_site_layout_advice(
     if !original_replay_words_match(&original_tokens, tokens, config, dialect.word_values) {
         return None;
     }
-    let native = crate::registry_invocation::original_native_compiler_words(
-        site.source.source_image(),
-        tokens.words(),
-        site.offset,
-        config,
-    )?;
-    let head = native.first()?;
+    let original = site
+        .source
+        .original_lexical_command(tokens.words(), site.offset, config)?;
+    let head = original.native_words().first()?;
     let projection = original_static_layout_projection(
         snapshot,
         namespace,
@@ -4066,13 +4079,11 @@ fn retained_script_operand(
             operands.written_origin(argument)
             && let Some(protocol) =
                 compiler_inventory::SourceNativeCompilerPolicy::source_protocol_of(state)
-            && let Some(original) = crate::registry_invocation::original_native_compiler_words(
-                parent.source.source_image(),
-                operands.words,
-                invocation,
-                config,
-            )
-            && let Some(word) = original.get(written)
+            && let Some(original) =
+                parent
+                    .source
+                    .original_lexical_command(operands.words, invocation, config)
+            && let Some(word) = original.native_words().get(written)
         {
             return Some(ExecutedScriptSource::from_original_word_value(
                 parent, argument, word, bytes, protocol,
@@ -5907,6 +5918,26 @@ fn trace_source_analysis(
             start.elapsed().as_millis(),
             bindings.points.len(),
             bindings.declaration_layouts.len()
+        );
+        let mut owners = HashSet::new();
+        let (mut requests, mut captures, mut rejected) = (0_usize, 0_usize, 0_usize);
+        for origin in bindings
+            .root_origin
+            .iter()
+            .chain(bindings.origin_points.keys())
+        {
+            let memo = &origin.original_lexical_projection;
+            if owners.insert(Arc::as_ptr(memo)) {
+                let (owner_requests, owner_captures, owner_rejected) = memo.trace_counts();
+                requests += owner_requests;
+                captures += owner_captures;
+                rejected += owner_rejected;
+            }
+        }
+        eprintln!(
+            "SOURCE_LEXICAL_PROJECTION_PHASE bytes={source_len} stage={stage} retained_owners={} requests={requests} captures={captures} reuses={} rejected_captures={rejected}",
+            owners.len(),
+            requests.saturating_sub(captures),
         );
     }
 }

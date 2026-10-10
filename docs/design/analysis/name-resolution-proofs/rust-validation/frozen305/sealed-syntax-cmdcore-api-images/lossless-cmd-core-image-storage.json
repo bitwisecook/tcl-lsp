@@ -1,0 +1,20 @@
+{
+  "format": "gzip",
+  "stored_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen305/sealed-syntax-cmdcore-api-images/pinned-cmd-core305.elf.gz",
+  "stored_sha256": "2c2078f955863ddff2b80d093c0ac734bf7397d34fc1e81b60b584bc65cfe1e3",
+  "stored_bytes": 1754013,
+  "original_sha256": "ffe0a8e882df6e20d5fa81f743895f97056a47376a94209006ae2e1ad18865d0",
+  "original_bytes": 6381200,
+  "original_recorded_executable": "/workspace/.proofs/pinned-cmd-core305.elf",
+  "pin_metadata_path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen305/sealed-syntax-cmdcore-api-images/pinned-cmd-core305.json",
+  "pin_metadata_sha256": "e62381c63396bb72fba650739916d1a498eca166ed59b111068c387f5ca3f365",
+  "build_receipt_id": "rust.frozen305.integration-syntax-core-api-own-test-build305",
+  "build_receipt_sha256": "c3b4ce088e267d8113ceba3e317ce330f9123d8659bb6f7fe81f5338e066a42b",
+  "source_snapshot": {
+    "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen305/sealed-syntax-cmdcore-api-images/source-snapshot.json.gz",
+    "sha256": "6fa566cb62c65924e79f125dc3a3037b551e8687f953a01dabeb8bf302b66d97",
+    "compression": "gzip",
+    "uncompressed_sha256": "d97c91d5854cdafc0ce5da45da8f9602b6956dc6d07ff56f2c73c05ccee34c11"
+  },
+  "verification": "Successful Syntax/CmdCore/RuntimeAPI-only own-producer with three newly created Cargo libtest events, exact strict pin/source association and full byte/SHA/size decompression roundtrip. No original unlink or launch."
+}

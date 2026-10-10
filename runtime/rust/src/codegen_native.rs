@@ -35,11 +35,9 @@
 
 use core::ptr;
 
-use crate::codegen_abi::{TclCompletionAbi, current_interp};
+use crate::codegen_abi::{current_interp, TclCompletionAbi, TCL_INVOKE_ABI_HOST_REFUSED};
+use crate::interp::native_operation_currency::NativeOperationCurrency;
 use crate::interp::{Code, Interp};
-// Only the `have_tommath` arms read an object's bytes.
-#[cfg(have_tommath)]
-use crate::interp::obj_bytes;
 use crate::obj::{self, TclObj};
 
 /// `tcl_codegen_value_try_*`: the value has the native representation.
@@ -62,13 +60,33 @@ unsafe fn input_bytes<'a>(ptr: *const u8, len: i32) -> &'a [u8] {
     unsafe { core::slice::from_raw_parts(ptr, len as usize) }
 }
 
-/// Snapshot the interpreter's completion for `code` into `out`, giving the
-/// caller one owned reference to the result and the options.
+/// Capture the actual completion and publish it only while the original
+/// operation remains current. A metadata getter's first Host cause leaves
+/// caller storage untouched; any retained transport handles are released.
 ///
 /// # Safety
-/// `interp` must be live and `out` writable, aligned completion storage.
-unsafe fn write_completion(interp: &mut Interp, code: Code, out: *mut TclCompletionAbi) {
+/// `out` must be writable, aligned completion storage.
+unsafe fn write_completion(
+    interp: &mut Interp,
+    currency: &NativeOperationCurrency,
+    code: Code,
+    out: *mut TclCompletionAbi,
+) -> i32 {
+    if let Err(error) = currency.ensure_current() {
+        interp.refuse_native_execution(error);
+        return TCL_INVOKE_ABI_HOST_REFUSED;
+    }
     let completion = crate::state_traits::capture_completion(interp, code);
+    if let Err(error) = currency.ensure_current() {
+        interp.refuse_native_execution(error);
+        // SAFETY: capture_completion owns one reference to each non-null
+        // handle. Host refusal may instead have returned null transport slots.
+        unsafe {
+            obj::decr_ref_count(completion.result);
+            obj::decr_ref_count(completion.options);
+        }
+        return TCL_INVOKE_ABI_HOST_REFUSED;
+    }
     let code = match completion.code {
         tcl_runtime_api::Code::Ok => 0,
         tcl_runtime_api::Code::Error => 1,
@@ -85,6 +103,15 @@ unsafe fn write_completion(interp: &mut Interp, code: Code, out: *mut TclComplet
             options: completion.options,
         });
     }
+    TCL_NATIVE_ABI_OK
+}
+
+/// Enter before any getter or callback; retain the first typed Host refusal.
+fn completion_entry(interp: &mut Interp) -> Result<NativeOperationCurrency, i32> {
+    NativeOperationCurrency::issue(interp).map_err(|error| {
+        interp.refuse_native_execution(error);
+        TCL_INVOKE_ABI_HOST_REFUSED
+    })
 }
 
 /// One of the runtime's own commands over a prebuilt argv.
@@ -366,9 +393,12 @@ pub unsafe extern "C" fn tcl_codegen_value_try_double(value: *mut TclObj, out: *
 /// `return`/`break`/`continue` a `[cmd]` operand raised) exactly as `expr`
 /// itself would report it.
 ///
+/// First Host refusal returns `TCL_INVOKE_ABI_HOST_REFUSED` and leaves
+/// completion storage untouched.
+///
 /// # Safety
-/// `expr` must be a live object; `out` must be writable aligned completion
-/// storage.
+/// `expr` must be a live caller-owned object; `out` must be writable aligned
+/// completion storage.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_expr_eval(
     expr: *mut TclObj,
@@ -380,16 +410,39 @@ pub unsafe extern "C" fn tcl_codegen_expr_eval(
     }
     // SAFETY: the bootstrap installed a live current interpreter.
     let interp = unsafe { &mut *interp };
-    let code = expr_eval_impl(interp, expr);
+    let currency = match completion_entry(interp) {
+        Ok(currency) => currency,
+        Err(status) => return status,
+    };
+    let code = expr_eval_impl(interp, expr, &currency);
     // SAFETY: `out` is writable per the contract.
-    unsafe { write_completion(interp, code, out) };
-    TCL_NATIVE_ABI_OK
+    unsafe { write_completion(interp, &currency, code, out) }
 }
 
 #[cfg(have_tommath)]
-fn expr_eval_impl(interp: &mut Interp, expr: *mut TclObj) -> Code {
-    let source = obj_bytes(expr);
-    match crate::builtins::eval_expr_obj(interp, &source) {
+fn expr_eval_impl(
+    interp: &mut Interp,
+    expr: *mut TclObj,
+    currency: &NativeOperationCurrency,
+) -> Code {
+    let source = match tcl_syntax::value::ValueOps::native_string_bytes(interp, &expr) {
+        Ok(source) => source,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    if let Err(error) = currency.ensure_current() {
+        interp.refuse_native_execution(error);
+        return Code::Error;
+    }
+    let result = crate::builtins::eval_expr_obj_original(interp, expr, &source);
+    if let Err(error) = currency.ensure_current() {
+        interp.refuse_native_execution(error);
+        if let Ok(result) = result {
+            // SAFETY: the evaluator returned exactly one owned reference.
+            unsafe { obj::decr_ref_count(result) };
+        }
+        return Code::Error;
+    }
+    match result {
         Ok(result) => {
             interp.set_result(result);
             // SAFETY: `eval_expr_obj` handed over one owned reference, which
@@ -402,8 +455,61 @@ fn expr_eval_impl(interp: &mut Interp, expr: *mut TclObj) -> Code {
 }
 
 #[cfg(not(have_tommath))]
-fn expr_eval_impl(interp: &mut Interp, _expr: *mut TclObj) -> Code {
+fn expr_eval_impl(
+    interp: &mut Interp,
+    _expr: *mut TclObj,
+    _currency: &NativeOperationCurrency,
+) -> Code {
     interp.set_error(b"arithmetic support is not available")
+}
+
+/// Evaluate a borrowed expression and perform its actual public result
+/// producer and Boolean conversion once. Guest and propagated completions use
+/// the existing owned completion transport; only success writes `truth_out`.
+/// First Host refusal returns `TCL_INVOKE_ABI_HOST_REFUSED` and leaves both
+/// outputs untouched.
+///
+/// # Safety
+/// `expr` must remain a live caller-owned object. Both output pointers must be
+/// writable, aligned, non-overlapping storage; the completion owns its result
+/// and options references. The caller must release that completion.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_expr_bool(
+    expr: *mut TclObj,
+    completion_out: *mut TclCompletionAbi,
+    truth_out: *mut i32,
+) -> i32 {
+    let interp = current_interp();
+    if interp.is_null() || expr.is_null() || completion_out.is_null() || truth_out.is_null() {
+        return TCL_NATIVE_ABI_INVALID;
+    }
+    // SAFETY: current_interp and all outputs satisfy this entry's contract.
+    let interp = unsafe { &mut *interp };
+    let currency = match completion_entry(interp) {
+        Ok(currency) => currency,
+        Err(status) => return status,
+    };
+    let result = expr_bool_eval_impl(interp, expr);
+    let code = result.as_ref().map_or_else(|code| *code, |_| Code::Ok);
+    // Actual completion getters run before either output is published.
+    let status = unsafe { write_completion(interp, &currency, code, completion_out) };
+    if status == TCL_NATIVE_ABI_OK {
+        if let Ok(truth) = result {
+            // SAFETY: truth_out is writable aligned caller-owned storage.
+            unsafe { truth_out.write(i32::from(truth)) };
+        }
+    }
+    status
+}
+
+#[cfg(have_tommath)]
+fn expr_bool_eval_impl(interp: &mut Interp, expr: *mut TclObj) -> Result<bool, Code> {
+    crate::builtins::eval_bool_expr(interp, expr)
+}
+
+#[cfg(not(have_tommath))]
+fn expr_bool_eval_impl(interp: &mut Interp, _expr: *mut TclObj) -> Result<bool, Code> {
+    Err(interp.set_error(b"arithmetic support is not available"))
 }
 
 /// A no-op expression context: operator operands are already evaluated, so
@@ -477,10 +583,13 @@ pub unsafe extern "C" fn tcl_codegen_mathop(
     if words.iter().any(|word| word.is_null()) {
         return TCL_NATIVE_ABI_INVALID;
     }
+    let currency = match completion_entry(interp) {
+        Ok(currency) => currency,
+        Err(status) => return status,
+    };
     let code = mathop_eval_impl(interp, op, words);
     // SAFETY: `out` is writable per the contract.
-    unsafe { write_completion(interp, code, out) };
-    TCL_NATIVE_ABI_OK
+    unsafe { write_completion(interp, &currency, code, out) }
 }
 
 /// Apply the operator through the runtime's own `::tcl::mathop`.
@@ -557,6 +666,10 @@ pub unsafe extern "C" fn tcl_codegen_mathfunc(
     if words.iter().any(|word| word.is_null()) {
         return TCL_NATIVE_ABI_INVALID;
     }
+    let currency = match completion_entry(interp) {
+        Ok(currency) => currency,
+        Err(status) => return status,
+    };
     let mut head = b"::tcl::mathfunc::".to_vec();
     head.extend_from_slice(name);
     let head_obj = obj::new_string_bytes(&head);
@@ -568,8 +681,7 @@ pub unsafe extern "C" fn tcl_codegen_mathfunc(
     let code = interp.dispatch(&full);
     drop(borrowed);
     // SAFETY: `out` is writable per the contract.
-    unsafe { write_completion(interp, code, out) };
-    TCL_NATIVE_ABI_OK
+    unsafe { write_completion(interp, &currency, code, out) }
 }
 
 #[cfg(test)]
@@ -958,5 +1070,458 @@ mod tests {
             release(x);
             release(y);
         });
+    }
+}
+
+#[cfg(all(test, have_tommath, not(target_arch = "wasm32")))]
+mod original_expression_completion_tests {
+    use super::*;
+    use crate::interp::ObjCommand;
+    use crate::obj::Owned;
+    use std::cell::{Cell, RefCell};
+    use std::rc::Rc;
+    use tcl_platform::{Host, NumericEnvironment};
+
+    // Observe and delegate the real selected Host conversion. No conversion
+    // result, errno value, object header or native result recipe is fabricated.
+    struct CountingHost {
+        actual: Rc<dyn Host>,
+        doubles: RefCell<Vec<(Vec<u8>, bool)>>,
+    }
+    impl Host for CountingHost {
+        fn capabilities(&self) -> tcl_platform::Capabilities {
+            self.actual.capabilities()
+        }
+        fn clock(&self) -> &dyn tcl_platform::Clock {
+            self.actual.clock()
+        }
+        fn stdio(&self) -> &dyn tcl_platform::StdIo {
+            self.actual.stdio()
+        }
+        fn env(&self) -> &dyn tcl_platform::Env {
+            self.actual.env()
+        }
+        fn numeric_environment(&self) -> Option<&dyn NumericEnvironment> {
+            Some(self)
+        }
+        fn native_integer_formatter(&self) -> Option<&dyn tcl_platform::NativeIntegerFormatter> {
+            self.actual.native_integer_formatter()
+        }
+    }
+    impl CountingHost {
+        fn actual(&self) -> &dyn NumericEnvironment {
+            self.actual
+                .numeric_environment()
+                .expect("actual native C numeric provider")
+        }
+    }
+    impl NumericEnvironment for CountingHost {
+        fn c_integer_abi(
+            &self,
+        ) -> Result<tcl_platform::NativeCIntegerAbi, tcl_platform::NumericEnvironmentUnavailable>
+        {
+            self.actual().c_integer_abi()
+        }
+        fn state(
+            &self,
+        ) -> Result<tcl_platform::NumericErrorState, tcl_platform::NumericEnvironmentUnavailable>
+        {
+            self.actual().state()
+        }
+        fn reset(&self) -> Result<(), tcl_platform::NumericEnvironmentUnavailable> {
+            self.actual().reset()
+        }
+        fn unsigned_c84(
+            &self,
+            input: &[u8],
+            offset: usize,
+            long: bool,
+        ) -> Result<
+            tcl_platform::UnsignedNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            self.actual().unsigned_c84(input, offset, long)
+        }
+        fn unsigned(
+            &self,
+            input: &[u8],
+            offset: usize,
+            base: u32,
+        ) -> Result<
+            tcl_platform::UnsignedNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            self.actual().unsigned(input, offset, base)
+        }
+        fn signed_long(
+            &self,
+            input: &[u8],
+            base: u32,
+        ) -> Result<
+            tcl_platform::SignedNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            self.actual().signed_long(input, base)
+        }
+        fn double(
+            &self,
+            input: &[u8],
+            reset: bool,
+        ) -> Result<
+            tcl_platform::DoubleNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            self.doubles.borrow_mut().push((input.to_vec(), reset));
+            self.actual().double(input, reset)
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    enum CallbackMode {
+        True,
+        Guest(i32),
+        ChangeWorld(i32),
+    }
+    struct CallbackState {
+        calls: Cell<usize>,
+        mode: CallbackMode,
+    }
+    unsafe extern "C" fn original_callback(
+        client: *mut core::ffi::c_void,
+        interp: *mut Interp,
+        _argc: core::ffi::c_int,
+        _argv: *const *mut TclObj,
+    ) -> core::ffi::c_int {
+        // SAFETY: installed client data and interpreter remain live for dispatch.
+        let state = unsafe { &*client.cast::<CallbackState>() };
+        let interp = unsafe { &mut *interp };
+        state.calls.set(state.calls.get() + 1);
+        match state.mode {
+            CallbackMode::True => {
+                interp.set_result_bytes(b"true");
+                0
+            }
+            CallbackMode::Guest(code) => {
+                interp.set_result_bytes(b"GUEST\0\xff");
+                interp.set_c_error_code(b"ORIGINAL CALLBACK CODE");
+                code
+            }
+            CallbackMode::ChangeWorld(code) => {
+                interp.set_result_bytes(b"true");
+                let original = interp.runtime_context();
+                let mut changed = original.clone();
+                changed.packages = vec![("boolean-eval-currency-control".into(), "1.0".into())];
+                interp
+                    .pin_context(&changed)
+                    .expect("genuine context change");
+                interp
+                    .pin_context(&original)
+                    .expect("restore original context");
+                code
+            }
+        }
+    }
+
+    struct CurrentEntry;
+    impl CurrentEntry {
+        fn enter(interp: &mut Interp) -> Self {
+            crate::codegen_abi::tcl_runtime_set_current_interp(interp);
+            Self
+        }
+    }
+    impl Drop for CurrentEntry {
+        fn drop(&mut self) {
+            crate::codegen_abi::tcl_runtime_set_current_interp(ptr::null_mut());
+        }
+    }
+    fn native() -> (Interp, Rc<CountingHost>) {
+        let host = Rc::new(CountingHost {
+            actual: crate::interp::default_host(),
+            doubles: RefCell::new(Vec::new()),
+        });
+        let profile = tcl_registry::model::ingress::resolve_known_environment("tcl8.4")
+            .expect("known independently selected original C8.4 core")
+            .unit_profile();
+        let interp = Interp::with_native_core(
+            host.clone(),
+            profile,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .expect("genuine native bootstrap");
+        host.doubles.borrow_mut().clear();
+        (interp, host)
+    }
+    fn install(interp: &mut Interp, state: &CallbackState) {
+        let client = ptr::from_ref(state).cast_mut().cast();
+        assert!(interp
+            .create_obj_command(
+                b"::boolean_probe",
+                ObjCommand::new(original_callback, client, None)
+            )
+            .is_some());
+    }
+    fn empty() -> TclCompletionAbi {
+        TclCompletionAbi {
+            code: -99,
+            result: ptr::null_mut(),
+            options: ptr::null_mut(),
+        }
+    }
+    fn release(completion: TclCompletionAbi) {
+        // SAFETY: each successful settlement transfers one reference per handle.
+        unsafe {
+            obj::decr_ref_count(completion.result);
+            obj::decr_ref_count(completion.options);
+        }
+    }
+    fn same_completion(actual: &TclCompletionAbi, before: &TclCompletionAbi) {
+        assert_eq!(actual.code, before.code);
+        assert_eq!(actual.result, before.result);
+        assert_eq!(actual.options, before.options);
+    }
+
+    #[test]
+    fn original_combined_expression_truth_runs_public_producer_once() {
+        // naming.numeric.original-primitive-boolean-vs-expression-truth
+        // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+        // This software integration counts real Host.double calls reached by
+        // an actual original object command; external provider rows are separate.
+        for route in 0..3 {
+            let (mut interp, host) = native();
+            let state = CallbackState {
+                calls: Cell::new(0),
+                mode: CallbackMode::True,
+            };
+            install(&mut interp, &state);
+            let source = Owned::fresh(obj::new_string_bytes(b"[::boolean_probe]"));
+            let refs = unsafe { (*source.as_ptr()).ref_count };
+            let _entry = CurrentEntry::enter(&mut interp);
+            let mut completion = empty();
+            let mut truth = 777;
+            let status = unsafe {
+                if route == 2 {
+                    tcl_codegen_expr_bool(source.as_ptr(), &mut completion, &mut truth)
+                } else {
+                    tcl_codegen_expr_eval(source.as_ptr(), &mut completion)
+                }
+            };
+            assert_eq!(status, TCL_NATIVE_ABI_OK);
+            assert_eq!(completion.code, 0);
+            assert_eq!(obj::bytes_of(completion.result), b"true");
+            assert!(!completion.options.is_null());
+            if route == 1 {
+                // Deliberately compose the old two public operations as a
+                // discriminator. Each independently runs its real producer.
+                assert_eq!(
+                    unsafe {
+                        crate::codegen_abi::tcl_value_get_expression_bool(
+                    completion.result,
+                    tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi as i32,
+                    &mut truth,
+                )
+                    },
+                    0
+                );
+            }
+            assert_eq!(truth, if route == 0 { 777 } else { 1 });
+            assert_eq!(state.calls.get(), 1);
+            let expected = vec![(b"true".to_vec(), true); if route == 1 { 2 } else { 1 }];
+            assert_eq!(*host.doubles.borrow(), expected, "route {route}");
+            assert_eq!(
+                unsafe { (*source.as_ptr()).ref_count },
+                refs,
+                "source is borrowed"
+            );
+            assert!(!interp.host_refusal_pending());
+            release(completion);
+        }
+    }
+
+    #[test]
+    fn original_expression_completion_preserves_guest_codes_and_rejects_changed_worlds() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for combined in [false, true] {
+            for code in [1, 3, 7] {
+                let (mut interp, host) = native();
+                let state = CallbackState {
+                    calls: Cell::new(0),
+                    mode: CallbackMode::Guest(code),
+                };
+                install(&mut interp, &state);
+                let source = Owned::fresh(obj::new_string_bytes(b"[::boolean_probe]"));
+                let _entry = CurrentEntry::enter(&mut interp);
+                let mut completion = empty();
+                let mut truth = 777;
+                let status = unsafe {
+                    if combined {
+                        tcl_codegen_expr_bool(source.as_ptr(), &mut completion, &mut truth)
+                    } else {
+                        tcl_codegen_expr_eval(source.as_ptr(), &mut completion)
+                    }
+                };
+                assert_eq!(status, TCL_NATIVE_ABI_OK);
+                assert_eq!(completion.code, code);
+                assert_eq!(obj::bytes_of(completion.result), b"GUEST\0\xff");
+                let option_code = crate::dict::dict_get(completion.options, b"-code")
+                    .expect("actual owned completion dictionary")
+                    .expect("exact Guest code option");
+                assert_eq!(obj::bytes_of(option_code), code.to_string().as_bytes());
+                if code == 1 {
+                    let error_code = crate::dict::dict_get(completion.options, b"-errorcode")
+                        .expect("actual owned completion dictionary")
+                        .expect("original explicit error-code option");
+                    assert_eq!(obj::bytes_of(error_code), b"ORIGINAL CALLBACK CODE");
+                }
+                assert_eq!(truth, 777);
+                assert_eq!(state.calls.get(), 1);
+                assert!(host.doubles.borrow().is_empty());
+                assert!(!interp.host_refusal_pending());
+                release(completion);
+            }
+            for code in [0, 7] {
+                let (mut interp, host) = native();
+                let state = CallbackState {
+                    calls: Cell::new(0),
+                    mode: CallbackMode::ChangeWorld(code),
+                };
+                install(&mut interp, &state);
+                let world = interp.runtime_context();
+                let source = Owned::fresh(obj::new_string_bytes(b"[::boolean_probe]"));
+                let sentinel = Owned::fresh(obj::new_string_bytes(b"UNTOUCHED"));
+                let before = TclCompletionAbi {
+                    code: -99,
+                    result: sentinel.as_ptr(),
+                    options: sentinel.as_ptr(),
+                };
+                let mut completion = before;
+                let mut truth = 777;
+                let _entry = CurrentEntry::enter(&mut interp);
+                let status = unsafe {
+                    if combined {
+                        tcl_codegen_expr_bool(source.as_ptr(), &mut completion, &mut truth)
+                    } else {
+                        tcl_codegen_expr_eval(source.as_ptr(), &mut completion)
+                    }
+                };
+                assert_eq!(status, TCL_INVOKE_ABI_HOST_REFUSED);
+                same_completion(&completion, &before);
+                assert_eq!(truth, 777);
+                assert_eq!(state.calls.get(), 1, "earlier callback effect is retained");
+                assert_eq!(
+                    interp.runtime_context(),
+                    world,
+                    "restoration cannot revive the entry"
+                );
+                assert_eq!(interp.result_bytes(), b"true");
+                assert!(
+                    host.doubles.borrow().is_empty(),
+                    "no fresh result producer after re-entry"
+                );
+                assert_eq!(interp.native_execution_refusal(), Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("stale entered native operation"))));
+            }
+        }
+    }
+
+    #[test]
+    fn original_codegen_completion_exports_preserve_first_host_and_output_storage() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for route in 0..4 {
+            let (mut interp, host) = native();
+            let state = CallbackState {
+                calls: Cell::new(0),
+                mode: CallbackMode::True,
+            };
+            install(&mut interp, &state);
+            let source = Owned::fresh(obj::new_string_bytes(b"[::boolean_probe]"));
+            let operand = Owned::fresh(obj::new_string_bytes(b"true"));
+            let argv = [operand.as_ptr()];
+            interp.set_result_bytes(b"PRIOR\0\xff");
+            let prior = interp.result_obj();
+            interp.refuse_host_command("original completion first cause");
+            let first = interp.native_execution_refusal().expect("typed first Host");
+            let before = TclCompletionAbi {
+                code: -99,
+                result: source.as_ptr(),
+                options: operand.as_ptr(),
+            };
+            let mut completion = before;
+            let mut truth = 777;
+            let _entry = CurrentEntry::enter(&mut interp);
+            let status = unsafe {
+                match route {
+                    0 => tcl_codegen_expr_eval(source.as_ptr(), &mut completion),
+                    1 => tcl_codegen_expr_bool(source.as_ptr(), &mut completion, &mut truth),
+                    2 => tcl_codegen_mathop(b"!".as_ptr(), 1, argv.as_ptr(), 1, &mut completion),
+                    _ => {
+                        tcl_codegen_mathfunc(b"abs".as_ptr(), 3, argv.as_ptr(), 1, &mut completion)
+                    }
+                }
+            };
+            assert_eq!(status, TCL_INVOKE_ABI_HOST_REFUSED);
+            same_completion(&completion, &before);
+            assert_eq!(truth, 777);
+            assert_eq!(state.calls.get(), 0);
+            assert!(host.doubles.borrow().is_empty());
+            assert_eq!(interp.result_obj(), prior);
+            assert_eq!(interp.result_bytes(), b"PRIOR\0\xff");
+            assert_eq!(interp.native_execution_refusal(), Some(first));
+        }
+    }
+
+    thread_local! { static METADATA_GETTERS: Cell<usize> = const { Cell::new(0) }; }
+    extern "C" fn refusing_metadata(original: *mut TclObj) {
+        METADATA_GETTERS.with(|calls| calls.set(calls.get() + 1));
+        // The genuine extension updater reaches a first Host cause and finishes
+        // its own bytes. Those bytes cannot authorize completion publication.
+        let interp = current_interp();
+        assert!(!interp.is_null());
+        unsafe {
+            (*interp).refuse_host_command("first cause in completion metadata getter");
+            obj::set_string_rep(original, b"REACHED ORIGINAL BYTES");
+        }
+    }
+    static REFUSING_METADATA: obj::TclObjType = obj::TclObjType {
+        name: c"originalCompletionMetadataRefusal".as_ptr(),
+        free_int_rep_proc: None,
+        dup_int_rep_proc: None,
+        update_string_proc: Some(refusing_metadata),
+        set_from_any_proc: None,
+    };
+
+    #[test]
+    fn original_codegen_completion_capture_refusal_releases_handles_without_publication() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let (mut interp, _) = native();
+        let original = Owned::fresh(obj::alloc_typed(&REFUSING_METADATA, 0));
+        interp.set_error_state(b"ORIGINAL COMPLETION CODE");
+        interp.set_result(original.as_ptr());
+        let refs = unsafe { (*original.as_ptr()).ref_count };
+        let before = TclCompletionAbi {
+            code: -99,
+            result: original.as_ptr(),
+            options: original.as_ptr(),
+        };
+        let mut completion = before;
+        let _entry = CurrentEntry::enter(&mut interp);
+        let currency = NativeOperationCurrency::issue(&interp).unwrap();
+        METADATA_GETTERS.with(|calls| calls.set(0));
+        assert_eq!(
+            unsafe { write_completion(&mut interp, &currency, Code::Error, &mut completion) },
+            TCL_INVOKE_ABI_HOST_REFUSED
+        );
+        same_completion(&completion, &before);
+        METADATA_GETTERS.with(|calls| assert_eq!(calls.get(), 1));
+        assert_eq!(
+            unsafe { (*original.as_ptr()).ref_count },
+            refs,
+            "capture retained handles are released"
+        );
+        assert_eq!(interp.result_obj(), original.as_ptr());
+        assert_eq!(obj::bytes_of(original.as_ptr()), b"REACHED ORIGINAL BYTES");
+        assert!(interp.host_refusal_pending());
     }
 }

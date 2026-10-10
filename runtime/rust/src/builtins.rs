@@ -1124,20 +1124,63 @@ fn eval_expr_prepared_source(
 /// numeric arguments (`SequenceIdentifyArgument`).
 #[cfg(have_tommath)]
 pub(crate) fn eval_expr_obj(interp: &mut Interp, src: &[u8]) -> Result<*mut TclObj, Code> {
-    let node = parse_runtime_expr(interp, src).map_err(|e| interp.report_expr_error(e))?;
+    eval_expr_obj_at_original(interp, None, src)
+}
+
+/// Preserve a caller's actual expression object and retained Jim terms while
+/// performing the same single public expression result operation.
+#[cfg(have_tommath)]
+pub(crate) fn eval_expr_obj_original(
+    interp: &mut Interp,
+    original: *mut TclObj,
+    src: &[u8],
+) -> Result<*mut TclObj, Code> {
+    eval_expr_obj_at_original(interp, Some(original), src)
+}
+
+#[cfg(have_tommath)]
+fn eval_expr_obj_at_original(
+    interp: &mut Interp,
+    original: Option<*mut TclObj>,
+    src: &[u8],
+) -> Result<*mut TclObj, Code> {
+    let currency = crate::interp::native_operation_currency::NativeOperationCurrency::issue(interp)
+        .map_err(|error| {
+            interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
+        })?;
+    let node = parse_runtime_expr_cached(interp, original, src)
+        .map_err(|e| interp.report_expr_error(e))?;
     let mut ctx = InterpExprCtx {
         interp: &mut *interp,
         propagated: false,
         propagated_code: Code::Error,
     };
-    let result = crate::expr::eval_expr(&node, &mut ctx);
+    let lease = original.and_then(crate::expr::retain_expression_primary);
+    let result = match original.and_then(crate::expr::native_jim_expression_objects) {
+        Some(objects) => crate::expr::eval_jim_expr(&node, &mut ctx, objects, false),
+        None => crate::expr::eval_compiled_expression_node(&node, &mut ctx),
+    };
+    drop(lease);
     let propagated = ctx.propagated;
     let propagated_code = ctx.propagated_code;
-    match result {
-        Ok(r) => Ok(r.into_raw()), // transfer the +1 to the caller
+    // This check precedes every success and propagated Guest branch. Re-entry
+    // cannot replace the original world before the public result producer.
+    currency.ensure_current().map_err(|error| {
+        interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
+    })?;
+    let result = match result {
+        Ok(value) => crate::typed_value::normalize_boolean_result_for_interp(
+            interp,
+            value.as_ptr(),
+            tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi,
+        ).map_err(|e| interp.report_cmd_error(e)),
         Err(_) if propagated => Err(propagated_code),
         Err(e) => Err(interp.report_expr_error(e)),
-    }
+    };
+    currency.ensure_current().map_err(|error| {
+        interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
+    })?;
+    result.map(crate::obj::Owned::into_raw)
 }
 
 /// Evaluate the condition object `cond` as a Tcl expression and coerce the result
@@ -1148,8 +1191,15 @@ pub(crate) fn eval_expr_obj(interp: &mut Interp, src: &[u8]) -> Result<*mut TclO
 /// line (TIP 280); the base is restored afterward.
 #[cfg(have_tommath)]
 pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<bool, Code> {
+    let currency = crate::interp::native_operation_currency::NativeOperationCurrency::issue(interp)
+        .map_err(|error| {
+            interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
+        })?;
     let src = tcl_syntax::value::ValueOps::native_string_bytes(interp, &cond)
         .map_err(|error| interp.report_cmd_error(error.into()))?;
+    currency.ensure_current().map_err(|error| {
+        interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
+    })?;
     let saved = match interp.arg_location(cond) {
         Some((_, line)) => interp.push_cond_line_base(line),
         None => None,
@@ -1179,7 +1229,12 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<b
     if let Some(old) = saved {
         interp.restore_line_base(old);
     }
-    match result {
+    // Keep the entry world across effectful raw evaluation. A changed-and-
+    // restored engine cannot donate a fresh result-producer receipt.
+    currency.ensure_current().map_err(|error| {
+        interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
+    })?;
+    let result = match result {
         // The boolean-context refusal keeps its own `-errorcode` (tclsh:
         // `set x o; if {$x} {}` is `TCL VALUE NUMBER`, a NaN condition is
         // `TCL VALUE DOUBLE NAN`), exactly as the eval failure below does.
@@ -1191,7 +1246,11 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<b
         // `[cmd]` substitution carries that code out of the loop/`if`.
         Err(_) if propagated => Err(propagated_code),
         Err(e) => Err(interp.report_expr_error(e)),
-    }
+    };
+    currency.ensure_current().map_err(|error| {
+        interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
+    })?;
+    result
 }
 
 /// Parse an expression against the registry-owned surface for this

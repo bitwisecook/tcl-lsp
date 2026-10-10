@@ -149,12 +149,8 @@ impl SourceInvocationBinding {
         {
             return None;
         }
-        crate::registry_invocation::original_native_compiler_words(
-            site.source.source_image(),
-            tokens.words(),
-            site.offset,
-            config,
-        )?;
+        site.source
+            .original_lexical_command(tokens.words(), site.offset, config)?;
         Some(config)
     }
 
@@ -225,14 +221,10 @@ impl SourceInvocationBinding {
         {
             return None;
         }
-        let head = crate::registry_invocation::original_native_compiler_words(
-            site.source.source_image(),
-            tokens.words(),
-            site.offset,
-            config,
-        )?
-        .into_iter()
-        .next()?;
+        let original = site
+            .source
+            .original_lexical_command(tokens.words(), site.offset, config)?;
+        let head = original.native_words().first()?.clone();
         Some(OriginalSourceMaterializedFootprint {
             binding: self,
             state,
@@ -465,17 +457,16 @@ impl<'a> OriginalSourceMaterializedFootprint<'a> {
                 ..Default::default()
             };
         };
-        let Some(native) = crate::registry_invocation::original_native_compiler_words(
-            image,
-            tokens.words(),
-            site.offset,
-            config,
-        ) else {
+        let Some(original) =
+            site.source
+                .original_lexical_command(tokens.words(), site.offset, config)
+        else {
             return crate::ir_helpers::VariableWriteEffects {
                 opaque: true,
                 ..Default::default()
             };
         };
+        let native = original.native_words();
         if native.first() != Some(&self.head) {
             return crate::ir_helpers::VariableWriteEffects {
                 opaque: true,
@@ -573,6 +564,78 @@ mod tests {
             None,
             &input,
         )
+    }
+
+    #[test]
+    fn warmed_original_lexical_projection_cannot_donate_changed_module_metadata() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let unit = unit("eval set ::original VALUE", &context);
+        let module = &unit.ir_module;
+        let script = &module.top_level;
+        let tokens = script
+            .retained_source_tokens_for_statement(&script.statements[0])
+            .unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let site = binding.invocation_site().unwrap();
+        let config = binding.original_lexer_config_for_tokens(tokens).unwrap();
+        let first = site
+            .source
+            .original_lexical_command(tokens.words(), site.offset, config)
+            .unwrap();
+        let count = site.source.original_lexical_projection.capture_count();
+        let second = site
+            .source
+            .original_lexical_command(tokens.words(), site.offset, config)
+            .unwrap();
+        assert!(Arc::ptr_eq(&first, &second));
+        assert_eq!(
+            site.source.original_lexical_projection.capture_count(),
+            count
+        );
+        assert!(
+            binding
+                .original_invocation_metadata_for_module(tokens, module, context.commands())
+                .is_some()
+        );
+        let input = module.source_metadata_input.as_ref().unwrap();
+        let older = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .with_command_store(Arc::clone(context.commands())),
+        );
+        assert!(Arc::ptr_eq(older.commands(), context.commands()));
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        assert!(!Arc::ptr_eq(foreign.commands(), context.commands()));
+        for change in 0..5 {
+            let mut changed = module.clone();
+            match change {
+                0 => changed.source_metadata_input = None,
+                1 | 2 => {
+                    changed.source_metadata_input = Some(ResolvedAnalysisInput::new(
+                        input.analyser_profile(),
+                        input.unit_profile(),
+                        if change == 1 {
+                            Arc::clone(&older)
+                        } else {
+                            Arc::clone(&foreign)
+                        },
+                        input.lexer_config(),
+                    ))
+                }
+                3 => changed.lexer_config.strict_quoting = !changed.lexer_config.strict_quoting,
+                4 => changed.source = tcl_lexer::SourceImage::document("eval set ::changed VALUE"),
+                _ => unreachable!(),
+            }
+            assert!(
+                binding
+                    .original_invocation_metadata_for_module(tokens, &changed, context.commands())
+                    .is_none(),
+                "changed owner {change}"
+            );
+        }
     }
 
     #[test]

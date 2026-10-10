@@ -470,15 +470,18 @@ pub(super) fn original_native_word(
     state: &super::ModuleCommandBindings,
     config: tcl_lexer::LexerConfig,
 ) -> Option<tcl_lexer::NativeWord> {
-    let image = state.current_source_origin.as_ref()?.source_image();
-    let mut words = crate::registry_invocation::original_native_compiler_words(
-        image,
-        std::slice::from_ref(word),
-        word.source().span.start(),
-        config,
-    )?;
-    (words.len() == 1).then_some(())?;
-    words.pop()
+    let original = state
+        .current_source_origin
+        .as_ref()?
+        .original_lexical_command(
+            std::slice::from_ref(word),
+            word.source().span.start(),
+            config,
+        )?;
+    let [word] = original.native_words() else {
+        return None;
+    };
+    Some(word.clone())
 }
 
 pub(super) fn capture_word(
@@ -516,13 +519,8 @@ fn original_written_variable_inputs(
         let words = if let Some(original) = context.original_written_projection {
             original.words_for(origin.source_image(), native.words, context.config)?
         } else {
-            owned = crate::registry_invocation::original_native_compiler_words(
-                origin.source_image(),
-                native.words,
-                offset,
-                context.config,
-            )?;
-            &owned
+            owned = origin.original_lexical_command(native.words, offset, context.config)?;
+            owned.native_words()
         };
         let rules = tcl_syntax::word_rules::WordValueRules::from_config(&context.config);
         let frozen = context.written_name_values.filter(|values| {
@@ -647,12 +645,7 @@ impl OriginalWrittenSourceWords {
         config: tcl_lexer::LexerConfig,
     ) -> Option<Self> {
         let origin = state.current_source_origin.as_ref()?;
-        crate::registry_invocation::original_native_compiler_words(
-            origin.source_image(),
-            words,
-            offset,
-            config,
-        )?;
+        origin.original_lexical_command(words, offset, config)?;
         Some(Self {
             site: super::CommandAllocationSite {
                 source: Arc::clone(origin),
@@ -673,9 +666,11 @@ pub(super) fn original_static_command_head_input(
     state: &super::ModuleCommandBindings,
     config: tcl_lexer::LexerConfig,
 ) -> Option<SignatureSourceNameInput> {
-    let image = state.current_source_origin.as_ref()?.source_image();
-    let native =
-        crate::registry_invocation::original_native_compiler_words(image, words, offset, config)?;
+    let original = state
+        .current_source_origin
+        .as_ref()?
+        .original_lexical_command(words, offset, config)?;
+    let native = original.native_words();
     let policy = state
         .source_variables
         .execution_name_policy?
@@ -703,18 +698,14 @@ pub(super) fn original_command_head_input(
         .source_variables
         .execution_name_policy?
         .native_recipe()?;
-    let image = state.current_source_origin.as_ref()?.source_image();
+    let origin = state.current_source_origin.as_ref()?;
+    let image = origin.source_image();
     let owned;
     let native = if let Some(original) = context.original_written_projection {
         original.words_for(image, words, context.config)?
     } else {
-        owned = crate::registry_invocation::original_native_compiler_words(
-            image,
-            words,
-            offset,
-            context.config,
-        )?;
-        &owned
+        owned = origin.original_lexical_command(words, offset, context.config)?;
+        owned.native_words()
     };
     (native.first()?.group().span.start() == offset).then_some(())?;
     for (ordinal, word) in written.iter().enumerate() {
@@ -765,26 +756,10 @@ impl super::SourceInvocationBinding {
         let site = self.invocation_site()?;
         let (words, config) = self.original_recorded_name_words()?;
         let image = site.source.source_image();
-        let native = crate::registry_invocation::original_native_compiler_words(
-            image,
-            words,
-            site.offset,
-            config,
-        )?;
-        let region =
-            tcl_lexer::Span::new(native.first()?.span().start(), native.last()?.span().end());
-        let selected = tcl_lexer::SourceImage::from_bytes(
-            image.bytes().get(region.as_range())?,
-            image.channel(),
-        );
-        let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
-            &selected,
-            region.start(),
-            config,
-        )?;
-        let [command] = commands.as_slice() else {
-            return None;
-        };
+        let original = site
+            .source
+            .original_lexical_command(words, site.offset, config)?;
+        let command = original.command();
         let tokens = crate::ir::CommandTokens::from_segmented(
             &tcl_lexer::SourceMap::from_image(image),
             config,
@@ -888,16 +863,14 @@ impl super::SourceInvocationBinding {
         (site.source.source_image() == image).then_some(())?;
         let (words, retained_config) = self.original_recorded_name_words()?;
         (retained_config == config).then_some(())?;
-        let native = crate::registry_invocation::original_native_compiler_words(
-            image,
-            words,
-            site.offset,
-            config,
-        )?;
+        let original = site
+            .source
+            .original_lexical_command(words, site.offset, config)?;
+        let native = original.native_words();
         let mut ordinals =
             words
                 .iter()
-                .zip(&native)
+                .zip(native)
                 .enumerate()
                 .filter_map(|(index, (word, native))| {
                     (word.source().span == span
@@ -957,13 +930,10 @@ impl super::SourceInvocationBinding {
     ) -> Option<SignatureSourceNameInput> {
         use crate::signature_scan::scope::{SignatureSourceNameKey, SignatureSourceNameValue};
         let site = self.invocation_site()?;
-        let native = crate::registry_invocation::original_native_compiler_words(
-            site.source.source_image(),
-            words,
-            site.offset,
-            config,
-        )?;
-        let word = native.get(written)?;
+        let original = site
+            .source
+            .original_lexical_command(words, site.offset, config)?;
+        let word = original.native_words().get(written)?;
         let policy = self
             .variable_context
             .execution_name_policy?
@@ -1224,16 +1194,12 @@ impl super::SourceCommandBindings {
             {
                 continue;
             }
-            let native = crate::registry_invocation::original_native_compiler_words(
-                origin.source_image(),
-                words,
-                *offset,
-                config,
-            )?;
+            let original = origin.original_lexical_command(words, *offset, config)?;
+            let native = original.native_words();
             let mut ordinals =
                 words
                     .iter()
-                    .zip(&native)
+                    .zip(native)
                     .enumerate()
                     .filter_map(|(index, (word, native))| {
                         (word.source().span == span
@@ -1560,13 +1526,12 @@ impl<'a> OriginalSourceVariableCompilation<'a> {
         index: &tcl_lexer::ExecutablePartArena,
         context: &ResolveContext,
     ) -> Option<SignatureSourceNameInput> {
-        let originals = crate::registry_invocation::original_native_compiler_words(
-            self.site().source.source_image(),
+        let original = self.site().source.original_lexical_command(
             self.original_words(),
             self.site().offset,
             self.config(),
         )?;
-        (originals.get(written)? == word).then_some(())?;
+        (original.native_words().get(written)? == word).then_some(())?;
         self.evaluated_words?
             .get(written)?
             .as_deref()?

@@ -1,0 +1,7 @@
+{
+  "executable": "/workspace/.proofs/pinned-api305.elf",
+  "sha256": "e8388cf8009f28711f95f21e67843108899606173743c30303fae488ccfd6784",
+  "build_receipt": "/workspace/.proofs/integration-syntax-core-api-own-test-build305.json",
+  "build_receipt_sha256": "c3b4ce088e267d8113ceba3e317ce330f9123d8659bb6f7fe81f5338e066a42b",
+  "source_snapshot_sha256": "d97c91d5854cdafc0ce5da45da8f9602b6956dc6d07ff56f2c73c05ccee34c11"
+}

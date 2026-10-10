@@ -1737,10 +1737,11 @@ fn original_source_case_projection(
                     (None, None) => true,
                     _ => false,
                 };
+                // Case grammar belongs directly to the immutable selected
+                // command; form selection cannot replace this descriptor.
+                // Copied transition values supply no further owner identity.
                 if !std::ptr::eq(source_descriptors.command, selected_descriptors.command)
                     || !same_subcommand
-                    || schema.semantics.state_transitions.command
-                        != original.semantics.state_transitions.command
                 {
                     return None;
                 }

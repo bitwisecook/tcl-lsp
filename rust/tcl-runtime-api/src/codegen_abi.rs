@@ -264,8 +264,16 @@ pub enum CodegenAbiImportId {
     ValueTryDouble,
     /// Evaluate a borrowed boxed expression object with the runtime's
     /// expression evaluator, writing the completion triple to the
-    /// caller-owned completion storage. The i32 result is ABI status.
+    /// caller-owned completion storage. The i32 result is ABI status. First
+    /// Host refusal leaves completion storage untouched.
     ExprEval,
+    /// Evaluate a borrowed expression, perform its actual public result
+    /// producer and truth once, and write its owned completion plus a
+    /// success-only Bool output. Parameters are the expression handle,
+    /// completion pointer and i32 truth pointer. The i32 result is ABI status;
+    /// first Host refusal leaves both outputs untouched. A Guest completion
+    /// writes its exact code/result/options and leaves truth untouched.
+    ExprBoolEval,
     /// Apply the `expr` operator spelled by a name pointer and length to
     /// `argc` borrowed operands (an argv pointer) through the runtime's
     /// `::tcl::mathop` implementation, writing the completion triple.
@@ -402,6 +410,7 @@ impl CodegenAbiImportId {
         Self::ValueTryWideInt,
         Self::ValueTryDouble,
         Self::ExprEval,
+        Self::ExprBoolEval,
         Self::MathOp,
         Self::MathFunc,
         Self::ProcDefineNative,
@@ -494,6 +503,7 @@ impl CodegenAbiImportId {
             Self::ValueTryWideInt => tcl_import("tcl_codegen_value_try_wide_int", I32_I32, I32),
             Self::ValueTryDouble => tcl_import("tcl_codegen_value_try_double", I32_I32, I32),
             Self::ExprEval => tcl_import("tcl_codegen_expr_eval", I32_I32, I32),
+            Self::ExprBoolEval => tcl_import("tcl_codegen_expr_bool", I32_I32_I32, I32),
             Self::MathOp => tcl_import("tcl_codegen_mathop", I32_I32_I32_I32_I32, I32),
             Self::MathFunc => tcl_import("tcl_codegen_mathfunc", I32_I32_I32_I32_I32, I32),
             Self::ProcDefineNative => tcl_import(
@@ -1009,6 +1019,7 @@ mod tests {
                 2,
             ),
             (CodegenAbiImportId::ExprEval, "tcl_codegen_expr_eval", 2),
+            (CodegenAbiImportId::ExprBoolEval, "tcl_codegen_expr_bool", 3),
             (CodegenAbiImportId::MathOp, "tcl_codegen_mathop", 5),
             (CodegenAbiImportId::MathFunc, "tcl_codegen_mathfunc", 5),
         ];

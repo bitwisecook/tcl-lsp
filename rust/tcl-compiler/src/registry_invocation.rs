@@ -110,7 +110,7 @@ mod native_compilation_source;
 pub use native_compilation_source::original_native_compiler_words;
 pub(crate) use native_compilation_source::{
     OriginalNativeCompilerInvocation, OriginalNativeCompilerPreparation,
-    original_native_compilation,
+    OriginalSourceCommandProjection, original_native_compilation,
 };
 
 mod store_advice;

@@ -116,6 +116,7 @@ pub(super) struct NativeImports {
     value_try_wide_int: u32,
     value_try_double: u32,
     expr_eval: u32,
+    expr_bool_eval: u32,
     mathop: u32,
     mathfunc: u32,
     proc_define_native: u32,
@@ -161,6 +162,7 @@ pub(super) fn add_native_imports(
         value_try_wide_int: add(wasm, CodegenAbiImportId::ValueTryWideInt),
         value_try_double: add(wasm, CodegenAbiImportId::ValueTryDouble),
         expr_eval: add(wasm, CodegenAbiImportId::ExprEval),
+        expr_bool_eval: add(wasm, CodegenAbiImportId::ExprBoolEval),
         mathop: add(wasm, CodegenAbiImportId::MathOp),
         mathfunc: add(wasm, CodegenAbiImportId::MathFunc),
         proc_define_native: add(wasm, CodegenAbiImportId::ProcDefineNative),
@@ -1519,6 +1521,32 @@ impl Emitter<'_, '_> {
                 self.push(WasmOp::Drop);
                 self.take_frame_result(*dst, completion);
             }
+            NativeOp::ExprBoolEval { dst, text } => {
+                self.text_pair(text);
+                self.call(self.imports.new_owned_string);
+                self.set_owned(LOCAL_SCRATCH_OBJ_A);
+                self.scratch_owned.push(LOCAL_SCRATCH_OBJ_A);
+                self.get(LOCAL_SCRATCH_OBJ_A);
+                self.frame_offset(FRAME_COMPLETION);
+                self.frame_offset(FRAME_SCRATCH_I32);
+                self.call(self.imports.expr_bool_eval);
+                self.push(WasmOp::Drop);
+                self.get(LOCAL_FRAME);
+                self.load_i32(FRAME_COMPLETION + i64::from(WASM32_COMPLETION_CODE_OFFSET));
+                self.open(WasmOp::If, Label::Plain);
+                self.fail_with_frame_completion(completion);
+                self.close();
+                self.get(LOCAL_FRAME);
+                self.load_i32(FRAME_SCRATCH_I32);
+                self.set(self.local_of(*dst));
+                self.get(LOCAL_FRAME);
+                self.load_i32(FRAME_COMPLETION + i64::from(WASM32_COMPLETION_RESULT_OFFSET));
+                self.call(self.imports.obj_release);
+                self.get(LOCAL_FRAME);
+                self.load_i32(FRAME_COMPLETION + i64::from(WASM32_COMPLETION_OPTIONS_OFFSET));
+                self.call(self.imports.obj_release);
+                self.release_scratch();
+            }
             NativeOp::IfElse {
                 condition,
                 then_ops,
@@ -2265,6 +2293,10 @@ mod original_boolean_transport_tests {
                     ty: NativeType::Bool,
                     rep: Representation::NativeBool,
                 },
+                NativeValue {
+                    ty: NativeType::Bool,
+                    rep: Representation::NativeBool,
+                },
             ],
             blocks: vec![NativeBlock {
                 id: NativeBlockId(0),
@@ -2291,6 +2323,10 @@ mod original_boolean_transport_tests {
                             dst: NativeValueId(3),
                             src: NativeValueId(0),
                             production: Production::PublicExpressionApi,
+                        },
+                        NativeOp::ExprBoolEval {
+                            dst: NativeValueId(4),
+                            text: "[original_callback]".into(),
                         },
                     ],
                 }],
@@ -2366,5 +2402,38 @@ mod original_boolean_transport_tests {
                     .any(|instruction| instruction.op == WasmOp::I32Load)
             );
         }
+        let combined: Vec<_> = emitted
+            .body
+            .iter()
+            .enumerate()
+            .filter(|(_, instruction)| {
+                instruction.op == WasmOp::Call
+                    && instruction.operands == leb128_unsigned(u64::from(imports.expr_bool_eval))
+            })
+            .map(|(index, _)| index)
+            .collect();
+        assert_eq!(combined.len(), 1);
+        let index = combined[0];
+        let after = &emitted.body[index + 1..index + 9];
+        assert_eq!(after[0].op, WasmOp::Call);
+        assert_eq!(
+            after[0].operands,
+            leb128_unsigned(u64::from(imports.host_refusal_pending))
+        );
+        assert_eq!(after[1].op, WasmOp::If);
+        assert_eq!(after[2].op, WasmOp::Br);
+        assert_eq!(after[3].op, WasmOp::End);
+        assert_eq!(after[4].op, WasmOp::Drop);
+        assert_eq!(after[5].op, WasmOp::LocalGet);
+        assert_eq!(
+            after[6].op,
+            WasmOp::I32Load,
+            "the original Guest completion is inspected only after first Host"
+        );
+        assert_eq!(after[7].op, WasmOp::If);
+        assert_eq!(
+            declared[imports.expr_bool_eval as usize],
+            CodegenAbiImportId::ExprBoolEval
+        );
     }
 }

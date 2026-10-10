@@ -149,50 +149,84 @@ pub fn original_native_compiler_words(
     offset: u32,
     config: LexerConfig,
 ) -> Option<Vec<NativeWord>> {
-    if words.is_empty()
-        || words
+    OriginalSourceCommandProjection::capture(image, words, offset, config)
+        .map(|original| original.native)
+}
+
+/// Derived lexical geometry for one unchanged complete selected source vector.
+/// The original parser and IR-vector checks own this immutable result. It
+/// carries no selected implementation, metadata, native entry or completion.
+#[derive(Debug)]
+pub(crate) struct OriginalSourceCommandProjection {
+    native: Vec<NativeWord>,
+    command: crate::segmenter::SegmentedCommand,
+}
+
+impl OriginalSourceCommandProjection {
+    pub(crate) fn capture(
+        image: &SourceImage,
+        words: &[WordExpr],
+        offset: u32,
+        config: LexerConfig,
+    ) -> Option<Self> {
+        if words.is_empty()
+            || words
+                .iter()
+                .any(|word| word.source().provenance != Provenance::Source)
+        {
+            return None;
+        }
+        let text = image.try_text().ok()?;
+        let spans: Vec<_> = words
             .iter()
-            .any(|word| word.source().provenance != Provenance::Source)
-    {
-        return None;
+            .map(|word| tcl_lexer::word_span_at(text, word.source().span))
+            .collect();
+        if spans.first()?.start() != offset {
+            return None;
+        }
+        let region = Span::new(offset, spans.last()?.end());
+        let mut parsed = tcl_lexer::native_script_words_in(image.clone(), region, config).ok()?;
+        if parsed.fatal_tail.is_some() || parsed.commands.len() != 1 {
+            return None;
+        }
+        let native = parsed.commands.pop()?.words;
+        if native.len() != words.len()
+            || native
+                .iter()
+                .zip(&spans)
+                .any(|(word, span)| word.span() != *span)
+        {
+            return None;
+        }
+        // Compare the existing source IR owner too: an edit retaining old offsets
+        // cannot borrow the compiler capabilities of the source it replaced.
+        let original =
+            SourceImage::from_bytes(image.bytes().get(region.as_range())?, image.channel());
+        let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+            &original, offset, config,
+        )?;
+        let [segment] = segments.as_slice() else {
+            return None;
+        };
+        if segment.is_partial
+            || CommandTokens::from_segmented(&SourceMap::from_image(image), config, segment).words()
+                != words
+        {
+            return None;
+        }
+        Some(Self {
+            native,
+            command: segment.clone(),
+        })
     }
-    let text = image.try_text().ok()?;
-    let spans: Vec<_> = words
-        .iter()
-        .map(|word| tcl_lexer::word_span_at(text, word.source().span))
-        .collect();
-    if spans.first()?.start() != offset {
-        return None;
+
+    pub(crate) fn native_words(&self) -> &[NativeWord] {
+        &self.native
     }
-    let region = Span::new(offset, spans.last()?.end());
-    let mut parsed = tcl_lexer::native_script_words_in(image.clone(), region, config).ok()?;
-    if parsed.fatal_tail.is_some() || parsed.commands.len() != 1 {
-        return None;
+
+    pub(crate) const fn command(&self) -> &crate::segmenter::SegmentedCommand {
+        &self.command
     }
-    let native = parsed.commands.pop()?.words;
-    if native.len() != words.len()
-        || native
-            .iter()
-            .zip(&spans)
-            .any(|(word, span)| word.span() != *span)
-    {
-        return None;
-    }
-    // Compare the existing source IR owner too: an edit retaining old offsets
-    // cannot borrow the compiler capabilities of the source it replaced.
-    let original = SourceImage::from_bytes(image.bytes().get(region.as_range())?, image.channel());
-    let segments =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&original, offset, config)?;
-    let [segment] = segments.as_slice() else {
-        return None;
-    };
-    if segment.is_partial
-        || CommandTokens::from_segmented(&SourceMap::from_image(image), config, segment).words()
-            != words
-    {
-        return None;
-    }
-    Some(native)
 }
 
 #[cfg(test)]

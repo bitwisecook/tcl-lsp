@@ -49,6 +49,17 @@ fn field<'a>(line: &'a str, key: &str) -> &'a str {
         })
         .unwrap_or_else(|| panic!("missing {key}: {line}"))
 }
+// The older callback capture has space-delimited key/value fields; the public
+// primitive capture above has tab-delimited fields. Their record formats and
+// observation boundaries are independent.
+fn callback_field<'a>(line: &'a str, key: &str) -> &'a str {
+    line.split_ascii_whitespace()
+        .find_map(|field| {
+            let (name, value) = field.split_once('=')?;
+            (name == key).then_some(value)
+        })
+        .unwrap_or_else(|| panic!("missing {key}: {line}"))
+}
 fn target(fixture: &str) -> NativeScalarGetterTarget {
     let abi = fixture
         .lines()
@@ -446,18 +457,24 @@ fn original_c84_primitive_code_and_callback_eval_code_are_separate_observations(
             let propagated = eval_fixture
                 .lines()
                 .find(|line| {
-                    field(line, "getter") == callback_getter
-                        && field(line, "storage") == "0"
-                        && field(line, "case") == "9"
+                    callback_field(line, "getter") == callback_getter
+                        && callback_field(line, "storage") == "0"
+                        && callback_field(line, "case") == "9"
                 })
                 .unwrap();
+            assert_eq!(callback_field(propagated, "input"), "", "{propagated}");
+            assert_eq!(callback_field(propagated, "code"), "1", "{propagated}");
             let NativeScalarGetterErrorCode::Set(code) = error.eval_error_code_update() else {
                 panic!("selected actual Eval update")
             };
-            assert_eq!(hex(code), field(propagated, "errorCode"), "{propagated}");
+            assert_eq!(
+                hex(code),
+                callback_field(propagated, "errorCode"),
+                "{propagated}"
+            );
             assert_eq!(
                 hex(error.eval_message_bytes()),
-                field(propagated, "message")
+                callback_field(propagated, "message")
             );
             eval_fields += 1;
         }

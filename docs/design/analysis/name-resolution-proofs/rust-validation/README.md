@@ -2760,3 +2760,70 @@ strict pin, executable inventory or assertion. The partial creation events do
 not establish assertion availability or success. Independent producer and
 assertion records retain their own exact source/command/image scope. No Native
 provider outcome, aggregate pass or mutable anchor refresh is inferred.
+
+## Source305 independent Syntax/CmdCore/RuntimeAPI producer and assertions
+
+The separate three-package no-run producer succeeds with actual empty Cargo
+features and newly created Syntax, CmdCore and RuntimeAPI test executables.
+Strict pins, exact inventories and complete crate selections retain each
+original byte stream. Syntax runs its actual641 tests and closes640P1F; only
+the new C84 primitive/callback join fixture panics on a missing parsed row.
+CmdCore runs196P0F and RuntimeAPI85P0F. Build and listing run no assertions.
+The three num-bigint-gated controls absent from this image are not ignored or
+passed; no644 Syntax selection/result or combined gate pass is claimed.
+
+| Closed operation | Exact outcome | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-syntax-core-api-own-test-build305` | `compile-passed`, exit0, 18.003217028s; no assertions | [lossless original](frozen305/integration-syntax-core-api-own-test-build305/receipt.json.gz) | [whole log](frozen305/integration-syntax-core-api-own-test-build305/tests.log) |
+| `integration-syntax-inventory305` | `listed`, exit0, 0.005740959s; no assertions | [lossless original](frozen305/integration-syntax-inventory305/receipt.json.gz) | [whole log](frozen305/integration-syntax-inventory305/tests.log) |
+| `integration-syntax-all-tests305` | `failed`, exit101, 2.222358694s; 640 passed/1 failed | [lossless original](frozen305/integration-syntax-all-tests305/receipt.json.gz) | [whole log](frozen305/integration-syntax-all-tests305/tests.log) |
+| `integration-cmd-core-inventory305` | `listed`, exit0, 0.002647606s; no assertions | [lossless original](frozen305/integration-cmd-core-inventory305/receipt.json.gz) | [whole log](frozen305/integration-cmd-core-inventory305/tests.log) |
+| `integration-cmd-core-all-tests305` | `passed`, exit0, 0.447388498s; 196 passed/0 failed | [lossless original](frozen305/integration-cmd-core-all-tests305/receipt.json.gz) | [whole log](frozen305/integration-cmd-core-all-tests305/tests.log) |
+| `integration-api-inventory305` | `listed`, exit0, 0.005490063s; no assertions | [lossless original](frozen305/integration-api-inventory305/receipt.json.gz) | [whole log](frozen305/integration-api-inventory305/tests.log) |
+| `integration-api-all-tests305` | `passed`, exit0, 0.022546707s; 85 passed/0 failed | [lossless original](frozen305/integration-api-all-tests305/receipt.json.gz) | [whole log](frozen305/integration-api-all-tests305/tests.log) |
+
+The [complete original source companion](frozen305/sealed-syntax-cmdcore-api-images/source-snapshot.json.gz) preserves all33,002 source hashes and source/head/compile/archive associations. All231,014 associations across these seven operations are byte-verified. The [Syntax selection](frozen305/selections/syntax-all-selection305.json), [CmdCore selection](frozen305/selections/cmd-core-all-selection305.json) and [API selection](frozen305/selections/api-all-selection305.json) preserve exact owned pins, inventory receipts and selection requests. Question links require whole-current-leaf equality with the frozen source, so changed fixtures and later controls receive no transferred assertion outcome. Independent Compiler/Registry/VM build failures remain failed, and original Native provider answers and mutable owner anchors remain unchanged.
+
+Restore the three exact measured executable payloads with their own compressed/original integrity checks:
+
+```python
+from pathlib import Path
+import gzip, hashlib, json
+base = Path("docs/design/analysis/name-resolution-proofs/rust-validation/frozen305/sealed-syntax-cmdcore-api-images")
+for kind in ("syntax", "cmd-core", "api"):
+    record = json.loads((base / f"lossless-{kind}-image-storage.json").read_text())
+    packed = (base / f"pinned-{kind}305.elf.gz").read_bytes()
+    assert len(packed) == record["stored_bytes"]
+    assert hashlib.sha256(packed).hexdigest() == record["stored_sha256"]
+    original = gzip.decompress(packed)
+    assert len(original) == record["original_bytes"]
+    assert hashlib.sha256(original).hexdigest() == record["original_sha256"]
+    restored = Path(f"/tmp/pinned-{kind}305.elf")
+    restored.write_bytes(original)
+    restored.chmod(0o755)
+```
+
+Restoration proves complete executable bytes and runs no assertion. Each unchanged strict pin and its lossless-storage record retains the successful own-producer/source/image identity.
+
+## Source305 independent failed Compiler/Registry/VM library-test builds
+
+Both exact no-run commands close exit101 with uniform_source true on the
+unchanged 33002-leaf image. Each original log retains the same Compiler E0308
+at registry_invocation/source_structure.rs:1730: state-transition descriptors
+are compared where original CommandSpec/member descriptor identity is required.
+The Registry/VM-only command also reaches this Compiler dependency. Neither
+log records a test executable creation event; no successful producer, strict
+Compiler/Registry/VM pin, inventory or assertion is admitted.
+
+| Exact command scope | Seconds | Original full receipt | Original log |
+| --- | --- | --- | --- |
+| Compiler, Registry, VM | 63.459958148014266 | [lossless original](frozen305/integration-compiler-registry-vm-own-test-build305/receipt.json.gz) | [whole log](frozen305/integration-compiler-registry-vm-own-test-build305/tests.log) |
+| Registry, VM | 29.331218568986515 | [lossless original](frozen305/integration-registry-vm-own-test-build305/receipt.json.gz) | [whole log](frozen305/integration-registry-vm-own-test-build305/tests.log) |
+
+Each decompressed original receipt retains complete source/head/command and
+compile/archive associations. Every source byte association is independently
+verified, and gzip restoration returns the full original bytes and SHA. The
+separate Syntax/CmdCore/RuntimeAPI producer, strict pins and full assertions
+retain their own measured scope; no success is transferred to these failed
+commands. Original Native provider answers and mutable owner anchors remain
+unchanged, with no combined gate or later-source result inferred.

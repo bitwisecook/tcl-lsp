@@ -953,16 +953,19 @@ fn original_boolean_lowering_separates_inline_and_public_expression_result_produ
             _ => None,
         })
         .collect();
-    assert_eq!(
-        productions,
-        [
-            Production::InlineExpression,
-            Production::PublicExpressionApi
-        ]
-    );
+    assert_eq!(productions, [Production::InlineExpression]);
+    let combined: Vec<_> = all_ops(&function)
+        .into_iter()
+        .filter_map(|op| match op {
+            NativeOp::ExprBoolEval { text, .. } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(combined, ["[set condition]"]);
     assert_eq!(
         count(&function, |op| matches!(op, NativeOp::ExprEval { .. })),
-        1
+        0,
+        "a public condition has one completion-bearing result producer"
     );
     for block in &function.blocks {
         if let super::ir::NativeTerminator::Branch { condition, .. } = &block.terminator {
@@ -1056,13 +1059,18 @@ fn original_boolean_lowering_keeps_cell_objects_and_withholds_unproved_literal_c
             _ => None,
         })
         .collect();
-    assert_eq!(stages.len(), 3);
-    assert_eq!(stages[0], (cell_read, Production::InlineExpression));
-    assert_eq!(stages[1].1, Production::PublicExpressionApi);
-    assert_eq!(stages[2].1, Production::PublicExpressionApi);
+    assert_eq!(stages, [(cell_read, Production::InlineExpression)]);
+    let combined: Vec<_> = ops
+        .iter()
+        .filter_map(|op| match op {
+            NativeOp::ExprBoolEval { text, .. } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(combined, ["4294967296", "1 + 2"]);
     assert_eq!(
         count(&function, |op| matches!(op, NativeOp::ExprEval { .. })),
-        2
+        0
     );
     assert_eq!(
         count(&function, |op| matches!(op, NativeOp::Truth { .. })),

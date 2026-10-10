@@ -853,8 +853,7 @@ impl<'a> Lowerer<'a> {
                 let outcome = match expr {
                     ExecutableExpr::Condition { expr, .. } => {
                         let text = render_expr(expr);
-                        let (result, production) = self.lower_expression_result(expr, &text, true);
-                        let truth = self.expression_result_truth(result, production);
+                        let truth = self.lower_condition_expression(expr, &text);
                         self.exec_values.insert(*value, truth);
                         StatementOutcome::Native
                     }
@@ -1460,26 +1459,8 @@ impl<'a> Lowerer<'a> {
     }
 
     fn lower_expression_text(&mut self, expr: &ExprNode, text: &str) -> NativeValueId {
-        self.lower_expression_result(expr, text, false).0
-    }
-
-    fn lower_expression_result(
-        &mut self,
-        expr: &ExprNode,
-        text: &str,
-        boolean_result: bool,
-    ) -> (NativeValueId, NativeBooleanExpressionResultProduction) {
-        if let Ok(value) = self.attempt(|this| {
-            if boolean_result {
-                this.lower_boolean_operand(expr)
-            } else {
-                this.lower_expr(expr)
-            }
-        }) {
-            return (
-                value,
-                NativeBooleanExpressionResultProduction::InlineExpression,
-            );
+        if let Ok(value) = self.attempt(|this| this.lower_expr(expr)) {
+            return value;
         }
         let dst = self.new_value(NativeType::Obj, Representation::Boxed(None));
         self.emit(NativeOp::ExprEval {
@@ -1488,10 +1469,38 @@ impl<'a> Lowerer<'a> {
         });
         self.clobber_shadows();
         self.note_observation();
-        (
+        dst
+    }
+
+    /// A fallback owns raw expression evaluation, its result producer and truth
+    /// in one runtime operation. `ExprEval` already produces a public result,
+    /// so its object must not enter another public result producer here.
+    fn lower_condition_expression(&mut self, expr: &ExprNode, text: &str) -> NativeValueId {
+        if let Ok(value) = self.attempt(|this| this.lower_boolean_operand(expr)) {
+            return self.expression_result_truth(
+                value,
+                NativeBooleanExpressionResultProduction::InlineExpression,
+            );
+        }
+        if self
+            .boolean_dialect
+            .and_then(|dialect| {
+                dialect.native_boolean_expression_result_protocol(
+                    NativeBooleanExpressionResultProduction::PublicExpressionApi,
+                )
+            })
+            .is_none()
+        {
+            self.boolean_admission_missing = true;
+        }
+        let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
+        self.emit(NativeOp::ExprBoolEval {
             dst,
-            NativeBooleanExpressionResultProduction::PublicExpressionApi,
-        )
+            text: text.to_owned(),
+        });
+        self.clobber_shadows();
+        self.note_observation();
+        dst
     }
 
     /// Retain the object consumed by the reached truth stage. Mathematical

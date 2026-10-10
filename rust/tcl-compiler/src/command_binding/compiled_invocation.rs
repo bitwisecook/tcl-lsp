@@ -1068,12 +1068,7 @@ fn initial_compilation_selection(
         switch: None,
         structured: None,
         original_words: state.current_source_origin.as_ref().and_then(|origin| {
-            crate::registry_invocation::original_native_compiler_words(
-                origin.source_image(),
-                words,
-                offset,
-                context.config,
-            )?;
+            origin.original_lexical_command(words, offset, context.config)?;
             Some(Arc::new(SourceOriginalCompilerWords {
                 config: context.config,
                 site: CommandAllocationSite {
@@ -1436,12 +1431,9 @@ fn original_compiler_preserves_names(
     let Some(origin) = state.current_source_origin.as_ref() else {
         return false;
     };
-    let Some(original) = crate::registry_invocation::original_native_compiler_words(
-        origin.source_image(),
-        selected.words,
-        selected.offset,
-        context.config,
-    ) else {
+    let Some(projection) =
+        origin.original_lexical_command(selected.words, selected.offset, context.config)
+    else {
         return false;
     };
     let Some(protocol) =
@@ -1449,9 +1441,10 @@ fn original_compiler_preserves_names(
     else {
         return false;
     };
-    let Ok(captured) =
-        tcl_registry::native_compiler_words::NativeCompilerWords::capture(&original, protocol)
-    else {
+    let Ok(captured) = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+        projection.native_words(),
+        protocol,
+    ) else {
         return false;
     };
     let dialect = state.baseline.compilation_dialect();
@@ -1555,17 +1548,14 @@ pub(super) fn original_registration_descriptor(
         && registered.compiler.ensemble.is_none()
     {
         let origin = state.current_source_origin.as_ref()?;
-        let original = crate::registry_invocation::original_native_compiler_words(
-            origin.source_image(),
-            words,
-            offset,
-            context.config,
-        )?;
+        let original = origin.original_lexical_command(words, offset, context.config)?;
         let protocol =
             super::compiler_inventory::SourceNativeCompilerPolicy::source_protocol_of(state)?;
-        let captured =
-            tcl_registry::native_compiler_words::NativeCompilerWords::capture(&original, protocol)
-                .ok()?;
+        let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+            original.native_words(),
+            protocol,
+        )
+        .ok()?;
         let spec = context
             .registry
             .native_compilation_for_original_registration(

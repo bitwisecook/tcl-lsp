@@ -548,6 +548,14 @@ pub enum NativeOp {
         /// The expression text handed to the runtime as one boxed object.
         text: String,
     },
+    /// Evaluate expression source and perform its public result producer and
+    /// truth conversion once within the runtime-owned completion operation.
+    ExprBoolEval {
+        /// Destination (`Bool`), written only after successful evaluation.
+        dst: NativeValueId,
+        /// Expression text; no pre-normalised object receipt is supplied.
+        text: String,
+    },
     /// A branch inside a statement.
     IfElse {
         /// A `Bool` condition.
