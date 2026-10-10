@@ -31,17 +31,22 @@
 
 #![allow(non_snake_case)]
 
-use core::ffi::{c_char, c_int, c_long, c_void, CStr};
+use core::ffi::{CStr, c_char, c_int, c_long, c_void};
 
 use tcl_cmd_core::prefix::{self, Resolution};
 
 use crate::cmd_package::provide_package;
-use crate::interp::{error_code_list, Code, Interp, ObjCommand, TclCmdDeleteProc, TclObjCmdProc};
+use crate::interp::{Code, Interp, ObjCommand, TclCmdDeleteProc, TclObjCmdProc, error_code_list};
 use crate::list::{self, append_list_element};
 use crate::namespace::RenameOutcome;
 use crate::obj::{self, TclObj, TclObjType, TclSize, TclWideInt};
 use crate::parse::{self, ListError};
-use crate::typed_value::{self, TypedError};
+mod scalar;
+pub(crate) use scalar::publish_access_error as scalar_publish_access_error;
+pub use scalar::{NativeScalarObjectAccessError, bind_scalar_getter_context, probe_scalar_getter};
+use tcl_syntax::scalar_getter::{
+    NativeScalarGetterKind as ScalarKind, NativeScalarGetterValue as ScalarValue,
+};
 
 const TCL_OK: c_int = 0;
 const TCL_ERROR: c_int = 1;
@@ -262,11 +267,8 @@ pub unsafe extern "C" fn Tcl_DuplicateObj(objPtr: *mut TclObj) -> *mut TclObj {
 // objects: the typed reads, each leaving C Tcl's error in `interp` when it is
 // given one
 
-/// `Tcl_GetIntFromObj` — the value as a C `int`. C Tcl reads a `long` first, as
-/// [`Tcl_GetLongFromObj`] does, and takes `INT_MIN` to `UINT_MAX` of it on every
-/// host, an unsigned value truncated rather than refused. So on an LP64 host an
-/// integer past the wide range that the `long` read takes modulo 2^64 is an `int`
-/// when what it reads is in range: `18446744073709551615` is -1.
+/// `Tcl_GetIntFromObj` — the selected original C primitive's returned `int`.
+/// Missing engine, ABI or object ownership is a typed host refusal.
 ///
 /// # Safety
 /// `interp` must be null or live; `objPtr` live; `intPtr` writable.
@@ -276,22 +278,25 @@ pub unsafe extern "C" fn Tcl_GetIntFromObj(
     objPtr: *mut TclObj,
     intPtr: *mut c_int,
 ) -> c_int {
-    let long = match long_value(objPtr) {
-        // SAFETY: forwarded per this fn's contract.
-        Err(error) => return unsafe { typed_error(interp, &error) },
-        Ok(long) => long,
-    };
-    if !(TclWideInt::from(i32::MIN)..=TclWideInt::from(u32::MAX)).contains(&long) {
-        // SAFETY: forwarded per this fn's contract.
-        return unsafe { overflow(interp) };
+    // SAFETY: forwarded from this entry's original-object contract.
+    match unsafe { scalar::read(interp, objPtr, ScalarKind::Int) } {
+        Ok(ScalarValue::Wide(value)) => match scalar::output_integer::<c_int>(value) {
+            Some(value) => {
+                // SAFETY: the caller supplies the writable success output.
+                unsafe { intPtr.write(value) };
+                TCL_OK
+            }
+            // SAFETY: the original interpreter is null or live.
+            None => unsafe { scalar::unexpected_output(interp) },
+        },
+        // SAFETY: as above; an unexpected output is not a guest overflow.
+        Ok(_) => unsafe { scalar::unexpected_output(interp) },
+        Err(code) => code,
     }
-    // SAFETY: the caller guarantees a writable `int`.
-    unsafe { intPtr.write(wrap_to_i32(long)) };
-    TCL_OK
 }
 
-/// `Tcl_GetLongFromObj` — the value as a C `long`, read as C Tcl reads one on
-/// this host ([`long_value`]).
+/// `Tcl_GetLongFromObj` — the selected native-long getter and its actual ABI.
+/// A Wide getter or this Rust target's size cannot choose the Long recipe.
 ///
 /// # Safety
 /// `interp` must be null or live; `objPtr` live; `longPtr` writable.
@@ -301,45 +306,24 @@ pub unsafe extern "C" fn Tcl_GetLongFromObj(
     objPtr: *mut TclObj,
     longPtr: *mut c_long,
 ) -> c_int {
-    let long = match long_value(objPtr) {
-        // SAFETY: forwarded per this fn's contract.
-        Err(error) => return unsafe { typed_error(interp, &error) },
-        Ok(long) => long,
-    };
-    if core::mem::size_of::<c_long>() == 4 {
-        // SAFETY: the caller guarantees a writable `long`, 32 bits wide here.
-        unsafe { longPtr.cast::<i32>().write(wrap_to_i32(long)) };
-    } else {
-        // SAFETY: the caller guarantees a writable `long`, 64 bits wide here.
-        unsafe { longPtr.cast::<i64>().write(long) };
-    }
-    TCL_OK
-}
-
-/// What C Tcl's `Tcl_GetLongFromObj` reads, as a wide integer for the caller
-/// to narrow. Where `long` is 32 bits (`wasm32`), an integer from `LONG_MIN` to
-/// `ULONG_MAX`, which the caller truncates. Where it is 64 bits, any wide
-/// integer, and an integer past the wide range that fits 64 bits unsigned, taken
-/// modulo 2^64 as C's `(long)` of an `unsigned long` takes it:
-/// `18446744073709551615` reads -1 and `0x8000000000000000` reads `LONG_MIN`.
-/// Anything else is C's `ARITH IOVERFLOW`.
-fn long_value(objPtr: *mut TclObj) -> Result<TclWideInt, TypedError> {
-    if core::mem::size_of::<c_long>() == 4 {
-        let wide = typed_value::wide_int(objPtr)?;
-        if (TclWideInt::from(i32::MIN)..=TclWideInt::from(u32::MAX)).contains(&wide) {
-            Ok(wide)
-        } else {
-            Err(TypedError {
-                message: OVERFLOW_MESSAGE.to_vec(),
-                code: OVERFLOW_CODE,
-            })
-        }
-    } else {
-        typed_value::wide_int_modulo_unsigned(objPtr)
+    // SAFETY: forwarded from this entry's original-object contract.
+    match unsafe { scalar::read(interp, objPtr, ScalarKind::Long) } {
+        Ok(ScalarValue::Wide(value)) => match scalar::output_integer::<c_long>(value) {
+            Some(value) => {
+                // SAFETY: the caller supplies the writable success output.
+                unsafe { longPtr.write(value) };
+                TCL_OK
+            }
+            // SAFETY: the original interpreter is null or live.
+            None => unsafe { scalar::unexpected_output(interp) },
+        },
+        // SAFETY: as above; this cannot invent a guest Long failure.
+        Ok(_) => unsafe { scalar::unexpected_output(interp) },
+        Err(code) => code,
     }
 }
 
-/// `Tcl_GetWideIntFromObj` — the value as a `Tcl_WideInt`.
+/// `Tcl_GetWideIntFromObj` — the selected original wide-integer primitive.
 ///
 /// # Safety
 /// `interp` must be null or live; `objPtr` live; `widePtr` writable.
@@ -349,19 +333,22 @@ pub unsafe extern "C" fn Tcl_GetWideIntFromObj(
     objPtr: *mut TclObj,
     widePtr: *mut TclWideInt,
 ) -> c_int {
-    match typed_value::wide_int(objPtr) {
-        Ok(wide) => {
-            // SAFETY: the caller guarantees a writable `Tcl_WideInt`.
-            unsafe { widePtr.write(wide) };
+    // SAFETY: forwarded from this entry's original-object contract.
+    match unsafe { scalar::read(interp, objPtr, ScalarKind::Wide) } {
+        Ok(ScalarValue::Wide(value)) => {
+            // SAFETY: the caller supplies the writable success output.
+            unsafe { widePtr.write(value) };
             TCL_OK
         }
-        // SAFETY: forwarded per this fn's contract.
-        Err(error) => unsafe { typed_error(interp, &error) },
+        // SAFETY: an unexpected owner output remains a host refusal.
+        Ok(_) => unsafe { scalar::unexpected_output(interp) },
+        Err(code) => code,
     }
 }
 
-/// `Tcl_GetBooleanFromObj` — the value in boolean context, written as `0` or
-/// `1`: a boolean word by unique prefix, else a number against zero.
+/// `Tcl_GetBooleanFromObj` — the public primitive's returned C integer.
+/// Jim can return an existing cached integer's C cast rather than `0` or `1`.
+/// Expression truth conversion is an independently selected purpose.
 ///
 /// # Safety
 /// `interp` must be null or live; `objPtr` live; `intPtr` writable.
@@ -371,19 +358,21 @@ pub unsafe extern "C" fn Tcl_GetBooleanFromObj(
     objPtr: *mut TclObj,
     intPtr: *mut c_int,
 ) -> c_int {
-    match typed_value::boolean(objPtr) {
-        Ok(value) => {
-            // SAFETY: the caller guarantees a writable `int`.
-            unsafe { intPtr.write(c_int::from(value)) };
+    // SAFETY: forwarded from this entry's original-object contract.
+    match unsafe { scalar::read(interp, objPtr, ScalarKind::Boolean) } {
+        Ok(ScalarValue::Boolean(value)) => {
+            // SAFETY: the caller supplies the writable success output.
+            unsafe { intPtr.write(value.returned_integer()) };
             TCL_OK
         }
-        // SAFETY: forwarded per this fn's contract.
-        Err(error) => unsafe { typed_error(interp, &error) },
+        // SAFETY: an unexpected owner output remains a host refusal.
+        Ok(_) => unsafe { scalar::unexpected_output(interp) },
+        Err(code) => code,
     }
 }
 
-/// `Tcl_GetDoubleFromObj` — the value as a `double`. An integer widens, and a
-/// NaN is C Tcl's domain error, not a value.
+/// `Tcl_GetDoubleFromObj` — the original double primitive, including its
+/// selected NaN failure, cache changes and private error-code update.
 ///
 /// # Safety
 /// `interp` must be null or live; `objPtr` live; `doublePtr` writable.
@@ -393,24 +382,16 @@ pub unsafe extern "C" fn Tcl_GetDoubleFromObj(
     objPtr: *mut TclObj,
     doublePtr: *mut f64,
 ) -> c_int {
-    match typed_value::double(objPtr) {
-        Ok(value) if value.is_nan() => {
-            // SAFETY: forwarded per this fn's contract.
-            unsafe {
-                report(
-                    interp,
-                    b"floating point value is Not a Number",
-                    Some(b"TCL VALUE DOUBLE NAN".as_slice()),
-                )
-            }
-        }
-        Ok(value) => {
-            // SAFETY: the caller guarantees a writable `double`.
+    // SAFETY: forwarded from this entry's original-object contract.
+    match unsafe { scalar::read(interp, objPtr, ScalarKind::Double) } {
+        Ok(ScalarValue::Double(value)) => {
+            // SAFETY: the caller supplies the writable success output.
             unsafe { doublePtr.write(value) };
             TCL_OK
         }
-        // SAFETY: forwarded per this fn's contract.
-        Err(error) => unsafe { typed_error(interp, &error) },
+        // SAFETY: an unexpected owner output remains a host refusal.
+        Ok(_) => unsafe { scalar::unexpected_output(interp) },
+        Err(code) => code,
     }
 }
 
@@ -925,34 +906,6 @@ unsafe fn report(interp: *mut Interp, message: &[u8], code: Option<&[u8]>) -> c_
     TCL_ERROR
 }
 
-/// A failed typed read, as the C call reports it. C Tcl's overflow code carries
-/// the message as its third word.
-///
-/// # Safety
-/// `interp` must be null or live.
-unsafe fn typed_error(interp: *mut Interp, error: &TypedError) -> c_int {
-    if error.code == OVERFLOW_CODE {
-        // SAFETY: forwarded per this fn's contract.
-        return unsafe { overflow(interp) };
-    }
-    // SAFETY: as above.
-    unsafe { report(interp, &error.message, Some(error.code)) }
-}
-
-const OVERFLOW_CODE: &[u8] = b"ARITH IOVERFLOW";
-const OVERFLOW_MESSAGE: &[u8] = b"integer value too large to represent";
-
-/// C Tcl's integer overflow: `integer value too large to represent`, `-errorcode
-/// ARITH IOVERFLOW {integer value too large to represent}`.
-///
-/// # Safety
-/// `interp` must be null or live.
-unsafe fn overflow(interp: *mut Interp) -> c_int {
-    let code = error_code_list(&[b"ARITH", b"IOVERFLOW", OVERFLOW_MESSAGE]);
-    // SAFETY: forwarded per this fn's contract.
-    unsafe { report(interp, OVERFLOW_MESSAGE, Some(code.as_slice())) }
-}
-
 /// A list that would not parse, reported with the shared list owner's message
 /// and code.
 ///
@@ -963,12 +916,6 @@ unsafe fn list_error(interp: *mut Interp, listPtr: *mut TclObj, error: ListError
     let message = parse::list_error_message(&source, error);
     // SAFETY: forwarded per this fn's contract.
     unsafe { report(interp, &message, Some(error.error_code())) }
-}
-
-/// C's `(int)` of an integer within the range the reads accept: two's-complement
-/// truncation.
-fn wrap_to_i32(wide: TclWideInt) -> i32 {
-    wide as i32
 }
 
 /// A C `long` as a `Tcl_WideInt`, whichever width `long` has.

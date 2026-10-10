@@ -318,6 +318,15 @@ impl Default for GuardManager {
 }
 
 impl GuardManager {
+    /// Observe this actual manager's mutation epoch without issuing a guard.
+    /// Poisoned state is unavailable. Equality grants no implementation,
+    /// activation, frame, operation, or native object authority.
+    #[must_use]
+    pub fn domain_epoch(&self, domain: GuardDomain) -> Option<u64> {
+        let state = self.domains[domain.index()];
+        (!self.poisoned && !state.poisoned).then_some(state.epoch)
+    }
+
     /// Verify a live identity and issue a token over the selected domains.
     ///
     /// `observed` must come from live runtime resolution. `None` means the
@@ -443,6 +452,13 @@ pub struct OwnedGuardManager<Owner> {
 }
 
 impl<Owner: PartialEq> OwnedGuardManager<Owner> {
+    /// Observe the current unpoisoned domain epoch without issuing a guard.
+    /// This delegates currency to the same kernel used by owned guard checks.
+    #[must_use]
+    pub fn domain_epoch(&self, domain: GuardDomain) -> Option<u64> {
+        self.epochs.domain_epoch(domain)
+    }
+
     /// Retain the supplied epoch kernel and start with no issued owners.
     #[must_use]
     pub fn new(epochs: GuardManager) -> Self {
@@ -518,6 +534,24 @@ mod tests {
     const EXPECTED: GuardIdentity = GuardIdentity::new(1, 17);
     const OTHER: GuardIdentity = GuardIdentity::new(1, 18);
     const COMMAND: GuardDomains = GuardDomains::one(GuardDomain::CommandEnvironment);
+
+    #[test]
+    fn descriptive_domain_epoch_tracks_mutation_and_rejects_poison() {
+        // Software currency: naming.numeric.original-capi-scalar-publication-width
+        // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+        let mut kernel = GuardManager::default();
+        let domain = GuardDomain::Interpreter;
+        let before = kernel.domain_epoch(domain).unwrap();
+        kernel.invalidate(domain);
+        assert_ne!(kernel.domain_epoch(domain).unwrap(), before);
+        kernel.poison(domain);
+        assert_eq!(kernel.domain_epoch(domain), None);
+        let mut owned = OwnedGuardManager::<u64>::new(GuardManager::default());
+        let before = owned.domain_epoch(domain).unwrap();
+        owned.invalidate(domain);
+        assert_ne!(owned.domain_epoch(domain).unwrap(), before);
+        assert_eq!(owned.epochs.active_token_count(), 0);
+    }
 
     #[test]
     fn owned_guards_cannot_rebind_equal_semantics_to_another_allocation() {

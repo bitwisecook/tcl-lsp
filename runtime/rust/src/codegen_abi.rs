@@ -94,15 +94,15 @@ use core::cell::Cell;
 use core::ptr;
 #[cfg(target_arch = "wasm32")]
 use core::sync::atomic::{AtomicUsize, Ordering};
-use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
+use std::alloc::{Layout, alloc, dealloc, handle_alloc_error};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use tcl_dialect::model::SurfaceQuery;
 use tcl_registry::{CommandRegistry, IntrinsicId, SemanticOperationId};
 use tcl_runtime_api::guard::{GuardDomains, GuardIdentity, GuardToken};
 
-use crate::interp::{drop_fresh, obj_bytes, Interp, NativeProcEntry};
-use crate::obj::{self, new_string_bytes, TclObj};
+use crate::interp::{Interp, NativeProcEntry, drop_fresh, obj_bytes};
+use crate::obj::{self, TclObj, new_string_bytes};
 #[cfg(target_arch = "wasm32")]
 use tcl_runtime_api::codegen_abi::{
     WASM32_COMPLETION_ALIGN, WASM32_COMPLETION_CODE_OFFSET, WASM32_COMPLETION_OPTIONS_OFFSET,
@@ -663,15 +663,11 @@ pub unsafe extern "C" fn tcl_value_get_double(value: *mut TclObj, out: *mut f64)
     }
 }
 
-/// `tcl_value_get_bool(value, out) -> status` — read a boxed Tcl value in
-/// **boolean context** (`Tcl_GetBooleanFromObj`), writing `0`/`1`.
-///
-/// This is the acceptor behind `if`, `while`, and `expr`'s `?:`/`&&`/`||`/`!`:
-/// a boolean word by unique case-insensitive prefix (`tru`, `ye`, `of`; the
-/// ambiguous `o` is refused), else any number compared against zero. The words
-/// come from [`tcl_syntax::boolean`], the shared owner every boolean acceptor in
-/// this tree uses, so compiled code cannot drift from interpreted code. `NaN` is
-/// C's `floating point value is Not a Number` domain error.
+/// Read the selected public primitive Boolean getter's truth projection.
+/// Expression instructions use `tcl_value_get_bool_for_purpose`; evaluated
+/// expression results use `tcl_value_get_expression_bool`, which performs the
+/// genuine result producer before conversion. Jim's primitive integer output
+/// has an independent public C API and cannot stand in for expression truth.
 ///
 /// # Safety
 /// `value` must be a live object with a caller-owned reference, and `out` must
@@ -695,6 +691,97 @@ pub unsafe extern "C" fn tcl_value_get_bool(value: *mut TclObj, out: *mut i32) -
         }
         // SAFETY: `interp` is the live current interpreter.
         Err(error) => unsafe { typed_read_error(interp, error) },
+    }
+}
+
+/// Convert the original value at a reached expression operand instruction.
+/// Tags4/5 require a genuine expression result producer and are refused here.
+/// Unknown purpose tags refuse before getters and never select a default.
+/// # Safety
+/// `value` carries a live caller-owned reference; `out` is writable aligned i32.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_value_get_bool_for_purpose(
+    value: *mut TclObj,
+    purpose_tag: i32,
+    out: *mut i32,
+) -> i32 {
+    let interp = current_interp();
+    if value.is_null() || out.is_null() || interp.is_null() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    // SAFETY: current_interp retains the active interpreter for this entry.
+    let interp = unsafe { &mut *interp };
+    if interp.host_refusal_pending() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    let result =
+        tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::from_abi(purpose_tag)
+            .ok_or_else(|| {
+                tcl_cmd_core::CmdError::from(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "Boolean operand purpose tag",
+                    ),
+                )
+            })
+            .and_then(|purpose| {
+                crate::typed_value::native_boolean_for_interp(interp, value, purpose)
+            });
+    finish_original_boolean(interp, result, out)
+}
+
+/// Perform the selected outer Boolean expression result producer, then convert
+/// its actual owned result. Tags0/1 select InlineExpression/PublicExpressionApi;
+/// a public tag never attests that another caller already normalised an object.
+/// # Safety
+/// `value` carries a live caller-owned reference; `out` is writable aligned i32.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_value_get_expression_bool(
+    value: *mut TclObj,
+    production_tag: i32,
+    out: *mut i32,
+) -> i32 {
+    let interp = current_interp();
+    if value.is_null() || out.is_null() || interp.is_null() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    // SAFETY: current_interp retains the active interpreter for this entry.
+    let interp = unsafe { &mut *interp };
+    if interp.host_refusal_pending() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    let result =
+        tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::from_abi(
+            production_tag,
+        )
+        .ok_or_else(|| {
+            tcl_cmd_core::CmdError::from(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Boolean expression producer tag",
+            ))
+        })
+        .and_then(|production| {
+            crate::typed_value::expression_boolean_for_interp(interp, value, production)
+        });
+    finish_original_boolean(interp, result, out)
+}
+
+fn finish_original_boolean(
+    interp: &mut Interp,
+    result: Result<bool, tcl_cmd_core::CmdError>,
+    out: *mut i32,
+) -> i32 {
+    if interp.host_refusal_pending() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    match result {
+        Ok(truth) => {
+            // SAFETY: each ABI caller has already validated writable aligned out.
+            unsafe { out.write(i32::from(truth)) };
+            TCL_VALUE_GET_OK
+        }
+        Err(error) => {
+            interp.report_cmd_error(error);
+            TCL_VALUE_GET_ERROR
+        }
     }
 }
 
@@ -4876,9 +4963,9 @@ mod tests {
 
     #[test]
     fn the_runtime_states_its_identity_to_a_host() {
+        use tcl_runtime_api::ArtefactIdentityManifest;
         use tcl_runtime_api::codegen_abi::CODEGEN_ABI_VERSION;
         use tcl_runtime_api::manifest::EMBEDDED_STDLIB_REVISION;
-        use tcl_runtime_api::ArtefactIdentityManifest;
 
         // SAFETY: every buffer is as long as the capacity it is passed with.
         unsafe {

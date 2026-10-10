@@ -2192,6 +2192,29 @@ pub fn count_invocation_arguments(
 }
 
 impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+    /// Completion shape under this exact selected descriptor and frozen source
+    /// argument dialect. This supplies no Native handler, successful completion,
+    /// entered frame or result value. Missing argument grammar stays unknown.
+    #[must_use]
+    pub fn authored_source_invocation_completion(&self) -> crate::registry::InvocationCompletion {
+        if !matches!(
+            self.subcommand,
+            SubcommandResolution::NotApplicable
+                | SubcommandResolution::Exact(_)
+                | SubcommandResolution::UniquePrefix(_)
+        ) {
+            return crate::registry::InvocationCompletion::Unknown;
+        }
+        let Some(dialect) = self.words.arguments().dialect() else {
+            return crate::registry::InvocationCompletion::Unknown;
+        };
+        crate::registry::invocation_completion_for_selected(
+            self,
+            tcl_syntax::number::Numbers::Target(dialect.numbers),
+            crate::completion_route::ReturnInvocationGrammar::for_dialect(dialect),
+        )
+    }
+
     /// Count the actual frozen argv under its selected signature grammar.
     #[must_use]
     pub fn argument_count_for_arity(&self) -> Option<u16> {
@@ -4887,6 +4910,79 @@ mod tests {
         StateTransitionKnowledge, TransitionSubject, VariableAliasTarget,
     };
     use tcl_dialect::model::{Family, SpecSurface, SurfaceQuery};
+
+    #[test]
+    fn original_selected_completion_keeps_descriptor_and_argument_grammar_independent() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // A source completion shape is not a reached handler or Normal receipt.
+        use crate::registry::InvocationCompletion;
+        let context =
+            crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = crate::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let dialect = crate::InvocationDialect::of_profile(profile);
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(crate::CommandSpec {
+            name: "metadata_return_fixture",
+            ..registry.get("return").unwrap().clone()
+        });
+        for (values, expected) in [
+            (&["VALUE"][..], InvocationCompletion::ReturnsResult(Some(0))),
+            (
+                &["-level", "0", "VALUE"][..],
+                InvocationCompletion::FallsThrough,
+            ),
+            (
+                &["-level", "2", "VALUE"][..],
+                InvocationCompletion::Terminates,
+            ),
+            (
+                &["-code", "error", "VALUE"][..],
+                InvocationCompletion::Terminates,
+            ),
+        ] {
+            let words = crate::InvocationWords::from_arguments(
+                crate::InvocationWord::Literal("metadata_return_fixture"),
+                InvocationArguments::literals(values).with_dialect(dialect),
+            );
+            let selected = registry
+                .resolve_structured_invocation(words, Some(context.context().authoring_query()))
+                .resolved()
+                .unwrap();
+            assert_eq!(selected.authored_source_invocation_completion(), expected);
+        }
+        let unknown = [
+            crate::InvocationWord::Literal("-level"),
+            crate::InvocationWord::Dynamic,
+            crate::InvocationWord::Literal("VALUE"),
+        ];
+        let selected = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::from_arguments(
+                    crate::InvocationWord::Literal("metadata_return_fixture"),
+                    InvocationArguments::structured(&unknown).with_dialect(dialect),
+                ),
+                Some(context.context().authoring_query()),
+            )
+            .resolved()
+            .unwrap();
+        assert_eq!(
+            selected.authored_source_invocation_completion(),
+            InvocationCompletion::Unknown
+        );
+        let without_grammar = registry
+            .resolve_invocation(
+                "metadata_return_fixture",
+                &["VALUE"],
+                Some(context.context().authoring_query()),
+            )
+            .unwrap();
+        assert_eq!(
+            without_grammar.authored_source_invocation_completion(),
+            InvocationCompletion::Unknown,
+            "availability cannot supply the missing original argument dialect"
+        );
+    }
 
     #[test]
     fn source_enum_projection_keeps_literal_and_native_byte_facets_separate() {

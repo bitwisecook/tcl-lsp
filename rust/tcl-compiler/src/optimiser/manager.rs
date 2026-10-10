@@ -1133,6 +1133,9 @@ mod tests {
             context,
             tcl_lexer::LexerConfig::for_profile(Some(profile)),
         );
+        // O112 removes the whole constant branch; O100 substitutes variable
+        // constants within a surviving expression. This test keeps the actual
+        // applied rewrite and its newly analysed source image non-vacuous.
         let source = "proc subject {} {if {1} {puts retained} else {puts omitted}}";
         let mut images = Vec::new();
         let mut branch_candidates = Vec::new();
@@ -1146,16 +1149,16 @@ mod tests {
                 branch_candidates.push(
                     candidates
                         .iter()
-                        .filter(|row| row.code == DiagCode::O100)
+                        .filter(|row| row.code == DiagCode::O112)
                         .count(),
                 );
                 candidates
                     .into_iter()
-                    .filter(|row| row.code == DiagCode::O100)
+                    .filter(|row| row.code == DiagCode::O112)
                     .collect()
             },
         );
-        assert!(applied.iter().any(|row| row.code == DiagCode::O100));
+        assert!(applied.iter().any(|row| row.code == DiagCode::O112));
         assert!(iterations >= 2);
         assert_ne!(images[0], images[1]);
         assert_eq!(images.last().unwrap(), &text);

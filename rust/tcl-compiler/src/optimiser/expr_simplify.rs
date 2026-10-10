@@ -110,12 +110,13 @@ fn walk_script(
         return;
     }
     for stmt in &script.statements {
-        walk_statement(ctx, stmt, numeric, procedures, depth);
+        walk_statement(ctx, script, stmt, numeric, procedures, depth);
     }
 }
 
 fn walk_statement(
     ctx: &mut PassContext<'_>,
+    script: &Script,
     stmt: &Statement,
     numeric: NumericCtx<'_>,
     procedures: &Procedures,
@@ -125,9 +126,10 @@ fn walk_statement(
         stmt,
         Statement::Call { .. }
             | Statement::AssignValue { .. }
+            | Statement::AssignExpr { .. }
             | Statement::Return { expr: None, .. }
     ) {
-        report_original_expression_candidates(ctx, stmt, numeric);
+        report_original_expression_candidates(ctx, script, stmt, numeric);
     }
     match stmt {
         Statement::ExprEval { span, expr, .. } => {
@@ -214,6 +216,7 @@ fn walk_statement(
 /// Conditional simplifications of retained generic invocations never carry an edit.
 fn report_original_expression_candidates(
     ctx: &mut PassContext<'_>,
+    script: &Script,
     stmt: &Statement,
     numeric: NumericCtx<'_>,
 ) {
@@ -226,11 +229,14 @@ fn report_original_expression_candidates(
     else {
         return;
     };
-    let Some(tokens) = stmt.tokens() else {
+    // Logical lowering can consume the invocation into AssignExpr. The
+    // Script owns its unanimous original vector in that case; the parsed AST
+    // or fallback text cannot recreate the source point or its metadata.
+    let Some(original_tokens) = script.retained_source_tokens_for_statement(stmt) else {
         return;
     };
     let Some(originals) =
-        original_expression_candidate_tokens(tokens, module, registry, ctx.lexer_config())
+        original_expression_candidate_tokens(original_tokens, module, registry, ctx.lexer_config())
     else {
         return;
     };
@@ -242,9 +248,7 @@ fn report_original_expression_candidates(
         };
         if let ExprNode::Command { text, .. } = &advice.expression
             && let Some(unwrapped) = try_unwrap_expr_in_expr(text)
-            && stmt
-                .tokens()
-                .is_some_and(|original| original.words() == tokens.words())
+            && original_tokens.words() == tokens.words()
             && ctx.command_mutations.trusts("expr")
             && ctx
                 .fold_policy()
@@ -702,7 +706,10 @@ mod tests {
         registry: &CommandRegistry,
         config: tcl_lexer::LexerConfig,
     ) -> Option<Vec<crate::registry_invocation::OriginalExpressionOperandAdvice>> {
-        let tokens = module.top_level.statements.last()?.tokens()?;
+        let statement = module.top_level.statements.last()?;
+        let tokens = module
+            .top_level
+            .retained_source_tokens_for_statement(statement)?;
         Some(
             original_expression_candidate_tokens(tokens, module, registry, config)?
                 .iter()
@@ -759,6 +766,73 @@ mod tests {
                 .is_none_or(|advice| advice.is_empty()),
             "known replacement has no stock Expr role"
         );
+    }
+
+    #[test]
+    fn original_expression_candidates_follow_consumed_source_without_native_edits() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        let unit = CompilationUnit::build_with_analysis_input(
+            "set result [expr {2 + 0}]",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let statement = unit.ir_module.top_level.statements.last().unwrap();
+        assert!(matches!(statement, Statement::AssignExpr { .. }));
+        assert!(statement.tokens().is_none());
+        assert!(
+            unit.ir_module
+                .top_level
+                .retained_source_tokens_for_statement(statement)
+                .is_some()
+        );
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        let collect = |unit: &CompilationUnit| {
+            let mut ctx = PassContext::with_dialect(
+                &unit.source,
+                crate::interprocedural::InterproceduralAnalysis::default(),
+                Some(profile),
+            );
+            ctx.registry = Some(registry);
+            ctx.ir_module = Some(&unit.ir_module);
+            run(&mut ctx, unit);
+            ctx.optimisations
+                .into_iter()
+                .filter(|row| row.code == DiagCode::O110)
+                .collect::<Vec<_>>()
+        };
+        let candidates = collect(&unit);
+        assert!(
+            !candidates.is_empty(),
+            "consumed Logical source keeps its candidate"
+        );
+        assert!(
+            candidates
+                .iter()
+                .all(|row| row.hint_only && row.replacement.is_empty())
+        );
+        let mut missing = unit.clone();
+        missing.ir_module.source_metadata_input = None;
+        assert!(collect(&missing).is_empty());
     }
 
     #[test]

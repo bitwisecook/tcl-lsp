@@ -33,6 +33,9 @@ use tcl_core_types::Code as CompletionCode;
 use tcl_dialect::DialectProfile;
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::model::semantic::SemanticContext;
+use tcl_registry::native_boolean_truth::{
+    NativeBooleanExpressionResultProduction, NativeBooleanTruthPurpose,
+};
 use tcl_registry::{CellUpdate, CommandRegistry, IntrinsicId, NativeLowering};
 use tcl_syntax::expr::ast::render_expr;
 use tcl_syntax::expr::{BinOp, ExprNode, UnaryOp};
@@ -67,7 +70,9 @@ use crate::executable_ir::{
 };
 use crate::intervals::Interval;
 use crate::ir::{CommandTokens, Module, NodeId, SourceSite, Statement, WordExpr, WordPart};
-use crate::registry_invocation::{RegistryInvocationResolution, resolve_word_exprs};
+use crate::registry_invocation::{
+    InvocationMetadataContext, RegistryInvocationResolution, resolve_word_exprs,
+};
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use crate::types::TypeShape;
 use crate::var_escape::types::ProcEscapeSummary;
@@ -116,6 +121,7 @@ enum ExprDecline {
     DynamicVariable,
     UnsupportedOperator,
     Raw,
+    OriginalBooleanObjectUnavailable,
 }
 
 /// Lower one executable function to NLIR.
@@ -144,6 +150,9 @@ pub fn lower_function(
     }
     let mut lowerer = Lowerer::new(input);
     let function = lowerer.lower();
+    if lowerer.boolean_admission_missing {
+        return Err(FunctionDecline::NativeCompilationAdmissionRequired);
+    }
     let report = FunctionReport {
         status: FunctionStatus::Lowered,
         // The emitter decides binding, once it knows whether the module
@@ -188,6 +197,26 @@ fn unlowered_instruction(function: &ExecutableFunction) -> Option<&'static str> 
         })
 }
 
+/// Native truth stages require a current complete source input and its
+/// independently retained interpreter entry. Availability does not select a
+/// physical point, and stale entry metadata cannot donate its point.
+fn native_boolean_dialect(input: &LoweringInput<'_>) -> Option<tcl_registry::InvocationDialect> {
+    let metadata = InvocationMetadataContext::for_module(input.registry, input.module)?;
+    if input
+        .module
+        .source_entry
+        .metadata_context
+        .source_analysis_input()
+        != metadata.source_analysis_input()
+    {
+        return None;
+    }
+    let entry = input.module.source_entry.native_entry.as_deref()?;
+    entry
+        .execution_point
+        .map(tcl_registry::InvocationDialect::of_point)
+}
+
 struct Lowerer<'a> {
     input: &'a LoweringInput<'a>,
     values: Vec<NativeValue>,
@@ -199,6 +228,10 @@ struct Lowerer<'a> {
     proofs: DispatchProofAnalysis,
     numbers: Numbers,
     dialect: Option<&'static DialectProfile>,
+    /// A current source owner and independently retained physical entry select
+    /// the truth recipe; an authored profile alone supplies no opcode protocol.
+    boolean_dialect: Option<tcl_registry::InvocationDialect>,
+    boolean_admission_missing: bool,
     /// The document's lexer grammar, resolved once with `dialect` and
     /// threaded into every re-read of source text this pass makes
     /// (`docs/design/registry/dialect-profile-model.md` §2.5).
@@ -285,6 +318,8 @@ impl<'a> Lowerer<'a> {
             proofs: analyse_dispatch_stability(input.function, input.entry_assumption),
             numbers: Numbers::Target(module.number_syntax()),
             dialect: profile,
+            boolean_dialect: native_boolean_dialect(input),
+            boolean_admission_missing: false,
             lexer_config: module.native_lexer_config(),
             representation: input
                 .config
@@ -385,37 +420,47 @@ impl<'a> Lowerer<'a> {
         dst
     }
 
-    /// The truth of `value`, through the erroring boolean conversion for
-    /// anything a native truth test could get wrong.
-    fn truth(&mut self, value: NativeValueId) -> NativeValueId {
-        match self.ty(value) {
-            NativeType::Bool => value,
-            NativeType::I64 => {
-                let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
-                self.emit(NativeOp::Truth { dst, src: value });
-                dst
-            }
-            NativeType::F64
-                if matches!(
-                    self.rep(value),
-                    Representation::NativeDouble { finite: true }
-                ) =>
-            {
-                let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
-                self.emit(NativeOp::Truth { dst, src: value });
-                dst
-            }
-            NativeType::F64 | NativeType::Obj => {
-                let src = self.boxed(value);
-                let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
-                self.emit(NativeOp::Unbox {
-                    dst,
-                    src,
-                    target: NativeType::Bool,
-                });
-                dst
-            }
+    /// Convert the original operand at its actual reached instruction.
+    /// Canonical Boolean values need no object conversion; all other values
+    /// remain boxed so the selected getter observes their original cache.
+    fn truth(&mut self, value: NativeValueId, purpose: NativeBooleanTruthPurpose) -> NativeValueId {
+        if self.ty(value) == NativeType::Bool {
+            return value;
         }
+        if self
+            .boolean_dialect
+            .and_then(|dialect| dialect.native_boolean_truth_protocol(purpose))
+            .is_none()
+        {
+            self.boolean_admission_missing = true;
+        }
+        debug_assert_eq!(self.ty(value), NativeType::Obj);
+        let src = value;
+        let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
+        self.emit(NativeOp::UnboxBool { dst, src, purpose });
+        dst
+    }
+
+    fn expression_result_truth(
+        &mut self,
+        value: NativeValueId,
+        production: NativeBooleanExpressionResultProduction,
+    ) -> NativeValueId {
+        if self
+            .boolean_dialect
+            .and_then(|dialect| dialect.native_boolean_expression_result_protocol(production))
+            .is_none()
+        {
+            self.boolean_admission_missing = true;
+        }
+        let src = self.boxed(value);
+        let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
+        self.emit(NativeOp::BooleanExpressionResult {
+            dst,
+            src,
+            production,
+        });
+        dst
     }
 
     fn int_to_double(&mut self, value: NativeValueId) -> NativeValueId {
@@ -467,6 +512,12 @@ impl<'a> Lowerer<'a> {
             self.record_cell(place, CellAccessKind::Read, barrier, true);
             return value;
         }
+        self.read_original_cell(place)
+    }
+
+    /// A reached Boolean operand retains the actual cell's object and cache,
+    /// independently of an equal numeric value in the shadow lattice.
+    fn read_original_cell(&mut self, place: &CellPlace) -> NativeValueId {
         let hint = self.input.type_hints.get(place.base()).cloned();
         let dst = self.new_value(NativeType::Obj, Representation::Boxed(hint));
         let barrier = self.ledger.decide(place);
@@ -629,8 +680,8 @@ impl<'a> Lowerer<'a> {
                 then_target,
                 else_target,
             } => {
-                let value = self.exec_values[condition];
-                let condition = self.truth(value);
+                let condition = self.exec_values[condition];
+                debug_assert_eq!(self.ty(condition), NativeType::Bool);
                 NativeTerminator::Branch {
                     condition,
                     then_target: target(*then_target),
@@ -801,8 +852,9 @@ impl<'a> Lowerer<'a> {
                 self.begin(Some(node), "evaluate-expr");
                 let outcome = match expr {
                     ExecutableExpr::Condition { expr, .. } => {
-                        let result = self.lower_expression(expr);
-                        let truth = self.truth(result);
+                        let text = render_expr(expr);
+                        let (result, production) = self.lower_expression_result(expr, &text, true);
+                        let truth = self.expression_result_truth(result, production);
                         self.exec_values.insert(*value, truth);
                         StatementOutcome::Native
                     }
@@ -1408,8 +1460,26 @@ impl<'a> Lowerer<'a> {
     }
 
     fn lower_expression_text(&mut self, expr: &ExprNode, text: &str) -> NativeValueId {
-        if let Ok(value) = self.attempt(|this| this.lower_expr(expr)) {
-            return value;
+        self.lower_expression_result(expr, text, false).0
+    }
+
+    fn lower_expression_result(
+        &mut self,
+        expr: &ExprNode,
+        text: &str,
+        boolean_result: bool,
+    ) -> (NativeValueId, NativeBooleanExpressionResultProduction) {
+        if let Ok(value) = self.attempt(|this| {
+            if boolean_result {
+                this.lower_boolean_operand(expr)
+            } else {
+                this.lower_expr(expr)
+            }
+        }) {
+            return (
+                value,
+                NativeBooleanExpressionResultProduction::InlineExpression,
+            );
         }
         let dst = self.new_value(NativeType::Obj, Representation::Boxed(None));
         self.emit(NativeOp::ExprEval {
@@ -1418,7 +1488,37 @@ impl<'a> Lowerer<'a> {
         });
         self.clobber_shadows();
         self.note_observation();
-        dst
+        (
+            dst,
+            NativeBooleanExpressionResultProduction::PublicExpressionApi,
+        )
+    }
+
+    /// Retain the object consumed by the reached truth stage. Mathematical
+    /// numeric shadows and intermediate machine numbers carry no observable
+    /// cache/conversion receipt; those expressions keep the runtime seam.
+    fn lower_boolean_operand(&mut self, node: &ExprNode) -> Result<NativeValueId, ExprDecline> {
+        match node {
+            ExprNode::Var { text, .. } => {
+                let place = variable_reference_place(text, self.lexer_config)
+                    .map_err(|_| ExprDecline::DynamicVariable)?;
+                Ok(self.read_original_cell(&place))
+            }
+            ExprNode::Literal { .. } | ExprNode::CompiledWord { .. } | ExprNode::String { .. } => {
+                // Source bytes are not an original compiled literal pool/cache
+                // receipt. Preserve the public expression runtime seam.
+                Err(ExprDecline::OriginalBooleanObjectUnavailable)
+            }
+            _ => {
+                let value = self.lower_expr(node)?;
+                match self.ty(value) {
+                    NativeType::Bool | NativeType::Obj => Ok(value),
+                    NativeType::I64 | NativeType::F64 => {
+                        Err(ExprDecline::OriginalBooleanObjectUnavailable)
+                    }
+                }
+            }
+        }
     }
 
     #[allow(clippy::too_many_lines)]
@@ -1459,8 +1559,8 @@ impl<'a> Lowerer<'a> {
                 true_branch,
                 false_branch,
             } => {
-                let condition = self.lower_expr(condition)?;
-                let condition = self.truth(condition);
+                let condition = self.lower_boolean_operand(condition)?;
+                let condition = self.truth(condition, NativeBooleanTruthPurpose::ConditionalJump);
                 // Exactly one arm runs: each lowers from the state the
                 // condition left, and only what both agree on survives.
                 let entry_shadows = self.shadows.clone();
@@ -1513,13 +1613,19 @@ impl<'a> Lowerer<'a> {
     ) -> Result<NativeValueId, ExprDecline> {
         match op {
             BinOp::And | BinOp::Or => {
-                let lhs = self.lower_expr(left)?;
-                let lhs = self.truth(lhs);
+                let original_lhs = self.lower_boolean_operand(left)?;
+                let conjunction = op == BinOp::And;
+                let purpose = if conjunction {
+                    NativeBooleanTruthPurpose::LogicalAnd
+                } else {
+                    NativeBooleanTruthPurpose::LogicalOr
+                };
+                let lhs = self.truth(original_lhs, purpose);
                 // The right operand is only evaluated when the left does not
                 // short-circuit, so its shadows hold on one path only.
                 let entry_shadows = self.shadows.clone();
                 self.push_buffer();
-                let rhs = self.lower_expr(right).map(|value| self.truth(value));
+                let rhs = self.lower_logical_right(original_lhs, right, conjunction);
                 let rhs_ops = self.pop_buffer();
                 self.shadows.intersect(&entry_shadows);
                 let rhs = rhs?;
@@ -1677,15 +1783,69 @@ impl<'a> Lowerer<'a> {
         Ok(dst)
     }
 
+    /// Keep the original left operand until the selected final instruction.
+    /// C8.4 reconverts left then right after evaluating the right expression;
+    /// the later C and Jim short-circuit paths convert only the right operand.
+    fn lower_logical_right(
+        &mut self,
+        original_lhs: NativeValueId,
+        right: &ExprNode,
+        conjunction: bool,
+    ) -> Result<NativeValueId, ExprDecline> {
+        let rhs = self.lower_boolean_operand(right)?;
+        let Some(purpose) = self
+            .boolean_dialect
+            .and_then(|dialect| dialect.native_logical_final_operand_purpose(conjunction))
+        else {
+            self.boolean_admission_missing = true;
+            return Err(ExprDecline::UnsupportedOperator);
+        };
+        if !matches!(
+            purpose,
+            NativeBooleanTruthPurpose::LogicalAndInstruction
+                | NativeBooleanTruthPurpose::LogicalOrInstruction
+        ) {
+            return Ok(self.truth(rhs, purpose));
+        }
+        let lhs = self.truth(original_lhs, purpose);
+        let rhs = self.truth(rhs, purpose);
+        let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
+        let fixed = self.new_value(NativeType::Bool, Representation::NativeBool);
+        let constant = NativeOp::ConstBool {
+            dst: fixed,
+            value: !conjunction,
+        };
+        let (then_ops, else_ops, then_src, else_src) = if conjunction {
+            (Vec::new(), vec![constant], rhs, fixed)
+        } else {
+            (vec![constant], Vec::new(), fixed, rhs)
+        };
+        self.emit(NativeOp::IfElse {
+            condition: lhs,
+            then_ops,
+            else_ops,
+            result: Some(IfElseResult {
+                dst,
+                then_src,
+                else_src,
+            }),
+        });
+        Ok(dst)
+    }
+
     fn lower_unary(
         &mut self,
         op: UnaryOp,
         operand: &ExprNode,
     ) -> Result<NativeValueId, ExprDecline> {
-        let value = self.lower_expr(operand)?;
+        let value = if op == UnaryOp::Not {
+            self.lower_boolean_operand(operand)?
+        } else {
+            self.lower_expr(operand)?
+        };
         match op {
             UnaryOp::Not => {
-                let truth = self.truth(value);
+                let truth = self.truth(value, NativeBooleanTruthPurpose::LogicalNot);
                 let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
                 self.emit(NativeOp::NotBool { dst, src: truth });
                 Ok(dst)

@@ -40,7 +40,7 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::ffi::{c_int, c_void};
-use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::rc::Rc;
 
 use tcl_engine_api::{
@@ -48,13 +48,13 @@ use tcl_engine_api::{
     CompileUnit, CompletionCode, Engine, EngineError, HostArgumentView, HostCommand, HostOutcome,
     PreparedCommandPublication, Value,
 };
-use tcl_syntax::number::{runtime_syntax, set_runtime_syntax, NumberSyntax};
+use tcl_syntax::number::{NumberSyntax, runtime_syntax, set_runtime_syntax};
 
 use crate::budget::LimitKind;
 use crate::interp::native_host_publication::{
     self, HostCommands, HostRegistration, PublicationService,
 };
-use crate::interp::{new_string, Code, Command, Interp, ObjCommand, Param};
+use crate::interp::{Code, Command, Interp, ObjCommand, Param, new_string};
 use crate::obj::{self, TclObj};
 
 /// A panic a host command raised, held until the evaluation that called the
@@ -409,6 +409,22 @@ fn evaluate(
 
 fn value_error(error: impl std::fmt::Display) -> EngineError {
     EngineError::ExecutionRefusal(error.to_string())
+}
+
+/// Preserve the typed scalar cause until the engine's host-only error boundary.
+fn scalar_access_error(
+    interp: &Interp,
+    error: crate::capi::NativeScalarObjectAccessError,
+) -> EngineError {
+    if let Some(first) = host_error(interp) {
+        return first;
+    }
+    match error {
+        crate::capi::NativeScalarObjectAccessError::Execution(error) => {
+            EngineError::ExecutionRefusal(error.to_string())
+        }
+        crate::capi::NativeScalarObjectAccessError::Value(error) => value_error(error),
+    }
 }
 
 /// The interface's name for a limit.
@@ -839,9 +855,8 @@ fn to_obj(interp: &mut Interp, value: &Value) -> Result<obj::Owned, EngineError>
         Value::StringBytes(bytes) => obj::Owned::fresh(new_string(bytes)),
         Value::ByteArray(bytes) => crate::engine_abi::value_carriers::byte_array(interp, bytes)
             .map_err(|error| host_error(interp).unwrap_or_else(|| value_error(error)))?,
-        Value::NativeScalar(cache) => {
-            crate::engine_abi::value_carriers::scalar(interp, cache).map_err(value_error)?
-        }
+        Value::NativeScalar(cache) => crate::engine_abi::value_carriers::scalar(interp, cache)
+            .map_err(|error| scalar_access_error(interp, error))?,
         Value::Resident {
             value,
             string,
@@ -964,7 +979,7 @@ fn snapshot_value(interp: &Interp, original: *mut TclObj) -> Result<Value, Engin
         _ => {
             return Err(EngineError::ExecutionRefusal(
                 "native primary cache has no supported snapshot carrier".into(),
-            ))
+            ));
         }
     };
     Ok(match snapshot.resident {
@@ -979,7 +994,7 @@ fn snapshot_value(interp: &Interp, original: *mut TclObj) -> Result<Value, Engin
         None if matches!(payload, Value::Empty) => {
             return Err(EngineError::ExecutionRefusal(
                 "stringless untyped object snapshot is unavailable".into(),
-            ))
+            ));
         }
         None => payload,
     })
@@ -1028,6 +1043,33 @@ mod tests {
         let mut engine = RuntimeEngine::new();
         engine.set_release(profile).unwrap();
         engine
+    }
+
+    #[test]
+    fn scalar_importer_preserves_first_host_cause_and_guest_state() {
+        // Software owner: naming.numeric.original-capi-scalar-publication-width
+        // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+        let mut engine = engine("tcl8.6");
+        engine.interp.set_result_bytes(b"SEEDED RESULT");
+        engine.interp.set_c_error_code(b"SEEDED CODE");
+        let first = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "original scalar import refusal",
+            ),
+        );
+        engine.interp.refuse_native_execution(first.clone());
+        let error = to_obj(
+            &mut engine.interp,
+            &Value::NativeScalar(NativeScalarCache::Integer(17)),
+        )
+        .err()
+        .expect("first actual scalar import refusal");
+        assert!(
+            matches!(error, EngineError::ExecutionRefusal(reason) if reason == first.to_string())
+        );
+        assert_eq!(engine.interp.native_execution_refusal(), Some(first));
+        assert_eq!(engine.interp.result_bytes(), b"SEEDED RESULT");
+        assert_eq!(engine.interp.error_code(), b"SEEDED CODE");
     }
 
     #[test]
@@ -1398,17 +1440,21 @@ mod tests {
             .unwrap();
         assert_eq!(completion.code, CompletionCode::Other(7));
         assert_eq!(completion.value.as_str(), Some("value"));
-        assert!(value_bytes(&mut engine.interp, &completion.options)
-            .unwrap()
-            .windows(b"-tag retained".len())
-            .any(|bytes| bytes == b"-tag retained"));
+        assert!(
+            value_bytes(&mut engine.interp, &completion.options)
+                .unwrap()
+                .windows(b"-tag retained".len())
+                .any(|bytes| bytes == b"-tag retained")
+        );
         let error = engine.eval_in_invocation("guest").unwrap_err();
         assert_eq!(error.script_message_bytes(), Some(&b"message"[..]));
-        assert!(error
-            .script_options_bytes()
-            .unwrap()
-            .windows(b"-tag retained".len())
-            .any(|bytes| bytes == b"-tag retained"));
+        assert!(
+            error
+                .script_options_bytes()
+                .unwrap()
+                .windows(b"-tag retained".len())
+                .any(|bytes| bytes == b"-tag retained")
+        );
     }
 
     #[test]

@@ -378,7 +378,8 @@ fn original_c84_fresh_boolean_host_stages_match_public_primitive_value_cache_and
                         tcl_syntax::scalar_getter::NativeScalarStringStorage::ByteArray,
                         b"1\0X",
                     )
-                    .unwrap(),
+                    .unwrap()
+                    .into_owned(),
                 28 => [b'a'; 50].into_iter().chain("😀Z".bytes()).collect(),
                 _ => unreachable!(),
             };

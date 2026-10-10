@@ -22,12 +22,14 @@ pub(super) struct PreparedNativeExpression {
 
 struct ConstantExpressionContext {
     dialect: tcl_registry::InvocationDialect,
+    host: Rc<dyn tcl_platform::Host>,
     literals: HashMap<(u32, u32), obj::Owned>,
 }
 impl ConstantExpressionContext {
     fn prepare(
         tree: &tcl_syntax::expr::NativeExprNode,
         dialect: tcl_registry::InvocationDialect,
+        host: Rc<dyn tcl_platform::Host>,
     ) -> Result<Self, ValueError> {
         let mut literals = HashMap::new();
         let mut pending = vec![tree];
@@ -78,10 +80,17 @@ impl ConstantExpressionContext {
                 _ => return Err(unavailable("native constant expression leaf")),
             }
         }
-        Ok(Self { dialect, literals })
+        Ok(Self {
+            dialect,
+            host,
+            literals,
+        })
     }
 }
 impl crate::expr::ExprCtx for ConstantExpressionContext {
+    fn numeric_host(&self) -> Option<Rc<dyn tcl_platform::Host>> {
+        Some(Rc::clone(&self.host))
+    }
     fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
         self.dialect
     }
@@ -292,13 +301,18 @@ impl Builder<'_> {
                 let dialect = self.interp.native_invocation_dialect();
                 let value = crate::expr::eval_compiler_constant(
                     node,
-                    &mut ConstantExpressionContext::prepare(node, dialect)?,
+                    &mut ConstantExpressionContext::prepare(node, dialect, self.interp.host())?,
                 );
                 let folded = match value {
                     Ok(original) => {
                         let index = if tcl_registry::native_expression_program::native_expression_boolean_operator(node) {
-                            let boolean = crate::expr::to_bool_in(original.as_ptr(), dialect)
-                                .map_err(|_| unavailable("native folded Boolean producer"))?;
+                            let boolean = crate::typed_value::native_boolean_in(original.as_ptr(), dialect,
+                                tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
+                                self.interp.host().numeric_environment()).map_err(|error| {
+                                    error.native_access_refusal().map_or_else(
+                                        || unavailable("native folded Boolean producer"),
+                                        ValueError::from)
+                                })?;
                             if tcl_registry::native_expression_program::native_expression_private_logical_boolean85(node, self.stamp.physical) {
                                 self.literals.register_private_logical_boolean85(boolean)
                             } else {
@@ -362,7 +376,7 @@ impl Builder<'_> {
                 ExprNode::Literal { text, start, end } => {
                     let index = if self.stamp.physical >= tcl_dialect::TclVersion::V8_5 {
                         let dialect = self.interp.native_invocation_dialect();
-                        let original = ConstantExpressionContext::prepare(node, dialect)?;
+                        let original = ConstantExpressionContext::prepare(node, dialect, self.interp.host())?;
                         let original = &original.literals[&(*start, *end)];
                         if let Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(number)) =
                             obj::native_scalar_cache(original.as_ptr())?
@@ -603,6 +617,9 @@ impl CompiledExpressionContext<'_> {
     }
 }
 impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
+    fn boolean_interpreter(&mut self) -> Option<&mut Interp> {
+        Some(self.interp)
+    }
     fn numeric_host(&self) -> Option<Rc<dyn tcl_platform::Host>> {
         Some(self.interp.host())
     }
@@ -1012,8 +1029,9 @@ impl Interp {
                     &control.prepared.expressions[&program.operand],
                     execution,
                 )?;
-                crate::expr::to_bool_in(value.as_ptr(), self.native_invocation_dialect())
-                    .map_err(|error| self.report_expr_error(error))
+                crate::typed_value::expression_boolean_for_interp(self, value.as_ptr(),
+                    tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::InlineExpression)
+                    .map_err(|error| self.report_cmd_error(error))
             }
         }
     }
@@ -1095,8 +1113,9 @@ impl Interp {
                         &control.prepared.expressions[&test.operand],
                         execution,
                     )?;
-                    if !crate::expr::to_bool_in(value.as_ptr(), self.native_invocation_dialect())
-                        .map_err(|error| self.report_expr_error(error))?
+                    if !crate::typed_value::expression_boolean_for_interp(self, value.as_ptr(),
+                        tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::InlineExpression)
+                        .map_err(|error| self.report_cmd_error(error))?
                     {
                         break;
                     }

@@ -7548,20 +7548,70 @@ impl Analyser {
         self.head_identities
             .source_bindings()
             .stamp_original_tokens(&mut tokens);
-        let Some(invocation) =
-            crate::registry_invocation::resolved_tokens_invocation_in_context(&context, &tokens)
-        else {
-            return InvocationCompletion::Unknown;
+        let retained = self
+            .resolved_input
+            .as_ref()
+            .or(self.result.resolved_input.as_ref());
+        let logical_source = retained.is_some_and(|input| input.has_logical_source_name_context())
+            || tokens
+                .source_binding
+                .as_ref()
+                .is_some_and(|binding| binding.logical_source_name_advice_input().is_some());
+        let metadata = retained
+            .and_then(|input| {
+                crate::registry_invocation::InvocationMetadataContext::for_source_input(
+                    registry,
+                    input,
+                    self.lexer_config(),
+                    Some(input.unit_profile()),
+                )
+            })
+            .filter(|metadata| metadata.permits_logical_source_names());
+        let selected = if logical_source {
+            let Some(metadata) = metadata else {
+                return InvocationCompletion::Unknown;
+            };
+            let Some(invocation) = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+                registry, metadata, &tokens,
+            ) else {
+                return InvocationCompletion::Unknown;
+            };
+            let Some(realm) = tokens
+                .source_binding
+                .as_ref()
+                .and_then(crate::command_binding::SourceInvocationBinding::invocation_realm)
+            else {
+                return InvocationCompletion::Unknown;
+            };
+            let Some(completion) =
+                invocation.with_metadata_schema(registry, metadata, realm, |selected| {
+                    Some(selected.authored_source_invocation_completion())
+                })
+            else {
+                return InvocationCompletion::Unknown;
+            };
+            (invocation, completion)
+        } else {
+            // Native completion retains its independently proved handler path.
+            let Some(invocation) =
+                crate::registry_invocation::resolved_tokens_invocation_in_context(
+                    &context, &tokens,
+                )
+            else {
+                return InvocationCompletion::Unknown;
+            };
+            let completion = invocation.with_argument_words(|words| {
+                registry.invocation_completion_words(
+                    &invocation.facts.canonical_command,
+                    words.arguments(),
+                    invocation
+                        .dialect
+                        .and_then(tcl_registry::InvocationDialect::authoring_query),
+                )
+            });
+            (invocation, completion)
         };
-        let completion = invocation.with_argument_words(|words| {
-            registry.invocation_completion_words(
-                &invocation.facts.canonical_command,
-                words.arguments(),
-                invocation
-                    .dialect
-                    .and_then(tcl_registry::InvocationDialect::authoring_query),
-            )
-        });
+        let (invocation, completion) = selected;
         match completion {
             InvocationCompletion::ReturnsResult(Some(index)) => {
                 match index
@@ -12311,6 +12361,121 @@ mod tests {
                 .static_proc_result("::N::helper", &[], &mut Vec::new(), 0)
                 .as_deref(),
             Some("NAMESPACE")
+        );
+    }
+
+    #[test]
+    fn original_logical_static_completion_keeps_alias_ordinals_and_source_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional source result advice, without Native return completion.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input =
+            |context| super::super::ResolvedAnalysisInput::new(profile, profile, context, config);
+        let analyse = |source: &str, input| {
+            let mut analyser = Analyser::new().with_resolved_input(input);
+            analyser.analyse_and_retain_result_for_test(source, "tcl");
+            analyser
+        };
+        for (source, expected) in [
+            ("proc p {} {return café}", Some("café")),
+            (
+                "interp alias {} answer {} return; proc p {} {answer WRITTEN}",
+                Some("WRITTEN"),
+            ),
+            (
+                "interp alias {} answer {} return CAPTURED; proc p {} {answer}",
+                None,
+            ),
+            (
+                "interp alias {} answer {} return -level 2; proc p {} {answer VALUE}",
+                None,
+            ),
+            (
+                "proc return args {return CHANGED}; proc p {} {return VALUE}",
+                None,
+            ),
+        ] {
+            let mut analyser = analyse(source, input(std::sync::Arc::clone(&context)));
+            assert_eq!(
+                analyser
+                    .static_proc_result("::p", &[], &mut Vec::new(), 0)
+                    .as_deref(),
+                expected,
+                "{source}"
+            );
+        }
+        let mut availability_store = tcl_registry::CommandRegistry::build_default();
+        availability_store.insert(tcl_registry::CommandSpec {
+            name: "metadata_return_current",
+            surface: Some(tcl_dialect::model::SpecSurface::TCL86_PLUS),
+            ..availability_store.get("return").unwrap().clone()
+        });
+        let shared = availability_store.snapshot().shared_registry();
+        let current =
+            std::sync::Arc::new(context.with_command_store(std::sync::Arc::clone(&shared)));
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::resolve_environment("tcl8.4")
+                .default_context_registry()
+                .with_command_store(shared),
+        );
+        assert!(std::sync::Arc::ptr_eq(current.commands(), older.commands()));
+        let selected_source = "proc p {} {metadata_return_current VALUE}";
+        let mut selected = analyse(selected_source, input(current));
+        assert_eq!(
+            selected
+                .static_proc_result("::p", &[], &mut Vec::new(), 0)
+                .as_deref(),
+            Some("VALUE")
+        );
+        let mut unavailable = analyse(selected_source, input(older));
+        assert!(
+            unavailable
+                .static_proc_result("::p", &[], &mut Vec::new(), 0)
+                .is_none()
+        );
+        let source = "proc p {} {return VALUE}";
+        let mut missing = analyse(source, input(std::sync::Arc::clone(&context)));
+        missing.resolved_input = None;
+        missing.result.resolved_input = None;
+        assert!(
+            missing
+                .static_proc_result("::p", &[], &mut Vec::new(), 0)
+                .is_none()
+        );
+        let mut changed = analyse(source, input(std::sync::Arc::clone(&context)));
+        let mut altered = config;
+        altered.strict_quoting = !altered.strict_quoting;
+        let changed_input = super::super::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            altered,
+        );
+        changed.resolved_input = Some(changed_input.clone());
+        changed.result.resolved_input = Some(changed_input);
+        assert!(
+            changed
+                .static_proc_result("::p", &[], &mut Vec::new(), 0)
+                .is_none()
+        );
+        let mut store = tcl_registry::CommandRegistry::build_default();
+        store.insert(tcl_registry::CommandSpec {
+            name: "foreign_completion_axis",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let foreign = std::sync::Arc::new(context.with_command_store(std::sync::Arc::new(store)));
+        let mut changed = analyse(source, input(std::sync::Arc::clone(&context)));
+        let foreign_input = input(foreign);
+        changed.resolved_input = Some(foreign_input.clone());
+        changed.result.resolved_input = Some(foreign_input);
+        assert!(
+            changed
+                .static_proc_result("::p", &[], &mut Vec::new(), 0)
+                .is_none()
         );
     }
 

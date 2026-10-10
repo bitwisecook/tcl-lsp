@@ -23,21 +23,28 @@ pub(super) fn substitutions_are_pure(effect: EffectCtx<'_>) -> bool {
     let Some(config) = binding.original_lexer_config_for_tokens(tokens) else {
         return false;
     };
-    if config.normalized() != purity.config.normalized() || tokens.nested_bindings.is_empty() {
+    if config.normalized() != purity.config.normalized() {
         return false;
     }
-    tokens.nested_bindings.iter().all(|(_, original)| {
-        let Some((_, mut nested)) = original.original_recorded_command() else {
-            return false;
-        };
-        nested.inherit_nested_bindings(tokens);
-        match crate::registry_invocation::original_substitution_purity_with_metadata_context(
-            registry, metadata, &nested,
-        ) {
-            Some(pure) => pure,
-            None => logical_procedure_is_pure(&nested, purity),
-        }
-    })
+    // Expression operands can contain protected substitutions beyond the
+    // lexical word walk. Purity needs the complete selected source inventory.
+    let Some(calls) = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+        tokens, config, registry, metadata,
+    ) else {
+        return false;
+    };
+    !calls.is_empty()
+        && calls.iter().all(|call| {
+            let Some(nested) = call.tokens.as_ref() else {
+                return false;
+            };
+            match crate::registry_invocation::original_substitution_purity_with_metadata_context(
+                registry, metadata, nested,
+            ) {
+                Some(pure) => pure,
+                None => logical_procedure_is_pure(nested, purity),
+            }
+        })
 }
 
 fn logical_procedure_is_pure(tokens: &CommandTokens, purity: PurityCtx<'_>) -> bool {
@@ -56,9 +63,11 @@ fn logical_procedure_is_pure(tokens: &CommandTokens, purity: PurityCtx<'_>) -> b
     };
     !calls.is_empty()
         && calls.iter().all(|call| {
-            purity
-                .interproc_pure
-                .contains(&call.procedure().qualified_name)
+            let name = &call.procedure().qualified_name;
+            // The source module keeps the first declaration when a later
+            // declaration replaces it. A name-keyed summary cannot select
+            // which declaration it describes across that lifecycle barrier.
+            !module.redefined_procedures.contains(name) && purity.interproc_pure.contains(name)
         })
 }
 
@@ -214,7 +223,8 @@ mod tests {
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let context = tcl_registry::model::ingress::resolve_environment(environment)
                 .default_context_registry();
-            let profile = tcl_dialect::DialectProfile::find(environment).unwrap();
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(environment).analyser_profile();
             let selected = unit("set unused [string length VALUE]", &context, profile);
             let script = &selected.ir_module.top_level;
             let tokens = script

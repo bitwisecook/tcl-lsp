@@ -849,6 +849,9 @@ impl InterpExprCtx<'_> {
 
 #[cfg(have_tommath)]
 impl crate::expr::ExprCtx for InterpExprCtx<'_> {
+    fn boolean_interpreter(&mut self) -> Option<&mut Interp> {
+        Some(self.interp)
+    }
     fn numeric_host(&self) -> Option<std::rc::Rc<dyn tcl_platform::Host>> {
         Some(self.interp.host())
     }
@@ -1168,7 +1171,7 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<b
     let _lease = crate::expr::retain_expression_primary(cond);
     let result = match crate::expr::native_jim_expression_objects(cond) {
         Some(objects) => crate::expr::eval_jim_expr(&node, &mut ctx, objects, false),
-        None => crate::expr::eval_expr(&node, &mut ctx),
+        None => crate::expr::eval_compiled_expression_node(&node, &mut ctx),
     };
     drop(_lease);
     let propagated = ctx.propagated;
@@ -1180,8 +1183,9 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<b
         // The boolean-context refusal keeps its own `-errorcode` (tclsh:
         // `set x o; if {$x} {}` is `TCL VALUE NUMBER`, a NaN condition is
         // `TCL VALUE DOUBLE NAN`), exactly as the eval failure below does.
-        Ok(r) => crate::expr::to_bool_in(r.as_ptr(), interp.native_invocation_dialect())
-            .map_err(|e| interp.report_expr_error(e)),
+        Ok(r) => crate::typed_value::expression_boolean_for_interp(interp, r.as_ptr(),
+            tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi)
+            .map_err(|e| interp.report_cmd_error(e)),
         // A propagated sub-eval code unwinds the condition: an error keeps its
         // trace (no condition `expr` frame); a `return`/`break`/`continue` from a
         // `[cmd]` substitution carries that code out of the loop/`if`.

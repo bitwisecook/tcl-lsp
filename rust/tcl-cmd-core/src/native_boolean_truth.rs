@@ -97,8 +97,201 @@ pub trait NativeBooleanTruthOps {
         &mut self,
         value: &Self::Value,
         protocol: NativeBooleanTruthProtocol,
-        failure: NativeScalarGetterFailure,
-    ) -> Result<CmdError, CmdError>;
+        failures: &[(NativeBooleanTruthProbe, NativeScalarGetterFailure)],
+    ) -> Result<CmdError, CmdError>
+    where
+        Self: Sized,
+    {
+        original_logical_operand_failure(value, protocol, failures, self)
+    }
+
+    /// Reach the original neutral Number primitive for C's instruction error.
+    /// # Errors
+    /// Preserves unavailable getters and actual Host failures.
+    fn logical_number_probe(
+        &mut self,
+        _value: &Self::Value,
+        _protocol: NativeBooleanTruthProtocol,
+    ) -> Result<Result<tcl_syntax::number::Number, NativeScalarGetterFailure>, CmdError> {
+        Err(unavailable())
+    }
+    /// Inspect a genuine original Dictionary cache without generating String.
+    /// # Errors
+    /// Refuses unavailable original header/backing inspection.
+    fn logical_dictionary_size(
+        &mut self,
+        _value: &Self::Value,
+        _protocol: NativeBooleanTruthProtocol,
+    ) -> Result<Option<usize>, CmdError> {
+        Err(unavailable())
+    }
+    /// Run an actual reached C9 object length hook, independently of spelling.
+    /// # Errors
+    /// Retains the original hook's operational refusal.
+    fn logical_length_hook(
+        &mut self,
+        _value: &Self::Value,
+        _protocol: NativeBooleanTruthProtocol,
+    ) -> Result<Option<usize>, CmdError> {
+        Err(unavailable())
+    }
+    /// Enter the selected original List getter with NULL guest diagnostics.
+    /// Rejected ordinary guest grammar is false; original Host remains Err.
+    /// # Errors
+    /// Retains the actual original List getter refusal.
+    fn logical_list_probe(
+        &mut self,
+        _value: &Self::Value,
+        _protocol: NativeBooleanTruthProtocol,
+    ) -> Result<bool, CmdError> {
+        Err(unavailable())
+    }
+    /// Probe a fresh spelling object for C8.4's diagnostic classification.
+    /// Its cache belongs to that fresh header, independently of the operand.
+    /// # Errors
+    /// Retains the actual constructor/getter/host failure.
+    fn logical_spelling_double_probe(
+        &mut self,
+        _original: &[u8],
+        _protocol: NativeBooleanTruthProtocol,
+    ) -> Result<bool, CmdError> {
+        Err(unavailable())
+    }
+}
+
+fn legacy_logical_class<O: NativeBooleanTruthOps>(
+    value: &O::Value,
+    protocol: NativeBooleanTruthProtocol,
+    failures: &[(NativeBooleanTruthProbe, NativeScalarGetterFailure)],
+    ops: &mut O,
+) -> Result<tcl_syntax::native_boolean_truth::NativeBooleanLogicalOperandClass, CmdError> {
+    use tcl_syntax::native_boolean_truth::NativeBooleanLogicalOperandClass as Class;
+    let observation = ops.inspect_original(value, protocol);
+    let (_, resident) = settled(ops, observation)?;
+    if !resident {
+        return Ok(Class::EmptyString);
+    }
+    let original = ops.original_string(value, protocol);
+    let original = settled(ops, original)?;
+    if original.is_empty() {
+        return Ok(Class::EmptyString);
+    }
+    if original.eq_ignore_ascii_case(b"nan") {
+        return Ok(Class::NonNumericFloatingPoint);
+    }
+    if original.eq_ignore_ascii_case(b"inf") {
+        return Ok(Class::InfiniteFloatingPoint);
+    }
+    if failures
+        .iter()
+        .any(|(_, failure)| *failure == NativeScalarGetterFailure::InvalidOctal)
+    {
+        return Ok(Class::InvalidOctal);
+    }
+    if failures.iter().any(|(_, failure)| {
+        matches!(
+            failure,
+            NativeScalarGetterFailure::IntegerOverflow
+                | NativeScalarGetterFailure::IntWidthOverflow
+        )
+    }) {
+        return Ok(Class::IntegerOverflow);
+    }
+    let double = ops.logical_spelling_double_probe(&original, protocol);
+    Ok(if settled(ops, double)? {
+        Class::FloatingPoint
+    } else {
+        Class::NonNumericString
+    })
+}
+
+fn modern_logical_class<O: NativeBooleanTruthOps>(
+    value: &O::Value,
+    protocol: NativeBooleanTruthProtocol,
+    ops: &mut O,
+) -> Result<tcl_syntax::native_boolean_truth::NativeBooleanLogicalOperandClass, CmdError> {
+    use tcl_syntax::{
+        native_boolean_truth::NativeBooleanLogicalOperandClass as Class, number::Number,
+    };
+    let conversion = ops.logical_number_probe(value, protocol);
+    let outcome = settled(ops, conversion)?;
+    let version = protocol
+        .scalar_protocol()
+        .tcl_version()
+        .ok_or_else(unavailable)?;
+    Ok(match outcome {
+        Ok(Number::Nan { .. }) => Class::NonNumericFloatingPoint,
+        Ok(Number::Double(number)) if number.is_nan() => Class::NonNumericFloatingPoint,
+        Ok(Number::Double(_)) => Class::FloatingPoint,
+        Ok(_) => return Err(unavailable()),
+        Err(failure) => {
+            if version >= tcl_dialect::TclVersion::V9_0 {
+                let size = ops.logical_dictionary_size(value, protocol);
+                if settled(ops, size)?.is_some_and(|size| size > 0) {
+                    return Ok(Class::List);
+                }
+                let length = ops.logical_length_hook(value, protocol);
+                if settled(ops, length)?.is_some_and(|length| length > 1) {
+                    return Ok(Class::List);
+                }
+            }
+            let original = ops.original_string(value, protocol);
+            let original = settled(ops, original)?;
+            if version >= tcl_dialect::TclVersion::V9_0
+                && tcl_syntax::list::max_list_length_bytes(&original) > 1
+            {
+                let parsed = ops.logical_list_probe(value, protocol);
+                if settled(ops, parsed)? {
+                    return Ok(Class::List);
+                }
+            }
+            if original.is_empty() {
+                Class::EmptyString
+            } else if failure == NativeScalarGetterFailure::InvalidOctal {
+                Class::InvalidOctal
+            } else {
+                Class::NonNumericString
+            }
+        }
+    })
+}
+
+/// Reach C's one instruction-specific diagnostic classification and producer.
+/// All Number, length, String and List effects are owned by the physical adapter
+/// and settled immediately; no primitive diagnostic text is reparsed.
+/// # Errors
+/// Preserves first Host before any later getter or guest result publication.
+pub fn original_logical_operand_failure<O: NativeBooleanTruthOps>(
+    value: &O::Value,
+    protocol: NativeBooleanTruthProtocol,
+    failures: &[(NativeBooleanTruthProbe, NativeScalarGetterFailure)],
+    ops: &mut O,
+) -> Result<CmdError, CmdError> {
+    ops.check_host_refusal()?;
+    let version = protocol
+        .scalar_protocol()
+        .tcl_version()
+        .ok_or_else(unavailable)?;
+    let class = if version == tcl_dialect::TclVersion::V8_4 {
+        legacy_logical_class(value, protocol, failures, ops)?
+    } else {
+        modern_logical_class(value, protocol, ops)?
+    };
+    let original = if version >= tcl_dialect::TclVersion::V9_0
+        && class != tcl_syntax::native_boolean_truth::NativeBooleanLogicalOperandClass::List
+    {
+        let spelling = ops.original_string(value, protocol);
+        Some(settled(ops, spelling)?)
+    } else {
+        None
+    };
+    let diagnostic = protocol
+        .logical_failure_presentation(class, original.as_deref())
+        .ok_or_else(unavailable)?;
+    Ok(
+        CmdError::with_error_code_bytes(diagnostic.message, diagnostic.error_code)
+            .with_native_string_result(tcl_syntax::native_string::NativeStringProtocol::C(version)),
+    )
 }
 
 fn unavailable() -> CmdError {
@@ -174,6 +367,7 @@ pub fn original_boolean_truth<O: NativeBooleanTruthOps>(
         NativeBooleanTruthPreparation::OriginalStringRequired => return Err(unavailable()),
     };
     let count = stages.len();
+    let mut failures = Vec::with_capacity(count);
     for (index, stage) in stages.into_iter().enumerate() {
         ops.check_host_refusal()?;
         let outcome = ops.probe(value, protocol, stage);
@@ -183,6 +377,7 @@ pub fn original_boolean_truth<O: NativeBooleanTruthOps>(
             Ok(result) => return returned_truth(stage, result),
             Err(failure) => failure,
         };
+        failures.push((stage, failure));
         let (kind, effects) = match stage {
             NativeBooleanTruthProbe::Scalar { kind, effects } => (kind, effects),
             NativeBooleanTruthProbe::ExpressionInteger84
@@ -193,7 +388,7 @@ pub fn original_boolean_truth<O: NativeBooleanTruthOps>(
         };
         let last = index + 1 == count;
         if last && producer == NativeBooleanTruthFailureProducer::LogicalOperand {
-            let failure = ops.logical_operand_failure(value, protocol, failure);
+            let failure = ops.logical_operand_failure(value, protocol, &failures);
             ops.check_host_refusal()?;
             let failure = failure?;
             return Err(failure);
@@ -311,7 +506,7 @@ mod tests {
             &mut self,
             _: &(),
             _: NativeBooleanTruthProtocol,
-            _: NativeScalarGetterFailure,
+            _: &[(NativeBooleanTruthProbe, NativeScalarGetterFailure)],
         ) -> Result<CmdError, CmdError> {
             panic!("Jim stages retain their actual primitive failure")
         }
@@ -381,5 +576,194 @@ mod tests {
         assert_eq!(error.native_execution_refusal(), Some(&original_cause()));
         assert_eq!(owner.calls, ["term", "long"]);
         assert_eq!(owner.result, b"original operand");
+    }
+}
+
+/// Physical operations for the actual expression-result producer. The shared
+/// executor owns probe selection, numeric COW, failure order and API copying;
+/// adapters supply only their checked original object operations.
+pub trait NativeBooleanExpressionResultOps: NativeBooleanTruthOps {
+    /// An actual owned expression result, independently of a public ABI tag.
+    type ResultValue;
+    /// C's actual Number primitive, with its reached original cache changes.
+    /// # Errors
+    /// Refuses unavailable original object or native Number purpose.
+    fn original_number_probe(
+        &mut self,
+        value: &Self::Value,
+        protocol: tcl_syntax::native_boolean_truth::NativeBooleanExpressionResultProtocol,
+    ) -> Result<(), CmdError>;
+    /// Inspect the original native reference count before acquiring output ownership.
+    /// # Errors
+    /// Refuses a retired or foreign original header.
+    fn original_is_shared(&mut self, value: &Self::Value) -> Result<bool, CmdError>;
+    /// Create the reached fresh absent-String numeric result under its original
+    /// selected constructor, without materialising or changing the input.
+    /// # Errors
+    /// Refuses unsupported selected numeric constructor/header recipes.
+    fn copy_numeric_result(
+        &mut self,
+        value: &Self::Value,
+        cache: NativeScalarCache,
+        protocol: tcl_syntax::native_boolean_truth::NativeBooleanExpressionResultProtocol,
+    ) -> Result<Self::ResultValue, CmdError>;
+    /// Withdraw String from the genuinely unshared original numeric result.
+    /// # Errors
+    /// Refuses unavailable original ownership or numeric representation.
+    fn invalidate_numeric_string(
+        &mut self,
+        value: &Self::Value,
+        protocol: tcl_syntax::native_boolean_truth::NativeBooleanExpressionResultProtocol,
+    ) -> Result<(), CmdError>;
+    /// Retain the same original result only after conversion/COW decisions.
+    /// # Errors
+    /// Refuses a retired or foreign original header.
+    fn retain_original_result(
+        &mut self,
+        value: &Self::Value,
+    ) -> Result<Self::ResultValue, CmdError>;
+    /// Copy the actual successful evaluated result through its API result producer.
+    /// # Errors
+    /// Refuses unavailable original selected object duplication.
+    fn copy_api_result(
+        &mut self,
+        value: &Self::ResultValue,
+        protocol: tcl_syntax::native_boolean_truth::NativeBooleanExpressionResultProtocol,
+    ) -> Result<Self::ResultValue, CmdError>;
+    /// Inspect the reached nonfinite expression failure at its selected point.
+    /// C8.4's actual host errno is independently required for infinity.
+    /// # Errors
+    /// Refuses missing actual numeric environment facts outside guest completion.
+    fn nonfinite_expression_failure(
+        &mut self,
+        value: f64,
+        protocol: tcl_syntax::native_boolean_truth::NativeBooleanExpressionResultProtocol,
+    ) -> Result<Option<CmdError>, CmdError>;
+}
+
+fn settled<O: NativeBooleanTruthOps, T>(
+    ops: &mut O,
+    result: Result<T, CmdError>,
+) -> Result<T, CmdError> {
+    ops.check_host_refusal()?;
+    result
+}
+
+fn legacy_result_probe<O: NativeBooleanTruthOps>(
+    value: &O::Value,
+    truth: NativeBooleanTruthProtocol,
+    current: Option<NativeScalarCache>,
+    resident: bool,
+    ops: &mut O,
+) -> Result<(), CmdError> {
+    use tcl_syntax::number::Number;
+    let scalar = truth.scalar_protocol();
+    let known = matches!(
+        current,
+        Some(NativeScalarCache::Tcl84Long(_) | NativeScalarCache::Number(Number::Int(_)))
+    ) || !resident
+        && matches!(
+            current,
+            Some(NativeScalarCache::Number(
+                Number::Double(_) | Number::Nan { .. }
+            ))
+        );
+    if !known {
+        let stage = if !resident && let Some(NativeScalarCache::WordBoolean(boolean)) = current {
+            NativeBooleanTruthProbe::ExpressionWordBoolean84(boolean)
+        } else {
+            let original = ops.original_string(value, truth);
+            let original = settled(ops, original)?;
+            if scalar.expression_integer_spelling84(&original) {
+                NativeBooleanTruthProbe::ExpressionInteger84
+            } else {
+                NativeBooleanTruthProbe::Scalar {
+                    kind: NativeScalarGetterKind::Double,
+                    effects: NativeBooleanTruthGetterEffects::ErrorNeutral,
+                }
+            }
+        };
+        let conversion = ops.probe(value, truth, stage);
+        // TRY_NUM's ordinary guest rejection preserves its reached cache
+        // and same nonnumeric header; its Host refusal remains terminal.
+        let _outcome = settled(ops, conversion)?;
+    }
+    Ok(())
+}
+
+/// Perform the selected outer result producer on a genuine evaluated operand.
+/// A public tag selects an operation; this function actually performs it before
+/// returning its owned result. No extra retained input changes the COW decision.
+/// # Errors
+/// Retains first Host failures and reached nonfinite expression diagnostics;
+/// ordinary unsuccessful TRY_NUM probes retain their original nonnumeric value.
+pub fn original_boolean_expression_result<O: NativeBooleanExpressionResultOps>(
+    value: &O::Value,
+    protocol: tcl_syntax::native_boolean_truth::NativeBooleanExpressionResultProtocol,
+    ops: &mut O,
+) -> Result<O::ResultValue, CmdError> {
+    use tcl_syntax::{native_boolean_truth::NativeBooleanTruthProtocol, number::Number};
+    ops.check_host_refusal()?;
+    let scalar = protocol.scalar_protocol();
+    let truth = NativeBooleanTruthProtocol::for_scalar_getter(scalar, protocol.truth_purpose());
+    let observation = ops.inspect_original(value, truth);
+    let (current, resident) = settled(ops, observation)?;
+    let mut output = None;
+    if protocol.converts_numeric_result() {
+        let legacy = scalar.tcl_version() == Some(tcl_dialect::TclVersion::V8_4);
+        if legacy {
+            legacy_result_probe(value, truth, current, resident, ops)?;
+        } else {
+            let conversion = ops.original_number_probe(value, protocol);
+            settled(ops, conversion)?;
+        }
+        let observation = ops.inspect_original(value, truth);
+        let (cache, resident) = settled(ops, observation)?;
+        let numeric = cache.filter(|cache| {
+            matches!(
+                cache,
+                NativeScalarCache::Tcl84Long(_) | NativeScalarCache::Number(_)
+            )
+        });
+        if let Some(cache) = numeric {
+            let double = match &cache {
+                NativeScalarCache::Number(Number::Double(double)) => Some(*double),
+                NativeScalarCache::Number(Number::Nan { .. }) => Some(f64::NAN),
+                _ => None,
+            };
+            if !legacy && let Some(double) = double {
+                let failure = ops.nonfinite_expression_failure(double, protocol);
+                if let Some(failure) = settled(ops, failure)? {
+                    return Err(failure);
+                }
+            }
+            let shared = ops.original_is_shared(value);
+            if settled(ops, shared)? && resident {
+                let duplicate = ops.copy_numeric_result(value, cache, protocol);
+                output = Some(settled(ops, duplicate)?);
+            } else if resident {
+                let invalidation = ops.invalidate_numeric_string(value, protocol);
+                settled(ops, invalidation)?;
+            }
+            // C8.4 checks nonfinite arithmetic after its original numeric COW.
+            if legacy && let Some(double) = double {
+                let failure = ops.nonfinite_expression_failure(double, protocol);
+                if let Some(failure) = settled(ops, failure)? {
+                    return Err(failure);
+                }
+            }
+        }
+    }
+    let output = if let Some(output) = output {
+        output
+    } else {
+        let retained = ops.retain_original_result(value);
+        settled(ops, retained)?
+    };
+    if protocol.copies_api_result() {
+        let copied = ops.copy_api_result(&output, protocol);
+        settled(ops, copied)
+    } else {
+        Ok(output)
     }
 }

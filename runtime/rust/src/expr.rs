@@ -43,7 +43,7 @@ pub use crate::expr_error::ExprError;
 pub use crate::obj::Owned;
 use tcl_syntax::expr::errors::{OperandDesc, OperandSide};
 use tcl_syntax::expr::mathfunc::MathFuncError;
-use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp};
+use tcl_syntax::expr::{BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp, eval};
 
 /// Immutable original expression backing. Jim terms retain their own objects,
 /// including unvisited lazy branches and original command Source descriptors.
@@ -562,6 +562,93 @@ pub trait ExprCtx {
     fn numeric_host(&self) -> Option<Rc<dyn tcl_platform::Host>> {
         None
     }
+    /// The genuine active interpreter that owns reached Boolean publication.
+    /// A neutral mathematical/C-only context supplies no Jim reporting owner.
+    fn boolean_interpreter(&mut self) -> Option<&mut crate::interp::Interp> {
+        None
+    }
+
+    /// Reach the original selected operand conversion, retaining first Host.
+    fn original_boolean(
+        &mut self,
+        value: *mut TclObj,
+        purpose: tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose,
+    ) -> Result<bool, ExprError> {
+        let dialect = self.invocation_dialect();
+        let host = self.numeric_host();
+        let result = if let Some(interp) = self.boolean_interpreter() {
+            crate::typed_value::native_boolean_for_interp(interp, value, purpose)
+        } else {
+            crate::typed_value::native_boolean_in(
+                value,
+                dialect,
+                purpose,
+                host.as_ref().and_then(|host| host.numeric_environment()),
+            )
+        };
+        result.map_err(ExprError::from_cmd_error)
+    }
+
+    /// Retain the original lhs for the selected final logical conversion.
+    fn original_logical_right(
+        &mut self,
+        left: *mut TclObj,
+        right: *mut TclObj,
+        conjunction: bool,
+    ) -> Result<bool, ExprError> {
+        let dialect = self.invocation_dialect();
+        if let Some(interp) = self.boolean_interpreter() {
+            return crate::typed_value::native_logical_right_for_interp(
+                interp,
+                left,
+                right,
+                conjunction,
+            )
+            .map_err(ExprError::from_cmd_error);
+        }
+        let purpose = dialect
+            .native_logical_final_operand_purpose(conjunction)
+            .ok_or_else(|| {
+                ExprError::from_cmd_error(
+                    tcl_syntax::value::ValueError::ScalarNumericInputUnavailable.into(),
+                )
+            })?;
+        let legacy = matches!(purpose, tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::LogicalAndInstruction | tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::LogicalOrInstruction);
+        let left = if legacy {
+            Some(self.original_boolean(left, purpose)?)
+        } else {
+            None
+        };
+        let right = self.original_boolean(right, purpose)?;
+        Ok(left.map_or(right, |left| {
+            if conjunction {
+                left && right
+            } else {
+                left || right
+            }
+        }))
+    }
+
+    /// Actually perform the result producer before granting its owned operand.
+    fn original_expression_result(
+        &mut self,
+        value: *mut TclObj,
+        production: tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction,
+    ) -> Result<Owned, ExprError> {
+        let dialect = self.invocation_dialect();
+        let host = self.numeric_host();
+        let result = if let Some(interp) = self.boolean_interpreter() {
+            crate::typed_value::normalize_boolean_result_for_interp(interp, value, production)
+        } else {
+            crate::typed_value::normalize_boolean_result_in(
+                value,
+                dialect,
+                production,
+                host.as_ref().and_then(|host| host.numeric_environment()),
+            )
+        };
+        result.map_err(ExprError::from_cmd_error)
+    }
     /// Exact native grammar and arithmetic policy for this evaluation.
     fn invocation_dialect(&self) -> tcl_registry::InvocationDialect;
     /// Independently installed authored F5 operator provider. Native dialects
@@ -701,7 +788,7 @@ pub(crate) fn dispatch_shared_in(
     args: &[Owned],
     dialect: tcl_registry::InvocationDialect,
 ) -> Result<Owned, ExprError> {
-    use tcl_syntax::expr::mathfunc::{try_dispatch_with_backend_protocol, NumValue};
+    use tcl_syntax::expr::mathfunc::{NumValue, try_dispatch_with_backend_protocol};
     let protocol = tcl_registry::mathfunc::native_math_protocol(dialect)
         .expect("native math handler dispatch must retain its selected protocol");
     let nums: Result<Option<Vec<NumValue<crate::bignum::TowerMp>>>, ExprError> = args
@@ -746,7 +833,7 @@ fn native_math_operand(
     dialect: tcl_registry::InvocationDialect,
     protocol: tcl_syntax::expr::mathfunc::NativeMathProtocol,
 ) -> Result<Option<tcl_syntax::expr::mathfunc::NumValue<bignum::TowerMp>>, ExprError> {
-    use tcl_syntax::expr::mathfunc::{jim_numeric_operand, NativeMathProtocol, NumValue};
+    use tcl_syntax::expr::mathfunc::{NativeMathProtocol, NumValue, jim_numeric_operand};
     if protocol == NativeMathProtocol::Tcl {
         if dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::Tcl84Wide) {
             if let Some(integer) = fixed_integer(operand, dialect)? {
@@ -1094,26 +1181,13 @@ impl ExprOps for TowerOps<'_> {
             UnaryOp::BitNot => Ok(Owned::fresh(
                 bignum::bnot(value.ptr()).map_err(|e| uerr(e, b"~"))?,
             )),
-            UnaryOp::Not => match to_bool_in(value.ptr(), dialect) {
-                Ok(b) => native_integer_result(dialect, i64::from(!b), &[]),
-                // A `!` operand that is neither boolean nor numeric is an
-                // operand-type error (not the generic "expected boolean").
-                Err(error)
-                    if dialect.expression_operand_error_presentation().is_some()
-                        || error.native_access_refusal.is_some()
-                        || error.native_execution_refusal.is_some() =>
-                {
-                    Err(error)
-                }
-                Err(_) => Err(operand_type_err(
-                    operand_desc(value.ptr(), false),
-                    &obj::bytes_of(value.ptr()),
-                    OperandSide::Unary,
-                    b"!",
-                    dialect,
-                    tcl_registry::native_numeric_error::NativeExpressionOperandStage::Boolean,
-                )),
-            },
+            UnaryOp::Not => {
+                let truth = self.ctx.original_boolean(
+                    value.ptr(),
+                    tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::LogicalNot,
+                )?;
+                native_integer_result(dialect, i64::from(!truth), &[])
+            }
             UnaryOp::WordNot => Err(ExprError::msg(b"unsupported operator")),
         }
     }
@@ -1191,6 +1265,22 @@ impl ExprOps for TowerOps<'_> {
     fn to_bool(&mut self, value: &Owned) -> Result<bool, ExprError> {
         to_bool_in(value.ptr(), self.ctx.invocation_dialect())
     }
+    fn to_bool_for_purpose(
+        &mut self,
+        value: &Owned,
+        purpose: tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose,
+    ) -> Result<bool, ExprError> {
+        self.ctx.original_boolean(value.ptr(), purpose)
+    }
+    fn logical_right_truth(
+        &mut self,
+        left: &Owned,
+        right: &Owned,
+        conjunction: bool,
+    ) -> Result<bool, ExprError> {
+        self.ctx
+            .original_logical_right(left.ptr(), right.ptr(), conjunction)
+    }
     fn bool_value(&mut self, b: bool) -> Owned {
         native_integer_result(self.ctx.invocation_dialect(), i64::from(b), &[])
             .expect("selected boolean result producer")
@@ -1228,27 +1318,7 @@ pub fn eval_expr<Text: tcl_syntax::expr::ExprText>(
         safe: false,
     };
     let value = eval(node, &mut ops)?;
-    let dialect = ops.ctx.invocation_dialect();
-    // A numeric result already has the correct internal representation. Its
-    // first string conversion must stay lazy so subsequent precision writes
-    // affect an unmaterialised double, just as Tcl's UpdateStringProc does.
-    if obj::obj_type_ptr(value.ptr()) == &obj::TCL_DOUBLE_TYPE {
-        return Ok(value);
-    }
-    if dialect
-        .arithmetic()
-        .is_some_and(tcl_dialect::NativeArithmetic::normalizes_expression_result)
-    {
-        let bytes = obj::bytes_of(value.ptr());
-        // Oversized numeric-looking strings remain strings in Tcl 8.4; bare
-        // numeric tokens have already raised from literal evaluation.
-        if let Ok(text) = core::str::from_utf8(&bytes) {
-            if let Ok(normalized) = make_literal(text, dialect) {
-                return Ok(normalized);
-            }
-        }
-    }
-    Ok(value)
+    ops.ctx.original_expression_result(value.as_ptr(), tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi)
 }
 
 /// Execute the compiler's temporary constant program without the public
@@ -1275,138 +1345,18 @@ pub(crate) fn normalize_compiled_primary84(
     dialect: tcl_registry::InvocationDialect,
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
 ) -> Result<Owned, ExprError> {
-    use tcl_syntax::{
-        number::Number,
-        scalar_getter::{NativeScalarCache as Cache, NativeScalarGetterKind as Getter},
-    };
-    let protocol = dialect
+    if dialect
         .native_scalar_getter_protocol()
-        .filter(|protocol| protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4))
-        .ok_or_else(|| {
-            ExprError::host_refusal(
-                tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
-            )
-        })?;
-    let inspect = |value| {
-        obj::native_scalar_cache(value).map_err(|error| {
-            ExprError::host_refusal(error.native_access_refusal().expect("scalar cache refusal"))
-        })
-    };
-    let current = inspect(value.as_ptr())?;
-    let integer = matches!(
-        current,
-        Some(Cache::Tcl84Long(_) | Cache::Number(Number::Int(_)))
-    );
-    let absent_double = matches!(
-        current,
-        Some(Cache::Number(Number::Double(_) | Number::Nan { .. }))
-    ) && !obj::has_string_rep(value.as_ptr());
-    if !integer && !absent_double {
-        if let Some(Cache::WordBoolean(boolean)) = current
-            .as_ref()
-            .filter(|_| !obj::has_string_rep(value.as_ptr()))
-        {
-            obj::adopt_native_scalar_cache(
-                value.as_ptr(),
-                Cache::Tcl84Long(i64::from(*boolean)),
-                protocol,
-            )
-            .map_err(|error| {
-                ExprError::host_refusal(
-                    error.native_access_refusal().expect("scalar cache refusal"),
-                )
-            })?;
-        } else {
-            let original = crate::bytearray::scalar_getter_string(value.as_ptr(), protocol)
-                .map_err(|error| {
-                    ExprError::host_refusal(
-                        error
-                            .native_access_refusal()
-                            .expect("original scalar String access refusal"),
-                    )
-                })?;
-            if protocol.expression_integer_spelling84(&original) {
-                if let Some(environment) = environment {
-                    tcl_cmd_core::native_numeric::fresh_c84_conversion(
-                        protocol,
-                        Getter::Wide,
-                        &original,
-                        environment,
-                    )
-                    .map_err(|error| {
-                        ExprError::host_refusal(
-                            error.native_access_refusal().expect("numeric host refusal"),
-                        )
-                    })?;
-                }
-                if let Some(conversion) =
-                    protocol.expression_integer_conversion84(current.as_ref(), &original)
-                {
-                    if let Some(cache) = conversion.cache() {
-                        obj::adopt_native_scalar_cache(value.as_ptr(), cache.clone(), protocol)
-                            .map_err(|error| {
-                                ExprError::host_refusal(
-                                    error.native_access_refusal().expect("scalar cache refusal"),
-                                )
-                            })?;
-                    }
-                }
-            } else {
-                let _ = crate::typed_value::native_scalar_probe_with_environment(
-                    value.as_ptr(),
-                    dialect,
-                    Getter::Double,
-                    environment,
-                )
-                .map_err(|error| {
-                    ExprError::host_refusal(
-                        error.native_access_refusal().expect("numeric host refusal"),
-                    )
-                })?;
-            }
-        }
+        .and_then(tcl_syntax::scalar_getter::NativeScalarGetterProtocol::tcl_version)
+        != Some(tcl_dialect::TclVersion::V8_4)
+    {
+        return Err(ExprError::from_cmd_error(
+            tcl_syntax::value::ValueError::ScalarNumericInputUnavailable.into(),
+        ));
     }
-    let cache = inspect(value.as_ptr())?;
-    let Some(
-        cache @ (Cache::Tcl84Long(_)
-        | Cache::Number(Number::Int(_) | Number::Double(_) | Number::Nan { .. })),
-    ) = cache
-    else {
-        return Ok(value);
-    };
-    let double = match &cache {
-        Cache::Number(Number::Double(value)) => Some(*value),
-        Cache::Number(Number::Nan { .. }) => Some(f64::NAN),
-        _ => None,
-    };
-    let value = if obj::is_shared(value.as_ptr()) && obj::has_string_rep(value.as_ptr()) {
-        let duplicate = Owned::fresh(obj::new_string_bytes(b""));
-        obj::adopt_native_scalar_cache(duplicate.as_ptr(), cache, protocol).map_err(|error| {
-            ExprError::host_refusal(error.native_access_refusal().expect("scalar cache refusal"))
-        })?;
-        obj::invalidate_string(duplicate.as_ptr());
-        duplicate
-    } else {
-        if !obj::is_shared(value.as_ptr()) {
-            obj::invalidate_string(value.as_ptr());
-        }
-        value
-    };
-    if let Some(value) = double {
-        if let Some(failure) =
-            tcl_cmd_core::native_numeric::c84_nonfinite_error(protocol, value, environment)
-                .map_err(|error| {
-                    ExprError::host_refusal(
-                        error.native_access_refusal().expect("numeric host refusal"),
-                    )
-                })?
-        {
-            let (message, code) = failure.diagnostic();
-            return Err(ExprError::with_code(message.as_bytes(), code.as_bytes())
-                .with_numeric_string_result84());
-        }
-    }
-    Ok(value)
+    crate::typed_value::normalize_boolean_result_in(value.as_ptr(), dialect,
+        tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::InlineExpression, environment)
+        .map_err(ExprError::from_cmd_error)
 }
 
 /// Execute the compiler's temporary constant program without the public
@@ -1556,27 +1506,13 @@ pub(crate) fn native_jump_boolean84(
     value: *mut TclObj,
     dialect: tcl_registry::InvocationDialect,
 ) -> Result<bool, ExprError> {
-    let protocol = dialect
-        .native_scalar_getter_protocol()
-        .filter(|protocol| protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4))
-        .ok_or_else(|| {
-            ExprError::host_refusal(
-                tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
-            )
-        })?;
-    let cache = obj::native_scalar_cache(value).map_err(|error| {
-        ExprError::host_refusal(error.native_access_refusal().expect("scalar cache refusal"))
-    })?;
-    use tcl_syntax::{number::Number, scalar_getter::NativeScalarCache as Cache};
-    match cache {
-        Some(Cache::Tcl84Long(integer) | Cache::Number(Number::Int(integer))) => Ok(integer != 0),
-        Some(Cache::Number(Number::Double(number))) => Ok(number != 0.0),
-        Some(Cache::Number(Number::Nan { .. })) => Ok(true),
-        _ => {
-            debug_assert_eq!(protocol.tcl_version(), Some(tcl_dialect::TclVersion::V8_4));
-            to_bool_in(value, dialect)
-        }
-    }
+    crate::typed_value::native_boolean_in(
+        value,
+        dialect,
+        tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
+        None,
+    )
+    .map_err(ExprError::from_cmd_error)
 }
 
 /// C8.4 eager LAND/LOR consumes the original normalised left header and the
@@ -1589,27 +1525,17 @@ pub(crate) fn native_logical84(
     conjunction: bool,
     environment: Option<&dyn tcl_platform::NumericEnvironment>,
 ) -> Result<Owned, ExprError> {
-    let truth = |value: *mut TclObj| -> Result<bool, ExprError> {
-        use tcl_syntax::{number::Number, scalar_getter::NativeScalarCache as Cache};
-        let cache = obj::native_scalar_cache(value).map_err(|error| {
-            ExprError::host_refusal(error.native_access_refusal().expect("scalar cache refusal"))
+    let purpose = dialect
+        .native_logical_final_operand_purpose(conjunction)
+        .ok_or_else(|| {
+            ExprError::from_cmd_error(
+                tcl_syntax::value::ValueError::ScalarNumericInputUnavailable.into(),
+            )
         })?;
-        if let Some(Cache::WordBoolean(boolean)) = cache {
-            return Ok(boolean);
-        }
-        if matches!(
-            cache,
-            Some(Cache::Number(Number::Double(_) | Number::Nan { .. }))
-        ) {
-            return native_jump_boolean84(value, dialect);
-        }
-        if let Some(integer) = fixed_integer_with_environment(value, dialect, environment)? {
-            return Ok(integer != 0);
-        }
-        native_jump_boolean84(value, dialect)
-    };
-    let a = truth(left.as_ptr())?;
-    let b = truth(right.as_ptr())?;
+    let a = crate::typed_value::native_boolean_in(left.as_ptr(), dialect, purpose, environment)
+        .map_err(ExprError::from_cmd_error)?;
+    let b = crate::typed_value::native_boolean_in(right.as_ptr(), dialect, purpose, environment)
+        .map_err(ExprError::from_cmd_error)?;
     let result = i64::from(if conjunction { a && b } else { a || b });
     if obj::is_shared(left.as_ptr()) {
         native_integer_result(dialect, result, &[])
@@ -1639,7 +1565,7 @@ pub(crate) fn native_logical84(
 /// otherwise its original string spelling. Tcl preserves boolean literal text
 /// (`expr {yes}` returns `yes`); coercion happens only in a boolean context.
 fn make_literal(text: &str, dialect: tcl_registry::InvocationDialect) -> Result<Owned, ExprError> {
-    use tcl_syntax::number::{parse_whole_with, Number, ParseFlags};
+    use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
     if let Some(number) = parse_whole_with(text, ParseFlags::for_syntax(dialect.numbers)) {
         if let Some(policy) = dialect
             .arithmetic()

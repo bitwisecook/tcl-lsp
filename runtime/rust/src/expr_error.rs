@@ -26,6 +26,7 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExprError {
     pub msg: Vec<u8>,
+    pub(crate) command_error: Option<Box<tcl_cmd_core::CmdError>>,
     pub code: Option<Vec<u8>>,
     /// Native rejected Expression(NULL) returns error without replacing result.
     pub(crate) preserve_result: bool,
@@ -46,6 +47,7 @@ impl ExprError {
             msg: s.to_vec(),
             code: None,
             preserve_result: false,
+            command_error: None,
             native_access_refusal: None,
             native_execution_refusal: None,
             string_result: None,
@@ -58,6 +60,7 @@ impl ExprError {
             msg: m,
             code: None,
             preserve_result: false,
+            command_error: None,
             native_access_refusal: None,
             native_execution_refusal: None,
             string_result: None,
@@ -71,6 +74,7 @@ impl ExprError {
             msg: m,
             code: (!code.is_empty()).then_some(code),
             preserve_result: false,
+            command_error: None,
             native_access_refusal: None,
             native_execution_refusal: None,
             string_result: None,
@@ -83,6 +87,7 @@ impl ExprError {
             msg: m.to_vec(),
             code: Some(code.to_vec()),
             preserve_result: false,
+            command_error: None,
             native_access_refusal: None,
             native_execution_refusal: None,
             string_result: None,
@@ -135,11 +140,26 @@ impl ExprError {
             msg: message,
             code,
             preserve_result: false,
+            command_error: None,
             native_access_refusal: None,
             native_execution_refusal: None,
             string_result: None,
             error_stage: Some(Box::new(stage)),
         }
+    }
+
+    /// Retain the exact reached command/primitive record through expression unwind.
+    pub(crate) fn from_cmd_error(error: tcl_cmd_core::CmdError) -> Self {
+        let mut result = Self::from_bytes(error.message_bytes().to_vec());
+        if let Some(cause) = error.native_execution_refusal() {
+            result.native_execution_refusal = Some(cause.clone());
+        }
+        let details = error.clone().into_byte_details();
+        if let tcl_cmd_core::CmdErrorCodeUpdate::Set(code) = details.error_code {
+            result.code = Some(code);
+        }
+        result.command_error = Some(Box::new(error));
+        result
     }
 
     pub(crate) fn from_execution_refusal(error: tcl_runtime_api::NativeExecutionError) -> Self {
@@ -161,6 +181,7 @@ impl ExprError {
             msg: Vec::new(),
             code: None,
             preserve_result: false,
+            command_error: None,
             native_access_refusal: Some(error),
             native_execution_refusal: None,
             string_result: None,
@@ -180,6 +201,9 @@ impl crate::interp::Interp {
         }
         if let Some(refusal) = error.native_access_refusal {
             return self.refuse_native_access(refusal);
+        }
+        if let Some(error) = error.command_error {
+            return self.report_cmd_error(*error);
         }
         if error.preserve_result {
             return crate::interp::Code::Error;

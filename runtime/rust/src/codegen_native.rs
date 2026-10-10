@@ -35,7 +35,7 @@
 
 use core::ptr;
 
-use crate::codegen_abi::{current_interp, TclCompletionAbi};
+use crate::codegen_abi::{TclCompletionAbi, current_interp};
 use crate::interp::{Code, Interp};
 // Only the `have_tommath` arms read an object's bytes.
 #[cfg(have_tommath)]
@@ -409,12 +409,18 @@ fn expr_eval_impl(interp: &mut Interp, _expr: *mut TclObj) -> Code {
 /// A no-op expression context: operator operands are already evaluated, so
 /// variable, command, and function resolution is never reached.
 #[cfg(have_tommath)]
-struct NoCtx(tcl_registry::InvocationDialect);
+struct NoCtx<'a>(&'a mut Interp);
 
 #[cfg(have_tommath)]
-impl crate::expr::ExprCtx for NoCtx {
+impl crate::expr::ExprCtx for NoCtx<'_> {
+    fn boolean_interpreter(&mut self) -> Option<&mut Interp> {
+        Some(self.0)
+    }
+    fn numeric_host(&self) -> Option<std::rc::Rc<dyn tcl_platform::Host>> {
+        Some(self.0.host())
+    }
     fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
-        self.0
+        self.0.native_invocation_dialect()
     }
     fn read_var(&mut self, _: &str) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
         unreachable!("operator operands are pre-evaluated")
@@ -490,13 +496,7 @@ fn mathop_eval_impl(interp: &mut Interp, op: &[u8], words: &[*mut TclObj]) -> Co
         .iter()
         .map(|&word| crate::obj::Owned::retain(word))
         .collect();
-    match crate::expr::eval_mathop(
-        op_str,
-        args,
-        &mut NoCtx(tcl_registry::InvocationDialect::of_profile(
-            interp.dialect_profile(),
-        )),
-    ) {
+    match crate::expr::eval_mathop(op_str, args, &mut NoCtx(interp)) {
         Ok(result) => {
             interp.set_result(result.as_ptr());
             Code::Ok

@@ -215,6 +215,8 @@ fn original_long64_public_value_cache_and_live_failure_fields_match_captures() {
     // Exact selected Long rows from both modes. Live failures compare primitive
     // result/errorCode; null rows compare conversion/cache, without publication.
     // Target fields come from each original ABI row, not its profile label.
+    // C8.4 invalid Long retains the seeded code; overflow replaces it. These
+    // direct public calls do not sample a later callback/Tcl_Eval projection.
     let versions = [
         TclVersion::V8_4,
         TclVersion::V8_5,

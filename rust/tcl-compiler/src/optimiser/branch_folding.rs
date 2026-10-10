@@ -629,29 +629,12 @@ mod tests {
         ssa: SsaFunction,
         sccp: SccpResult,
     ) -> FunctionUnit {
-        FunctionUnit {
-            source_metadata_input: None,
-            source_config: tcl_lexer::LexerConfig::default(),
-            name: name.into(),
-            cfg,
-            ssa,
-            def_use: std::sync::Arc::default(),
-            sccp,
-            semantic_value_projection: std::sync::Arc::default(),
-            retained_semantic_value_owner: None,
-            types: std::sync::Arc::default(),
-            return_type: crate::types::TypeLattice::unknown(),
-            taints: std::sync::Arc::default(),
-            rendered_props: std::sync::Arc::default(),
-            memory_ssa: None,
-            dynamic_names: crate::dynamic_names::DynamicNameBarrier::default(),
-            complexity_guarded: false,
-            tier: tcl_registry::value_transfer::AnalysisTier::Deep,
-            base_offset: 0,
-            method_facts: None,
-            irules_event_body: None,
-            semantic_facts: crate::semantic_analysis::SemanticAnalysisBundle::unavailable(None),
-        }
+        let mut unit = FunctionUnit::trivial_guarded(name, cfg);
+        unit.ssa = ssa;
+        unit.sccp = sccp;
+        unit.complexity_guarded = false;
+        unit.tier = tcl_registry::value_transfer::AnalysisTier::Deep;
+        unit
     }
 
     /// Wrap a single [`FunctionUnit`] as a [`CompilationUnit`].

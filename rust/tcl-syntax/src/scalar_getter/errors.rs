@@ -341,6 +341,10 @@ impl NativeScalarGetterProtocol {
         }
         let code = match self.engine {
             Engine::Jim084 => None,
+            // Tcl_GetLongFromObj's badInteger branch resets the result without
+            // setting errorCode. The later Tcl_Eval callback projection of
+            // other selected getters remains a separate measured boundary.
+            Engine::Tcl(TclVersion::V8_4) if kind == Kind::Long => None,
             Engine::Tcl(TclVersion::V8_4) => Some(b"NONE".as_slice()),
             Engine::Tcl(_) => Some(b"TCL VALUE NUMBER".as_slice()),
         };

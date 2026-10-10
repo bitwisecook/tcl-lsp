@@ -73,6 +73,8 @@ mod execution_name_policy;
 mod native_command_rename;
 mod native_event_context;
 mod native_object_vector;
+pub(crate) mod native_operation_currency;
+pub(crate) mod native_scalar_context;
 mod native_script;
 mod native_substitution;
 mod native_variable_names;
@@ -2244,6 +2246,7 @@ impl Interp {
     }
 
     fn install_pin(&mut self, pin: tcl_registry::model::PinnedContext) {
+        let context_changed = self.0.pin.borrow().context != pin.context;
         let profile = pin.profile;
         *self.0.pin.borrow_mut() = pin;
         let version = profile.vm_runtime_version;
@@ -2263,6 +2266,9 @@ impl Interp {
             obj::install_double_string_policy(policy);
         }
         if std::ptr::eq(self.dialect_profile(), profile) {
+            if context_changed {
+                self.invalidate_interpreter_policy();
+            }
             return;
         }
         self.invalidate_interpreter_policy();

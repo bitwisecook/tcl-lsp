@@ -14,9 +14,13 @@ Do known and unknown transition subjects preserve their effective post-head ordi
 
 LocatedLiteral and Unknown retain exact effective ordinals; Literal remains explicitly authored. The central projection visits every nested subject and preserves literal facets, unknown kinds, fact order and completion commits. Any unmappable ordinal withdraws the whole projection. A transformed value facet still requires its independently selected Registry purpose.
 
+Current source transition advice keeps Dynamic identity at its exact effective operand and retains each selected resolver's declared residual. Upvar link advice does not erase unrelated cells or traces.
+
 ## Scope
 
 Rust implementation contract under the explicit contexts used by the linked tests. This record makes no C Tcl, Jim or BIG-IP observation claim, no Native entry claim and no successful evaluation claim.
+
+This source/software control compares declared transition metadata and typed correspondence, with no assertion outcome or Native variable link/frame/mutation/Normal result. Dynamic one-word identity does not become opaque width or a known target.
 
 ## Provider answers
 
@@ -79,6 +83,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs), `registry::tests::private_registration_facts_keep_actual_operand_indices` (linked): A selected private namespace path worker keeps argument zero for both known and dynamic operands.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs), `ResolvedInvocation::state_transitions`: Resolve the selected semantics against retained effective structured arguments, preserving typed unknown subjects and independently declared transition coverage; source spelling supplies no runtime name.
+- [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs), `state_transition::tests::alias_and_binding_resolvers_abstain_on_a_dynamic_word` (linked): Selected C90 structured global/variable/namespace/proc/rename/interp-alias operands retain exact Dynamic positions and conservative declared-domain widenings. Shipped upvar instead retains one positioned alias with unknown identity, MayCommitBeforeAbruptCompletion, no unrelated cell/trace widening and no value write; no Native link is established.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

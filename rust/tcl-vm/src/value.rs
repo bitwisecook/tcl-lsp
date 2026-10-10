@@ -3434,7 +3434,7 @@ impl Value {
         } else {
             let original = self
                 .native_string_bytes(string_protocol)
-                .map_err(ValueError::from)?;
+                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;
             if protocol.is_jim084()
                 && matches!(
                     kind,
@@ -3465,7 +3465,7 @@ impl Value {
         let (materialize, cache, outcome) = conversion.into_parts();
         if materialize {
             self.native_string_bytes(string_protocol)
-                .map_err(ValueError::from)?;
+                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;
         }
         if let Some(cache) = cache {
             self.adopt_native_scalar_cache(cache, protocol, dialect)?;
@@ -3852,7 +3852,9 @@ impl Value {
             let string = dialect
                 .native_string_protocol()
                 .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-            let original = self.native_string_bytes(string).map_err(ValueError::from)?;
+            let original = self
+                .native_string_bytes(string)
+                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)?;
             protocol.failure_presentation(kind, failure, &original)
         } else {
             protocol.failure_presentation_without_original_string(kind, failure)

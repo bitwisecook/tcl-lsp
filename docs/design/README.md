@@ -172,6 +172,9 @@ fails.
   handler-admission, and stdout liveness boundaries for the LSP transport.
 - [namespace-model.md](contracts/namespace-model.md) — the unified namespace
   model across dialects.
+- [native-scalar-getters.md](contracts/native-scalar-getters.md) — original-object
+  primitive getter purposes, queried C target widths, host numeric effects,
+  single-probe failure rendering, and raw Boolean output.
 - [numeric-tower-and-expr-semantics.md](contracts/numeric-tower-and-expr-semantics.md)
   — the small-int → wide → bignum → double tower, and `expr` as a separate
   language with overridable `mathfunc` dispatch.

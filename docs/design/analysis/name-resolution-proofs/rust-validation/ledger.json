@@ -166259,6 +166259,102 @@
       "tests": [],
       "question_ids": [],
       "limits": "Independent Source299 five-crate no-run invocation fails one CmdCore libtest E0432 import of DialectPoint/Release from the crate root. It records one newly-created unsealed Syntax libtest event, with no successful aggregate producer, strict299 executable pin/inventory or unit assertion. Later import correction and Source298 sealed images supply no299 outcome. Original external provider observations remain unchanged; no aggregate gate PASS or mutable anchor refresh."
+    },
+    {
+      "id": "rust.frozen300.integration-shared-owner-own-test-build300",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen300/integration-shared-owner-own-test-build300/receipt.json.gz",
+        "sha256": "d583b1cdf8acf90cf6711c3b76a9ef903369dce59393cb39f43bd12509c3dd81",
+        "compression": "gzip",
+        "uncompressed_sha256": "bb3723cacaa8fd1a508232029fde78343c2cf9b3bb4af7266c5db907a994514c"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen300/integration-shared-owner-own-test-build300/tests.log",
+        "sha256": "dd23547e4d61a17b06db57e13ad3c480ad64a7ef59fffdabf95a9bd71116f106"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "-p",
+        "tcl-cmd-core",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 7.267245680995984,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The unchanged decompressed original receipt retains every immutable source hash, compile/archive path, head and exact command association. Every archived source leaf is independently byte-checked. Head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "One Syntax test fixture type error at scalar_getter/target_tests.rs:457 blocks this exact five-crate no-run command: the expected cached String uses Vec<u8> while the input supplies Cow<[u8]>. The log records no test executable creation event. No successful producer receipt, strict executable pin, test inventory or unit assertion is claimed. This is a compilation-only failure; no Native provider failure, other-command success or aggregate gate result is inferred."
+    },
+    {
+      "id": "rust.frozen301.integration-shared-owner-own-test-build301",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen301/integration-shared-owner-own-test-build301/receipt.json.gz",
+        "sha256": "571794e9e0821e3a02bca24763aeb0e51c72c6e5168467213905bcec1a701837",
+        "compression": "gzip",
+        "uncompressed_sha256": "dd25f01da5dcb7b5acdefcf6f58d73eb169f3032956826b51b51629f73dfc2b6"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen301/integration-shared-owner-own-test-build301/tests.log",
+        "sha256": "72fd025c15df388494331c16b4a4a0c99faff6cf387126127aaad5f290519ca1"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "-p",
+        "tcl-cmd-core",
+        "-p",
+        "tcl-vm",
+        "-p",
+        "tcl-runtime-api",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 46.44751959500718,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Unchanged decompressed receipt retains the independent complete Source301 image and exact command association. All32869 immutable source leaves independently byte-verified. No image is executable/provider authority."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "Independent six-crate Source301 no-run invocation fails one CmdCore libtest E0308 Cow/Vec cache fixture mismatch at native_numeric_float_tests.rs:376. The newly-created Syntax executable event is unsealed: the failed command supplies no accepted producer, strict301 pin, inventory or assertions. Later fixture correction and other image results confer no301 success. No Native provider outcome or aggregate PASS is inferred."
     }
   ]
 }

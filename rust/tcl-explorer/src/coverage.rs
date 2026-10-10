@@ -102,6 +102,15 @@ pub const ARTIFACT_COVERAGE: &[ArtifactCoverage] = &[
         exclusion: None,
     },
     ArtifactCoverage {
+        artifact: "FunctionUnit::retained_semantic_value_owner",
+        view: None,
+        exclusion: Some(
+            "the private construction identity that refuses foreign diagnostic-value caches; \
+             semantic_values and central invalidation validate it without serialising \
+             or replacing the retained provenance",
+        ),
+    },
+    ArtifactCoverage {
         artifact: "FunctionUnit::types",
         view: Some("types"),
         exclusion: None,

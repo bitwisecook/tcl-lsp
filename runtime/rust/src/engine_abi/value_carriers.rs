@@ -4,6 +4,7 @@
 
 //! Physical selected producers for independently retained counted value facts.
 
+use crate::capi::NativeScalarObjectAccessError;
 use crate::{
     interp::{Code, Interp},
     obj::{self, Owned, TclObj},
@@ -12,7 +13,11 @@ use core::ffi::c_int;
 use tcl_core_types::{NativeScalarCache, NativeStringStorageIdentity};
 use tcl_syntax::{scalar_getter::carrier, value::ValueError};
 
-pub(crate) fn scalar(interp: &mut Interp, facts: &NativeScalarCache) -> Result<Owned, ValueError> {
+pub(crate) fn scalar(
+    interp: &mut Interp,
+    facts: &NativeScalarCache,
+) -> Result<Owned, NativeScalarObjectAccessError> {
+    let issuer = interp.native_scalar_object_issuer()?;
     let (cache, origin) = carrier::import_scalar(facts);
     let protocol = interp
         .native_invocation_dialect()
@@ -28,11 +33,14 @@ pub(crate) fn scalar(interp: &mut Interp, facts: &NativeScalarCache) -> Result<O
     {
         return Err(ValueError::CommandProtocolUnavailable(
             "foreign native scalar descriptor origin",
-        ));
+        )
+        .into());
     }
     let original = Owned::fresh(obj::new_obj());
     obj::adopt_native_scalar_cache(original.as_ptr(), cache, protocol)?;
     obj::invalidate_string(original.as_ptr());
+    interp.associate_native_jim_arguments(&[original.as_ptr()])?;
+    obj::bind_scalar_object_context(original.as_ptr(), issuer)?;
     Ok(original)
 }
 
@@ -41,6 +49,27 @@ pub(crate) fn byte_array(interp: &mut Interp, bytes: &[u8]) -> Result<Owned, Val
         .new_native_byte_array(bytes)
         .map(Owned::fresh)
         .map_err(|_| ValueError::CommandProtocolUnavailable("native byte-array producer"))
+}
+
+/// Bind an original object to the actual selected scalar engine and Host ABI.
+/// A failed binding leaves the guest result and error code unchanged.
+///
+/// # Safety
+/// Interpreter and original object must remain live throughout this operation.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_engine_bind_scalar_object(
+    interp: *mut Interp,
+    original: *mut TclObj,
+) -> c_int {
+    // SAFETY: the caller supplies the original live interpreter.
+    let interp = unsafe { &mut *interp };
+    match interp.bind_native_scalar_object(original) {
+        Ok(()) => 0,
+        Err(error) => {
+            // SAFETY: as above; this publishes only the original host refusal.
+            unsafe { crate::capi::scalar_publish_access_error(interp, error) }
+        }
+    }
 }
 
 pub(crate) fn resident(
@@ -115,7 +144,8 @@ pub unsafe extern "C" fn tcl_engine_new_scalar_carrier(
     match scalar(interp, &facts) {
         Ok(original) => original.into_raw(),
         Err(error) => {
-            refuse_value(interp, error);
+            // SAFETY: this actual original interpreter remains live.
+            unsafe { crate::capi::scalar_publish_access_error(interp, error) };
             core::ptr::null_mut()
         }
     }

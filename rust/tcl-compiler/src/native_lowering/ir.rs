@@ -37,6 +37,9 @@
 //! and only rung that still evaluates source text.
 
 use tcl_core_types::Code as CompletionCode;
+use tcl_registry::native_boolean_truth::{
+    NativeBooleanExpressionResultProduction, NativeBooleanTruthPurpose,
+};
 use tcl_syntax::expr::{BinOp, UnaryOp};
 
 use super::cells::CellPlace;
@@ -371,10 +374,31 @@ pub enum NativeOp {
         dst: NativeValueId,
         /// A boxed source.
         src: NativeValueId,
-        /// The native type to read.
+        /// Numeric or object type; Boolean operands use `UnboxBool`.
         target: NativeType,
     },
-    /// The truth of a native numeric or boolean value.
+    /// Convert the original boxed operand at its reached Boolean instruction.
+    /// This never normalises an independently evaluated expression result.
+    UnboxBool {
+        /// Destination (`Bool`).
+        dst: NativeValueId,
+        /// Original boxed operand.
+        src: NativeValueId,
+        /// Actual reached instruction purpose.
+        purpose: NativeBooleanTruthPurpose,
+    },
+    /// Normalise the genuinely evaluated expression result and extract truth
+    /// within the same runtime-owned operation.
+    BooleanExpressionResult {
+        /// Destination (`Bool`).
+        dst: NativeValueId,
+        /// Held expression result before the selected result producer.
+        src: NativeValueId,
+        /// The reached inline or public API result producer.
+        production: NativeBooleanExpressionResultProduction,
+    },
+    /// The mathematical truth of an already native numeric or boolean value.
+    /// Native source operand conversions use `UnboxBool` instead.
     Truth {
         /// Destination (`Bool`).
         dst: NativeValueId,

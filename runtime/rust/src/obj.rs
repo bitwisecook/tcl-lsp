@@ -480,6 +480,14 @@ struct ObjectAuxiliary {
     live: Cell<bool>,
     retiring: Cell<bool>,
     cache: RefCell<Option<Rc<dyn Any>>>,
+    scalar_context: RefCell<
+        Option<
+            Result<
+                Rc<crate::interp::native_scalar_context::NativeScalarObjectContext>,
+                tcl_syntax::raw_string::NativeValueAccessRefusal,
+            >,
+        >,
+    >,
 }
 
 fn auxiliary(value: *mut TclObj) -> &'static ObjectAuxiliary {
@@ -504,6 +512,71 @@ pub(crate) fn set_allocation_cache<T: Any>(value: *mut TclObj, cache: Rc<T>) {
         "cache installation on a retired object"
     );
     let retired = auxiliary(value).cache.replace(Some(cache));
+    drop(retired);
+}
+
+pub(crate) fn scalar_object_context(
+    value: *mut TclObj,
+) -> Result<
+    Option<Rc<crate::interp::native_scalar_context::NativeScalarObjectContext>>,
+    tcl_syntax::value::ValueError,
+> {
+    check_native_liveness(value)?;
+    auxiliary(value)
+        .scalar_context
+        .borrow()
+        .clone()
+        .transpose()
+        .map_err(Into::into)
+}
+
+pub(crate) fn validate_scalar_object_context(
+    value: *mut TclObj,
+    incoming: &crate::interp::native_scalar_context::NativeScalarObjectContext,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    if let Some(retained) = scalar_object_context(value)?
+        && !retained.same_issuer(incoming)
+    {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "foreign or stale native scalar object issuer",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn bind_scalar_object_context(
+    value: *mut TclObj,
+    incoming: Rc<crate::interp::native_scalar_context::NativeScalarObjectContext>,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    validate_scalar_object_context(value, &incoming)?;
+    if scalar_object_context(value)?.is_some() {
+        return Ok(());
+    }
+    let retired = auxiliary(value).scalar_context.replace(Some(Ok(incoming)));
+    drop(retired);
+    Ok(())
+}
+
+fn copy_scalar_object_context(original: *mut TclObj, duplicate: *mut TclObj) {
+    let incoming = auxiliary(original).scalar_context.borrow().clone();
+    let retired = auxiliary(duplicate).scalar_context.replace(incoming);
+    drop(retired);
+}
+
+fn replace_scalar_object_context(receiver: *mut TclObj, source: *mut TclObj) {
+    let retained = auxiliary(receiver).scalar_context.borrow().clone();
+    let incoming = auxiliary(source).scalar_context.borrow().clone();
+    let selected = match (retained, incoming) {
+        (Some(Ok(retained)), Some(Ok(incoming))) if !retained.same_issuer(&incoming) => Some(Err(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "foreign native scalar replacement issuer",
+            ),
+        )),
+        (Some(Err(cause)), _) | (_, Some(Err(cause))) => Some(Err(cause)),
+        (Some(retained), _) => Some(retained),
+        (None, incoming) => incoming,
+    };
+    let retired = auxiliary(receiver).scalar_context.replace(selected);
     drop(retired);
 }
 
@@ -752,6 +825,7 @@ fn obj_alloc() -> *mut TclObj {
                 live: Cell::new(true),
                 retiring: Cell::new(false),
                 cache: RefCell::new(None),
+                scalar_context: RefCell::new(None),
             },
         );
         counters::obj_alloced();
@@ -777,6 +851,7 @@ pub unsafe fn free_obj(obj: *mut TclObj) {
     }
     state.retiring.set(true);
     let retired_cache = state.cache.take();
+    let retired_scalar_context = state.scalar_context.take();
     revoke_script_location(obj);
     crate::native_source::forget_context(obj);
     // SAFETY: caller guarantees `obj` is a live, uniquely-owned header.
@@ -794,6 +869,7 @@ pub unsafe fn free_obj(obj: *mut TclObj) {
         (*obj).internal_rep = 0;
     }
     drop(retired_cache);
+    drop(retired_scalar_context);
     counters::obj_freed();
     state.retiring.set(false);
     if state.lifetime_pins.get() == 0 {
@@ -2025,6 +2101,7 @@ pub(crate) fn duplicate(src: *mut TclObj) -> *mut TclObj {
     }) {
         let duplicate = new_string_bytes(b"");
         crate::native_source::copy_context(src, duplicate);
+        copy_scalar_object_context(src, duplicate);
         return duplicate;
     }
     let dup = obj_alloc();
@@ -2055,6 +2132,7 @@ pub(crate) fn duplicate(src: *mut TclObj) -> *mut TclObj {
         }
     }
     crate::native_source::copy_context(src, dup);
+    copy_scalar_object_context(src, dup);
     if let Some((file, line)) = script_location(src) {
         retain_script_location(dup, file, line);
     }
@@ -2064,6 +2142,7 @@ pub(crate) fn duplicate(src: *mut TclObj) -> *mut TclObj {
 /// Replace one live object's representations with a duplicate, keeping its identity and refs.
 pub(crate) fn duplicate_into(receiver: *mut TclObj, source: *mut TclObj) {
     let duplicate = duplicate(source);
+    replace_scalar_object_context(receiver, source);
     // SAFETY: both objects are live, and duplicate owns independent string/type storage.
     unsafe {
         let receiver_refs = (*receiver).ref_count;

@@ -408,7 +408,7 @@ pub struct FunctionUnit {
     pub semantic_value_projection: Arc<crate::sccp::SemanticValueProjection>,
     /// Exact projection issued by this function's construction or central
     /// graph invalidation. A substituted public cache is not that producer.
-    pub(crate) retained_semantic_value_owner: Option<Arc<crate::sccp::SemanticValueProjection>>,
+    retained_semantic_value_owner: Option<Arc<crate::sccp::SemanticValueProjection>>,
     /// Type lattice values per SSA definition.
     ///
     /// Computed by the type-propagation pass. Absent entries are
@@ -493,6 +493,80 @@ pub struct FunctionUnit {
     /// represent this source shape. Scalar SSA remains [`Self::ssa`] and the
     /// optional alias-aware cell SSA remains [`Self::memory_ssa`].
     pub semantic_facts: SemanticAnalysisBundle,
+}
+
+// The inventory witness lives with the types so all private fields can be
+// enumerated exhaustively without exposing their values to reflection clients.
+pub(crate) mod durable_field_inventory {
+    use super::{CompilationUnit, FunctionUnit};
+
+    macro_rules! durable_inventory {
+        ($witness:ident, $fields:ident, $ty:ident, $($field:ident),+ $(,)?) => {
+            /// Every durable field of the type, as `Type::field`.
+            pub const $fields: &[&str] =
+                &[$(concat!(stringify!($ty), "::", stringify!($field))),+];
+
+            fn $witness(value: &$ty) {
+                let $ty { $($field: _),+ } = value;
+            }
+        };
+    }
+
+    durable_inventory!(
+        witness_function_unit,
+        FUNCTION_UNIT_FIELDS,
+        FunctionUnit,
+        source_metadata_input,
+        source_config,
+        name,
+        cfg,
+        ssa,
+        def_use,
+        sccp,
+        semantic_value_projection,
+        retained_semantic_value_owner,
+        types,
+        return_type,
+        taints,
+        rendered_props,
+        memory_ssa,
+        dynamic_names,
+        complexity_guarded,
+        tier,
+        base_offset,
+        method_facts,
+        irules_event_body,
+        semantic_facts,
+    );
+
+    durable_inventory!(
+        witness_compilation_unit,
+        COMPILATION_UNIT_FIELDS,
+        CompilationUnit,
+        source,
+        ir_module,
+        cfg_module,
+        command_mutations,
+        top_level,
+        procedures,
+        methods,
+        body_units,
+        interproc,
+        connection_scope,
+        caller_scope,
+        declared_commands,
+        transfers,
+    );
+
+    /// Read-only exhaustive witness for both durable compiler types.
+    ///
+    /// The field-name inventory and each no-`..` destructure share one declaration.
+    /// Private retained inputs remain private; consumers review their names through
+    /// the inventory without obtaining authority to replace their values.
+    pub fn assert_durable_field_inventory(unit: &CompilationUnit) {
+        witness_function_unit(&unit.top_level);
+        witness_compilation_unit(unit);
+    }
 }
 
 /// Whole-module variable-trace fact that [`crate::sccp::sccp`] needs —

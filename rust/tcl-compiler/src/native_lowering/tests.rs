@@ -57,6 +57,83 @@ fn lower(
     lower_function(&input)
 }
 
+/// Retain the real interpreter and its entry independently of source metadata.
+fn original_boolean_unit(
+    source: &str,
+    environment: &str,
+) -> (
+    tcl_vm::Vm,
+    std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    CompilationUnit,
+) {
+    let environment = tcl_registry::model::ingress::resolve_known_environment(environment)
+        .expect("original Boolean control requires a known native environment");
+    let context = environment.default_context_registry();
+    let registry = context.commands();
+    let profile = environment.unit_profile();
+    let config = tcl_lexer::LexerConfig::for_profile(profile);
+    let input = crate::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        std::sync::Arc::clone(&context),
+        config,
+    );
+    let (owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+    assert_eq!(native.execution_point, environment.point());
+    assert!(native.execution_point.is_some());
+    let entry = crate::command_binding::SourceAnalysisEntry {
+        metadata_context:
+            crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                &input,
+            )),
+        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        native_compilation: crate::environment_ingress::authoring_native_compilation(),
+        native_entry: Some(std::sync::Arc::new(native)),
+        ..crate::command_binding::SourceAnalysisEntry::default()
+    };
+    let unit = CompilationUnit::build_with_analysis_input(
+        source,
+        crate::compilation_unit::UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config,
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        Some(&entry),
+        &input,
+    );
+    (owner, context, unit)
+}
+
+fn lower_original_boolean_unit(
+    unit: &CompilationUnit,
+    registry: &CommandRegistry,
+    module: &crate::ir::Module,
+) -> Result<(NativeFunction, FunctionReport), FunctionDecline> {
+    let facts = &unit.top_level.semantic_facts;
+    let function = facts
+        .executable()
+        .function()
+        .expect("actual source builds executable IR");
+    let hints = BTreeMap::new();
+    lower_function(&LoweringInput {
+        registry,
+        context: facts.context(),
+        function,
+        source: &unit.source,
+        module,
+        mutations: &unit.command_mutations,
+        config: native_config(),
+        escape: None,
+        top_level: true,
+        line_origin: 0,
+        entry_assumption: facts.dispatch_entry_assumption(),
+        type_hints: &hints,
+    })
+}
+
 /// Every operation in the function, arms of `IfElse` included.
 fn all_ops(function: &NativeFunction) -> Vec<&NativeOp> {
     fn walk<'a>(ops: &'a [NativeOp], out: &mut Vec<&'a NativeOp>) {
@@ -177,7 +254,10 @@ fn the_arithmetic_chain_is_straight_line_proven_i64() {
 #[test]
 fn loop_counters_read_from_the_cell_take_the_dynamic_fast_path() {
     let source = "set i 0\nset sum 0\nwhile {$i < 20} {\n    incr i\n    if {$i % 3 == 0} continue\n    if {$i > 15} break\n    incr sum $i\n}\nputs \"$i $sum\"\n";
-    let (function, report) = lower(source, native_config()).expect("lowers");
+    let (_owner, context, unit) = original_boolean_unit(source, "tcl9.0");
+    let (function, report) =
+        lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module)
+            .expect("lowers under its genuine native entry");
     let rungs: Vec<String> = all_ops(&function)
         .iter()
         .filter_map(|op| match op {
@@ -764,5 +844,228 @@ fn native_lowering_cannot_bypass_an_unresolved_chunk_entry() {
     assert_eq!(
         lower_function(&input).unwrap_err(),
         FunctionDecline::NativeCompilationAdmissionRequired
+    );
+}
+
+#[test]
+fn original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identity() {
+    // naming.numeric.original-primitive-boolean-vs-expression-truth
+    // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+    // Software source/IR observation only. The independently measured original
+    // opcode rows own actual truth values and getter effects.
+    use tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose as Purpose;
+    let source = "if {!$lhs} {set result A}; if {$lhs ? $rhs : $other} {set result B}; if {$lhs && $rhs} {set result C}; if {$lhs || $rhs} {set result D}";
+    for environment in ["tcl8.4", "tcl9.1"] {
+        let (_owner, context, unit) = original_boolean_unit(source, environment);
+        let (function, _) = lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module)
+            .expect("genuine original condition source lowers");
+        let purposes: Vec<_> = all_ops(&function)
+            .into_iter()
+            .filter_map(|op| match op {
+                NativeOp::UnboxBool { purpose, .. } => Some(*purpose),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            purposes.contains(&Purpose::LogicalNot),
+            "{environment}: {purposes:?}"
+        );
+        assert!(
+            purposes.contains(&Purpose::ConditionalJump),
+            "{environment}: {purposes:?}"
+        );
+        assert!(
+            purposes.contains(&Purpose::LogicalAnd),
+            "{environment}: {purposes:?}"
+        );
+        assert!(
+            purposes.contains(&Purpose::LogicalOr),
+            "{environment}: {purposes:?}"
+        );
+        assert_eq!(
+            count(&function, |op| matches!(
+                op,
+                NativeOp::BooleanExpressionResult { .. }
+            )),
+            4
+        );
+        assert_eq!(
+            count(&function, |op| matches!(
+                op,
+                NativeOp::Unbox {
+                    target: super::ir::NativeType::Bool,
+                    ..
+                } | NativeOp::Truth { .. }
+            )),
+            0
+        );
+        if environment == "tcl8.4" {
+            for (jump, final_instruction) in [
+                (Purpose::LogicalAnd, Purpose::LogicalAndInstruction),
+                (Purpose::LogicalOr, Purpose::LogicalOrInstruction),
+            ] {
+                let conversions: Vec<_> = all_ops(&function)
+                    .into_iter()
+                    .filter_map(|op| match op {
+                        NativeOp::UnboxBool { src, purpose, .. }
+                            if *purpose == jump || *purpose == final_instruction =>
+                        {
+                            Some((*src, *purpose))
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                assert_eq!(conversions.len(), 3);
+                assert_eq!(conversions[0].1, jump);
+                assert_eq!(
+                    conversions[1],
+                    (conversions[0].0, final_instruction),
+                    "same original lhs is reconverted first"
+                );
+                assert_eq!(conversions[2].1, final_instruction);
+                assert_ne!(
+                    conversions[2].0, conversions[0].0,
+                    "the genuine right operand remains separate"
+                );
+            }
+        } else {
+            assert!(!purposes.contains(&Purpose::LogicalAndInstruction));
+            assert!(!purposes.contains(&Purpose::LogicalOrInstruction));
+        }
+    }
+}
+
+#[test]
+fn original_boolean_lowering_separates_inline_and_public_expression_result_producers() {
+    // naming.numeric.original-primitive-boolean-vs-expression-truth
+    // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+    use tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction as Production;
+    let (_owner, context, unit) = original_boolean_unit(
+        "if {$condition} {set result A}; if {[set condition]} {set result B}",
+        "tcl8.6",
+    );
+    let (function, _) = lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module)
+        .expect("both actual expression source routes lower");
+    let productions: Vec<_> = all_ops(&function)
+        .into_iter()
+        .filter_map(|op| match op {
+            NativeOp::BooleanExpressionResult { production, .. } => Some(*production),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        productions,
+        [
+            Production::InlineExpression,
+            Production::PublicExpressionApi
+        ]
+    );
+    assert_eq!(
+        count(&function, |op| matches!(op, NativeOp::ExprEval { .. })),
+        1
+    );
+    for block in &function.blocks {
+        if let super::ir::NativeTerminator::Branch { condition, .. } = &block.terminator {
+            assert_eq!(
+                function.values[condition.0 as usize].ty,
+                super::ir::NativeType::Bool
+            );
+        }
+    }
+}
+
+#[test]
+fn original_boolean_lowering_refuses_missing_point_or_changed_actual_source_owner() {
+    // naming.numeric.original-primitive-boolean-vs-expression-truth
+    // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+    let (_owner, context, unit) =
+        original_boolean_unit("if {$condition} {set result yes}", "tcl8.6");
+    assert!(lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module).is_ok());
+    let mut missing_entry = unit.ir_module.clone();
+    missing_entry.source_entry.native_entry = None;
+    let mut missing_point = unit.ir_module.clone();
+    std::sync::Arc::make_mut(missing_point.source_entry.native_entry.as_mut().unwrap())
+        .execution_point = None;
+    let mut missing_input = unit.ir_module.clone();
+    missing_input.source_metadata_input = None;
+    let mut missing_entry_input = unit.ir_module.clone();
+    missing_entry_input.source_entry.metadata_context =
+        crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+    let mut changed_grammar = unit.ir_module.clone();
+    changed_grammar.lexer_config.braced_var = tcl_lexer::BracedVarStyle::Tcl9Nesting;
+    let mut foreign = unit.ir_module.clone();
+    let foreign_context =
+        tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+    let original = unit.ir_module.source_metadata_input.as_ref().unwrap();
+    foreign.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+        original.analyser_profile(),
+        original.unit_profile(),
+        foreign_context,
+        original.lexer_config(),
+    ));
+    let mut changed_availability = unit.ir_module.clone();
+    let older = std::sync::Arc::new(
+        tcl_registry::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(context.commands())),
+    );
+    changed_availability.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
+        original.analyser_profile(),
+        original.unit_profile(),
+        older,
+        original.lexer_config(),
+    ));
+    for refused in [
+        missing_entry,
+        missing_point,
+        missing_input,
+        missing_entry_input,
+        changed_grammar,
+        foreign,
+        changed_availability,
+    ] {
+        assert_eq!(
+            lower_original_boolean_unit(&unit, context.commands(), &refused).unwrap_err(),
+            FunctionDecline::NativeCompilationAdmissionRequired
+        );
+    }
+}
+
+#[test]
+fn original_boolean_lowering_keeps_cell_objects_and_withholds_unproved_literal_caches() {
+    // naming.numeric.original-primitive-boolean-vs-expression-truth
+    // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+    use tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction as Production;
+    let source = "set original 4294967296; if {$original} {set result cell}; if {4294967296} {set result literal}; if {1 + 2} {set result arithmetic}";
+    let (_owner, context, unit) = original_boolean_unit(source, "tcl8.4");
+    let (function, _) = lower_original_boolean_unit(&unit, context.commands(), &unit.ir_module)
+        .expect("original read and generic expression paths lower");
+    let ops = all_ops(&function);
+    let cell_read = ops
+        .iter()
+        .find_map(|op| match op {
+            NativeOp::CellRead { dst, place, .. } if place.base() == "original" => Some(*dst),
+            _ => None,
+        })
+        .expect("truth retains an actual object read despite its known numeric value");
+    let stages: Vec<_> = ops
+        .iter()
+        .filter_map(|op| match op {
+            NativeOp::BooleanExpressionResult {
+                src, production, ..
+            } => Some((*src, *production)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(stages.len(), 3);
+    assert_eq!(stages[0], (cell_read, Production::InlineExpression));
+    assert_eq!(stages[1].1, Production::PublicExpressionApi);
+    assert_eq!(stages[2].1, Production::PublicExpressionApi);
+    assert_eq!(
+        count(&function, |op| matches!(op, NativeOp::ExprEval { .. })),
+        2
+    );
+    assert_eq!(
+        count(&function, |op| matches!(op, NativeOp::Truth { .. })),
+        0
     );
 }

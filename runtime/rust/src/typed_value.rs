@@ -26,6 +26,13 @@
 //! Expression numeric truth and arithmetic preparation use separate entry
 //! points. Their conversion purposes cannot borrow primitive getter behaviour.
 
+mod native_boolean_truth;
+pub(crate) use native_boolean_truth::{
+    expression_boolean_for_interp, native_boolean_for_interp, native_boolean_in,
+    native_logical_right_for_interp, normalize_boolean_result_for_interp,
+    normalize_boolean_result_in,
+};
+
 use crate::obj::{self, TclObj};
 
 /// Inspect the original completion-code cache, retaining its engine-specific kind.
@@ -396,7 +403,7 @@ pub(crate) fn scalar_number(
         return Ok(None);
     };
     if policy == NativeScalarNumericInputPolicy::NulTerminatedJim084 {
-        use tcl_syntax::expr::mathfunc::{jim_numeric_operand, NumValue};
+        use tcl_syntax::expr::mathfunc::{NumValue, jim_numeric_operand};
         let Some(number) = jim_numeric_operand::<tcl_syntax::expr::mathfunc::NoBig>(&parsed) else {
             return Ok(None);
         };
@@ -908,24 +915,28 @@ mod tests {
             obj::internal_rep(value.as_ptr())
         );
         assert_eq!(obj::bytes_of(duplicate.as_ptr()), b"::opaque\0\xff");
-        assert!(obj::install_native_command_name_cache(
-            value.as_ptr(),
-            cache.clone(),
-            tcl_registry::InvocationDialect::for_version(TclVersion::V8_6)
-        )
-        .is_err());
+        assert!(
+            obj::install_native_command_name_cache(
+                value.as_ptr(),
+                cache.clone(),
+                tcl_registry::InvocationDialect::for_version(TclVersion::V8_6)
+            )
+            .is_err()
+        );
         assert_eq!(obj::native_command_name_cache(alias.as_ptr()), Some(cache));
         assert_eq!(unsafe { (*alias.as_ptr()).bytes }, original_bytes);
         obj::retire_native_command_name_cache(value.as_ptr()).unwrap();
         assert!(obj::native_command_name_cache(alias.as_ptr()).is_none());
         assert_eq!(unsafe { (*alias.as_ptr()).bytes }, original_bytes);
         let plain = obj::Owned::fresh(obj::new_wide_int_obj(7));
-        assert!(obj::install_native_command_name_cache(
-            plain.as_ptr(),
-            command_cache(version, b"7"),
-            dialect
-        )
-        .is_err());
+        assert!(
+            obj::install_native_command_name_cache(
+                plain.as_ptr(),
+                command_cache(version, b"7"),
+                dialect
+            )
+            .is_err()
+        );
         assert!(!obj::has_string_rep(plain.as_ptr()));
     }
     const WIDE: [&str; 5] = [
@@ -1449,9 +1460,11 @@ mod tests {
         let bits = 0xfff8_0000_0000_0042;
         let value = obj::Owned::fresh(obj::new_double_obj(f64::from_bits(bits)));
         assert!(!obj::has_string_rep(value.as_ptr()));
-        assert!(native_scalar_probe(value.as_ptr(), dialect, Kind::Int)
-            .unwrap()
-            .is_err());
+        assert!(
+            native_scalar_probe(value.as_ptr(), dialect, Kind::Int)
+                .unwrap()
+                .is_err()
+        );
         assert!(!obj::has_string_rep(value.as_ptr()));
         assert_eq!(obj::double_of(value.as_ptr()).to_bits(), bits);
         assert!(matches!(
@@ -1495,11 +1508,13 @@ mod tests {
             completion_code_cache(value.as_ptr()),
             Some(CompletionCodeCache::Jim(7))
         );
-        assert!(completion_code_string_bytes(
-            value.as_ptr(),
-            tcl_syntax::native_string::NativeStringProtocol::Jim084
-        )
-        .is_err());
+        assert!(
+            completion_code_string_bytes(
+                value.as_ptr(),
+                tcl_syntax::native_string::NativeStringProtocol::Jim084
+            )
+            .is_err()
+        );
         assert!(!obj::has_string_rep(value.as_ptr()));
         let duplicate = obj::Owned::fresh(obj::duplicate(value.as_ptr()));
         assert_eq!(
@@ -1574,12 +1589,14 @@ mod tests {
             } else {
                 TclVersion::V9_0
             };
-            assert!(obj::native_character_count(
-                copied.as_ptr(),
-                NativeStringProtocol::C(other),
-                representation
-            )
-            .is_err());
+            assert!(
+                obj::native_character_count(
+                    copied.as_ptr(),
+                    NativeStringProtocol::C(other),
+                    representation
+                )
+                .is_err()
+            );
         }
     }
 }

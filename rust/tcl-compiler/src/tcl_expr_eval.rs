@@ -1754,6 +1754,38 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             v => Ok(v.is_truthy()),
         }
     }
+    fn to_bool_for_purpose(
+        &mut self,
+        value: &FoldValue,
+        purpose: tcl_syntax::native_boolean_truth::NativeBooleanTruthPurpose,
+    ) -> Result<bool, ()> {
+        if purpose.requires_expression_result()
+            || (self.purpose == FoldPurpose::Executable
+                && matches!(value, FoldValue::RetainedNativeObject { .. }))
+        {
+            return Err(());
+        }
+        // Mathematical values are explicit here. A retained executable object
+        // needs its independently reached native stage, not this value result.
+        self.to_bool(value)
+    }
+
+    fn logical_right_truth(
+        &mut self,
+        left: &FoldValue,
+        right: &FoldValue,
+        _conjunction: bool,
+    ) -> Result<bool, ()> {
+        if self.purpose == FoldPurpose::Executable
+            && [left, right]
+                .into_iter()
+                .any(|value| matches!(value, FoldValue::RetainedNativeObject { .. }))
+        {
+            return Err(());
+        }
+        self.to_bool(right)
+    }
+
     fn bool_value(&mut self, b: bool) -> FoldValue {
         FoldValue::Int(i64::from(b))
     }
@@ -2894,6 +2926,29 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
         self.fold.to_bool(value).map_err(refused)
     }
 
+    fn to_bool_for_purpose(
+        &mut self,
+        value: &FoldValue,
+        purpose: tcl_syntax::native_boolean_truth::NativeBooleanTruthPurpose,
+    ) -> Result<bool, ExprStop> {
+        self.tower(&[value])?;
+        self.fold
+            .to_bool_for_purpose(value, purpose)
+            .map_err(refused)
+    }
+
+    fn logical_right_truth(
+        &mut self,
+        left: &FoldValue,
+        right: &FoldValue,
+        conjunction: bool,
+    ) -> Result<bool, ExprStop> {
+        self.tower(&[left, right])?;
+        self.fold
+            .logical_right_truth(left, right, conjunction)
+            .map_err(refused)
+    }
+
     fn bool_value(&mut self, b: bool) -> FoldValue {
         FoldValue::Int(i64::from(b))
     }
@@ -3521,6 +3576,80 @@ mod tests {
 
     use super::*;
     use crate::expr_parser::parse_expr;
+
+    #[test]
+    fn original_boolean_value_advice_cannot_attest_a_retained_native_truth_stage() {
+        // naming.numeric.original-primitive-boolean-vs-expression-truth
+        // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+        use tcl_syntax::expr::ExprOps;
+        use tcl_syntax::native_boolean_truth::NativeBooleanTruthPurpose as Purpose;
+        let env = Env::new();
+        let mut executable = make_fold_ops(
+            &env,
+            FoldPolicy::default(),
+            None,
+            None,
+            FoldNativeInputs::objects(None),
+            false,
+        );
+        let mut advice = make_fold_ops(
+            &env,
+            FoldPolicy::default(),
+            None,
+            None,
+            FoldNativeInputs::objects(None),
+            true,
+        );
+        let retained = FoldValue::RetainedNativeObject {
+            value: Box::new(FoldValue::Int(4_294_967_296)),
+            proof: None,
+            integer_contents: None,
+            reference: "$original".into(),
+            start: Some(0),
+        };
+        assert!(
+            advice
+                .to_bool_for_purpose(&retained, Purpose::LogicalAnd)
+                .unwrap()
+        );
+        assert!(
+            advice
+                .logical_right_truth(&retained, &FoldValue::Int(1), true)
+                .unwrap()
+        );
+        assert!(
+            advice
+                .coercions
+                .borrow()
+                .iter()
+                .any(|obligation| obligation.kind == NativeCoercionKind::Boolean)
+        );
+        assert!(
+            executable
+                .to_bool_for_purpose(&retained, Purpose::LogicalAnd)
+                .is_err()
+        );
+        assert!(
+            executable
+                .logical_right_truth(&retained, &FoldValue::Int(1), true)
+                .is_err()
+        );
+        assert!(
+            executable
+                .logical_right_truth(&FoldValue::Int(1), &retained, true)
+                .is_err()
+        );
+        assert!(
+            executable
+                .to_bool_for_purpose(&FoldValue::Int(1), Purpose::ConditionalJump)
+                .unwrap()
+        );
+        assert!(
+            executable
+                .to_bool_for_purpose(&FoldValue::Int(1), Purpose::ExpressionApiResult)
+                .is_err()
+        );
+    }
 
     // evaluate_expr_with_constants
 

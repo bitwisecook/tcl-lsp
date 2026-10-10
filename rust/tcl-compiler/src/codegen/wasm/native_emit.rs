@@ -109,7 +109,10 @@ pub(super) struct NativeImports {
     value_new_bool: u32,
     value_get_wide_int: u32,
     value_get_double: u32,
+    /// Primitive getter used only for the runtime comparison's canonical 0/1.
     value_get_bool: u32,
+    value_get_bool_for_purpose: u32,
+    value_get_expression_bool: u32,
     value_try_wide_int: u32,
     value_try_double: u32,
     expr_eval: u32,
@@ -153,6 +156,8 @@ pub(super) fn add_native_imports(
         value_get_wide_int: add(wasm, CodegenAbiImportId::ValueGetWideInt),
         value_get_double: add(wasm, CodegenAbiImportId::ValueGetDouble),
         value_get_bool: add(wasm, CodegenAbiImportId::ValueGetBool),
+        value_get_bool_for_purpose: add(wasm, CodegenAbiImportId::ValueGetBoolForPurpose),
+        value_get_expression_bool: add(wasm, CodegenAbiImportId::ValueGetExpressionBool),
         value_try_wide_int: add(wasm, CodegenAbiImportId::ValueTryWideInt),
         value_try_double: add(wasm, CodegenAbiImportId::ValueTryDouble),
         expr_eval: add(wasm, CodegenAbiImportId::ExprEval),
@@ -1305,6 +1310,28 @@ impl Emitter<'_, '_> {
         self.release_scratch();
     }
 
+    /// Both stage imports retain their own first-Host-cause check through
+    /// `call`; a Guest failure abandons this statement before any later stage.
+    fn boolean_conversion(
+        &mut self,
+        dst: NativeValueId,
+        src: NativeValueId,
+        tag: i32,
+        import: u32,
+        completion: crate::executable_ir::CompletionId,
+    ) {
+        self.get(self.local_of(src));
+        self.i32(i64::from(tag));
+        self.frame_offset(FRAME_SCRATCH_I32);
+        self.call(import);
+        self.open(WasmOp::If, Label::Plain);
+        self.fail(completion);
+        self.close();
+        self.get(LOCAL_FRAME);
+        self.load_i32(FRAME_SCRATCH_I32);
+        self.set(self.local_of(dst));
+    }
+
     #[allow(clippy::too_many_lines)]
     fn emit_op(&mut self, op: &NativeOp, completion: crate::executable_ir::CompletionId) {
         match op {
@@ -1334,7 +1361,9 @@ impl Emitter<'_, '_> {
                 let (import, offset) = match target {
                     NativeType::I64 => (self.imports.value_get_wide_int, FRAME_SCRATCH_I64),
                     NativeType::F64 => (self.imports.value_get_double, FRAME_SCRATCH_I64),
-                    NativeType::Bool => (self.imports.value_get_bool, FRAME_SCRATCH_I32),
+                    NativeType::Bool => {
+                        unreachable!("Boolean operands carry their reached purpose")
+                    }
                     NativeType::Obj => (self.imports.obj_retain, 0),
                 };
                 if *target == NativeType::Obj {
@@ -1354,6 +1383,28 @@ impl Emitter<'_, '_> {
                     _ => self.load_i32(offset),
                 }
                 self.set(self.local_of(*dst));
+            }
+            NativeOp::UnboxBool { dst, src, purpose } => {
+                self.boolean_conversion(
+                    *dst,
+                    *src,
+                    *purpose as i32,
+                    self.imports.value_get_bool_for_purpose,
+                    completion,
+                );
+            }
+            NativeOp::BooleanExpressionResult {
+                dst,
+                src,
+                production,
+            } => {
+                self.boolean_conversion(
+                    *dst,
+                    *src,
+                    *production as i32,
+                    self.imports.value_get_expression_bool,
+                    completion,
+                );
             }
             NativeOp::Truth { dst, src } => {
                 self.get(self.local_of(*src));
@@ -1986,7 +2037,9 @@ impl Emitter<'_, '_> {
         self.frame_offset(FRAME_COMPLETION);
         self.call(self.imports.mathop);
         self.push(WasmOp::Drop);
-        // The runtime's answer is a boxed 0/1: read it in boolean context.
+        // The runtime comparison returns canonical boxed 0/1. This
+        // primitive read consumes that result contract; it is not a reached
+        // source-operand truth or expression-result-normalisation stage.
         self.get(LOCAL_FRAME);
         self.load_i32(FRAME_COMPLETION + i64::from(WASM32_COMPLETION_CODE_OFFSET));
         self.open(WasmOp::If, Label::Plain);
@@ -2166,5 +2219,152 @@ const fn compare_op(op: CmpOp, kind: CompareKind) -> WasmOp {
         (CompareKind::F64, CmpOp::Le) => WasmOp::F64Le,
         (CompareKind::F64, CmpOp::Gt) => WasmOp::F64Gt,
         (CompareKind::F64, CmpOp::Ge) => WasmOp::F64Ge,
+    }
+}
+
+#[cfg(test)]
+mod original_boolean_transport_tests {
+    use super::*;
+    use crate::executable_ir::{CompletionId, ExecutableFunctionId};
+    use crate::native_lowering::ir::{NativeBlock, NativeStatement, NativeValue};
+    use crate::native_lowering::representation::Representation;
+    use tcl_registry::native_boolean_truth::{
+        NativeBooleanExpressionResultProduction as Production, NativeBooleanTruthPurpose as Purpose,
+    };
+
+    #[test]
+    fn original_boolean_stage_imports_check_first_host_cause_before_guest_status_or_out_slots() {
+        // naming.numeric.original-primitive-boolean-vs-expression-truth
+        // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+        // Typed software transport only. The original provider rows attest
+        // reached getter/result effects separately from emitted instructions.
+        let mut wasm = WasmModule::new();
+        let mut declared = Vec::new();
+        let imports = add_native_imports(&mut wasm, &mut |_, id| {
+            let index = u32::try_from(declared.len()).unwrap();
+            declared.push(id);
+            index
+        });
+        let completion = CompletionId::new(ExecutableFunctionId::new(0), 0);
+        let function = NativeFunction {
+            native_compilation_admission: None,
+            values: vec![
+                NativeValue {
+                    ty: NativeType::Obj,
+                    rep: Representation::Boxed(None),
+                },
+                NativeValue {
+                    ty: NativeType::Bool,
+                    rep: Representation::NativeBool,
+                },
+                NativeValue {
+                    ty: NativeType::Bool,
+                    rep: Representation::NativeBool,
+                },
+                NativeValue {
+                    ty: NativeType::Bool,
+                    rep: Representation::NativeBool,
+                },
+            ],
+            blocks: vec![NativeBlock {
+                id: NativeBlockId(0),
+                statements: vec![NativeStatement {
+                    completion,
+                    node: None,
+                    site: None,
+                    ops: vec![
+                        NativeOp::ConstStr {
+                            dst: NativeValueId(0),
+                            text: "opaque".into(),
+                        },
+                        NativeOp::UnboxBool {
+                            dst: NativeValueId(1),
+                            src: NativeValueId(0),
+                            purpose: Purpose::LogicalAndInstruction,
+                        },
+                        NativeOp::BooleanExpressionResult {
+                            dst: NativeValueId(2),
+                            src: NativeValueId(0),
+                            production: Production::InlineExpression,
+                        },
+                        NativeOp::BooleanExpressionResult {
+                            dst: NativeValueId(3),
+                            src: NativeValueId(0),
+                            production: Production::PublicExpressionApi,
+                        },
+                    ],
+                }],
+                terminator: NativeTerminator::Return(completion),
+            }],
+            entry: NativeBlockId(0),
+            completion_count: 1,
+            max_argc: 0,
+            protocol: EntryProtocol::Script,
+        };
+        let slots = BTreeMap::new();
+        let mut data = Vec::new();
+        let mut offset = 0;
+        let emitted = emit_function(
+            "::top",
+            "top",
+            &function,
+            imports,
+            EntryTable {
+                slots: &slots,
+                base_global: 0,
+            },
+            ConstantPool {
+                data: &mut data,
+                offset: &mut offset,
+            },
+        );
+        let reached: Vec<_> = emitted
+            .body
+            .iter()
+            .enumerate()
+            .filter_map(|(index, instruction)| {
+                if instruction.op != WasmOp::Call {
+                    return None;
+                }
+                [
+                    imports.value_get_bool_for_purpose,
+                    imports.value_get_expression_bool,
+                ]
+                .into_iter()
+                .find(|candidate| instruction.operands == leb128_unsigned(u64::from(*candidate)))
+                .map(|import| (index, declared[import as usize]))
+            })
+            .collect();
+        assert_eq!(
+            reached.iter().map(|(_, id)| *id).collect::<Vec<_>>(),
+            [
+                CodegenAbiImportId::ValueGetBoolForPurpose,
+                CodegenAbiImportId::ValueGetExpressionBool,
+                CodegenAbiImportId::ValueGetExpressionBool,
+            ]
+        );
+        for ((index, _), tag) in reached.into_iter().zip([6, 0, 1]) {
+            assert_eq!(emitted.body[index - 4].op, WasmOp::I32Const);
+            assert_eq!(emitted.body[index - 4].operands, leb128_signed(tag));
+            let after = &emitted.body[index + 1..index + 7];
+            assert_eq!(after[0].op, WasmOp::Call);
+            assert_eq!(
+                after[0].operands,
+                leb128_unsigned(u64::from(imports.host_refusal_pending))
+            );
+            assert_eq!(after[1].op, WasmOp::If);
+            assert_eq!(after[2].op, WasmOp::Br);
+            assert_eq!(after[3].op, WasmOp::End);
+            assert_eq!(
+                after[4].op,
+                WasmOp::If,
+                "Guest status is read after first Host cause"
+            );
+            assert!(
+                !after
+                    .iter()
+                    .any(|instruction| instruction.op == WasmOp::I32Load)
+            );
+        }
     }
 }

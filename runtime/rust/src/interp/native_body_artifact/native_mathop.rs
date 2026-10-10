@@ -67,16 +67,16 @@ impl Builder<'_> {
         })
     }
 }
-struct PrimitiveContext(
-    tcl_registry::InvocationDialect,
-    std::rc::Rc<dyn tcl_platform::Host>,
-);
-impl crate::expr::ExprCtx for PrimitiveContext {
+struct PrimitiveContext<'a>(&'a mut Interp);
+impl crate::expr::ExprCtx for PrimitiveContext<'_> {
+    fn boolean_interpreter(&mut self) -> Option<&mut Interp> {
+        Some(self.0)
+    }
     fn numeric_host(&self) -> Option<std::rc::Rc<dyn tcl_platform::Host>> {
-        Some(std::rc::Rc::clone(&self.1))
+        Some(self.0.host())
     }
     fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
-        self.0
+        self.0.native_invocation_dialect()
     }
     fn read_var(&mut self, _: &str) -> Result<obj::Owned, crate::expr_error::ExprError> {
         unreachable!("original mathematical operands already evaluated")
@@ -133,20 +133,21 @@ impl Interp {
                 | M::StringGreater
                 | M::StringGreaterEqual
         );
-        let result = crate::expr::eval_mathop(
-            operator.spelling(),
-            operands,
-            &mut PrimitiveContext(self.native_invocation_dialect(), self.host()),
-        )
-        .map_err(|error| match error {
-            tcl_cmd_core::mathop::MathopError::Op(error) => self.report_expr_error(error),
-            tcl_cmd_core::mathop::MathopError::WrongArgs(_) => {
-                self.report_cmd_error(unavailable("native math primitive operand geometry").into())
-            }
-        })?;
+        let result =
+            crate::expr::eval_mathop(operator.spelling(), operands, &mut PrimitiveContext(self))
+                .map_err(|error| match error {
+                    tcl_cmd_core::mathop::MathopError::Op(error) => self.report_expr_error(error),
+                    tcl_cmd_core::mathop::MathopError::WrongArgs(_) => self.report_cmd_error(
+                        unavailable("native math primitive operand geometry").into(),
+                    ),
+                })?;
         if boolean {
-            let truth = crate::expr::to_bool_in(result.as_ptr(), self.native_invocation_dialect())
-                .map_err(|error| self.report_expr_error(error))?;
+            let truth = crate::typed_value::native_boolean_for_interp(
+                self,
+                result.as_ptr(),
+                tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
+            )
+            .map_err(|error| self.report_cmd_error(error))?;
             return self
                 .native_execution_boolean_constant(truth)
                 .map(obj::Owned::retain)

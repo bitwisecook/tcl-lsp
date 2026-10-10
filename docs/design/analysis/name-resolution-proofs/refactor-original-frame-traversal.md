@@ -16,11 +16,15 @@ FrameWalk retains the actual profile, Registry, Realm and full configuration wit
 
 FrameWalk, extraction and inline source consumers retain actual source input/configuration, selected availability, captured variable roles and complete source expression/template/body inventory. Known replaced helpers withdraw advice. The shared pure Traits predicate classifies independently selected frame-sensitive effects; it does not reselect a command by nominal spelling. Conditional Logical extraction/inline advice keeps its original source and separate edit obligations.
 
+Extraction uses the actual retained source grammar for variable names and rejects withdrawn source/config/availability ownership before generating a proposal.
+
 ## Scope
 
 Shared Core refactor region inventory for original commands, expressions, clause/lambda lists and command substitutions. Unsupported geometry and unowned structures withdraw completeness; the legacy walker is only lexical authoring advice.
 
 Five additional current source controls supply no executed assertion or Native frame/dispatch result. Source variable roles, lexical body coverage and pure Traits do not establish activation, old physical frame/cell identities, body/handler entry, runtime receiver or safe edit permission.
+
+This control is a conditional Logical source proposal with no attached assertion outcome, Native frame/value/read/entry or general safe movement/insertion permission. Actual source and explicit edit prerequisites remain independent.
 
 ## Provider answers
 
@@ -93,6 +97,11 @@ A named test is a coverage binding, not a claim that it executed.
 - [rust/tcl-lsp-core/src/refactor/inline_proc.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_proc.rs), `refactor::inline_proc::selected_source_body_tests::original_logical_inline_keeps_selected_expression_and_refuses_frame_sensitive_alias` (linked): Conditional Logical inline advice retains the selected original expression and refuses selected frame-sensitive alias targets.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
+
+- [rust/tcl-lsp-core/src/refactor/extract_proc.rs](../../../../rust/tcl-lsp-core/src/refactor/extract_proc.rs), `extract_proc`: Create FrameWalk from the actual current source and complete AnalysisResult, retaining selected variable grammar and independent extraction/edit premises.
+- [rust/tcl-lsp-core/src/refactor/extract_proc.rs](../../../../rust/tcl-lsp-core/src/refactor/extract_proc.rs), `refactor::extract_proc::selected_source_variable_tests::original_extraction_uses_retained_brace_grammar_and_withdraws_changed_owners` (linked): The actual supplied analysis retains FirstClose versus Tcl9Nesting grammar and generates the corresponding scalar parameter while keeping the original selected body. Missing input, changed grammar/source, foreign store and changed older same-store availability refuse before extraction.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

@@ -292,6 +292,58 @@ fn exact_process_exit_completion(
     }
 }
 
+/// Completion shape of an already selected descriptor and frozen arguments.
+/// This is metadata only; runtime selection and executed completion are separate.
+pub(crate) fn invocation_completion_for_selected(
+    resolved: &ResolvedInvocation<'_, '_>,
+    numbers: tcl_syntax::number::Numbers,
+    grammar: crate::completion_route::ReturnInvocationGrammar,
+) -> InvocationCompletion {
+    use crate::completion::CompletionCode;
+    use crate::completion_route::InvocationCompletionRoute as Route;
+    let args = resolved.words.arguments();
+    match resolved.argument_count_for_arity() {
+        Some(count) if !resolved.semantics.arity.accepts(count) => {
+            return InvocationCompletion::Terminates;
+        }
+        None => return InvocationCompletion::Unknown,
+        Some(_) => {}
+    }
+    if resolved.semantics.operation
+        == crate::SemanticOperationId::StructuredLowering(LoweringHookId::Return)
+    {
+        let mut result = crate::native_result::NativeResultSelection::Unknown;
+        return match exact_return_completion_with_result(args, numbers, grammar, &mut result) {
+            ExactReturnCompletion::Completion(Route::Tcl(CompletionCode::Ok)) => {
+                InvocationCompletion::FallsThrough
+            }
+            ExactReturnCompletion::Completion(Route::Return(pending))
+                if pending.eventual_code == CompletionCode::Ok && pending.remaining_level == 1 =>
+            {
+                InvocationCompletion::ReturnsResult(match result {
+                    crate::native_result::NativeResultSelection::Argument(index) => Some(index),
+                    _ => None,
+                })
+            }
+            ExactReturnCompletion::Completion(_) | ExactReturnCompletion::StaticError => {
+                InvocationCompletion::Terminates
+            }
+            ExactReturnCompletion::Dynamic => InvocationCompletion::Unknown,
+        };
+    }
+    let traits = resolved.semantics.traits;
+    if traits.intersects(
+        Traits::TERMINATES_BLOCK
+            | Traits::BREAKS_LOOP
+            | Traits::CONTINUES_LOOP
+            | Traits::REPLACES_FRAME,
+    ) {
+        InvocationCompletion::Terminates
+    } else {
+        InvocationCompletion::FallsThrough
+    }
+}
+
 fn exact_return_completion(
     args: crate::invocation_words::InvocationArguments<'_>,
     numbers: tcl_syntax::number::Numbers,
@@ -5940,8 +5992,6 @@ impl CommandRegistry {
         args: InvocationArguments<'_>,
         dialect: Option<SurfaceQuery<'_>>,
     ) -> InvocationCompletion {
-        use crate::completion::CompletionCode;
-        use crate::completion_route::InvocationCompletionRoute as Route;
         let Some(resolved) = self
             .resolve_structured_invocation(
                 InvocationWords::from_arguments(InvocationWord::Literal(name), args),
@@ -5951,56 +6001,15 @@ impl CommandRegistry {
         else {
             return InvocationCompletion::Unknown;
         };
-        match resolved.argument_count_for_arity() {
-            Some(count) if !resolved.semantics.arity.accepts(count) => {
-                return InvocationCompletion::Terminates;
-            }
-            None => return InvocationCompletion::Unknown,
-            Some(_) => {}
-        }
-        if resolved.semantics.operation
-            == crate::SemanticOperationId::StructuredLowering(LoweringHookId::Return)
-        {
-            let numbers = args.dialect().map_or_else(
-                || self.control_numbers(dialect),
-                |native| tcl_syntax::number::Numbers::Target(native.numbers),
-            );
-            let mut result = crate::native_result::NativeResultSelection::Unknown;
-            return match exact_return_completion_with_result(
-                args,
-                numbers,
-                self.return_invocation_grammar(args, dialect),
-                &mut result,
-            ) {
-                ExactReturnCompletion::Completion(Route::Tcl(CompletionCode::Ok)) => {
-                    InvocationCompletion::FallsThrough
-                }
-                ExactReturnCompletion::Completion(Route::Return(pending))
-                    if pending.eventual_code == CompletionCode::Ok
-                        && pending.remaining_level == 1 =>
-                {
-                    InvocationCompletion::ReturnsResult(match result {
-                        crate::native_result::NativeResultSelection::Argument(index) => Some(index),
-                        _ => None,
-                    })
-                }
-                ExactReturnCompletion::Completion(_) | ExactReturnCompletion::StaticError => {
-                    InvocationCompletion::Terminates
-                }
-                ExactReturnCompletion::Dynamic => InvocationCompletion::Unknown,
-            };
-        }
-        let traits = resolved.semantics.traits;
-        if traits.intersects(
-            Traits::TERMINATES_BLOCK
-                | Traits::BREAKS_LOOP
-                | Traits::CONTINUES_LOOP
-                | Traits::REPLACES_FRAME,
-        ) {
-            InvocationCompletion::Terminates
-        } else {
-            InvocationCompletion::FallsThrough
-        }
+        let numbers = args.dialect().map_or_else(
+            || self.control_numbers(dialect),
+            |native| tcl_syntax::number::Numbers::Target(native.numbers),
+        );
+        invocation_completion_for_selected(
+            &resolved,
+            numbers,
+            self.return_invocation_grammar(args, dialect),
+        )
     }
 
     /// What a `return` with `args` completes with, decoded as this

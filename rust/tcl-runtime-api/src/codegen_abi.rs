@@ -192,6 +192,16 @@ pub enum CodegenAbiImportId {
     /// Read a Tcl value in boolean context — [`Self::ValueGetWideInt`]'s
     /// contract over an `i32` (`0`/`1`) out pointer.
     ValueGetBool,
+    /// Convert an already reached operand for its exact Boolean instruction.
+    /// Parameters are the borrowed value handle, a native truth purpose and
+    /// an i32 out pointer. The result is the typed getter status. This direct
+    /// operand conversion does not normalise an expression result.
+    ValueGetBoolForPurpose,
+    /// Produce and convert an actual held expression result. Parameters are
+    /// the borrowed result handle, its inline/public expression production and
+    /// an i32 out pointer. The runtime retains result-normalisation ownership
+    /// before the final conversion; no operand purpose can grant this stage.
+    ValueGetExpressionBool,
     /// Bind an indexed compiled slot to a named frame cell and store a value.
     ///
     /// The ABI v2 spelling of [`Self::LocalBind`]; both address the same cell.
@@ -374,6 +384,8 @@ impl CodegenAbiImportId {
         Self::ValueGetWideInt,
         Self::ValueGetDouble,
         Self::ValueGetBool,
+        Self::ValueGetBoolForPurpose,
+        Self::ValueGetExpressionBool,
         Self::SlotBind,
         Self::SlotSet,
         Self::SlotGet,
@@ -458,6 +470,12 @@ impl CodegenAbiImportId {
             Self::ValueGetWideInt => tcl_import("tcl_value_get_wide_int", I32_I32, I32),
             Self::ValueGetDouble => tcl_import("tcl_value_get_double", I32_I32, I32),
             Self::ValueGetBool => tcl_import("tcl_value_get_bool", I32_I32, I32),
+            Self::ValueGetBoolForPurpose => {
+                tcl_import("tcl_value_get_bool_for_purpose", I32_I32_I32, I32)
+            }
+            Self::ValueGetExpressionBool => {
+                tcl_import("tcl_value_get_expression_bool", I32_I32_I32, I32)
+            }
             Self::SlotBind => tcl_import("tcl_codegen_slot_bind", I32_I32_I32_I32, I32),
             Self::SlotSet => tcl_import("tcl_codegen_slot_set", I32_I32, I32),
             Self::SlotGet => tcl_import("tcl_codegen_slot_get", I32, I32),
@@ -844,6 +862,31 @@ mod tests {
             assert_eq!(descriptor.name, name, "{id:?}");
             assert_eq!(descriptor.parameters, &[I32, I32][..], "{id:?}");
             assert_eq!(descriptor.results, &[I32][..], "{id:?}");
+        }
+    }
+
+    #[test]
+    fn original_boolean_imports_separate_operand_purpose_from_expression_production() {
+        // naming.numeric.original-primitive-boolean-vs-expression-truth
+        // docs/design/analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md
+        use CodegenAbiValueType::I32;
+        for (id, name) in [
+            (
+                CodegenAbiImportId::ValueGetBoolForPurpose,
+                "tcl_value_get_bool_for_purpose",
+            ),
+            (
+                CodegenAbiImportId::ValueGetExpressionBool,
+                "tcl_value_get_expression_bool",
+            ),
+        ] {
+            let descriptor = id.descriptor();
+            assert_eq!(descriptor.module, "tcl");
+            assert_eq!(descriptor.name, name);
+            assert_eq!(descriptor.parameters, &[I32, I32, I32]);
+            assert_eq!(descriptor.results, &[I32]);
+            assert!(CodegenAbiImportId::ALL.contains(&id));
+            assert!(id.requires_host_refusal_check());
         }
     }
 

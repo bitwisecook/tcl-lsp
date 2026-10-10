@@ -370,3 +370,116 @@ fn cached_truth84(
         | NativeScalarCache::WordBoolean(_) => None,
     }
 }
+
+/// Original instruction failure class, separately from primitive getter text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeBooleanLogicalOperandClass {
+    /// Reached nonnumeric counted spelling.
+    NonNumericString,
+    /// C8.4–8.6's distinct physical empty-spelling diagnostic.
+    EmptyString,
+    /// C8.4–8.6's independently observed bad-octal spelling.
+    InvalidOctal,
+    /// C8.4's reached integer range failure.
+    IntegerOverflow,
+    /// The original numeric NaN primary or exact selected classification.
+    NonNumericFloatingPoint,
+    /// C8.4's exact infinite-spelling classification.
+    InfiniteFloatingPoint,
+    /// An original rejected finite floating-point value.
+    FloatingPoint,
+    /// C9's actually reached original List classification.
+    List,
+}
+
+/// Original instruction error bytes; these grant no publication or input read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeBooleanLogicalOperandDiagnostic {
+    /// Exact selected instruction result.
+    pub message: Vec<u8>,
+    /// Exact selected error-code store, independently of rendered wording.
+    pub error_code: Vec<u8>,
+}
+
+impl NativeBooleanTruthProtocol {
+    /// Render only an actually classified failed C instruction operand.
+    /// Original bytes are required where the original message reads them;
+    /// absent unused bytes remain distinct from a fabricated empty spelling.
+    #[must_use]
+    pub fn logical_failure_presentation(
+        self,
+        class: NativeBooleanLogicalOperandClass,
+        original: Option<&[u8]>,
+    ) -> Option<NativeBooleanLogicalOperandDiagnostic> {
+        use NativeBooleanLogicalOperandClass as Class;
+        use NativeBooleanTruthPurpose as Purpose;
+        let version = self.scalar.tcl_version()?;
+        let operator = match self.purpose {
+            Purpose::LogicalNot => b"!".as_slice(),
+            Purpose::LogicalAndInstruction if version == TclVersion::V8_4 => b"&&",
+            Purpose::LogicalOrInstruction if version == TclVersion::V8_4 => b"||",
+            _ => return None,
+        };
+        let class = if version >= TclVersion::V9_0
+            && matches!(class, Class::EmptyString | Class::InvalidOctal)
+        {
+            Class::NonNumericString
+        } else {
+            class
+        };
+        let description = match class {
+            Class::NonNumericString => b"non-numeric string".as_slice(),
+            Class::EmptyString => b"empty string",
+            Class::InvalidOctal => b"invalid octal number",
+            Class::IntegerOverflow if version == TclVersion::V8_4 => {
+                b"integer value too large to represent"
+            }
+            Class::NonNumericFloatingPoint => b"non-numeric floating-point value",
+            Class::InfiniteFloatingPoint if version == TclVersion::V8_4 => {
+                b"infinite floating-point value"
+            }
+            Class::FloatingPoint => b"floating-point value",
+            Class::List if version >= TclVersion::V9_0 => b"list",
+            Class::IntegerOverflow | Class::InfiniteFloatingPoint | Class::List => return None,
+        };
+        let mut message = if version >= TclVersion::V9_0 {
+            b"cannot use ".to_vec()
+        } else {
+            b"can't use ".to_vec()
+        };
+        if class == Class::List {
+            message.extend_from_slice(b"a list");
+        } else {
+            message.extend_from_slice(description);
+        }
+        if version >= TclVersion::V9_0 && class != Class::List {
+            message.extend_from_slice(b" \"");
+            message.extend_from_slice(tcl_core_types::c_string_extent(original?));
+            message.push(b'"');
+        }
+        message.extend_from_slice(b" as operand of \"");
+        message.extend_from_slice(operator);
+        message.push(b'"');
+        let error_code = if version == TclVersion::V8_4 {
+            if class == Class::IntegerOverflow {
+                b"ARITH IOVERFLOW {integer value too large to represent}".to_vec()
+            } else {
+                b"NONE".to_vec()
+            }
+        } else {
+            let mut code = b"ARITH DOMAIN ".to_vec();
+            if description.contains(&b' ') {
+                code.push(b'{');
+                code.extend_from_slice(description);
+                code.push(b'}');
+            } else {
+                code.extend_from_slice(description);
+            }
+            code
+        };
+        Some(NativeBooleanLogicalOperandDiagnostic {
+            message,
+            error_code,
+        })
+    }
+}

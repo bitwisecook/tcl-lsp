@@ -9732,3 +9732,33 @@ producer must perform it before exposing a privately owned normalised operand.
 The original [primitive and expression truth captures](../analysis/name-resolution-proofs/numeric-original-primitive-boolean-vs-expression-truth.md)
 record each whole measured route separately. Software ordering controls over
 supplied getter outcomes test the API contract and grant no Native equivalence.
+
+
+`ExprOps::to_bool_for_purpose` receives the actual reached operand site.
+`logical_right_truth` receives both retained original operands after the right
+branch finishes. Their default is unsupported. Explicit mathematical adapters
+may project their mathematical values; physical adapters perform the selected
+original probes. In Tcl 8.4, final LAND/LOR reconverts the retained lhs before
+the rhs. Short-circuited rhs operations are never issued.
+
+The Runtime adapter is `typed_value::native_boolean_truth`. An entered
+`ExprCtx::boolean_interpreter` supplies the actual publication owner for Jim;
+a neutral C context has its separately selected host environment. The shared
+CmdCore result worker inspects the original ownership count before acquiring
+its output reference, performs reached numeric cache conversion and COW, and
+then performs the selected API copy. The instruction error worker uses actual
+neutral Number and List probes, original cache lengths and checked String
+getters, with first Host checked between each effect. Classification never
+comes from a rendered primitive diagnostic.
+
+Generated code calls `tcl_value_get_bool_for_purpose(value, purpose, out)` for
+operand instructions and `tcl_value_get_expression_bool(value, production,
+out)` for outer conditions. The combined call actually performs the result
+producer and consumes its owned operand. The direct call refuses result-purpose
+tags4/5, and both calls refuse unknown tags before getters or output writes.
+`ExprError` retains the full reached `CmdError`, including Unchanged metadata
+and its result producer, through expression unwind. Publish that retained
+record through the actual interpreter; message and code projections cannot
+replace it.
+
+An entered Runtime Boolean operation also retains `NativeOperationCurrency`. Check the actual interpreter owner, host, full context and Interpreter guard epoch before and after callbacks and publication. Equal scalar recipes do not establish currency, and changing and restoring the same context cannot revive an old entry. The numeric Host adapter preserves reached conversion effects and the first typed refusal; a refused operation cannot install a later fallback cache or write an ABI output. C8.4 integer-primary preparation separately checks the actual host C integer layout before and after its conversion. Neither check borrows the primitive C API object issuer as expression authority.

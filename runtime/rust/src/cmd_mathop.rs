@@ -61,10 +61,16 @@ fn expr_error(interp: &mut Interp, e: crate::expr_error::ExprError) -> Code {
 
 /// A no-op `ExprCtx`: `mathop`'s operands are already evaluated, so the
 /// `$var`/`[cmd]`/`func()` resolution is never reached.
-struct NoCtx(tcl_registry::InvocationDialect);
-impl crate::expr::ExprCtx for NoCtx {
+struct NoCtx<'a>(&'a mut Interp);
+impl crate::expr::ExprCtx for NoCtx<'_> {
+    fn boolean_interpreter(&mut self) -> Option<&mut Interp> {
+        Some(self.0)
+    }
+    fn numeric_host(&self) -> Option<std::rc::Rc<dyn tcl_platform::Host>> {
+        Some(self.0.host())
+    }
     fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
-        self.0
+        self.0.native_invocation_dialect()
     }
     fn read_var(&mut self, _: &str) -> Result<Owned, crate::expr_error::ExprError> {
         unreachable!("mathop operands are pre-evaluated")
@@ -97,7 +103,7 @@ fn mathop(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     // Borrow each operand (+1, released when the `Owned` wrappers drop).
     let args: Vec<Owned> = argv[1..].iter().map(|&a| Owned::retain(a)).collect();
-    let mut ctx = NoCtx(interp.native_invocation_dialect());
+    let mut ctx = NoCtx(interp);
     match crate::expr::eval_mathop(op, args, &mut ctx) {
         Ok(result) => {
             interp.set_result(result.as_ptr());
