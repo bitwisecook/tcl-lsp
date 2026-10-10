@@ -35,7 +35,7 @@ worktree's rlib.
 1. Give every worktree its own `CARGO_TARGET_DIR`.  The easiest way is
    `source scripts/dev/agent-build-env.sh` in each shell — it pins the
    target dir to `<worktree-root>/target` and sets `CARGO_INCREMENTAL=0`
-   and `CARGO_PROFILE_DEV_DEBUG=0` so each dir stays around 3-4 GB.
+   and `CARGO_PROFILE_DEV_DEBUG=0` to reduce each directory's disk usage; its size depends on the targets and suites built.
 2. Recover the wedged worktree with `cargo clean -p <crate>` for the
    affected crate (or a full `cargo clean`), then rebuild.
 3. Re-run whatever gate produced the suspect result.  Any green or red

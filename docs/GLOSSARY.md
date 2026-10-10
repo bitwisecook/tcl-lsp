@@ -456,7 +456,7 @@ its scope; a contribution to an ancestry or interposition slot; a
 visibility change; or a retraction. The vocabulary is closed and
 family-neutral — no variant names `TclOO`, snit, or itcl — and
 `MemberKind` stays the layout fact beside it. Built as
-`MemberEffect` on `MemberSpec`, read through one derived `member_rows`
+`MemberEffect` on `MemberSpec`, read through one derived `DefinitionBodyGrammar::member_row`
 query that the class hierarchy, method arity, and `my` dispatch all fold
 over generically instead of each hand-matching member keywords. See
 `MemberEffect` in `tcl_registry::definer`.

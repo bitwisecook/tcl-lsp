@@ -466,7 +466,7 @@ the rule hold end to end: defs (`defs_of_with_registry`,
 `set`/`incr`/`unset`/`append`/`global`/`variable`/`upvar` lowering hooks,
 `lower_default`'s registry role harvest), reads (`var_token_name`,
 `scan_var_read_role_names`, `collect_ref_forms` +
-`scan_var_ref_forms_braced`, `scan_command_words`'s name-role skip), the
+`scan_var_ref_forms_braced_with_config`, `scan_command_words`'s name-role skip), the
 analyser scope layer (`define_var` from the name word's token kind,
 `record_var_read_braced`), rename, and semantic highlighting.
 

@@ -133,9 +133,8 @@ fn walk_statement(
             try_rewrite_assign_expr(ctx, *span, name, expr, numeric, procedures);
         }
         // `return [expr {…}]` gets the same partial simplification as
-        // `set v [expr {…}]` (#1962). The walker used to fall through here,
-        // so `return [expr {$r ** 2}]` was left alone while the `set` form
-        // became `set v [expr {$r * $r}]`.
+        // `set v [expr {…}]`: `return [expr {$r ** 2}]` can become
+        // `return [expr {$r * $r}]` under the same numeric proof.
         //
         // It belongs in this walker and not beside `return`'s other
         // rewrites in `propagation`, because the rewrite needs the
@@ -146,7 +145,7 @@ fn walk_statement(
         // non-numeric `$x` and the second returns the string.
         //
         // O101 and O115 for `return` stay in `propagation`'s
-        // `try_fold_return_terminator`; only the O110 / O113 half is new,
+        // `try_fold_return_terminator`; this walker owns O110 and O113,
         // so neither is reported twice.
         Statement::Return {
             span,

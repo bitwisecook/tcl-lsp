@@ -269,8 +269,7 @@ fn prefix_ensemble_and_match_options_resolve_like_tclsh() {
 
 /// The empty word never abbreviation-matches: one entry reports `bad`, two or
 /// more report `ambiguous` — C's `Tcl_GetIndexFromObjStruct` rejects the empty
-/// key before the abbreviation count is consulted. (Previously the VM resolved
-/// `tcl::prefix match {apple} ""` to `apple`.)
+/// key before the abbreviation count is consulted.
 #[test]
 fn prefix_match_empty_word_never_abbreviates() {
     // tclsh 8.6.16: bad option "": must be apple

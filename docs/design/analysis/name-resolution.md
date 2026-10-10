@@ -392,7 +392,7 @@ EDA shells follow their embedded cores; an unknown base takes the stricter
 Three layers honour it:
 
 - **VM** — a `RuntimeVersion` knob (default `V9_0`, inherited by
-  `fork_child`, exposed as `tclvm --tcl-version`) gates `locate_from` for
+  `fork_child`, exposed as `tclvm --tcl-version`) gates variable-place resolution for
   reads, writes, `unset`, `incr`, and `info exists`.
 - **Runtime** — `Namespaces.ns_var_global_fallback` gates `ns_scope_fallback`
   in `classify`. A declared-but-unset `variable` installs a **self-link
@@ -550,13 +550,10 @@ A class named by a `superclass` / `mixin` / itcl `inherit` argument is a
 `record_member_command_references`, dispatching on registry data —
 `MemberSpec::all_args_ref == MemberRefKind::Class` and member
 `ArgRole::CommandName` positions (which is also how `forward`'s TARGET is
-handled, generalised off its former hardcoded special case) — never on a
-member keyword. The redundant `superclass_refs` / `mixin_refs` band-aid was
-removed from `references::class_references`, so references, rename, and the
-code-lens count read one source of truth and cannot diverge. This gap was
-real and silent: on a deeply-namespaced one-class-per-file project, Find All
-References on a class returned only its declaration and rename left 64
-`superclass` sites dangling.
+handled) — never on a member keyword. `references::class_references`
+consumes those recorded references, so Find All References, rename, and the
+code-lens count share the same source of truth, including namespaced
+`superclass` and `mixin` sites.
 
 ### 5.6 Object→class binding is a lattice — and the ⊤ taxonomy
 

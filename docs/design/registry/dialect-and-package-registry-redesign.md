@@ -1,8 +1,7 @@
 # Dialects, packages, and environments — the registry model (issue #1631)
 
-> The model as built. §11 is the single ledger of what is still open in
-> this programme; nothing outside it should be read as outstanding work.
-> Where the prose still describes intent rather than code it says so.
+> The implemented model and its remaining limitations (§11). Proposed
+> extensions are identified explicitly.
 >
 > Companions:
 > [dialect-and-package-registry-centralisation.md](dialect-and-package-registry-centralisation.md)
@@ -521,8 +520,8 @@ has left the workspace retires its environments — unlike the loaded
 
 **Editor identity is split out.** VS Code and Zed language ids,
 extensions, and filename patterns are extension-manifest contribution
-points, fixed at install time. `EditorLanguageIdentity` is a fixed,
-generated, contributed set (`tcl`, `tcl84`…`tcl91`, `tcl-irule`,
+points, fixed at install time. The contributed editor language identities form a fixed,
+generated set (`tcl`, `tcl84`…`tcl91`, `tcl-irule`,
 `tcl-iapp`, `tcl-bigip`, `tcl-jim`, `tclspec`, `sslictcl`, the six `tcl-<vendor>`
 ids, …), and dynamic server environments *select among* them. A pack may
 request detection patterns; the editor adapter reports whether it can
@@ -939,7 +938,7 @@ These hold across the tree:
 | I5 | Ambiguity widens effects or abstains; it never picks by catalogue order | load/import/rename permutation tests |
 | I6 | Untrusted data cannot weaken trusted security facts | `security_floor`; `i6_security_floor.rs` |
 | I7 | Dropped registry generations release dynamic specs | **not held** — §11 D10 |
-| I8 | Every advertised editor identity is actually contributed by that editor package | the fixed `EditorLanguageIdentity` set |
+| I8 | Every advertised editor identity is actually contributed by that editor package | the fixed contributed editor language identities |
 | I9 | Unknown semantic vocabulary fails closed | `VocabularyClass`; downgrade fixtures |
 | I10 | Pack migration preserves user-observable behaviour, not only serialised bytes | golden-snapshot gate plus behavioural parity per conversion |
 

@@ -4,7 +4,7 @@
 > `rename`, `interp alias`, `namespace import`/`export`/`forget`,
 > `namespace path`, ensembles, and the `::tcl::mathop` / `::tcl::mathfunc`
 > operator commands — and how an AOT compiler may snapshot it safely. The
-> as-built mechanics are [runtime/rename-alias.md](../runtime/rename-alias.md),
+> runtime mechanics are [runtime/rename-alias.md](../runtime/rename-alias.md),
 > [runtime/namespace-tree.md](../runtime/namespace-tree.md), and
 > [runtime/command-introspection.md](../runtime/command-introspection.md); the
 > LSP-side alias tracking is
@@ -291,7 +291,7 @@ store to it is never dead.
 - [runtime/rename-alias.md](../runtime/rename-alias.md),
   [runtime/namespace-tree.md](../runtime/namespace-tree.md),
   [runtime/command-introspection.md](../runtime/command-introspection.md) —
-  as-built dispatch, redirect lists, and the rename sidecar.
+  runtime dispatch, redirect lists, and the rename sidecar.
 - [command-alias-resolution.md](command-alias-resolution.md) — LSP/analyser
   `interp alias` tracking (the static, editor-facing slice).
 

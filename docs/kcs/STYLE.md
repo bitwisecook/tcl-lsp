@@ -1,8 +1,7 @@
 # KCS style guide
 
 This is the full style guide for KCS notes in this repository. The short
-summary lives in [`AGENTS.md`](../../AGENTS.md) under "Knowledge base and
-documentation"; this file is the canonical source for examples and the
+summary lives in [`AGENTS.md`](../../AGENTS.md) under "Documentation"; this file is the canonical source for examples and the
 rules behind the rules.
 
 A KCS note is a small, searchable answer to one question. It is written
@@ -283,7 +282,7 @@ tables as the list of tags a reader can filter by.
 
 | Tag | What it means |
 |---|---|
-| `tcl-lsp-cli` | The `tcl-lsp` command-line tool |
+| `tcl-lsp-cli` | The `tcl` command-line tool |
 | `mcp` | The tcl-lsp MCP server (tools for AI agents) |
 | `claude-skill` | Claude Code slash-command skills (`/irule-create`, `/tcl-fix`, …) |
 | `copilot-chat` | VS Code Copilot Chat participants (`@tcl`, `@irule`, `@tk`) |

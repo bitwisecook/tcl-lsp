@@ -512,22 +512,29 @@ derived — so once `take` has closed the run over the result, the values
 of the ordered stores convert directly; a poisoned run never reaches that
 conversion, because `take` has already declined.
 
-A core call outside `admitted` is a programming error, not a decline:
-`debug_assert` catches it in development, and
-`direct_route_needs_match_their_cores` calls every catalogued direct
-evaluator with an empty `Needs` and requires each to decline.
+A core call outside `admitted` is an evaluator defect. `ConstOps::require`
+poisons the run, and `take` declines it with `MalformedAnswer` rather than
+publishing a value under an unproved axis. The regression
+`the_cores_the_routes_call_read_only_admitted_axes` checks the core reads
+and their declared needs, including the axis-free byte append and list
+length operations that succeed with `Needs::NONE`.
 
 ### The cores the direct route calls
 
-Every function below exists in `rust/tcl-cmd-core/src` at HEAD unless the
+Every function below exists in `rust/tcl-cmd-core/src` unless the
 row says otherwise. "Declines on" lists what the *route* answers as a
 decline, in addition to the universal ones the interface contract states
-once. "Charge" is in `WorkUnits` (§ *Budgets and cancellation*).
+once. "Charge" is in `WorkUnits` (§ *Budgets and cancellation*). For
+rows grouping several operations, the needs are the axes those cores use
+between them; a route can additionally require axes for interpreting its
+operands. Its `NEEDS` constant or `needs()` method is authoritative.
+`llength`, for example, declares `Needs::NONE`, while list constructors
+need `LIST_RENDERING`.
 
 | Core function | `Needs` | Release axes involved | Declines on | Charge |
 |---|---|---|---|---|
 | `string::dispatch_canon` | the union of the row it dispatches to | as dispatched | `None` — an unhandled subcommand, `is` among them | the dispatched row plus 1 |
-| `string::length` | `CHAR_MODEL` | 8.x counts UTF-16 units, 9.x counts scalars; measured: `string length [encoding convertfrom utf-8 <F0 9F 98 80>]` is 4 on 8.4 and 8.5, 2 on 8.6, 1 on 9.0 and 9.1 | a supplementary character with no named release; a non-UTF-8 value | 1 per input byte |
+| `string::length` | `CHAR_MODEL`, `SOURCE_ENCODING` | 8.x counts UTF-16 units, 9.x counts scalars; measured: `string length [encoding convertfrom utf-8 <F0 9F 98 80>]` is 4 on 8.4 and 8.5, 2 on 8.6, 1 on 9.0 and 9.1 | a supplementary character with no named release; a non-UTF-8 value | 1 per input byte |
 | `string::index`, `string::range` | `INDEX_GRAMMAR`, `CHAR_INDEXING`, `SOURCE_ENCODING` | the index numeral grammar; the scalar addressing both runtimes use for every release | a malformed index; a non-ASCII operand with no named release | 1 per input byte, 1 per output byte |
 | `string::word_bound` | `INDEX_GRAMMAR`, `CHAR_INDEXING` | as above | as above | 1 per input byte |
 | `string::reverse` | `CHAR_INDEXING` | scalar reversal against code-unit reversal | a value the character models disagree on | 1 per byte both ways |
@@ -1808,7 +1815,9 @@ command expr {
 }
 ```
 
-`ProvenTclExprOps` adapts the existing `ExprOps` contract: resolve a
+The sketch's `ProvenTclExprOps` is implemented by
+`tcl_expr_eval::ExprServices`, which adapts the existing `ExprOps` contract:
+resolve a
 variable when reached; evaluate a supported command or math function only
 when reached; retain ordering and completion. Its `NestedPolicy` is
 `EffectFreeOnly` for a branch condition and for a statement the solver does

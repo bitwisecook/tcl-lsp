@@ -20,9 +20,8 @@
 //!
 //! The shared home for the brace-aware scan that the refactoring transforms
 //! (`switch_to_dict`, data-group extraction) and the MCP data-group scan use to
-//! read a `switch` body given as one braced word. Two byte-identical private
-//! copies (in `tcl-lsp-core` and `tcl-mcp`) previously lived apart; they are
-//! centralised here so the tokenisation cannot drift.
+//! read a `switch` body given as one braced word. All consumers use this
+//! scanner so their tokenisation agrees.
 //!
 //! This is deliberately a *lossy, forgiving* scan for transform heuristics —
 //! tokens keep their `{…}`/`"…"` delimiters and malformed input never errors —

@@ -846,15 +846,11 @@ fn throw_command() {
 /// opcode (`beginCatch`) for it, which the VM does not implement; the *bytecode*
 /// lowering the real VM runtime uses (`lower_to_ir_for_bytecode`, mirrored by
 /// this file's `run`) instead drops it to a runtime-command barrier, so the
-/// handler runs. Previously this file compiled with the analysis lowering, so
-/// the literal form skipped the handler and propagated the body's error — and a
-/// literal `try { … } finally { … }` aborted with a hard
-/// "opcode beginCatch4 not implemented in tcl-vm" VM error.
+/// handler runs. Both literal and dynamic forms must preserve the handler
+/// and `finally` completion semantics.
 ///
 /// tclsh 8.6/9.0:  `try { error oops } on error {m o} { set m }`  ->  result "oops" (rc 0)
 ///
-/// The dynamic form (`set t try; $t ...`) was always correct, confirming the
-/// defect was the harness's lowering choice, not `cmd_try` itself.
 #[test]
 fn try_literal_form_on_error_handler() {
     // tclsh: `oops` (the handler runs and returns the body's message)

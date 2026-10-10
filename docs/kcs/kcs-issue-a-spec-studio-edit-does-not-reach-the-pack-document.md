@@ -46,13 +46,12 @@ a program: only you know which line of the program should have produced it.
 
 A patch stands for the session it was made in. Downloading or saving the
 document saves the document — the patch is not part of it — so treat a patch
-as a staging area, not a home.
+as temporary; persist the edit in the program before ending the session.
 
-If the document is *not* a program and the edit still does not appear, look
-for text left outside the `speclib NAME VERSION { … }` block — a half-typed
-`command`, a stray word. The loader reads and drops it, so it is harmless to
-the pack, but tidy it up: it is the only text in the file the studio's own
-report cannot account for.
+For a literal pack, inspect the studio's load notices if a declaration is
+missing. An unknown or malformed property may be rejected even though the
+rest of the pack loaded. Correct the reported declaration in the Pack DSL
+pane and confirm it appears after reloading.
 
 ## Related
 

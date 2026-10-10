@@ -126,9 +126,7 @@ fn sort_optimisations(opts: &mut [Optimisation]) {
 /// whole-module builtin-fold trust gate, O129/O116/O118 — without this a
 /// renamed/redefined builtin, e.g. `rename string {}; [string length …]`,
 /// still gets const-folded with its original semantics, a silent
-/// miscompile). One choke point so a future entry point can't forget any
-/// of the three the way `optimise_unit`'s production path once forgot
-/// `ir_module`.
+/// miscompile). Every production entry point shares this context builder.
 fn build_pass_context<'a>(
     cu: &'a CompilationUnit,
     registry: &'a CommandRegistry,

@@ -117,9 +117,6 @@ test one {a test} -body {
 } -result {…}
 ```
 
-Before this was registry-driven the rule read only a **top-level `set`**, so
-that body drew three warnings (issue #2117).
-
 A braced mention does still count as *use* for
 [`W211`](kcs-diagnostic-w211-variable-set-not-used.md) and
 [`W220`](kcs-diagnostic-w220-dead-store.md): the text may be evaluated later,

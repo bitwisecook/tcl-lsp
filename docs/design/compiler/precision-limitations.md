@@ -1,20 +1,15 @@
 # Known precision limitations
 
-Places where the compiler is deliberately less precise than it could be, or
-less precise than it should be. Each entry says what is imprecise, why it
-matters, and where the code is.
+Where analysis loses precision or an optimiser rewrite changes Tcl
+behaviour. Each entry describes the behaviour, its consequence, and the
+owning code.
 
-Two kinds of entry appear here:
+- **Open** — an unmodelled case, including an incorrect rewrite where the
+  comparison demonstrates one.
+- **Accepted** — a deliberate conservative limit and its trade-off.
 
-- **Open** — a real gap that should be closed when a motivating case or the
-  enabling substrate arrives.
-- **Accepted** — a limitation kept on purpose because the precise alternative
-  is net-negative on real code. These are recorded so the trade-off is not
-  re-litigated from scratch, and so a future change that shifts the trade-off
-  knows what it is overturning.
-
-Ground truth throughout is C tclsh 9.0.3, cross-checked against 8.x wherever the
-behaviour is dialect-sensitive.
+The reference interpreter is the pinned C Tcl 9.0.4 release, with other
+releases named where behaviour is dialect-sensitive.
 
 ---
 
@@ -96,19 +91,16 @@ worklist — but it still stops rather than approximate once a pattern's
 structure exceeds its depth cap, and the engine's own fuel and depth
 limits (`ExecLimits`) can also stop a search outright. Each of the three
 ways the engine can finish — `Matched`, `NoMatch`, or `Stopped` — is
-answered honestly: a stopped search is never folded as a no-match (an
-exhausted-fuel decline answering `0` was the bug the typed three-way
-result fixes), and `regexp` / `regsub` / `switch -regexp` / `lsearch
--regexp` raise the command's own real error for it
-(`error while matching regular expression: …`), matching what `tclsh`
-does when a pattern is too expensive to run.
+answered honestly: a stopped search is never folded as a no-match. The
+analysis declines, while `regexp` / `regsub` / `switch -regexp` / `lsearch
+-regexp` in the project runtime raise
+`error while matching regular expression: …`.
+These are the project engine's limits; C Tcl may complete the same match.
 
-Why the cap is not simply raised: a regular expression's worst-case
-matching cost is exponential in the source `tclsh` links against too, so
-raising the cap moves the cliff edge rather than removing it, and every
-release the profile spans must agree on the answer — a capture the cap
-lets through on one release and cuts off on another is a soundness bug
-disguised as a precision one. The `AnalysisMatch::charge` bound keeps a
+The caps bound analysis and runtime work. Raising them permits more work
+but does not make the stopped result knowable. Every release the profile
+spans must agree on a folded answer; a capture that remains undecided on
+one release cannot be published as a common result. The `AnalysisMatch::charge` bound keeps a
 compile's cost proportional to its declared length squared, and the
 pattern cache is bounded (4 MiB, coldest evicted first) rather than
 grown, for the same reason: precision here trades against the budget
@@ -133,19 +125,16 @@ scan see a nested command's read or write only where the lowering places a
 synthetic statement for it: a condition's `<cond>`, a value word's or a
 `return` word's own word effects (`<word-effects>`), and a host statement's
 own uses.
-An audit of every position an existence read can reach found three
-positions with no synthetic statement at all, so **both** an
-existence and a value read there are invisible — not a precision loss but
-a miscompile, verified against `tclsh` 8.6.18 (each pair below is the
-original's printed output, then the optimised program's):
+The following positions can leave reads or writes unrecorded and produce
+an incorrect rewrite. The examples below reproduce under `tclsh` 9.0.4;
+each comparison describes the original and optimised program's output:
 
-- **A script body nested in a substitution** (`[eval {…}]`,
-  `[lmap v {1} {…}]`, an `if` arm or a loop body, `[namespace eval …]`,
-  `[apply …]`) — records no read or write of the outer frame's names at
-  all (#2323): `set x 1; puts [eval {info exists x}]; set x 2` loses
-  `set x 1` to O109 and prints `0` where tclsh prints `1`, and `set x 1;
-  puts [foreach v 1 {incr x}]; puts $x` prints `1` where tclsh prints `2`.
-  The one script a substitution runs once, in this frame, whatever it
+- **Some script bodies nested in a substitution** (#2323) —
+  `set x 1; puts [foreach v 1 {incr x}]; puts $x` prints `1` after
+  optimisation where tclsh prints `2`. This does not apply to every nested
+  body: `set x 1; puts [eval {info exists x}]; set x 2` keeps its first
+  store and prints `1` before and after optimisation.
+  A script a substitution runs once, in this frame, whatever it
   completes with — the protected script of a `catch` and the body of a
   `try`, which the clause grammar names — is recorded where its text is
   known, brace-quoted or a quoted word that substitutes nothing
@@ -245,7 +234,7 @@ its base where every one of them is a `Preserve`, a rule the driver does not
 state yet for any command. Extend `defs_from_placed` when a program motivates
 it.
 
-## Accepted — a nested unbind's kill is not a definition
+## Open — a nested unbind's kill is not a definition
 
 A nested `[unset x]` is recorded as reading the version of `x` it
 observes — the fix every other existence-read position (a condition, a
@@ -253,7 +242,7 @@ value word, a `return` word) takes — but never as *killing* it. A killing
 definition would have to sit on the synthetic statement the lowering
 places **before** its host statement, so the host word's own reads would
 see the killed version too: `set y $x[unset x]` would draw a spurious
-W210 on `$x` and read no value, where `tclsh` 8.4.20 to 9.1b0 read `$x`
+W210 on `$x` and read no value, where `tclsh` 8.4.20 to 9.1.0 read `$x`
 before the unset runs and then remove it, in source order within the one
 word. `proc p {} {set x 1; puts [unset x]; puts $x}` therefore still
 rewrites `puts $x` to `puts 1` (O102), where every release raises `can't
@@ -273,7 +262,7 @@ today. Tracked as #2263.
 In top-level code a plain name is the global of that name, and the solver
 gives it the footing it gives a procedure's local: the constant it
 propagates, and the narrowing a test proves in the arm the test guards
-(`refinable_values` in `sccp.rs`), hold until a call to a command the file
+(`refined_values` in `sccp.rs`), hold until a call to a command the file
 does not define gives the name a fresh version, and a name one of the file's
 procedures declares `global` is neither propagated nor narrowed. A write
 through the qualified spelling in the same code is not read as a write to the
@@ -509,3 +498,16 @@ Why it is accepted: a package is often required by another file of the
 program, which a module cannot see, so gating each route on the module's own
 `package require` would cost the folds of every library split across files;
 the missing require is a diagnostic of its own.
+
+## Open — a standalone expression fold drops its command wrapper
+
+`optimiser::expr_simplify::try_rewrite_expr` uses the folded value as the
+replacement for the whole standalone `expr` statement. `expr {2 + 3}`
+therefore becomes `5`, which `tclsh` 9.0.4 rejects with
+`invalid command name "5"`. In a procedure the same rewrite also loses the
+implicit return value's executable command. Folding `[expr {2 + 3}]`
+inside `puts` produces the valid `puts 5` instead.
+
+The standalone rewrite must retain an `expr` command and render its result
+as a valid expression operand, including string-valued results. Until then,
+disable O101 when optimising standalone expressions.

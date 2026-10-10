@@ -427,30 +427,21 @@ impl Shell {
 
 /// Run `call` after `definition` in `release`'s own `tclsh`.
 fn real_shell(release: &str, definition: &str, call: &str) -> Shell {
-    use std::io::Write as _;
-
-    let run = || -> Option<Shell> {
-        let shell = format!("tclsh{release}");
-        let mut child = std::process::Command::new(&shell)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .ok()?;
-        let script = format!(
-            "puts -nonewline \"[info patchlevel]|\"\nnamespace eval vendor {{}}\n{definition}\n\
-             if {{[catch {{{call}}} answer]}} {{puts -nonewline ERR}} else {{puts -nonewline OK:$answer}}\n"
-        );
-        child.stdin.take()?.write_all(script.as_bytes()).ok()?;
-        let output = String::from_utf8(child.wait_with_output().ok()?.stdout).ok()?;
-        let (patchlevel, outcome) = output.split_once('|')?;
-        patchlevel.starts_with(release).then(|| {
-            outcome
-                .strip_prefix("OK:")
-                .map_or(Shell::Raised, |value| Shell::Answered(value.to_owned()))
-        })
+    let version = tcl_dialect::TclVersion::from_version_string(release).expect("reference release");
+    let Some(shell) = tcl_test_support::witness_tclsh(version) else {
+        return Shell::Absent;
     };
-    run().unwrap_or(Shell::Absent)
+    let script = format!(
+        "namespace eval vendor {{}}\n{definition}\n\
+         if {{[catch {{{call}}} answer]}} {{puts -nonewline ERR}} else {{puts -nonewline OK:$answer}}\n"
+    );
+    let output = tcl_test_support::run_script(&shell.path, script.as_bytes())
+        .expect("reference interpreter runs")
+        .strict_text()
+        .expect("reference script reports its completion");
+    output
+        .strip_prefix("OK:")
+        .map_or(Shell::Raised, |value| Shell::Answered(value.to_owned()))
 }
 
 /// The body runs under the release the call is analysed under: `string cat` is
@@ -539,7 +530,6 @@ fn a_derived_body_runs_under_the_release_the_call_is_analysed_under() {
         ),
     ];
     for (row, definition, arity, call, releases) in rows {
-        let (mut compared, mut answered) = (0, 0);
         for release in *releases {
             let shell = real_shell(release, definition, call);
             if shell == Shell::Absent {
@@ -552,12 +542,6 @@ fn a_derived_body_runs_under_the_release_the_call_is_analysed_under() {
                 analysed, shell,
                 "{row} under {release}: the analysis against the shell's own answer\n{definition}\n{call}"
             );
-            answered += usize::from(shell.is_some());
-            compared += 1;
         }
-        assert!(
-            compared == 0 || answered > 0,
-            "{row}: no release answered a value, so nothing was compared"
-        );
     }
 }

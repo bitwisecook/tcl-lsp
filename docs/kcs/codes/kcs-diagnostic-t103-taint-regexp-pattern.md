@@ -23,10 +23,11 @@ the match means: `.*` where you expected a literal name matches everything,
 and an alternation or a backreference can make the match succeed on input
 you meant to reject.
 
-The second hazard is cost. A pattern with nested quantifiers — `(a+)+$` is
-the classic — can take exponential time on a short non-matching subject, so
-an attacker who controls the pattern controls how long your process spends
-in the regex engine. That is a denial of service from a single request.
+The second hazard is cost. A supplied pattern can require much more work
+than a literal match or exhaust the engine's work budget. The cost depends
+on the pattern, subject, and engine; C Tcl and the project runtime can
+behave differently. Restricting the pattern prevents the caller from
+choosing arbitrary matching work.
 
 Both are avoided the same way: the pattern must be something you wrote, or
 something whose metacharacters have been turned into ordinary text.
@@ -43,9 +44,7 @@ something whose metacharacters have been turned into ordinary text.
 
 ```tcl
 set pattern [gets stdin]
-if {[regexp -- $pattern $line]} {
-    puts "matched"
-}
+regexp -- $pattern "example input"
 ```
 
 The analyser reports **`T103`** on the `regexp` call, naming `$pattern`.
@@ -54,9 +53,7 @@ The analyser reports **`T103`** on the `regexp` call, naming `$pattern`.
 
 ```tcl
 set pattern [gets stdin]
-if {[regexp -- [regex::quote $pattern] $line]} {
-    puts "matched"
-}
+regexp -- [regex::quote $pattern] "example input"
 ```
 
 `regex::quote` backslash-escapes every regex metacharacter, so the value
@@ -75,6 +72,13 @@ regexp -- $safe $line
 If the user is only choosing between patterns you wrote, match the choice
 against a whitelist instead and use your own pattern — that removes the
 hazard rather than escaping around it.
+
+## Where it does not fire
+
+The check does not follow a `regexp` call embedded in an `if` condition.
+For example, `if {[regexp -- $pattern $line]} {…}` may stay quiet even
+when `$pattern` came from input. Keep the same quoting or whitelist
+protection for that shape.
 
 ## How to suppress
 

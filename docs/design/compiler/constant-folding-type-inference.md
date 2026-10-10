@@ -69,7 +69,7 @@ involves a traced, aliased or callback-written name in the first place;
 its def-use walk never consults `fu.sccp`; and
 `propagation::run_store_to_load_forwarding` (O127) adds the memory-SSA
 half through `memory_ssa::compute_aliases` when the unit carries no
-`MemorySsa`. There is no separate bytecode-level shortcut to guard.
+`MemorySsaFunction`. There is no separate bytecode-level shortcut to guard.
 
 A head the module can name brings its frame effect from the registry, from
 the summary of a procedure it defines, or from the stub that declares it as a

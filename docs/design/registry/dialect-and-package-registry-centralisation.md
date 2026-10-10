@@ -140,15 +140,18 @@ resolve every dialect **name** through the seam and reach the registry
 as per-environment `ContextRegistry` generations, through one small
 `environment` module each: `profile_for_dialect`
 (`resolve_environment(…).unit_profile()`), `store_for_profile` /
-`store_for_dialect` (the generation's command store), and `surface_mask`
-(the resolved environment's document authoring point). Both engines
+`store_for_dialect` where provided (the generation's command store), and
+`surface_point` in the engines (the resolved environment's document
+`SurfaceQuery`). Both engines
 resolve the point *and* the store once per profile pin and cache them on
 the interpreter, because the builtin-surface gate is consulted on every
 command resolution. `codegen_abi`'s three raw name ingresses are
-`resolve_known_environment`, keeping the fail-closed decline. The only
-names these crates accept are the closed release set
-`TclVersion::dialect_profile_name` spells plus the fixed
-`f5-irules`/`tk`/`expect`/`f5-iapps` projection targets.
+`resolve_known_environment`, keeping the fail-closed decline. Release-based
+constructors use the closed release set `TclVersion::dialect_profile_name`
+spells and the fixed `f5-irules`/`tk`/`expect`/`f5-iapps` projection targets.
+Both engines also resolve explicit `RuntimeContext` pins through
+`environment::pin_context`, including registered environments and overlays;
+an overlay that has not been installed is an error.
 
 The WASM backend's `BackendRegistry`/`ProofStatus` and `try_bytecoded`'s
 trust gate implement I4's discipline; BPF is the cleanest fully
@@ -163,15 +166,16 @@ The two CLIs (`tcl-cli`, through the shared `tcl-cli-support`), the MCP
 server (`tcl-mcp`), the spec studio (`tcl-spec-studio`) and the pack
 loader's name ingress (`tcl-spectcl`) resolve every dialect **name**
 through the seam and answer availability from the resolved environment's
-`ResolvedContext`, each through one small `environment` module —
+`ResolvedContext`. Their small `environment` modules expose the ingress
+forms each consumer needs. `tcl-cli-support` supplies
 `profile_for_dialect`, `known_profile_for_dialect` (the validator),
-`context_for_dialect` (the assistance view), `store_for_dialect` (the
-generation's command store) — plus, where a crate genuinely needs both
-ingress forms, the exact analyser-profile twin
-(`analyser_profile_for_dialect` / `analyser_mask_for_dialect`, built on
-`DocumentEnvironment::analyser_profile`): the CLI's KCS help filter and
-the pack-carrying registry cache key deliberately sink `tk` to the
-permissive fallback rather than promoting it. One correctness note for
+`context_for_dialect` (the assistance view), and
+`analyser_profile_for_dialect`. The pack loader supplies
+`profile_for_dialect`, `catalogue_profile_for_dialect`, and `lenient_store`.
+The CLI's analyser-profile form and the pack loader's profile form use
+`DocumentEnvironment::analyser_profile`: the KCS help filter and the
+pack-carrying registry cache key deliberately sink `tk` to the permissive
+fallback rather than promoting it. One correctness note for
 every seam consumer: `resolve_known_environment("tcl")` is `Some` (the
 lenient sink's own environment id), so a caller needing the old refusal
 of a bare `tcl` composes the catalogue twin (`DialectProfile::find`) plus
@@ -524,20 +528,23 @@ a parallel harness.
 
 ### 7.1 Reference interpreters
 
-`ensure-test-deps.sh`'s `ensure_tclsh` builds all five reference
-interpreters, each left at `<tree>/unix/tclsh` (the path
-`audit_option_dialects` reads) and exposed on `PATH` as
-`/usr/local/bin/tclsh{8.4,8.5,8.6,9.0,9.1}`. 8.4/8.5 build with
-`CFLAGS="-O2 -fcommon -Wno-implicit-int -Wno-implicit-function-declaration"`
-against modern gcc and only find `init.tcl` via a path relative to their
-own real on-disk location, so those two are exposed through a thin wrapper
-script that `exec`s the tree binary by its real path (`unset TCL_LIBRARY`
-first); 9.1 tolerates a plain symlink. The build is idempotent, keyed on
-`<tree>/unix/tclsh` reporting the expected `info patchlevel`.
-`resolve_tclsh90` in `rust/xtask/src/tcltest_sweep.rs` tries, in order,
-`TCL_LSP_TCLSH90`, `/usr/local/bin/tclsh9.0`, `tclsh9.0` on `PATH`, then
-the in-tree `tmp/tcl9.0.4/unix/tclsh`, and fails naming `make
-ensure-test-deps` when none exist. `audit_option_dialects` calls
+`ensure-test-deps.sh`'s `ensure_tclsh` provisions the five pinned
+interpreters declared in `rust/tcl-dialect/data/reference-toolchains.tsv`.
+`scripts/dev/tcl-reference-toolchains.sh` validates each source/build tree
+and publishes wrappers that execute its `unix/tclsh` with the matching
+library. `TCL_LSP_TCL_BIN_DIR` selects the wrapper directory; otherwise the
+helper chooses `~/.local/bin` or `/usr/local/bin` according to the
+available writable PATH location. An existing build is reused only when
+its reported `info patchlevel` matches the pinned patchlevel.
+
+`tcl_test_support::locate_tclsh(TclVersion)` validates the interpreter's
+exact pinned patchlevel. The `tcltest_sweep` instead binds the pinned Tcl
+9.0 source tree through `source_tree_for_sweep` and
+`tcl_test_support::locate_source_tree`, then obtains its interpreter with
+`tclsh_from_source_tree`. This keeps the test sources and executable from
+the same validated tree.
+
+`audit_option_dialects` calls
 `require_all_tclsh_built` before probing and fails immediately listing
 any missing binary (`AUDIT_ALLOW_MISSING_TCLSH=1` is the documented escape
 hatch for a deliberately partial run). `fetch_tcl_source.sh` fetches the
@@ -570,8 +577,8 @@ consumers executing the same bytes:
   parenthesis depth so an argument may contain commas and nested
   parentheses.
 - `rust/tcl-syntax/tests/support/mod.rs` is the five-binary matrix, keyed
-  `TCL_LSP_TCLSH84` … `TCL_LSP_TCLSH91` with PATH fallbacks; it verifies
-  the interpreter's reported version matches the name it was found under,
+  `TCL_LSP_TCLSH84` … `TCL_LSP_TCLSH91` with PATH fallbacks; it uses `tcl_test_support` to verify
+  the interpreter's reported patchlevel matches the pinned release,
   and skips a missing release loudly. The three suites
   (`command_resolution_conformance`, `variable_resolution_conformance`,
   `namespace_op_conformance`) run every row against every available

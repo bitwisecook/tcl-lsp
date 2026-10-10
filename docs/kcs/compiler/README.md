@@ -28,7 +28,7 @@ contract. This index does not duplicate that contract.
 - [kcs-qa-what-does-a-member-effect-say.md](kcs-qa-what-does-a-member-effect-say.md)
   — the closed, family-neutral vocabulary a definition-body member word
   declares (callable, dispatch redirect, state declaration, relation,
-  visibility, retraction, init script); the derived `member_rows` query
+  visibility, retraction, init script); the derived `DefinitionBodyGrammar::member_row` query
   the class hierarchy, method arity, and `my` dispatch fold over; and what
   a pack's own definer family adds to declare a new one.
 - [kcs-qa-what-does-a-value-transfer-declaration-say.md](kcs-qa-what-does-a-value-transfer-declaration-say.md)

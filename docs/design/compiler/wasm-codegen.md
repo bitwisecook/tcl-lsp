@@ -1,6 +1,6 @@
 # WASM code generation
 
-> **Status:** `codegen::wasm::compile_wasm` is the sole public Tcl-to-WASM
+> `codegen::wasm::compile_wasm` is the sole public Tcl-to-WASM
 > code-generation entry point. It selects a semantic plan from executable IR
 > first and records a typed compatibility reason when broad source-compatible
 > emission is still required. The **native tier**

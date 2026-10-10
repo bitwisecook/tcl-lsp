@@ -1,6 +1,6 @@
 # Semantic AOT optimisation contract
 
-> **Status:** implementation contract with three opt-in WASM consumers: a
+> Implementation contract with three opt-in WASM consumers: a
 > live-guarded boxed `string length` intrinsic, the sealed constant-operand
 > `add` demonstration, and the native tier
 > ([wasm-codegen.md](wasm-codegen.md#the-native-tier)). Every semantic AOT

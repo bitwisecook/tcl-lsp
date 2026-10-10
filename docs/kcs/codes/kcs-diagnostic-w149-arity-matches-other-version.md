@@ -46,6 +46,10 @@ targets; the second says it is left over from an **earlier** one.
 
 ## Example that triggers it
 
+This example assumes a loaded registry declaration for the illustrative
+`Probe` package: `probe::grew` takes two arguments from 3.0 until 5.0 and
+three from 5.0. Neither the package nor this command is a Tcl builtin.
+
 ```tcl
 package require Probe 3.0
 

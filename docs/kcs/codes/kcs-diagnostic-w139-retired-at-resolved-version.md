@@ -55,14 +55,16 @@ project above the release that removed an item and every use of that item
 draws W139:
 
 ```tcl
-package require SomePackage 3.0
-
-SomePackage::oldCall x
+# tcl-dialect: tcl8.6
+package require Tcl 9.0
+trace variable v w handler
 ```
 
-If the registry records `SomePackage::oldCall` as removed in 3.0, the
-analyser reports **`W139`** on the call: the resolved floor of 3.0 is
-already past the removal.
+The analyser reports **`W139`** on `variable`: this legacy subcommand was
+removed in Tcl 9.0 and the explicit requirement raises the floor to 9.0.
+Use `trace add variable v write handler` instead. If the dialect itself
+already excludes the subcommand, `W002` reports it and `W139` does not
+repeat that finding.
 
 ## Fix
 

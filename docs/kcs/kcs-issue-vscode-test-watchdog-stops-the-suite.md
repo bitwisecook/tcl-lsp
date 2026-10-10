@@ -1,4 +1,4 @@
-# KCS: `make test-ext` reports "mocha never completed (likely hung)" on a green run
+# KCS: Why does the VS Code test watchdog stop the suite?
 
 > **Audience:** Contributor
 > **Type:** Issue
@@ -9,32 +9,29 @@ VS Code
 
 ## Question
 
-`make test-ext` (or `npm test` under `editors/vscode`) exits 1 with `mocha
-never completed (likely hung)`, but the log shows every test passed — how do
-you tell a genuine hang apart from a run that was simply slow?
+`make test-ext` (or `npm test` under `editors/vscode`) exits 1 with a
+watchdog report. How do you identify a stalled test, a slow suite, or an
+extension host that never started?
 
 ## Symptoms
 
-- The run prints test results with `0 failed` (or a full green summary), then
-  ends with `VS Code test runner did not exit within <N>ms after launch` or
-  `mocha did not complete. Treating as failure.`
-- The failure looks intermittent — it happens on some runs and not others,
-  or only under load (several build trees, CI runners, or agent sessions
-  sharing the machine).
-- A run that fails this way and is simply re-run often passes.
+- The runner prints `--- watchdog report ---` and exits with a failure.
+- The verdict names a lack of progress, the absolute ceiling, or a missing
+  heartbeat, followed by `mocha did not complete. Treating as failure.`
+- The report includes the last observed test counts and in-flight title
+  when a heartbeat is available.
 
 ## Answer
 
-The watchdog (`editors/vscode/src/test/runnerWatchdog.ts`) bounds
-**lack of progress**, not elapsed time. It reads the heartbeat file the
+The watchdog (`editors/vscode/src/test/runnerWatchdog.ts`) checks
+progress and an absolute ceiling. It reads the heartbeat file the
 extension host writes every 2s
 (`.vscode-test/mocha-heartbeat.json`, or
 `.vscode-test/mocha-heartbeat-multifolder.json` for `test:multi-folder`) and
-gives up only when `completed + failed` and the in-flight test title have not
-moved for the no-progress window. A run that is still completing tests, or
-still failing tests, or has just moved on to a new in-flight test, is never
-killed however long it has taken. A generous absolute ceiling remains as a
-backstop for a run that never stalls but also never finishes.
+reports a stall when `completed + failed` and the in-flight test title have
+not moved for the no-progress window. Progress resets that window. An
+absolute ceiling also bounds a run that keeps making progress without
+finishing.
 
 1. Read the message after `--- watchdog report ---`. It names which of three
    things happened:
@@ -45,8 +42,7 @@ backstop for a run that never stalls but also never finishes.
      (suspect the server).
    - **`absolute ceiling reached while still completing tests`** — the run
      was still making progress but took far longer than the generous
-     ceiling allows. This is never reported as "likely hung"; check whether
-     the suite has grown, or the machine was extremely loaded (the message
+     ceiling allows. Check whether the suite has grown, or the machine was extremely loaded (the message
      includes the measured load factor).
    - **`no heartbeat file was ever written`** — the extension host failed to
      start, or `run()` never reached `mocha.run`. Look earlier in the log

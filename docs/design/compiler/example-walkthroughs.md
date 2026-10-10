@@ -759,7 +759,7 @@ pub struct FormSpec {
 `CommandSpec.command_forms` — and `SubCommandForm` via
 `SubCommand.subcommand_forms` — is the behavioural descriptor that drives
 compiler routing: `name`, per-form `arity`, `arg_roles`, `options`,
-`option_constraints`, `dialects`, per-form overrides of the
+`option_relations`, `surface`, per-form overrides of the
 `result_stability` / `world_effects` / `state_transitions` /
 `dispatch_dependencies` / `representation_effect` descriptors, and per-form
 `lowering_hook` / `codegen_hook` routing.
@@ -2992,7 +2992,7 @@ proc compute {x} {
 
 ### Elimination passes
 
-`optimise_elimination_passes()` in
+`elimination::run` in
 `rust/tcl-compiler/src/optimiser/elimination.rs`:
 
 **O109 — Dead Store Elimination:**
@@ -3080,7 +3080,7 @@ pool main_pool
 SCCP determines `debug₁ = CONST("0")` → the `if` condition is always
 false → the body is unreachable.
 
-`optimise_structure_elimination()` in
+`structure_elimination::run` in
 `rust/tcl-compiler/src/optimiser/structure_elimination.rs`
 replaces the entire `if {$debug} { ... }` block with nothing (O112),
 and a grouped O109 removes the dead `set debug 0`:
@@ -3429,7 +3429,7 @@ The solver iterates over the call graph to propagate effects:
 - Body is a single expression
 
 When the optimiser encounters `[helper 21]` with a constant argument,
-`fold_static_proc_call()` evaluates the body with `x₁ = 21` →
+`try_fold_static_proc_call` evaluates the body with `x₁ = 21` →
 `21 * 2` = `42` (O103).
 
 ### Final `ProcSummary`
@@ -3906,7 +3906,7 @@ The classification function follows this resolution order:
 | Consumer | Uses |
 |----------|------|
 | **GVN/CSE** | `pure=true` → result can be cached (O105) |
-| **ADCE** | `pure=true` + `NoEscape` → statement is removable |
+| **ADCE** | An unused result is removable only when the call has no observable effects and passes the elimination safety guards |
 | **Optimiser** | `pure=false` → cannot propagate across this command |
 | **iRules flow** | `RESPONSE_LIFECYCLE` write → response-commit tracking |
 | **Taint engine** | `pure=true` → taint flows through unchanged |

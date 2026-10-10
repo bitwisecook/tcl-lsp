@@ -65,9 +65,6 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — the spec studio reports a command written and the Pack DSL pane does not
   change, because the document is a program the studio patches rather than
   rewrites.
-- [kcs-issue-a-tcl-lsp-server-process-outlives-the-editor.md](kcs-issue-a-tcl-lsp-server-process-outlives-the-editor.md)
-  — a `tcl-lsp-server` process is still running, busy on every core, after
-  the editor window that started it has closed.
 - [kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md](kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md)
   — builds in one git worktree fail or pass with artefacts from a
   sibling checkout because the worktrees share one cargo target
@@ -78,9 +75,6 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-issue-smoke-fallback-does-not-match-nextest.md](kcs-issue-smoke-fallback-does-not-match-nextest.md)
   — the manifest-backed Cargo smoke fallback rejects a missing or ambiguous
   ownership row when cargo-nextest is unavailable.
-- [kcs-issue-false-diagnostics-inside-a-multi-word-eval.md](kcs-issue-false-diagnostics-inside-a-multi-word-eval.md)
-  — an E002 or W210 on a multi-word `eval`, `uplevel`, or `namespace eval`
-  is about the joined script, not the first word.
 - [kcs-issue-uplevel-injected-variable-is-reported-unset.md](kcs-issue-uplevel-injected-variable-is-reported-unset.md)
   — when a write a helper makes in an outer frame through `uplevel` is
   believed, and when the caller's read still draws W210 or W212.
@@ -90,16 +84,16 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-issue-irule-word-operator-is-not-analysed.md](kcs-issue-irule-word-operator-is-not-analysed.md)
   — an iRules word operator (`contains`, `starts_with`, …) is neither
   folded by `tcl opt` nor reported by the analyser, because the file's
-  dialect never reached the optimiser or the expression parser.
+  selected dialect does not recognise the operator.
 - [kcs-issue-reconstruct-a-stress-test-failure.md](kcs-issue-reconstruct-a-stress-test-failure.md)
   — a stress-test suite run failed and you want to reconstruct it from
   the `STRESS_FAILURE:` reproduction bundle.
 - [kcs-issue-vscode-test-timed-out-on-didopen.md](kcs-issue-vscode-test-timed-out-on-didopen.md)
   — a VS Code extension test timed out draining `didOpen`, and you want to
   tell a wedged server apart from one wedged document.
-- [kcs-issue-vscode-test-runner-reports-false-hang.md](kcs-issue-vscode-test-runner-reports-false-hang.md)
-  — `make test-ext` reports "mocha never completed (likely hung)" on a run
-  that actually passed every test.
+- [kcs-issue-vscode-test-watchdog-stops-the-suite.md](kcs-issue-vscode-test-watchdog-stops-the-suite.md)
+  — distinguish a stalled test, an absolute time ceiling, and an extension
+  host that never wrote a heartbeat.
 - [kcs-issue-vscode-test-feature-toggle-sampled-once.md](kcs-issue-vscode-test-feature-toggle-sampled-once.md)
   — a feature-toggle test samples the provider once right after disabling it
   and is flaky (or fails deterministically) instead of waiting on the result.

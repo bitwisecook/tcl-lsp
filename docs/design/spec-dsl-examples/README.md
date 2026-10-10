@@ -1,18 +1,15 @@
 # SpecTcl — syntax specification
 
-> **Status:** implemented syntax reference for
-> [spec-packs.md](../registry/spec-packs.md). The syntax was **designed by
-> porting**: every construct exists because one of the eleven
-> `*.tclspec` files beside this page needed it to say something a
-> shipped spec already says.
+> Syntax reference for [spec-packs.md](../registry/spec-packs.md). The
+> eleven `*.tclspec` examples beside this page demonstrate constructs
+> needed to describe shipped native declarations.
 
-## The ports
+## Examples
 
-Each file names the `.rs` it was ported from in its header comment, so a
-later implementation can diff the loaded `CommandSpec` against the shipped
-one.
+Each file names the native `.rs` declaration in its header comment so its
+loaded `CommandSpec` can be compared with that declaration.
 
-| pack file | ported from | what it forced into the design |
+| Pack file | Native declaration | Constructs demonstrated |
 |---|---|---|
 | [`lsort.tclspec`](lsort.tclspec) | `commands/tcl/lsort_.rs` | option rows, command-prefix options, integer domains, per-option dialect gates |
 | [`foreach.tclspec`](foreach.tclspec) | `commands/tcl/foreach_.rs` | stepped arity, repeated-argument layouts, a clause grammar's group row |
