@@ -116,12 +116,7 @@ impl Interp {
                 ));
             }
             Err(error) => {
-                return self.finish_original_unset_failure(
-                    &report,
-                    complain,
-                    unset_reason(error),
-                    Site::NameLookup,
-                );
+                return self.finish_original_unset_receiver_failure(&report, complain, error);
             }
         };
         self.unset_original_c_capture(capture, report, complain)
@@ -181,12 +176,7 @@ impl Interp {
                 ));
             }
             Err(error) => {
-                return self.finish_original_unset_failure(
-                    &report,
-                    complain,
-                    unset_reason(error),
-                    Site::NameLookup,
-                );
+                return self.finish_original_unset_receiver_failure(&report, complain, error);
             }
         };
         if observes {
@@ -230,6 +220,38 @@ impl Interp {
         Ok(spelling)
     }
 
+    fn finish_original_unset_receiver_failure(
+        &mut self,
+        report: &UnsetReport,
+        complain: bool,
+        error: crate::frame::VarError,
+    ) -> Result<(), Code> {
+        if !complain {
+            return Ok(());
+        }
+        let bytes = match report.original {
+            Some(original) => self
+                .native_string_bytes(&original)
+                .map_err(|error| self.report_cmd_error(error.into()))?
+                .to_vec(),
+            None => report.root.clone(),
+        };
+        let input = if report.combined {
+            Input::Combined(&bytes)
+        } else {
+            Input::Separate {
+                root: &bytes,
+                element: report.element.as_deref(),
+            }
+        };
+        Err(self.original_c_variable_receiver_error(
+            input,
+            unset_purpose(true),
+            error,
+            Some(Site::NameLookup),
+        ))
+    }
+
     fn finish_original_unset_failure(
         &mut self,
         report: &UnsetReport,
@@ -264,21 +286,6 @@ fn unset_purpose(complain: bool) -> NativeVariableNameLookupPurpose {
         NativeVariableNameLookupPurpose::Unset
     } else {
         NativeVariableNameLookupPurpose::QuietUnset
-    }
-}
-
-fn unset_reason(error: crate::frame::VarError) -> Reason {
-    use crate::frame::VarError;
-    match error {
-        VarError::IsScalar => Reason::NotArray,
-        VarError::IsArray => Reason::IsArray,
-        VarError::DeletedArray => Reason::DetachedElement,
-        VarError::DeletedNamespace => Reason::RetiredNamespace,
-        VarError::IsConstant => Reason::Constant,
-        VarError::NoSuchNamespace => Reason::MissingParentNamespace,
-        VarError::TraceError | VarError::NameProtocolUnavailable => {
-            unreachable!("unset ignores guest trace errors and preserves host refusals")
-        }
     }
 }
 

@@ -35,7 +35,9 @@
 
 use core::ptr;
 
-use crate::codegen_abi::{current_interp, TclCompletionAbi, TCL_INVOKE_ABI_HOST_REFUSED};
+use crate::codegen_abi::{
+    current_interp, CodegenOperation, TclCompletionAbi, TCL_INVOKE_ABI_HOST_REFUSED,
+};
 use crate::interp::native_operation_currency::{NativeOperationCurrency, NativeOperationScope};
 use crate::interp::{Code, Interp};
 use crate::obj::{self, TclObj};
@@ -172,32 +174,47 @@ pub unsafe extern "C" fn tcl_codegen_var_set_element(
     key_len: i32,
     value: *mut TclObj,
 ) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || value.is_null() {
+    // SAFETY: non-null input transfers exactly one generated +1 reference.
+    let value = (!value.is_null()).then(|| unsafe { obj::Owned::from_raw(value) });
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(status) => {
+            drop(value);
+            return if status == TCL_INVOKE_ABI_HOST_REFUSED {
+                status
+            } else {
+                1
+            };
+        }
+    };
+    let Some(value) = value else {
         return 1;
-    }
-    // SAFETY: the ranges are readable data-segment bytes per the contract.
+    };
     let (name, key) = unsafe {
         (
             input_bytes(name_ptr, name_len),
             input_bytes(key_ptr, key_len),
         )
     };
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let interp = unsafe { &mut *interp };
-    let code = match interp.var_set_elem(name, key, value) {
-        Ok(()) => 0,
-        Err(error) => {
-            let mut spelled = name.to_vec();
-            spelled.push(b'(');
-            spelled.extend_from_slice(key);
-            spelled.push(b')');
-            i32::try_from(crate::builtins::var_error(interp, &spelled, error).as_int()).unwrap_or(1)
+    let stored = operation
+        .interpreter
+        .var_set_elem(name, key, value.as_ptr());
+    let code = if operation.ensure_current().is_err() {
+        Code::Error
+    } else {
+        match stored {
+            Ok(()) => Code::Ok,
+            Err(error) => {
+                let mut spelled = name.to_vec();
+                spelled.push(b'(');
+                spelled.extend_from_slice(key);
+                spelled.push(b')');
+                crate::builtins::var_error(&mut operation.interpreter, &spelled, error)
+            }
         }
     };
-    // SAFETY: the generated assignment transfers its reference here.
-    unsafe { obj::decr_ref_count(value) };
-    code
+    drop(value);
+    operation.finish_code(code)
 }
 
 /// `tcl_codegen_var_incr(name, delta) -> obj` — Tcl `incr` on the named
@@ -216,29 +233,26 @@ pub unsafe extern "C" fn tcl_codegen_var_incr(
     name_len: i32,
     delta: *mut TclObj,
 ) -> *mut TclObj {
-    let interp = current_interp();
-    if interp.is_null() || delta.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
+        return ptr::null_mut();
+    };
+    if delta.is_null() {
         return ptr::null_mut();
     }
-    // SAFETY: readable per the contract; the interpreter is live.
     let name = unsafe { input_bytes(name_ptr, name_len) };
-    let interp = unsafe { &mut *interp };
-    // SAFETY: `delta` is live per the contract.
-    // The trace-safe `incr`, not `builtins::incr`: see `cmd_var::installed_incr`.
     let code = unsafe {
         run_named_cell_command(
-            interp,
+            &mut operation.interpreter,
             b"incr",
             name,
             &[delta],
             crate::cmd_var::installed_incr(),
         )
     };
-    if code != Code::Ok {
+    if operation.ensure_current().is_err() || code != Code::Ok {
         return ptr::null_mut();
     }
-    let result = interp.result_obj();
-    // SAFETY: the result is interp-owned; the caller claims one reference.
+    let result = operation.interpreter.result_obj();
     unsafe { obj::incr_ref_count(result) };
     result
 }
@@ -257,20 +271,23 @@ pub unsafe extern "C" fn tcl_codegen_var_update(
     argc: i32,
     list: i32,
 ) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() {
-        return 1;
-    }
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(status) => {
+            return if status == TCL_INVOKE_ABI_HOST_REFUSED {
+                status
+            } else {
+                1
+            }
+        }
+    };
     let Ok(argc) = usize::try_from(argc) else {
         return 1;
     };
     if argc > 0 && argv.is_null() {
         return 1;
     }
-    // SAFETY: readable per the contract; the interpreter is live.
     let name = unsafe { input_bytes(name_ptr, name_len) };
-    let interp = unsafe { &mut *interp };
-    // SAFETY: `argv` references `argc` readable pointers per the contract.
     let values = if argc == 0 {
         &[][..]
     } else {
@@ -284,9 +301,9 @@ pub unsafe extern "C" fn tcl_codegen_var_update(
     } else {
         (b"lappend", crate::cmd_list::lappend)
     };
-    // SAFETY: every value is live per the contract.
-    let code = unsafe { run_named_cell_command(interp, head, name, values, command) };
-    i32::try_from(code.as_int()).unwrap_or(1)
+    let code =
+        unsafe { run_named_cell_command(&mut operation.interpreter, head, name, values, command) };
+    operation.finish_code(code)
 }
 
 /// `tcl_codegen_value_try_wide_int(value, out) -> native?` — read a boxed
@@ -300,39 +317,58 @@ pub unsafe extern "C" fn tcl_codegen_var_update(
 /// storage.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_value_try_wide_int(value: *mut TclObj, out: *mut i64) -> i32 {
+    let Ok(mut operation) = CodegenOperation::enter() else {
+        return TCL_VALUE_TRY_NOT_NATIVE;
+    };
     if value.is_null() || out.is_null() {
         return TCL_VALUE_TRY_NOT_NATIVE;
     }
-    let interp = current_interp();
-    if interp.is_null() || unsafe { (*interp).host_refusal_pending() } {
+    // The neutral primitive probe preserves Guest rejection without publishing
+    // an error; its independent original issuer and checked Host stages remain real.
+    let result = unsafe {
+        crate::capi::probe_scalar_getter(
+            Some(&operation.interpreter),
+            value,
+            tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
+        )
+    };
+    if operation.ensure_current().is_err() {
         return TCL_VALUE_TRY_NOT_NATIVE;
     }
-    match crate::typed_value::native_scalar_probe(
-        value,
-        unsafe { (*interp).native_invocation_dialect() },
-        tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
-    ) {
+    match result {
         Ok(Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(parsed))) => {
-            // A wrapped primitive Wide view is not an integer arithmetic cache.
-            // Big magnitude and Jim's coerced view remain available to the boxed
-            // arithmetic path; the reached probe effects still remain applied.
+            // A wrapped primitive Wide view does not establish an Int arithmetic cache.
+            let cache = crate::obj::native_scalar_cache(value);
+            if operation.ensure_current().is_err() {
+                return TCL_VALUE_TRY_NOT_NATIVE;
+            }
+            let cache = match cache {
+                Ok(cache) => cache,
+                Err(error) => {
+                    unsafe {
+                        crate::capi::scalar_publish_access_error(
+                            &mut operation.interpreter,
+                            error.into(),
+                        )
+                    };
+                    let _ = operation.ensure_current();
+                    return TCL_VALUE_TRY_NOT_NATIVE;
+                }
+            };
             if !matches!(
-                crate::obj::native_scalar_cache(value),
-                Ok(Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(
+                cache,
+                Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(
                     tcl_syntax::number::Number::Int(_)
-                )))
+                ))
             ) {
                 return TCL_VALUE_TRY_NOT_NATIVE;
             }
-            // SAFETY: `out` is writable aligned storage per the contract.
             unsafe { out.write(parsed) };
             TCL_VALUE_TRY_NATIVE
         }
         Err(error) => {
-            if let Some(refusal) = error.native_access_refusal() {
-                // SAFETY: the current interpreter was checked above.
-                unsafe { (*interp).refuse_native_access(refusal) };
-            }
+            unsafe { crate::capi::scalar_publish_access_error(&mut operation.interpreter, error) };
+            let _ = operation.ensure_current();
             TCL_VALUE_TRY_NOT_NATIVE
         }
         Ok(_) => TCL_VALUE_TRY_NOT_NATIVE,
@@ -348,28 +384,32 @@ pub unsafe extern "C" fn tcl_codegen_value_try_wide_int(value: *mut TclObj, out:
 /// storage.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_value_try_double(value: *mut TclObj, out: *mut f64) -> i32 {
+    let Ok(mut operation) = CodegenOperation::enter() else {
+        return TCL_VALUE_TRY_NOT_NATIVE;
+    };
     if value.is_null() || out.is_null() {
         return TCL_VALUE_TRY_NOT_NATIVE;
     }
-    let interp = current_interp();
-    if interp.is_null() || unsafe { (*interp).host_refusal_pending() } {
+    // The neutral primitive probe preserves Guest rejection without publishing
+    // an error; its independent original issuer and checked Host stages remain real.
+    let result = unsafe {
+        crate::capi::probe_scalar_getter(
+            Some(&operation.interpreter),
+            value,
+            tcl_syntax::scalar_getter::NativeScalarGetterKind::Double,
+        )
+    };
+    if operation.ensure_current().is_err() {
         return TCL_VALUE_TRY_NOT_NATIVE;
     }
-    match crate::typed_value::native_scalar_probe(
-        value,
-        unsafe { (*interp).native_invocation_dialect() },
-        tcl_syntax::scalar_getter::NativeScalarGetterKind::Double,
-    ) {
+    match result {
         Ok(Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Double(parsed))) => {
-            // SAFETY: `out` is writable aligned storage per the contract.
             unsafe { out.write(parsed) };
             TCL_VALUE_TRY_NATIVE
         }
         Err(error) => {
-            if let Some(refusal) = error.native_access_refusal() {
-                // SAFETY: the current interpreter was checked above.
-                unsafe { (*interp).refuse_native_access(refusal) };
-            }
+            unsafe { crate::capi::scalar_publish_access_error(&mut operation.interpreter, error) };
+            let _ = operation.ensure_current();
             TCL_VALUE_TRY_NOT_NATIVE
         }
         Ok(_) => TCL_VALUE_TRY_NOT_NATIVE,

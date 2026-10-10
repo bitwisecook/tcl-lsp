@@ -50,6 +50,179 @@ impl Drop for BaselineLookupTiming {
     }
 }
 
+// Optional measurement state is thread-local and does not participate in a
+// source world, correspondence check, cache key, or semantic equality. Query
+// times include nested queries; clone time measures only the ledger clone.
+#[cfg(any(test, debug_assertions))]
+#[derive(Clone, Copy)]
+pub(super) struct ProviderValidationTotals {
+    pub(super) calls: u64,
+    pub(super) nanos: u128,
+    pub(super) required_rows: u64,
+    pub(super) dependency_rows: u64,
+    pub(super) optional_rows: u64,
+}
+
+#[cfg(any(test, debug_assertions))]
+#[derive(Clone, Copy)]
+pub(super) struct OriginalGeometryTotals {
+    pub(super) calls: u64,
+    pub(super) nanos: u128,
+    pub(super) world_clones: u64,
+    pub(super) clone_nanos: u128,
+}
+
+#[cfg(any(test, debug_assertions))]
+impl OriginalGeometryTotals {
+    const ZERO: Self = Self {
+        calls: 0,
+        nanos: 0,
+        world_clones: 0,
+        clone_nanos: 0,
+    };
+}
+
+#[cfg(any(test, debug_assertions))]
+#[derive(Clone, Copy)]
+pub(super) struct OriginalSourceQueryTotals {
+    pub(super) provider: ProviderValidationTotals,
+    pub(super) geometry: [OriginalGeometryTotals; 7],
+}
+
+#[cfg(any(test, debug_assertions))]
+std::thread_local! {
+    static PROVIDER_VALIDATION_TOTALS: std::cell::Cell<ProviderValidationTotals> = const {
+        std::cell::Cell::new(ProviderValidationTotals {
+            calls: 0,
+            nanos: 0,
+            required_rows: 0,
+            dependency_rows: 0,
+            optional_rows: 0,
+        })
+    };
+    static PROVIDER_VALIDATION_DEPTH: std::cell::Cell<u64> = const {
+        std::cell::Cell::new(0)
+    };
+    static ORIGINAL_GEOMETRY_TOTALS: std::cell::Cell<[OriginalGeometryTotals; 7]> = const {
+        std::cell::Cell::new([OriginalGeometryTotals::ZERO; 7])
+    };
+}
+
+#[cfg(any(test, debug_assertions))]
+pub(super) fn original_source_query_totals() -> OriginalSourceQueryTotals {
+    OriginalSourceQueryTotals {
+        provider: PROVIDER_VALIDATION_TOTALS.with(std::cell::Cell::get),
+        geometry: ORIGINAL_GEOMETRY_TOTALS.with(std::cell::Cell::get),
+    }
+}
+
+#[cfg(any(test, debug_assertions))]
+pub(super) struct ProviderValidationTiming(std::time::Instant);
+
+#[cfg(any(test, debug_assertions))]
+impl ProviderValidationTiming {
+    pub(super) fn at_query() -> Option<Self> {
+        std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(|| {
+                PROVIDER_VALIDATION_DEPTH.with(|depth| depth.set(depth.get().saturating_add(1)));
+                Self(std::time::Instant::now())
+            })
+    }
+
+    pub(super) fn required_row() {
+        PROVIDER_VALIDATION_TOTALS.with(|totals| {
+            let mut value = totals.get();
+            value.required_rows = value.required_rows.saturating_add(1);
+            totals.set(value);
+        });
+    }
+
+    pub(super) fn optional_row() {
+        PROVIDER_VALIDATION_TOTALS.with(|totals| {
+            let mut value = totals.get();
+            value.optional_rows = value.optional_rows.saturating_add(1);
+            totals.set(value);
+        });
+    }
+
+    pub(super) fn dependency_row() {
+        if PROVIDER_VALIDATION_DEPTH.with(std::cell::Cell::get) != 0 {
+            PROVIDER_VALIDATION_TOTALS.with(|totals| {
+                let mut value = totals.get();
+                value.dependency_rows = value.dependency_rows.saturating_add(1);
+                totals.set(value);
+            });
+        }
+    }
+}
+
+#[cfg(any(test, debug_assertions))]
+impl Drop for ProviderValidationTiming {
+    fn drop(&mut self) {
+        let elapsed = self.0.elapsed().as_nanos();
+        PROVIDER_VALIDATION_TOTALS.with(|totals| {
+            let mut value = totals.get();
+            value.calls = value.calls.saturating_add(1);
+            value.nanos = value.nanos.saturating_add(elapsed);
+            totals.set(value);
+        });
+        PROVIDER_VALIDATION_DEPTH.with(|depth| depth.set(depth.get().saturating_sub(1)));
+    }
+}
+
+#[cfg(any(test, debug_assertions))]
+pub(super) const ORIGINAL_GEOMETRY_QUERIES: [&str; 7] = [
+    "command-key",
+    "slot-paths",
+    "namespace",
+    "metadata-advice",
+    "lookup-key",
+    "baseline",
+    "slot-for-key",
+];
+
+#[cfg(any(test, debug_assertions))]
+struct OriginalGeometryTiming {
+    query: usize,
+    started: std::time::Instant,
+}
+
+#[cfg(any(test, debug_assertions))]
+impl OriginalGeometryTiming {
+    fn at_query(query: usize) -> Option<Self> {
+        std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .is_some()
+            .then(|| Self {
+                query,
+                started: std::time::Instant::now(),
+            })
+    }
+
+    fn record_clone(&self, started: std::time::Instant) {
+        let elapsed = started.elapsed().as_nanos();
+        ORIGINAL_GEOMETRY_TOTALS.with(|totals| {
+            let mut values = totals.get();
+            values[self.query].world_clones = values[self.query].world_clones.saturating_add(1);
+            values[self.query].clone_nanos = values[self.query].clone_nanos.saturating_add(elapsed);
+            totals.set(values);
+        });
+    }
+}
+
+#[cfg(any(test, debug_assertions))]
+impl Drop for OriginalGeometryTiming {
+    fn drop(&mut self) {
+        let elapsed = self.started.elapsed().as_nanos();
+        ORIGINAL_GEOMETRY_TOTALS.with(|totals| {
+            let mut values = totals.get();
+            values[self.query].calls = values[self.query].calls.saturating_add(1);
+            values[self.query].nanos = values[self.query].nanos.saturating_add(elapsed);
+            totals.set(values);
+        });
+    }
+}
+
 // Fixed Registry descriptors are independently authored baseline metadata.
 // C registration and Jim's flat global table use different naming purposes;
 // neither projection manufactures an original source operand or native entry.
@@ -1420,7 +1593,15 @@ impl ModuleCommandBindings {
         slot: &tcl_core_types::ByteCommandSlot,
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<SourceCommandKey> {
+        #[cfg(any(test, debug_assertions))]
+        let geometry_timing = OriginalGeometryTiming::at_query(0);
+        #[cfg(any(test, debug_assertions))]
+        let clone_started = geometry_timing.as_ref().map(|_| std::time::Instant::now());
         let mut world = (*self.original_command_world).clone();
+        #[cfg(any(test, debug_assertions))]
+        if let (Some(timing), Some(started)) = (geometry_timing.as_ref(), clone_started) {
+            timing.record_clone(started);
+        }
         if world.select_policy(self)? != policy {
             return None;
         }
@@ -1516,7 +1697,15 @@ impl ModuleCommandBindings {
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<Vec<Vec<tcl_core_types::ByteCommandSlot>>> {
         use tcl_syntax::naming::{NativeNameContext, NativeNameProtocol, NativeNameQualification};
+        #[cfg(any(test, debug_assertions))]
+        let geometry_timing = OriginalGeometryTiming::at_query(1);
+        #[cfg(any(test, debug_assertions))]
+        let clone_started = geometry_timing.as_ref().map(|_| std::time::Instant::now());
         let mut world = (*self.original_command_world).clone();
+        #[cfg(any(test, debug_assertions))]
+        if let (Some(timing), Some(started)) = (geometry_timing.as_ref(), clone_started) {
+            timing.record_clone(started);
+        }
         if world.select_policy(self)? != policy || self.has_opaque_domain() {
             return None;
         }
@@ -1791,10 +1980,18 @@ impl ModuleCommandBindings {
         namespace: &SourceNamespaceKey,
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<SignatureNamespaceScope> {
+        #[cfg(any(test, debug_assertions))]
+        let geometry_timing = OriginalGeometryTiming::at_query(2);
         if !self.namespaces.contains(namespace) {
             return None;
         }
+        #[cfg(any(test, debug_assertions))]
+        let clone_started = geometry_timing.as_ref().map(|_| std::time::Instant::now());
         let mut world = (*self.original_command_world).clone();
+        #[cfg(any(test, debug_assertions))]
+        if let (Some(timing), Some(started)) = (geometry_timing.as_ref(), clone_started) {
+            timing.record_clone(started);
+        }
         (world.select_policy(self)? == policy).then_some(())?;
         world.scope(namespace, policy)
     }
@@ -1846,10 +2043,18 @@ impl ModuleCommandBindings {
         Option<super::DeclaredCommandCandidate>,
         Option<super::DeclaredCommandCandidate>,
     ) {
+        #[cfg(any(test, debug_assertions))]
+        let geometry_timing = OriginalGeometryTiming::at_query(3);
         if !name.is_ascii() || name.as_bytes().contains(&0) {
             return (None, None);
         }
+        #[cfg(any(test, debug_assertions))]
+        let clone_started = geometry_timing.as_ref().map(|_| std::time::Instant::now());
         let mut world = (*self.original_command_world).clone();
+        #[cfg(any(test, debug_assertions))]
+        if let (Some(timing), Some(started)) = (geometry_timing.as_ref(), clone_started) {
+            timing.record_clone(started);
+        }
         let Some(policy) = world.select_policy(self) else {
             return (None, None);
         };
@@ -1963,6 +2168,8 @@ impl ModuleCommandBindings {
         slot: &tcl_core_types::ByteCommandSlot,
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<OriginalLookupSlot> {
+        #[cfg(any(test, debug_assertions))]
+        let geometry_timing = OriginalGeometryTiming::at_query(4);
         if let Some(key) = self.original_command_key_for_slot(slot, policy) {
             if let SourceCommandKey::Slot { namespace, .. } = &key
                 && self.unknown_lookup_namespaces.contains(namespace)
@@ -1971,7 +2178,13 @@ impl ModuleCommandBindings {
             }
             return Some(OriginalLookupSlot::Retained(key));
         }
+        #[cfg(any(test, debug_assertions))]
+        let clone_started = geometry_timing.as_ref().map(|_| std::time::Instant::now());
         let mut world = (*self.original_command_world).clone();
+        #[cfg(any(test, debug_assertions))]
+        if let (Some(timing), Some(started)) = (geometry_timing.as_ref(), clone_started) {
+            timing.record_clone(started);
+        }
         if world.select_policy(self)? != policy || self.baseline.unknown_entry {
             return None;
         }
@@ -2266,11 +2479,19 @@ impl ModuleCommandBindings {
         retained_authored_changes: bool,
     ) -> Option<BTreeSet<MayBinding>> {
         #[cfg(any(test, debug_assertions))]
+        let geometry_timing = OriginalGeometryTiming::at_query(5);
+        #[cfg(any(test, debug_assertions))]
         let _timing = BaselineLookupTiming::at_query();
         let SourceCommandKey::Slot { namespace, simple } = key else {
             return None;
         };
+        #[cfg(any(test, debug_assertions))]
+        let clone_started = geometry_timing.as_ref().map(|_| std::time::Instant::now());
         let mut world = (*self.original_command_world).clone();
+        #[cfg(any(test, debug_assertions))]
+        if let (Some(timing), Some(started)) = (geometry_timing.as_ref(), clone_started) {
+            timing.record_clone(started);
+        }
         let policy = world.select_policy(self)?;
         let scope = world.scope(namespace, policy)?;
         let selected = match policy.recipe() {
@@ -2631,10 +2852,18 @@ impl ModuleCommandBindings {
         key: &SourceCommandKey,
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<tcl_core_types::ByteCommandSlot> {
+        #[cfg(any(test, debug_assertions))]
+        let geometry_timing = OriginalGeometryTiming::at_query(6);
         let SourceCommandKey::Slot { namespace, simple } = key else {
             return None;
         };
+        #[cfg(any(test, debug_assertions))]
+        let clone_started = geometry_timing.as_ref().map(|_| std::time::Instant::now());
         let mut world = (*self.original_command_world).clone();
+        #[cfg(any(test, debug_assertions))]
+        if let (Some(timing), Some(started)) = (geometry_timing.as_ref(), clone_started) {
+            timing.record_clone(started);
+        }
         if world.select_policy(self)? != policy {
             return None;
         }

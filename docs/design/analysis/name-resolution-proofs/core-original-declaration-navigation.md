@@ -14,9 +14,13 @@ When original variable navigation is absent or unavailable, can go-to-declaratio
 
 declaration first consumes the genuine original variable occurrence and retains its own original alias-declaration span. Other Native/hosted variable navigation delegates to definition and its sealed original variable/caller-template selection. Missing original roots or command realm, copied reporting scope/input data and stale whole source cannot grant a newly recaptured declaration. Only positively retained explicit Logical ingress enters the independent lexical declaration scanner. The compatibility scan retains its own source/profile/Registry and layout/visibility checks and cannot issue a Native variable, physical cell, executed alias/link, runtime frame or edit capability. Compatibility admission uses the shared selected_logical_declaration_advice owner at all analysis entrypoints. A positively retained plain Logical input keeps its separately selected authored C8.6 name geometry; that geometry neither disables Logical scanning nor creates a Native entry/recipe or formal grammar. Independent Native-entry/NativeRecipe and hosted/mixed-input barriers remain explicit.
 
+Checked Logical lexical scope and cell relationships join global or namespace declaration aliases without stripping the original root into a same-named local. Complete current source/grammar/input/store and selected availability remain required.
+
 ## Scope
 
 Current Core declaration selection and its independently Logical compatibility scan. Two fixed Rust controls bind genuine original alias declaration, missing-root/realm and stale-image refusal, plus actual explicit Logical fallback. All seven providers are not tested; source navigation is independent of native execution, physical cell/link identity and rename.
+
+The additional navigation controls describe conditional source spans and owner withdrawal. They issue no physical variable alias, Native frame/read/store or edit authority, and attach no assertion outcome merely from source registration.
 
 ## Provider answers
 
@@ -79,6 +83,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/input.rs](../../../../rust/tcl-compiler/src/analyser/input.rs), `analyser::input::tests::logical_declaration_advice_uses_actual_input_at_each_analysis_entry` (linked): Genuine plain Logical input and its independent authored C8.6 name simulation retain declaration advice at all five entrypoints; missing actual input refuses without a nominal Native recapture.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lsp-core/src/declaration.rs](../../../../rust/tcl-lsp-core/src/declaration.rs), `declaration`: Select current checked Logical lexical cell/scope relationships and exact source-schema/availability before collecting original declaration spans; Native variable selection remains independently required.
+- [rust/tcl-lsp-core/src/declaration.rs](../../../../rust/tcl-lsp-core/src/declaration.rs), `declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping` (linked): Actual checked Logical lexical scope/cell relationships join global and qualified namespace aliases while keeping same-named local roots distinct. Returned target spans preserve original labels without manufacturing a Native alias or frame.
+- [rust/tcl-lsp-core/src/declaration.rs](../../../../rust/tcl-lsp-core/src/declaration.rs), `declaration::tests::original_logical_declarations_keep_qualified_targets_and_current_source_owners` (linked): Selected Logical declaration targets retain complete current source/grammar/input/store/availability; changed source, missing input, foreign or older store, changed grammar and populated unavailable input withhold navigation.
+
+These are current source bindings, with verified actual declaring modules or integration targets. No executable inventory or assertion result is inferred from their definitions. Independently retained software commands and original provider observations keep their own exact source/image/channel scope.
 
 ## Replay
 

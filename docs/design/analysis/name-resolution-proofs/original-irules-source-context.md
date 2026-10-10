@@ -16,11 +16,15 @@ OriginalIrulesSourceContext validates the actual complete source/image/configura
 
 An additional marked MCP source definition exercises the real generated scaffold: pool names are conditional source candidates, predicted outcome assertions remain unverified and no executable outcome assertion is emitted. A shadowed when surface yields no event/pool candidate, and candidate comments retain escaped data.
 
+The source scaffold removes one presentation static:: prefix while preserving repeated literal components and ignoring inert source data. It reports conditional-source analysis with unverified outcomes.
+
 ## Scope
 
 Current sealed below-Core iRules source context and whole-source/context/Registry checks. Fixed controls retain an actual event descriptor, source helper alternatives and dormant-body exclusion; custom event/pool handlers and original nominal tombstones block catalogue source candidates. All seven providers are not tested; no native observation or Rust execution receipt is attached. Marked source controls distinguish event-rooted PotentialEvaluation from identical ReferenceOnly Syntax using a custom current command store, and retain conditional source advice after an unavailable hosted rename operation. Independently captured BIG-IP loader outcomes remain separate from these seven-provider not-tested API controls.
 
 Generated source obligations are not an appliance behavior, callback execution or Native naming/result proof. No F5 process, pool selection, handler/body/frame, edit equivalence or assertion outcome is attached; existing iRules provider records remain unchanged.
+
+The added MCP control is a source-presentation contract, with no loaded variable, Native storage/lookup, reached event or observed outcome grant and no assertion receipt attached by this binding.
 
 ## Provider answers
 
@@ -102,6 +106,11 @@ A named test is a coverage binding, not a claim that it executed.
 - [rust/tcl-mcp/src/irule_gen.rs](../../../../rust/tcl-mcp/src/irule_gen.rs), `irule_gen::tests::original_irule_scaffolds_keep_source_candidates_without_predicted_outcomes` (linked): The real MCP iRule scaffold publishes conditional pool/source candidates with outcome_assertions_verified false and no generated executable outcome assertion; a shadowed when withdraws candidates and escaped comments preserve data without injecting Tcl commands.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
+
+- [rust/tcl-mcp/src/irule_gen.rs](../../../../rust/tcl-mcp/src/irule_gen.rs), `generate_irule_test`: Render a conditional source scaffold from the retained iRule source inventory; static-name presentation preserves literal components and makes no executed outcome promise.
+- [rust/tcl-mcp/src/irule_gen.rs](../../../../rust/tcl-mcp/src/irule_gen.rs), `irule_gen::tests::original_generated_static_setup_preserves_literal_repeated_prefixes` (linked): The actual MCP source scaffold removes one presentation static:: prefix, preserves a remaining literal static:: component and ignores inert data. It reports conditional-source and unverified outcomes; no loaded variable/event/storage identity is granted.
+
+These are current source bindings, with verified actual declaring modules or integration targets. No executable inventory or assertion result is inferred from their definitions. Independently retained software commands and original provider observations keep their own exact source/image/channel scope.
 
 ## Replay
 

@@ -512,6 +512,14 @@ pub(crate) struct ErrorSnapshot {
         Option<Box<tcl_registry::native_expression_error::NativeExpressionErrorStage>>,
 }
 
+#[cfg(test)]
+impl ErrorSnapshot {
+    /// Observe the retained code without reaching a getter or settling an error.
+    pub(crate) fn code_bytes(&self) -> &[u8] {
+        &self.code
+    }
+}
+
 /// Diagnostic view of an executing argv. The dispatch caller owns every
 /// object until the corresponding invocation scope returns, including while
 /// a coroutine's native stack is parked. This receipt neither retains objects
@@ -1094,6 +1102,25 @@ pub type NativeProcEntry = unsafe extern "C" fn(
 /// `Rc` + `RefCell`/`Cell`, no locks.
 #[derive(Clone)]
 pub struct Interp(Rc<InterpState>);
+
+/// A test callback's original weak interpreter holder, with no public state access.
+#[cfg(test)]
+#[derive(Clone)]
+pub(crate) struct WeakInterp(Weak<InterpState>);
+
+#[cfg(test)]
+impl WeakInterp {
+    pub(crate) fn upgrade(&self) -> Option<Interp> {
+        self.0.upgrade().map(Interp)
+    }
+}
+
+#[cfg(test)]
+impl Interp {
+    pub(crate) fn downgrade(&self) -> WeakInterp {
+        WeakInterp(Rc::downgrade(&self.0))
+    }
+}
 
 impl core::ops::Deref for Interp {
     type Target = InterpState;
@@ -4149,6 +4176,23 @@ impl Interp {
                 return;
             }
         };
+        // Retain the actual holder before any trace or delete procedure. Its
+        // name and NsId alone cannot admit a recreated namespace incarnation.
+        let namespace = self
+            .namespaces()
+            .namespace_name_token(self.native_command_interpreter, ns);
+        let Some(namespace) = namespace else {
+            self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original command publication namespace retired",
+                ),
+            );
+            return;
+        };
+        let lifecycle = namespace.lifecycle();
+        if !self.original_publication_namespace_is_current(ns, &namespace, lifecycle) {
+            return;
+        }
         let native_entry = self
             .namespaces
             .borrow_mut()
@@ -4163,13 +4207,17 @@ impl Interp {
                 .borrow_mut()
                 .bind_jim_local(native_entry, tail, command);
             self.retire_pending_native_ensemble_roles();
-            let _ = scope.currency().ensure_current_or_refuse();
+            if scope.currency().ensure_current_or_refuse().is_ok() {
+                self.original_publication_namespace_is_current(ns, &namespace, lifecycle);
+            }
             return;
         }
         let displaced = self.namespaces.borrow().command_in(ns, tail);
         let had_displaced = displaced.is_some();
         self.on_bound_command_replaced(ns, tail);
-        if scope.currency().ensure_current_or_refuse().is_err() {
+        if scope.currency().ensure_current_or_refuse().is_err()
+            || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+        {
             return;
         }
         if let Some(owner) = displaced.as_ref().and_then(Command::oo_object) {
@@ -4190,7 +4238,9 @@ impl Interp {
                 self.namespaces.borrow_mut().remove_in(ns, tail);
             }
             self.oo_command_renamed(owner, None);
-            if scope.currency().ensure_current_or_refuse().is_err() {
+            if scope.currency().ensure_current_or_refuse().is_err()
+                || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+            {
                 return;
             }
         }
@@ -4210,7 +4260,9 @@ impl Interp {
             self.namespaces.borrow_mut().remove_in(ns, tail);
         }
         drop(displaced);
-        if scope.currency().ensure_current_or_refuse().is_err() {
+        if scope.currency().ensure_current_or_refuse().is_err()
+            || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+        {
             return;
         }
         // TclCreateObjCommandInNs deletes the original once and discards a
@@ -4223,11 +4275,15 @@ impl Interp {
             .borrow_mut()
             .bind_after_native_creation_entry(native_entry, tail, command);
         drop(recreated);
-        if scope.currency().ensure_current_or_refuse().is_err() {
+        if scope.currency().ensure_current_or_refuse().is_err()
+            || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+        {
             return;
         }
         self.retire_pending_native_ensemble_roles();
-        if scope.currency().ensure_current_or_refuse().is_err() {
+        if scope.currency().ensure_current_or_refuse().is_err()
+            || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+        {
             return;
         }
         if had_displaced {
@@ -4242,6 +4298,36 @@ impl Interp {
             };
             self.reattach_missing_import_sources(&fqn, generation);
         }
+    }
+
+    /// Check the retained holder without resolving its reporting name again.
+    /// A caller's original dying OO holder remains distinct from a live holder
+    /// that a callback retires. The permanent root retains its existing token.
+    fn original_publication_namespace_is_current(
+        &mut self,
+        ns: NsId,
+        namespace: &tcl_runtime_api::native_namespace_name::NativeNamespaceNameToken,
+        lifecycle: tcl_syntax::native_namespace_name::NativeNamespaceLifecycle,
+    ) -> bool {
+        use tcl_syntax::native_namespace_name::NativeNamespaceLifecycle;
+        let current = {
+            let namespaces = self.namespaces();
+            namespaces.owns_namespace_name_token(namespace)
+                && namespace.lifecycle() == lifecycle
+                && match lifecycle {
+                    NativeNamespaceLifecycle::Live => namespaces.namespace_is_live(ns),
+                    NativeNamespaceLifecycle::Dying => true,
+                    NativeNamespaceLifecycle::Dead => false,
+                }
+        };
+        if !current {
+            self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original command publication namespace retired",
+                ),
+            );
+        }
+        current
     }
 
     /// A command at `fqn` is being replaced or deleted: fire its `delete`
@@ -8587,12 +8673,16 @@ impl Interp {
     /// An error a C API call reports: `message` as the result and, when given,
     /// `code` as its `-errorcode` (`NONE` otherwise), starting a new error.
     pub(crate) fn c_api_error(&mut self, message: &[u8], code: Option<&[u8]>) {
+        if self.host_refusal_pending() {
+            return;
+        }
         self.set_result_bytes(message);
         *self.exc.borrow_mut() = ExceptionState {
             info: None,
             code: code.map(<[u8]>::to_vec).unwrap_or_default(),
             code_explicit: code.is_some(),
             already_logged: false,
+            ..ExceptionState::default()
         };
         self.c_api_errors.set(self.c_api_errors.get() + 1);
     }
@@ -8600,11 +8690,15 @@ impl Interp {
     /// `Tcl_SetObjErrorCode`: `code` is the `-errorcode` of the error the running
     /// C command is about to return, whatever its result.
     pub(crate) fn set_c_error_code(&mut self, code: &[u8]) {
+        if self.host_refusal_pending() {
+            return;
+        }
         *self.exc.borrow_mut() = ExceptionState {
             info: None,
             code: code.to_vec(),
             code_explicit: true,
             already_logged: false,
+            ..ExceptionState::default()
         };
         self.c_api_errors.set(self.c_api_errors.get() + 1);
     }
@@ -15704,6 +15798,198 @@ mod tests {
             active_calls: Rc::new(std::cell::Cell::new(usize::MAX)),
             mode,
         })
+    }
+
+    struct PublicationNamespaceRetirement {
+        interpreter: std::rc::Weak<InterpState>,
+        namespace: NsId,
+        recreated: Rc<std::cell::Cell<Option<NsId>>>,
+        calls: Rc<std::cell::Cell<usize>>,
+        currency_current: Rc<std::cell::Cell<bool>>,
+    }
+
+    unsafe extern "C" fn publication_retire_namespace(data: *mut c_void) {
+        // SAFETY: the original command owns this record until its sole final
+        // retirement; the actual deletion callback consumes that ownership.
+        let state = unsafe { Box::from_raw(data.cast::<PublicationNamespaceRetirement>()) };
+        let mut interpreter = state.interpreter.upgrade().map(Interp).unwrap();
+        state.calls.set(state.calls.get() + 1);
+        let currency =
+            native_operation_currency::NativeOperationCurrency::issue(&interpreter).unwrap();
+        assert!(interpreter
+            .namespaces()
+            .command_in(state.namespace, b"retiring")
+            .is_none());
+        interpreter.delete_namespace_by_id(state.namespace);
+        state
+            .recreated
+            .set(Some(interpreter.ensure_global_namespace(b"::retirement")));
+        state
+            .currency_current
+            .set(currency.ensure_current().is_ok());
+    }
+
+    fn publication_builtin(_: &mut Interp, _: &[*mut TclObj]) -> Code {
+        Code::Ok
+    }
+
+    #[test]
+    fn original_publication_holder_refuses_delete_and_recreated_namespace() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual software namespace retirement without an interpreter epoch
+        // change; no new native-provider timing or discard observation.
+        leak_free(|interpreter| {
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            let namespace = interpreter.ensure_global_namespace(b"::retirement");
+            let calls = Rc::new(std::cell::Cell::new(0));
+            let recreated = Rc::new(std::cell::Cell::new(None));
+            let currency_current = Rc::new(std::cell::Cell::new(false));
+            let state = Box::new(PublicationNamespaceRetirement {
+                interpreter: Rc::downgrade(&interpreter.0),
+                namespace,
+                recreated: recreated.clone(),
+                calls: calls.clone(),
+                currency_current: currency_current.clone(),
+            });
+            interpreter
+                .create_obj_command(
+                    b"::retirement::retiring",
+                    ObjCommand::new(
+                        publication_noop,
+                        Box::into_raw(state).cast(),
+                        Some(publication_retire_namespace),
+                    ),
+                )
+                .unwrap();
+            let currency =
+                native_operation_currency::NativeOperationCurrency::issue(interpreter).unwrap();
+            let original_context = interpreter.runtime_context();
+            interpreter.set_result_bytes(b"SEEDED RESULT");
+            let result = interpreter.get_obj_result();
+            let replacement = interpreter.create_obj_command(
+                b"::retirement::retiring",
+                ObjCommand::new(publication_noop, core::ptr::null_mut(), None),
+            );
+            assert!(replacement.is_none());
+            assert_eq!(calls.get(), 1);
+            assert!(
+                currency_current.get(),
+                "namespace retirement did not change interpreter currency"
+            );
+            let fresh = recreated.get().unwrap();
+            assert_ne!(fresh, namespace);
+            assert!(interpreter.namespaces().namespace_is_live(fresh));
+            assert!(interpreter
+                .namespaces()
+                .command_in(namespace, b"retiring")
+                .is_none());
+            assert!(interpreter
+                .namespaces()
+                .command_in(fresh, b"retiring")
+                .is_none());
+            assert_eq!(interpreter.runtime_context(), original_context);
+            assert_eq!(interpreter.get_obj_result(), result);
+            let first = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original command publication namespace retired",
+                ),
+            );
+            assert_eq!(interpreter.native_execution_refusal(), Some(first.clone()));
+            assert_eq!(currency.ensure_current(), Err(first));
+        });
+    }
+
+    #[test]
+    fn original_publication_holder_refuses_initial_dead_or_absent_namespace() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for absent in [false, true] {
+            leak_free(|interpreter| {
+                interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+                let namespace = interpreter.ensure_global_namespace(b"::retired");
+                interpreter.delete_namespace_by_id(namespace);
+                let selected = if absent { usize::MAX } else { namespace };
+                let root_children = interpreter.namespaces().children(GLOBAL);
+                interpreter.bind_command_replacement(
+                    selected,
+                    b"untouched",
+                    Command::Builtin(publication_builtin),
+                );
+                assert!(interpreter
+                    .namespaces()
+                    .command_in(namespace, b"untouched")
+                    .is_none());
+                assert_eq!(interpreter.namespaces().children(GLOBAL), root_children);
+                assert_eq!(interpreter.native_execution_refusal(), Some(
+                    tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                        tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                            "original command publication namespace retired",
+                        ),
+                    ),
+                ));
+            });
+        }
+    }
+
+    #[test]
+    fn original_publication_holder_preserves_retained_dying_and_permanent_root_tokens() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // The actual retained arena holder exercises the shared publication
+        // seam. Independent original TclOO source comparisons retain OO scope.
+        leak_free(|interpreter| {
+            use tcl_syntax::native_namespace_name::NativeNamespaceLifecycle;
+            interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            let namespace = interpreter.ensure_global_namespace(b"::dying");
+            let retained = interpreter
+                .namespaces()
+                .namespace_name_token(interpreter.native_command_interpreter, namespace)
+                .unwrap();
+            interpreter
+                .namespaces_mut()
+                .begin_namespace_teardown(namespace);
+            assert_eq!(retained.lifecycle(), NativeNamespaceLifecycle::Dying);
+            interpreter.bind_command_replacement(
+                namespace,
+                b"retained",
+                Command::Builtin(publication_builtin),
+            );
+            assert!(interpreter
+                .namespaces()
+                .command_in(namespace, b"retained")
+                .is_some());
+            assert!(interpreter
+                .namespaces()
+                .owns_namespace_name_token(&retained));
+            assert_eq!(retained.lifecycle(), NativeNamespaceLifecycle::Dying);
+            assert!(interpreter.native_execution_refusal().is_none());
+            interpreter
+                .namespaces_mut()
+                .delete_namespace_by_id(namespace);
+            assert_eq!(retained.lifecycle(), NativeNamespaceLifecycle::Dead);
+            let root = interpreter
+                .namespaces()
+                .namespace_name_token(interpreter.native_command_interpreter, GLOBAL)
+                .unwrap();
+            interpreter
+                .namespaces_mut()
+                .begin_namespace_teardown(GLOBAL);
+            assert_eq!(root.lifecycle(), NativeNamespaceLifecycle::Dying);
+            interpreter.namespaces_mut().delete_namespace_by_id(GLOBAL);
+            assert_eq!(root.lifecycle(), NativeNamespaceLifecycle::Live);
+            interpreter.bind_command_replacement(
+                GLOBAL,
+                b"root",
+                Command::Builtin(publication_builtin),
+            );
+            assert!(interpreter
+                .namespaces()
+                .command_in(GLOBAL, b"root")
+                .is_some());
+            assert!(interpreter.namespaces().owns_namespace_name_token(&root));
+            assert!(interpreter.native_execution_refusal().is_none());
+        });
     }
 
     #[test]

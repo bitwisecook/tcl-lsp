@@ -2159,7 +2159,7 @@ pub(crate) fn duplicate_into(receiver: *mut TclObj, source: *mut TclObj) {
         auxiliary(duplicate).cache.replace(retired_cache);
         (*receiver).ref_count = receiver_refs;
         (*duplicate).ref_count = 0;
-        obj_free(duplicate);
+        free_obj(duplicate);
     }
     revoke_script_location(receiver);
     if let Some((file, line)) = script_location(source) {

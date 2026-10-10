@@ -145,8 +145,8 @@ a convention at the call site.
 | `tcl_codegen_var_set(name_ptr, name_len, value)` | `value` `consumed` | i32 (0 ok) | stores into the named cell | The by-name form; same release discipline. |
 | `tcl_codegen_var_get(name_ptr, name_len)` | name bytes | `null_or_owned` | (n/a) | |
 | `tcl_codegen_expr_add(left, right)` | both `consumed` | `null_or_owned` | (n/a) | Consumes both operand-stack references on **every** path, including the error and null-argument paths, and returns a fresh `+1`. Without the `have_tommath` backend it consumes the operands and reports `arithmetic support is not available`. |
-| `tcl_codegen_puts(value)` | `consumed` | i32 (0 ok) | (n/a) | Dispatches the runtime's own `puts`, then releases the operand-stack reference. |
-| `tcl_codegen_proc_register(name, params, body)` | byte ranges, no handles | i32 (0 ok) | defines a `Command::Proc` | Registers source metadata without evaluating `proc`. The body object is fresh and dropped after `define_proc` takes its own copy. |
+| `tcl_codegen_puts(value)` | `consumed` | i32 (0 ok) | (n/a) | Dispatches the runtime's own `puts`. Adopts the transferred operand at entry and releases it on every path, before final currency settlement. |
+| `tcl_codegen_proc_register(name, params, body)` | byte ranges, no handles | i32 (0 ok) | defines a `Command::Proc` | Registers source metadata without evaluating `proc`. Parameters and body are held through the actual original procedure installer; success requires its installed generation. Host refusal preserves the first cause and prevents a false successful empty result. |
 | `tcl_eval(script)` | `script` `adopted` (`rc 0`, freed here) | `null_or_owned` (`+1` on the original interp result) | (n/a) | Guest completion codes are discarded. Host refusal returns null and retains its typed cause. No-interpreter compatibility returns an owned empty string. Input ownership is settled on every path. |
 | `tcl_eval_code(script)` | `script` `adopted` | i32 completion code or Host status | (n/a) | Genuine Guest codes retain the original interpreter result. Host refusal returns `-6` without Guest publication. Input ownership is settled on every path. Explicit no-interpreter compatibility reports 0. |
 | `tcl_expr_bool(expr)` | `expr` `adopted` | i32 | (n/a) | Compatibility truth projection: genuine Guest error yields false; Host refusal returns `-6` in the independent typed channel. Callers check that channel before consuming truth. Full compiler conditions use `tcl_codegen_expr_bool` and its whole completion. No interpreter or reduced numeric build yields 0. |
@@ -159,9 +159,16 @@ a convention at the call site.
 | `tcl_codegen_call_frame_outstanding()` | (n/a) | i32 | (n/a) | Diagnostic counter; no refcount interaction. |
 
 The compiler bridge's `CodegenOperation` retains the original interpreter and
-shared `NativeOperationScope` before getters or callbacks. Its argv and legacy
-source operations inherit that receipt, preserve reached effects and retain the
-first typed Host refusal. Registry form decline remains distinct from failed
+shared `NativeOperationScope` before getters or callbacks. Its variable, slot, scalar, procedure, argv and source operations inherit that
+receipt, preserve reached effects and retain the
+first typed Host refusal. Consumed setters and `puts` adopt their transferred
+`+1` at entry, including absent-interpreter, invalid-slot and pending-refusal
+paths. They release it before final currency checks; borrowed append, increment
+and argv operands remain the caller's references. A trace-admission query
+returns the conservative traced answer when the operation is unavailable.
+Neutral numeric fast-path probes keep Guest rejection distinct from original
+access refusal and publish their output only after the current receipt check.
+Registry form decline remains distinct from failed
 object access. Checked completion capture runs while the activation still owns
 its Guest error state; mandatory activation cleanup then runs before final
 publication. A refusal during capture or cleanup releases retained result and

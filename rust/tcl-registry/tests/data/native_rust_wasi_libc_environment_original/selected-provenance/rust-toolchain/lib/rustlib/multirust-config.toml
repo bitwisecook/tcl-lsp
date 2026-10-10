@@ -1,0 +1,41 @@
+config_version = "1"
+
+[[components]]
+pkg = "rust-std"
+target = "wasm32-wasip1"
+is_extension = false
+
+[[components]]
+pkg = "clippy-preview"
+target = "x86_64-unknown-linux-gnu"
+is_extension = false
+
+[[components]]
+pkg = "rustfmt-preview"
+target = "x86_64-unknown-linux-gnu"
+is_extension = false
+
+[[components]]
+pkg = "rust-std"
+target = "wasm32-wasip2"
+is_extension = false
+
+[[components]]
+pkg = "rust-std"
+target = "wasm32-unknown-unknown"
+is_extension = false
+
+[[components]]
+pkg = "cargo"
+target = "x86_64-unknown-linux-gnu"
+is_extension = false
+
+[[components]]
+pkg = "rust-std"
+target = "x86_64-unknown-linux-gnu"
+is_extension = false
+
+[[components]]
+pkg = "rustc"
+target = "x86_64-unknown-linux-gnu"
+is_extension = false

@@ -1043,7 +1043,7 @@ pub(crate) fn elements_raw(obj: *mut TclObj) -> Result<(*mut *mut TclObj, usize)
     ensure_list(obj)?;
     // SAFETY: list rep guaranteed; the pointer stays the list's own.
     let list = unsafe { list_mut(obj) };
-    Ok((list.elems.as_mut_ptr(), list.elems.len()))
+    Ok((list.elems.elements().as_ptr().cast_mut(), list.elems.len()))
 }
 
 /// `Tcl_ListObjAppendElement` — append `elem` (retained) in place and invalidate

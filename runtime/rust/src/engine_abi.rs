@@ -418,7 +418,7 @@ mod procedure_publication_tests {
     use super::*;
 
     thread_local! {
-        static PUBLICATION_INTERP: std::cell::RefCell<Option<std::rc::Weak<crate::interp::InterpState>>> = const { std::cell::RefCell::new(None) };
+        static PUBLICATION_INTERP: std::cell::RefCell<Option<crate::interp::WeakInterp>> = const { std::cell::RefCell::new(None) };
         static PUBLICATION_UPDATES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
         static PUBLICATION_LATER: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     }
@@ -426,7 +426,6 @@ mod procedure_publication_tests {
         PUBLICATION_UPDATES.with(|calls| calls.set(calls.get() + 1));
         let mut interpreter = PUBLICATION_INTERP
             .with(|slot| slot.borrow().as_ref().unwrap().upgrade())
-            .map(Interp)
             .unwrap();
         let original_context = interpreter.runtime_context();
         let mut changed = original_context.clone();
@@ -464,8 +463,7 @@ mod procedure_publication_tests {
         for route in 0..3 {
             let mut interpreter = Interp::new();
             interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
-            PUBLICATION_INTERP
-                .with(|slot| *slot.borrow_mut() = Some(std::rc::Rc::downgrade(&interpreter.0)));
+            PUBLICATION_INTERP.with(|slot| *slot.borrow_mut() = Some(interpreter.downgrade()));
             PUBLICATION_UPDATES.with(|calls| calls.set(0));
             PUBLICATION_LATER.with(|calls| calls.set(0));
             let original =

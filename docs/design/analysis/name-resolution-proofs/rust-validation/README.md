@@ -2935,3 +2935,60 @@ for kind in ("compiler", "vm", "registry", "syntax", "cmd-core", "api"):
 ```
 
 Restoration runs no assertion and does not replace an active original executable. The unchanged strict pin and successful producer receipt retain each exact measured source/image identity.
+
+## Source309 VM55 and independent diagnostic requests
+
+The original VM55 selection closes53P2F with723 filtered. The Info186 control
+fails on Jim imported-command resident bytes before its getter; the primitive
+Boolean/storage control fails its Jim case5 follow-up numeric input. All55
+individual outcomes and both failure bodies remain in the complete log. The
+passing dictionary and mathop controls retain their independent original
+comparison scopes; they cannot supply a complete VM, Info or scalar pass.
+
+Two independent one-selector source-value requests each close0P1F. The first
+uses TCL_LSP_TRACE_DIAGNOSTIC_SOURCE_VALUES, which the frozen source does not
+consume. The second uses the genuine TCL_LSP_TRACE_DIAGNOSTIC_VALUES flag and
+records both execution and diagnostic Overdefined values before the same
+source-path assertion fails. Both original argument vectors and whole outputs
+are retained independently. A separate single-selector alias diagnostic
+request closes1P0F; its686.145391555-second duration supplies no performance
+threshold, complete Alias30 result or convergence claim.
+
+| Closed operation | Exact outcome | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-vm-current-tests309` | 53 passed/2 failed/723 filtered; 410.938394467s | [lossless original](frozen309/integration-vm-current-tests309/receipt.json.gz) | [whole log](frozen309/integration-vm-current-tests309/tests.log) |
+| `integration-compiler-source-value-trace309` | 0 passed/1 failed/9199 filtered; 0.797109190s | [lossless original](frozen309/integration-compiler-source-value-trace309/receipt.json.gz) | [whole log](frozen309/integration-compiler-source-value-trace309/tests.log) |
+| `integration-compiler-source-value-correct-trace309` | 0 passed/1 failed/9199 filtered; 0.704667110s | [lossless original](frozen309/integration-compiler-source-value-correct-trace309/receipt.json.gz) | [whole log](frozen309/integration-compiler-source-value-correct-trace309/tests.log) |
+| `integration-compiler-alias-performance309` | 1 passed/0 failed/9199 filtered; 686.145391555s | [lossless original](frozen309/integration-compiler-alias-performance309/receipt.json.gz) | [whole log](frozen309/integration-compiler-alias-performance309/tests.log) |
+| `integration-runtime-own-test-build310` | compile-failed before compilation; no assertions; 0.102690900s | [lossless original](frozen310/integration-runtime-own-test-build310/receipt.json.gz) | [whole log](frozen310/integration-runtime-own-test-build310/tests.log) |
+
+The exact [VM55 selection](frozen309/selections/vm-current-selection309.json) retains all778-test inventory and strict-image joins. These operations reuse the already retained lossless [VM](frozen309/sealed-six-owner-images/pinned-vm309.elf.gz) and [Compiler](frozen309/sealed-six-owner-images/pinned-compiler309.elf.gz) originals and [complete source companion](frozen309/sealed-six-owner-images/source-snapshot.json.gz). All165,541 source associations across the four309 operations and separate310 lock failure are independently byte-verified. No source/image payload is replaced, and no Native/provider answer or changed implementation context is refreshed. The single alias assertion completes all thirty source-analysis cases in its unchanged original fixture; those analyses are not separate test/process receipts.
+
+The independent Runtime engine310 --locked command fails before compilation because its frozen lock requires resolution. Its full original lock-error output, exact command and33,153-leaf source associations remain independent of later lock maintenance and successful workspace309 images. No Runtime artifact, inventory or assertion is admitted from that command.
+
+## Source311 proof controls and independent failed builds
+
+The maintained Python boundary suite passes all17 fixed controls. The separate
+full catalogue command fails with16 errors:15 changed current implementation
+digests and the absent old completion-owner declaration. Its1075 questions,
+4599 candidates and21300 corpus files have no pending candidates or unlinked
+tests; those counts do not supply a successful gate. Each operation retains
+its exact command, complete output and33278-leaf original source associations.
+
+The Runtime engine no-run command fails on36 compiler errors; its50 dependency
+artifact events contain no executable and remain unsealed. The independent
+Compiler --locked no-run request fails before compilation and emits no
+artifact event. Neither command admits an image, inventory or assertion.
+
+| Closed operation | Exact outcome | Original receipt | Whole log |
+| --- | --- | --- | --- |
+| `integration-maintained-proof-boundaries311` | 17 Python controls passed; 0.239527417s | [lossless original](frozen311/integration-maintained-proof-boundaries311/receipt.json.gz) | [whole log](frozen311/integration-maintained-proof-boundaries311/tests.log) |
+| `integration-proof-catalog-check311` | full catalogue failed:16 errors; 89.997229661s | [lossless original](frozen311/integration-proof-catalog-check311/receipt.json.gz) | [whole log](frozen311/integration-proof-catalog-check311/tests.log) |
+| `integration-runtime-own-test-build311` | Runtime compilation failed:36 errors; no image; 61.457755113s | [lossless original](frozen311/integration-runtime-own-test-build311/receipt.json.gz) | [whole log](frozen311/integration-runtime-own-test-build311/tests.log) |
+| `integration-compiler-own-test-build311` | Compiler lock failure before compilation; no image; 0.280501996s | [lossless original](frozen311/integration-compiler-own-test-build311/receipt.json.gz) | [whole log](frozen311/integration-compiler-own-test-build311/tests.log) |
+
+The two [lock-maintenance provenance](frozen311/lock-provenance/runtime-lock-maintained311/receipt.json) retain exact before/after lock bytes, original cargo metadata receipts, empty original stderr and lossless whole metadata output. All package versions, package sources and checksums remain equal within each pair. Runtime lock maintenance is already captured by Source311; workspace maintenance312 independently adds the actual `tcl-host-c-abi` dependency roster entry to `tcl-runtime`. Neither maintenance command is a compiler, test-image, Runtime libc or assertion measurement. Original failed build receipts and provider answers remain unchanged.
+
+- `runtime-lock-maintained311`: [original command/receipt](frozen311/lock-provenance/runtime-lock-maintained311/receipt.json), [before](frozen311/lock-provenance/runtime-lock-maintained311/before.lock), [after](frozen311/lock-provenance/runtime-lock-maintained311/after.lock), [whole metadata](frozen311/lock-provenance/runtime-lock-maintained311/metadata.json.gz), [stderr](frozen311/lock-provenance/runtime-lock-maintained311/stderr.log). The independently maintained Runtime lock is already the exact after bytes in Source311; the later Runtime compilation still fails.
+
+- `workspace-lock-maintained312`: [original command/receipt](frozen311/lock-provenance/workspace-lock-maintained312/receipt.json), [before](frozen311/lock-provenance/workspace-lock-maintained312/before.lock), [after](frozen311/lock-provenance/workspace-lock-maintained312/after.lock), [whole metadata](frozen311/lock-provenance/workspace-lock-maintained312/metadata.json.gz), [stderr](frozen311/lock-provenance/workspace-lock-maintained312/stderr.log). The Compiler311 failure uses the exact before bytes. Workspace maintenance312 supplies separate after bytes and no Source311 build/image success.

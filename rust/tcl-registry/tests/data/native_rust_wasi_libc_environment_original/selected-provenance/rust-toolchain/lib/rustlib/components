@@ -1,0 +1,8 @@
+rustfmt-preview-x86_64-unknown-linux-gnu
+clippy-preview-x86_64-unknown-linux-gnu
+rust-std-wasm32-wasip2
+rust-std-wasm32-unknown-unknown
+cargo-x86_64-unknown-linux-gnu
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+rust-std-wasm32-wasip1

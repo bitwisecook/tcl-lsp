@@ -1,0 +1,17 @@
+naming.alias.captured-prefix-allocation-contract: evidence digest changed: rust/tcl-compiler/src/command_binding/original_command_table.rs
+naming.compiler.original-compiler-operand-coordinates: evidence digest changed: rust/tcl-compiler/src/registry_invocation.rs
+naming.compiler.original-slot-presence: evidence digest changed: rust/tcl-compiler/src/command_binding/original_command_table.rs
+naming.diagnostic.original-materialized-write-footprint: evidence digest changed: rust/tcl-compiler/src/command_binding/materialized_footprint.rs
+naming.ensemble.original-missing-selector-source-usage: evidence digest changed: runtime/rust/src/interp.rs
+naming.expression.original-function-navigation: evidence digest changed: rust/tcl-compiler/src/registry_invocation.rs
+naming.invocation.known-native-byte-values: evidence digest changed: rust/tcl-compiler/src/registry_invocation.rs
+naming.optimiser.original-chain-write-metadata: evidence digest changed: rust/tcl-compiler/src/registry_invocation.rs
+naming.procedure.original-usage-called-name-and-formatter: evidence digest changed: runtime/rust/src/interp.rs
+naming.refactor.original-frame-traversal: evidence digest changed: rust/tcl-compiler/src/registry_invocation.rs
+naming.runtime.compiled-procedure-fallback-and-source-log: evidence digest changed: runtime/rust/src/codegen_abi.rs
+naming.runtime.compiled-procedure-fallback-and-source-log: evidence digest changed: runtime/rust/src/interp.rs
+naming.source.original-declaration-name-publication: evidence digest changed: rust/tcl-compiler/src/command_binding/original_command_table.rs
+naming.source.recursive-driver-state-transport: evidence digest changed: rust/tcl-compiler/src/command_binding.rs
+naming.embedding.original-host-publication-and-fact-transport: evidence digest changed: runtime/rust/src/engine.rs
+naming.embedding.original-host-publication-and-fact-transport: owner declaration is absent: write_completion
+{"candidate_records": 4599, "corpus_files": 21300, "pending_candidates": 0, "questions": 1075, "structural_errors": 16, "unlinked_tests": 0}

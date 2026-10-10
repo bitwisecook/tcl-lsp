@@ -381,8 +381,11 @@ fn capture_answer(interp: &mut Interp, code: Code) -> Result<HostOutcome, Engine
             options: Some(options.to_vec()),
         });
     }
+    // Shared Code::as_int widens its original Other(i32) without changing it.
+    let code = i32::try_from(completion.code.as_int())
+        .expect("shared completion codes retain their original i32");
     Ok(HostOutcome {
-        code: CompletionCode::from_int(completion.code.as_int()).expect("non-error completion"),
+        code: CompletionCode::from_int(code).expect("non-error completion"),
         value: Value::string_bytes(result),
         options: Value::string_bytes(options),
     })
@@ -1318,6 +1321,7 @@ mod tests {
         engine.define_command("host", Rc::new(Constant)).unwrap();
         let handle = engine
             .compile(CompileUnit {
+                name: "whitelist renamed host",
                 parameters: &[],
                 body: "moved",
             })
@@ -1362,6 +1366,7 @@ mod tests {
             .unwrap();
         let handle = engine
             .compile(CompileUnit {
+                name: "counted callback argument",
                 parameters: &["argument"],
                 body: "observe $argument",
             })
@@ -1436,8 +1441,8 @@ mod tests {
             engine.eval_in_invocation("set before 1; catch {refuse}; set after 1"),
             Err(EngineError::ExecutionRefusal(_))
         ));
-        assert!(engine.interp.var_get(b"before").is_ok());
-        assert!(engine.interp.var_get(b"after").is_err());
+        assert!(engine.interp.var_get(b"before").is_some());
+        assert!(engine.interp.var_get(b"after").is_none());
         assert_eq!(
             engine
                 .eval_in_invocation("set before")
@@ -1539,7 +1544,7 @@ mod tests {
                 foreign.invoke(&handle, &[]),
                 Err(EngineError::ExecutionRefusal(_))
             ));
-            assert!(foreign.interp.var_get(b"entered").is_err());
+            assert!(foreign.interp.var_get(b"entered").is_none());
             original.eval_in_invocation("unset ::entered").unwrap();
             original
                 .eval_in_invocation(&format!(
@@ -1551,7 +1556,7 @@ mod tests {
                 original.invoke(&handle, &[]),
                 Err(EngineError::ExecutionRefusal(_))
             ));
-            assert!(original.interp.var_get(b"entered").is_err());
+            assert!(original.interp.var_get(b"entered").is_none());
             assert_eq!(
                 original
                     .eval_in_invocation(handle.procedure())
@@ -1564,7 +1569,7 @@ mod tests {
     }
 
     struct RetireChangingContext {
-        interpreter: std::rc::Weak<crate::interp::InterpState>,
+        interpreter: crate::interp::WeakInterp,
         calls: Rc<std::cell::Cell<usize>>,
     }
     impl HostCommand for RetireChangingContext {
@@ -1573,7 +1578,7 @@ mod tests {
         }
         fn retire_with_registrar(&self, _: &mut dyn CommandRegistrar) -> Result<(), EngineError> {
             self.calls.set(self.calls.get() + 1);
-            let mut interpreter = self.interpreter.upgrade().map(Interp).unwrap();
+            let mut interpreter = self.interpreter.upgrade().unwrap();
             let original = interpreter.runtime_context();
             let mut changed = original.clone();
             changed.packages = vec![("engine-retirement".into(), "1.0".into())];
@@ -1592,7 +1597,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         let mut engine = engine("tcl8.6");
         let calls = Rc::new(std::cell::Cell::new(0));
-        let interpreter = Rc::downgrade(&engine.interp.0);
+        let interpreter = engine.interp.downgrade();
         engine
             .define_command(
                 "retiring",
@@ -1703,7 +1708,7 @@ mod tests {
             service.prepare(b"traced", CommandPublicationPurpose::DeleteCCommand),
             Err(EngineError::ExecutionRefusal(_))
         ));
-        assert!(engine.interp.var_get(b"::fired").is_err());
+        assert!(engine.interp.var_get(b"::fired").is_none());
         assert!(engine.interp.resolve_cmd_token(b"traced").is_some());
     }
 
@@ -1733,6 +1738,6 @@ mod tests {
             engine.eval_in_invocation("catch {original anything}; set after 1"),
             Err(EngineError::ExecutionRefusal(_))
         ));
-        assert!(engine.interp.var_get(b"after").is_err());
+        assert!(engine.interp.var_get(b"after").is_none());
     }
 }

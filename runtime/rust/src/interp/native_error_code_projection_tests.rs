@@ -98,7 +98,7 @@ fn original_lazy_code_getter_failure_retains_capacity_and_no_guest_fallback() {
 
 thread_local! {
     static UPDATER_INTERP: RefCell<Option<Interp>> = const { RefCell::new(None) };
-    static UPDATER_REFERENCE_COUNT: Cell<i32> = const { Cell::new(-1) };
+    static UPDATER_REFERENCE_COUNT: Cell<isize> = const { Cell::new(-1) };
 }
 struct UpdaterContext;
 impl Drop for UpdaterContext {

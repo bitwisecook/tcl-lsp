@@ -499,6 +499,48 @@ mod tests {
                 let logical_operation = metadata.zip(tokens).is_some_and(|(metadata, tokens)| {
                     crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(registry, metadata, tokens).is_some()
                 });
+                if let Some((tokens, binding)) = tokens.and_then(|tokens| {
+                    tokens
+                        .source_binding
+                        .as_deref()
+                        .map(|binding| (tokens, binding))
+                }) {
+                    let point_input = binding.logical_source_name_advice_input();
+                    let function_input = function.source_metadata_input();
+                    let recorded = binding.original_recorded_command_tokens();
+                    let head_config =
+                        binding
+                            .original_retained_written_name_input(0)
+                            .and_then(|head| {
+                                head.original_word_key()
+                                    .map(|key| key.original_word().config())
+                            });
+                    eprintln!(
+                        "[diagnostic-source-owner] statement={block:?}/{index} point_input={} point_equals_module={} point_equals_nested_module={} point_equals_function={} point_equals_nested_function={} module_config={:?} function_config={:?} point_config={:?} vector_config={:?} original_head_config={head_config:?} recorded_vector_equal={} point_metadata={} module_point_metadata={}",
+                        point_input.is_some(),
+                        point_input == module.source_metadata_input.as_ref(),
+                        point_input
+                            .zip(module.source_metadata_input.as_ref())
+                            .is_some_and(|(point, input)| point == &input.for_nested_source()),
+                        point_input == function_input,
+                        point_input
+                            .zip(function_input)
+                            .is_some_and(|(point, input)| point == &input.for_nested_source()),
+                        module.lexer_config,
+                        function.source_lexer_config(),
+                        point_input.map(ResolvedAnalysisInput::lexer_config),
+                        binding.original_lexer_config_for_tokens(tokens),
+                        recorded
+                            .as_ref()
+                            .is_some_and(|recorded| recorded.words() == tokens.words()),
+                        binding
+                            .original_invocation_metadata_at_point(tokens, registry)
+                            .is_ok(),
+                        binding
+                            .original_invocation_metadata_for_module(tokens, module, registry)
+                            .is_some(),
+                    );
+                }
                 eprintln!(
                     "[diagnostic-source-values] statement={block:?}/{index} kind={:?} command={} span={:?} inline_tokens={} retained_tokens={} binding={} logical_operation={} uses={uses:?} defs={defs:?}",
                     std::mem::discriminant(&statement.statement),

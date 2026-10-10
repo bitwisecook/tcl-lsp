@@ -165,7 +165,6 @@ impl Interp {
     ) -> Result<crate::value_ops::RuntimeAppendValue, tcl_cmd_core::CmdError> {
         use crate::value_ops::{RuntimeAppendValue, RuntimeIncrementObjects};
         use tcl_registry::native_dictionary_compilation::NativeDictionaryMutationKind as Kind;
-        let dialect = self.native_invocation_dialect();
         let keys =
             usize::try_from(dictionary.recipe.key_count).expect("native dictionary key count");
         let inputs = pointers
@@ -219,7 +218,7 @@ impl Interp {
                 },
             ),
             Kind::Incr(amount) => {
-                let increment = RuntimeIncrementObjects::selected(dialect)?;
+                let increment = RuntimeIncrementObjects::selected(self)?;
                 let amount = obj::Owned::fresh(obj::new_wide_int_obj(i64::from(amount)));
                 let amount = RuntimeAppendValue::borrowed(amount.as_ptr());
                 tcl_cmd_core::native_dictionary::update_prepared_member(

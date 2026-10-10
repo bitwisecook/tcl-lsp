@@ -1,0 +1,37 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Cross-compilation linkers for native Linux binaries.
+#
+# Local x86_64 hosts use these for foreign Linux targets. Release CI builds
+# aarch64 natively in UBI 8 (and overrides this linker with `gcc`) so both
+# x86_64 and aarch64 retain a GLIBC_2.28 ABI floor. RISC-V remains a cross
+# build, using Ubuntu 22.04's glibc 2.35 sysroot. Some workspace dependencies
+# compile C, so both the Rust linker and the target C compiler must come from
+# the selected builder rather than the newest general-purpose CI image.
+
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
+
+[target.riscv64gc-unknown-linux-gnu]
+linker = "riscv64-linux-gnu-gcc"
+
+# `cargo xtask <command>` runs the native build/check task runner (the Rust
+# replacement for the Python `scripts/` toolchain — track API-PYO3).
+[alias]
+xtask = "run --package xtask --"

@@ -11564,8 +11564,9 @@ impl Vm {
                     tcl_cmd_core::CmdError::new_bytes(message),
                 );
             }
-            let mut written = b"::".to_vec();
-            written.extend_from_slice(namespace.as_bytes());
+            // The pinned Jim namespace helper forms ${current}::tail from
+            // its actual canonical namespace object, without another root.
+            let mut written = namespace.as_bytes().to_vec();
             written.extend_from_slice(b"::");
             written.extend_from_slice(tail);
             let publication = match policy

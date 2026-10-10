@@ -268,9 +268,7 @@ impl Interp {
             .native_scalar_getter_protocol()
             .is_some_and(|protocol| protocol.supports_number_getter())
         {
-            let objects = match crate::value_ops::RuntimeIncrementObjects::selected(
-                self.native_invocation_dialect(),
-            ) {
+            let objects = match crate::value_ops::RuntimeIncrementObjects::selected(self) {
                 Ok(objects) => objects,
                 Err(error) => return self.report_cmd_error(error),
             };

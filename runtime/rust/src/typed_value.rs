@@ -559,42 +559,6 @@ pub(crate) fn boolean_in(
     Ok(boolean(value, dialect))
 }
 
-/// Read `obj` as C Tcl reads a 64-bit `long` (`Tcl_GetLongFromObj` on an LP64
-/// host): a wide integer, or an integer past the wide range that is not
-/// negative and fits 64 bits unsigned, taken modulo 2^64 as C's `(long)` of an
-/// `unsigned long` takes it, so `18446744073709551615` reads -1. Past 64 bits,
-/// or below the wide range, it is the overflow [`wide_int`] reports.
-pub(crate) fn wide_int_modulo_unsigned(obj: *mut TclObj) -> Result<i64, TypedError> {
-    match wide_int(obj) {
-        Err(error) if error.code == b"ARITH IOVERFLOW" => unsigned_past_wide(obj).ok_or(error),
-        read => read,
-    }
-}
-
-/// The bits of `obj`'s integer spelling as an `i64`, when the value is past the
-/// wide range, not negative, and fits 64 bits unsigned.
-fn unsigned_past_wide(obj: *mut TclObj) -> Option<i64> {
-    let bytes = obj::bytes_of(obj);
-    let text = core::str::from_utf8(&bytes).ok()?;
-    match tcl_syntax::number::parse_whole(text)? {
-        tcl_syntax::number::Number::Big {
-            negative: false,
-            radix,
-            digits,
-        } => u64::from_str_radix(&digits, radix as u32)
-            .ok()
-            // C's `(long)` of an `unsigned long`: the same 64 bits.
-            .map(|value| value as i64),
-        _ => None,
-    }
-}
-
-/// Read `obj` as a Tcl double — `Tcl_GetDoubleFromObj`. An integer or bignum
-/// widens; `NaN` is a value here (the boolean context is where it is an error).
-pub(crate) fn double(obj: *mut TclObj) -> Result<f64, TypedError> {
-    read_double(obj).ok_or_else(|| TypedError::expected("floating-point number", obj))
-}
-
 /// Numeric truth for the expression evaluator's operand adapter.
 /// Primitive command Boolean getters use `native_boolean` instead.
 pub(crate) fn boolean(
@@ -813,7 +777,7 @@ mod tests {
                         let Value::Boolean(n) = v else {
                             panic!("Boolean getter return")
                         };
-                        i64::from(n)
+                        i64::from(n.returned_integer())
                     }),
                     3 => interp.list_len(&value.as_ptr()).map(|n| n as i64),
                     4 => crate::dict::ensure_dict_native(
@@ -1162,14 +1126,14 @@ mod tests {
                 },
                 |&version| tcl_registry::InvocationDialect::for_version(version),
             );
+            let host = crate::interp::default_host();
             let jim_context = dialect
                 .native_scalar_getter_protocol()
                 .filter(|protocol| protocol.is_jim084())
                 .map(|_| {
                     let context = crate::native_source::NativeJimObjectContext::new(dialect)
                         .expect("selected original Jim fixture context");
-                    context
-                        .select_numeric_host(std::rc::Rc::new(tcl_host_native::NativeHost::new()));
+                    context.select_numeric_host(host.clone());
                     context
                 });
             for line in fixture.lines() {
@@ -1191,12 +1155,12 @@ mod tests {
                 }
                 // The fresh C84 numeric branch owns actual strtol/strtod and
                 // its independently supplied C target, not a profile default.
-                let environment = tcl_host_c_abi::NativeNumericEnvironment;
+                let environment = host.numeric_environment().expect("actual fixture Host numeric environment");
                 let boolean = native_scalar_getter_with_environment(
                     value.as_ptr(),
                     dialect,
                     tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
-                    Some(&environment),
+                    Some(environment),
                 )
                 .map(|returned| match returned {
                     tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(value) => {

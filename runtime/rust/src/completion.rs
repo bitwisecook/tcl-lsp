@@ -111,8 +111,8 @@ mod tests {
         assert_eq!(failure.source_profile, interp.dialect_profile().cache_key());
         assert_eq!(failure.native_profile, interp.dialect_profile().cache_key());
         assert_eq!(Some(*failure), interp.native_host_command_refusal());
-        assert!(interp.var_get(b"::before").is_ok());
-        assert!(interp.var_get(b"::after").is_err());
+        assert!(interp.var_get(b"::before").is_some());
+        assert!(interp.var_get(b"::after").is_none());
         let completion = interp
             .eval_sourced_completion(
                 b"catch {refusal_callback}; set ::after 1",
@@ -123,7 +123,7 @@ mod tests {
             completion,
             NativeExecutionError::HostCommandRefusal(_)
         ));
-        assert!(interp.var_get(b"::after").is_err());
+        assert!(interp.var_get(b"::after").is_none());
     }
 
     #[test]

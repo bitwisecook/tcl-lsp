@@ -4,9 +4,10 @@
 
 //! Counted engine publication and completion views over actual interpreter owners.
 
-use super::{TCL_ERROR, TCL_OK, define_unit_original};
-use crate::interp::{Interp, ObjCommand, RenameOutcome, new_string};
-use crate::obj::{TclObj, incr_ref_count};
+use super::{define_unit_original, TCL_ERROR, TCL_OK};
+use crate::interp::{new_string, Interp, ObjCommand};
+use crate::namespace::RenameOutcome;
+use crate::obj::{incr_ref_count, TclObj};
 use core::ffi::{c_int, c_void};
 
 /// The original producer's interpreter and still-installed command generation.
@@ -553,7 +554,7 @@ mod tests {
             interp.eval_completion(b"::moved").unwrap().result,
             b"ORIGINAL\0\xff"
         );
-        assert!(interp.var_get(b"::replacement_ran").is_err());
+        assert!(interp.var_get(b"::replacement_ran").is_none());
     }
 
     fn installed_generations(interp: &Interp) -> Vec<u64> {
@@ -713,8 +714,8 @@ mod tests {
             .eval_completion(b"set ::before 1; catch {refuse}; set ::after 1")
             .unwrap_err();
         assert_eq!(Some(failure.clone()), interp.native_execution_refusal());
-        assert!(interp.var_get(b"::before").is_ok());
-        assert!(interp.var_get(b"::after").is_err());
+        assert!(interp.var_get(b"::before").is_some());
+        assert!(interp.var_get(b"::after").is_none());
         // SAFETY: original interpreter remains live; null is a transport placeholder.
         assert_eq!(unsafe { tcl_engine_host_refusal_pending(&mut interp) }, 1);
         assert!(

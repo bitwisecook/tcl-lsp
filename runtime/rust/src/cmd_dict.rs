@@ -793,9 +793,7 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let objects = objects.with_preparation(
                 tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::IncrementCommand,
             );
-            let increment = match crate::value_ops::RuntimeIncrementObjects::selected(
-                interp.native_invocation_dialect(),
-            ) {
+            let increment = match crate::value_ops::RuntimeIncrementObjects::selected(interp) {
                 Ok(increment) => increment,
                 Err(error) => return interp.report_cmd_error(error),
             };

@@ -7079,85 +7079,70 @@ fn original_expression_context_advice_selected_word(
     written: Option<usize>,
 ) -> Option<OriginalExpressionContextAdvice> {
     let binding = tokens.source_binding.as_ref()?;
+    // Availability comes from this unchanged original point. Supplied missing
+    // or stale ownership cannot be replaced by a catalogue/profile context.
+    let context = binding
+        .original_invocation_metadata_at_point(tokens, registry)
+        .ok()??;
     let advice = binding
         .declaration_operand_layout_advice(tokens)
         .or_else(|| binding.original_compilation_lookup_advice(tokens))?;
     if advice.has_opaque_handler_alternatives() {
         return None;
     }
-    let context = body_assistance_context(registry, tokens)?;
-    let dialect = advice.dialect();
-    let mut original = None;
-    for target in advice.targets() {
-        if !target.registry_backed {
-            return None;
-        }
-        let effective =
-            compose_original_effective_words(tokens, &target.command, &target.prepended)?;
-        let words: Vec<_> = effective
-            .words
-            .iter()
-            .map(|word| {
-                effective_invocation_word(word, dialect.lexer_grammar.escapes, dialect.word_values)
-            })
-            .collect();
-        let words: Vec<_> = words
-            .iter()
-            .map(EffectiveInvocationWord::as_registry_word)
-            .collect();
-        let RegistryInvocationResolution::Resolved(facts) = resolve_registry_words_in_realm(
-            registry,
-            Some(context),
-            &words,
-            Some(dialect),
-            advice.realm(),
-        )
-        .ok()?
-        else {
-            return None;
-        };
-        if !facts.arg_roles_complete {
-            return None;
-        }
-        let selected = if let Some(written) = written {
-            let mut selected = facts.arg_roles.iter().filter_map(|(argument, role)| {
-                if *role != tcl_registry::arg_role::ArgRole::Expr { return None; }
-                let effective_index = facts.argument_offset.checked_add(usize::from(*argument))?.checked_add(1)?;
-                matches!(effective.origins.get(effective_index), Some(InvocationWordOrigin::Written(index))
-                    if *index == written).then_some(effective_index)
-            });
-            let first = selected.next()?;
-            if selected.next().is_some() {
-                return None;
+    let selected = resolve_original_declared_layout(registry, context, tokens, &advice)?;
+    // These are the selected descriptor's conditional expression slots. They
+    // do not certify successful argument evaluation or an entered handler.
+    let expressions =
+        selected.with_metadata_schema(registry, context, advice.realm(), |schema| {
+            if context.permits_logical_source_names() {
+                schema.authored_logical_source_expression_arguments()
+            } else {
+                schema.authored_source_expression_arguments()
             }
-            first
-        } else {
-            if facts.successful_handler
-                != Some(
-                    tcl_registry::native_compilation::SuccessfulHandlerSpec::ExpressionArguments,
-                )
-                || effective.words.len() != 2
-            {
-                return None;
-            }
-            1
-        };
-        let InvocationWordOrigin::Written(index) = *effective.origins.get(selected)? else {
-            return None;
-        };
-        if original.is_some_and(|previous| previous != index) {
+        })?;
+    let effective_index = if let Some(written) = written {
+        let mut positions = expressions.arguments.iter().filter_map(|argument| {
+            let effective_index = argument.checked_add(1)?;
+            matches!(selected.effective.origins.get(effective_index),
+                Some(InvocationWordOrigin::Written(index)) if *index == written)
+            .then_some(effective_index)
+        });
+        let first = positions.next()?;
+        if positions.next().is_some() {
             return None;
         }
-        original = Some(index);
-    }
+        first
+    } else {
+        // The whole expression command's single source operand remains a
+        // distinct purpose from one condition of a structured command.
+        if selected.facts.successful_handler
+            != Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::ExpressionArguments)
+            || selected.effective.words.len() != 2
+            || expressions.arguments != [0]
+        {
+            return None;
+        }
+        1
+    };
+    let InvocationWordOrigin::Written(original) =
+        *selected.effective.origins.get(effective_index)?
+    else {
+        return None;
+    };
     let config = binding.original_lexer_config_for_tokens(tokens)?;
+    let dialect = advice.dialect();
     let mut parser = dialect.expression_parse_context(None);
     parser.lexer_grammar = config.grammar_over(parser.lexer_grammar);
     Some(OriginalExpressionContextAdvice {
         parser,
         dialect,
-        written: original?,
-        lookup_closed: advice.closed_lookup(),
+        written: original,
+        lookup_closed: if context.permits_logical_source_names() {
+            advice.closed_logical_source_lookup()
+        } else {
+            advice.closed_lookup()
+        },
         pool: advice.expression_pool_state(),
         frame: advice.frame().clone(),
         namespace_key: advice.namespace().clone(),
@@ -7688,6 +7673,163 @@ mod tests {
         WordExpr::Literal {
             text: text.to_owned(),
             source: SourceSite::source(tcl_lexer::Span::new(0, 0)),
+        }
+    }
+
+    #[test]
+    fn original_expression_context_keeps_logical_input_and_written_operands() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let owner =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        config.strict_quoting = !config.strict_quoting;
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&owner),
+            config,
+        );
+        let registry = owner.commands();
+        for source in [
+            "expr {2 + 3}",
+            "rename expr arithmetic; arithmetic {2 + 3}",
+            "interp alias {} arithmetic {} expr; arithmetic {2 + 3}",
+        ] {
+            let tokens = logical_source_tokens(source, registry, &input);
+            let advice = original_expression_operand_advice(registry, &tokens)
+                .expect("the original Logical expression keeps its selected grammar");
+            assert_eq!(advice.expression_text, "2 + 3");
+            assert!(advice.lookup_closed);
+            assert!(matches!(
+                advice.frame,
+                crate::var_resolve::VariableExecutionFrame::Unknown
+            ));
+            assert_eq!(
+                source.get(
+                    advice.expression_base as usize
+                        ..advice.expression_base as usize + advice.expression_text.len()
+                ),
+                Some("2 + 3"),
+            );
+            assert!(
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .native_compilation_admission
+                    .is_none()
+            );
+            let metadata = InvocationMetadataContext::for_analysis_input(registry, &input).unwrap();
+            assert!(
+                resolved_handler_invocation_with_metadata_context(
+                    registry,
+                    Some(metadata),
+                    &tokens
+                )
+                .is_none()
+            );
+        }
+        let replaced = logical_source_tokens(
+            "proc expr args {return STUB}; expr {2 + 3}",
+            registry,
+            &input,
+        );
+        assert!(original_expression_operand_advice(registry, &replaced).is_none());
+        let captured = logical_source_tokens(
+            "interp alias {} arithmetic {} expr {2 + 3}; arithmetic",
+            registry,
+            &input,
+        );
+        assert!(original_expression_operand_advice(registry, &captured).is_none());
+    }
+
+    #[test]
+    fn original_expression_context_keeps_availability_and_terminal_point_refusals() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let mut registry = CommandRegistry::build_default();
+        let mut descriptor = registry.get("expr").unwrap().clone();
+        descriptor.name = "arithmetic";
+        descriptor.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        registry.insert(descriptor);
+        let registry = std::sync::Arc::new(registry);
+        let input_for = |environment| {
+            let context = tcl_registry::model::ingress::resolve_environment(environment)
+                .default_context_registry();
+            crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::new(context.with_command_store(std::sync::Arc::clone(&registry))),
+                config,
+            )
+        };
+        let current = input_for("tcl9.1");
+        let older = input_for("tcl8.4");
+        let source = "arithmetic {2 + 3}";
+        let tokens = logical_source_tokens(source, &registry, &current);
+        assert!(original_expression_operand_advice(&registry, &tokens).is_some());
+        assert_eq!(
+            current
+                .borrowed_context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key(),
+            older
+                .borrowed_context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key()
+        );
+        let unavailable = logical_source_tokens(source, &registry, &older);
+        assert!(original_expression_operand_advice(&registry, &unavailable).is_none());
+        let mut missing = tokens.clone();
+        missing.source_binding = None;
+        assert!(original_expression_operand_advice(&registry, &missing).is_none());
+        let mut changed = tokens.clone();
+        changed.argv_texts[1] = "4 + 5".to_owned();
+        changed.word_exprs[1] = literal("4 + 5");
+        assert!(original_expression_operand_advice(&registry, &changed).is_none());
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        assert!(original_expression_operand_advice(foreign.commands(), &tokens).is_none());
+
+        let image = tcl_lexer::SourceImage::document(source);
+        let segment =
+            crate::segmenter::segment_commands_image_with_offset_and_config(&image, 0, config)
+                .unwrap()
+                .remove(0);
+        let mut stale_config = config;
+        stale_config.strict_quoting = !stale_config.strict_quoting;
+        let stale = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            current.context_registry(),
+            stale_config,
+        );
+        for metadata_context in [
+            InvocationMetadataInput::SuppliedSource(None),
+            InvocationMetadataInput::SuppliedSource(Some(&stale)),
+        ] {
+            let mut options =
+                crate::command_binding::SourceAnalysisOptions::for_logical_source(&current)
+                    .unwrap();
+            options.metadata_context = metadata_context;
+            let bindings =
+                crate::command_binding::SourceCommandBindings::analyse_image_in_frame_with_options(
+                    &image,
+                    &crate::var_resolve::VariableExecutionFrame::Unknown,
+                    config,
+                    &registry,
+                    options,
+                )
+                .unwrap();
+            let mut refused = CommandTokens::from_segmented(&image.source_map(), config, &segment);
+            bindings.stamp_original_tokens(&mut refused);
+            assert!(original_expression_operand_advice(&registry, &refused).is_none());
         }
     }
 

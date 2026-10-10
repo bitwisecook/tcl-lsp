@@ -7,7 +7,7 @@
 use super::{
     CommandRegistry, CommandTokens, EffectiveCommandWords, EffectiveInvocationWord, InvocationWord,
     InvocationWords, RegistryInvocationResolution, effective_invocation_word,
-    effective_words_for_target, frozen_argument_words,
+    effective_words_for_target, frozen_argument_words, resolve_registry_words_in_realm,
     resolve_registry_words_in_realm_with_metadata_context,
 };
 use tcl_registry::hooks::LoweringHookId;

@@ -1,0 +1,2318 @@
+{
+  "request_path": "/tmp/grammar-rust-wasi-numeric-request443/request.json",
+  "request_sha256": "15a1dbcf9da112059b670aaf86d5fa96ea1a3b34b8e653020cf84f05b74a3a33",
+  "launcher": {
+    "path": "/tmp/grammar-rust-wasi-numeric-request443/launch.py",
+    "resolved_path": "/tmp/grammar-rust-wasi-numeric-request443/launch.py",
+    "bytes": 6704,
+    "sha256": "25e8327ddbdcad21e08ed5be471da5ece7eaf0fd22ba8947703efcd97bb95bfd"
+  },
+  "scope": "Independent Rust-sysroot guest libc/environment observation. FFI type widths and limits are queried in this actual compiled Rust guest; errno labels/prototypes are from pinned libc0.2.190 WASI bindings, not SDK macros. No Tcl getter, Long32 recipe, expression truth, object/header/cache, NativeScalarGetterTarget, installed Runtime/engine/Source provider, browser or hostLP64 capability is established. Standalone command CRT and std allocation/printing remain separate from Runtime cdylib/reactor. SDK439failure/440success remain independent observations; matching widths cannot certify library equivalence.",
+  "input_pins_before": [
+    {
+      "path": "/tmp/grammar-rust-wasi-numeric-request443/probe.rs",
+      "resolved_path": "/tmp/grammar-rust-wasi-numeric-request443/probe.rs",
+      "bytes": 11980,
+      "sha256": "b53f9d4702055d8b751a79d33c3351cf4b109e7bdd31cc413a3bac9ef864c733"
+    },
+    {
+      "path": "/tmp/grammar-rust-wasi-numeric-request443/cases.json",
+      "resolved_path": "/tmp/grammar-rust-wasi-numeric-request443/cases.json",
+      "bytes": 2418,
+      "sha256": "951f0a9ad68761d254bcd60860bd5d727e9949cd54c1c3a5a995a245cb6d2c34"
+    },
+    {
+      "path": "/tmp/grammar-rust-wasi-numeric-request443/link-wrapper.py",
+      "resolved_path": "/tmp/grammar-rust-wasi-numeric-request443/link-wrapper.py",
+      "bytes": 3269,
+      "sha256": "5e9aa4021e616a779469e1e1721c287b554b5ba55cb49a4a9ca7b965f26cd822"
+    },
+    {
+      "path": "/tmp/grammar-rust-wasi-numeric-request443/prepare-source.py",
+      "resolved_path": "/tmp/grammar-rust-wasi-numeric-request443/prepare-source.py",
+      "bytes": 9804,
+      "sha256": "a7c51ddbe4f557d10f6ccdc4b05f02b81ef6607bc97df2c85fb983247c2dc0a2"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+      "bytes": 647376,
+      "sha256": "f3834d26669b03f6855fa54bd2381443123e860167bc0c7a8dd137e5cf6e5e4f"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+      "bytes": 11879600,
+      "sha256": "4739514e3484915747c34b35007cd990235cc6b490b2d0525a61ac402ca16af9"
+    },
+    {
+      "path": "/workspace/.tools/wasmtime-49.0.2/wasmtime",
+      "resolved_path": "/workspace/.tools/wasmtime-49.0.2/wasmtime",
+      "bytes": 71537472,
+      "sha256": "d0a014e0d5b0cf48dd3549c38e2e6ecd78ff09fb3e3f10d751b87b72bdfd8635"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/libLLVM-23-rust-1.99.0-stable.so",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/libLLVM-23-rust-1.99.0-stable.so",
+      "bytes": 42,
+      "sha256": "805279dd64ec14a4d5034a0809cb9569a5247d66350d992db173d04fe0ea5300"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/libLLVM.so.23.1-rust-1.99.0-stable",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/libLLVM.so.23.1-rust-1.99.0-stable",
+      "bytes": 208094144,
+      "sha256": "7c2c7ebb79211f07e3b32e408a1a65b4d205656792f9c51bdbefcb21c0868cbd"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/librustc_driver-999a121de2f042be.so",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/librustc_driver-999a121de2f042be.so",
+      "bytes": 158319840,
+      "sha256": "f45c41337f1516bb9f4d504a2a507202a01c431fc2063334913dde5480ffee03"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/components",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/components",
+      "bytes": 255,
+      "sha256": "a242e952a6b3c89e52e5055a9b5f9ca8b6b8e0004c00f6e8e2524aeadfcf5e0f"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/manifest-rust-std-wasm32-wasip1",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/manifest-rust-std-wasm32-wasip1",
+      "bytes": 4112,
+      "sha256": "3bd9dc3ba1f01fce23fb6d46b8463cdc06928646d21d42779c89c98a7aada9d6"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/multirust-channel-manifest.toml",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/multirust-channel-manifest.toml",
+      "bytes": 1086673,
+      "sha256": "3bd93d33248db8d373f1b7d53d344ee12ae2815c11653449ce5f227a0ec9d3cb"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/multirust-config.toml",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/multirust-config.toml",
+      "bytes": 724,
+      "sha256": "d2d5c72d85fcb433a74ab889ff849c2b972767077443a8e39ea65a9d20b714ba"
+    },
+    {
+      "path": "/workspace/tcl-lsp/rust/tcl-compiler/tests/common/wasm_link.rs",
+      "resolved_path": "/workspace/tcl-lsp/rust/tcl-compiler/tests/common/wasm_link.rs",
+      "bytes": 18336,
+      "sha256": "07681f09c547282760ad743932c82ed2a8b092c49ef1d6f04d30c14fb77a65d6"
+    },
+    {
+      "path": "/workspace/tcl-lsp/runtime/rust/build.rs",
+      "resolved_path": "/workspace/tcl-lsp/runtime/rust/build.rs",
+      "bytes": 15166,
+      "sha256": "fd1fea9d02fa1dd7d869a71effa55af9c73e78183b1a805d28cd828fc6680a34"
+    },
+    {
+      "path": "/workspace/tcl-lsp/.cargo/config.toml",
+      "resolved_path": "/workspace/tcl-lsp/.cargo/config.toml",
+      "bytes": 1682,
+      "sha256": "113008ac8e2a706dcf0c7c1f399e07077dd04175415f53415678756cd0123169"
+    },
+    {
+      "path": "/workspace/tcl-lsp/runtime/rust/Cargo.toml",
+      "resolved_path": "/workspace/tcl-lsp/runtime/rust/Cargo.toml",
+      "bytes": 7573,
+      "sha256": "26bce44edc2bf39af1031648fb9586472f26bef92875c9680ba1a60793a35ebb"
+    },
+    {
+      "path": "/workspace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libc-0.2.190/src/wasi/mod.rs",
+      "resolved_path": "/workspace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libc-0.2.190/src/wasi/mod.rs",
+      "bytes": 47568,
+      "sha256": "385c5e1783c6e649990b9249201c7c3b028e65fa9c782af5a84018a5ebea368f"
+    },
+    {
+      "path": "/tmp/grammar-wasi-numeric-request439/request.json",
+      "resolved_path": "/tmp/grammar-wasi-numeric-request439/request.json",
+      "bytes": 12708,
+      "sha256": "f1797600873c7200254932fdfa784ebd33d040a7970e532bf4b319c8c86e64fc"
+    },
+    {
+      "path": "/tmp/native-wasi-numeric-environment439-capture/receipt.json",
+      "resolved_path": "/tmp/native-wasi-numeric-environment439-capture/receipt.json",
+      "bytes": 20296,
+      "sha256": "1da0129cecabc101aa805f9772df70444d9eb4ef9209543809c6552e8ca702fc"
+    },
+    {
+      "path": "/tmp/grammar-wasi-numeric-request440/request.json",
+      "resolved_path": "/tmp/grammar-wasi-numeric-request440/request.json",
+      "bytes": 14567,
+      "sha256": "5c3639b178e7ecf3705692a9032dd2e055acedea45dd8d1c9caa6f2e072031b8"
+    },
+    {
+      "path": "/tmp/native-wasi-numeric-environment440-capture/receipt.json",
+      "resolved_path": "/tmp/native-wasi-numeric-environment440-capture/receipt.json",
+      "bytes": 22689,
+      "sha256": "778623026c9c51732b594d4b2b1254f917c141141dca0afd71fcd13fc37f6518"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rlib",
+      "bytes": 22054,
+      "sha256": "373c7785ecf8b3c271bdd5c9d9ad6b5c3a6a2476286373cc41d61ba5360937d1"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rmeta",
+      "bytes": 499184,
+      "sha256": "486ccf892f6bc63f3b740d8afc24d130547d90a72e9ed5bd088cabafda98a858"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rlib",
+      "bytes": 7598,
+      "sha256": "84e3e15f4c68e75943bb1560a09d7cb11c0f0509fd05f297bee8cc296c292db5"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rmeta",
+      "bytes": 20727,
+      "sha256": "55265d8711de41ae399f5929c07d8dae7940f1d079690a0c456bb541b8bb5dc1"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rlib",
+      "bytes": 778530,
+      "sha256": "b61638d71d763ec5db8fc3977b868aec5ee6efc129429e5815e9b1dbc10cc016"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rmeta",
+      "bytes": 8809185,
+      "sha256": "25c2e17b384e2fa11187dfa22b459be6bc22b19c77bd7780e393f0462356888a"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rlib",
+      "bytes": 3666,
+      "sha256": "888827d68166dd69a60abd7d4d8dee31ca0a85b31c1691de9107735da27a9d98"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rmeta",
+      "bytes": 5520,
+      "sha256": "b56bad62b013981bd3234a08e791b823b5ce193854b8c5c473335193c4cd395f"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rlib",
+      "bytes": 3247950,
+      "sha256": "1cc8916cc31e8d7c17780b7c8edfe18ad36ea9d1ad0c5d867de361074945bc6f"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rmeta",
+      "bytes": 2033529,
+      "sha256": "e658b7a0d8cdcdac4ae07d5e82d8b3ea11667e24a06ee679d8bd35f4cf412f60"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rlib",
+      "bytes": 2600818,
+      "sha256": "5dc20ed562d7fb5c87893a4911db4a38019a5ce3b944bc1042086fda6ab4782e"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rmeta",
+      "bytes": 45424922,
+      "sha256": "1611e6d1ea521f57c14a3921a8a342461028305d584fc6ab0ccb66d37f9b6602"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rlib",
+      "bytes": 522500,
+      "sha256": "57c5ab0a8ec1601470f74499342616f2cd1744acf0526cfc5364fce822f8b4f7"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rmeta",
+      "bytes": 226604,
+      "sha256": "36fea1eebde1f4f97e7b1cf4908152cc741326dbf4b48afd6f08017ba4eb1ea6"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rlib",
+      "bytes": 909130,
+      "sha256": "edf4e4e97628b9bbedab44e1ec13fe5bf27763f901ebb933324a79cc9198388b"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rmeta",
+      "bytes": 5950189,
+      "sha256": "c3d9bba1937f4e6b4422166bf462591240b3f3b8c6b676e97a8c997d11013ba9"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rlib",
+      "bytes": 19982,
+      "sha256": "bdc712029ea30667d1d622ddab1cdd9247f3abab9df35944cd3469cf284d199b"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rmeta",
+      "bytes": 1766715,
+      "sha256": "f0f353c0cf420bc1d5f44d556268030db01384f5d52a9aa7510ed4b280f49076"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rlib",
+      "bytes": 4556,
+      "sha256": "17c9bdca58c5985f04505a99e31569b0e2ae4930439cc0792460ede3fce250a1"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rmeta",
+      "bytes": 400449,
+      "sha256": "3638228b2b088eb13c2ab173baefd2c2421a99933b91c0e1b1fa316f28b22947"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rlib",
+      "bytes": 124152,
+      "sha256": "6eced2da5c1a4835854381164e50b9ac00d055c1e48257e738e9a5f76ca5b699"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rmeta",
+      "bytes": 613756,
+      "sha256": "eb4f11b81ff5fa4b6eccc5959732f2881708deeb02098af016b26f660cc75538"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rlib",
+      "bytes": 87668,
+      "sha256": "d9be5b17b2631ff2e1574dd7dc106557bd4655ff7da96d22039d8add545996e7"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rmeta",
+      "bytes": 131671,
+      "sha256": "8f1fb5f49714f52724ab04c85a9ead5e81ef66c58e5c20b5659fb3e5cc3744b9"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rlib",
+      "bytes": 238892,
+      "sha256": "1518864d6a17db7add80b8da50bc84b3d389965f67da65f65e62262c02f331bf"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rmeta",
+      "bytes": 8993248,
+      "sha256": "a1738879d629ae5b9c9dbed32aa7da546afdc15978a77e456401afb698b0b4bc"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rlib",
+      "bytes": 7722,
+      "sha256": "4130cf887be3e12ea8201bef0dd11b3f9749c014922ccbc724c28ee31abf5c9b"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rmeta",
+      "bytes": 2734,
+      "sha256": "d592ce94b70a76bc81ec89a16239f146434813fa4e20fc9433b7267b59c7645d"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rlib",
+      "bytes": 24794,
+      "sha256": "191958ebe02db0b08123f893579557394fae7e14161f8a6af29acf95c3e7d428"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rmeta",
+      "bytes": 7114,
+      "sha256": "382f7d421902fc0e689070b3fda387a2fb1c4a1937b590202e685c9e5dfd4bdb"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rlib",
+      "bytes": 3354914,
+      "sha256": "6f543cb24b28235e9f14d90050ec67d62205ee201e3cf18f0e4597f3c3b73174"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rmeta",
+      "bytes": 1177747,
+      "sha256": "7b06d7c59da65567c5139f407a41f3dda6ff1d4f47ee2e9b25a17a828ff00f5c"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rlib",
+      "bytes": 201426,
+      "sha256": "7318cfac3e4baf8dbe31b61b3f6c9036feb8048c41f504fd2433ff200844a233"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rmeta",
+      "bytes": 92503,
+      "sha256": "b2c4143dd874aa592574a7029cab08b1c3087782018283866aa7255b31932291"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rlib",
+      "bytes": 3822,
+      "sha256": "b69a9f69e1759ae9872c469c355fb88bc7ecf8a824fc2fcee78a79cd9c478f3e"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rmeta",
+      "bytes": 123999,
+      "sha256": "e183fd5a1dfbfd01b21cc722af7e2049c80552c3a0b79a577cb0541833cb5a25"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rlib",
+      "bytes": 3902,
+      "sha256": "ef7474bd18e2e2ea80c4988181acc6e27c87c17a2ec61ec76f787d256fd4d82e"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rmeta",
+      "bytes": 2203,
+      "sha256": "1861025803c7a7825730559f1adb654f1391ff4bab7a231c47ec40e7ace539fe"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rlib",
+      "bytes": 3892,
+      "sha256": "f78e0bee6750e50ccafb13ba6c2c0244864dd0a5d2717be8289b59657eec2a58"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rmeta",
+      "bytes": 6101,
+      "sha256": "ed1d7103a3591ca60c5618a7e1656ceb43cf344e1f2df5b4e0c56e2a535cd3dc"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rlib",
+      "bytes": 3884,
+      "sha256": "d2b1a46ab7bed25f69e94b74a6d1330e827497c2bd8c9968fe144e0572b37376"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rmeta",
+      "bytes": 6992,
+      "sha256": "c9f2c89f0be7fd39dd67f083f9d25809ca4a6a4956d03fbf80c692dacd0ae4ae"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rlib",
+      "bytes": 3932822,
+      "sha256": "db6d8f5523be24e6ab0ed9fc1e62344f17dd234f2011c163e24468ed96ffad63"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rmeta",
+      "bytes": 6553015,
+      "sha256": "45aa4565602d1708abee12d50035633eb5f9703cc69049c9077b935434162782"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rlib",
+      "bytes": 3770,
+      "sha256": "8736b3d8fac518e7cb1bc8cba76043a2357427bf2d6c0e18914b95b96bf6417f"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rmeta",
+      "bytes": 222327,
+      "sha256": "8cc41e1533fa2c2ad9d4b08f71b2c41e206400c4767f713caf6469de484e97f3"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rlib",
+      "bytes": 3750,
+      "sha256": "2aee5d9c1ae6824dbcaf26c286f915d3228b74c5ef3b01f23a23a058cd40bbbf"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rmeta",
+      "bytes": 2056,
+      "sha256": "ffc4f547b273423c540bfd987c10bad723ea0100da0ca4549d4007396c37b06c"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rlib",
+      "bytes": 5277236,
+      "sha256": "36f731b12bcd7caeba3c31460026066f10bb4f3daf34ffb0a75f3cd014e76d92"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rmeta",
+      "bytes": 1026121,
+      "sha256": "4e80134755c134f4f3e6b34e047ed726c7592e2dc6365ce382e1df8a0ee5891d"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rlib",
+      "bytes": 5414,
+      "sha256": "a20dbbb7bf9760fb5e8d77ec6275da80a9417659778dee8393c0eea4a74625e2"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rmeta",
+      "bytes": 16013,
+      "sha256": "6119fa165dc53843089edd9ba948e1a60657889e69a12d71136a4200769d5c5a"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rlib",
+      "bytes": 209222,
+      "sha256": "dc1bd34dcacadd65e0d3a0a20f5b25c02bc97144914ef5d454cd2b991bd5c1f8"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rmeta",
+      "bytes": 262103,
+      "sha256": "606ab8617e79f4375efb92bd23d363703d3724452dbbd1ff7ee8f8df86e7b7aa"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-command.o",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-command.o",
+      "bytes": 1994,
+      "sha256": "d97a7840560d165783422a81fb2620d6dc821ac58b74f0da20dc1a9465788ea5"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-reactor.o",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-reactor.o",
+      "bytes": 1681,
+      "sha256": "c0ce69c600d2bf8cd170da94e95e1755236541d596b3471e15a798f24afebe25"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libc.a",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libc.a",
+      "bytes": 3094330,
+      "sha256": "5d8ba34d8c6fd0ac59e0efe37241143887f8f232864bbeacc4181ae739f63371"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libunwind.a",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libunwind.a",
+      "bytes": 13606,
+      "sha256": "6351f2983b7dd2972eceb538ac2acbe23894e31799f0ac286930e4f20a4ca647"
+    },
+    {
+      "path": "/tmp/grammar-rust-wasi-numeric-request442/request.json",
+      "resolved_path": "/tmp/grammar-rust-wasi-numeric-request442/request.json",
+      "bytes": 64863,
+      "sha256": "d8cd47e751b19ff48eeea0c59a8bab2af59d3cd2e7052f7066050969323d045c"
+    },
+    {
+      "path": "/tmp/native-rust-wasi-numeric-environment442-capture/receipt.json",
+      "resolved_path": "/tmp/native-rust-wasi-numeric-environment442-capture/receipt.json",
+      "bytes": 81708,
+      "sha256": "1ef6aa22b61783dc58e9dd1117659953e670fbb8146fc2405174c1ed813f0f87"
+    }
+  ],
+  "started_utc": "2026-10-10T22:21:01.433536+00:00",
+  "environment_delta": {
+    "RUSTUP_HOME": "/workspace/.rustup",
+    "PATH": "/workspace/.cargo/bin:/workspace/.tools/wasmtime-49.0.2:/workspace/.tools/wasi-sdk-34.0/bin:/usr/local/bin:/usr/bin:/bin"
+  },
+  "steps": [
+    {
+      "stage": "compiler-version",
+      "argv": [
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+        "-vV"
+      ],
+      "cwd": "/tmp/native-rust-wasi-numeric-environment443-capture",
+      "started_utc": "2026-10-10T22:21:01.433582+00:00",
+      "exit_code": 0,
+      "timed_out": false,
+      "finished_utc": "2026-10-10T22:21:01.450689+00:00",
+      "duration_seconds": 0.01712247499381192,
+      "stdout": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/compiler-version.stdout",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/compiler-version.stdout",
+        "bytes": 196,
+        "sha256": "b569b0c98ea3133c7252b4b8ea6b39b7b353813df0dd5f5c412c355691424112"
+      },
+      "stderr": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/compiler-version.stderr",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/compiler-version.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "stage": "compiler-sysroot",
+      "argv": [
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+        "--print",
+        "sysroot"
+      ],
+      "cwd": "/tmp/native-rust-wasi-numeric-environment443-capture",
+      "started_utc": "2026-10-10T22:21:01.451695+00:00",
+      "exit_code": 0,
+      "timed_out": false,
+      "finished_utc": "2026-10-10T22:21:01.468122+00:00",
+      "duration_seconds": 0.016441770014353096,
+      "stdout": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/compiler-sysroot.stdout",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/compiler-sysroot.stdout",
+        "bytes": 62,
+        "sha256": "a5cb299710986c93fc2f812c0dbe57815d41e5f98b0c46f307d4064107b2220b"
+      },
+      "stderr": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/compiler-sysroot.stderr",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/compiler-sysroot.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "stage": "compiler-target-libdir",
+      "argv": [
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+        "--target",
+        "wasm32-wasip1",
+        "--print",
+        "target-libdir"
+      ],
+      "cwd": "/tmp/native-rust-wasi-numeric-environment443-capture",
+      "started_utc": "2026-10-10T22:21:01.469025+00:00",
+      "exit_code": 0,
+      "timed_out": false,
+      "finished_utc": "2026-10-10T22:21:01.485141+00:00",
+      "duration_seconds": 0.016129140014527366,
+      "stdout": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/compiler-target-libdir.stdout",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/compiler-target-libdir.stdout",
+        "bytes": 92,
+        "sha256": "d31623b842cd037753eb16774e4a00b4d96b6d113afda7146d5f8df862632bfa"
+      },
+      "stderr": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/compiler-target-libdir.stderr",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/compiler-target-libdir.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "stage": "compiler-target-cfg",
+      "argv": [
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+        "--target",
+        "wasm32-wasip1",
+        "--print",
+        "cfg"
+      ],
+      "cwd": "/tmp/native-rust-wasi-numeric-environment443-capture",
+      "started_utc": "2026-10-10T22:21:01.486086+00:00",
+      "exit_code": 0,
+      "timed_out": false,
+      "finished_utc": "2026-10-10T22:21:01.502119+00:00",
+      "duration_seconds": 0.016045082011260092,
+      "stdout": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/compiler-target-cfg.stdout",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/compiler-target-cfg.stdout",
+        "bytes": 737,
+        "sha256": "a37b72d231ad64bfafcb75d91bb1e7465811fbb0b26334356f7122d92307189a"
+      },
+      "stderr": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/compiler-target-cfg.stderr",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/compiler-target-cfg.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "stage": "linker-version",
+      "argv": [
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+        "-flavor",
+        "wasm",
+        "--version"
+      ],
+      "cwd": "/tmp/native-rust-wasi-numeric-environment443-capture",
+      "started_utc": "2026-10-10T22:21:01.502987+00:00",
+      "exit_code": 0,
+      "timed_out": false,
+      "finished_utc": "2026-10-10T22:21:01.510832+00:00",
+      "duration_seconds": 0.007857307005906478,
+      "stdout": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/linker-version.stdout",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/linker-version.stdout",
+        "bytes": 86,
+        "sha256": "c521914da9ef243a80d47f4ccffb5fd9404b0e2e24195a10f9ae68d4bf81f925"
+      },
+      "stderr": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/linker-version.stderr",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/linker-version.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "stage": "runner-version",
+      "argv": [
+        "/workspace/.tools/wasmtime-49.0.2/wasmtime",
+        "--version"
+      ],
+      "cwd": "/tmp/native-rust-wasi-numeric-environment443-capture",
+      "started_utc": "2026-10-10T22:21:01.511705+00:00",
+      "exit_code": 0,
+      "timed_out": false,
+      "finished_utc": "2026-10-10T22:21:01.519635+00:00",
+      "duration_seconds": 0.007942232972709462,
+      "stdout": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/runner-version.stdout",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/runner-version.stdout",
+        "bytes": 39,
+        "sha256": "06398cc44cd141ad1fff6d51c1138b1ad5c728e7e326d7cbbbff84ac59152438"
+      },
+      "stderr": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/runner-version.stderr",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/runner-version.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "stage": "compile",
+      "argv": [
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+        "--edition=2021",
+        "--crate-type=bin",
+        "--crate-name=wasi_numeric_environment_original",
+        "--target=wasm32-wasip1",
+        "--sysroot=/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu",
+        "-C",
+        "opt-level=0",
+        "-C",
+        "debuginfo=0",
+        "-C",
+        "panic=abort",
+        "-C",
+        "linker=/tmp/grammar-rust-wasi-numeric-request443/link-wrapper.py",
+        "-C",
+        "link-arg=--trace",
+        "-C",
+        "link-arg=--global-base=2097152",
+        "-D",
+        "warnings",
+        "/tmp/grammar-rust-wasi-numeric-request443/probe.rs",
+        "-o",
+        "/tmp/native-rust-wasi-numeric-environment443-capture/probe.wasm"
+      ],
+      "cwd": "/tmp/native-rust-wasi-numeric-environment443-capture",
+      "started_utc": "2026-10-10T22:21:01.520718+00:00",
+      "exit_code": 0,
+      "timed_out": false,
+      "finished_utc": "2026-10-10T22:21:02.038861+00:00",
+      "duration_seconds": 0.5181623329990543,
+      "stdout": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/compile.stdout",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/compile.stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/compile.stderr",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/compile.stderr",
+        "bytes": 19629,
+        "sha256": "e5c226c44e7b6875b303cb1d54d5dca0c48c194f178495824725ae9e3fbe89f3"
+      }
+    },
+    {
+      "stage": "execute",
+      "argv": [
+        "/workspace/.tools/wasmtime-49.0.2/wasmtime",
+        "run",
+        "-C",
+        "cache=n",
+        "/tmp/native-rust-wasi-numeric-environment443-capture/probe.wasm"
+      ],
+      "cwd": "/tmp/native-rust-wasi-numeric-environment443-capture",
+      "started_utc": "2026-10-10T22:21:02.042338+00:00",
+      "exit_code": 0,
+      "timed_out": false,
+      "finished_utc": "2026-10-10T22:21:02.110205+00:00",
+      "duration_seconds": 0.06788001500535756,
+      "stdout": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/execute.stdout",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/execute.stdout",
+        "bytes": 51336,
+        "sha256": "265e76f4ca5d5156d4c47d1db8eee1842c182497acf3611df93ab2d78c2392f8"
+      },
+      "stderr": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/execute.stderr",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/execute.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ],
+  "guest_observations": {
+    "ABI": 1,
+    "ERRNO_CELL": 3,
+    "CASE": 21,
+    "ROW": 315,
+    "ADAPTER": 12,
+    "SUMMARY": 1
+  },
+  "prior439_440": [
+    {
+      "path": "/tmp/grammar-wasi-numeric-request439/request.json",
+      "resolved_path": "/tmp/grammar-wasi-numeric-request439/request.json",
+      "bytes": 12708,
+      "sha256": "f1797600873c7200254932fdfa784ebd33d040a7970e532bf4b319c8c86e64fc"
+    },
+    {
+      "path": "/tmp/native-wasi-numeric-environment439-capture/receipt.json",
+      "resolved_path": "/tmp/native-wasi-numeric-environment439-capture/receipt.json",
+      "bytes": 20296,
+      "sha256": "1da0129cecabc101aa805f9772df70444d9eb4ef9209543809c6552e8ca702fc"
+    },
+    {
+      "path": "/tmp/grammar-wasi-numeric-request440/request.json",
+      "resolved_path": "/tmp/grammar-wasi-numeric-request440/request.json",
+      "bytes": 14567,
+      "sha256": "5c3639b178e7ecf3705692a9032dd2e055acedea45dd8d1c9caa6f2e072031b8"
+    },
+    {
+      "path": "/tmp/native-wasi-numeric-environment440-capture/receipt.json",
+      "resolved_path": "/tmp/native-wasi-numeric-environment440-capture/receipt.json",
+      "bytes": 22689,
+      "sha256": "778623026c9c51732b594d4b2b1254f917c141141dca0afd71fcd13fc37f6518"
+    }
+  ],
+  "prior442": {
+    "pins": [
+      {
+        "path": "/tmp/grammar-rust-wasi-numeric-request442/request.json",
+        "resolved_path": "/tmp/grammar-rust-wasi-numeric-request442/request.json",
+        "bytes": 64863,
+        "sha256": "d8cd47e751b19ff48eeea0c59a8bab2af59d3cd2e7052f7066050969323d045c"
+      },
+      {
+        "path": "/tmp/native-rust-wasi-numeric-environment442-capture/receipt.json",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment442-capture/receipt.json",
+        "bytes": 81708,
+        "sha256": "1ef6aa22b61783dc58e9dd1117659953e670fbb8146fc2405174c1ed813f0f87"
+      }
+    ],
+    "status": "compile-failed",
+    "guest_observations": null,
+    "compile_exit_code": 1,
+    "compile_stderr": {
+      "path": "/tmp/native-rust-wasi-numeric-environment442-capture/compile.stderr",
+      "resolved_path": "/tmp/native-rust-wasi-numeric-environment442-capture/compile.stderr",
+      "bytes": 128,
+      "sha256": "46f94461396b0d01e05459f2f04f3fb1bc916e04cf42db9987826e0bd10b2a9e"
+    },
+    "scope": "Original442 stable compiler rejected the unnecessary explicit unstable wasm-lld flavor flag before link/guest execution. Preserve original request/capture unchanged.443 uses the actual stable WASIp1 target default flavor, with the identical Rust source/vector and transparent linker observation wrapper; no unstable-options, bootstrap or alternate compiler."
+  },
+  "linker_capture": {
+    "receipt": {
+      "path": "/tmp/native-rust-wasi-numeric-environment443-capture/linker/receipt.json",
+      "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/linker/receipt.json",
+      "bytes": 64147,
+      "sha256": "b882dfda245537c62b9c7145e90eb586800c3e0c549e0cb1490fc7d2aae721d0"
+    },
+    "original": {
+      "argv": [
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+        "-flavor",
+        "wasm",
+        "--export",
+        "__main_void",
+        "-z",
+        "stack-size=1048576",
+        "--stack-first",
+        "--no-demangle",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-command.o",
+        "/tmp/native-rust-wasi-numeric-environment443-capture/probe.wasi_numeric_environment_original.c3afe6b475291f8d-cgu.0.rcgu.o",
+        "/tmp/native-rust-wasi-numeric-environment443-capture/probe.5plrmkau3wzb6vw2kuul10wbx.rcgu.o",
+        "-l",
+        "c",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rlib",
+        "-l",
+        "c",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rlib",
+        "-L",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained",
+        "-o",
+        "/tmp/native-rust-wasi-numeric-environment443-capture/probe.wasm",
+        "--gc-sections",
+        "-O0",
+        "--trace",
+        "--global-base=2097152"
+      ],
+      "cwd": "/tmp/native-rust-wasi-numeric-environment443-capture",
+      "started_utc": "2026-10-10T22:21:01.805068+00:00",
+      "linker": {
+        "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+        "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+        "bytes": 11879600,
+        "sha256": "4739514e3484915747c34b35007cd990235cc6b490b2d0525a61ac402ca16af9"
+      },
+      "response_files": [],
+      "expanded_args": [
+        "-flavor",
+        "wasm",
+        "--export",
+        "__main_void",
+        "-z",
+        "stack-size=1048576",
+        "--stack-first",
+        "--no-demangle",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-command.o",
+        "/tmp/native-rust-wasi-numeric-environment443-capture/probe.wasi_numeric_environment_original.c3afe6b475291f8d-cgu.0.rcgu.o",
+        "/tmp/native-rust-wasi-numeric-environment443-capture/probe.5plrmkau3wzb6vw2kuul10wbx.rcgu.o",
+        "-l",
+        "c",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rlib",
+        "-l",
+        "c",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rlib",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rlib",
+        "-L",
+        "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained",
+        "-o",
+        "/tmp/native-rust-wasi-numeric-environment443-capture/probe.wasm",
+        "--gc-sections",
+        "-O0",
+        "--trace",
+        "--global-base=2097152"
+      ],
+      "original_file_args": [
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-command.o",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-command.o",
+          "bytes": 1994,
+          "sha256": "d97a7840560d165783422a81fb2620d6dc821ac58b74f0da20dc1a9465788ea5",
+          "captured_path": "/tmp/native-rust-wasi-numeric-environment443-capture/linker/input-8-crt1-command.o"
+        },
+        {
+          "path": "/tmp/native-rust-wasi-numeric-environment443-capture/probe.wasi_numeric_environment_original.c3afe6b475291f8d-cgu.0.rcgu.o",
+          "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/probe.wasi_numeric_environment_original.c3afe6b475291f8d-cgu.0.rcgu.o",
+          "bytes": 30559,
+          "sha256": "01750d3b1580986cc667e88822a6cb49a69965c258d11fb694963d8115619820",
+          "captured_path": "/tmp/native-rust-wasi-numeric-environment443-capture/linker/input-9-probe.wasi_numeric_environment_original.c3afe6b475291f8d-cgu.0.rcgu.o"
+        },
+        {
+          "path": "/tmp/native-rust-wasi-numeric-environment443-capture/probe.5plrmkau3wzb6vw2kuul10wbx.rcgu.o",
+          "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/probe.5plrmkau3wzb6vw2kuul10wbx.rcgu.o",
+          "bytes": 906,
+          "sha256": "c181451d05d967d5ae0e2c890420c42c1bdaf08e243ba07e403e250051378d0a",
+          "captured_path": "/tmp/native-rust-wasi-numeric-environment443-capture/linker/input-10-probe.5plrmkau3wzb6vw2kuul10wbx.rcgu.o"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rlib",
+          "bytes": 7722,
+          "sha256": "4130cf887be3e12ea8201bef0dd11b3f9749c014922ccbc724c28ee31abf5c9b"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rlib",
+          "bytes": 3932822,
+          "sha256": "db6d8f5523be24e6ab0ed9fc1e62344f17dd234f2011c163e24468ed96ffad63"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rlib",
+          "bytes": 209222,
+          "sha256": "dc1bd34dcacadd65e0d3a0a20f5b25c02bc97144914ef5d454cd2b991bd5c1f8"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rlib",
+          "bytes": 3666,
+          "sha256": "888827d68166dd69a60abd7d4d8dee31ca0a85b31c1691de9107735da27a9d98"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rlib",
+          "bytes": 201426,
+          "sha256": "7318cfac3e4baf8dbe31b61b3f6c9036feb8048c41f504fd2433ff200844a233"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rlib",
+          "bytes": 3770,
+          "sha256": "8736b3d8fac518e7cb1bc8cba76043a2357427bf2d6c0e18914b95b96bf6417f"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rlib",
+          "bytes": 19982,
+          "sha256": "bdc712029ea30667d1d622ddab1cdd9247f3abab9df35944cd3469cf284d199b"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rlib",
+          "bytes": 3902,
+          "sha256": "ef7474bd18e2e2ea80c4988181acc6e27c87c17a2ec61ec76f787d256fd4d82e"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rlib",
+          "bytes": 87668,
+          "sha256": "d9be5b17b2631ff2e1574dd7dc106557bd4655ff7da96d22039d8add545996e7"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rlib",
+          "bytes": 7598,
+          "sha256": "84e3e15f4c68e75943bb1560a09d7cb11c0f0509fd05f297bee8cc296c292db5"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rlib",
+          "bytes": 5414,
+          "sha256": "a20dbbb7bf9760fb5e8d77ec6275da80a9417659778dee8393c0eea4a74625e2"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rlib",
+          "bytes": 4556,
+          "sha256": "17c9bdca58c5985f04505a99e31569b0e2ae4930439cc0792460ede3fce250a1"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rlib",
+          "bytes": 3892,
+          "sha256": "f78e0bee6750e50ccafb13ba6c2c0244864dd0a5d2717be8289b59657eec2a58"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rlib",
+          "bytes": 778530,
+          "sha256": "b61638d71d763ec5db8fc3977b868aec5ee6efc129429e5815e9b1dbc10cc016"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rlib",
+          "bytes": 2600818,
+          "sha256": "5dc20ed562d7fb5c87893a4911db4a38019a5ce3b944bc1042086fda6ab4782e"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rlib",
+          "bytes": 3247950,
+          "sha256": "1cc8916cc31e8d7c17780b7c8edfe18ad36ea9d1ad0c5d867de361074945bc6f"
+        }
+      ],
+      "target_library_pins_before": [
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rlib",
+          "bytes": 22054,
+          "sha256": "373c7785ecf8b3c271bdd5c9d9ad6b5c3a6a2476286373cc41d61ba5360937d1"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rmeta",
+          "bytes": 499184,
+          "sha256": "486ccf892f6bc63f3b740d8afc24d130547d90a72e9ed5bd088cabafda98a858"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rlib",
+          "bytes": 7598,
+          "sha256": "84e3e15f4c68e75943bb1560a09d7cb11c0f0509fd05f297bee8cc296c292db5"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rmeta",
+          "bytes": 20727,
+          "sha256": "55265d8711de41ae399f5929c07d8dae7940f1d079690a0c456bb541b8bb5dc1"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rlib",
+          "bytes": 778530,
+          "sha256": "b61638d71d763ec5db8fc3977b868aec5ee6efc129429e5815e9b1dbc10cc016"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rmeta",
+          "bytes": 8809185,
+          "sha256": "25c2e17b384e2fa11187dfa22b459be6bc22b19c77bd7780e393f0462356888a"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rlib",
+          "bytes": 3666,
+          "sha256": "888827d68166dd69a60abd7d4d8dee31ca0a85b31c1691de9107735da27a9d98"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rmeta",
+          "bytes": 5520,
+          "sha256": "b56bad62b013981bd3234a08e791b823b5ce193854b8c5c473335193c4cd395f"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rlib",
+          "bytes": 3247950,
+          "sha256": "1cc8916cc31e8d7c17780b7c8edfe18ad36ea9d1ad0c5d867de361074945bc6f"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rmeta",
+          "bytes": 2033529,
+          "sha256": "e658b7a0d8cdcdac4ae07d5e82d8b3ea11667e24a06ee679d8bd35f4cf412f60"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rlib",
+          "bytes": 2600818,
+          "sha256": "5dc20ed562d7fb5c87893a4911db4a38019a5ce3b944bc1042086fda6ab4782e"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rmeta",
+          "bytes": 45424922,
+          "sha256": "1611e6d1ea521f57c14a3921a8a342461028305d584fc6ab0ccb66d37f9b6602"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rlib",
+          "bytes": 522500,
+          "sha256": "57c5ab0a8ec1601470f74499342616f2cd1744acf0526cfc5364fce822f8b4f7"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rmeta",
+          "bytes": 226604,
+          "sha256": "36fea1eebde1f4f97e7b1cf4908152cc741326dbf4b48afd6f08017ba4eb1ea6"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rlib",
+          "bytes": 909130,
+          "sha256": "edf4e4e97628b9bbedab44e1ec13fe5bf27763f901ebb933324a79cc9198388b"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rmeta",
+          "bytes": 5950189,
+          "sha256": "c3d9bba1937f4e6b4422166bf462591240b3f3b8c6b676e97a8c997d11013ba9"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rlib",
+          "bytes": 19982,
+          "sha256": "bdc712029ea30667d1d622ddab1cdd9247f3abab9df35944cd3469cf284d199b"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rmeta",
+          "bytes": 1766715,
+          "sha256": "f0f353c0cf420bc1d5f44d556268030db01384f5d52a9aa7510ed4b280f49076"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rlib",
+          "bytes": 4556,
+          "sha256": "17c9bdca58c5985f04505a99e31569b0e2ae4930439cc0792460ede3fce250a1"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rmeta",
+          "bytes": 400449,
+          "sha256": "3638228b2b088eb13c2ab173baefd2c2421a99933b91c0e1b1fa316f28b22947"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rlib",
+          "bytes": 124152,
+          "sha256": "6eced2da5c1a4835854381164e50b9ac00d055c1e48257e738e9a5f76ca5b699"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rmeta",
+          "bytes": 613756,
+          "sha256": "eb4f11b81ff5fa4b6eccc5959732f2881708deeb02098af016b26f660cc75538"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rlib",
+          "bytes": 87668,
+          "sha256": "d9be5b17b2631ff2e1574dd7dc106557bd4655ff7da96d22039d8add545996e7"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rmeta",
+          "bytes": 131671,
+          "sha256": "8f1fb5f49714f52724ab04c85a9ead5e81ef66c58e5c20b5659fb3e5cc3744b9"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rlib",
+          "bytes": 238892,
+          "sha256": "1518864d6a17db7add80b8da50bc84b3d389965f67da65f65e62262c02f331bf"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rmeta",
+          "bytes": 8993248,
+          "sha256": "a1738879d629ae5b9c9dbed32aa7da546afdc15978a77e456401afb698b0b4bc"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rlib",
+          "bytes": 7722,
+          "sha256": "4130cf887be3e12ea8201bef0dd11b3f9749c014922ccbc724c28ee31abf5c9b"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rmeta",
+          "bytes": 2734,
+          "sha256": "d592ce94b70a76bc81ec89a16239f146434813fa4e20fc9433b7267b59c7645d"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rlib",
+          "bytes": 24794,
+          "sha256": "191958ebe02db0b08123f893579557394fae7e14161f8a6af29acf95c3e7d428"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rmeta",
+          "bytes": 7114,
+          "sha256": "382f7d421902fc0e689070b3fda387a2fb1c4a1937b590202e685c9e5dfd4bdb"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rlib",
+          "bytes": 3354914,
+          "sha256": "6f543cb24b28235e9f14d90050ec67d62205ee201e3cf18f0e4597f3c3b73174"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rmeta",
+          "bytes": 1177747,
+          "sha256": "7b06d7c59da65567c5139f407a41f3dda6ff1d4f47ee2e9b25a17a828ff00f5c"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rlib",
+          "bytes": 201426,
+          "sha256": "7318cfac3e4baf8dbe31b61b3f6c9036feb8048c41f504fd2433ff200844a233"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rmeta",
+          "bytes": 92503,
+          "sha256": "b2c4143dd874aa592574a7029cab08b1c3087782018283866aa7255b31932291"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rlib",
+          "bytes": 3822,
+          "sha256": "b69a9f69e1759ae9872c469c355fb88bc7ecf8a824fc2fcee78a79cd9c478f3e"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rmeta",
+          "bytes": 123999,
+          "sha256": "e183fd5a1dfbfd01b21cc722af7e2049c80552c3a0b79a577cb0541833cb5a25"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rlib",
+          "bytes": 3902,
+          "sha256": "ef7474bd18e2e2ea80c4988181acc6e27c87c17a2ec61ec76f787d256fd4d82e"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rmeta",
+          "bytes": 2203,
+          "sha256": "1861025803c7a7825730559f1adb654f1391ff4bab7a231c47ec40e7ace539fe"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rlib",
+          "bytes": 3892,
+          "sha256": "f78e0bee6750e50ccafb13ba6c2c0244864dd0a5d2717be8289b59657eec2a58"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rmeta",
+          "bytes": 6101,
+          "sha256": "ed1d7103a3591ca60c5618a7e1656ceb43cf344e1f2df5b4e0c56e2a535cd3dc"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rlib",
+          "bytes": 3884,
+          "sha256": "d2b1a46ab7bed25f69e94b74a6d1330e827497c2bd8c9968fe144e0572b37376"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rmeta",
+          "bytes": 6992,
+          "sha256": "c9f2c89f0be7fd39dd67f083f9d25809ca4a6a4956d03fbf80c692dacd0ae4ae"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rlib",
+          "bytes": 3932822,
+          "sha256": "db6d8f5523be24e6ab0ed9fc1e62344f17dd234f2011c163e24468ed96ffad63"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rmeta",
+          "bytes": 6553015,
+          "sha256": "45aa4565602d1708abee12d50035633eb5f9703cc69049c9077b935434162782"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rlib",
+          "bytes": 3770,
+          "sha256": "8736b3d8fac518e7cb1bc8cba76043a2357427bf2d6c0e18914b95b96bf6417f"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rmeta",
+          "bytes": 222327,
+          "sha256": "8cc41e1533fa2c2ad9d4b08f71b2c41e206400c4767f713caf6469de484e97f3"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rlib",
+          "bytes": 3750,
+          "sha256": "2aee5d9c1ae6824dbcaf26c286f915d3228b74c5ef3b01f23a23a058cd40bbbf"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rmeta",
+          "bytes": 2056,
+          "sha256": "ffc4f547b273423c540bfd987c10bad723ea0100da0ca4549d4007396c37b06c"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rlib",
+          "bytes": 5277236,
+          "sha256": "36f731b12bcd7caeba3c31460026066f10bb4f3daf34ffb0a75f3cd014e76d92"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rmeta",
+          "bytes": 1026121,
+          "sha256": "4e80134755c134f4f3e6b34e047ed726c7592e2dc6365ce382e1df8a0ee5891d"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rlib",
+          "bytes": 5414,
+          "sha256": "a20dbbb7bf9760fb5e8d77ec6275da80a9417659778dee8393c0eea4a74625e2"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rmeta",
+          "bytes": 16013,
+          "sha256": "6119fa165dc53843089edd9ba948e1a60657889e69a12d71136a4200769d5c5a"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rlib",
+          "bytes": 209222,
+          "sha256": "dc1bd34dcacadd65e0d3a0a20f5b25c02bc97144914ef5d454cd2b991bd5c1f8"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rmeta",
+          "bytes": 262103,
+          "sha256": "606ab8617e79f4375efb92bd23d363703d3724452dbbd1ff7ee8f8df86e7b7aa"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-command.o",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-command.o",
+          "bytes": 1994,
+          "sha256": "d97a7840560d165783422a81fb2620d6dc821ac58b74f0da20dc1a9465788ea5"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-reactor.o",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-reactor.o",
+          "bytes": 1681,
+          "sha256": "c0ce69c600d2bf8cd170da94e95e1755236541d596b3471e15a798f24afebe25"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libc.a",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libc.a",
+          "bytes": 3094330,
+          "sha256": "5d8ba34d8c6fd0ac59e0efe37241143887f8f232864bbeacc4181ae739f63371"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libunwind.a",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libunwind.a",
+          "bytes": 13606,
+          "sha256": "6351f2983b7dd2972eceb538ac2acbe23894e31799f0ac286930e4f20a4ca647"
+        }
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.08180965800420381,
+      "finished_utc": "2026-10-10T22:21:01.886763+00:00",
+      "stdout": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/linker/stdout.bytes",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/linker/stdout.bytes",
+        "bytes": 18292,
+        "sha256": "bc7099e687381bd60dc50198fe7ca90a3bcfff577aafe525cf1198e66021b5b9"
+      },
+      "stderr": {
+        "path": "/tmp/native-rust-wasi-numeric-environment443-capture/linker/stderr.bytes",
+        "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/linker/stderr.bytes",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "target_library_pins_after": [
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rlib",
+          "bytes": 22054,
+          "sha256": "373c7785ecf8b3c271bdd5c9d9ad6b5c3a6a2476286373cc41d61ba5360937d1"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rmeta",
+          "bytes": 499184,
+          "sha256": "486ccf892f6bc63f3b740d8afc24d130547d90a72e9ed5bd088cabafda98a858"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rlib",
+          "bytes": 7598,
+          "sha256": "84e3e15f4c68e75943bb1560a09d7cb11c0f0509fd05f297bee8cc296c292db5"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rmeta",
+          "bytes": 20727,
+          "sha256": "55265d8711de41ae399f5929c07d8dae7940f1d079690a0c456bb541b8bb5dc1"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rlib",
+          "bytes": 778530,
+          "sha256": "b61638d71d763ec5db8fc3977b868aec5ee6efc129429e5815e9b1dbc10cc016"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rmeta",
+          "bytes": 8809185,
+          "sha256": "25c2e17b384e2fa11187dfa22b459be6bc22b19c77bd7780e393f0462356888a"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rlib",
+          "bytes": 3666,
+          "sha256": "888827d68166dd69a60abd7d4d8dee31ca0a85b31c1691de9107735da27a9d98"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rmeta",
+          "bytes": 5520,
+          "sha256": "b56bad62b013981bd3234a08e791b823b5ce193854b8c5c473335193c4cd395f"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rlib",
+          "bytes": 3247950,
+          "sha256": "1cc8916cc31e8d7c17780b7c8edfe18ad36ea9d1ad0c5d867de361074945bc6f"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rmeta",
+          "bytes": 2033529,
+          "sha256": "e658b7a0d8cdcdac4ae07d5e82d8b3ea11667e24a06ee679d8bd35f4cf412f60"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rlib",
+          "bytes": 2600818,
+          "sha256": "5dc20ed562d7fb5c87893a4911db4a38019a5ce3b944bc1042086fda6ab4782e"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rmeta",
+          "bytes": 45424922,
+          "sha256": "1611e6d1ea521f57c14a3921a8a342461028305d584fc6ab0ccb66d37f9b6602"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rlib",
+          "bytes": 522500,
+          "sha256": "57c5ab0a8ec1601470f74499342616f2cd1744acf0526cfc5364fce822f8b4f7"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rmeta",
+          "bytes": 226604,
+          "sha256": "36fea1eebde1f4f97e7b1cf4908152cc741326dbf4b48afd6f08017ba4eb1ea6"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rlib",
+          "bytes": 909130,
+          "sha256": "edf4e4e97628b9bbedab44e1ec13fe5bf27763f901ebb933324a79cc9198388b"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rmeta",
+          "bytes": 5950189,
+          "sha256": "c3d9bba1937f4e6b4422166bf462591240b3f3b8c6b676e97a8c997d11013ba9"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rlib",
+          "bytes": 19982,
+          "sha256": "bdc712029ea30667d1d622ddab1cdd9247f3abab9df35944cd3469cf284d199b"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rmeta",
+          "bytes": 1766715,
+          "sha256": "f0f353c0cf420bc1d5f44d556268030db01384f5d52a9aa7510ed4b280f49076"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rlib",
+          "bytes": 4556,
+          "sha256": "17c9bdca58c5985f04505a99e31569b0e2ae4930439cc0792460ede3fce250a1"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rmeta",
+          "bytes": 400449,
+          "sha256": "3638228b2b088eb13c2ab173baefd2c2421a99933b91c0e1b1fa316f28b22947"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rlib",
+          "bytes": 124152,
+          "sha256": "6eced2da5c1a4835854381164e50b9ac00d055c1e48257e738e9a5f76ca5b699"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rmeta",
+          "bytes": 613756,
+          "sha256": "eb4f11b81ff5fa4b6eccc5959732f2881708deeb02098af016b26f660cc75538"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rlib",
+          "bytes": 87668,
+          "sha256": "d9be5b17b2631ff2e1574dd7dc106557bd4655ff7da96d22039d8add545996e7"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rmeta",
+          "bytes": 131671,
+          "sha256": "8f1fb5f49714f52724ab04c85a9ead5e81ef66c58e5c20b5659fb3e5cc3744b9"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rlib",
+          "bytes": 238892,
+          "sha256": "1518864d6a17db7add80b8da50bc84b3d389965f67da65f65e62262c02f331bf"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rmeta",
+          "bytes": 8993248,
+          "sha256": "a1738879d629ae5b9c9dbed32aa7da546afdc15978a77e456401afb698b0b4bc"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rlib",
+          "bytes": 7722,
+          "sha256": "4130cf887be3e12ea8201bef0dd11b3f9749c014922ccbc724c28ee31abf5c9b"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rmeta",
+          "bytes": 2734,
+          "sha256": "d592ce94b70a76bc81ec89a16239f146434813fa4e20fc9433b7267b59c7645d"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rlib",
+          "bytes": 24794,
+          "sha256": "191958ebe02db0b08123f893579557394fae7e14161f8a6af29acf95c3e7d428"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rmeta",
+          "bytes": 7114,
+          "sha256": "382f7d421902fc0e689070b3fda387a2fb1c4a1937b590202e685c9e5dfd4bdb"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rlib",
+          "bytes": 3354914,
+          "sha256": "6f543cb24b28235e9f14d90050ec67d62205ee201e3cf18f0e4597f3c3b73174"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rmeta",
+          "bytes": 1177747,
+          "sha256": "7b06d7c59da65567c5139f407a41f3dda6ff1d4f47ee2e9b25a17a828ff00f5c"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rlib",
+          "bytes": 201426,
+          "sha256": "7318cfac3e4baf8dbe31b61b3f6c9036feb8048c41f504fd2433ff200844a233"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rmeta",
+          "bytes": 92503,
+          "sha256": "b2c4143dd874aa592574a7029cab08b1c3087782018283866aa7255b31932291"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rlib",
+          "bytes": 3822,
+          "sha256": "b69a9f69e1759ae9872c469c355fb88bc7ecf8a824fc2fcee78a79cd9c478f3e"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rmeta",
+          "bytes": 123999,
+          "sha256": "e183fd5a1dfbfd01b21cc722af7e2049c80552c3a0b79a577cb0541833cb5a25"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rlib",
+          "bytes": 3902,
+          "sha256": "ef7474bd18e2e2ea80c4988181acc6e27c87c17a2ec61ec76f787d256fd4d82e"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rmeta",
+          "bytes": 2203,
+          "sha256": "1861025803c7a7825730559f1adb654f1391ff4bab7a231c47ec40e7ace539fe"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rlib",
+          "bytes": 3892,
+          "sha256": "f78e0bee6750e50ccafb13ba6c2c0244864dd0a5d2717be8289b59657eec2a58"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rmeta",
+          "bytes": 6101,
+          "sha256": "ed1d7103a3591ca60c5618a7e1656ceb43cf344e1f2df5b4e0c56e2a535cd3dc"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rlib",
+          "bytes": 3884,
+          "sha256": "d2b1a46ab7bed25f69e94b74a6d1330e827497c2bd8c9968fe144e0572b37376"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rmeta",
+          "bytes": 6992,
+          "sha256": "c9f2c89f0be7fd39dd67f083f9d25809ca4a6a4956d03fbf80c692dacd0ae4ae"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rlib",
+          "bytes": 3932822,
+          "sha256": "db6d8f5523be24e6ab0ed9fc1e62344f17dd234f2011c163e24468ed96ffad63"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rmeta",
+          "bytes": 6553015,
+          "sha256": "45aa4565602d1708abee12d50035633eb5f9703cc69049c9077b935434162782"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rlib",
+          "bytes": 3770,
+          "sha256": "8736b3d8fac518e7cb1bc8cba76043a2357427bf2d6c0e18914b95b96bf6417f"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rmeta",
+          "bytes": 222327,
+          "sha256": "8cc41e1533fa2c2ad9d4b08f71b2c41e206400c4767f713caf6469de484e97f3"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rlib",
+          "bytes": 3750,
+          "sha256": "2aee5d9c1ae6824dbcaf26c286f915d3228b74c5ef3b01f23a23a058cd40bbbf"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rmeta",
+          "bytes": 2056,
+          "sha256": "ffc4f547b273423c540bfd987c10bad723ea0100da0ca4549d4007396c37b06c"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rlib",
+          "bytes": 5277236,
+          "sha256": "36f731b12bcd7caeba3c31460026066f10bb4f3daf34ffb0a75f3cd014e76d92"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rmeta",
+          "bytes": 1026121,
+          "sha256": "4e80134755c134f4f3e6b34e047ed726c7592e2dc6365ce382e1df8a0ee5891d"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rlib",
+          "bytes": 5414,
+          "sha256": "a20dbbb7bf9760fb5e8d77ec6275da80a9417659778dee8393c0eea4a74625e2"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rmeta",
+          "bytes": 16013,
+          "sha256": "6119fa165dc53843089edd9ba948e1a60657889e69a12d71136a4200769d5c5a"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rlib",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rlib",
+          "bytes": 209222,
+          "sha256": "dc1bd34dcacadd65e0d3a0a20f5b25c02bc97144914ef5d454cd2b991bd5c1f8"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rmeta",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rmeta",
+          "bytes": 262103,
+          "sha256": "606ab8617e79f4375efb92bd23d363703d3724452dbbd1ff7ee8f8df86e7b7aa"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-command.o",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-command.o",
+          "bytes": 1994,
+          "sha256": "d97a7840560d165783422a81fb2620d6dc821ac58b74f0da20dc1a9465788ea5"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-reactor.o",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-reactor.o",
+          "bytes": 1681,
+          "sha256": "c0ce69c600d2bf8cd170da94e95e1755236541d596b3471e15a798f24afebe25"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libc.a",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libc.a",
+          "bytes": 3094330,
+          "sha256": "5d8ba34d8c6fd0ac59e0efe37241143887f8f232864bbeacc4181ae739f63371"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libunwind.a",
+          "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libunwind.a",
+          "bytes": 13606,
+          "sha256": "6351f2983b7dd2972eceb538ac2acbe23894e31799f0ac286930e4f20a4ca647"
+        }
+      ],
+      "target_libraries_unchanged": true
+    }
+  },
+  "module": {
+    "path": "/tmp/native-rust-wasi-numeric-environment443-capture/probe.wasm",
+    "resolved_path": "/tmp/native-rust-wasi-numeric-environment443-capture/probe.wasm",
+    "bytes": 2390252,
+    "sha256": "7ab44311394a0c65d2c4494d2fd8cc6cf4658da7c705257d3a767f0d397b7fa9"
+  },
+  "status": "complete",
+  "input_pins_after": [
+    {
+      "path": "/tmp/grammar-rust-wasi-numeric-request443/probe.rs",
+      "resolved_path": "/tmp/grammar-rust-wasi-numeric-request443/probe.rs",
+      "bytes": 11980,
+      "sha256": "b53f9d4702055d8b751a79d33c3351cf4b109e7bdd31cc413a3bac9ef864c733"
+    },
+    {
+      "path": "/tmp/grammar-rust-wasi-numeric-request443/cases.json",
+      "resolved_path": "/tmp/grammar-rust-wasi-numeric-request443/cases.json",
+      "bytes": 2418,
+      "sha256": "951f0a9ad68761d254bcd60860bd5d727e9949cd54c1c3a5a995a245cb6d2c34"
+    },
+    {
+      "path": "/tmp/grammar-rust-wasi-numeric-request443/link-wrapper.py",
+      "resolved_path": "/tmp/grammar-rust-wasi-numeric-request443/link-wrapper.py",
+      "bytes": 3269,
+      "sha256": "5e9aa4021e616a779469e1e1721c287b554b5ba55cb49a4a9ca7b965f26cd822"
+    },
+    {
+      "path": "/tmp/grammar-rust-wasi-numeric-request443/prepare-source.py",
+      "resolved_path": "/tmp/grammar-rust-wasi-numeric-request443/prepare-source.py",
+      "bytes": 9804,
+      "sha256": "a7c51ddbe4f557d10f6ccdc4b05f02b81ef6607bc97df2c85fb983247c2dc0a2"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+      "bytes": 647376,
+      "sha256": "f3834d26669b03f6855fa54bd2381443123e860167bc0c7a8dd137e5cf6e5e4f"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+      "bytes": 11879600,
+      "sha256": "4739514e3484915747c34b35007cd990235cc6b490b2d0525a61ac402ca16af9"
+    },
+    {
+      "path": "/workspace/.tools/wasmtime-49.0.2/wasmtime",
+      "resolved_path": "/workspace/.tools/wasmtime-49.0.2/wasmtime",
+      "bytes": 71537472,
+      "sha256": "d0a014e0d5b0cf48dd3549c38e2e6ecd78ff09fb3e3f10d751b87b72bdfd8635"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/libLLVM-23-rust-1.99.0-stable.so",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/libLLVM-23-rust-1.99.0-stable.so",
+      "bytes": 42,
+      "sha256": "805279dd64ec14a4d5034a0809cb9569a5247d66350d992db173d04fe0ea5300"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/libLLVM.so.23.1-rust-1.99.0-stable",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/libLLVM.so.23.1-rust-1.99.0-stable",
+      "bytes": 208094144,
+      "sha256": "7c2c7ebb79211f07e3b32e408a1a65b4d205656792f9c51bdbefcb21c0868cbd"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/librustc_driver-999a121de2f042be.so",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/librustc_driver-999a121de2f042be.so",
+      "bytes": 158319840,
+      "sha256": "f45c41337f1516bb9f4d504a2a507202a01c431fc2063334913dde5480ffee03"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/components",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/components",
+      "bytes": 255,
+      "sha256": "a242e952a6b3c89e52e5055a9b5f9ca8b6b8e0004c00f6e8e2524aeadfcf5e0f"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/manifest-rust-std-wasm32-wasip1",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/manifest-rust-std-wasm32-wasip1",
+      "bytes": 4112,
+      "sha256": "3bd9dc3ba1f01fce23fb6d46b8463cdc06928646d21d42779c89c98a7aada9d6"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/multirust-channel-manifest.toml",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/multirust-channel-manifest.toml",
+      "bytes": 1086673,
+      "sha256": "3bd93d33248db8d373f1b7d53d344ee12ae2815c11653449ce5f227a0ec9d3cb"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/multirust-config.toml",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/multirust-config.toml",
+      "bytes": 724,
+      "sha256": "d2d5c72d85fcb433a74ab889ff849c2b972767077443a8e39ea65a9d20b714ba"
+    },
+    {
+      "path": "/workspace/tcl-lsp/rust/tcl-compiler/tests/common/wasm_link.rs",
+      "resolved_path": "/workspace/tcl-lsp/rust/tcl-compiler/tests/common/wasm_link.rs",
+      "bytes": 18336,
+      "sha256": "07681f09c547282760ad743932c82ed2a8b092c49ef1d6f04d30c14fb77a65d6"
+    },
+    {
+      "path": "/workspace/tcl-lsp/runtime/rust/build.rs",
+      "resolved_path": "/workspace/tcl-lsp/runtime/rust/build.rs",
+      "bytes": 15166,
+      "sha256": "fd1fea9d02fa1dd7d869a71effa55af9c73e78183b1a805d28cd828fc6680a34"
+    },
+    {
+      "path": "/workspace/tcl-lsp/.cargo/config.toml",
+      "resolved_path": "/workspace/tcl-lsp/.cargo/config.toml",
+      "bytes": 1682,
+      "sha256": "113008ac8e2a706dcf0c7c1f399e07077dd04175415f53415678756cd0123169"
+    },
+    {
+      "path": "/workspace/tcl-lsp/runtime/rust/Cargo.toml",
+      "resolved_path": "/workspace/tcl-lsp/runtime/rust/Cargo.toml",
+      "bytes": 7573,
+      "sha256": "26bce44edc2bf39af1031648fb9586472f26bef92875c9680ba1a60793a35ebb"
+    },
+    {
+      "path": "/workspace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libc-0.2.190/src/wasi/mod.rs",
+      "resolved_path": "/workspace/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libc-0.2.190/src/wasi/mod.rs",
+      "bytes": 47568,
+      "sha256": "385c5e1783c6e649990b9249201c7c3b028e65fa9c782af5a84018a5ebea368f"
+    },
+    {
+      "path": "/tmp/grammar-wasi-numeric-request439/request.json",
+      "resolved_path": "/tmp/grammar-wasi-numeric-request439/request.json",
+      "bytes": 12708,
+      "sha256": "f1797600873c7200254932fdfa784ebd33d040a7970e532bf4b319c8c86e64fc"
+    },
+    {
+      "path": "/tmp/native-wasi-numeric-environment439-capture/receipt.json",
+      "resolved_path": "/tmp/native-wasi-numeric-environment439-capture/receipt.json",
+      "bytes": 20296,
+      "sha256": "1da0129cecabc101aa805f9772df70444d9eb4ef9209543809c6552e8ca702fc"
+    },
+    {
+      "path": "/tmp/grammar-wasi-numeric-request440/request.json",
+      "resolved_path": "/tmp/grammar-wasi-numeric-request440/request.json",
+      "bytes": 14567,
+      "sha256": "5c3639b178e7ecf3705692a9032dd2e055acedea45dd8d1c9caa6f2e072031b8"
+    },
+    {
+      "path": "/tmp/native-wasi-numeric-environment440-capture/receipt.json",
+      "resolved_path": "/tmp/native-wasi-numeric-environment440-capture/receipt.json",
+      "bytes": 22689,
+      "sha256": "778623026c9c51732b594d4b2b1254f917c141141dca0afd71fcd13fc37f6518"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rlib",
+      "bytes": 22054,
+      "sha256": "373c7785ecf8b3c271bdd5c9d9ad6b5c3a6a2476286373cc41d61ba5360937d1"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rmeta",
+      "bytes": 499184,
+      "sha256": "486ccf892f6bc63f3b740d8afc24d130547d90a72e9ed5bd088cabafda98a858"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rlib",
+      "bytes": 7598,
+      "sha256": "84e3e15f4c68e75943bb1560a09d7cb11c0f0509fd05f297bee8cc296c292db5"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rmeta",
+      "bytes": 20727,
+      "sha256": "55265d8711de41ae399f5929c07d8dae7940f1d079690a0c456bb541b8bb5dc1"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rlib",
+      "bytes": 778530,
+      "sha256": "b61638d71d763ec5db8fc3977b868aec5ee6efc129429e5815e9b1dbc10cc016"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rmeta",
+      "bytes": 8809185,
+      "sha256": "25c2e17b384e2fa11187dfa22b459be6bc22b19c77bd7780e393f0462356888a"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rlib",
+      "bytes": 3666,
+      "sha256": "888827d68166dd69a60abd7d4d8dee31ca0a85b31c1691de9107735da27a9d98"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rmeta",
+      "bytes": 5520,
+      "sha256": "b56bad62b013981bd3234a08e791b823b5ce193854b8c5c473335193c4cd395f"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rlib",
+      "bytes": 3247950,
+      "sha256": "1cc8916cc31e8d7c17780b7c8edfe18ad36ea9d1ad0c5d867de361074945bc6f"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rmeta",
+      "bytes": 2033529,
+      "sha256": "e658b7a0d8cdcdac4ae07d5e82d8b3ea11667e24a06ee679d8bd35f4cf412f60"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rlib",
+      "bytes": 2600818,
+      "sha256": "5dc20ed562d7fb5c87893a4911db4a38019a5ce3b944bc1042086fda6ab4782e"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rmeta",
+      "bytes": 45424922,
+      "sha256": "1611e6d1ea521f57c14a3921a8a342461028305d584fc6ab0ccb66d37f9b6602"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rlib",
+      "bytes": 522500,
+      "sha256": "57c5ab0a8ec1601470f74499342616f2cd1744acf0526cfc5364fce822f8b4f7"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rmeta",
+      "bytes": 226604,
+      "sha256": "36fea1eebde1f4f97e7b1cf4908152cc741326dbf4b48afd6f08017ba4eb1ea6"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rlib",
+      "bytes": 909130,
+      "sha256": "edf4e4e97628b9bbedab44e1ec13fe5bf27763f901ebb933324a79cc9198388b"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rmeta",
+      "bytes": 5950189,
+      "sha256": "c3d9bba1937f4e6b4422166bf462591240b3f3b8c6b676e97a8c997d11013ba9"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rlib",
+      "bytes": 19982,
+      "sha256": "bdc712029ea30667d1d622ddab1cdd9247f3abab9df35944cd3469cf284d199b"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rmeta",
+      "bytes": 1766715,
+      "sha256": "f0f353c0cf420bc1d5f44d556268030db01384f5d52a9aa7510ed4b280f49076"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rlib",
+      "bytes": 4556,
+      "sha256": "17c9bdca58c5985f04505a99e31569b0e2ae4930439cc0792460ede3fce250a1"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rmeta",
+      "bytes": 400449,
+      "sha256": "3638228b2b088eb13c2ab173baefd2c2421a99933b91c0e1b1fa316f28b22947"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rlib",
+      "bytes": 124152,
+      "sha256": "6eced2da5c1a4835854381164e50b9ac00d055c1e48257e738e9a5f76ca5b699"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rmeta",
+      "bytes": 613756,
+      "sha256": "eb4f11b81ff5fa4b6eccc5959732f2881708deeb02098af016b26f660cc75538"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rlib",
+      "bytes": 87668,
+      "sha256": "d9be5b17b2631ff2e1574dd7dc106557bd4655ff7da96d22039d8add545996e7"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rmeta",
+      "bytes": 131671,
+      "sha256": "8f1fb5f49714f52724ab04c85a9ead5e81ef66c58e5c20b5659fb3e5cc3744b9"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rlib",
+      "bytes": 238892,
+      "sha256": "1518864d6a17db7add80b8da50bc84b3d389965f67da65f65e62262c02f331bf"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rmeta",
+      "bytes": 8993248,
+      "sha256": "a1738879d629ae5b9c9dbed32aa7da546afdc15978a77e456401afb698b0b4bc"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rlib",
+      "bytes": 7722,
+      "sha256": "4130cf887be3e12ea8201bef0dd11b3f9749c014922ccbc724c28ee31abf5c9b"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rmeta",
+      "bytes": 2734,
+      "sha256": "d592ce94b70a76bc81ec89a16239f146434813fa4e20fc9433b7267b59c7645d"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rlib",
+      "bytes": 24794,
+      "sha256": "191958ebe02db0b08123f893579557394fae7e14161f8a6af29acf95c3e7d428"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rmeta",
+      "bytes": 7114,
+      "sha256": "382f7d421902fc0e689070b3fda387a2fb1c4a1937b590202e685c9e5dfd4bdb"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rlib",
+      "bytes": 3354914,
+      "sha256": "6f543cb24b28235e9f14d90050ec67d62205ee201e3cf18f0e4597f3c3b73174"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rmeta",
+      "bytes": 1177747,
+      "sha256": "7b06d7c59da65567c5139f407a41f3dda6ff1d4f47ee2e9b25a17a828ff00f5c"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rlib",
+      "bytes": 201426,
+      "sha256": "7318cfac3e4baf8dbe31b61b3f6c9036feb8048c41f504fd2433ff200844a233"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rmeta",
+      "bytes": 92503,
+      "sha256": "b2c4143dd874aa592574a7029cab08b1c3087782018283866aa7255b31932291"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rlib",
+      "bytes": 3822,
+      "sha256": "b69a9f69e1759ae9872c469c355fb88bc7ecf8a824fc2fcee78a79cd9c478f3e"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rmeta",
+      "bytes": 123999,
+      "sha256": "e183fd5a1dfbfd01b21cc722af7e2049c80552c3a0b79a577cb0541833cb5a25"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rlib",
+      "bytes": 3902,
+      "sha256": "ef7474bd18e2e2ea80c4988181acc6e27c87c17a2ec61ec76f787d256fd4d82e"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rmeta",
+      "bytes": 2203,
+      "sha256": "1861025803c7a7825730559f1adb654f1391ff4bab7a231c47ec40e7ace539fe"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rlib",
+      "bytes": 3892,
+      "sha256": "f78e0bee6750e50ccafb13ba6c2c0244864dd0a5d2717be8289b59657eec2a58"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rmeta",
+      "bytes": 6101,
+      "sha256": "ed1d7103a3591ca60c5618a7e1656ceb43cf344e1f2df5b4e0c56e2a535cd3dc"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rlib",
+      "bytes": 3884,
+      "sha256": "d2b1a46ab7bed25f69e94b74a6d1330e827497c2bd8c9968fe144e0572b37376"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rmeta",
+      "bytes": 6992,
+      "sha256": "c9f2c89f0be7fd39dd67f083f9d25809ca4a6a4956d03fbf80c692dacd0ae4ae"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rlib",
+      "bytes": 3932822,
+      "sha256": "db6d8f5523be24e6ab0ed9fc1e62344f17dd234f2011c163e24468ed96ffad63"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rmeta",
+      "bytes": 6553015,
+      "sha256": "45aa4565602d1708abee12d50035633eb5f9703cc69049c9077b935434162782"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rlib",
+      "bytes": 3770,
+      "sha256": "8736b3d8fac518e7cb1bc8cba76043a2357427bf2d6c0e18914b95b96bf6417f"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rmeta",
+      "bytes": 222327,
+      "sha256": "8cc41e1533fa2c2ad9d4b08f71b2c41e206400c4767f713caf6469de484e97f3"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rlib",
+      "bytes": 3750,
+      "sha256": "2aee5d9c1ae6824dbcaf26c286f915d3228b74c5ef3b01f23a23a058cd40bbbf"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rmeta",
+      "bytes": 2056,
+      "sha256": "ffc4f547b273423c540bfd987c10bad723ea0100da0ca4549d4007396c37b06c"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rlib",
+      "bytes": 5277236,
+      "sha256": "36f731b12bcd7caeba3c31460026066f10bb4f3daf34ffb0a75f3cd014e76d92"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rmeta",
+      "bytes": 1026121,
+      "sha256": "4e80134755c134f4f3e6b34e047ed726c7592e2dc6365ce382e1df8a0ee5891d"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rlib",
+      "bytes": 5414,
+      "sha256": "a20dbbb7bf9760fb5e8d77ec6275da80a9417659778dee8393c0eea4a74625e2"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rmeta",
+      "bytes": 16013,
+      "sha256": "6119fa165dc53843089edd9ba948e1a60657889e69a12d71136a4200769d5c5a"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rlib",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rlib",
+      "bytes": 209222,
+      "sha256": "dc1bd34dcacadd65e0d3a0a20f5b25c02bc97144914ef5d454cd2b991bd5c1f8"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rmeta",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rmeta",
+      "bytes": 262103,
+      "sha256": "606ab8617e79f4375efb92bd23d363703d3724452dbbd1ff7ee8f8df86e7b7aa"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-command.o",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-command.o",
+      "bytes": 1994,
+      "sha256": "d97a7840560d165783422a81fb2620d6dc821ac58b74f0da20dc1a9465788ea5"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-reactor.o",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-reactor.o",
+      "bytes": 1681,
+      "sha256": "c0ce69c600d2bf8cd170da94e95e1755236541d596b3471e15a798f24afebe25"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libc.a",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libc.a",
+      "bytes": 3094330,
+      "sha256": "5d8ba34d8c6fd0ac59e0efe37241143887f8f232864bbeacc4181ae739f63371"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libunwind.a",
+      "resolved_path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libunwind.a",
+      "bytes": 13606,
+      "sha256": "6351f2983b7dd2972eceb538ac2acbe23894e31799f0ac286930e4f20a4ca647"
+    },
+    {
+      "path": "/tmp/grammar-rust-wasi-numeric-request442/request.json",
+      "resolved_path": "/tmp/grammar-rust-wasi-numeric-request442/request.json",
+      "bytes": 64863,
+      "sha256": "d8cd47e751b19ff48eeea0c59a8bab2af59d3cd2e7052f7066050969323d045c"
+    },
+    {
+      "path": "/tmp/native-rust-wasi-numeric-environment442-capture/receipt.json",
+      "resolved_path": "/tmp/native-rust-wasi-numeric-environment442-capture/receipt.json",
+      "bytes": 81708,
+      "sha256": "1ef6aa22b61783dc58e9dd1117659953e670fbb8146fc2405174c1ed813f0f87"
+    }
+  ],
+  "all_input_pins_unchanged": true,
+  "target_library_inventory_after": [
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libaddr2line-8d240f0f49710d2b.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libadler2-e6726ca18fa6cb72.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liballoc-e9e7fd038a069b8b.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcfg_if-6428ac9d9c6baf98.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcompiler_builtins-4a15f8f45d3c509b.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libcore-dc37a0e6b942a0a3.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgetopts-8a01d0b23e6d8e95.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libgimli-3f159952b0fe3ca8.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libhashbrown-86ecbc155a37c846.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/liblibc-1fc72a0a8752c719.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libmemchr-3ce5ee5b7b968b65.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libminiz_oxide-18a01a6226f9ac4b.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libobject-8d4f90c21b2850d7.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_abort-9049bbdbaff7d541.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libpanic_unwind-d4144e0e9b66d706.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libproc_macro-d2225b1c48b65e36.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_demangle-08ec65b6cded6384.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_literal_escaper-7591db129278ec67.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_alloc-4266fb35f6230b30.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_core-825c958e1043d7b9.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/librustc_std_workspace_std-d306f37365825984.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd-9e1565d8f4bc52e9.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libstd_detect-c70df24230c4af65.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libsysroot-9e8b08069ab3f08d.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libtest-efb286892894d46a.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libunwind-40e65c89ffbc3d5e.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rlib",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/libwasip1-c2c8b9e52090903c.rmeta",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-command.o",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/crt1-reactor.o",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libc.a",
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/wasm32-wasip1/lib/self-contained/libunwind.a"
+  ],
+  "target_library_inventory_unchanged": true,
+  "finished_utc": "2026-10-10T22:21:03.002089+00:00"
+}

@@ -5964,6 +5964,45 @@ fn trace_source_lookup(before: Option<(u64, u128)>, stage: &str, source_len: usi
     }
 }
 
+#[cfg(any(test, debug_assertions))]
+fn trace_source_original_queries(
+    before: Option<original_command_table::OriginalSourceQueryTotals>,
+    stage: &str,
+    source_len: usize,
+) {
+    let Some(before) = before else {
+        return;
+    };
+    let after = original_command_table::original_source_query_totals();
+    let provider = after.provider;
+    eprintln!(
+        "SOURCE_PROVIDER_VALIDATION_PHASE bytes={source_len} stage={stage} scope=cumulative-inclusive calls={} ms={} required_rows={} dependency_rows={} optional_rows={}",
+        provider.calls.saturating_sub(before.provider.calls),
+        provider.nanos.saturating_sub(before.provider.nanos) / 1_000_000,
+        provider
+            .required_rows
+            .saturating_sub(before.provider.required_rows),
+        provider
+            .dependency_rows
+            .saturating_sub(before.provider.dependency_rows),
+        provider
+            .optional_rows
+            .saturating_sub(before.provider.optional_rows),
+    );
+    for (query, (before, after)) in original_command_table::ORIGINAL_GEOMETRY_QUERIES
+        .iter()
+        .zip(before.geometry.iter().zip(after.geometry.iter()))
+    {
+        eprintln!(
+            "SOURCE_ORIGINAL_GEOMETRY_PHASE bytes={source_len} stage={stage} query={query} scope=cumulative-inclusive calls={} ms={} world_clones={} clone_us={}",
+            after.calls.saturating_sub(before.calls),
+            after.nanos.saturating_sub(before.nanos) / 1_000_000,
+            after.world_clones.saturating_sub(before.world_clones),
+            after.clone_nanos.saturating_sub(before.clone_nanos) / 1_000,
+        );
+    }
+}
+
 impl SourceCommandBindings {
     /// Borrow the original analysis availability ingress, including terminal
     /// supplied-missing ownership. This creates no source or execution entry.
@@ -6087,6 +6126,9 @@ impl SourceCommandBindings {
             .then(std::time::Instant::now);
         #[cfg(any(test, debug_assertions))]
         let lookup_start = phase_start.map(|_| original_command_table::baseline_lookup_totals());
+        #[cfg(any(test, debug_assertions))]
+        let query_start =
+            phase_start.map(|_| original_command_table::original_source_query_totals());
         let config = options.native_lexer_config(config);
         let memo_key = source_analysis_cache::SourceAnalysisCacheKey::at_entry(
             image, frame, config, registry, options,
@@ -6131,6 +6173,8 @@ impl SourceCommandBindings {
         }
         #[cfg(any(test, debug_assertions))]
         trace_source_analysis(phase_start, "initial", source.len(), &bindings);
+        #[cfg(any(test, debug_assertions))]
+        trace_source_original_queries(query_start, "initial", source.len());
         let root_outcomes = bindings.walk_source(
             source,
             0,
@@ -6146,6 +6190,8 @@ impl SourceCommandBindings {
         );
         #[cfg(any(test, debug_assertions))]
         trace_source_analysis(phase_start, "walk", source.len(), &bindings);
+        #[cfg(any(test, debug_assertions))]
+        trace_source_original_queries(query_start, "walk", source.len());
         #[cfg(any(test, debug_assertions))]
         trace_source_lookup(lookup_start, "walk", source.len());
         if root_outcomes.normal_completion.is_some() && root_outcomes.abrupt.is_empty() {
@@ -6163,6 +6209,8 @@ impl SourceCommandBindings {
         #[cfg(any(test, debug_assertions))]
         trace_source_analysis(phase_start, "deferred", source.len(), &bindings);
         #[cfg(any(test, debug_assertions))]
+        trace_source_original_queries(query_start, "deferred", source.len());
+        #[cfg(any(test, debug_assertions))]
         trace_source_lookup(lookup_start, "deferred", source.len());
         bindings.invalidate_unpositioned_projections();
         bindings.final_state = Arc::new(state);
@@ -6171,6 +6219,8 @@ impl SourceCommandBindings {
         }
         #[cfg(any(test, debug_assertions))]
         trace_source_analysis(phase_start, "complete", source.len(), &bindings);
+        #[cfg(any(test, debug_assertions))]
+        trace_source_original_queries(query_start, "complete", source.len());
         bindings
     }
 
@@ -12424,6 +12474,8 @@ impl ModuleCommandBindings {
     }
 
     fn provider_surface_is_live(&self, loader: &TrustedPackageLoader) -> bool {
+        #[cfg(any(test, debug_assertions))]
+        let provider_timing = original_command_table::ProviderValidationTiming::at_query();
         let Some(root) = self.source_root_namespace_key() else {
             return false;
         };
@@ -12431,6 +12483,10 @@ impl ModuleCommandBindings {
             return false;
         }
         let required = loader.command_surface.iter().all(|command| {
+            #[cfg(any(test, debug_assertions))]
+            if provider_timing.is_some() {
+                original_command_table::ProviderValidationTiming::required_row();
+            }
             let proof = source_binding(self, command, &root);
             proof.proved_target().is_some_and(|target| {
                 target.registry_backed
@@ -12442,6 +12498,10 @@ impl ModuleCommandBindings {
         required
             && self.provider_lookups_are_live(loader)
             && loader.optional_command_surface.iter().all(|command| {
+                #[cfg(any(test, debug_assertions))]
+                if provider_timing.is_some() {
+                    original_command_table::ProviderValidationTiming::optional_row();
+                }
                 let slot = nqn(command);
                 let keys = self.source_keys(command, &root);
                 keys.len() == 1
@@ -12588,6 +12648,8 @@ impl ModuleCommandBindings {
         mut dependencies: impl Iterator<Item = &'a TrustedCommandLookup>,
     ) -> bool {
         dependencies.all(|dependency| {
+            #[cfg(any(test, debug_assertions))]
+            original_command_table::ProviderValidationTiming::dependency_row();
             let Some(namespace_key) = self.namespace_for_rooted_operand(&dependency.namespace)
             else {
                 return false;

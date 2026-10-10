@@ -105,7 +105,7 @@ use tcl_runtime_api::guard::{GuardDomains, GuardIdentity, GuardToken};
 use crate::interp::native_operation_currency::NativeOperationScope;
 #[cfg(test)]
 use crate::interp::obj_bytes;
-use crate::interp::{drop_fresh, Interp, NativeProcEntry};
+use crate::interp::{Interp, NativeProcEntry};
 use crate::obj::{self, new_string_bytes, TclObj};
 #[cfg(target_arch = "wasm32")]
 use tcl_runtime_api::codegen_abi::{
@@ -368,13 +368,13 @@ unsafe fn write_detached_completion(out: *mut TclCompletionAbi, completion: TclC
 /// Transport adapter over the shared entered-operation and completion owners.
 /// The retained original interpreter, rather than mutable TLS after a callback,
 /// supplies every getter, reached effect and completion in this operation.
-struct CodegenOperation {
-    interpreter: Interp,
+pub(crate) struct CodegenOperation {
+    pub(crate) interpreter: Interp,
     scope: NativeOperationScope,
 }
 
 impl CodegenOperation {
-    fn enter() -> Result<Self, i32> {
+    pub(crate) fn enter() -> Result<Self, i32> {
         // SAFETY: the host retains its installed interpreter through ABI entry.
         let Some(mut interpreter) = (unsafe { current_interp().as_ref() }).cloned() else {
             return Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP);
@@ -386,11 +386,26 @@ impl CodegenOperation {
         Ok(Self { interpreter, scope })
     }
 
-    fn ensure_current(&self) -> Result<(), i32> {
+    pub(crate) fn ensure_current(&self) -> Result<(), i32> {
         self.scope
             .currency()
             .ensure_current_or_refuse()
             .map_err(|_| TCL_INVOKE_ABI_HOST_REFUSED)
+    }
+
+    fn scalar(
+        &mut self,
+        value: *mut TclObj,
+        kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterValue, i32> {
+        self.ensure_current()?;
+        let result = crate::capi::read_scalar_for_interpreter(&self.interpreter, value, kind);
+        self.ensure_current()?;
+        result.map_err(|error| {
+            error.publish(&mut self.interpreter);
+            self.ensure_current()
+                .map_or_else(|status| status, |_| TCL_VALUE_GET_ERROR)
+        })
     }
 
     fn original_string(&mut self, value: *mut TclObj) -> Result<std::rc::Rc<[u8]>, i32> {
@@ -403,7 +418,7 @@ impl CodegenOperation {
         })
     }
 
-    fn finish_code(&self, code: crate::interp::Code) -> i32 {
+    pub(crate) fn finish_code(&self, code: crate::interp::Code) -> i32 {
         self.ensure_current().map_or_else(
             |status| status,
             |_| i32::try_from(code.as_int()).unwrap_or(1),
@@ -537,12 +552,13 @@ pub extern "C" fn tcl_runtime_set_current_interp(interp: *mut Interp) {
 /// so the compiled script runs against a fully initialised interpreter.
 #[no_mangle]
 pub extern "C" fn tcl_runtime_init_library() -> i32 {
-    let interp = current_interp();
-    if interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return 1;
+    };
+    let code = operation.interpreter.init_library();
+    if operation.ensure_current().is_err() {
+        return TCL_INVOKE_ABI_HOST_REFUSED;
     }
-    // SAFETY: `interp` is the live current interp set by the bootstrap.
-    let code = unsafe { (*interp).init_library() };
     i32::from(code == crate::interp::Code::Error)
 }
 
@@ -656,18 +672,6 @@ pub extern "C" fn tcl_value_new_bool(value: i32) -> *mut TclObj {
     object
 }
 
-/// Report a failed typed read on the current interpreter, exactly as the
-/// corresponding `Tcl_Get*FromObj` does: C's message as the interpreter result,
-/// C's `-errorcode`. Returns the ABI's error status.
-///
-/// # Safety
-/// `interp` must be the live current interpreter.
-unsafe fn typed_read_error(interp: *mut Interp, error: tcl_syntax::value::ValueError) -> i32 {
-    // SAFETY: forwarded per this function's contract.
-    unsafe { (*interp).report_cmd_error(error.into()) };
-    TCL_VALUE_GET_ERROR
-}
-
 /// `tcl_value_get_wide_int(value, out) -> status` — read a boxed Tcl value as a
 /// native `i64` (`Tcl_GetWideIntFromObj`).
 ///
@@ -689,30 +693,23 @@ unsafe fn typed_read_error(interp: *mut Interp, error: tcl_syntax::value::ValueE
 /// be writable, properly aligned `i64` storage.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_value_get_wide_int(value: *mut TclObj, out: *mut i64) -> i32 {
-    let interp = current_interp();
-    if value.is_null() || out.is_null() || interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
+        return TCL_VALUE_GET_ERROR;
+    };
+    if value.is_null() || out.is_null() {
         return TCL_VALUE_GET_ERROR;
     }
-    if unsafe { (*interp).host_refusal_pending() } {
-        return TCL_VALUE_GET_ERROR;
-    }
-    // The live scalar owner retains the actual engine, Host ABI and one probe.
-    let interp = unsafe { &mut *interp };
-    match crate::capi::read_scalar_for_interpreter(
-        interp,
+    match operation.scalar(
         value,
         tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
     ) {
         Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(parsed)) => {
-            // SAFETY: out is writable aligned storage per the contract.
+            // SAFETY: the caller provides aligned writable output storage.
             unsafe { out.write(parsed) };
             TCL_VALUE_GET_OK
         }
-        Ok(_) => unexpected_scalar_output(interp),
-        Err(error) => {
-            error.publish(interp);
-            TCL_VALUE_GET_ERROR
-        }
+        Ok(_) => unexpected_scalar_output(&mut operation.interpreter),
+        Err(_) => TCL_VALUE_GET_ERROR,
     }
 }
 
@@ -727,29 +724,23 @@ pub unsafe extern "C" fn tcl_value_get_wide_int(value: *mut TclObj, out: *mut i6
 /// be writable, properly aligned `f64` storage.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_value_get_double(value: *mut TclObj, out: *mut f64) -> i32 {
-    let interp = current_interp();
-    if value.is_null() || out.is_null() || interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
+        return TCL_VALUE_GET_ERROR;
+    };
+    if value.is_null() || out.is_null() {
         return TCL_VALUE_GET_ERROR;
     }
-    if unsafe { (*interp).host_refusal_pending() } {
-        return TCL_VALUE_GET_ERROR;
-    }
-    let interp = unsafe { &mut *interp };
-    match crate::capi::read_scalar_for_interpreter(
-        interp,
+    match operation.scalar(
         value,
         tcl_syntax::scalar_getter::NativeScalarGetterKind::Double,
     ) {
         Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Double(parsed)) => {
-            // SAFETY: out is writable aligned storage per the contract.
+            // SAFETY: the caller provides aligned writable output storage.
             unsafe { out.write(parsed) };
             TCL_VALUE_GET_OK
         }
-        Ok(_) => unexpected_scalar_output(interp),
-        Err(error) => {
-            error.publish(interp);
-            TCL_VALUE_GET_ERROR
-        }
+        Ok(_) => unexpected_scalar_output(&mut operation.interpreter),
+        Err(_) => TCL_VALUE_GET_ERROR,
     }
 }
 
@@ -764,29 +755,23 @@ pub unsafe extern "C" fn tcl_value_get_double(value: *mut TclObj, out: *mut f64)
 /// be writable, properly aligned `i32` storage.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_value_get_bool(value: *mut TclObj, out: *mut i32) -> i32 {
-    let interp = current_interp();
-    if value.is_null() || out.is_null() || interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
+        return TCL_VALUE_GET_ERROR;
+    };
+    if value.is_null() || out.is_null() {
         return TCL_VALUE_GET_ERROR;
     }
-    if unsafe { (*interp).host_refusal_pending() } {
-        return TCL_VALUE_GET_ERROR;
-    }
-    let interp = unsafe { &mut *interp };
-    match crate::capi::read_scalar_for_interpreter(
-        interp,
+    match operation.scalar(
         value,
         tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
     ) {
         Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Boolean(parsed)) => {
-            // This is only the truth projection of the primitive's raw C int.
+            // SAFETY: the caller provides aligned writable output storage.
             unsafe { out.write(i32::from(parsed.is_true())) };
             TCL_VALUE_GET_OK
         }
-        Ok(_) => unexpected_scalar_output(interp),
-        Err(error) => {
-            error.publish(interp);
-            TCL_VALUE_GET_ERROR
-        }
+        Ok(_) => unexpected_scalar_output(&mut operation.interpreter),
+        Err(_) => TCL_VALUE_GET_ERROR,
     }
 }
 
@@ -808,13 +793,10 @@ pub unsafe extern "C" fn tcl_value_get_bool_for_purpose(
     purpose_tag: i32,
     out: *mut i32,
 ) -> i32 {
-    let interp = current_interp();
-    if value.is_null() || out.is_null() || interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return TCL_VALUE_GET_ERROR;
-    }
-    // SAFETY: current_interp retains the active interpreter for this entry.
-    let interp = unsafe { &mut *interp };
-    if interp.host_refusal_pending() {
+    };
+    if value.is_null() || out.is_null() {
         return TCL_VALUE_GET_ERROR;
     }
     let result =
@@ -827,9 +809,21 @@ pub unsafe extern "C" fn tcl_value_get_bool_for_purpose(
                 )
             })
             .and_then(|purpose| {
-                crate::typed_value::native_boolean_for_interp(interp, value, purpose)
+                crate::typed_value::native_boolean_for_interp(
+                    &mut operation.interpreter,
+                    value,
+                    purpose,
+                )
             });
-    finish_original_boolean(interp, result, out)
+    if operation.ensure_current().is_err() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    let status = finish_original_boolean(&mut operation.interpreter, result, out);
+    if operation.ensure_current().is_err() {
+        TCL_VALUE_GET_ERROR
+    } else {
+        status
+    }
 }
 
 /// Perform the selected outer Boolean expression result producer, then convert
@@ -843,13 +837,10 @@ pub unsafe extern "C" fn tcl_value_get_expression_bool(
     production_tag: i32,
     out: *mut i32,
 ) -> i32 {
-    let interp = current_interp();
-    if value.is_null() || out.is_null() || interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return TCL_VALUE_GET_ERROR;
-    }
-    // SAFETY: current_interp retains the active interpreter for this entry.
-    let interp = unsafe { &mut *interp };
-    if interp.host_refusal_pending() {
+    };
+    if value.is_null() || out.is_null() {
         return TCL_VALUE_GET_ERROR;
     }
     let result =
@@ -861,10 +852,22 @@ pub unsafe extern "C" fn tcl_value_get_expression_bool(
                 "Boolean expression producer tag",
             ))
         })
-        .and_then(|production| {
-            crate::typed_value::expression_boolean_for_interp(interp, value, production)
+        .and_then(|purpose| {
+            crate::typed_value::expression_boolean_for_interp(
+                &mut operation.interpreter,
+                value,
+                purpose,
+            )
         });
-    finish_original_boolean(interp, result, out)
+    if operation.ensure_current().is_err() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    let status = finish_original_boolean(&mut operation.interpreter, result, out);
+    if operation.ensure_current().is_err() {
+        TCL_VALUE_GET_ERROR
+    } else {
+        status
+    }
 }
 
 fn finish_original_boolean(
@@ -962,12 +965,19 @@ impl Drop for AbiActivation {
 /// not leave one.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_activation_enter() -> i32 {
-    let interp = current_interp();
-    if interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return 1;
+    };
+    let entered = operation.interpreter.codegen_activation_enter();
+    if operation.ensure_current().is_err() {
+        if entered {
+            operation
+                .interpreter
+                .codegen_activation_leave(crate::interp::Code::Error);
+        }
+        return TCL_INVOKE_ABI_HOST_REFUSED;
     }
-    // SAFETY: the bootstrap installed a live current interpreter.
-    i32::from(!unsafe { (*interp).codegen_activation_enter() })
+    i32::from(!entered)
 }
 
 /// `tcl_codegen_activation_leave(code)` — leave the activation entered by the
@@ -991,11 +1001,11 @@ pub extern "C" fn tcl_codegen_activation_leave(code: i32) {
 /// Push a name-addressable Tcl frame for a generated procedure.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_frame_push() {
-    let interp = current_interp();
-    if !interp.is_null() {
-        // SAFETY: the bootstrap installed a live current interpreter.
-        unsafe { (*interp).codegen_frame_push() };
-    }
+    let Ok(mut operation) = CodegenOperation::enter() else {
+        return;
+    };
+    operation.interpreter.codegen_frame_push();
+    let _ = operation.ensure_current();
 }
 
 /// Pop the current generated procedure frame.
@@ -1019,25 +1029,52 @@ pub unsafe extern "C" fn tcl_codegen_local_bind(
     name_len: i32,
     value: *mut TclObj,
 ) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || slot < 0 || value.is_null() {
+    // SAFETY: a non-null input transfers exactly one generated +1 reference.
+    let value = (!value.is_null()).then(|| unsafe { obj::Owned::from_raw(value) });
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(status) => {
+            drop(value);
+            return if status == TCL_INVOKE_ABI_HOST_REFUSED {
+                status
+            } else {
+                1
+            };
+        }
+    };
+    let Some(value) = value else {
         return 1;
+    };
+    if slot < 0 {
+        drop(value);
+        return operation.finish_code(crate::interp::Code::Error);
     }
     let name = unsafe { input_bytes(name_ptr, name_len) };
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let interp = unsafe { &mut *interp };
-    let code = match interp.codegen_bind_slot(usize::try_from(slot).unwrap_or(0), name) {
-        Err(error) => i32::try_from(interp.report_cmd_error(error.into()).as_int()).unwrap_or(1),
-        Ok(()) => match interp.var_set(name, value) {
-            Ok(()) => 0,
-            Err(e) => {
-                i32::try_from(crate::builtins::var_error(interp, name, e).as_int()).unwrap_or(1)
+    let bound = operation
+        .interpreter
+        .codegen_bind_slot(usize::try_from(slot).unwrap(), name);
+    let code = if operation.ensure_current().is_err() {
+        crate::interp::Code::Error
+    } else {
+        match bound {
+            Err(error) => operation.interpreter.report_cmd_error(error.into()),
+            Ok(()) => {
+                let stored = operation.interpreter.var_set(name, value.as_ptr());
+                if operation.ensure_current().is_err() {
+                    crate::interp::Code::Error
+                } else {
+                    match stored {
+                        Ok(()) => crate::interp::Code::Ok,
+                        Err(error) => {
+                            crate::builtins::var_error(&mut operation.interpreter, name, error)
+                        }
+                    }
+                }
             }
-        },
+        }
     };
-    // SAFETY: generated assignment transfers its operand-stack reference.
-    unsafe { obj::decr_ref_count(value) };
-    code
+    drop(value);
+    operation.finish_code(code)
 }
 
 /// Store through an indexed compiled-local port.
@@ -1046,24 +1083,37 @@ pub unsafe extern "C" fn tcl_codegen_local_bind(
 /// `value` must be a live owned reference transferred by generated code.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_local_set(slot: i32, value: *mut TclObj) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || slot < 0 || value.is_null() {
-        return 1;
-    }
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let interp = unsafe { &mut *interp };
-    let Some(name) = interp.codegen_slot_name(usize::try_from(slot).unwrap_or(0)) else {
-        // SAFETY: generated assignment transfers its operand-stack reference.
-        unsafe { obj::decr_ref_count(value) };
+    // SAFETY: a non-null input transfers exactly one generated +1 reference.
+    let value = (!value.is_null()).then(|| unsafe { obj::Owned::from_raw(value) });
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(status) => {
+            drop(value);
+            return if status == TCL_INVOKE_ABI_HOST_REFUSED {
+                status
+            } else {
+                1
+            };
+        }
+    };
+    let Some(value) = value else {
         return 1;
     };
-    let code = match interp.var_set(&name, value) {
-        Ok(()) => 0,
-        Err(e) => i32::try_from(crate::builtins::var_error(interp, &name, e).as_int()).unwrap_or(1),
+    let Some(name) = slot_name(&operation.interpreter, slot) else {
+        drop(value);
+        return operation.finish_code(crate::interp::Code::Error);
     };
-    // SAFETY: generated assignment transfers its operand-stack reference.
-    unsafe { obj::decr_ref_count(value) };
-    code
+    let stored = operation.interpreter.var_set(&name, value.as_ptr());
+    let code = if operation.ensure_current().is_err() {
+        crate::interp::Code::Error
+    } else {
+        match stored {
+            Ok(()) => crate::interp::Code::Ok,
+            Err(error) => crate::builtins::var_error(&mut operation.interpreter, &name, error),
+        }
+    };
+    drop(value);
+    operation.finish_code(code)
 }
 
 /// Load through an indexed port, returning an owned operand-stack value.
@@ -1072,32 +1122,37 @@ pub unsafe extern "C" fn tcl_codegen_local_set(slot: i32, value: *mut TclObj) ->
 /// The current interpreter and generated frame must remain live for the call.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_local_get(slot: i32) -> *mut TclObj {
-    let interp = current_interp();
-    if interp.is_null() || slot < 0 {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return ptr::null_mut();
-    }
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let interp = unsafe { &mut *interp };
-    let slot = usize::try_from(slot).unwrap_or(0);
-    // The indexed path: one array index to the frame's cell, taken whenever
-    // nothing can observe the read differently (an untraced plain scalar).
-    if let Some(value) = interp.codegen_slot_scalar(slot) {
-        // SAFETY: the cell owns the existing reference; the stack claims another.
+    };
+    let Ok(slot) = usize::try_from(slot) else {
+        return ptr::null_mut();
+    };
+    if let Some(value) = operation.interpreter.codegen_slot_scalar(slot) {
+        if operation.ensure_current().is_err() {
+            return ptr::null_mut();
+        }
+        // SAFETY: the original cell owns this live value.
         unsafe { obj::incr_ref_count(value) };
         return value;
     }
-    let Some(name) = interp.codegen_slot_name(slot) else {
+    let Some(name) = operation.interpreter.codegen_slot_name(slot) else {
         return ptr::null_mut();
     };
-    if interp.fire_read_trace(&name, None).is_some() {
+    let traced = operation.interpreter.fire_read_trace(&name, None);
+    if operation.ensure_current().is_err() || traced.is_some() {
         return ptr::null_mut();
     }
-    let Some(value) = interp.var_get(&name) else {
-        let msg = interp.read_miss_msg(&name, None);
-        interp.set_error(&msg);
+    let value = operation.interpreter.var_get(&name);
+    if operation.ensure_current().is_err() {
+        return ptr::null_mut();
+    }
+    let Some(value) = value else {
+        let message = operation.interpreter.read_miss_msg(&name, None);
+        operation.interpreter.set_error(&message);
+        let _ = operation.ensure_current();
         return ptr::null_mut();
     };
-    // SAFETY: the frame owns the existing reference; the stack claims another.
     unsafe { obj::incr_ref_count(value) };
     value
 }
@@ -1113,20 +1168,23 @@ pub unsafe extern "C" fn tcl_codegen_local_get(slot: i32) -> *mut TclObj {
 /// conservative in one direction only: `1` may be broader than the exact
 /// access, `0` is a promise that nothing can observe the cell.
 ///
-/// Returns `1` when traced, `0` when not (including a name that does not
-/// resolve, and when there is no current interpreter).
+/// Returns `1` when traced or the original operation is unavailable/refused,
+/// and `0` only when the current cell owner reports an untraced access.
 ///
 /// # Safety
 /// The name range must be readable shared linear memory.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_var_traced(name_ptr: *const u8, name_len: i32) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() {
-        return 0;
-    }
+    let Ok(operation) = CodegenOperation::enter() else {
+        return 1;
+    };
     let name = unsafe { input_bytes(name_ptr, name_len) };
-    // SAFETY: the bootstrap installed a live current interpreter.
-    i32::from(unsafe { (*interp).var_is_traced(name) })
+    let traced = operation.interpreter.var_is_traced(name);
+    if operation.ensure_current().is_err() {
+        1
+    } else {
+        i32::from(traced)
+    }
 }
 
 /// `tcl_codegen_slot_traced(slot) -> i32` — [`tcl_codegen_var_traced`] for the
@@ -1139,15 +1197,18 @@ pub unsafe extern "C" fn tcl_codegen_var_traced(name_ptr: *const u8, name_len: i
 /// rather than trusted.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_slot_traced(slot: i32) -> i32 {
-    let interp = current_interp();
-    let Ok(slot) = usize::try_from(slot) else {
-        return 0;
+    let Ok(operation) = CodegenOperation::enter() else {
+        return 1;
     };
-    if interp.is_null() {
-        return 0;
+    let Ok(slot) = usize::try_from(slot) else {
+        return 1;
+    };
+    let traced = operation.interpreter.codegen_slot_is_traced(slot);
+    if operation.ensure_current().is_err() {
+        1
+    } else {
+        i32::from(traced)
     }
-    // SAFETY: the bootstrap installed a live current interpreter.
-    i32::from(unsafe { (*interp).codegen_slot_is_traced(slot) })
 }
 
 /// Resolve a compiled slot's Tcl-visible name, or `None` when it is unbound.
@@ -1180,14 +1241,12 @@ fn slot_name(interp: &Interp, slot: i32) -> Option<Vec<u8>> {
 /// # Safety
 /// `interp` must be the live current interpreter and `value` a live object.
 unsafe fn slot_modify(
-    interp: *mut Interp,
+    interp: &mut Interp,
     slot: i32,
     head: &[u8],
     value: Option<*mut TclObj>,
     command: fn(&mut Interp, &[*mut TclObj]) -> crate::interp::Code,
 ) -> crate::interp::Code {
-    // SAFETY: the caller passes the live current interpreter.
-    let interp = unsafe { &mut *interp };
     let Some(name) = slot_name(interp, slot) else {
         let mut message = head.to_vec();
         message.extend_from_slice(b" on an unbound compiled slot");
@@ -1224,48 +1283,37 @@ unsafe fn slot_modify(
 /// `out` must be null or writable, properly aligned `i64` storage.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_slot_incr_i64(slot: i32, delta: i64, out: *mut i64) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return TCL_VALUE_GET_ERROR;
-    }
-    let delta_obj = obj::new_wide_int_obj(delta);
-    // Give the fresh operand a reference of its own before handing it over:
-    // `slot_modify` borrows its words and releases that borrow after the
-    // call, which would take a bare `rc 0` operand back to zero and free it
-    // here — leaving the release below a double free.
-    // SAFETY: `delta_obj` is a fresh live object.
-    unsafe { obj::incr_ref_count(delta_obj) };
-    // SAFETY: `interp` is live; `delta_obj` is a fresh live object.
+    };
+    let delta = obj::Owned::fresh(obj::new_wide_int_obj(delta));
     let code = unsafe {
         slot_modify(
-            interp,
+            &mut operation.interpreter,
             slot,
             b"incr",
-            Some(delta_obj),
-            // The trace-safe `incr` — see `cmd_var::installed_incr`.
+            Some(delta.as_ptr()),
             crate::cmd_var::installed_incr(),
         )
     };
-    // SAFETY: releases exactly the reference taken above.
-    unsafe { obj::decr_ref_count(delta_obj) };
-    if code != crate::interp::Code::Ok {
+    drop(delta);
+    if operation.ensure_current().is_err() || code != crate::interp::Code::Ok {
         return TCL_VALUE_GET_ERROR;
     }
     if out.is_null() {
         return TCL_VALUE_GET_OK;
     }
-    // SAFETY: `interp` is live; the result is `incr`'s new value.
-    let result = unsafe { (*interp).result_obj() };
-    match crate::typed_value::native_wide_int(result, unsafe {
-        (*interp).native_invocation_dialect()
-    }) {
-        Ok(value) => {
-            // SAFETY: `out` is writable aligned storage per the contract.
+    let value = operation.interpreter.result_obj();
+    match operation.scalar(
+        value,
+        tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
+    ) {
+        Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(value)) => {
             unsafe { out.write(value) };
             TCL_VALUE_GET_OK
         }
-        // SAFETY: `interp` is the live current interpreter.
-        Err(error) => unsafe { typed_read_error(interp, error) },
+        Ok(_) => unexpected_scalar_output(&mut operation.interpreter),
+        Err(_) => TCL_VALUE_GET_ERROR,
     }
 }
 
@@ -1280,21 +1328,29 @@ pub unsafe extern "C" fn tcl_codegen_slot_incr_i64(slot: i32, delta: i64, out: *
 /// `value` must be a live object with a caller-owned reference.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_slot_append(slot: i32, value: *mut TclObj) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || value.is_null() {
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(status) => {
+            return if status == TCL_INVOKE_ABI_HOST_REFUSED {
+                status
+            } else {
+                1
+            }
+        }
+    };
+    if value.is_null() {
         return 1;
     }
-    // SAFETY: `interp` is live and `value` is caller-owned for the call.
     let code = unsafe {
         slot_modify(
-            interp,
+            &mut operation.interpreter,
             slot,
             b"append",
             Some(value),
             crate::cmd_string::append,
         )
     };
-    i32::try_from(code.as_int()).unwrap_or(1)
+    operation.finish_code(code)
 }
 
 /// `tcl_codegen_slot_lappend(slot, value) -> code` — Tcl `lappend` onto the
@@ -1307,21 +1363,29 @@ pub unsafe extern "C" fn tcl_codegen_slot_append(slot: i32, value: *mut TclObj) 
 /// `value` must be a live object with a caller-owned reference.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_slot_lappend(slot: i32, value: *mut TclObj) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || value.is_null() {
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(status) => {
+            return if status == TCL_INVOKE_ABI_HOST_REFUSED {
+                status
+            } else {
+                1
+            }
+        }
+    };
+    if value.is_null() {
         return 1;
     }
-    // SAFETY: `interp` is live and `value` is caller-owned for the call.
     let code = unsafe {
         slot_modify(
-            interp,
+            &mut operation.interpreter,
             slot,
             b"lappend",
             Some(value),
             crate::cmd_list::lappend,
         )
     };
-    i32::try_from(code.as_int()).unwrap_or(1)
+    operation.finish_code(code)
 }
 
 /// `tcl_codegen_slot_get(slot) -> obj` — the ABI v2 spelling of
@@ -1373,20 +1437,34 @@ pub unsafe extern "C" fn tcl_codegen_var_set(
     name_len: i32,
     value: *mut TclObj,
 ) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || value.is_null() {
-        return 1;
-    }
-    let name = unsafe { input_bytes(name_ptr, name_len) };
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let interp = unsafe { &mut *interp };
-    let code = match interp.var_set_named(name, value) {
-        Ok(()) => 0,
-        Err(e) => i32::try_from(crate::builtins::var_error(interp, name, e).as_int()).unwrap_or(1),
+    // SAFETY: a non-null input transfers exactly one generated +1 reference.
+    let value = (!value.is_null()).then(|| unsafe { obj::Owned::from_raw(value) });
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(status) => {
+            drop(value);
+            return if status == TCL_INVOKE_ABI_HOST_REFUSED {
+                status
+            } else {
+                1
+            };
+        }
     };
-    // SAFETY: generated assignment transfers its operand-stack reference.
-    unsafe { obj::decr_ref_count(value) };
-    code
+    let Some(value) = value else {
+        return 1;
+    };
+    let name = unsafe { input_bytes(name_ptr, name_len) };
+    let stored = operation.interpreter.var_set_named(name, value.as_ptr());
+    let code = if operation.ensure_current().is_err() {
+        crate::interp::Code::Error
+    } else {
+        match stored {
+            Ok(()) => crate::interp::Code::Ok,
+            Err(error) => crate::builtins::var_error(&mut operation.interpreter, name, error),
+        }
+    };
+    drop(value);
+    operation.finish_code(code)
 }
 
 /// Load a top-level or namespace variable by name as an owned stack value.
@@ -1395,17 +1473,17 @@ pub unsafe extern "C" fn tcl_codegen_var_set(
 /// The name range must be readable shared linear memory.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_var_get(name_ptr: *const u8, name_len: i32) -> *mut TclObj {
-    let interp = current_interp();
-    if interp.is_null() {
-        return ptr::null_mut();
-    }
-    let name = unsafe { input_bytes(name_ptr, name_len) };
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let interp = unsafe { &mut *interp };
-    let Ok(value) = interp.read_named_variable(name) else {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return ptr::null_mut();
     };
-    // SAFETY: variable storage owns the existing reference; the stack claims one.
+    let name = unsafe { input_bytes(name_ptr, name_len) };
+    let read = operation.interpreter.read_named_variable(name);
+    if operation.ensure_current().is_err() {
+        return ptr::null_mut();
+    }
+    let Ok(value) = read else {
+        return ptr::null_mut();
+    };
     unsafe { obj::incr_ref_count(value) };
     value
 }
@@ -1432,23 +1510,25 @@ pub unsafe extern "C" fn tcl_codegen_var_get_element(
     key_ptr: *const u8,
     key_len: i32,
 ) -> *mut TclObj {
-    let interp = current_interp();
-    if interp.is_null() {
-        return ptr::null_mut();
-    }
-    let name = unsafe { input_bytes(name_ptr, name_len) };
-    let key = unsafe { input_bytes(key_ptr, key_len) };
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let interp = unsafe { &mut *interp };
-    if interp.fire_read_trace(name, Some(key)).is_some() {
-        return ptr::null_mut();
-    }
-    let Some(value) = interp.var_get_elem(name, key) else {
-        let msg = interp.read_miss_msg(name, Some(key));
-        interp.set_error(&msg);
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return ptr::null_mut();
     };
-    // SAFETY: the array cell owns the existing reference; the stack claims one.
+    let name = unsafe { input_bytes(name_ptr, name_len) };
+    let key = unsafe { input_bytes(key_ptr, key_len) };
+    let traced = operation.interpreter.fire_read_trace(name, Some(key));
+    if operation.ensure_current().is_err() || traced.is_some() {
+        return ptr::null_mut();
+    }
+    let value = operation.interpreter.var_get_elem(name, key);
+    if operation.ensure_current().is_err() {
+        return ptr::null_mut();
+    }
+    let Some(value) = value else {
+        let message = operation.interpreter.read_miss_msg(name, Some(key));
+        operation.interpreter.set_error(&message);
+        let _ = operation.ensure_current();
+        return ptr::null_mut();
+    };
     unsafe { obj::incr_ref_count(value) };
     value
 }
@@ -1585,17 +1665,30 @@ pub unsafe extern "C" fn tcl_codegen_expr_add(
 /// `value` must be a live reference owned by generated code.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_puts(value: *mut TclObj) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() || value.is_null() {
+    // SAFETY: a non-null input transfers exactly one generated +1 reference.
+    let value = (!value.is_null()).then(|| unsafe { obj::Owned::from_raw(value) });
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(status) => {
+            drop(value);
+            return if status == TCL_INVOKE_ABI_HOST_REFUSED {
+                status
+            } else {
+                1
+            };
+        }
+    };
+    let Some(value) = value else {
         return 1;
-    }
-    let command = new_string_bytes(b"puts");
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let code = unsafe { crate::cmd_chan::puts_cmd(&mut *interp, &[command, value]) };
-    drop_fresh(command);
-    // SAFETY: the command consumes the generated stack reference after dispatch.
-    unsafe { obj::decr_ref_count(value) };
-    i32::try_from(code.as_int()).unwrap_or(1)
+    };
+    let command = obj::Owned::fresh(new_string_bytes(b"puts"));
+    let code = crate::cmd_chan::puts_cmd(
+        &mut operation.interpreter,
+        &[command.as_ptr(), value.as_ptr()],
+    );
+    drop(command);
+    drop(value);
+    operation.finish_code(code)
 }
 
 /// Register source metadata for a generated procedure without evaluating `proc`.
@@ -1651,35 +1744,56 @@ pub unsafe extern "C" fn tcl_codegen_proc_define_native(
     body_len: i32,
     entry: Option<NativeProcEntry>,
 ) -> i32 {
-    let interp = current_interp();
-    if interp.is_null() {
-        return 1;
-    }
-    let name = unsafe { input_bytes(name_ptr, name_len) };
-    let params = unsafe { input_bytes(params_ptr, params_len) };
-    let body = unsafe { input_bytes(body_ptr, body_len) };
-    // SAFETY: the bootstrap installed a live current interpreter.
-    let interp = unsafe { &mut *interp };
-    let original_parameters = crate::obj::Owned::fresh(new_string_bytes(params));
-    let params =
-        match crate::cmd_proc::parse_params_object(interp, original_parameters.as_ptr(), name) {
-            Ok(params) => params,
-            Err(error) => {
-                return i32::try_from(interp.report_cmd_error(error).as_int()).unwrap_or(1);
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(status) => {
+            return if status == TCL_INVOKE_ABI_HOST_REFUSED {
+                status
+            } else {
+                1
             }
-        };
-    let body_obj = new_string_bytes(body);
-    interp.define_proc_original_storage(
+        }
+    };
+    let name = unsafe { input_bytes(name_ptr, name_len) };
+    let parameters = unsafe { input_bytes(params_ptr, params_len) };
+    let body = unsafe { input_bytes(body_ptr, body_len) };
+    let original_parameters = obj::Owned::fresh(new_string_bytes(parameters));
+    let parsed = crate::cmd_proc::parse_params_object(
+        &mut operation.interpreter,
+        original_parameters.as_ptr(),
         name,
-        params,
+    );
+    if operation.ensure_current().is_err() {
+        drop(original_parameters);
+        return operation.finish_code(crate::interp::Code::Error);
+    }
+    let parameters = match parsed {
+        Ok(parameters) => parameters,
+        Err(error) => {
+            let code = operation.interpreter.report_cmd_error(error);
+            drop(original_parameters);
+            return operation.finish_code(code);
+        }
+    };
+    let body = obj::Owned::fresh(new_string_bytes(body));
+    let installed = operation.interpreter.install_proc_original_storage(
+        name,
+        parameters,
         Some(original_parameters.as_ptr()),
-        body_obj,
+        body.as_ptr(),
         entry,
         None,
     );
-    drop_fresh(body_obj);
-    interp.set_result_bytes(b"");
-    0
+    drop(body);
+    drop(original_parameters);
+    if operation.ensure_current().is_err() {
+        return TCL_INVOKE_ABI_HOST_REFUSED;
+    }
+    if installed.is_none() {
+        return 1;
+    }
+    operation.interpreter.set_result_bytes(b"");
+    operation.finish_code(crate::interp::Code::Ok)
 }
 
 /// Log one `while executing` / `invoked from within` `errorInfo` frame for a
@@ -1706,16 +1820,15 @@ pub unsafe extern "C" fn tcl_codegen_proc_define_native(
 /// `src_ptr`/`src_len` must be a readable range of shared linear memory.
 #[no_mangle]
 pub unsafe extern "C" fn tcl_codegen_log_command(line: i32, src_ptr: *const u8, src_len: i32) {
-    let interp = current_interp();
-    if interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return;
-    }
-    let src = unsafe { input_bytes(src_ptr, src_len) };
-    // Lines are 1-based; a caller that has no line still gets a logged frame
-    // rather than a silently dropped one.
+    };
+    let source = unsafe { input_bytes(src_ptr, src_len) };
     let line = u32::try_from(line).unwrap_or(1).max(1);
-    // SAFETY: the bootstrap installed a live current interpreter.
-    unsafe { (*interp).log_evaluated_command_bytes(line, src) };
+    operation
+        .interpreter
+        .log_evaluated_command_bytes(line, source);
+    let _ = operation.ensure_current();
 }
 
 /// Record the pending `return -level`/`-code` state, exactly as the `return`
@@ -1734,13 +1847,14 @@ pub unsafe extern "C" fn tcl_codegen_log_command(line: i32, src_ptr: *const u8, 
 /// error code, the same way the `return` command's own parsing bounds them.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_return_state(level: i32, code: i32) {
-    let interp = current_interp();
-    if interp.is_null() {
+    let Ok(mut operation) = CodegenOperation::enter() else {
         return;
-    }
+    };
     let level = usize::try_from(level).unwrap_or(0);
-    // SAFETY: the bootstrap installed a live current interpreter.
-    unsafe { (*interp).set_return_state(level, crate::interp::Code::from_int(code)) };
+    operation
+        .interpreter
+        .set_return_state(level, crate::interp::Code::from_int(code));
+    let _ = operation.ensure_current();
 }
 
 /// The number of proc bodies the current interpreter has run through a native
@@ -3543,7 +3657,7 @@ mod tests {
                             primitive.as_ptr(),
                             &mut raw,
                         ),
-                        crate::capi::TCL_OK
+                        0
                     );
                     let expected = if environment == "jim" {
                         if number == 17 {
@@ -5715,3 +5829,7 @@ mod tests {
 #[cfg(test)]
 #[path = "codegen_abi/original_ingress_tests.rs"]
 mod original_ingress_tests;
+
+#[cfg(test)]
+#[path = "codegen_abi/original_receiver_tests.rs"]
+mod original_receiver_tests;

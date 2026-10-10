@@ -61,7 +61,7 @@ fn assert_guest_state(interp: &Interp, original_result: *mut TclObj) {
     assert_eq!(interp.get_obj_result(), original_result);
     assert!(obj::allocation_is_live(original_result));
     assert_eq!(obj::bytes_of(original_result), b"BODY\0\xff");
-    assert_eq!(interp.exc.borrow().code, b"STAMP BEFORE");
+    assert_eq!(interp.snapshot_error().code_bytes(), b"STAMP BEFORE");
     assert_eq!(interp.pending_return_level(), 2);
     assert_eq!(interp.pending_return_code(), Code::Other(7));
     assert_eq!(interp.pending_return_option_objects().len(), 1);

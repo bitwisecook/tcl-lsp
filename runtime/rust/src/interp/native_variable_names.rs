@@ -1490,6 +1490,40 @@ impl Interp {
             VarError::DeletedArray => Reason::DetachedElement,
             VarError::DeletedNamespace => Reason::RetiredNamespace,
             VarError::IsConstant => Reason::Constant,
+            VarError::Confined => {
+                let Some(protocol) = self.native_c_variable_name_protocol() else {
+                    return self.report_cmd_error(
+                        ValueError::CommandProtocolUnavailable(
+                            "original C confined variable report",
+                        )
+                        .into(),
+                    );
+                };
+                let name = match tcl_syntax::naming::report_native_c_variable_value_name(
+                    tcl_syntax::naming::NativeNameProtocol::C(protocol.version()),
+                    input,
+                ) {
+                    Ok(name) => name,
+                    Err(_) => {
+                        return self.report_cmd_error(
+                            ValueError::CommandProtocolUnavailable(
+                                "original C confined variable report name",
+                            )
+                            .into(),
+                        )
+                    }
+                };
+                return if matches!(
+                    purpose,
+                    NativeVariableNameLookupPurpose::Unset
+                        | NativeVariableNameLookupPurpose::QuietUnset
+                ) {
+                    self.confined_unset_error(&name)
+                } else {
+                    self.confined_store_error(&name)
+                };
+            }
+
             VarError::NameProtocolUnavailable => {
                 unreachable!("operand-free refusal returned above")
             }

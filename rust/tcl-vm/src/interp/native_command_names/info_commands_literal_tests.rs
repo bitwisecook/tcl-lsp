@@ -214,3 +214,57 @@ fn compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_hea
     assert_eq!(compared, 186);
     assert_eq!(pattern_caches, 54);
 }
+
+#[test]
+fn original_jim_import_retains_helper_publication_before_inventory_root_prefix() {
+    // naming.compiler.original-info-commands-literal-resolution
+    // docs/design/analysis/name-resolution-proofs/compiler-original-info-commands-literal-resolution.md
+    // Original _nshelper.c publishes ${current}::tail; namespace info adds the
+    // separately selected global report prefix. All 186 old headers remain.
+    let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+    let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(
+        profile,
+        &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceInfo],
+    );
+    let case = ORIGINAL_INFO_COMMANDS_CASES[4];
+    assert_eq!(case.0, "imported-command");
+    assert_eq!(vm.try_eval_source_bytes(case.1).unwrap().code, Code::Ok);
+    assert!(vm.execution_refusal.is_none());
+    let key = vm
+        .resolve_command_bytes_checked(crate::interp::ROOT_NS, b"::I::target", true)
+        .unwrap()
+        .unwrap();
+    {
+        let world = vm.name_world.borrow();
+        let owner = world.jim_command_table_keys.get(&key).unwrap();
+        assert_eq!(owner.report_bytes(), b"I::target");
+        assert_eq!(owner.comparison_bytes(), b"I::target");
+    }
+    let completion = vm.try_eval_source_bytes(case.2).unwrap();
+    assert_eq!(completion.code, Code::Ok);
+    assert!(vm.execution_refusal.is_none());
+    assert_header(
+        &completion.result,
+        "list",
+        "0",
+        "-",
+        "original Jim imported inventory",
+    );
+    let protocol = vm
+        .native_scalar_carrier_dialect()
+        .native_string_protocol()
+        .unwrap();
+    let backing = completion
+        .result
+        .native_list_backing_in(protocol)
+        .unwrap()
+        .unwrap();
+    assert_eq!(backing.len(), 1);
+    assert_header(
+        &backing[0],
+        "string",
+        "1",
+        "3a3a493a3a746172676574",
+        "original Jim imported member",
+    );
+}

@@ -151062,6 +151062,799 @@
       "sha256": "38ae02388d270cef083244f2556e2040c82356aae54c39053433852c6e5edca8",
       "bytes": 4389,
       "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture442/compile.stderr",
+      "sha256": "46f94461396b0d01e05459f2f04f3fb1bc916e04cf42db9987826e0bd10b2a9e",
+      "bytes": 128,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture442/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture442/compiler-sysroot.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture442/compiler-sysroot.stdout",
+      "sha256": "a5cb299710986c93fc2f812c0dbe57815d41e5f98b0c46f307d4064107b2220b",
+      "bytes": 62,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture442/compiler-target-cfg.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture442/compiler-target-cfg.stdout",
+      "sha256": "a37b72d231ad64bfafcb75d91bb1e7465811fbb0b26334356f7122d92307189a",
+      "bytes": 737,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture442/compiler-target-libdir.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture442/compiler-target-libdir.stdout",
+      "sha256": "d31623b842cd037753eb16774e4a00b4d96b6d113afda7146d5f8df862632bfa",
+      "bytes": 92,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture442/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture442/compiler-version.stdout",
+      "sha256": "b569b0c98ea3133c7252b4b8ea6b39b7b353813df0dd5f5c412c355691424112",
+      "bytes": 196,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture442/linker-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture442/linker-version.stdout",
+      "sha256": "c521914da9ef243a80d47f4ccffb5fd9404b0e2e24195a10f9ae68d4bf81f925",
+      "bytes": 86,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture442/receipt.json",
+      "sha256": "1ef6aa22b61783dc58e9dd1117659953e670fbb8146fc2405174c1ed813f0f87",
+      "bytes": 81708,
+      "candidate": true,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.numeric.rust-wasi-libc-environment"
+      ],
+      "reason": "Original standalone Rust environment receipt retains either compile failure442 or independently observed443 linkage/guest outcome; native-provider answers remain unmeasured."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture442/runner-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture442/runner-version.stdout",
+      "sha256": "06398cc44cd141ad1fff6d51c1138b1ad5c728e7e326d7cbbbff84ac59152438",
+      "bytes": 39,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/compile.stderr",
+      "sha256": "e5c226c44e7b6875b303cb1d54d5dca0c48c194f178495824725ae9e3fbe89f3",
+      "bytes": 19629,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/compiler-sysroot.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/compiler-sysroot.stdout",
+      "sha256": "a5cb299710986c93fc2f812c0dbe57815d41e5f98b0c46f307d4064107b2220b",
+      "bytes": 62,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/compiler-target-cfg.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/compiler-target-cfg.stdout",
+      "sha256": "a37b72d231ad64bfafcb75d91bb1e7465811fbb0b26334356f7122d92307189a",
+      "bytes": 737,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/compiler-target-libdir.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/compiler-target-libdir.stdout",
+      "sha256": "d31623b842cd037753eb16774e4a00b4d96b6d113afda7146d5f8df862632bfa",
+      "bytes": 92,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/compiler-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/compiler-version.stdout",
+      "sha256": "b569b0c98ea3133c7252b4b8ea6b39b7b353813df0dd5f5c412c355691424112",
+      "bytes": 196,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/execute.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/execute.stdout",
+      "sha256": "265e76f4ca5d5156d4c47d1db8eee1842c182497acf3611df93ab2d78c2392f8",
+      "bytes": 51336,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/linker-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/linker-version.stdout",
+      "sha256": "c521914da9ef243a80d47f4ccffb5fd9404b0e2e24195a10f9ae68d4bf81f925",
+      "bytes": 86,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/linker/input-10-probe.5plrmkau3wzb6vw2kuul10wbx.rcgu.o",
+      "sha256": "c181451d05d967d5ae0e2c890420c42c1bdaf08e243ba07e403e250051378d0a",
+      "bytes": 906,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/linker/input-8-crt1-command.o",
+      "sha256": "d97a7840560d165783422a81fb2620d6dc821ac58b74f0da20dc1a9465788ea5",
+      "bytes": 1994,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/linker/input-9-probe.wasi_numeric_environment_original.c3afe6b475291f8d-cgu.0.rcgu.o",
+      "sha256": "01750d3b1580986cc667e88822a6cb49a69965c258d11fb694963d8115619820",
+      "bytes": 30559,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/linker/receipt.json",
+      "sha256": "b882dfda245537c62b9c7145e90eb586800c3e0c549e0cb1490fc7d2aae721d0",
+      "bytes": 64147,
+      "candidate": true,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.numeric.rust-wasi-libc-environment"
+      ],
+      "reason": "Original standalone Rust environment receipt retains either compile failure442 or independently observed443 linkage/guest outcome; native-provider answers remain unmeasured."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/linker/stderr.bytes",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/linker/stdout.bytes",
+      "sha256": "bc7099e687381bd60dc50198fe7ca90a3bcfff577aafe525cf1198e66021b5b9",
+      "bytes": 18292,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/probe.wasm",
+      "sha256": "7ab44311394a0c65d2c4494d2fd8cc6cf4658da7c705257d3a767f0d397b7fa9",
+      "bytes": 2390252,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/receipt.json",
+      "sha256": "1a7db1f8184334d20ef27584b539d983bbca748220038707bc1d7655274f9e1e",
+      "bytes": 153956,
+      "candidate": true,
+      "classification": "environment-observation",
+      "proof_ids": [
+        "naming.numeric.rust-wasi-libc-environment"
+      ],
+      "reason": "Original standalone Rust environment receipt retains either compile failure442 or independently observed443 linkage/guest outcome; native-provider answers remain unmeasured."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/runner-version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/runner-version.stdout",
+      "sha256": "06398cc44cd141ad1fff6d51c1138b1ad5c728e7e326d7cbbbff84ac59152438",
+      "bytes": 39,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/request442/cases.json",
+      "sha256": "951f0a9ad68761d254bcd60860bd5d727e9949cd54c1c3a5a995a245cb6d2c34",
+      "bytes": 2418,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.numeric.rust-wasi-libc-environment"
+      ],
+      "reason": "Complete unchanged original source/request/case or explicit restoration/host-reference metadata; input bytes give no execution answer."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/request442/launch.py",
+      "sha256": "e23f9404f1abffecc8bd4f9671a89f5b36280d81e79299b8c60adbf774ff1cd0",
+      "bytes": 6663,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/request442/link-wrapper.py",
+      "sha256": "5e9aa4021e616a779469e1e1721c287b554b5ba55cb49a4a9ca7b965f26cd822",
+      "bytes": 3269,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/request442/manifest.json",
+      "sha256": "7532ce81af66e59f18a4198f3acb64ec4a34ce9ea198e484b6babf4cafeb9744",
+      "bytes": 1194,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.numeric.rust-wasi-libc-environment"
+      ],
+      "reason": "Complete unchanged original source/request/case or explicit restoration/host-reference metadata; input bytes give no execution answer."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/request442/prepare-source.py",
+      "sha256": "a7c51ddbe4f557d10f6ccdc4b05f02b81ef6607bc97df2c85fb983247c2dc0a2",
+      "bytes": 9804,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/request442/probe.rs",
+      "sha256": "b53f9d4702055d8b751a79d33c3351cf4b109e7bdd31cc413a3bac9ef864c733",
+      "bytes": 11980,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/request442/request.json",
+      "sha256": "d8cd47e751b19ff48eeea0c59a8bab2af59d3cd2e7052f7066050969323d045c",
+      "bytes": 64863,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.numeric.rust-wasi-libc-environment"
+      ],
+      "reason": "Complete unchanged original source/request/case or explicit restoration/host-reference metadata; input bytes give no execution answer."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/request442/seal.py",
+      "sha256": "4e52bf63667bcd905e00d178f56d2ecfa61ea072743299a495bdce895f1f942a",
+      "bytes": 8451,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/request443/cases.json",
+      "sha256": "951f0a9ad68761d254bcd60860bd5d727e9949cd54c1c3a5a995a245cb6d2c34",
+      "bytes": 2418,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.numeric.rust-wasi-libc-environment"
+      ],
+      "reason": "Complete unchanged original source/request/case or explicit restoration/host-reference metadata; input bytes give no execution answer."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/request443/launch.py",
+      "sha256": "25e8327ddbdcad21e08ed5be471da5ece7eaf0fd22ba8947703efcd97bb95bfd",
+      "bytes": 6704,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/request443/link-wrapper.py",
+      "sha256": "5e9aa4021e616a779469e1e1721c287b554b5ba55cb49a4a9ca7b965f26cd822",
+      "bytes": 3269,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/request443/manifest.json",
+      "sha256": "cf780200e1ca3a0377ab469409a576aaba8e4b5323f308f74497bbbeae8b8a51",
+      "bytes": 1227,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.numeric.rust-wasi-libc-environment"
+      ],
+      "reason": "Complete unchanged original source/request/case or explicit restoration/host-reference metadata; input bytes give no execution answer."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/request443/prepare-source.py",
+      "sha256": "a7c51ddbe4f557d10f6ccdc4b05f02b81ef6607bc97df2c85fb983247c2dc0a2",
+      "bytes": 9804,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/request443/probe.rs",
+      "sha256": "b53f9d4702055d8b751a79d33c3351cf4b109e7bdd31cc413a3bac9ef864c733",
+      "bytes": 11980,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/request443/request.json",
+      "sha256": "15a1dbcf9da112059b670aaf86d5fa96ea1a3b34b8e653020cf84f05b74a3a33",
+      "bytes": 67041,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.numeric.rust-wasi-libc-environment"
+      ],
+      "reason": "Complete unchanged original source/request/case or explicit restoration/host-reference metadata; input bytes give no execution answer."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-input-storage.json",
+      "sha256": "b14eac5fbc9e32e61909fac56b137e235f217f7926bfba76c740248a71854ab9",
+      "bytes": 60317,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.numeric.rust-wasi-libc-environment"
+      ],
+      "reason": "Complete unchanged original source/request/case or explicit restoration/host-reference metadata; input bytes give no execution answer."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/libc-binding/wasi-mod.rs",
+      "sha256": "385c5e1783c6e649990b9249201c7c3b028e65fa9c782af5a84018a5ebea368f",
+      "bytes": 47568,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/repo-inputs/.cargo/config.toml",
+      "sha256": "113008ac8e2a706dcf0c7c1f399e07077dd04175415f53415678756cd0123169",
+      "bytes": 1682,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/repo-inputs/runtime/rust/Cargo.toml",
+      "sha256": "26bce44edc2bf39af1031648fb9586472f26bef92875c9680ba1a60793a35ebb",
+      "bytes": 7573,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/repo-inputs/runtime/rust/build.rs",
+      "sha256": "fd1fea9d02fa1dd7d869a71effa55af9c73e78183b1a805d28cd828fc6680a34",
+      "bytes": 15166,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/repo-inputs/rust/tcl-compiler/tests/common/wasm_link.rs",
+      "sha256": "07681f09c547282760ad743932c82ed2a8b092c49ef1d6f04d30c14fb77a65d6",
+      "bytes": 18336,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/components",
+      "sha256": "a242e952a6b3c89e52e5055a9b5f9ca8b6b8e0004c00f6e8e2524aeadfcf5e0f",
+      "bytes": 255,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/manifest-rust-std-wasm32-wasip1",
+      "sha256": "3bd9dc3ba1f01fce23fb6d46b8463cdc06928646d21d42779c89c98a7aada9d6",
+      "bytes": 4112,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/multirust-channel-manifest.toml",
+      "sha256": "3bd93d33248db8d373f1b7d53d344ee12ae2815c11653449ce5f227a0ec9d3cb",
+      "bytes": 1086673,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/multirust-config.toml",
+      "sha256": "d2d5c72d85fcb433a74ab889ff849c2b972767077443a8e39ea65a9d20b714ba",
+      "bytes": 724,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libaddr2line-8d240f0f49710d2b.rlib",
+      "sha256": "373c7785ecf8b3c271bdd5c9d9ad6b5c3a6a2476286373cc41d61ba5360937d1",
+      "bytes": 22054,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libaddr2line-8d240f0f49710d2b.rmeta",
+      "sha256": "486ccf892f6bc63f3b740d8afc24d130547d90a72e9ed5bd088cabafda98a858",
+      "bytes": 499184,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libadler2-e6726ca18fa6cb72.rlib",
+      "sha256": "84e3e15f4c68e75943bb1560a09d7cb11c0f0509fd05f297bee8cc296c292db5",
+      "bytes": 7598,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libadler2-e6726ca18fa6cb72.rmeta",
+      "sha256": "55265d8711de41ae399f5929c07d8dae7940f1d079690a0c456bb541b8bb5dc1",
+      "bytes": 20727,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/liballoc-e9e7fd038a069b8b.rlib",
+      "sha256": "b61638d71d763ec5db8fc3977b868aec5ee6efc129429e5815e9b1dbc10cc016",
+      "bytes": 778530,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/liballoc-e9e7fd038a069b8b.rmeta.gz",
+      "sha256": "2981743e0b5d0574047d9c6eaed2e8dbbcf539883c2d873ae1e53805cf8abc41",
+      "bytes": 3290218,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libcfg_if-6428ac9d9c6baf98.rlib",
+      "sha256": "888827d68166dd69a60abd7d4d8dee31ca0a85b31c1691de9107735da27a9d98",
+      "bytes": 3666,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libcfg_if-6428ac9d9c6baf98.rmeta",
+      "sha256": "b56bad62b013981bd3234a08e791b823b5ce193854b8c5c473335193c4cd395f",
+      "bytes": 5520,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libcompiler_builtins-4a15f8f45d3c509b.rlib.gz",
+      "sha256": "cf0065170c605d84523f5fb5c9ed5578a03253cf27ca6dfbcbd1ad6236eb3c50",
+      "bytes": 840095,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libcompiler_builtins-4a15f8f45d3c509b.rmeta.gz",
+      "sha256": "275b997489f2ec073f8db5d259bcd606f3c149031c74208dc3698477a6621f9a",
+      "bytes": 721318,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libcore-dc37a0e6b942a0a3.rlib.gz",
+      "sha256": "3beebfabf47279cbebdd45f622cb0e940a769653317a46de04c7d1aeff369d0e",
+      "bytes": 1029305,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libcore-dc37a0e6b942a0a3.rmeta.gz",
+      "sha256": "5af2ea6ac48cdbce5693d9295734d3a592135485273f915f4f878250c0e98bf6",
+      "bytes": 13643436,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libgetopts-8a01d0b23e6d8e95.rlib",
+      "sha256": "57c5ab0a8ec1601470f74499342616f2cd1744acf0526cfc5364fce822f8b4f7",
+      "bytes": 522500,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libgetopts-8a01d0b23e6d8e95.rmeta",
+      "sha256": "36fea1eebde1f4f97e7b1cf4908152cc741326dbf4b48afd6f08017ba4eb1ea6",
+      "bytes": 226604,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libgimli-3f159952b0fe3ca8.rlib",
+      "sha256": "edf4e4e97628b9bbedab44e1ec13fe5bf27763f901ebb933324a79cc9198388b",
+      "bytes": 909130,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libgimli-3f159952b0fe3ca8.rmeta.gz",
+      "sha256": "c0017e0b51a80a230e8d7d1773e5010c16509c63ed31cfe381294f21d040e572",
+      "bytes": 2352084,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libhashbrown-86ecbc155a37c846.rlib",
+      "sha256": "bdc712029ea30667d1d622ddab1cdd9247f3abab9df35944cd3469cf284d199b",
+      "bytes": 19982,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libhashbrown-86ecbc155a37c846.rmeta.gz",
+      "sha256": "e8ac681c410ad0db04fa15995169d9791d2c535961b0858722660b093a66b7d3",
+      "bytes": 655586,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/liblibc-1fc72a0a8752c719.rlib",
+      "sha256": "17c9bdca58c5985f04505a99e31569b0e2ae4930439cc0792460ede3fce250a1",
+      "bytes": 4556,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/liblibc-1fc72a0a8752c719.rmeta",
+      "sha256": "3638228b2b088eb13c2ab173baefd2c2421a99933b91c0e1b1fa316f28b22947",
+      "bytes": 400449,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libmemchr-3ce5ee5b7b968b65.rlib",
+      "sha256": "6eced2da5c1a4835854381164e50b9ac00d055c1e48257e738e9a5f76ca5b699",
+      "bytes": 124152,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libmemchr-3ce5ee5b7b968b65.rmeta",
+      "sha256": "eb4f11b81ff5fa4b6eccc5959732f2881708deeb02098af016b26f660cc75538",
+      "bytes": 613756,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libminiz_oxide-18a01a6226f9ac4b.rlib",
+      "sha256": "d9be5b17b2631ff2e1574dd7dc106557bd4655ff7da96d22039d8add545996e7",
+      "bytes": 87668,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libminiz_oxide-18a01a6226f9ac4b.rmeta",
+      "sha256": "8f1fb5f49714f52724ab04c85a9ead5e81ef66c58e5c20b5659fb3e5cc3744b9",
+      "bytes": 131671,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libobject-8d4f90c21b2850d7.rlib",
+      "sha256": "1518864d6a17db7add80b8da50bc84b3d389965f67da65f65e62262c02f331bf",
+      "bytes": 238892,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libobject-8d4f90c21b2850d7.rmeta.gz",
+      "sha256": "b950251791321ccae7db344b58941f3e5460db8bcd9bc84a2ff6ad396f248c00",
+      "bytes": 3240986,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libpanic_abort-9049bbdbaff7d541.rlib",
+      "sha256": "4130cf887be3e12ea8201bef0dd11b3f9749c014922ccbc724c28ee31abf5c9b",
+      "bytes": 7722,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libpanic_abort-9049bbdbaff7d541.rmeta",
+      "sha256": "d592ce94b70a76bc81ec89a16239f146434813fa4e20fc9433b7267b59c7645d",
+      "bytes": 2734,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libpanic_unwind-d4144e0e9b66d706.rlib",
+      "sha256": "191958ebe02db0b08123f893579557394fae7e14161f8a6af29acf95c3e7d428",
+      "bytes": 24794,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libpanic_unwind-d4144e0e9b66d706.rmeta",
+      "sha256": "382f7d421902fc0e689070b3fda387a2fb1c4a1937b590202e685c9e5dfd4bdb",
+      "bytes": 7114,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libproc_macro-d2225b1c48b65e36.rlib.gz",
+      "sha256": "9f48f04a0225813d3a3421b90660507d9c6dc84d3c26696877910d2a8568777e",
+      "bytes": 1112616,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libproc_macro-d2225b1c48b65e36.rmeta.gz",
+      "sha256": "a03788eaa78e227797bb0d944d430052cc81767e99907c8f550a752b471a3302",
+      "bytes": 458062,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/librustc_demangle-08ec65b6cded6384.rlib",
+      "sha256": "7318cfac3e4baf8dbe31b61b3f6c9036feb8048c41f504fd2433ff200844a233",
+      "bytes": 201426,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/librustc_demangle-08ec65b6cded6384.rmeta",
+      "sha256": "b2c4143dd874aa592574a7029cab08b1c3087782018283866aa7255b31932291",
+      "bytes": 92503,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/librustc_literal_escaper-7591db129278ec67.rlib",
+      "sha256": "b69a9f69e1759ae9872c469c355fb88bc7ecf8a824fc2fcee78a79cd9c478f3e",
+      "bytes": 3822,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/librustc_literal_escaper-7591db129278ec67.rmeta",
+      "sha256": "e183fd5a1dfbfd01b21cc722af7e2049c80552c3a0b79a577cb0541833cb5a25",
+      "bytes": 123999,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/librustc_std_workspace_alloc-4266fb35f6230b30.rlib",
+      "sha256": "ef7474bd18e2e2ea80c4988181acc6e27c87c17a2ec61ec76f787d256fd4d82e",
+      "bytes": 3902,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/librustc_std_workspace_alloc-4266fb35f6230b30.rmeta",
+      "sha256": "1861025803c7a7825730559f1adb654f1391ff4bab7a231c47ec40e7ace539fe",
+      "bytes": 2203,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/librustc_std_workspace_core-825c958e1043d7b9.rlib",
+      "sha256": "f78e0bee6750e50ccafb13ba6c2c0244864dd0a5d2717be8289b59657eec2a58",
+      "bytes": 3892,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/librustc_std_workspace_core-825c958e1043d7b9.rmeta",
+      "sha256": "ed1d7103a3591ca60c5618a7e1656ceb43cf344e1f2df5b4e0c56e2a535cd3dc",
+      "bytes": 6101,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/librustc_std_workspace_std-d306f37365825984.rlib",
+      "sha256": "d2b1a46ab7bed25f69e94b74a6d1330e827497c2bd8c9968fe144e0572b37376",
+      "bytes": 3884,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/librustc_std_workspace_std-d306f37365825984.rmeta",
+      "sha256": "c9f2c89f0be7fd39dd67f083f9d25809ca4a6a4956d03fbf80c692dacd0ae4ae",
+      "bytes": 6992,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libstd-9e1565d8f4bc52e9.rlib.gz",
+      "sha256": "a4a71d6d6cfc656c7609ad408408716f97c80caa8ffae64ce4dad6df5ef3ac7a",
+      "bytes": 1387564,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libstd-9e1565d8f4bc52e9.rmeta.gz",
+      "sha256": "7f1030463ae91f6d1cee0dfee2050bb90d7572fb7479f36725269eb15630edba",
+      "bytes": 2343864,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libstd_detect-c70df24230c4af65.rlib",
+      "sha256": "8736b3d8fac518e7cb1bc8cba76043a2357427bf2d6c0e18914b95b96bf6417f",
+      "bytes": 3770,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libstd_detect-c70df24230c4af65.rmeta",
+      "sha256": "8cc41e1533fa2c2ad9d4b08f71b2c41e206400c4767f713caf6469de484e97f3",
+      "bytes": 222327,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libsysroot-9e8b08069ab3f08d.rlib",
+      "sha256": "2aee5d9c1ae6824dbcaf26c286f915d3228b74c5ef3b01f23a23a058cd40bbbf",
+      "bytes": 3750,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libsysroot-9e8b08069ab3f08d.rmeta",
+      "sha256": "ffc4f547b273423c540bfd987c10bad723ea0100da0ca4549d4007396c37b06c",
+      "bytes": 2056,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libtest-efb286892894d46a.rlib.gz",
+      "sha256": "b71c06ca76f6e8f1ebda84bf83a66b2fe75cd0ba51cdbd103957897183ee9a2b",
+      "bytes": 1803575,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libtest-efb286892894d46a.rmeta",
+      "sha256": "4e80134755c134f4f3e6b34e047ed726c7592e2dc6365ce382e1df8a0ee5891d",
+      "bytes": 1026121,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libunwind-40e65c89ffbc3d5e.rlib",
+      "sha256": "a20dbbb7bf9760fb5e8d77ec6275da80a9417659778dee8393c0eea4a74625e2",
+      "bytes": 5414,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libunwind-40e65c89ffbc3d5e.rmeta",
+      "sha256": "6119fa165dc53843089edd9ba948e1a60657889e69a12d71136a4200769d5c5a",
+      "bytes": 16013,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libwasip1-c2c8b9e52090903c.rlib",
+      "sha256": "dc1bd34dcacadd65e0d3a0a20f5b25c02bc97144914ef5d454cd2b991bd5c1f8",
+      "bytes": 209222,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/libwasip1-c2c8b9e52090903c.rmeta",
+      "sha256": "606ab8617e79f4375efb92bd23d363703d3724452dbbd1ff7ee8f8df86e7b7aa",
+      "bytes": 262103,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/self-contained/crt1-command.o",
+      "sha256": "d97a7840560d165783422a81fb2620d6dc821ac58b74f0da20dc1a9465788ea5",
+      "bytes": 1994,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/self-contained/crt1-reactor.o",
+      "sha256": "c0ce69c600d2bf8cd170da94e95e1755236541d596b3471e15a798f24afebe25",
+      "bytes": 1681,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/self-contained/libc.a.gz",
+      "sha256": "4407deb941310e856e671e1ec14e7f98691c901d06494dbf2d4aea1b6574d5e5",
+      "bytes": 1049515,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-target-inputs/self-contained/libunwind.a",
+      "sha256": "6351f2983b7dd2972eceb538ac2acbe23894e31799f0ac286930e4f20a4ca647",
+      "bytes": 13606,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/source-boundary-review.json",
+      "sha256": "f8fc2953f1b0024d9c8b472d24f78b94cebd0e920b2e1700b8cd74f91eb8a398",
+      "bytes": 41945,
+      "candidate": true,
+      "classification": "provider-scaffolding",
+      "proof_ids": [
+        "naming.numeric.rust-wasi-libc-environment"
+      ],
+      "reason": "Derived source/linkage/row review checked against original closed streams; no independent observation."
     }
   ]
 }

@@ -137,14 +137,128 @@ impl Drop for RuntimeAppendValue {
     }
 }
 
+/// Original entered increment currency and actual numeric Host, without
+/// borrowing the interpreter across a getter, COW callback or cache retirement.
+struct IncrementContext {
+    currency: crate::interp::native_operation_currency::NativeOperationCurrency,
+    host: Rc<dyn tcl_platform::Host>,
+    abi: std::cell::Cell<Option<tcl_platform::NativeCIntegerAbi>>,
+}
+impl IncrementContext {
+    fn selected(interp: &Interp) -> Result<Self, tcl_cmd_core::CmdError> {
+        Ok(Self {
+            currency: crate::interp::native_operation_currency::NativeOperationCurrency::issue(
+                interp,
+            )
+            .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?,
+            host: interp.host(),
+            abi: std::cell::Cell::new(None),
+        })
+    }
+    fn check(&self) -> Result<(), tcl_cmd_core::CmdError> {
+        self.currency
+            .ensure_current_or_refuse()
+            .map_err(tcl_cmd_core::CmdError::from_execution_refusal)
+    }
+    fn after<T>(&self, result: Result<T, ValueError>) -> Result<T, tcl_cmd_core::CmdError> {
+        self.check()?;
+        result.map_err(Into::into)
+    }
+    fn prepare(
+        &self,
+        original: Option<&RuntimeAppendValue>,
+    ) -> Result<RuntimeAppendValue, tcl_cmd_core::CmdError> {
+        self.check()?;
+        if let Some(value) = original {
+            obj::check_native_liveness(value.as_ptr())?;
+        }
+        let prepared = RuntimeAppendValue::retain(match original {
+            Some(value) if obj::is_shared(value.as_ptr()) => obj::duplicate(value.as_ptr()),
+            Some(value) => value.as_ptr(),
+            None => obj::new_wide_int_obj(0),
+        });
+        self.check()?;
+        Ok(prepared)
+    }
+    fn scalar(
+        &self,
+        value: *mut TclObj,
+        dialect: tcl_registry::InvocationDialect,
+        kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterValue, tcl_cmd_core::CmdError> {
+        self.check()?;
+        let environment = self.host.numeric_environment().map(|actual| {
+            crate::interp::native_operation_currency::CheckedNumericEnvironment::new(
+                actual,
+                Some(&self.currency),
+                &self.abi,
+            )
+        });
+        if environment.is_none() {
+            let protocol = dialect
+                .native_scalar_getter_protocol()
+                .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+            if protocol.is_jim084() || protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4)
+            {
+                // Cache eligibility is a pure selected recipe query. A real
+                // cached purpose needs no fresh Host conversion; a missing
+                // fresh legacy environment cannot become a neutral parser.
+                let cache = self.after(obj::native_scalar_cache(value))?;
+                let cached = cache
+                    .as_ref()
+                    .and_then(|cache| protocol.cached_conversion(kind, cache, None).ok().flatten());
+                if cached.is_none() {
+                    return Err(ValueError::ScalarNumericInputUnavailable.into());
+                }
+            }
+        }
+        let outcome = crate::typed_value::native_scalar_probe_with_environment_and_currency(
+            value,
+            dialect,
+            kind,
+            environment
+                .as_ref()
+                .map(|environment| environment as &dyn tcl_platform::NumericEnvironment),
+            Some(&self.currency),
+        );
+        match self.after(outcome)? {
+            Ok(value) => Ok(value),
+            Err(failure) => {
+                let presentation = crate::typed_value::native_scalar_failure_presentation(
+                    value, dialect, kind, failure,
+                );
+                let presentation = self.after(presentation)?;
+                Err(ValueError::NativeScalarGetter(Box::new(presentation)).into())
+            }
+        }
+    }
+    fn store(
+        &self,
+        value: *mut TclObj,
+        cache: tcl_syntax::scalar_getter::NativeScalarCache,
+        dialect: tcl_registry::InvocationDialect,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        self.check()?;
+        let protocol = dialect
+            .native_scalar_getter_protocol()
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        let stored = obj::adopt_native_scalar_cache(value, cache, protocol);
+        self.after(stored)?;
+        obj::invalidate_string(value);
+        self.check()
+    }
+}
+
 /// Actual C8.4/Jim original-object increment, with native probe/COW order.
 pub(crate) struct RuntimeLegacyIncrementObjects {
     dialect: tcl_registry::InvocationDialect,
     recipe: tcl_syntax::scalar_getter::NativeLegacyIncrementRecipe,
     jim_context: Option<Rc<crate::native_source::NativeJimObjectContext>>,
+    context: IncrementContext,
 }
 impl RuntimeLegacyIncrementObjects {
     pub(crate) fn selected(interp: &Interp) -> Result<Self, tcl_cmd_core::CmdError> {
+        let context = IncrementContext::selected(interp)?;
         let dialect = interp.native_invocation_dialect();
         let recipe = dialect
             .native_legacy_increment_protocol()
@@ -152,16 +266,19 @@ impl RuntimeLegacyIncrementObjects {
                 "native legacy increment",
             ))?
             .recipe();
+        let jim_context = if dialect.native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            Some(interp.native_jim_object_context()?)
+        } else {
+            None
+        };
+        context.check()?;
         Ok(Self {
             dialect,
             recipe,
-            jim_context: if dialect.native_string_protocol()
-                == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
-            {
-                Some(interp.native_jim_object_context()?)
-            } else {
-                None
-            },
+            context,
+            jim_context,
         })
     }
 }
@@ -175,13 +292,16 @@ impl tcl_cmd_core::native_increment::LegacyIncrementObjects for RuntimeLegacyInc
         &self,
         value: &Self::Value,
     ) -> Result<Option<tcl_syntax::scalar_getter::NativeScalarCache>, tcl_cmd_core::CmdError> {
-        obj::native_scalar_cache(value.as_ptr()).map_err(Into::into)
+        self.context.check()?;
+        self.context.after(obj::native_scalar_cache(value.as_ptr()))
     }
     fn wide(&self, value: &Self::Value) -> Result<i64, tcl_cmd_core::CmdError> {
+        self.context.check()?;
         if let Some(context) = &self.jim_context {
-            crate::native_source::bind_context(value.as_ptr(), context)?;
+            self.context
+                .after(crate::native_source::bind_context(value.as_ptr(), context))?;
         }
-        match crate::typed_value::native_scalar_getter(
+        match self.context.scalar(
             value.as_ptr(),
             self.dialect,
             tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
@@ -194,11 +314,7 @@ impl tcl_cmd_core::native_increment::LegacyIncrementObjects for RuntimeLegacyInc
         &self,
         original: Option<&Self::Value>,
     ) -> Result<Self::Prepared, tcl_cmd_core::CmdError> {
-        Ok(RuntimeAppendValue::retain(match original {
-            Some(value) if obj::is_shared(value.as_ptr()) => obj::duplicate(value.as_ptr()),
-            Some(value) => value.as_ptr(),
-            None => obj::new_wide_int_obj(0),
-        }))
+        self.context.prepare(original)
     }
     fn current<'a>(&self, prepared: &'a Self::Prepared) -> &'a Self::Value {
         prepared
@@ -208,6 +324,7 @@ impl tcl_cmd_core::native_increment::LegacyIncrementObjects for RuntimeLegacyInc
         prepared: &mut Self::Prepared,
         cache: tcl_syntax::scalar_getter::NativeScalarCache,
     ) -> Result<(), tcl_cmd_core::CmdError> {
+        self.context.check()?;
         let valid = match self.recipe {
             tcl_syntax::scalar_getter::NativeLegacyIncrementRecipe::Tcl84 => matches!(
                 cache,
@@ -222,15 +339,7 @@ impl tcl_cmd_core::native_increment::LegacyIncrementObjects for RuntimeLegacyInc
         if !valid {
             return Err(ValueError::ScalarNumericInputUnavailable.into());
         }
-        obj::adopt_native_scalar_cache(
-            prepared.as_ptr(),
-            cache,
-            self.dialect
-                .native_scalar_getter_protocol()
-                .ok_or(ValueError::ScalarNumericInputUnavailable)?,
-        )?;
-        obj::invalidate_string(prepared.as_ptr());
-        Ok(())
+        self.context.store(prepared.as_ptr(), cache, self.dialect)
     }
     fn finish(&self, prepared: Self::Prepared) -> Self::Value {
         prepared
@@ -243,7 +352,8 @@ impl tcl_cmd_core::native_increment::LegacyIncrementAmountOps
 {
     type Value = *mut TclObj;
     fn c84_long(&mut self, original: &Self::Value) -> Result<i64, tcl_cmd_core::CmdError> {
-        match crate::typed_value::native_scalar_getter(
+        let context = IncrementContext::selected(self.0)?;
+        match context.scalar(
             *original,
             self.0.native_invocation_dialect(),
             tcl_syntax::scalar_getter::NativeScalarGetterKind::Long,
@@ -256,23 +366,27 @@ impl tcl_cmd_core::native_increment::LegacyIncrementAmountOps
         &mut self,
         original: &Self::Value,
     ) -> Result<i64, tcl_cmd_core::CmdError> {
-        crate::builtins::native_jim_wide_expression(self.0, *original)
+        let context = IncrementContext::selected(self.0)?;
+        let result = crate::builtins::native_jim_wide_expression(self.0, *original);
+        context.check()?;
+        result
     }
 }
 
 /// Selected modern C integer update operations on original physical objects.
 pub(crate) struct RuntimeIncrementObjects {
     dialect: tcl_registry::InvocationDialect,
+    context: IncrementContext,
 }
 impl RuntimeIncrementObjects {
-    pub(crate) fn selected(
-        dialect: tcl_registry::InvocationDialect,
-    ) -> Result<Self, tcl_cmd_core::CmdError> {
+    pub(crate) fn selected(interp: &Interp) -> Result<Self, tcl_cmd_core::CmdError> {
+        let context = IncrementContext::selected(interp)?;
+        let dialect = interp.native_invocation_dialect();
         dialect
             .native_scalar_getter_protocol()
             .filter(|protocol| protocol.supports_number_getter())
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-        Ok(Self { dialect })
+        Ok(Self { dialect, context })
     }
 }
 impl tcl_cmd_core::native_increment::NativeIncrementObjects for RuntimeIncrementObjects {
@@ -282,11 +396,7 @@ impl tcl_cmd_core::native_increment::NativeIncrementObjects for RuntimeIncrement
         &self,
         original: Option<&Self::Value>,
     ) -> Result<Self::Prepared, tcl_cmd_core::CmdError> {
-        Ok(RuntimeAppendValue::retain(match original {
-            Some(value) if obj::is_shared(value.as_ptr()) => obj::duplicate(value.as_ptr()),
-            Some(value) => value.as_ptr(),
-            None => obj::new_wide_int_obj(0),
-        }))
+        self.context.prepare(original)
     }
     fn current<'a>(&self, prepared: &'a Self::Prepared) -> &'a Self::Value {
         prepared
@@ -299,8 +409,14 @@ impl tcl_cmd_core::native_increment::NativeIncrementObjects for RuntimeIncrement
         Result<Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>,
         tcl_cmd_core::CmdError,
     > {
-        crate::typed_value::native_number_probe(value.as_ptr(), self.dialect, kind)
-            .map_err(Into::into)
+        self.context.check()?;
+        self.context
+            .after(crate::typed_value::native_number_probe_with_currency(
+                value.as_ptr(),
+                self.dialect,
+                kind,
+                Some(&self.context.currency),
+            ))
     }
     fn integer_failure(
         &self,
@@ -312,8 +428,8 @@ impl tcl_cmd_core::native_increment::NativeIncrementObjects for RuntimeIncrement
         } else {
             tcl_syntax::scalar_getter::NativeScalarGetterKind::Int
         };
-        match crate::typed_value::native_scalar_getter(value.as_ptr(), self.dialect, getter) {
-            Err(error) => Ok(error.into()),
+        match self.context.scalar(value.as_ptr(), self.dialect, getter) {
+            Err(error) => Ok(error),
             Ok(_) => Err(ValueError::CommandProtocolUnavailable(
                 "native increment integer failure stage",
             )
@@ -321,41 +437,42 @@ impl tcl_cmd_core::native_increment::NativeIncrementObjects for RuntimeIncrement
         }
     }
     fn add(&self, current: Number, amount: Number) -> Result<Number, tcl_cmd_core::CmdError> {
-        tcl_cmd_core::native_increment::add_integer_numbers(current, amount, |current, amount| {
-            #[cfg(have_tommath)]
-            {
-                let current = obj::Owned::fresh(integer_object(current));
-                let amount = obj::Owned::fresh(integer_object(amount));
-                let result = crate::bignum::add(current.as_ptr(), amount.as_ptr())
-                    .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
-                let result = obj::Owned::fresh(result);
-                match obj::native_scalar_cache(result.as_ptr())? {
-                    Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(number)) => {
-                        Ok(number)
+        self.context.check()?;
+        let result = tcl_cmd_core::native_increment::add_integer_numbers(
+            current,
+            amount,
+            |current, amount| {
+                #[cfg(have_tommath)]
+                {
+                    let current = obj::Owned::fresh(integer_object(current));
+                    let amount = obj::Owned::fresh(integer_object(amount));
+                    let result = crate::bignum::add(current.as_ptr(), amount.as_ptr())
+                        .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+                    let result = obj::Owned::fresh(result);
+                    match obj::native_scalar_cache(result.as_ptr())? {
+                        Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(number)) => {
+                            Ok(number)
+                        }
+                        _ => Err(ValueError::ScalarNumericInputUnavailable.into()),
                     }
-                    _ => Err(ValueError::ScalarNumericInputUnavailable.into()),
                 }
-            }
-            #[cfg(not(have_tommath))]
-            Err(ValueError::ScalarNumericInputUnavailable.into())
-        })
+                #[cfg(not(have_tommath))]
+                Err(ValueError::ScalarNumericInputUnavailable.into())
+            },
+        );
+        self.context.check()?;
+        result
     }
     fn store(
         &self,
         prepared: &mut Self::Prepared,
         sum: Number,
     ) -> Result<(), tcl_cmd_core::CmdError> {
-        let protocol = self
-            .dialect
-            .native_scalar_getter_protocol()
-            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-        obj::adopt_native_scalar_cache(
+        self.context.store(
             prepared.as_ptr(),
             tcl_syntax::scalar_getter::NativeScalarCache::Number(sum),
-            protocol,
-        )?;
-        obj::invalidate_string(prepared.as_ptr());
-        Ok(())
+            self.dialect,
+        )
     }
     fn finish(&self, prepared: Self::Prepared) -> Self::Value {
         prepared

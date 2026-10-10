@@ -413,21 +413,21 @@ mod tests {
         assert_eq!(
             interp
                 .native_object_string_bytes(original.as_ptr())
-                .unwrap(),
+                .unwrap()
+                .as_ref(),
             b"0x10"
         );
-        assert!(
-            resident(
-                &original,
-                b"different",
-                NativeStringStorageIdentity::Unknown
-            )
-            .is_err()
-        );
+        assert!(resident(
+            &original,
+            b"different",
+            NativeStringStorageIdentity::Unknown
+        )
+        .is_err());
         assert_eq!(
             interp
                 .native_object_string_bytes(original.as_ptr())
-                .unwrap(),
+                .unwrap()
+                .as_ref(),
             b"0x10"
         );
         let foreign = NativeScalarCache::WordBoolean {
@@ -489,15 +489,16 @@ mod tests {
         let mut out = unsafe { out.assume_init() };
         assert_eq!(out.code, 7);
         assert_eq!(
-            interp.native_object_string_bytes(out.result).unwrap(),
+            interp
+                .native_object_string_bytes(out.result)
+                .unwrap()
+                .as_ref(),
             b"RESULT\0\xff"
         );
         let actual_options = interp.native_object_string_bytes(out.options).unwrap();
-        assert!(
-            actual_options
-                .windows(16)
-                .any(|bytes| bytes == b"-custom ORIGINAL")
-        );
+        assert!(actual_options
+            .windows(16)
+            .any(|bytes| bytes == b"-custom ORIGINAL"));
         // SAFETY: capture transferred exactly one reference per output.
         unsafe {
             crate::codegen_abi::tcl_completion_release(&mut out);

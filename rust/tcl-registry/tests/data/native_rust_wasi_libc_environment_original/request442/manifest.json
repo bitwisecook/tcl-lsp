@@ -1,0 +1,25 @@
+{
+  "name": "GrammarRustWasiNumericEnvironmentRequest442",
+  "status": "SEALED REQUEST ONLY; Root sole compile/run",
+  "request_path": "/tmp/grammar-rust-wasi-numeric-request442/request.json",
+  "request_sha256": "d8cd47e751b19ff48eeea0c59a8bab2af59d3cd2e7052f7066050969323d045c",
+  "probe_path": "/tmp/grammar-rust-wasi-numeric-request442/probe.rs",
+  "probe_sha256": "b53f9d4702055d8b751a79d33c3351cf4b109e7bdd31cc413a3bac9ef864c733",
+  "launcher_path": "/tmp/grammar-rust-wasi-numeric-request442/launch.py",
+  "launcher_sha256": "e23f9404f1abffecc8bd4f9671a89f5b36280d81e79299b8c60adbf774ff1cd0",
+  "link_wrapper_path": "/tmp/grammar-rust-wasi-numeric-request442/link-wrapper.py",
+  "link_wrapper_sha256": "5e9aa4021e616a779469e1e1721c287b554b5ba55cb49a4a9ca7b965f26cd822",
+  "target_library_count": 58,
+  "all_input_pin_count": 81,
+  "rows": 315,
+  "errno_cells": 3,
+  "adapter_controls": 12,
+  "validation": {
+    "rustfmt2021_exit": 0,
+    "all21original_counted_vectors_exact": true,
+    "python_launch_and_wrapper_ast_parse": true,
+    "all_existing_pins_exact_at_seal": true,
+    "actual_wasip1_libraries_installed_by_root": true,
+    "cargo_native_or_guest_run_by_agent": false
+  }
+}
