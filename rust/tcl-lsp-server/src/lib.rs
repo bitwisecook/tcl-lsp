@@ -4540,7 +4540,10 @@ async fn compute_project_diags(
     let snapshot = db.snapshot("compute_project_diags").await;
     match crate::rt::spawn_blocking(move || {
         salsa::Cancelled::catch(|| {
-            (*tcl_lsp_db::project_callback_diagnostics(&*snapshot, file, config, project)).clone()
+            (*tcl_lsp_db::project_callback_diagnostics_for_inputs(
+                &*snapshot, file, config, project,
+            ))
+            .clone()
         })
         .ok()
     })
@@ -5449,8 +5452,8 @@ const CLASS_FACTORY_SYNC_ROUNDS: usize = 16;
 /// index and settles in exactly one round that writes nothing.
 ///
 /// **Why a fixpoint and not a single round.**  The index is
-/// computed from [`tcl_lsp_db::project_class_factories`], which reads each
-/// file's `item_tree`, which reads the very input this function writes.  A
+/// computed from [`tcl_lsp_db::project_class_factories_for_inputs`], which reads
+/// each file's checked structure-only item tree, which reads the very input this function writes.  A
 /// metaclass that is *itself* manufactured by another file's metaclass is
 /// therefore provable only once the manufacturing metaclass is already
 /// published: round 1 proves `MetaA` (written out as `oo::class create`, so
@@ -5593,8 +5596,7 @@ enum ClassFactoryRound {
 /// class-factory index off a fresh snapshot and compare-then-set it on every
 /// file.
 async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> ClassFactoryRound {
-    use salsa::Setter as _;
-    let (snapshot, files, project) = {
+    let (snapshot, files, project, revision) = {
         let db = handles.db.lock().await;
         let db_files = handles.db_files.lock().await;
         let db_project = handles.db_project.lock().await;
@@ -5611,14 +5613,14 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
         else {
             return ClassFactoryRound::Cancelled;
         };
-        (snapshot, files, project)
+        (snapshot, files, project, tcl_lsp_db::database_revision(&db))
     };
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
     // cancellation unwind discards the whole `pending` list without applying
     // anything, so no torn state can be observed afterwards.
     let computed = crate::rt::spawn_blocking(move || {
         salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
-            let index = tcl_lsp_db::project_class_factories(&*snapshot, project);
+            let index = tcl_lsp_db::project_class_factories_for_inputs(&*snapshot, project);
             let want = (!index.is_empty()).then_some(index);
             let pending: Vec<(Uri, tcl_lsp_db::SourceFile)> = files
                 .into_iter()
@@ -5634,12 +5636,24 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
     let Ok(Some((want, pending))) = computed else {
         return ClassFactoryRound::Cancelled;
     };
-    // Take the oracle-generation writer before the database. Standalone
-    // analysis captures in that same order and holds a generation reader
-    // through index publication, so its oracle cannot change underneath the
-    // final replace.
+    apply_workspace_class_factories_if_current(handles, revision, want, pending).await
+}
+
+async fn apply_workspace_class_factories_if_current(
+    handles: &EvidenceHandles,
+    revision: salsa::Revision,
+    want: Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
+    pending: Vec<(Uri, tcl_lsp_db::SourceFile)>,
+) -> ClassFactoryRound {
+    use salsa::Setter as _;
+    // Keep the existing generation-writer/database ordering. A source,
+    // configuration, project mapping or oracle edit invalidates the captured
+    // revision before any snapshot-derived hint can be published.
     let mut class_factory_generation = handles.class_factory_generation.write().await;
     let mut db = handles.db.lock().await;
+    if tcl_lsp_db::database_revision(&db) != revision {
+        return ClassFactoryRound::Cancelled;
+    }
     let mut changed = Vec::with_capacity(pending.len());
     for (uri, file) in pending {
         if file.workspace_class_factories(&*db).as_deref() == want.as_deref() {
@@ -7641,6 +7655,8 @@ struct PublicationLocks<'a> {
     project: tokio::sync::MutexGuard<'a, Option<tcl_lsp_db::Project>>,
     index: TrackedWriteGuard<'a, core_workspace_index::WorkspaceIndex>,
     seeds: tokio::sync::MutexGuard<'a, HashMap<String, Vec<String>>>,
+    global_config: tokio::sync::MutexGuard<'a, tcl_lsp_db::AnalyserConfig>,
+    folder_configs: tokio::sync::MutexGuard<'a, Vec<(Uri, tcl_lsp_db::AnalyserConfig)>>,
 }
 
 /// The smaller write set an editor-opened buffer needs for its deferred Salsa
@@ -7655,6 +7671,8 @@ struct LiveSourceLocks<'a> {
     tombstones: tokio::sync::MutexGuard<'a, HashMap<Uri, tcl_lsp_db::SourceFile>>,
     project_members: tokio::sync::MutexGuard<'a, HashSet<Uri>>,
     project: tokio::sync::MutexGuard<'a, Option<tcl_lsp_db::Project>>,
+    global_config: tokio::sync::MutexGuard<'a, tcl_lsp_db::AnalyserConfig>,
+    folder_configs: tokio::sync::MutexGuard<'a, Vec<(Uri, tcl_lsp_db::AnalyserConfig)>>,
 }
 
 struct OpenPublicationLocks<'a> {
@@ -7692,6 +7710,8 @@ enum LivePublicationWait {
     Tombstones,
     ProjectMembers,
     Project,
+    GlobalConfig,
+    FolderConfigs,
     SalsaSnapshots,
     WorkspaceIndex,
     DiagnosticsSlots,
@@ -7730,6 +7750,8 @@ impl LivePublicationWait {
             Self::Tombstones => "db_tombstones.try_lock",
             Self::ProjectMembers => "db_project_members.try_lock",
             Self::Project => "db_project.try_lock",
+            Self::GlobalConfig => "db_config.try_lock",
+            Self::FolderConfigs => "folder_db_configs.try_lock",
             Self::SalsaSnapshots => "db.snapshot_census.zero",
             Self::WorkspaceIndex => "workspace_index.try_write",
             Self::DiagnosticsSlots => "diag_slots.try_lock",
@@ -9703,7 +9725,16 @@ impl Backend {
             // Membership changed — re-set the `Project` file set. A text-only
             // edit leaves it untouched (and does not backdate its aggregates).
             let mut project = self.db_project.lock().await;
-            Self::sync_db_project(&mut db, &files, &members, &mut project);
+            let global_config = *self.db_config.lock().await;
+            let folder_configs = self.folder_db_configs.lock().await;
+            Self::sync_db_project_with_configurations(
+                &mut db,
+                &files,
+                &members,
+                &mut project,
+                global_config,
+                &folder_configs,
+            );
         }
     }
 
@@ -9750,7 +9781,16 @@ impl Backend {
         let member_removed = members.remove(uri);
         if retired || member_removed {
             let mut project = self.db_project.lock().await;
-            Self::sync_db_project(&mut db, &files, &members, &mut project);
+            let global_config = *self.db_config.lock().await;
+            let folder_configs = self.folder_db_configs.lock().await;
+            Self::sync_db_project_with_configurations(
+                &mut db,
+                &files,
+                &members,
+                &mut project,
+                global_config,
+                &folder_configs,
+            );
         }
     }
 
@@ -9871,12 +9911,22 @@ impl Backend {
             .rehomed_source_seeds
             .try_lock()
             .map_err(|_| LivePublicationWait::RehomedSourceSeeds)?;
+        let global_config = self
+            .db_config
+            .try_lock()
+            .map_err(|_| LivePublicationWait::GlobalConfig)?;
+        let folder_configs = self
+            .folder_db_configs
+            .try_lock()
+            .map_err(|_| LivePublicationWait::FolderConfigs)?;
         Ok(PublicationLocks {
             db,
             files,
             tombstones,
             project_members,
             project,
+            global_config,
+            folder_configs,
             index,
             seeds,
         })
@@ -9916,12 +9966,22 @@ impl Backend {
             .db_project
             .try_lock()
             .map_err(|_| LivePublicationWait::Project)?;
+        let global_config = self
+            .db_config
+            .try_lock()
+            .map_err(|_| LivePublicationWait::GlobalConfig)?;
+        let folder_configs = self
+            .folder_db_configs
+            .try_lock()
+            .map_err(|_| LivePublicationWait::FolderConfigs)?;
         Ok(LiveSourceLocks {
             db,
             files,
             tombstones,
             project_members,
             project,
+            global_config,
+            folder_configs,
         })
     }
 
@@ -10128,6 +10188,14 @@ impl Backend {
                 self.join_live_publication_queue(self.db_project.lock(), generation)
                     .await;
             }
+            LivePublicationWait::GlobalConfig => {
+                self.join_live_publication_queue(self.db_config.lock(), generation)
+                    .await;
+            }
+            LivePublicationWait::FolderConfigs => {
+                self.join_live_publication_queue(self.folder_db_configs.lock(), generation)
+                    .await;
+            }
             // The census is not an async lock with a queue to join. The
             // bounded sleep in the caller is its fair retry point.
             LivePublicationWait::SalsaSnapshots => {}
@@ -10182,6 +10250,8 @@ impl Backend {
                 drop(self.db_project_members.lock().await);
             }
             LivePublicationWait::Project => drop(self.db_project.lock().await),
+            LivePublicationWait::GlobalConfig => drop(self.db_config.lock().await),
+            LivePublicationWait::FolderConfigs => drop(self.folder_db_configs.lock().await),
             LivePublicationWait::SalsaSnapshots => {
                 crate::rt::sleep(std::time::Duration::from_millis(1)).await;
             }
@@ -10414,6 +10484,8 @@ impl Backend {
             mut tombstones,
             mut project_members,
             mut project,
+            global_config,
+            folder_configs,
             mut index,
             mut seeds,
         } = locks;
@@ -10431,17 +10503,20 @@ impl Backend {
                 .iter()
                 .map(|entry| (&entry.0, entry.1.as_str(), entry.2.as_str())),
         );
-        Self::sync_db_project_membership(
+        Self::sync_db_project_membership_with_configurations(
             &mut db,
             &files,
             &mut project_members,
             &mut project,
-            removals
-                .iter()
-                .copied()
-                .chain(index_only_removals.iter().copied()),
-            replacements.iter().map(|entry| &entry.0),
-            removed_members || added_members,
+            (*global_config, &folder_configs),
+            (
+                removals
+                    .iter()
+                    .copied()
+                    .chain(index_only_removals.iter().copied()),
+                replacements.iter().map(|entry| &entry.0),
+                removed_members || added_members,
+            ),
         );
         Self::sync_disk_index(
             &mut index,
@@ -11171,6 +11246,7 @@ impl Backend {
     /// set, sorted by URI for stable iteration. `db_files` may additionally
     /// contain an edited open orphan whose local providers still need a Salsa
     /// handle; only `members` defines its cross-document identity.
+    #[cfg(test)]
     fn sync_db_project(
         db: &mut tcl_lsp_db::TclDatabase,
         files: &HashMap<Uri, tcl_lsp_db::SourceFile>,
@@ -11192,17 +11268,67 @@ impl Backend {
         }
     }
 
-    /// Apply admitted project membership changes and re-set the Salsa project
-    /// exactly when either its handle set or admitted subset changed.
-    fn sync_db_project_membership<'a>(
+    /// Publish each admitted member's resolved configuration alongside its
+    /// source handle. The caller owns the source publication or configuration
+    /// transaction; semantic-token readers never mutate this input.
+    fn sync_db_project_with_configurations(
+        db: &mut tcl_lsp_db::TclDatabase,
+        files: &HashMap<Uri, tcl_lsp_db::SourceFile>,
+        members: &HashSet<Uri>,
+        project: &mut Option<tcl_lsp_db::Project>,
+        global_config: tcl_lsp_db::AnalyserConfig,
+        folder_configs: &[(Uri, tcl_lsp_db::AnalyserConfig)],
+    ) {
+        use salsa::Setter as _;
+        let mut entries = files
+            .iter()
+            .filter(|(uri, _)| members.contains(*uri))
+            .collect::<Vec<_>>();
+        entries.sort_by(|a, b| a.0.cmp(b.0));
+        let configurations = entries
+            .into_iter()
+            .map(|(uri, &file)| {
+                let config = longest_folder_match(folder_configs, uri)
+                    .copied()
+                    .unwrap_or(global_config);
+                (file, config)
+            })
+            .collect::<Vec<_>>();
+        let sources = configurations.iter().map(|&(file, _)| file).collect();
+        match *project {
+            Some(handle) => {
+                handle.set_files(db).to(sources);
+                handle.set_token_configurations(db).to(Some(configurations));
+            }
+            None => {
+                *project = Some(tcl_lsp_db::Project::with_token_configurations(
+                    &*db,
+                    sources,
+                    Some(configurations),
+                ));
+            }
+        }
+    }
+
+    /// Apply admitted project membership changes together with each member's
+    /// actual folder/global configuration. Input handles stay reusable across
+    /// source edits and configuration changes.
+    fn sync_db_project_membership_with_configurations<'a>(
         db: &mut tcl_lsp_db::TclDatabase,
         files: &HashMap<Uri, tcl_lsp_db::SourceFile>,
         members: &mut HashSet<Uri>,
         project: &mut Option<tcl_lsp_db::Project>,
-        removals: impl IntoIterator<Item = &'a Uri>,
-        additions: impl IntoIterator<Item = &'a Uri>,
-        source_membership_changed: bool,
+        configurations: (
+            tcl_lsp_db::AnalyserConfig,
+            &[(Uri, tcl_lsp_db::AnalyserConfig)],
+        ),
+        changes: (
+            impl IntoIterator<Item = &'a Uri>,
+            impl IntoIterator<Item = &'a Uri>,
+            bool,
+        ),
     ) {
+        let (removals, additions, source_membership_changed) = changes;
         let mut membership_changed = false;
         for uri in removals {
             membership_changed = members.remove(uri) || membership_changed;
@@ -11211,7 +11337,14 @@ impl Backend {
             membership_changed = members.insert(uri.clone()) || membership_changed;
         }
         if source_membership_changed || membership_changed {
-            Self::sync_db_project(db, files, members, project);
+            Self::sync_db_project_with_configurations(
+                db,
+                files,
+                members,
+                project,
+                configurations.0,
+                configurations.1,
+            );
         }
     }
 
@@ -11230,6 +11363,8 @@ impl Backend {
             mut tombstones,
             mut project_members,
             mut project,
+            global_config,
+            folder_configs,
         } = locks;
         let source_membership_changed = Self::set_db_sources_locked(
             &mut db,
@@ -11242,14 +11377,13 @@ impl Backend {
         } else {
             (Some(uri), None)
         };
-        Self::sync_db_project_membership(
+        Self::sync_db_project_membership_with_configurations(
             &mut db,
             &files,
             &mut project_members,
             &mut project,
-            removals,
-            additions,
-            source_membership_changed,
+            (*global_config, &folder_configs),
+            (removals, additions, source_membership_changed),
         );
     }
 
@@ -11624,11 +11758,13 @@ impl Backend {
         let project = *self.db_project.lock().await;
         let snapshot = self.db.snapshot("db_semantic_tokens").await;
         Some(crate::rt::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| match project {
-                Some(project) => {
-                    tcl_lsp_db::semantic_tokens_project(&*snapshot, file, project, config)
+            salsa::Cancelled::catch(|| {
+                match project.filter(|project| project.files(&*snapshot).contains(&file)) {
+                    Some(project) => {
+                        tcl_lsp_db::semantic_tokens_project_for_inputs(&*snapshot, file, project)
+                    }
+                    None => tcl_lsp_db::semantic_tokens(&*snapshot, file, config),
                 }
-                None => tcl_lsp_db::semantic_tokens(&*snapshot, file, config),
             })
             .ok()
         }))
@@ -12979,9 +13115,9 @@ impl Backend {
     /// editor without waiting for the next edit.
     ///
     /// When a `Project` is indexed, the background computation is
-    /// `semantic_tokens_project`, whose cross-file class/proc-role indices
-    /// (`project_class_index` / `project_proc_var_index`) read every project
-    /// file, not just this one.  They read it at the light `file_token_facts`
+    /// `semantic_tokens_project_for_inputs`, whose configured cross-file
+    /// class/proc-role indices read every project file under its own input.
+    /// They read it at the light `file_token_facts_for_config`
     /// tier and behind a per-file backdating firewall, so on a warm
     /// workspace this is an aggregation, not a walk; a cold one still pays a
     /// first pass, which this fast path keeps off the token response — it only
@@ -21533,6 +21669,18 @@ impl Backend {
                 tombstones.insert(folder, handle);
             }
             *handles = next;
+            let files = self.db_files.lock().await;
+            let members = self.db_project_members.lock().await;
+            let mut project = self.db_project.lock().await;
+            let global_config = *self.db_config.lock().await;
+            Self::sync_db_project_with_configurations(
+                &mut db,
+                &files,
+                &members,
+                &mut project,
+                global_config,
+                &handles,
+            );
         }
         *self.folder_configs.lock().await = parsed;
         // The folder chain is what every per-URI knob in `diag_inputs` resolves
@@ -22567,7 +22715,7 @@ impl Backend {
         let db = self.db.snapshot("project_callback_diagnostics_if").await;
         crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| {
-                tcl_lsp_db::project_callback_diagnostics_for_analysis(
+                tcl_lsp_db::project_callback_diagnostics_for_analysis_with_inputs(
                     &*db,
                     project,
                     &source,
@@ -24905,10 +25053,9 @@ impl Backend {
     /// Each open document warms under its own [`Self::resolved_db_config`] —
     /// the config the diagnostics / hover / completion path would actually
     /// resolve for it — rather than a full `files × configs` cross product.
-    /// Such a product would only be needed to cover `project_class_index` /
-    /// `project_proc_var_index` applying one config to *every* project file,
-    /// and this warm touches no unopened files while those two indexes are
-    /// config-free.
+    /// Cross-file token indexes use each project's per-file configuration
+    /// mapping on their light structure tier. This warm touches only open
+    /// documents and shares each document's own deep query.
     fn spawn_workspace_warm(&self) {
         let db = Arc::clone(&self.db);
         let db_files = Arc::clone(&self.db_files);

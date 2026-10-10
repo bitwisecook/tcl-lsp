@@ -1,0 +1,49 @@
+{
+  "question": "naming.bootstrap.original-mathop-constructor-publication",
+  "provider": "9.1.0",
+  "channel": "execute",
+  "command": [
+    "/workspace/.proofs/native-mathop-constructor424/providers/9.1.0/probe.elf"
+  ],
+  "cwd": "/workspace/.proofs/native-mathop-constructor424",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "exit": 0,
+  "timeout": false,
+  "seconds": 0.003147466020891443,
+  "request_sha256": "40158aeae095e48a8c64ed30ab945783e419829fbc72b6d09296d1c4382c7506",
+  "probe_source_sha256": "664966e2bfae90132629e80e81d02f89e4be36369874945d9b56c49177e8fa95",
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c": "f7880cfc3cd9787502134b22832475df5ebad0432e66c8fae2281ddd98abe59d",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclPkg.c": "b21d3d4578ac6ad532f53782a8c2aa6d08087e9ecc6638d1b6850b1ca2aca684",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclIntDecls.h": "78d549e7b85ed9e91df2d44e62db9f2a376b55deb98c55edbbbe53396d45b502",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompile.h": "70203ece61377d4cf22a1eae4348d6216bf77372fd7f8a49274f05d8c546d44e",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompile.c": "941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompCmdsGR.c": "3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclExecute.c": "9dd4e9a080136f2ce36ee8f9acf4a30e770cc5fc417519468c785d76013151f4",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtil.c": "509c893e8aef8f1ae70d0d1e279bbefc60baa758a56d1be184421794f6868e64",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompCmds.c": "66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclProc.c": "2c5cf8968a3176aa8e5c316063594186f50109cecd2fbe3c3dff2f3035cefd1a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclObj.c": "58c041dbf20bba3c8fef5782969c661d4d60a6ee0bc915f30e55c19cedb31976",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c": "d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclDisassemble.c": "9471aba16fecccc2847d7604f2e408fbf2f737124ad5a8601de5f8c7ea911d98",
+    "/workspace/.proofs/native-jim-class-source269/9.1.0/receipt.json": "496e47fce5ab0c75d2c56654c7b242652d257dfd2f049869934e5190c6671bb8"
+  },
+  "stdout_sha256": "c1fa2a7d3d51dbd71f8eef168d7ca5c78c5ff556b3d39e28b0267d39b52d888c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "version_receipt": "/workspace/.proofs/native-jim-class-source269/9.1.0/receipt.json",
+  "version_receipt_sha256": "496e47fce5ab0c75d2c56654c7b242652d257dfd2f049869934e5190c6671bb8",
+  "reported_version_row": "version 9.1.0 initial_class {} alias_command {}",
+  "probe_executable_sha256": "09b5a03c415bc307e47648a80e73d8473dfa381afa0e717b1dd686fe1a753628",
+  "compile_receipt_sha256": "abf53c96199c3f49f7cd253947a8186449c3f914462b9623b35fb20d02978b04"
+}

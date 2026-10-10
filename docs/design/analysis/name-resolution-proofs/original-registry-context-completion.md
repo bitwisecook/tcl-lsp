@@ -14,9 +14,13 @@ How does command-context completion retain current original effective ordinals a
 
 The primary context completion selector requires actual whole source/channel/configuration and the retained Registry/ResolvedContext. It consumes the shared original invocation traversal and unanimous effective command/argument origins, preserving captured prefix and expansion ordinals. Hosted completion uses its genuine guarded conditional Registry vector and authored source units independently of C/Jim argv recipes. Member, option and argument suggestions use the selected context query only after that source selection. Known shadowing and stale or unavailable owners remain terminal, and an inner command cannot borrow the outer schema. The output supplies contextual source suggestions only, without handler implementation, effects, Normal, native lookup or runtime/edit authority.
 
+Current source completion uses the common complete source receipt and clones the authentic selected per-point descriptor, retaining its effective arguments and original captured/written origins. Actual available package/subcommand/option surfaces govern proposals; an equal command store or stale source cannot donate current options.
+
 ## Scope
 
 Current primary Core command-context completion for native original argv, independent hosted source schema and explicit lexical advice. Fixed controls use actual handler/alias/expansion ordinals, whole-source and Registry counterfactuals, and hosted nested source candidates. No native-provider or passing Rust receipt is attached.
+
+Two additional completion controls are unexecuted software contracts. Suggested options/source values do not establish an actual Native command, successful invocation/evaluated argv, table freshness, handler/frame or edit permission.
 
 ## Provider answers
 
@@ -80,6 +84,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/completion/original_context.rs](../../../../rust/tcl-lsp-core/src/completion/original_context.rs), `completion::original_context::tests::original_context_completion_rejects_stale_owners_and_keeps_hosted_schema` (linked): Stale whole source/Registry refuses suggestions while genuine hosted source retains independent schema and nested scope barriers.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-lsp-core/src/completion/original_context.rs](../../../../rust/tcl-lsp-core/src/completion/original_context.rs), `select`: Capture current whole source/metadata, clone the genuine selected per-point descriptor, and retain effective operands/captured origins instead of selecting a nominal spelling again.
+- [rust/tcl-lsp-core/src/completion/original_context.rs](../../../../rust/tcl-lsp-core/src/completion/original_context.rs), `items`: Use exact selected descriptor, original effective active ordinal and actual complete package/version/option availability for conditional completion proposals.
+- [rust/tcl-lsp-core/src/completion/original_context.rs](../../../../rust/tcl-lsp-core/src/completion/original_context.rs), `completion::original_context::tests::original_logical_completion_uses_actual_availability_and_captured_ordinals` (linked): Logical source completion clones the authentic selected per-point descriptor and retains captured/effective operand origins under actual availability.
+- [rust/tcl-lsp-core/src/completion/original_context.rs](../../../../rust/tcl-lsp-core/src/completion/original_context.rs), `completion::original_context::tests::original_completion_switches_use_actual_option_surface_and_current_source` (linked): Option completion uses the actual current source/context/available option surface; stale owners cannot supply a nominal descriptor.
+
+These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 
 ## Replay
 

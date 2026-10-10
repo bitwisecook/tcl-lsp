@@ -1204,8 +1204,7 @@ impl Analyser {
         self.pending_const_dispatches.extend(frag.const_dispatches);
         self.pending_instance_class_sites
             .extend(frag.instance_class_sites);
-        self.pending_var_literal_checks
-            .extend(frag.var_literal_checks);
+        self.proven_sites.extend(frag.proven_sites);
         // Ensembles declared *inside* this body: the shell needs their
         // absolute recording offsets to apply the whole-file DFS visibility
         // rule when it replays the call sites it deferred.
@@ -1403,10 +1402,8 @@ pub struct BodyFragment {
     /// shape, so the tail can apply the whole-file `proc` / `package require`
     /// suppressions an isolated body cannot see.
     private_ns_calls: Vec<(String, String, bool, super::types::Diagnostic)>,
-    /// Deferred W304 (missing `--`) sites whose `$var` classification needs the
-    /// whole-file most-recent-`set` resolution (invisible to an isolated body).
-    /// The graft rebases the token + fix + diagnostic spans; the tail classifies
-    /// them against the full source.
+    /// Legacy W304 presentation buffer; its final owner clears it rather than
+    /// infer substituted values from another scope or source text.
     w304: Vec<(
         tcl_lexer::Token,
         String,
@@ -1449,11 +1446,10 @@ pub struct BodyFragment {
     /// for the shared final diagnostic owners; Native receiver identity and
     /// lookup currency require their own retained receipts.
     widget_sites: Vec<super::diagnostics::widget_command::WidgetDispatchSite>,
-    /// Deferred W103 / W300 dynamic-argument sites — their `$var`
-    /// classification needs the whole-file most-recent-literal-`set`
-    /// resolution (see
-    /// [`super::state::Analyser::pending_var_literal_checks`]).
-    var_literal_checks: Vec<(tcl_core_types::DiagCode, String, Token)>,
+    /// Original dispatch syntax awaiting the complete CU word-value owner.
+    /// Grafting only shifts recorded token coordinates, never value or lookup
+    /// authority; finalisation reissues source selection from the whole image.
+    proven_sites: Vec<super::diagnostics::ProvenSite>,
     /// Where inside this body each ensemble the body declares was recorded
     /// (`super::state::Analyser::ensemble_record_offsets`), body-relative.
     /// The graft rebases these to absolute and merges them into the shell so
@@ -1613,7 +1609,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         const_dispatches: a.pending_const_dispatches,
         instance_class_sites: a.pending_instance_class_sites,
         widget_sites: a.widget_dispatch_sites,
-        var_literal_checks: a.pending_var_literal_checks,
+        proven_sites: a.proven_sites,
         ensemble_offsets: a.ensemble_record_offsets,
         loop_candidates: a.loop_candidates,
         minted_synthetics: a.minted_synthetic_names,
@@ -1686,7 +1682,8 @@ fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> bool {
             matches!(
                 diagnostic.subject(),
                 Some(
-                    super::DiagnosticSubject::CallbackSourceArity(_)
+                    super::DiagnosticSubject::RegistrySource(_)
+                        | super::DiagnosticSubject::CallbackSourceArity(_)
                         | super::DiagnosticSubject::ObjectSourceArity(_)
                         | super::DiagnosticSubject::CommandAvailability(_)
                         | super::DiagnosticSubject::RegisteredInstanceSource(_)
@@ -2251,8 +2248,8 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
     for s in &mut frag.instance_class_sites {
         s.span = shift(s.span, d);
     }
-    for (_, _, tok) in &mut frag.var_literal_checks {
-        tok.span = shift(tok.span, d);
+    for site in &mut frag.proven_sites {
+        site.rebase(d);
     }
     for (_, _, _, off) in &mut frag.instances {
         *off += d;
@@ -3257,14 +3254,10 @@ mod tests {
 
     #[test]
     fn w103_dynamic_open_in_body_matches() {
-        // TP parity: the variable is set only inside the body — the
-        // whole-file truncated-prefix scan cannot segment it (unclosed
-        // `proc`), so both paths must classify the `$var` as dynamic
-        // (tcl 8.4 `ldAout.tcl` shape).
+        // Body-local values refine only through the complete original CU.
         eq("proc p {} {\n    set c {|nm -g}\n    set f [open $c r]\n    close $f\n}\n");
-        // FP parity: a top-level literal `set` resolves for a body use on
-        // the whole-file path — the deferred per-item classification must
-        // reach the same (pipeline Hint) answer.
+        // An outer spelling cannot donate a local value. Both paths retain
+        // the same original source selection and actual value owner.
         eq("set c {|nm -g}\nproc p {} { set f [open $c r]; close $f }\n");
         // TN parity: a benign literal filename stays silent on both paths.
         eq("set c ./data.txt\nproc p {} { set f [open $c r]; close $f }\n");

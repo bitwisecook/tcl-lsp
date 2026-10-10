@@ -119,11 +119,9 @@ pub fn inline_proc_in_program(
     resolution: crate::definition::CallResolution<'_>,
 ) -> Option<Refactoring> {
     resolution.registry?;
-    let registry = analysis.resolved_registry()?;
-    let config = analysis.body_lexer_config?;
-    analysis
-        .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
-        .then_some(())?;
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let registry = current.registry();
+    let config = current.config();
     let resolution = resolution.with_registry(registry);
     let call = find_command_at(source, cursor, None, registry, config)?;
     let head = call.name();
@@ -174,7 +172,7 @@ fn plan_inline(
     call: &tcl_compiler::segmenter::SegmentedCommand,
     proc_def: &tcl_compiler::analyser::ProcDef,
     analysis: &AnalysisResult,
-    registry: &CommandRegistry,
+    _registry: &CommandRegistry,
     config: LexerConfig,
 ) -> Result<String, String> {
     // Literal substitution uses the independently retained lexical grammar.
@@ -209,10 +207,10 @@ fn plan_inline(
         );
     }
     let bindings = bind_arguments(source, call, proc_def)?;
-    reject_frame_sensitive_body(&body, &nested, registry)?;
-    reject_body_variable_writes(&body, &nested, registry)?;
+    reject_frame_sensitive_body(source, &body, &nested, &walk)?;
+    reject_body_variable_writes(source, &body, &nested, &walk)?;
     reject_args_reference(&body, proc_def, style)?;
-    substitute_bindings(&body, &nested, &bindings, registry, numbers, style)
+    substitute_bindings(source, &body, &nested, &bindings, &walk, numbers, style)
 }
 
 /// Rewrite only the selected original allocation and exact formal/argv
@@ -360,7 +358,7 @@ fn original_inline_body(
                     .to_owned(),
             );
         }
-        if registry.is_frame_sensitive(&selected.facts.canonical_command) {
+        if tcl_registry::traits::is_frame_sensitive(selected.facts.traits) {
             return Err("the body calls a command that acts on the call frame".to_owned());
         }
         if selected
@@ -695,52 +693,30 @@ fn argument_value(source: &str, token: Token) -> Result<(String, bool), String> 
 /// Refuse a body whose command is frame-sensitive.
 ///
 /// Membership comes from
-/// [`CommandRegistry::frame_sensitive_commands`] — the registry's own union of
+/// the central selected-traits frame predicate — the registry's own union of
 /// block terminators, control transfers, scope aliases, and barriers — so this
 /// never names a command.  Moving any of them out of the proc's frame changes
 /// what they return from, break out of, or bind against: `return` in an inlined
 /// body would return from the *caller*, and `upvar 1 x y` would alias the
 /// caller's caller instead of the caller.
 fn reject_frame_sensitive_body(
+    source: &str,
     body: &BodyCommand,
     nested: &[tcl_compiler::segmenter::SegmentedCommand],
-    registry: &CommandRegistry,
+    walk: &super::FrameWalk<'_>,
 ) -> Result<(), String> {
-    let unsafe_heads = registry.frame_sensitive_commands();
     for command in std::iter::once(&body.command).chain(nested) {
-        let head = command.name();
-        if unsafe_heads.contains(&head) {
+        let traits = walk
+            .source_traits(source, command)
+            .ok_or_else(|| "the body's original frame effects are unavailable".to_owned())?;
+        if tcl_registry::traits::is_frame_sensitive(traits) {
             return Err(format!(
-                "the body calls '{head}', which acts on the call frame — running it \
-                 in the caller's frame would change what it returns from, breaks out \
-                 of, or binds against"
+                "the body calls '{}', which acts on the call frame",
+                command.name()
             ));
-        }
-        // A frame-sensitive command nested in a `[…]` substitution inside an
-        // argument is just as frame-bound as one at the head.
-        for text in command.args() {
-            if let Some(inner) = nested_command_head(text)
-                && unsafe_heads.contains(&inner)
-            {
-                return Err(format!(
-                    "the body evaluates '{inner}', which acts on the call frame — \
-                     running it in the caller's frame would change what it binds \
-                     against"
-                ));
-            }
         }
     }
     Ok(())
-}
-
-/// The head word of a `[…]` command substitution embedded anywhere in `text`.
-fn nested_command_head(text: &str) -> Option<&str> {
-    let open = text.find('[')?;
-    let rest = text.get(open + 1..)?;
-    let head = rest
-        .split(|c: char| c.is_ascii_whitespace() || c == ']')
-        .next()?;
-    (!head.is_empty()).then_some(head)
 }
 
 /// Refuse a body that writes a variable.
@@ -752,42 +728,43 @@ fn nested_command_head(text: &str) -> Option<&str> {
 /// `lappend`, `append`, `dict set`, `lassign`, `regexp -inline`'s capture
 /// variables, and anything else a spec declares, without listing any of them.
 fn reject_body_variable_writes(
+    source: &str,
     body: &BodyCommand,
     nested: &[tcl_compiler::segmenter::SegmentedCommand],
-    registry: &CommandRegistry,
+    walk: &super::FrameWalk<'_>,
 ) -> Result<(), String> {
     for command in std::iter::once(&body.command).chain(nested) {
-        let head = command.name();
-        let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-        let writes: Vec<&str> = registry
-            .arg_indices_for_role(head, &args, ArgRole::VarWrite)
-            .iter()
-            .filter_map(|index| args.get(*index))
-            .copied()
-            .collect();
-        if !writes.is_empty() {
-            return Err(format!(
-                "the body assigns a variable ('{head}' writes to '{}'), which would \
-                 leak into — and could overwrite — a variable of the same name in \
-                 the caller",
-                writes.join("', '")
-            ));
-        }
-        // A loop's own binding leaks exactly as an assignment does, and it is
-        // a `LoopVarList` word rather than a `VarWrite` one: `foreach n {1 2 3}
-        // {…}` leaves `n` behind in whatever frame runs it.
-        for index in registry.arg_indices_for_role(head, &args, ArgRole::LoopVarList) {
-            let Some(word) = args.get(index) else {
+        let words = walk
+            .source_words(source, command)
+            .ok_or_else(|| "the body's original variable roles are unavailable".to_owned())?;
+        let roles = words
+            .roles()
+            .ok_or_else(|| "the body's original variable roles are incomplete".to_owned())?;
+        for &(ordinal, role) in roles {
+            if !matches!(role, ArgRole::VarWrite | ArgRole::LoopVarList) {
                 continue;
-            };
-            let Ok(names) = tcl_syntax::list::split_list(word) else {
-                continue;
+            }
+            let word = words
+                .arguments()
+                .get(ordinal)
+                .and_then(|word| word.literal_bytes())
+                .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                .ok_or_else(|| "the body's written variable name is unavailable".to_owned())?;
+            let names = if role == ArgRole::LoopVarList {
+                tcl_syntax::word_rules::WordValueRules::from_grammar(
+                    &walk.config.grammar_over(walk.dialect.grammar),
+                )
+                .split_list(word)
+                .map_err(|_| "the body's variable list is malformed".to_owned())?
+                .into_iter()
+                .map(std::borrow::Cow::into_owned)
+                .collect()
+            } else {
+                vec![word.to_owned()]
             };
             if !names.is_empty() {
                 return Err(format!(
-                    "the body binds '{}' on every iteration of its '{head}', which \
-                     would leak into — and could overwrite — a variable of the same \
-                     name in the caller",
+                    "the body assigns or binds '{}', which would leak into the caller's frame",
                     names.join("', '")
                 ));
             }
@@ -829,10 +806,11 @@ fn reject_args_reference(
 /// refusing wherever the value cannot be written into that position without
 /// changing what it means.
 fn substitute_bindings(
+    source: &str,
     body: &BodyCommand,
     nested: &[tcl_compiler::segmenter::SegmentedCommand],
     bindings: &[Binding],
-    registry: &CommandRegistry,
+    walk: &super::FrameWalk<'_>,
     numbers: NumberSyntax,
     style: BracedVarStyle,
 ) -> Result<String, String> {
@@ -841,16 +819,18 @@ fn substitute_bindings(
     // positions have to as well: `puts [expr {$n eq "abc"}]` puts its operand
     // one level below the body's own command, and substituting a bareword
     // there would make `expr` read it as a function name.
-    let expr_ranges: Vec<(usize, usize)> = std::iter::once(&body.command)
-        .chain(nested)
-        .flat_map(|command| expr_argument_ranges(command, registry))
-        .filter_map(|(start, end)| {
-            Some((
-                start.checked_sub(body.origin as usize)?,
-                end.checked_sub(body.origin as usize)?,
-            ))
-        })
-        .collect();
+    let mut expr_ranges = Vec::new();
+    for command in std::iter::once(&body.command).chain(nested) {
+        for (start, end) in expr_argument_ranges(source, command, walk)? {
+            expr_ranges.push((
+                start
+                    .checked_sub(body.origin as usize)
+                    .ok_or("an expression lies outside the original body")?,
+                end.checked_sub(body.origin as usize)
+                    .ok_or("an expression lies outside the original body")?,
+            ));
+        }
+    }
     let mut replacements: Vec<(usize, usize, String)> = Vec::new();
     for binding in bindings {
         let occurrences: Vec<&(String, usize, usize)> = references
@@ -910,18 +890,26 @@ fn substitute_bindings(
 /// Read off the registry's [`ArgRole::Expr`], so `expr`, `if`, `while`, and
 /// `for`'s condition are all covered without this module naming any of them.
 fn expr_argument_ranges(
+    source: &str,
     command: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-) -> Vec<(usize, usize)> {
-    let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-    registry
-        .arg_indices_for_role(command.name(), &args, ArgRole::Expr)
+    walk: &super::FrameWalk<'_>,
+) -> Result<Vec<(usize, usize)>, String> {
+    let words = walk
+        .source_words(source, command)
+        .ok_or_else(|| "the body's original expression roles are unavailable".to_owned())?;
+    words
+        .roles()
+        .ok_or_else(|| "the body's original expression roles are incomplete".to_owned())?;
+    words
+        .written_argument_roles()
         .into_iter()
-        .filter_map(|index| {
-            // `arg_indices_for_role` is 0-based over the post-name arguments;
-            // the representative argv token sits one further along.
-            let token = command.argv.get(index + 1)?;
-            Some((token.span.start() as usize, token.span.end() as usize))
+        .filter(|(_, role)| *role == ArgRole::Expr)
+        .map(|(ordinal, _)| {
+            command
+                .argv
+                .get(ordinal + 1)
+                .map(|token| (token.span.start() as usize, token.span.end() as usize))
+                .ok_or_else(|| "the original expression word is unavailable".to_owned())
         })
         .collect()
 }
@@ -1475,5 +1463,34 @@ mod original_inline_destination_tests {
         .expect("actual original procedure call");
         assert!(result.disabled.is_some());
         assert!(result.edits.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod selected_source_body_tests {
+    use super::*;
+
+    #[test]
+    fn original_logical_inline_keeps_selected_expression_and_refuses_frame_sensitive_alias() {
+        // naming.refactor.original-frame-traversal
+        // docs/design/analysis/name-resolution-proofs/refactor-original-frame-traversal.md
+        let source = "proc p {x} {expr {$x + 1}}
+p 2";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let registry = CommandRegistry::build_default();
+        let cursor = u32::try_from(source.rfind("p 2").unwrap()).unwrap();
+        let action = inline_proc(source, cursor, &analysis, &registry).unwrap();
+        assert!(action.disabled.is_none(), "{:?}", action.disabled);
+        assert!(action.apply(source).ends_with("expr {2 + 1}"));
+        analysis.resolved_input = None;
+        assert!(inline_proc(source, cursor, &analysis, &registry).is_none());
+        let source = "interp alias {} finish {} return
+proc p {} {finish 1}
+p";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
+        let proc_def = analysis.all_procs.get("::p").unwrap();
+        let body = single_command_body(source, proc_def, &analysis, walk.config).unwrap();
+        assert!(reject_frame_sensitive_body(source, &body, &[], &walk).is_err());
     }
 }

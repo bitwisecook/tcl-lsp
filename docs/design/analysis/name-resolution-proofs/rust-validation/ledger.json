@@ -111185,6 +111185,105 @@
         "build_receipt_id": "rust.frozen273.integration-vm-native-test-build273",
         "original_source_snapshot_sha256": "48fd35141e4280829a8cb989ab30c800f927d6f59e97452e09b13ee284414183"
       }
+    },
+    {
+      "id": "rust.frozen274.integration-vm-native-test-build274",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen274/integration-vm-native-test-build274/receipt.json.gz",
+        "sha256": "71403b865c3360b60eacdddc54ca2c442a790b566901d2d9465b061547deaa9b",
+        "compression": "gzip",
+        "uncompressed_sha256": "431b605276083b03d0ed0f8236a951c75a64b1996f4c75fd7ee29067a6a6d350"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen274/integration-vm-native-test-build274/tests.log",
+        "sha256": "df46caa25db6d06f070fc83b9a51861a5fd0164516a9d0a8959c858117fd0fd1"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run",
+        "--message-format=json-render-diagnostics"
+      ],
+      "exit": 101,
+      "seconds": 183.55429415401886,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Exact decompressed original receipt retains the complete frozen source inventory, compile/archive roots and recorded source association. Every archived leaf is independently byte-checked; Git head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The VM-only no-run build stops at two libtest E0599 errors: native_string_bytes lacks the ValueOps trait import in the original-info comparison fixture. It emits no libtest executable, inventory or assertion result and supplies no VM pin. Ordinary libraries and later import repairs do not turn this invocation into a successful build or Native result. uniform_source=true applies only to this exact naming274 image; later source edits, other executable images and external provider observations remain independent."
+    },
+    {
+      "id": "rust.frozen274.integration-compiler-registry-consumer-test-build274",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen274/integration-compiler-registry-consumer-test-build274/receipt.json.gz",
+        "sha256": "27d01fdc097d7ecc303f168667d2c6d00fce4b4b0311b50a89986cd7d2b73aeb",
+        "compression": "gzip",
+        "uncompressed_sha256": "31778306ff64a524d1f43d4901d14f95f1d897a14827479bf927a4e7dac279f1"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen274/integration-compiler-registry-consumer-test-build274/tests.log",
+        "sha256": "4a5f5a61bb31726bf6495bccf6eaa2e4e2680624104416260518b579e472cb79"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "/workspace/.cargo/bin/cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-syntax",
+        "-p",
+        "tcl-engine-tclvm",
+        "--lib",
+        "--no-run",
+        "--message-format=json-render-diagnostics"
+      ],
+      "exit": 101,
+      "seconds": 323.04395631098305,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "Exact decompressed original receipt retains the complete frozen source inventory, compile/archive roots and recorded source association. Every archived leaf is independently byte-checked; Git head is not Native identity."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "The independent Compiler/Registry/Syntax/Engine no-run build stops at two Compiler libtest fixture errors: an E0308 Module ownership mismatch in expr_simplify and an E0609 nonexistent Optimisation.source_context field in manager. The full log retains successful Syntax/Registry/Engine libtest artifacts, which remain unsealed, uninventoried and unexecuted here. No Compiler executable/pin, unit assertion or successful requested aggregate build follows. uniform_source=true applies only to this exact naming274 image; later source edits, other executable images and external provider observations remain independent.",
+      "unsealed_test_artifacts": [
+        {
+          "target": "tcl_syntax",
+          "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_syntax-54a8e65bf9653704",
+          "scope": "Actual successful Cargo artifact event only; no sealed image, inventory or executed assertion."
+        },
+        {
+          "target": "tcl_engine_tclvm",
+          "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_engine_tclvm-fb346ec5c98debea",
+          "scope": "Actual successful Cargo artifact event only; no sealed image, inventory or executed assertion."
+        },
+        {
+          "target": "tcl_registry",
+          "recorded_executable": "/workspace/.targets/naming-upstream-clean/debug/deps/tcl_registry-c6c4bf0ac18a85c6",
+          "scope": "Actual successful Cargo artifact event only; no sealed image, inventory or executed assertion."
+        }
+      ]
     }
   ]
 }

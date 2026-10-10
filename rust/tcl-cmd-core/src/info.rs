@@ -284,7 +284,22 @@ where
         v.dedup();
         filter_command_names(v, pattern, matcher)?
     };
-    Ok(build_name_list_bytes(ops, names))
+    // naming.compiler.original-info-commands-literal-resolution
+    // C InfoCommandsCmd uses Tcl_GetCommandFullName for qualified matches;
+    // the same original windows distinguish its String children from plain
+    // unqualified Tcl_NewStringObj table keys. No name bytes donate a cache.
+    let qualified = pattern.and_then(split_last_qualifier_bytes).is_some();
+    let values = names
+        .into_iter()
+        .map(|name| {
+            if qualified && policy.authority() == tcl_syntax::naming::NamePolicyAuthority::Native {
+                ops.native_command_full_name_result(&name)
+            } else {
+                Ok(ops.new_bytes(&name))
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ops.new_list(values))
 }
 
 /// Direct Jim inventory over an independently retained actual root table.
@@ -312,12 +327,8 @@ where
         tcl_syntax::value::ValueError::CommandProtocolUnavailable("Jim core inventory root table"),
     )?;
     let candidates = match kind {
-        tcl_runtime_api::NativeJimCommandInventoryKind::Commands => {
-            ops.commands_in_bytes(root)
-        }
-        tcl_runtime_api::NativeJimCommandInventoryKind::Procs => {
-            ops.procs_in_bytes(root)
-        }
+        tcl_runtime_api::NativeJimCommandInventoryKind::Commands => ops.commands_in_bytes(root),
+        tcl_runtime_api::NativeJimCommandInventoryKind::Procs => ops.procs_in_bytes(root),
         tcl_runtime_api::NativeJimCommandInventoryKind::Aliases => {
             ops.aliases_in_bytes_checked(root)?
         }

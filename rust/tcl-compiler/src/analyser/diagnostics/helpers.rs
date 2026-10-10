@@ -21,8 +21,7 @@
 //! Free functions and small types used by more than one diagnostic family
 //! (or by both the per-function dispatcher in the module root and a family):
 //! source-slice extraction, dotted-quad scanning shared between the
-//! subnet-mask and invalid-IP checks, the substitution / braced-word
-//! predicates shared by the usage and security checks, the
+//! subnet-mask and invalid-IP checks, the substitution predicates shared by source usage checks, the
 //! defined-variable / existence-guard / globals-written collectors consumed
 //! by the read-before-set machinery, and the [`UndefSuppression`] context
 //! plus its phi-undef index that the dataflow read-before-set emitters
@@ -119,11 +118,6 @@ fn match_dotted_quad(text: &str, start: usize, max_digits: usize) -> Option<([&s
         return None;
     }
     Some((octets, pos))
-}
-
-/// True when `tok` is a brace-quoted word (`{…}`, a `Str` token).
-pub(super) fn is_braced_word(tok: &tcl_lexer::Token) -> bool {
-    tok.kind == tcl_lexer::TokenType::Str
 }
 
 /// True when `text` carries a substitution (`$` / `[`) or `tok` is a

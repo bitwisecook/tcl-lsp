@@ -144,6 +144,17 @@ impl NativeListItems {
         Ok(header)
     }
 
+    /// Read the original vector's size without accessing or retaining children.
+    pub(crate) fn checked_length(&self) -> Result<usize, ValueError> {
+        self.check_generation()?;
+        if !self.header || !self.storage.owns_members || !self.has_native_header() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "return options require an owning native List backing",
+            ));
+        }
+        Ok(self.len())
+    }
+
     /// Borrow members only while this original vector and its headers are live.
     pub fn elements(&self) -> Result<&[Value], ValueError> {
         self.check_generation()?;

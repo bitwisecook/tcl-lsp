@@ -590,6 +590,19 @@ pub trait ValueOps {
         ))
     }
 
+    /// Construct a C command's full name through the actual native String
+    /// producer. Exact name bytes alone do not authorise a physical cache.
+    /// Generic qualified command enumeration and origin reporting share this
+    /// result constructor; unqualified table keys use ordinary byte objects.
+    fn native_command_full_name_result(
+        &mut self,
+        _bytes: &[u8],
+    ) -> Result<Self::Value, ValueError> {
+        Err(ValueError::CommandProtocolUnavailable(
+            "native command full-name String issuer",
+        ))
+    }
+
     /// Compare retained physical object identities without converting values.
     fn same_object(&self, _left: &Self::Value, _right: &Self::Value) -> Option<bool> {
         None
@@ -645,7 +658,9 @@ pub trait ValueOps {
         _bytes: &[u8],
         _version: tcl_dialect::TclVersion,
     ) -> Result<Self::Value, ValueError> {
-        Err(ValueError::CommandProtocolUnavailable("external UTF-8 binary result issuer"))
+        Err(ValueError::CommandProtocolUnavailable(
+            "external UTF-8 binary result issuer",
+        ))
     }
 
     /// Selected native concat protocol; unknown adapters abstain.

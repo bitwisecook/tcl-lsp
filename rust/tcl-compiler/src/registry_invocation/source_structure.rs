@@ -468,7 +468,12 @@ impl OriginalRegistryWords {
         super::source_scoped_body::source_script_bodies_for(self, context, purpose)
     }
 
-    pub(crate) fn source_script_bodies_for_mutation_coverage(
+    /// Complete original source-body inventory for a coverage consumer.
+    /// Unlike the partial syntax inventory, a missing, dynamic or malformed
+    /// potentially evaluated body returns `None`. This certifies source
+    /// coverage only, independently of execution, effects, frames or edits.
+    #[must_use]
+    pub fn source_script_bodies_for_mutation_coverage(
         &self,
         context: &tcl_registry::model::ContextRegistry,
     ) -> Option<Vec<super::source_scoped_body::OriginalSourceScriptBody>> {

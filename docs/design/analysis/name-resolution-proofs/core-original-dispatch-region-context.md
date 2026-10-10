@@ -20,6 +20,8 @@ Core callback references consume the separate authored command-prefix data recei
 
 Source next/self dispatch consumers share authentic original selected roles, helper/composite selectors and exact captured/written coordinates under actual availability/configuration. Known target replacement/deletion or missing/foreign/stale source owners withdraw their conditional references/hazards.
 
+The shared Core CurrentSourceContext receipt validates the original complete source image, full lexer configuration and retained input/store/realm before source-backed editor entries. Reporting labels and positive Logical advice purpose cannot replace that receipt. Conditional type/hierarchy/next-definition consumers retain current class/source frame, selected helper roles, captured targets and actual availability; stale owners or replaced helpers withdraw extra advice.
+
 ## Scope
 
 Current Core source-region implementation contract. Two fixed controls check retained custom schema/PotentialEvaluation versus ReferenceOnly, and original moved namespace source versus replacement/delete/missing/stale ownership. All seven providers are not tested; original provider dispatch/lifetime observations remain separate.
@@ -29,6 +31,8 @@ Two additional source/API controls classify reference geometry and rename blocke
 Three additional Core source controls have no executed assertion receipt. Their callback-like source role projection grants no current receiver, Native handler/frame, result object, dispatch or execution authority.
 
 Three additional Core source controls have no executed assertion or provider receipt. Original roles and lookup horizons do not establish Native receiver/frame/dispatch execution, caller body entry, compiler admission or rename/edit equivalence.
+
+Seven additional current Core source controls have no executed assertion result here. Source correspondence and lexical frames do not establish Native command/class identity, current runtime frame/receiver, actual method dispatch/body entry, observer closure or edit authority.
 
 ## Provider answers
 
@@ -115,6 +119,19 @@ These bindings are current software contracts without an executed assertion or e
 - [rust/tcl-lsp-core/src/rename_safety.rs](../../../../rust/tcl-lsp-core/src/rename_safety.rs), `rename_safety::original_hazard_context_tests::original_self_hazards_use_selected_helpers_and_captured_selector_positions` (linked): Self-method hazard scanning retains selected helper/composite selector and captured/written original positions.
 
 These bindings are current software contracts without an executed assertion or external provider result.
+
+- [rust/tcl-lsp-core/src/original_context.rs](../../../../rust/tcl-lsp-core/src/original_context.rs), `CurrentSourceContext::capture`: Validate whole original image, exact full LexerConfig, retained input/store/realm correspondence before a source-backed editor query; advice purpose and Native/edit permission remain separate.
+- [rust/tcl-lsp-core/src/call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/call_hierarchy.rs), `method_outgoing_calls`: Use the shared authentic executable source walk and actual selected helpers while retaining lexical source-frame context and unresolved replacement barriers.
+- [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `next_dispatch_definition`: Resolve conditional next targets through the shared selected original scanner and captured target origins, independent of entered dispatch.
+- [rust/tcl-lsp-core/src/original_context.rs](../../../../rust/tcl-lsp-core/src/original_context.rs), `original_context::tests::current_source_currency_is_independent_of_advice_and_execution_purpose` (linked): Current complete image/configuration/retained realm/input receipt is independent of a source-advice purpose or reporting label.
+- [rust/tcl-lsp-core/src/original_context.rs](../../../../rust/tcl-lsp-core/src/original_context.rs), `original_context::tests::current_source_currency_withdraws_changed_grammar_foreign_input_and_missing_owner` (linked): Changed image or grammar and missing/foreign retained input withdraw the common current-source receipt.
+- [rust/tcl-lsp-core/src/original_context.rs](../../../../rust/tcl-lsp-core/src/original_context.rs), `original_context::tests::supplied_editor_entries_do_not_use_logical_purpose_as_source_currency` (linked): Supplied editor queries use authentic current source correspondence rather than treating positive Logical purpose as sufficient currency.
+- [rust/tcl-lsp-core/src/original_context.rs](../../../../rust/tcl-lsp-core/src/original_context.rs), `original_context::tests::original_logical_type_advice_keeps_current_class_source_and_withdraws_stale_owner` (linked): Conditional Logical class/type source advice retains current class source and withdraws stale owners.
+- [rust/tcl-lsp-core/src/call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/call_hierarchy.rs), `call_hierarchy::original_source_context_tests::original_method_hierarchy_uses_selected_helpers_and_same_source_frame` (linked): Method hierarchy traverses authentic selected source helpers in the same original lexical frame under the full current input.
+- [rust/tcl-lsp-core/src/call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/call_hierarchy.rs), `call_hierarchy::original_source_context_tests::original_method_hierarchy_keeps_replaced_helpers_unresolved_and_withdraws_stale_source` (linked): Replaced helpers remain unresolved and stale complete source owners withdraw extra hierarchy advice.
+- [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs), `definition::original_next_source_context_tests::original_next_definition_uses_captured_target_and_selected_availability` (linked): Next definition delegates the selected original source scanner, preserving captured targets and actual availability.
+
+These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 
 ## Replay
 

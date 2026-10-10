@@ -1,0 +1,35 @@
+{
+  "question": "naming.bootstrap.original-mathop-constructor-publication",
+  "files": [
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/launch.py",
+      "sha256": "429d471974a73ee6e860466f8e14c2ca1f843b815f95d7f6dd89a72dfd415b34"
+    },
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/probe.c",
+      "sha256": "1ac041a682e53abb6d792b3afe8a015d3fdd044de6e8b3666f0750b7ad5ed4bb"
+    },
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/request.json",
+      "sha256": "c82e51c99926b4795167e67cd1e059b2279e5bb2d04e5b023ade8e12e4b1a42b"
+    },
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/source-8.5.19.txt",
+      "sha256": "580e4eb3385de503d98aceae11f1d8f3fc7f369679c353e117186f00002aaaaf"
+    },
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/source-8.6.18.txt",
+      "sha256": "1caf96eb49cb5807edd3c5022a9c62879a6763a7a5b5d23ede408ffb6d9436c1"
+    },
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/source-9.0.4.txt",
+      "sha256": "457730a2f76643f5400be26fcd0a6cf3060c0bc053bdea1d30cf1d54547f23cb"
+    },
+    {
+      "path": "/workspace/.proofs/native-mathop-constructor422/source-9.1.0.txt",
+      "sha256": "3b12906658a455f89a51c3297100be81c368078a81086a0b6363f8cb487efb80"
+    }
+  ],
+  "required_native_inputs": 126,
+  "status": "Request and inputs sealed; no original process launched."
+}

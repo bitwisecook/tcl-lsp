@@ -3754,6 +3754,39 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         Some(scan)
     }
 
+    /// Filename position of the already selected source-file form. Exact
+    /// cardinality and the form's available literal prefix describe authored
+    /// source syntax only; they prove no native file handler, file contents or
+    /// completed evaluation. Unknown selectors/expansions decline.
+    #[must_use]
+    pub fn authored_source_file_argument(&self) -> Option<usize> {
+        if self.semantics.body_execution
+            != Some(crate::body_execution::BodyExecutionSpec::SourceFile)
+            || !self.semantics.traits.contains(crate::Traits::SOURCES_FILE)
+        {
+            return None;
+        }
+        let count = self
+            .words
+            .arguments()
+            .slice_from(self.semantics.argument_offset)
+            .exact_argv_len()?;
+        // The one-filename layout is shared by every SourceFile grammar,
+        // even when the filename's value cannot select a literal form.
+        if count == 1 {
+            return Some(self.semantics.argument_offset);
+        }
+        let form = self.form?;
+        if !form.arity.accepts(u16::try_from(count).ok()?) {
+            return None;
+        }
+        // Every form of the selected SourceFile grammar ends with filename.
+        // Form selection, including option availability, precedes this query.
+        self.semantics
+            .argument_offset
+            .checked_add(count.checked_sub(1)?)
+    }
+
     /// Possible option positions for conditional source advice. Selection,
     /// prefixes, value widths, reserved data and terminator availability all
     /// use this invocation's retained context. Dynamic operands preserve every
@@ -4911,6 +4944,65 @@ mod tests {
             registry.option_variable_scope("scope-owner", &["-g", "named"], 1, query),
             Some(crate::VariableScope::Global)
         );
+    }
+
+    #[test]
+    fn original_source_file_argument_keeps_available_forms_and_unknown_selectors() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        // Selected source form only; no native file or accepted handler follows.
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        let current =
+            crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let older = crate::model::ingress::static_context_for("tcl8.4")
+            .with_command_store(std::sync::Arc::clone(current.commands()));
+        let newer = crate::model::ingress::static_context_for("tcl9.0")
+            .with_command_store(std::sync::Arc::clone(current.commands()));
+        for (arguments, expected_current, expected_older, expected_newer) in [
+            (vec![Dynamic], Some(0), Some(0), Some(0)),
+            (
+                vec![Literal("-encoding"), Dynamic, Dynamic],
+                Some(2),
+                None,
+                Some(2),
+            ),
+            (vec![Literal("-nopkg"), Dynamic], None, None, Some(1)),
+            (vec![Literal("-enc"), Dynamic, Dynamic], None, None, None),
+            (vec![Dynamic, Dynamic, Dynamic], None, None, None),
+            (vec![Expanded], None, None, None),
+        ] {
+            for (context, expected) in [
+                (current.as_ref(), expected_current),
+                (&older, expected_older),
+                (&newer, expected_newer),
+            ] {
+                // No original Native dialect is donated from this context.
+                let selected =
+                    crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                        context.commands(),
+                        Some(context.context()),
+                        crate::InvocationWords::structured(Literal("source"), &arguments),
+                        tcl_dialect::model::InvocationRealm::RuleLoader,
+                    )
+                    .resolved()
+                    .unwrap();
+                assert_eq!(
+                    selected.authored_source_file_argument(),
+                    expected,
+                    "{arguments:?}"
+                );
+            }
+        }
+        let arguments = [Literal("literal")];
+        let selected = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+            current.commands(),
+            Some(current.context()),
+            crate::InvocationWords::structured(Literal("puts"), &arguments),
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        )
+        .resolved()
+        .unwrap();
+        assert!(selected.authored_source_file_argument().is_none());
     }
 
     #[test]

@@ -115,17 +115,11 @@ pub fn extract_proc(
     if sel_end <= sel_start {
         return None;
     }
-    let config = analysis.body_lexer_config?;
-    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
-        return None;
-    }
-    let registry = analysis.resolved_registry()?;
-    let scope = if analysis.allows_lexical_declaration_advice() {
-        enclosing_scope(source, sel_start, registry, config)
-    } else {
-        let walk = super::FrameWalk::new(source, analysis)?;
-        original_enclosing_scope(source, sel_start, &walk)?
-    };
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let config = current.config();
+    let registry = current.registry();
+    let walk = super::FrameWalk::new(source, analysis)?;
+    let scope = original_enclosing_scope(source, sel_start, &walk)?;
     let scope_text = source.get(scope.start as usize..scope.end as usize)?;
     let commands: Vec<SegmentedCommand> =
         segment_commands_with_offset_and_config(scope_text, scope.start, config)
@@ -331,7 +325,7 @@ fn original_extraction_plan(
         }
         for command in std::iter::once(*root).chain(&nested) {
             let structure = walk.structure(source, command).ok_or_else(unavailable)?;
-            if registry.is_frame_sensitive(&structure.facts.canonical_command) {
+            if tcl_registry::traits::is_frame_sensitive(structure.facts.traits) {
                 return Err("the selected original command acts on the caller frame".to_owned());
             }
             if structure.facts.body_kind != tcl_registry::BodyKind::Plain
@@ -421,15 +415,16 @@ fn plan_extraction(
     if !analysis.allows_lexical_declaration_advice() {
         return original_extraction_plan(source, selected, analysis);
     }
-    reject_enclosing_definition_body(source, scope, registry, config)?;
-    reject_frame_sensitive_selection(source, selected, registry)?;
+
     // The document's own `${…}` close rule — a brace-bearing name read by
     // the wrong release's rule produces a proc built for a variable that
     // does not exist.
     let style = super::braced_var_style(analysis);
     let walk = super::FrameWalk::new(source, analysis)
         .ok_or_else(|| "the original document context is unavailable".to_owned())?;
-    let roles = classify_variables(source, selected, registry, &walk, style)?;
+    reject_enclosing_definition_body(source, scope, &walk)?;
+    reject_frame_sensitive_selection(source, selected, &walk)?;
+    let roles = classify_variables(source, selected, &walk, style)?;
 
     // The selection's own byte range, snapped to the commands it covers.
     let block_start = command_span_offsets(source, selected[0]).0;
@@ -451,7 +446,7 @@ fn plan_extraction(
             if command.name().is_empty() {
                 continue;
             }
-            used_after.extend(role_named_variables(&command, registry));
+            used_after.extend(role_named_variables(source, &command, &walk)?);
             // A read decides `upvar` versus proc local, so a role-named read
             // nested in a control-flow body has to count exactly as a
             // top-level one does: `if {$ok} {incr total}` carries no `$total`
@@ -460,7 +455,7 @@ fn plan_extraction(
             nested_tail.clear();
             walk.nested_same_frame_commands(source, &command, &mut nested_tail);
             for inner in &nested_tail {
-                used_after.extend(role_named_variables(inner, registry));
+                used_after.extend(role_named_variables(source, inner, &walk)?);
             }
         }
     }
@@ -634,37 +629,23 @@ struct VariableRoles {
 fn literal_word_holes(
     source: &str,
     command: &SegmentedCommand,
-    registry: &CommandRegistry,
     walk: &super::FrameWalk<'_>,
     out: &mut Vec<(u32, u32)>,
 ) {
-    let head = command.name();
-    if registry.get(head).is_none() {
+    let Some(words) = walk.source_words(source, command) else {
+        return;
+    };
+    let Some(kinds) = walk.substitution_kinds(source, command) else {
+        return;
+    };
+    if kinds.is_some_and(|kinds| kinds.variables) {
         return;
     }
-    let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-    // `subst {hello $name}` substitutes `$name` straight out of a braced word,
-    // so a substituting command's arguments are not the inert text a braced
-    // word usually is.  Which of the three substitutions this *call* runs is
-    // its template-word plan's answer, not a switch spelling matched here:
-    // with `-novariables` the `$name` really is literal, and cutting it is
-    // right. A substituting command with no plan keeps the registry's answer.
-    let variables =
-        tcl_compiler::value_transfer::literal_template_plan(registry, head, &args, |index| {
-            super::source_word(source, command, &args, index)
-        })
-        .map_or_else(
-            || {
-                registry
-                    .substitutions_performed(head, &args)
-                    .is_some_and(|kinds| kinds.variables)
-            },
-            |plan| plan.kinds.variables,
-        );
-    if variables {
-        return;
-    }
-    let evaluated: Vec<usize> = registry.arg_indices_for_role(head, &args, ArgRole::Expr);
+    let evaluated = words
+        .written_argument_roles()
+        .into_iter()
+        .filter_map(|(ordinal, role)| (role == ArgRole::Expr).then_some(ordinal))
+        .collect::<Vec<_>>();
     let mut scripts = walk.same_frame_regions(source, command);
     scripts.extend(walk.frame_shifted_regions(source, command));
     for (index, token) in command.argv.iter().enumerate().skip(1) {
@@ -737,7 +718,6 @@ fn same_frame_slices(start: u32, end: u32, holes: &[(u32, u32)]) -> Vec<(u32, u3
 fn classify_variables(
     source: &str,
     selected: &[&SegmentedCommand],
-    registry: &CommandRegistry,
     walk: &super::FrameWalk<'_>,
     style: BracedVarStyle,
 ) -> Result<VariableRoles, String> {
@@ -759,7 +739,7 @@ fn classify_variables(
         holes.clear();
         walk.frame_shifted_regions_within(source, command, &mut holes);
         for inner in std::iter::once(*command).chain(nested.iter()) {
-            literal_word_holes(source, inner, registry, walk, &mut holes);
+            literal_word_holes(source, inner, walk, &mut holes);
         }
         for (from, to) in same_frame_slices(start, end, &holes) {
             let text = source.get(from as usize..to as usize).unwrap_or("");
@@ -772,9 +752,9 @@ fn classify_variables(
                     .or_insert(at);
             }
         }
-        classify_command(source, command, registry, &mut roles)?;
+        classify_command(source, command, walk, &mut roles)?;
         for inner in &nested {
-            classify_command(source, inner, registry, &mut roles)?;
+            classify_command(source, inner, walk, &mut roles)?;
         }
     }
     Ok(roles)
@@ -790,46 +770,54 @@ fn classify_variables(
 fn classify_command(
     source: &str,
     command: &SegmentedCommand,
-    registry: &CommandRegistry,
+    walk: &super::FrameWalk<'_>,
     roles: &mut VariableRoles,
 ) -> Result<(), String> {
     let head = command.name();
-    if head.contains('$') || head.contains('[') || head.contains('{') {
-        return Err(format!(
-            "the command head `{head}` is computed at run time, so which \
-             variables the command reads and writes is unknown"
-        ));
-    }
-    let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
+    let unavailable = || format!("the original variable roles of '{head}' are unavailable");
+    let words = walk.source_words(source, command).ok_or_else(unavailable)?;
+    let selected_roles = words.roles().ok_or_else(unavailable)?;
     let (command_start, command_end) = command_span_offsets(source, command);
-    for index in registry.arg_indices_for_role(head, &args, ArgRole::VarRead) {
-        if let Some(name) = args.get(index) {
-            roles
-                .read
-                .entry((*name).to_string())
-                .or_insert(command_start);
+    let binds_at = words
+        .written_argument_roles()
+        .into_iter()
+        .find_map(|(ordinal, role)| {
+            (role == ArgRole::Body)
+                .then(|| command.argv.get(ordinal + 1).map(|word| word.span.start()))
+                .flatten()
+        })
+        .unwrap_or(command_end);
+    for &(ordinal, role) in selected_roles {
+        if !matches!(
+            role,
+            ArgRole::VarRead | ArgRole::VarWrite | ArgRole::LoopVarList
+        ) {
+            continue;
         }
-    }
-    for index in registry.arg_indices_for_role(head, &args, ArgRole::VarWrite) {
-        let Some(name) = args.get(index) else {
-            continue;
-        };
-        record_write(roles, carriable_written_name(head, name)?, command_end);
-    }
-    // A loop variable-binding word is a *list* of names (`foreach {k v} …`),
-    // so the list owner splits it rather than this module reading it as one.
-    let binds_at = loop_body_start(command, registry, &args).unwrap_or(command_end);
-    for index in registry.arg_indices_for_role(head, &args, ArgRole::LoopVarList) {
-        let Some(word) = args.get(index) else {
-            continue;
-        };
-        let Ok(names) = tcl_syntax::list::split_list(word) else {
-            // An unparseable list is a syntax error in the document, not a
-            // binding this transform can name.
-            continue;
-        };
-        for name in names {
-            record_write(roles, carriable_written_name(head, &name)?, binds_at);
+        let name = words
+            .arguments()
+            .get(ordinal)
+            .and_then(|word| word.literal_bytes())
+            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+            .ok_or_else(unavailable)?;
+        match role {
+            ArgRole::VarRead => {
+                roles.read.entry(name.to_owned()).or_insert(command_start);
+            }
+            ArgRole::VarWrite => {
+                record_write(roles, carriable_written_name(head, name)?, command_end)
+            }
+            ArgRole::LoopVarList => {
+                let names = tcl_syntax::word_rules::WordValueRules::from_grammar(
+                    &walk.config.grammar_over(walk.dialect.grammar),
+                )
+                .split_list(name)
+                .map_err(|_| unavailable())?;
+                for name in names {
+                    record_write(roles, carriable_written_name(head, &name)?, binds_at);
+                }
+            }
+            _ => unreachable!(),
         }
     }
     Ok(())
@@ -843,20 +831,6 @@ fn record_write(roles: &mut VariableRoles, name: String, at: u32) {
         .entry(name)
         .and_modify(|first| *first = (*first).min(at))
         .or_insert(at);
-}
-
-/// Where `command`'s first body argument starts — the point from which the
-/// names it binds hold the loop's values rather than the caller's.
-fn loop_body_start(
-    command: &SegmentedCommand,
-    registry: &CommandRegistry,
-    args: &[&str],
-) -> Option<u32> {
-    let index = registry
-        .arg_indices_for_role(command.name(), args, ArgRole::Body)
-        .into_iter()
-        .next()?;
-    Some(command.argv.get(index + 1)?.span.start())
 }
 
 /// `name` as a variable this transform can carry back to the caller, or the
@@ -881,7 +855,7 @@ fn carriable_written_name(head: &str, name: &str) -> Result<String, String> {
 
 /// Refuse a selection containing a command that acts on the call frame.
 ///
-/// Membership comes from [`CommandRegistry::frame_sensitive_commands`] — the
+/// Membership comes from the central selected-traits frame predicate — the
 /// registry's union of block terminators, control transfers, scope aliases,
 /// and barriers — so this names no command.  Every member changes meaning
 /// when a `proc` boundary is introduced between it and its frame: `return`
@@ -891,18 +865,19 @@ fn carriable_written_name(head: &str, name: &str) -> Result<String, String> {
 fn reject_frame_sensitive_selection(
     source: &str,
     selected: &[&SegmentedCommand],
-    registry: &CommandRegistry,
+    walk: &super::FrameWalk<'_>,
 ) -> Result<(), String> {
-    let unsafe_heads = registry.frame_sensitive_commands();
-    for command in selected {
-        let (start, end) = command_span_offsets(source, command);
-        let text = source.get(start as usize..end as usize).unwrap_or("");
-        for word in text.split(|c: char| !(c.is_alphanumeric() || c == ':' || c == '_')) {
-            if !word.is_empty() && unsafe_heads.contains(&word) {
+    for root in selected {
+        let mut nested = Vec::new();
+        walk.nested_same_frame_commands(source, root, &mut nested);
+        for command in std::iter::once(*root).chain(nested.iter()) {
+            let traits = walk
+                .source_traits(source, command)
+                .ok_or_else(|| "the original command's frame effects are unavailable".to_owned())?;
+            if tcl_registry::traits::is_frame_sensitive(traits) {
                 return Err(format!(
-                    "the selection uses '{word}', which acts on the call frame — \
-                     putting a `proc` boundary between it and that frame would \
-                     change what it returns from, breaks out of, or binds against"
+                    "the selection uses '{}', which acts on the call frame",
+                    command.name()
                 ));
             }
         }
@@ -920,96 +895,37 @@ fn reject_frame_sensitive_selection(
 fn reject_enclosing_definition_body(
     source: &str,
     scope: Scope,
-    registry: &CommandRegistry,
-    config: LexerConfig,
+    walk: &super::FrameWalk<'_>,
 ) -> Result<(), String> {
     if scope.start == 0 {
         return Ok(());
     }
-    // Walk the top-level commands to find the one whose body the scope sits
-    // in, then check what kind of body it is.
-    for command in segment_commands_with_offset_and_config(source, 0, config) {
+    for command in walk.segment(source, 0) {
         let (start, end) = command_span_offsets(source, &command);
         if scope.start < start || scope.end > end {
             continue;
         }
-        let head = command.name();
-        let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-        let traits = registry.call_traits(head, &args);
-        if traits.contains(Traits::DECLARES_NAMESPACE) {
+        let words = walk
+            .source_words(source, &command)
+            .ok_or_else(|| "the original enclosing declaration is unavailable".to_owned())?;
+        let definition = words
+            .with_source_schema(&walk.source_context(), |schema| {
+                schema.semantics.traits.contains(Traits::DECLARES_NAMESPACE)
+                    || schema
+                        .authored_source_descriptors()
+                        .command
+                        .definition_body
+                        .is_some()
+            })
+            .ok_or_else(|| "the original declaration grammar is unavailable".to_owned())?;
+        if definition {
             return Err(format!(
-                "the selection is inside a '{head}' body — an extracted proc \
-                 would be created in a different namespace, changing what its \
-                 unqualified calls and variables resolve to"
-            ));
-        }
-        if registry
-            .get(head)
-            .is_some_and(|spec| spec.definition_body.is_some())
-        {
-            return Err(format!(
-                "the selection is inside a '{head}' class/type definition body, \
-                 where a top-level `proc` is not the same thing as a member"
+                "the selection is inside a '{}' definition body with a distinct naming context",
+                command.name()
             ));
         }
     }
     Ok(())
-}
-
-/// The innermost script region containing `offset`, as a byte range.
-///
-/// Descends through registry-resolved [`ArgRole::Body`] arguments, so a
-/// selection inside a `proc` body, an `if` branch, or a `foreach` body is
-/// scoped to that body rather than to the whole file — which is what makes
-/// "is this variable read after the selection?" a question about the right
-/// piece of code.
-fn enclosing_scope(
-    source: &str,
-    offset: u32,
-    registry: &CommandRegistry,
-    config: LexerConfig,
-) -> Scope {
-    let mut scope = Scope {
-        start: 0,
-        end: u32::try_from(source.len()).unwrap_or(u32::MAX),
-    };
-    loop {
-        let Some(text) = source.get(scope.start as usize..scope.end as usize) else {
-            return scope;
-        };
-        let mut descended = false;
-        for command in segment_commands_with_offset_and_config(text, scope.start, config) {
-            let head = command.name();
-            if head.is_empty() {
-                continue;
-            }
-            let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-            for index in registry.arg_indices_for_role(head, &args, ArgRole::Body) {
-                let Some(token) = command.argv.get(index + 1) else {
-                    continue;
-                };
-                if token.kind != tcl_lexer::TokenType::Str {
-                    continue;
-                }
-                let inner_start = token.span.start() + u32::from(token.content_offset);
-                let inner_end = token.span.end();
-                if inner_end > inner_start && offset >= inner_start && offset < inner_end {
-                    scope = Scope {
-                        start: inner_start,
-                        end: inner_end,
-                    };
-                    descended = true;
-                    break;
-                }
-            }
-            if descended {
-                break;
-            }
-        }
-        if !descended {
-            return scope;
-        }
-    }
 }
 
 /// The byte offset of the line start of the outermost top-level command
@@ -1242,18 +1158,29 @@ fn variable_references(text: &str, style: BracedVarStyle) -> BTreeSet<String> {
 
 /// The variable names `command` names through a registry `VarRead` /
 /// `VarWrite` role — a use that carries no `$`, so the `$name` scan misses it.
-fn role_named_variables(command: &SegmentedCommand, registry: &CommandRegistry) -> Vec<String> {
-    let head = command.name();
-    let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-    let mut out = Vec::new();
-    for role in [ArgRole::VarRead, ArgRole::VarWrite] {
-        for index in registry.arg_indices_for_role(head, &args, role) {
-            if let Some(name) = args.get(index) {
-                out.push((*name).to_string());
-            }
-        }
-    }
-    out
+fn role_named_variables(
+    source: &str,
+    command: &SegmentedCommand,
+    walk: &super::FrameWalk<'_>,
+) -> Result<Vec<String>, String> {
+    let words = walk
+        .source_words(source, command)
+        .ok_or_else(|| "an observing command's original roles are unavailable".to_owned())?;
+    words
+        .roles()
+        .ok_or_else(|| "an observing command's original roles are incomplete".to_owned())?
+        .iter()
+        .filter(|(_, role)| matches!(role, ArgRole::VarRead | ArgRole::VarWrite))
+        .map(|(ordinal, _)| {
+            words
+                .arguments()
+                .get(*ordinal)
+                .and_then(|word| word.literal_bytes())
+                .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                .map(str::to_owned)
+                .ok_or_else(|| "an observing variable name is unavailable".to_owned())
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -2013,5 +1940,47 @@ mod original_extraction_capture_tests {
             assert_eq!(before, after);
             assert!(after.contains("original"));
         }
+    }
+}
+
+#[cfg(test)]
+mod selected_source_variable_tests {
+    use super::*;
+
+    #[test]
+    fn original_extraction_classifies_captured_variable_roles_and_rejects_replaced_helpers() {
+        // naming.refactor.original-frame-traversal
+        // docs/design/analysis/name-resolution-proofs/refactor-original-frame-traversal.md
+        let source = "interp alias {} write {} set held
+write 2
+proc set args {}
+set hidden 1";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let walk = super::super::FrameWalk::new(source, &analysis).unwrap();
+        let commands = walk.segment(source, 0);
+        let roles =
+            classify_variables(source, &[&commands[1]], &walk, walk.config.braced_var).unwrap();
+        assert_eq!(roles.written.keys().cloned().collect::<Vec<_>>(), ["held"]);
+        assert!(
+            classify_variables(source, &[&commands[3]], &walk, walk.config.braced_var).is_err()
+        );
+    }
+
+    #[test]
+    fn original_logical_extraction_keeps_current_read_only_edit_and_withdraws_missing_input() {
+        // naming.refactor.original-frame-traversal
+        // docs/design/analysis/name-resolution-proofs/refactor-original-frame-traversal.md
+        let source = "set x 5
+puts $x
+puts done";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let registry = CommandRegistry::build_default();
+        let start = u32::try_from(source.find("puts $x").unwrap()).unwrap();
+        let selection = (start, start + 7);
+        let action = extract_proc(source, selection, &analysis, &registry).unwrap();
+        assert!(action.disabled.is_none(), "{:?}", action.disabled);
+        assert!(action.apply(source).contains("proc extracted_proc {x}"));
+        analysis.resolved_input = None;
+        assert!(extract_proc(source, selection, &analysis, &registry).is_none());
     }
 }

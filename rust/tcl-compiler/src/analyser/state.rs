@@ -1100,19 +1100,6 @@ pub struct Analyser {
     /// Bodies deferred by the shell walk (see [`Self::defer_proc_bodies`]),
     /// each analysed in a second pass that fills its already-created scope.
     pub(super) deferred_bodies: Vec<super::per_item::DeferredBody>,
-    /// Deferred W103 / W300 dynamic-argument sites from an **isolated
-    /// proc-body** pass (`(code, command name, argument token)`).  Their
-    /// `$var` classification resolves the variable against the most recent
-    /// literal `set` in the *whole file*
-    /// ([`super::diagnostics::validity::last_literal_set_value_for_var`]
-    /// scans `self.source`) — an isolated body's `self.source` is only the
-    /// body, so resolving there both misses enclosing-scope sets *and* sees
-    /// body-local sets the whole-file truncated-prefix scan cannot segment
-    /// (they sit inside an unclosed `proc`).  Captured on the per-item path
-    /// only and flushed by [`Self::flush_var_literal_checks`] in the tail,
-    /// where `self.source` is the full file — the same split
-    /// [`Self::pending_w304`] uses for the identical reason.
-    pub(super) pending_var_literal_checks: Vec<(DiagCode, String, tcl_lexer::Token)>,
     /// Every offset-keyed synthetic identity this run minted
     /// ([`Self::mint_synthetic_offset_name`]): `@dynns@<off>` /
     /// `@dynclass@<off>` / `@autoname@<off>`.  An isolated proc-body
@@ -1186,16 +1173,9 @@ pub struct Analyser {
     /// qualified name (`result.package_requires`).
     /// [`Self::flush_w143_diagnostics`] applies both in the tail.
     pub(super) pending_w143: Vec<(String, String, bool, super::types::Diagnostic)>,
-    /// Deferred W304 (missing `--` option terminator) diagnostics whose
-    /// severity/message depend on resolving a `$var` against the **most recent
-    /// literal `set` in the whole file** ([`last_literal_set_value_for_var`],
-    /// which scans `self.source`).  An isolated body's `self.source` is only the
-    /// body, so an enclosing-scope `set` is invisible — the lone source-dependent
-    /// W304 branch (`Var`, dynamic, not option-looking).  On the per-item path
-    /// such sites are captured here (rebased token + label + body-local fix /
-    /// span) instead of emitted, and [`Self::flush_w304_diagnostics`] classifies
-    /// them in the tail where `self.source` is the full file.  Empty on the
-    /// whole-file path (emitted inline) — byte-identical.
+    /// Compatibility buffer for deferred W304 presentation. Original source
+    /// option advice emits at its authenticated invocation; the tail clears
+    /// this buffer without inferring a value from text or another scope.
     pub(super) pending_w304: Vec<(
         tcl_lexer::Token,
         String,
@@ -1680,7 +1660,6 @@ impl Analyser {
             pending_disabled_commands: Vec::new(),
             pending_w143: Vec::new(),
             pending_w304: Vec::new(),
-            pending_var_literal_checks: Vec::new(),
             pending_instances: None,
             deferred_instance_replays: Vec::new(),
             pending_bareword_dispatch_sites: None,
@@ -3281,7 +3260,6 @@ impl Analyser {
         self.flush_disabled_command_diagnostics();
         self.flush_w143_diagnostics();
         self.flush_w304_diagnostics();
-        self.flush_var_literal_checks();
         // Decide every version-gated option relationship *before* the arity
         // flush: a conflict the resolved floor has is promoted onto
         // `pending_arity`, so it goes through the same shadowing suppression

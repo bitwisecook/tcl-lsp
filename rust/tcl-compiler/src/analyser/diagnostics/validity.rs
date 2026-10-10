@@ -2273,25 +2273,6 @@ impl Analyser {
         self.pending_w304.clear();
     }
 
-    /// Emit the per-item path's deferred W103 / W300 dynamic-argument
-    /// diagnostics, resolving each `$var` against the **full-file**
-    /// most-recent-literal-`set` scan (impossible inside an isolated body —
-    /// see [`super::super::state::Analyser::pending_var_literal_checks`]).
-    /// The token spans are absolute by the time the tail runs (the graft
-    /// rebased them), so the result is identical to the inline whole-file
-    /// emission.  No-op on the `analyse` path (the queue is only fed under
-    /// `capture_global_reads`).
-    pub(in crate::analyser) fn flush_var_literal_checks(&mut self) {
-        let pending = std::mem::take(&mut self.pending_var_literal_checks);
-        for (code, cmd_name, tok) in pending {
-            match code {
-                DiagCode::W103 => self.emit_w103_dynamic_first_arg(&cmd_name, tok),
-                DiagCode::W300 => self.emit_w300_dynamic_path(&cmd_name, tok),
-                other => unreachable!("unexpected pending var-literal code {other:?}"),
-            }
-        }
-    }
-
     /// **W116 / W117.** Stub command / expression definition shadows a
     /// built-in.  Post-walk check.  W116 fires when a `# tcl-lsp:
     /// stub` command name (with leading `::` stripped) collides with a
@@ -3086,101 +3067,6 @@ fn is_irules_only_expr_op(name: &str) -> bool {
         let spec = op.spec();
         spec.spelling == name && spec.surface == Some(SpecSurface::IRULES)
     })
-}
-
-/// Scan `args` for the first positional argument that lacks a
-/// preceding `--` terminator.
-///
-/// Skips option words (text starts with `-`); skips an additional
-/// argument when the option's [`OptionSpec`](tcl_registry::prelude::OptionSpec)
-/// in [`ResolvedTerminator::options`](tcl_registry::ResolvedTerminator)
-/// has `takes_value == true`.  Linear scan over the borrowed
-/// option slice — per-command option counts are small (≤ a dozen
-/// for the largest specs in practice), so this is cheaper than a
-/// per-resolve `HashSet` allocation on the analyser hot path.
-/// Returns `None` when a `--` is encountered (positional arguments
-/// after `--` are explicitly terminated).
-///
-/// Never scans into a command's `reserved_trailing_words` (e.g.
-/// `switch`'s trailing `string` + pattern-list, which C Tcl's own
-/// option-scanning loop excludes structurally, regardless of shape — see
-/// Locate the most-recent literal `set var value` assignment whose
-/// command-head precedes `before_offset`.
-///
-/// Returns `Some((value_text, value_span, var_text))` when the
-/// nearest preceding `set` is a fully-literal three-arg form.
-/// Returns `None` when the latest assignment is dynamic / multi-
-/// token (the runtime value cannot be proven statically).
-pub(super) fn last_literal_set_value_for_var(
-    source: &str,
-    var_name: &str,
-    before_offset: u32,
-    config: tcl_lexer::LexerConfig,
-) -> Option<(String, tcl_lexer::Span, String)> {
-    if var_name.is_empty() || before_offset == 0 {
-        return None;
-    }
-    let head = before_offset as usize;
-    if head > source.len() {
-        return None;
-    }
-    let prefix = &source[..head];
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(prefix, 0, config);
-
-    for cmd in segments.iter().rev() {
-        // Cross-scope guard: stop the backward scan at a `proc NAME
-        // {PARAMS} BODY` whose body *contains* the use offset and whose
-        // params include `var_name` — the parameter shadows any outer
-        // scope, so an outer `set` must not be attributed to the inner
-        // use.  The use is inside the proc body iff that proc is the one
-        // left unclosed by the truncation at `before_offset`: its span
-        // then reaches the last truncated byte (`end + 1 >= head`).  A
-        // *complete* proc before the use ends well before that and does
-        // not shadow.
-        let use_inside_proc = cmd.span.end() as usize + 1 >= head;
-        if use_inside_proc
-            && cmd.texts.first().map(String::as_str) == Some("proc")
-            && cmd.texts.len() >= 4
-            && cmd.texts[2].contains(var_name)
-        {
-            let shadows = crate::tcl_expr_eval::split_tcl_list(
-                &cmd.texts[2],
-                tcl_syntax::word_rules::WordValueRules::from_config(&config),
-            )
-            .iter()
-            .any(|el| el.split_whitespace().next() == Some(var_name));
-            if shadows {
-                return None;
-            }
-        }
-
-        if cmd.texts.first().map(String::as_str) != Some("set") {
-            continue;
-        }
-        if cmd.texts.len() < 3 {
-            continue;
-        }
-        if cmd.texts[1] != var_name {
-            continue;
-        }
-        // Most recent assignment wins.  If it's dynamic, the
-        // runtime value can't be proven statically.
-        if cmd.single_token_word.get(2).copied() != Some(true) {
-            return None;
-        }
-        if cmd.argv.len() < 3 {
-            return None;
-        }
-        let value_tok = cmd.argv[2];
-        if !matches!(
-            value_tok.kind,
-            tcl_lexer::TokenType::Esc | tcl_lexer::TokenType::Str
-        ) {
-            return None;
-        }
-        return Some((cmd.texts[2].clone(), value_tok.span, var_name.to_string()));
-    }
-    None
 }
 
 /// Recognition context for operator availability assistance, never native

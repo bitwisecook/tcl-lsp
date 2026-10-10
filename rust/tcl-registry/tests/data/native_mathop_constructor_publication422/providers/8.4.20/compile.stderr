@@ -1,0 +1,10 @@
+/workspace/.proofs/native-mathop-constructor422/probe.c: In function ‘observe’:
+/workspace/.proofs/native-mathop-constructor422/probe.c:29:20: error: implicit declaration of function ‘Tcl_FindNamespace’ [-Wimplicit-function-declaration]
+   29 |  Tcl_Namespace *ns=Tcl_FindNamespace(interp,"::tcl::mathop",NULL,TCL_GLOBAL_ONLY);
+      |                    ^~~~~~~~~~~~~~~~~
+/workspace/.proofs/native-mathop-constructor422/probe.c:29:20: error: initialization of ‘Tcl_Namespace *’ from ‘int’ makes pointer from integer without a cast [-Wint-conversion]
+/workspace/.proofs/native-mathop-constructor422/probe.c:30:19: error: implicit declaration of function ‘Tcl_FindCommand’; did you mean ‘Tcl_HideCommand’? [-Wimplicit-function-declaration]
+   30 |  Tcl_Command plus=Tcl_FindCommand(interp,"::tcl::mathop::+",NULL,TCL_GLOBAL_ONLY);
+      |                   ^~~~~~~~~~~~~~~
+      |                   Tcl_HideCommand
+/workspace/.proofs/native-mathop-constructor422/probe.c:30:19: error: initialization of ‘Tcl_Command’ {aka ‘struct Tcl_Command_ *’} from ‘int’ makes pointer from integer without a cast [-Wint-conversion]

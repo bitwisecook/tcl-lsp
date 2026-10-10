@@ -291,7 +291,6 @@ pub(crate) struct FrameWalk<'a> {
     lexical: bool,
     complete: std::cell::Cell<bool>,
     config: LexerConfig,
-    expr_surface: tcl_registry::expr_surface::RuntimeExprSurface,
 }
 
 impl<'a> FrameWalk<'a> {
@@ -299,20 +298,17 @@ impl<'a> FrameWalk<'a> {
         source: &str,
         analysis: &'a tcl_compiler::analyser::AnalysisResult,
     ) -> Option<Self> {
-        let config = analysis.body_lexer_config?;
-        analysis
-            .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
-            .then_some(())?;
-        let dialect = analysis.resolved_profile()?;
+        let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+        let config = current.config();
+        let dialect = current.profile();
         Some(Self {
             analysis,
             dialect,
-            nesting: analysis.resolved_registry()?,
+            nesting: current.registry(),
             identities: analysis.retained_command_realm()?,
             lexical: analysis.allows_lexical_declaration_advice(),
             complete: std::cell::Cell::new(true),
             config,
-            expr_surface: tcl_registry::expr_surface::RuntimeExprSurface::for_profile(dialect),
         })
     }
 
@@ -359,6 +355,64 @@ impl<'a> FrameWalk<'a> {
         )
     }
 
+    /// Selected conditional source roles and captured values at this actual
+    /// command point. No Native dispatch or editing permission follows.
+    pub(crate) fn source_words(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords> {
+        tcl_compiler::registry_invocation::source_structure::source_registry_words(
+            source,
+            self.analysis,
+            command,
+        )
+    }
+
+    pub(crate) fn source_context(&self) -> std::sync::Arc<tcl_registry::model::ContextRegistry> {
+        self.analysis
+            .resolved_input
+            .as_ref()
+            .expect("captured actual input")
+            .context_registry()
+    }
+
+    pub(crate) fn source_traits(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<tcl_registry::Traits> {
+        self.source_words(source, command)?.with_source_schema(
+            &self.analysis.resolved_input.as_ref()?.context_registry(),
+            |schema| schema.semantics.traits,
+        )
+    }
+
+    /// Unknown selected options withdraw the template query; a command that
+    /// performs no template substitution retains that separate answer.
+    pub(crate) fn substitution_kinds(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Option<Option<tcl_registry::substitution::SubstitutionKinds>> {
+        self.source_words(source, command)?.with_source_schema(
+            &self.analysis.resolved_input.as_ref()?.context_registry(),
+            |schema| {
+                if schema
+                    .semantics
+                    .traits
+                    .contains(tcl_registry::Traits::PERFORMS_SUBSTITUTION)
+                {
+                    schema
+                        .authored_source_substitution_proposal(schema.words.arguments())
+                        .map(Some)
+                } else {
+                    Some(None)
+                }
+            },
+        )?
+    }
+
     pub(crate) fn native_words(
         &self,
         source: &str,
@@ -380,7 +434,8 @@ impl<'a> FrameWalk<'a> {
         command: &SegmentedCommand,
     ) -> Option<Vec<tcl_lexer::ExecutablePartArena>> {
         let words = self.native_words(source, command)?;
-        let selected = self.structure(source, command)?;
+        let selected = self.source_words(source, command)?;
+        selected.roles()?;
         let mut arenas = words
             .iter()
             .map(|word| word.executable_parts().clone())
@@ -394,6 +449,10 @@ impl<'a> FrameWalk<'a> {
                 continue;
             }
             let span = word.content_span().ok()?;
+            selected.source_expression_script_bodies_at(
+                self.analysis.resolved_input.as_ref()?,
+                span.start(),
+            )?;
             arenas.push(
                 tcl_lexer::ExecutablePartArena::decompose(
                     word.image().clone(),
@@ -404,27 +463,8 @@ impl<'a> FrameWalk<'a> {
                 .ok()?,
             );
         }
-        if selected
-            .facts
-            .traits
-            .contains(tcl_registry::Traits::PERFORMS_SUBSTITUTION)
-        {
-            // A source rewrite needs the actual selected switch values. Unknown
-            // template flags cannot be replaced by a nominal ALL scanner.
-            let values = (0..selected.arguments.len())
-                .map(|index| {
-                    selected
-                        .argument_word(index)
-                        .literal_bytes()
-                        .and_then(|bytes| std::str::from_utf8(bytes).ok())
-                        .map(str::to_owned)
-                })
-                .collect::<Option<Vec<_>>>()?;
-            let arguments = values.iter().map(String::as_str).collect::<Vec<_>>();
-            let kinds = self
-                .nesting
-                .substitutions_performed(&selected.facts.canonical_command, &arguments)?;
-            let variables = match selected.dialect?.family()? {
+        if let Some(kinds) = self.substitution_kinds(source, command)? {
+            let variables = match selected.dialect()?.family()? {
                 tcl_dialect::model::Family::Tcl => {
                     tcl_lexer::word_parts::TemplateVariableSyntax::CTcl
                 }
@@ -618,14 +658,9 @@ impl<'a> FrameWalk<'a> {
 
     /// The regions of `command` that run in `command`'s own variable frame.
     ///
-    /// [`crate::references::nested_dispatch_regions`] owns the script ones. It
-    /// cannot see inside a *braced* expression argument, which the script
-    /// lexer treats as one opaque word and `expr` substitutes itself, so
-    /// `if {[set x 1]} …` would hide a write to the caller's `x`.  Those spans
-    /// come from [`tcl_syntax::expr::substitution::command_substitution_spans`],
-    /// the expression owner's own script bridge, gated on the dialect's
-    /// runtime expression surface: an expression the release would reject at
-    /// run time substitutes nothing.
+    /// Genuine selected source bodies and original word/expression/template
+    /// components own these regions under the complete current input. Unknown
+    /// schema, grammar or template switches mark the traversal incomplete.
     pub(crate) fn same_frame_regions(
         &self,
         source: &str,
@@ -639,158 +674,66 @@ impl<'a> FrameWalk<'a> {
                     Vec::new()
                 });
         }
-        let mut regions = crate::references::nested_dispatch_regions(
-            source,
-            self.analysis,
-            self.dialect,
-            command,
-        );
-        self.push_expression_substitutions(source, command, &mut regions);
-        self.push_substituted_commands(source, command, &mut regions);
-        regions
+        self.source_regions(source, command, false)
+            .unwrap_or_else(|| {
+                self.complete.set(false);
+                Vec::new()
+            })
     }
 
-    /// The `[…]` a substituting command runs out of its own argument text.
-    ///
-    /// `subst {a[set x 1]b}` evaluates that bracket in the caller's frame, but
-    /// the argument is one braced word to the script lexer, so the dispatch
-    /// walker cannot see inside it. The regions are the call's template-word
-    /// plan's (`subst -nocommands` leaves its brackets as text, and an array
-    /// index runs its own whatever the switches say), so nothing here
-    /// re-derives which brackets run; a substituting command with no plan of
-    /// its own keeps the registry's per-call answer and the closer
-    /// [`tcl_lexer::command_substitution_end`] finds.
-    fn push_substituted_commands(
+    fn source_regions(
         &self,
         source: &str,
         command: &SegmentedCommand,
-        out: &mut Vec<(usize, usize)>,
-    ) {
-        let head = command.name();
-        let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-        if let Some(plan) = tcl_compiler::value_transfer::literal_template_plan(
-            self.nesting,
-            head,
-            &args,
-            |index| source_word(source, command, &args, index),
-        ) {
-            // Only a braced template hides its brackets from the script
-            // lexer; an unbraced one's are dispatch regions already.
-            let Some(token) = command.argv.get(plan.operand.0 + 1) else {
-                return;
-            };
-            if !plan.braced {
-                return;
-            }
-            let word = token.span.start() as usize;
-            for region in &plan.script_regions {
-                // The script inside the brackets is what runs.
-                let from = word + region.span.start() as usize + 1;
-                let to = (word + region.span.end() as usize).saturating_sub(1);
-                if from < to {
-                    out.push((from, to));
+        structural: bool,
+    ) -> Option<Vec<(usize, usize)>> {
+        let words = self.source_words(source, command)?;
+        words.roles()?;
+        let context = self.analysis.resolved_input.as_ref()?.context_registry();
+        let kind = words.with_source_schema(&context, |schema| schema.semantics.body_kind)?;
+        let mut regions = Vec::new();
+        if !structural {
+            for arena in self.components(source, command)? {
+                for part in arena.all_parts() {
+                    match part.part {
+                        tcl_lexer::ExecutablePart::Command { body } => {
+                            regions.push((body.start() as usize, body.end() as usize));
+                        }
+                        tcl_lexer::ExecutablePart::ParseError(_)
+                        | tcl_lexer::ExecutablePart::Expression { .. } => return None,
+                        _ => {}
+                    }
                 }
             }
-            return;
         }
-        if !self
-            .nesting
-            .substitutions_performed(head, &args)
-            .is_some_and(|kinds| kinds.commands)
+        if kind
+            == if structural {
+                tcl_registry::BodyKind::Structural
+            } else {
+                tcl_registry::BodyKind::Plain
+            }
         {
-            return;
+            regions.extend(
+                words
+                    .source_script_bodies_for_mutation_coverage(&context)?
+                    .into_iter()
+                    .map(|body| {
+                        let span = body.content_span();
+                        (span.start() as usize, span.end() as usize)
+                    }),
+            );
         }
-        for token in command.argv.iter().skip(1) {
-            // Only a braced literal hides its brackets from the script lexer;
-            // an unbraced or quoted word has already been substituted, so its
-            // brackets are dispatch regions already.
-            if token.kind != TokenType::Str
-                || token.content_offset != 1
-                || source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
-            {
-                continue;
-            }
-            let start = token.span.start() as usize + token.content_offset as usize;
-            let end = token.span.end() as usize;
-            let Some(text) = source.get(start..end) else {
-                continue;
-            };
-            let mut at = 0;
-            // An unterminated `[` closes at end-of-text, so the cursor is
-            // clamped rather than stepped past the closer.
-            while let Some(offset) = text.get(at..).and_then(|rest| rest.find('[')) {
-                let open = at + offset;
-                // The closer reports one byte past the `]`; the script inside
-                // the brackets is what runs.
-                let Some(after) = tcl_lexer::command_substitution_end(text, open) else {
-                    break;
-                };
-                let inner_end = if text.as_bytes().get(after - 1) == Some(&b']') {
-                    after - 1
-                } else {
-                    after
-                };
-                if open + 1 < inner_end {
-                    out.push((start + open + 1, start + inner_end));
-                }
-                at = after.min(text.len());
-                if at >= text.len() {
-                    break;
-                }
-            }
-        }
-    }
-
-    fn push_expression_substitutions(
-        &self,
-        source: &str,
-        command: &SegmentedCommand,
-        out: &mut Vec<(usize, usize)>,
-    ) {
-        let head = command.name();
-        let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-        for index in self
-            .nesting
-            .arg_indices_for_role(head, &args, ArgRole::Expr)
-        {
-            let Some(token) = command.argv.get(index + 1) else {
-                continue;
-            };
-            // An unbraced or quoted expression word is substituted by the
-            // script lexer before `expr` ever parses it, so its `[…]` are
-            // already among the dispatch regions; only a braced one needs the
-            // expression parser to find them.
-            if source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
-                || token.content_offset != 1
-            {
-                continue;
-            }
-            let start = token.span.start() as usize + token.content_offset as usize;
-            let end = token.span.end() as usize;
-            let Some(expression) = source.get(start..end) else {
-                continue;
-            };
-            for span in tcl_syntax::expr::substitution::command_substitution_spans(
-                expression,
+        if structural {
+            regions.extend(crate::references::frame_shifted_dispatch_regions(
+                source,
+                self.analysis,
                 self.dialect,
-                self.config,
-                |parsed| self.expr_surface.validate(parsed).is_ok(),
-            ) {
-                // The span carries the `[` and `]`; the script inside them is
-                // what runs.
-                let (Some(inner_start), Some(inner_end)) = (
-                    start.checked_add(span.start() as usize + 1),
-                    start
-                        .checked_add(span.end() as usize)
-                        .and_then(|end| end.checked_sub(1)),
-                ) else {
-                    continue;
-                };
-                if inner_start < inner_end {
-                    out.push((inner_start, inner_end));
-                }
-            }
+                command,
+            ));
         }
+        regions.sort_unstable();
+        regions.dedup();
+        Some(regions)
     }
 
     /// The regions of `command` that open a variable frame of their own — the
@@ -808,12 +751,11 @@ impl<'a> FrameWalk<'a> {
                     Vec::new()
                 });
         }
-        crate::references::frame_shifted_dispatch_regions(
-            source,
-            self.analysis,
-            self.dialect,
-            command,
-        )
+        self.source_regions(source, command, true)
+            .unwrap_or_else(|| {
+                self.complete.set(false);
+                Vec::new()
+            })
     }
 
     /// Every region inside `command`, at any same-frame depth, that runs in a
@@ -1142,23 +1084,6 @@ pub(crate) fn test_registry() -> CommandRegistry {
     CommandRegistry::build_default()
 }
 
-/// How the argument at `index` of `command` reads in `source`, for a
-/// template-word plan asked over the call's source words: a brace-quoted
-/// word, one the parser substitutes, or literal text.
-pub(crate) fn source_word(
-    source: &str,
-    command: &SegmentedCommand,
-    args: &[&str],
-    index: usize,
-) -> tcl_compiler::value_transfer::SourceWord {
-    let braced = command.argv.get(index + 1).is_some_and(|token| {
-        token.kind == TokenType::Str
-            && token.content_offset == 1
-            && source.as_bytes().get(token.span.start() as usize) == Some(&b'{')
-    });
-    tcl_compiler::value_transfer::SourceWord::of(args.get(index).copied(), braced)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1279,5 +1204,106 @@ mod original_frame_walk_tests {
         );
         assert!(FrameWalk::new(&format!("{source}# stale"), &analysis).is_none());
         assert!(FrameWalk::new("expr {$x + [string length VALUE]}", &analysis).is_none());
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn test_logical_analysis(
+    source: &str,
+    environment: &str,
+    registry: std::sync::Arc<CommandRegistry>,
+) -> tcl_compiler::analyser::AnalysisResult {
+    let profile = tcl_dialect::DialectProfile::plain_tcl();
+    let config = LexerConfig::from_grammar(profile.grammar);
+    let context = std::sync::Arc::new(
+        tcl_registry::model::ingress::static_context_for(environment).with_command_store(registry),
+    );
+    tcl_compiler::analyser::Analyser::new()
+        .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile, profile, context, config,
+        ))
+        .analyse(source, profile.name)
+}
+
+#[cfg(test)]
+mod selected_frame_context_tests {
+    use super::*;
+
+    #[test]
+    fn original_frame_roles_keep_actual_availability_captures_and_source_currency() {
+        // naming.refactor.original-frame-traversal
+        // docs/design/analysis/name-resolution-proofs/refactor-original-frame-traversal.md
+        let mut registry = CommandRegistry::build_default();
+        let mut setter = registry.get("set").unwrap().clone();
+        setter.name = "selected_write";
+        setter.surface = Some(tcl_registry::model::SpecSurface::TCL90_PLUS);
+        registry.insert(setter);
+        let registry = std::sync::Arc::new(registry);
+        let source = "interp alias {} write {} selected_write held
+write 2";
+        let analysis = test_logical_analysis(source, "tcl9.0", registry.clone());
+        let walk = FrameWalk::new(source, &analysis).unwrap();
+        let command = walk.segment(source, 0).pop().unwrap();
+        let words = walk.source_words(source, &command).unwrap();
+        assert!(words.roles().unwrap().contains(&(0, ArgRole::VarWrite)));
+        assert_eq!(
+            words.arguments()[0].literal_bytes(),
+            Some(b"held".as_slice())
+        );
+        assert!(matches!(
+            words.origins()[1],
+            tcl_compiler::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
+        ));
+        let old = test_logical_analysis(source, "tcl8.6", registry);
+        assert!(
+            FrameWalk::new(source, &old)
+                .unwrap()
+                .source_words(source, &command)
+                .is_none()
+        );
+        assert!(FrameWalk::new(&format!("#{source}"), &analysis).is_none());
+        let mut changed = analysis.clone();
+        changed.body_lexer_config.as_mut().unwrap().strict_quoting = !walk.config.strict_quoting;
+        assert!(FrameWalk::new(source, &changed).is_none());
+        changed.resolved_input = None;
+        assert!(FrameWalk::new(source, &changed).is_none());
+    }
+
+    #[test]
+    fn original_frame_regions_keep_selected_expression_template_and_replacement_horizon() {
+        // naming.refactor.original-frame-traversal
+        // docs/design/analysis/name-resolution-proofs/refactor-original-frame-traversal.md
+        let source = "rename expr evaluate
+evaluate {$x + [string length VALUE]}
+subst -novariables {[puts $x]}
+proc evaluate args {}
+evaluate {[set hidden 1]}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let walk = FrameWalk::new(source, &analysis).unwrap();
+        let commands = walk.segment(source, 0);
+        let expression = walk.same_frame_regions(source, &commands[1]);
+        assert_eq!(expression.len(), 1);
+        assert_eq!(
+            &source[expression[0].0..expression[0].1],
+            "string length VALUE"
+        );
+        let template = walk.same_frame_regions(source, &commands[2]);
+        assert_eq!(template.len(), 1);
+        assert_eq!(&source[template[0].0..template[0].1], "puts $x");
+        assert!(walk.complete());
+        assert!(walk.source_words(source, &commands[4]).is_none());
+        walk.same_frame_regions(source, &commands[4]);
+        assert!(!walk.complete());
+        let dynamic = "eval $script";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(dynamic, "tcl");
+        let walk = FrameWalk::new(dynamic, &analysis).unwrap();
+        assert!(
+            walk.same_frame_regions(dynamic, &walk.segment(dynamic, 0)[0])
+                .is_empty()
+        );
+        assert!(
+            !walk.complete(),
+            "a partial body inventory cannot prove coverage"
+        );
     }
 }

@@ -52,7 +52,7 @@ use crate::side_effects::SideSwitchTarget;
 use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
 use crate::stamp_window::StampSelection;
 use crate::state_transition::{StateTransition, StateTransitions, TransitionSubject};
-use crate::traits::{FRAME_SENSITIVE_TRAITS, Traits};
+use crate::traits::Traits;
 use crate::types::VarWriteTyping;
 use crate::value_transfer::completion::ReturnDecoding;
 use crate::{InvocationArguments, InvocationWords};
@@ -4149,10 +4149,25 @@ impl CommandRegistry {
         selected
     }
 
-    /// Measured native command admission when catalogue ancestry cannot express
-    /// a reimplementation's absence. Unknown releases/builds remain unknown.
+    /// Measured native admission for a catalogued command. A custom binding
+    /// outside this catalogue has no stock-command admission answer.
     #[must_use]
-    pub fn native_command_admission(name: &str, dialect: crate::InvocationDialect) -> Option<bool> {
+    pub fn native_command_admission(
+        &self,
+        name: &str,
+        dialect: crate::InvocationDialect,
+    ) -> Option<bool> {
+        self.get(name)?;
+        Self::native_stock_registration_admission(dialect, name)
+    }
+
+    /// Measured admission for an actual stock-command registration, independent
+    /// of catalogue ancestry. Unknown releases/builds remain unknown.
+    #[must_use]
+    pub fn native_stock_registration_admission(
+        dialect: crate::InvocationDialect,
+        name: &str,
+    ) -> Option<bool> {
         // This is a stock implementation admission query. A live custom
         // native binding is not constrained by the fresh engine's roster.
         // Catalogue absence is not permission for an original stock identity.
@@ -6661,7 +6676,7 @@ impl CommandRegistry {
         self.by_name.get(name).is_some_and(|specs| {
             specs
                 .iter()
-                .any(|s| s.traits.intersects(FRAME_SENSITIVE_TRAITS))
+                .any(|s| crate::traits::is_frame_sensitive(s.traits))
         })
     }
 
@@ -6702,7 +6717,7 @@ impl CommandRegistry {
             .filter_map(|(name, specs)| {
                 specs
                     .iter()
-                    .any(|s| s.traits.intersects(FRAME_SENSITIVE_TRAITS))
+                    .any(|s| crate::traits::is_frame_sensitive(s.traits))
                     .then_some(*name)
             })
             .collect()

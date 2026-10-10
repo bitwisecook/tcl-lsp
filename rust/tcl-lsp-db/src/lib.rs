@@ -624,7 +624,7 @@ pub struct SourceFile {
     /// `None` means "no workspace view", and the walk abstains on every such
     /// call — the deliberate behaviour every standalone consumer keeps.
     ///
-    /// Set by the server from [`project_class_factories`] (compare-then-set),
+    /// Set by the server from [`project_class_factories_for_inputs`] (compare-then-set),
     /// the same discipline [`Self::external_call_sites`] uses: an index that
     /// does not move invalidates nothing, and almost no edit moves it, since
     /// almost no document declares a metaclass.
@@ -820,19 +820,13 @@ pub fn file_analysis(
     )
 }
 
-/// Offset-stable item tree — the per-item firewall's foundation
-/// (`docs/design/rust/incremental-analysis.md`). One item per declaration, keyed
-/// by stable name + kind so a shifted-but-unedited proc keeps its identity.
+/// Explicit standalone item inventory, keyed by stable declaration name/kind.
+/// Configured document providers use [`item_tree_for_config`] so selected
+/// pack definitions, source grammar and available generations stay attached.
 ///
-/// **Anchor.** `ensemble_namespaces` lives on the `Analyser`, not the
-/// returned `AnalysisResult`, so this query runs `analyse` directly and reads
-/// the ensemble set off the instance rather than reusing [`file_analysis`]. The
-/// item set therefore *cannot* diverge from `analyse`; it is guarded by the
-/// `file_decls` corpus
-/// gate + the `incremental == fresh` differential fuzzer + the full-rebuild
-/// fallback (item detection is config-independent, hence no `AnalyserConfig`;
-/// the one cross-file input it does read, `SourceFile::workspace_class_factories`,
-/// is a property of the *file*, so the query key is unchanged).
+/// `ensemble_namespaces` is retained on the analyser, so this structure-only
+/// query reads the item/header projection directly from that same source walk.
+/// The published workspace factory oracle remains an input to the file.
 #[salsa::tracked(returns(clone))]
 pub fn item_tree(db: &dyn salsa::Database, file: SourceFile) -> Arc<ItemTree> {
     // `structure_only` skips diagnostic emission (the dominant analyse cost)
@@ -855,7 +849,7 @@ pub fn item_tree(db: &dyn salsa::Database, file: SourceFile) -> Arc<ItemTree> {
     ))
 }
 
-/// Item signatures — the cross-item-relevant headers, with bodies stripped
+/// Explicit standalone item signatures — cross-item headers with bodies stripped
 /// (`item_sig*` in the design graph). A body-only edit leaves these equal, so
 /// [`file_decls`] and the future cross-item passes early-cutoff.
 #[salsa::tracked(returns(clone))]
@@ -887,11 +881,22 @@ pub fn file_decls(db: &dyn salsa::Database, file: SourceFile) -> Arc<FileDecls> 
 /// interns under its durability, and only `Durability::LOW` slots are
 /// garbage-collected.  See the crate docs' "The interned garbage collector is
 /// load-bearing".
-#[salsa::input]
+#[salsa::input(constructor = with_token_configurations)]
 pub struct Project {
     /// The project's files (workspace + open documents).
     #[returns(ref)]
     pub files: Vec<SourceFile>,
+    /// Actual per-file settings captured by the document driver. Missing
+    /// mappings withhold supplied project source facts; standalone queries are separate.
+    #[returns(ref)]
+    pub token_configurations: Option<Vec<(SourceFile, AnalyserConfig)>>,
+}
+
+impl Project {
+    /// Construct a project for the explicit standalone aggregate queries.
+    pub fn new(db: &dyn salsa::Database, files: Vec<SourceFile>) -> Self {
+        Self::with_token_configurations(db, files, None)
+    }
 }
 
 /// The project-wide set of declared `proc` qualified names — the cross-file
@@ -965,9 +970,20 @@ pub fn project_class_factories(
     db: &dyn salsa::Database,
     project: Project,
 ) -> Arc<tcl_compiler::analyser::ClassFactoryIndex> {
+    merge_class_factories(
+        project
+            .files(db)
+            .iter()
+            .map(|&file| file_class_factories(db, file)),
+    )
+}
+
+fn merge_class_factories(
+    parts: impl IntoIterator<Item = Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
+) -> Arc<tcl_compiler::analyser::ClassFactoryIndex> {
     let mut merged = tcl_compiler::analyser::ClassFactoryIndex::new();
-    for &file in project.files(db) {
-        for (qname, factory) in file_class_factories(db, file).iter() {
+    for part in parts {
+        for (qname, factory) in part.iter() {
             merged.insert(qname.clone(), factory.clone());
         }
     }
@@ -1309,11 +1325,17 @@ pub fn project_command_arities(
     db: &dyn TclDb,
     project: Project,
 ) -> Arc<HashMap<String, Vec<(usize, usize)>>> {
+    merge_command_arities(project.files(db).iter().map(|&file| item_sigs(db, file)))
+}
+
+fn merge_command_arities(
+    signatures: impl IntoIterator<Item = Arc<Vec<ItemSig>>>,
+) -> Arc<HashMap<String, Vec<(usize, usize)>>> {
     use tcl_compiler::analyser::ItemKind;
     // Complete declaration keys and bare-tail assistance remain separate entries.
     let mut acc: HashMap<String, (Vec<(usize, usize)>, bool)> = HashMap::new();
-    for &file in project.files(db) {
-        for sig in item_sigs(db, file).iter() {
+    for signatures in signatures {
+        for sig in signatures.iter() {
             // Command-resolvable kinds only — methods are object-dispatched and
             // namespaces aren't commands, so neither suppresses a bare-command W123.
             let resolvable = matches!(
@@ -1374,9 +1396,20 @@ pub fn project_original_command_signatures(
         Vec<tcl_compiler::analyser::SourceDeclarationSignature>,
     >,
 > {
+    merge_original_command_signatures(project.files(db).iter().map(|&file| item_sigs(db, file)))
+}
+
+fn merge_original_command_signatures(
+    signatures: impl IntoIterator<Item = Arc<Vec<ItemSig>>>,
+) -> Arc<
+    HashMap<
+        tcl_compiler::signature_scan::scope::SignatureSourceCommand,
+        Vec<tcl_compiler::analyser::SourceDeclarationSignature>,
+    >,
+> {
     let mut entries: HashMap<_, Vec<_>> = HashMap::new();
-    for &file in project.files(db) {
-        for signature in item_sigs(db, file).iter() {
+    for signatures in signatures {
+        for signature in signatures.iter() {
             let Some(header) = signature.original_declaration.as_ref() else {
                 continue;
             };
@@ -1442,6 +1475,17 @@ pub fn original_command_signatures<'db>(
     name: OriginalCommandSlot<'db>,
 ) -> Option<Arc<Vec<tcl_compiler::analyser::SourceDeclarationSignature>>> {
     let table = project_original_command_signatures(db, project);
+    select_original_command_signatures(db, name, &table)
+}
+
+fn select_original_command_signatures(
+    db: &dyn TclDb,
+    name: OriginalCommandSlot<'_>,
+    table: &HashMap<
+        tcl_compiler::signature_scan::scope::SignatureSourceCommand,
+        Vec<tcl_compiler::analyser::SourceDeclarationSignature>,
+    >,
+) -> Option<Arc<Vec<tcl_compiler::analyser::SourceDeclarationSignature>>> {
     let selected = tcl_compiler::signature_scan::scope::first_matching_byte_publications(
         name.policy(db),
         std::slice::from_ref(name.slot(db)),
@@ -1468,13 +1512,25 @@ pub fn original_lookup_command_signatures(
     project: Project,
     lookup: &tcl_compiler::command_binding::OriginalCommandLookup,
 ) -> Option<Arc<Vec<tcl_compiler::analyser::SourceDeclarationSignature>>> {
+    original_lookup_command_signatures_using(db, lookup, |key| {
+        original_command_signatures(db, project, key)
+    })
+}
+
+fn original_lookup_command_signatures_using<'db>(
+    db: &'db dyn TclDb,
+    lookup: &tcl_compiler::command_binding::OriginalCommandLookup,
+    mut query: impl FnMut(
+        OriginalCommandSlot<'db>,
+    ) -> Option<Arc<Vec<tcl_compiler::analyser::SourceDeclarationSignature>>>,
+) -> Option<Arc<Vec<tcl_compiler::analyser::SourceDeclarationSignature>>> {
     let mut slots = Vec::new();
     for candidate in lookup.candidates().iter().flatten() {
         if slots.iter().any(|(slot, _)| slot == candidate) {
             continue;
         }
         let key = OriginalCommandSlot::new(db, lookup.policy(), candidate.clone());
-        if let Some(headers) = original_command_signatures(db, project, key) {
+        if let Some(headers) = query(key) {
             slots.push((candidate.clone(), headers));
         }
     }
@@ -1851,6 +1907,12 @@ fn callback_arity_diagnostic(
     }
 }
 
+#[derive(Clone, Copy)]
+enum ProjectSourceInputMode {
+    Standalone,
+    Supplied,
+}
+
 /// Local canonical signatures do not read the project table. Authenticated
 /// external source names and unknown local targets use exact byte geometry;
 /// explicit source refusals never borrow a surviving project declaration.
@@ -1858,6 +1920,7 @@ fn callback_source_target_signatures(
     db: &dyn TclDb,
     project: Project,
     selection: &tcl_compiler::analyser::SourceCallbackSignatureLookup,
+    mode: ProjectSourceInputMode,
 ) -> Option<Arc<Vec<tcl_compiler::analyser::SourceDeclarationSignature>>> {
     use tcl_compiler::command_binding::OriginalSourceCallbackProcedureTargetKind as Kind;
     let original = selection.original();
@@ -1870,11 +1933,27 @@ fn callback_source_target_signatures(
                     target.target_input().native_input()?.policy(),
                     target.source_slot().clone(),
                 );
-                original_command_signatures(db, project, key)
+                match mode {
+                    ProjectSourceInputMode::Standalone => {
+                        original_command_signatures(db, project, key)
+                    }
+                    ProjectSourceInputMode::Supplied => {
+                        original_command_signatures_for_inputs(db, project, key)
+                    }
+                }
             }
         }
     } else if original.permits_external_signature_lookup() {
-        original_lookup_command_signatures(db, project, selection.prefix().lookup()?)
+        match mode {
+            ProjectSourceInputMode::Standalone => {
+                original_lookup_command_signatures(db, project, selection.prefix().lookup()?)
+            }
+            ProjectSourceInputMode::Supplied => original_lookup_command_signatures_for_inputs(
+                db,
+                project,
+                selection.prefix().lookup()?,
+            ),
+        }
     } else {
         None
     }
@@ -1889,6 +1968,23 @@ fn apply_original_callback_arity<'a>(
     >,
     is_disabled: impl Fn(&str) -> bool,
 ) {
+    apply_original_callback_arity_with_mode(
+        (db, project, ProjectSourceInputMode::Standalone),
+        out,
+        invocations,
+        is_disabled,
+    );
+}
+
+fn apply_original_callback_arity_with_mode<'a>(
+    source: (&dyn TclDb, Project, ProjectSourceInputMode),
+    out: &mut Vec<tcl_compiler::analyser::types::Diagnostic>,
+    invocations: impl IntoIterator<
+        Item = &'a tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    >,
+    is_disabled: impl Fn(&str) -> bool,
+) {
+    let (db, project, mode) = source;
     use tcl_compiler::analyser::{
         Diagnostic, DiagnosticSubject, Severity, SourceCallbackArityIssue as Issue,
         SourceCallbackAritySubject,
@@ -1898,7 +1994,7 @@ fn apply_original_callback_arity<'a>(
             // A prefix's scope geometry alone does not own source occupancy.
             continue;
         };
-        let Some(headers) = callback_source_target_signatures(db, project, selection) else {
+        let Some(headers) = callback_source_target_signatures(db, project, selection, mode) else {
             continue;
         };
         let Some(subject) =
@@ -2159,6 +2255,8 @@ fn retained_callback_invocations(
 /// Local canonical headers and exact held external names share the original
 /// callback owner. Legacy scalar records require positive retained Logical input.
 /// This supplies no installed callback, future entry or execution verdict.
+/// Project headers in this compatibility entry use the explicit standalone
+/// provider. Document callers use [`project_callback_diagnostics_for_analysis_with_inputs`].
 #[must_use]
 pub fn project_callback_diagnostics_for_analysis(
     db: &dyn TclDb,
@@ -2167,6 +2265,21 @@ pub fn project_callback_diagnostics_for_analysis(
     analysis: &AnalysisResult,
     is_disabled: impl Fn(&str) -> bool,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
+    project_callback_diagnostics_with_mode(
+        (db, project, ProjectSourceInputMode::Standalone),
+        source,
+        analysis,
+        is_disabled,
+    )
+}
+
+fn project_callback_diagnostics_with_mode(
+    project_input: (&dyn TclDb, Project, ProjectSourceInputMode),
+    source: &str,
+    analysis: &AnalysisResult,
+    is_disabled: impl Fn(&str) -> bool,
+) -> Vec<tcl_compiler::analyser::Diagnostic> {
+    let (db, project, mode) = project_input;
     // naming.database.original-project-callback-projection
     // docs/design/analysis/name-resolution-proofs/database-original-project-callback-projection.md
     let Some(input) = analysis.resolved_input.as_ref() else {
@@ -2187,7 +2300,12 @@ pub fn project_callback_diagnostics_for_analysis(
             .flat_map(callback_command_keys)
             .collect::<BTreeSet<_>>();
         for tail in tails {
-            if let Some(resolved) = command_arity(db, project, CommandTail::new(db, tail.clone())) {
+            let key = CommandTail::new(db, tail.clone());
+            let resolved = match mode {
+                ProjectSourceInputMode::Standalone => command_arity(db, project, key),
+                ProjectSourceInputMode::Supplied => command_arity_for_inputs(db, project, key),
+            };
+            if let Some(resolved) = resolved {
                 arities.insert(tail, (*resolved).clone());
             }
         }
@@ -2199,9 +2317,8 @@ pub fn project_callback_diagnostics_for_analysis(
         &arities,
         &is_disabled,
     );
-    apply_original_callback_arity(
-        db,
-        project,
+    apply_original_callback_arity_with_mode(
+        (db, project, mode),
         &mut diagnostics,
         retained_callback_invocations(analysis),
         is_disabled,
@@ -4893,6 +5010,24 @@ pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig)
     )
 }
 
+mod project_source_inputs;
+use project_source_inputs::{
+    command_arity_for_inputs, original_command_signatures_for_inputs,
+    original_lookup_command_signatures_for_inputs,
+};
+pub use project_source_inputs::{
+    item_sigs_for_config, item_tree_for_config,
+    project_callback_diagnostics_for_analysis_with_inputs, project_callback_diagnostics_for_inputs,
+    project_class_factories_for_inputs, project_original_command_signatures_for_inputs,
+};
+
+mod project_token_inputs;
+pub use project_token_inputs::{
+    file_token_facts_for_config, project_class_index_for_inputs,
+    project_named_instance_index_for_inputs, project_proc_var_index_for_inputs,
+    semantic_tokens_project_for_inputs,
+};
+
 /// The cross-file facts the project-level token aggregates read from **one**
 /// file: its class definitions and its inferred variable-name argument roles.
 ///
@@ -4936,17 +5071,19 @@ pub struct FileTokenFacts {
 /// the cost — for the same 883 files in ~2.9 s, and the result is a projection
 /// small enough to backdate.
 ///
-/// Config-independent by construction: `structure_only` emits no diagnostics,
-/// so the disabled-diagnostic set / non-ASCII mode / extra commands cannot
-/// reach the class and role facts.  That is what lets both aggregates drop
-/// their `AnalyserConfig` key — one index per project rather than one per
-/// distinct per-folder config.
+/// This explicit standalone query uses the file's stated dialect. Actual
+/// document consumers use [`file_token_facts_for_config`], whose checked input
+/// retains pack roles, availability and source grammar on the same light tier.
 #[salsa::tracked(returns(clone))]
 pub fn file_token_facts(db: &dyn TclDb, file: SourceFile) -> Arc<FileTokenFacts> {
     let mut analyser = Analyser::new()
         .structure_only()
         .with_file_path(file.path(db).clone());
     let result = analyser.analyse(file.text(db), file.dialect(db));
+    token_facts_from_analysis(result)
+}
+
+fn token_facts_from_analysis(result: AnalysisResult) -> Arc<FileTokenFacts> {
     let named_instances = result
         .instance_classes
         .iter()
@@ -4970,6 +5107,17 @@ pub fn file_token_facts(db: &dyn TclDb, file: SourceFile) -> Arc<FileTokenFacts>
 /// recompute — the correct cross-file invalidation.
 #[salsa::tracked(returns(clone))]
 pub fn project_class_index(db: &dyn TclDb, project: Project) -> Arc<ClassHierarchy> {
+    merge_project_classes(
+        project
+            .files(db)
+            .iter()
+            .map(|&file| file_token_facts(db, file)),
+    )
+}
+
+fn merge_project_classes(
+    facts: impl IntoIterator<Item = Arc<FileTokenFacts>>,
+) -> Arc<ClassHierarchy> {
     // `project.files(db)` is an unordered `Vec` with no stable identity, so a
     // "first definition wins" merge would make the winner for a duplicate
     // qualified class name depend on file-enumeration order — non-deterministic
@@ -4980,8 +5128,8 @@ pub fn project_class_index(db: &dyn TclDb, project: Project) -> Arc<ClassHierarc
     // feature's highlight-only / sound-by-abstention posture.
     let mut merged: HashMap<String, ClassDef> = HashMap::new();
     let mut ambiguous: HashSet<String> = HashSet::new();
-    for &file in project.files(db) {
-        for (name, class) in &file_token_facts(db, file).classes {
+    for facts in facts {
+        for (name, class) in &facts.classes {
             if ambiguous.contains(name) {
                 continue;
             }
@@ -5014,13 +5162,20 @@ pub fn project_class_index(db: &dyn TclDb, project: Project) -> Arc<ClassHierarc
 /// Reads the same light [`file_token_facts`] firewall as [`project_class_index`].
 #[salsa::tracked(returns(clone))]
 pub fn project_proc_var_index(db: &dyn TclDb, project: Project) -> Arc<VarNameArgRoles> {
-    let per_file: Vec<Arc<FileTokenFacts>> = project
-        .files(db)
-        .iter()
-        .map(|&file| file_token_facts(db, file))
-        .collect();
+    merge_project_proc_roles(
+        project
+            .files(db)
+            .iter()
+            .map(|&file| file_token_facts(db, file)),
+    )
+}
+
+fn merge_project_proc_roles(
+    facts: impl IntoIterator<Item = Arc<FileTokenFacts>>,
+) -> Arc<VarNameArgRoles> {
+    let per_file = facts.into_iter().collect::<Vec<_>>();
     Arc::new(VarNameArgRoles::merge(
-        per_file.iter().map(|f| &f.proc_roles),
+        per_file.iter().map(|facts| &facts.proc_roles),
     ))
 }
 
@@ -5040,10 +5195,21 @@ pub fn project_named_instance_index(
     db: &dyn TclDb,
     project: Project,
 ) -> Arc<tcl_lsp_core::semantic_tokens::NamedInstanceMap> {
+    merge_project_named_instances(
+        project
+            .files(db)
+            .iter()
+            .map(|&file| file_token_facts(db, file)),
+    )
+}
+
+fn merge_project_named_instances(
+    facts: impl IntoIterator<Item = Arc<FileTokenFacts>>,
+) -> Arc<tcl_lsp_core::semantic_tokens::NamedInstanceMap> {
     let mut merged: HashMap<String, String> = HashMap::new();
     let mut ambiguous: HashSet<String> = HashSet::new();
-    for &file in project.files(db) {
-        for (name, class) in &file_token_facts(db, file).named_instances {
+    for facts in facts {
+        for (name, class) in &facts.named_instances {
             if ambiguous.contains(name) {
                 continue;
             }
@@ -5068,10 +5234,9 @@ pub fn project_named_instance_index(
 /// resolves too.  The server calls this when a [`Project`] is available; the
 /// bare [`semantic_tokens`] (local file only) is the fallback.
 ///
-/// Takes no [`AnalyserConfig`]: every input it reads — the document's
-/// compilation unit and the three project indexes — is config-independent, so
-/// keying on one would only fragment the memo across per-folder configs that
-/// cannot change the answer.
+/// This compatibility query keeps standalone cross-file indexes. Actual
+/// workspace document callers use [`semantic_tokens_project_for_inputs`] and
+/// the driver's per-file configuration map.
 // `returns(clone)` for the same reason as [`semantic_tokens`].
 #[salsa::tracked(returns(clone))]
 pub fn semantic_tokens_project(

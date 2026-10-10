@@ -170,6 +170,10 @@ pub enum RegistrySourceDiagnosticKind {
     TemplateSubstitution,
     /// Original selected script-reparse operand and its nested source call.
     ScriptReparse,
+    /// Selected channel path and possible original pipeline interpretation.
+    ChannelPath,
+    /// Selected source-file path under the original available argument form.
+    SourceFilePath,
 }
 
 /// A structured source diagnostic subject with original schema ownership.

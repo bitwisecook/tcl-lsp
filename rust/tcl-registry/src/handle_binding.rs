@@ -38,6 +38,8 @@
 //! [`CommandSpec::binds_handle`]: crate::spec::CommandSpec::binds_handle
 //! [`MemberBodyCommand`]: crate::definer::MemberBodyCommand
 
+use crate::{InvocationArgument, InvocationArguments};
+
 /// Which variable a call binds an object handle *to*.
 ///
 /// Almost every installer names it in the call (`install NAME using TYPE …`),
@@ -138,17 +140,31 @@ impl HandleBindingSpec {
     /// absent — abstention, never a guess: `install $comp using $type` and a
     /// user's own two-word `install` both fall through untouched.
     #[must_use]
-    pub fn resolve<'a>(&self, args: &[&'a str]) -> Option<BoundHandle<'a>> {
+    pub fn resolve<'a>(&self, args: &'a [&'a str]) -> Option<BoundHandle<'a>> {
+        self.resolve_words(InvocationArguments::literals(args))
+    }
+
+    /// Resolve the required literal operands from actual argument knowledge.
+    /// Dynamic trailing operands do not hide a known name, keyword and class;
+    /// expansion before a required position withdraws that position. The
+    /// binding is conditional source metadata, with no stored handle, lookup
+    /// or successful construction implied.
+    #[must_use]
+    pub fn resolve_words<'a>(&self, args: InvocationArguments<'a>) -> Option<BoundHandle<'a>> {
+        let literal_at = |index| match args.argv_at(index) {
+            InvocationArgument::Word(word) => word.literal(),
+            InvocationArgument::Missing | InvocationArgument::Indeterminate => None,
+        };
         if let Some(kw) = self.keyword
-            && args.get(kw.at as usize).copied() != Some(kw.word)
+            && literal_at(kw.at as usize) != Some(kw.word)
         {
             return None;
         }
         let name = match self.name_from {
-            HandleName::Word(i) => *args.get(i as usize)?,
+            HandleName::Word(i) => literal_at(i as usize)?,
             HandleName::Implicit(name) => name,
         };
-        let class_word = *args.get(self.class_from.index())?;
+        let class_word = literal_at(self.class_from.index())?;
         Some(BoundHandle {
             name,
             class_word,
@@ -229,6 +245,38 @@ mod tests {
         assert_eq!(spec.resolve(&["a", "b", "c"]), None);
         // Too short to carry a type word.
         assert_eq!(spec.resolve(&["axis", "using"]), None);
+    }
+
+    #[test]
+    fn original_handle_layout_requires_only_known_binding_operands() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        use crate::InvocationWord::{Dynamic, Expanded, KnownBytes, Literal};
+        let spec = SNIT_INSTALL_BINDS_HANDLE;
+        let mut words = [Literal("axis"), Literal("using"), Literal("Type"), Dynamic];
+        let bound = spec
+            .resolve_words(InvocationArguments::structured(&words))
+            .unwrap();
+        assert_eq!((bound.name, bound.class_word), ("axis", "Type"));
+        assert_eq!(spec.resolve(&["axis", "using", "Type"]), Some(bound));
+        words[3] = Expanded;
+        assert!(
+            spec.resolve_words(InvocationArguments::structured(&words))
+                .is_some()
+        );
+        for unavailable in [Dynamic, Expanded, KnownBytes(b"Type")] {
+            words[2] = unavailable;
+            assert!(
+                spec.resolve_words(InvocationArguments::structured(&words))
+                    .is_none()
+            );
+        }
+        words[2] = Literal("Type");
+        words[0] = Expanded;
+        assert!(
+            spec.resolve_words(InvocationArguments::structured(&words))
+                .is_none()
+        );
     }
 
     #[test]

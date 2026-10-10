@@ -1015,9 +1015,14 @@ impl ValueOps for Interp {
         version: tcl_dialect::TclVersion,
     ) -> Result<Self::Value, ValueError> {
         let dialect = self.native_invocation_dialect();
-        let recipe = dialect.byte_array_string_recipe(None)
-            .filter(|recipe| recipe.protocol() == tcl_syntax::native_string::NativeStringProtocol::C(version))
-            .ok_or(ValueError::CommandProtocolUnavailable("native external UTF-8 binary result issuer"))?;
+        let recipe = dialect
+            .byte_array_string_recipe(None)
+            .filter(|recipe| {
+                recipe.protocol() == tcl_syntax::native_string::NativeStringProtocol::C(version)
+            })
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native external UTF-8 binary result issuer",
+            ))?;
         Ok(crate::bytearray::new_byte_array(bytes, recipe))
     }
 
@@ -1297,6 +1302,10 @@ impl ValueOps for Interp {
     /// Byte-exact construction (the `obj::new_string_bytes` path).
     fn new_bytes(&mut self, bytes: &[u8]) -> *mut TclObj {
         obj::new_string_bytes(bytes)
+    }
+
+    fn native_command_full_name_result(&mut self, bytes: &[u8]) -> Result<*mut TclObj, ValueError> {
+        Ok(self.native_namespace_origin_result(bytes)?.into_raw())
     }
 
     fn try_append_bytes_in_place(&mut self, v: &mut *mut TclObj, bytes: &[u8]) -> bool {

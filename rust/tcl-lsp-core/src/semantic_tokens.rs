@@ -2164,58 +2164,120 @@ fn resolve_class_in_hierarchy(hierarchy: &ClassHierarchy, name: &str) -> Option<
 /// object.  No-op outside a class body, without a hierarchy, or for any
 /// other head.
 fn insert_self_method_overrides(
+    ctx: ScriptCtx<'_>,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-    classes: Option<&ClassHierarchy>,
-    registry: &CommandRegistry,
-    enclosing_class: Option<&str>,
+    original: Option<&crate::original_invocation::OriginalRegistryWords>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let (Some(hierarchy), Some(class_name), Some(head), Some(method)) = (
-        classes,
-        enclosing_class,
-        seg.texts.first(),
-        seg.texts.get(1),
-    ) else {
+    let (Some(hierarchy), Some(class_name), Some(head)) =
+        (ctx.classes, ctx.enclosing_class, seg.argv.first())
+    else {
         return;
     };
-    // Three different axes, deliberately kept apart. `my` is the `TclOO`
-    // self-dispatch *command keyword* — registry data, queried through
-    // `method_dispatch_keyword` so a dialect that gains or loses it
-    // propagates through its `CommandSpec`. `[self]`/`[self
-    // object]` is a bracketed *command substitution* whose result is the
-    // receiver, not a dispatch keyword — registry data via
-    // `is_self_receiver_call`, keyed on the substitution's own head and
-    // argument rather than matching `"self"` here. `$self` /
-    // `$this` are snit / itcl *object-handle variable names*, a naming
-    // convention of those class systems rather than a command at all, so
-    // they stay matched by name here.
-    let is_self_head = crate::definition::is_self_dispatch_keyword(head)
-        // registry-axis-ok: irreducible — `self`/`this` are each one entry
-        // of their family's broader `implicit_vars` list (snit also
-        // implicitly binds `selfns`/`type`/`options`/…, itcl only `this`),
-        // and nothing marks which one of a family's implicit vars is *the*
-        // self-receiver, so reading `implicit_vars` here would still need
-        // to know which element to trust — the same naming-convention fact
-        // the comment above already gives by name; until never
-        || object_handle_name(head).is_some_and(|n| n == "self" || n == "this")
-        || tcl_compiler::value_shapes::parse_command_substitution_with_config(
-            head,
-            tcl_lexer::LexerConfig::for_profile(registry.profile()),
-        )
-        .is_some_and(|(cmd, args)| {
-            registry.is_self_receiver_call(&cmd, args.first().map(String::as_str))
-        });
-    if !is_self_head {
+    let selected_self = original.and_then(|words| {
+        words.with_source_schema(ctx.generation, |schema| {
+            schema
+                .semantics
+                .traits
+                .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
+        })
+    }) == Some(true);
+    let method_index = if selected_self {
+        let Some(tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written)) =
+            original.and_then(|words| words.origins.as_slice().get(1))
+        else {
+            return;
+        };
+        *written
+    } else {
+        let implicit_self = seg
+            .texts
+            .first()
+            .and_then(|text| object_handle_name(text))
+            .is_some_and(|name| {
+                matches!(name, "self" | "this")
+                    && ctx
+                        .oo_grammar
+                        .is_some_and(|grammar| grammar.implicit_vars.contains(&name))
+            });
+        if !implicit_self && !original_self_accessor(ctx, *head) {
+            return;
+        }
+        1
+    };
+    let Some(method) = seg.texts.get(method_index) else {
         return;
-    }
+    };
     let Some(class) = resolve_class_in_hierarchy(hierarchy, class_name) else {
         return;
     };
-    if !user_class_provides_method(hierarchy, registry, &class, method) {
+    if !user_class_provides_method(hierarchy, ctx.registry, &class, method) {
         return;
     }
-    mark_method_word(seg, overrides);
-    insert_user_configure_options(seg, hierarchy, registry, &class, method, overrides);
+    if let Some(word) = seg.argv.get(method_index) {
+        overrides.insert(word.span.start(), ArgOverride::Kind(TokenKind::Method));
+    }
+    // This presentation helper addresses direct written selector/options only.
+    // Captures never borrow its positional argument coordinates.
+    if method_index == 1
+        && original.is_none_or(|words| {
+            words
+                .origins
+                .as_slice()
+                .iter()
+                .enumerate()
+                .all(|(ordinal, origin)| {
+                    *origin
+                        == tcl_compiler::registry_invocation::InvocationWordOrigin::Written(ordinal)
+                })
+        })
+    {
+        insert_user_configure_options(seg, hierarchy, ctx.registry, &class, method, overrides);
+    }
+}
+
+/// A single genuine receiver substitution under the current original schema.
+/// This is conditional source syntax, not the result of executing the child.
+fn original_self_accessor(ctx: ScriptCtx<'_>, head: Token) -> bool {
+    let Some(analysis) = ctx.analysis else {
+        return false;
+    };
+    let regions =
+        crate::executable_regions::command_substitution_regions(ctx.full_source, ctx.config, head);
+    let [(start, end)] = regions.as_slice() else {
+        return false;
+    };
+    let Ok(offset) = u32::try_from(*start) else {
+        return false;
+    };
+    let commands =
+        segment_commands_with_offset_and_config(&ctx.full_source[*start..*end], offset, ctx.config);
+    let [command] = commands.as_slice() else {
+        return false;
+    };
+    let Some(words) = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+        ctx.full_source,
+        analysis,
+        command,
+    ) else {
+        return false;
+    };
+    words.with_source_schema(ctx.generation, |schema| {
+        let spec = schema.authored_source_descriptors().command;
+        if spec.self_receiver_words.is_empty() {
+            return false;
+        }
+        match schema.words.arguments().exact_argv_len() {
+            Some(0) => spec.arity.min == 0,
+            Some(1) => schema
+                .words
+                .arguments()
+                .get(0)
+                .and_then(tcl_registry::InvocationWord::literal)
+                .is_some_and(|word| spec.self_receiver_words.contains(&word)),
+            _ => false,
+        }
+    }) == Some(true)
 }
 
 /// The *user-defined* class named by a direct exported manufacturer head,
@@ -3549,13 +3611,7 @@ fn collect_script(
         // `my method …` inside a class body resolves against the enclosing
         // class's MRO (the most common `TclOO` dispatch form).
         if !ctx.original_roles.has_head(head_tok.span.start()) {
-            insert_self_method_overrides(
-                &seg,
-                ctx.classes,
-                registry,
-                ctx.enclosing_class,
-                &mut overrides,
-            );
+            insert_self_method_overrides(ctx, &seg, original.as_ref(), &mut overrides);
         }
         ctx.original_roles
             .insert_overrides(ctx, &seg, &mut overrides);
@@ -4283,29 +4339,46 @@ fn expr_subtoken_kind(kind: tcl_lexer::ExprTokenType) -> Option<TokenKind> {
 /// `lmap …` — so a `$v method …` dispatch in the loop body resolves like a
 /// `[dict get $coll $k] method …` retrieval.
 ///
-/// A *syntactic* recursive scan of the source rather than an IR pass: the IR
-/// lowers a `dict for` used as a bare statement to a barrier, but a loop nested
-/// in a command substitution or `set` value (`return [dict map {k v} $coll
-/// {…}]`) is folded into a value string and never surfaces as a loop.  The
-/// syntactic scan sees every body regardless of how it lowers.  No-op when no
-/// object collection is tracked.
+/// The shared original executable-source walker supplies potential regions;
+/// the actual per-point schema owns roles and captured operands. Inert braced
+/// data supplies no loop binding. No-op when no object collection is tracked.
 fn augment_loop_var_handles(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     object_collections: &ObjectClassMap,
     object_classes: &mut ObjectClassMap,
 ) {
     if object_collections.is_empty() {
         return;
     }
-    scan_loop_vars(
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return;
+    };
+    let context = current.context();
+    let rules = tcl_syntax::word_rules::WordValueRules::from_grammar(
+        &current.config().grammar_over(current.profile().grammar),
+    );
+    crate::executable_regions::visit_analysis_executable_commands(
         source,
-        source,
-        0,
-        dialect,
-        object_collections,
-        object_classes,
-        0,
+        analysis,
+        &mut |command, _, _| {
+            if let Some(words) =
+                tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                    source, analysis, command,
+                )
+            {
+                bind_loop_vars_for_call(
+                    command,
+                    &words,
+                    &context,
+                    rules,
+                    object_collections,
+                    object_classes,
+                );
+            }
+            true
+        },
     );
 }
 
@@ -4321,68 +4394,6 @@ fn bind_loop_var(
             .entry(var.to_owned())
             .or_default()
             .extend(classes.iter().cloned());
-    }
-}
-
-/// Recursive worker for [`augment_loop_var_handles`]: segment `text` (anchored
-/// at `base_offset`), bind any loop's value variable(s) that iterate a tracked
-/// object collection, then recurse into every braced-script word.
-fn scan_loop_vars(
-    full_source: &str,
-    text: &str,
-    base_offset: u32,
-    dialect: &'static tcl_dialect::DialectProfile,
-    collections: &ObjectClassMap,
-    handles: &mut ObjectClassMap,
-    depth: u32,
-) {
-    if MAX_TOKEN_RECURSION.exceeded(depth) {
-        return;
-    }
-    let registry = crate::registry_for_dialect_profile(dialect);
-    for seg in segment_commands_with_offset_and_config(
-        text,
-        base_offset,
-        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar).at_depth(depth),
-    ) {
-        bind_loop_vars_for_call(
-            full_source,
-            &seg,
-            registry,
-            tcl_syntax::word_rules::WordValueRules::of_profile(Some(dialect)),
-            collections,
-            handles,
-        );
-        // Recurse into braced-script words (loop bodies, proc / method / class
-        // bodies, `namespace eval` blocks, `if`/`switch` arms, …) and into
-        // `[…]` command substitutions (a loop can be `return [dict map …]`).
-        for (i, tok) in seg.argv.iter().enumerate() {
-            if !seg.single_token_word.get(i).copied().unwrap_or(false) {
-                continue;
-            }
-            let inner_span = match tok.kind {
-                TokenType::Str => subspec_content(full_source, *tok),
-                TokenType::Cmd => {
-                    let cstart = tok.span.start() as usize + tok.content_offset as usize;
-                    let cend = (tok.span.end() as usize).min(full_source.len());
-                    (cend > cstart)
-                        .then(|| full_source.get(cstart..cend).map(|inner| (cstart, inner)))
-                        .flatten()
-                }
-                _ => None,
-            };
-            if let Some((cstart, inner)) = inner_span {
-                scan_loop_vars(
-                    full_source,
-                    inner,
-                    u32::try_from(cstart).unwrap_or(0),
-                    dialect,
-                    collections,
-                    handles,
-                    depth + 1,
-                );
-            }
-        }
     }
 }
 
@@ -4415,29 +4426,193 @@ fn scan_loop_vars(
 /// project mode), so an unknown type is never guessed at.
 fn augment_snit_handles(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
     classes: Option<&ClassHierarchy>,
     object_classes: &mut ObjectClassMap,
 ) {
-    // The member-body installers this dialect's definers inject, resolved once
-    // per document rather than per segment.
-    let member_bindings: FxHashMap<&'static str, tcl_registry::HandleBindingSpec> =
-        crate::registry_for_dialect_profile(dialect)
-            .member_body_handle_bindings()
-            .into_iter()
-            .collect();
-    scan_snit_handles(
-        &HandleScanCtx {
-            full_source: source,
-            dialect,
-            classes,
-            member_bindings: &member_bindings,
-        },
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return;
+    };
+    let context = current.context();
+    crate::executable_regions::visit_analysis_executable_commands(
         source,
-        0,
-        object_classes,
-        0,
+        analysis,
+        &mut |command, _, _| {
+            bind_original_handle_construction(source, analysis, command, &context, object_classes);
+            true
+        },
     );
+    let Some(walk) = crate::refactor::FrameWalk::new(source, analysis) else {
+        return;
+    };
+    for (region, grammar) in selected_member_handle_regions(source, analysis, &context) {
+        let Some(text) = source.get(region.as_range()) else {
+            continue;
+        };
+        for root in walk.segment(text, region.start()) {
+            let mut commands = Vec::new();
+            walk.nested_same_frame_commands(source, &root, &mut commands);
+            commands.push(root);
+            for command in commands {
+                let Some(original) = walk.native_words(source, &command) else {
+                    continue;
+                };
+                let values = original
+                    .iter()
+                    .map(tcl_syntax::word_rules::original_static_word_ascii_presentation)
+                    .map(|value| value.and_then(|bytes| String::from_utf8(bytes).ok()))
+                    .collect::<Vec<_>>();
+                let Some(head) = values.first().and_then(Option::as_deref) else {
+                    continue;
+                };
+                let arguments = original
+                    .iter()
+                    .zip(&values)
+                    .skip(1)
+                    .map(|(word, value)| {
+                        if word.group().expand {
+                            tcl_registry::InvocationWord::Expanded
+                        } else if let Some(value) = value.as_deref() {
+                            tcl_registry::InvocationWord::Literal(value)
+                        } else {
+                            tcl_registry::InvocationWord::Dynamic
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                if let Some(binding) = grammar
+                    .member_body_command(head)
+                    .and_then(|command| command.binds_handle)
+                    && let Some(bound) = binding
+                        .resolve_words(tcl_registry::InvocationArguments::structured(&arguments))
+                    && matches!(bound.class_source, tcl_registry::HandleClassSource::Word(_))
+                {
+                    bind_object_handle(&bound, classes, object_classes);
+                }
+            }
+        }
+    }
+}
+
+/// The actual selected factory and sealed member-script vectors own the
+/// installer vocabulary. This is conditional source metadata only.
+fn selected_member_handle_regions(
+    source: &str,
+    analysis: &AnalysisResult,
+    context: &tcl_registry::model::ContextRegistry,
+) -> Vec<(Span, &'static tcl_registry::definer::DefinitionBodyGrammar)> {
+    use tcl_compiler::registry_invocation::source_structure;
+    let mut pending = Vec::new();
+    crate::executable_regions::visit_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            let declaration = source_structure::source_class_declaration_at(
+                source,
+                analysis,
+                command.span.start(),
+            )
+            .or_else(|| {
+                source_structure::source_configured_class_at(source, analysis, command.span.start())
+                    .map(|target| target.class_declaration().clone())
+            });
+            if let Some(declaration) = declaration
+                && declaration.logical_source_class(analysis).is_some()
+                && let Some(grammar) = declaration.grammar(context)
+                && !grammar.member_body_commands.is_empty()
+                && let Some(words) =
+                    source_structure::source_registry_words(source, analysis, command)
+            {
+                for body in words.source_script_bodies(context) {
+                    if let Some(parent) = body.definition_parent_for(context, None) {
+                        pending.push((parent, body.content_span(), grammar, 0));
+                    }
+                }
+            }
+            true
+        },
+    );
+    let mut regions = Vec::new();
+    let mut visited = std::collections::BTreeSet::new();
+    while let Some((parent, region, grammar, depth)) = pending.pop() {
+        if MAX_TOKEN_RECURSION.exceeded(depth) || !visited.insert((region.start(), region.end())) {
+            continue;
+        }
+        let Some(members) = parent.definition_member_region(context, region) else {
+            continue;
+        };
+        for original in members.original_commands() {
+            for body in members.script_bodies(original).into_iter().flatten() {
+                if let Some(parent) = body.definition_parent() {
+                    pending.push((parent.clone(), body.content_span(), grammar, depth + 1));
+                } else {
+                    regions.push((body.content_span(), grammar));
+                }
+            }
+        }
+    }
+    regions
+}
+
+/// A selected setter and current constructor graph retain independent source
+/// producers; no displayed bracket text supplies a receiver or stored value.
+fn bind_original_handle_construction(
+    source: &str,
+    analysis: &AnalysisResult,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    context: &tcl_registry::model::ContextRegistry,
+    handles: &mut ObjectClassMap,
+) {
+    use tcl_compiler::registry_invocation::source_structure;
+    let Some(setter) =
+        source_structure::source_handle_construction_at(source, analysis, command.span.start())
+    else {
+        return;
+    };
+    let Some(head) = setter.construction().words.first() else {
+        return;
+    };
+    let Some(call) =
+        source_structure::source_constructor_call_at(source, analysis, head.span().start())
+    else {
+        return;
+    };
+    let Some(class) = call.class_declaration().logical_source_class(analysis) else {
+        return;
+    };
+    let Some(grammar) = call.class_declaration().grammar(context) else {
+        return;
+    };
+    if !grammar.bare_word_construction
+        && !class
+            .factory
+            .as_ref()
+            .is_some_and(|factory| factory.unknown_binds_instance)
+    {
+        return;
+    }
+    let arguments = call.arguments();
+    let Some(selector) = arguments
+        .first()
+        .and_then(|word| word.literal_bytes())
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+    else {
+        return;
+    };
+    if grammar.manufacturer(selector).is_none()
+        && (grammar.is_builtin_type_method(selector) || class.class_methods.contains_key(selector))
+    {
+        return;
+    }
+    let Ok(name) = std::str::from_utf8(setter.variable_bytes()) else {
+        return;
+    };
+    if !name.is_empty() {
+        handles
+            .entry(name.to_owned())
+            .or_default()
+            .insert(class.qualified_name.clone());
+    }
 }
 
 /// Bind one resolved [`BoundHandle`] into the handle map.
@@ -4455,7 +4630,6 @@ fn augment_snit_handles(
 fn bind_object_handle(
     bound: &tcl_registry::BoundHandle<'_>,
     classes: Option<&ClassHierarchy>,
-    registry: &CommandRegistry,
     handles: &mut ObjectClassMap,
 ) {
     if bound.name.is_empty() || bound.name.contains(['$', '[', ' ']) {
@@ -4476,118 +4650,8 @@ fn bind_object_handle(
                 .or_default()
                 .insert(qualified);
         }
-        tcl_registry::HandleClassSource::ConstructionValue(_) => {
-            let Some(hierarchy) = classes else { return };
-            let Some((cmd, args)) =
-                tcl_compiler::value_shapes::parse_command_substitution_with_config(
-                    bound.class_word,
-                    tcl_lexer::LexerConfig::for_profile(registry.profile()),
-                )
-            else {
-                return;
-            };
-            let Some(class) = resolve_class_in_hierarchy(hierarchy, &cmd) else {
-                return;
-            };
-            if !family_constructs_by_bare_word(hierarchy, registry, &class) {
-                return;
-            }
-            // A bare construction needs an instance-name argument that is not
-            // a typemethod call on the type — except the metaclass's own
-            // registered manufacturer keyword (snit: `create`), read from
-            // its `definition_body`'s `manufacturers` list rather than
-            // hardcoded, which is always a construction even when a class
-            // also happens to declare a same-named `typemethod`.
-            if !args.first().is_some_and(|a| {
-                let is_manufacturer = hierarchy
-                    .classes
-                    .get(&class)
-                    .and_then(|cd| registry.get(&cd.metaclass))
-                    .and_then(|spec| spec.definition_body)
-                    .is_some_and(|grammar| grammar.manufacturer(a).is_some());
-                is_manufacturer || !class_declares_typemethod(hierarchy, registry, &class, a)
-            }) {
-                return;
-            }
-            handles
-                .entry(bound.name.to_owned())
-                .or_default()
-                .insert(class);
-        }
+        tcl_registry::HandleClassSource::ConstructionValue(_) => {}
     }
-}
-
-/// Whether `class`'s definer family constructs an instance from a **bare
-/// instance name** (`$type $name`), rather than only through an explicit
-/// `create` / `new`.
-///
-/// Two independent sources, both **data** rather than a shape matched here:
-///
-/// * the class's metaclass spec's definition-body grammar declares it
-///   ([`DefinitionBodyGrammar::bare_word_construction`]) — snit's `$type
-///   $name` shorthand — replacing the `metaclass.starts_with("snit::")`
-///   spelling test a scan would otherwise make; or
-/// * the class's metaclass is a **user** metaclass whose recorded class
-///   factory proves its unrecognised-word fallback both constructs an object
-///   and returns that word (`ClassFactory::unknown_binds_instance`) — Tk's
-///   `::tk::IconList .il` idiom. The proof is made once, where
-///   the metaclass is written, so this reads a fact rather than re-deriving
-///   one from the call's shape.
-///
-/// A class whose metaclass is neither answers `false`: abstention, so an
-/// unproved factory is never treated as one.
-///
-/// [`DefinitionBodyGrammar::bare_word_construction`]: tcl_registry::definer::DefinitionBodyGrammar::bare_word_construction
-fn family_constructs_by_bare_word(
-    hierarchy: &ClassHierarchy,
-    registry: &CommandRegistry,
-    class: &str,
-) -> bool {
-    let Some(class_def) = hierarchy.classes.get(class) else {
-        return false;
-    };
-    if registry
-        .get(&class_def.metaclass)
-        .and_then(|spec| spec.definition_body)
-        .is_some_and(|grammar| grammar.bare_word_construction)
-    {
-        return true;
-    }
-    resolve_class_in_hierarchy(hierarchy, &class_def.metaclass)
-        .and_then(|meta| hierarchy.classes.get(&meta)?.factory.as_ref())
-        .is_some_and(|factory| factory.unknown_binds_instance)
-}
-
-/// Whether `name` is a type-command call (typemethod) on class `class` — one
-/// of the built-in typemethods the class's definer family provides, or a
-/// declared `typemethod` anywhere in the MRO.
-///
-/// The built-in set is registry data
-/// ([`DefinitionBodyGrammar::builtin_type_methods`]), not a spelling list
-/// here: snit gives every type `info` and `destroy`, and a future definer
-/// family declares its own. `create` is deliberately not in that set —
-/// `Type create inst` *is* a construction, not a typemethod call.
-///
-/// [`DefinitionBodyGrammar::builtin_type_methods`]: tcl_registry::definer::DefinitionBodyGrammar::builtin_type_methods
-fn class_declares_typemethod(
-    hierarchy: &ClassHierarchy,
-    registry: &CommandRegistry,
-    class: &str,
-    name: &str,
-) -> bool {
-    let builtin = hierarchy
-        .classes
-        .get(class)
-        .and_then(|cd| registry.get(&cd.metaclass))
-        .and_then(|spec| spec.definition_body)
-        .is_some_and(|grammar| grammar.is_builtin_type_method(name));
-    builtin
-        || hierarchy.mro_or_self(class).iter().any(|c| {
-            hierarchy
-                .classes
-                .get(c)
-                .is_some_and(|cd| cd.class_methods.contains_key(name))
-        })
 }
 
 /// Bind every loop variable of one call that iterates a known object
@@ -4605,45 +4669,65 @@ fn class_declares_typemethod(
 /// variable holds the element, and anything else binds every variable in the
 /// group.
 fn bind_loop_vars_for_call(
-    source: &str,
-    seg: &tcl_compiler::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    context: &tcl_registry::model::ContextRegistry,
     rules: tcl_syntax::word_rules::WordValueRules,
     collections: &ObjectClassMap,
     handles: &mut ObjectClassMap,
 ) {
-    // A recovery segment can expose a plausible-looking `texts` prefix even
-    // when the command's final word is incomplete. Binding from that prefix
-    // would make a malformed or dynamic loop look proven.
-    if seg.is_partial {
+    if command.is_partial {
         return;
     }
-    let Some(name) = seg.texts.first() else {
+    let Some(roles) = words.roles() else {
         return;
     };
-    let refs: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
-    for idx in registry.arg_indices_for_role(name, &refs, tcl_registry::ArgRole::LoopVarList) {
-        let (Some(_var_list), Some(collection)) = (refs.get(idx), refs.get(idx + 1)) else {
+    for &(ordinal, role) in roles {
+        if role != tcl_registry::ArgRole::LoopVarList {
+            continue;
+        }
+        let Some(value) = words
+            .arguments()
+            .get(ordinal)
+            .and_then(|word| word.literal_bytes())
+            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        else {
             continue;
         };
-        let Some(classes) = object_handle_name(collection).and_then(|c| collections.get(c)) else {
+        let Some(tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written)) =
+            ordinal
+                .checked_add(2)
+                .and_then(|index| words.origins().get(index))
+        else {
             continue;
         };
-        // Segment text is not a Tcl list parser. Prove the word is static,
-        // then use the shared Tcl list grammar; malformed values abstain.
-        let Some(var_names) = static_loop_var_names(source, seg, idx + 1, rules) else {
+        if command.single_token_word.get(*written) != Some(&true) {
+            continue;
+        }
+        let Some(classes) = command
+            .texts
+            .get(*written)
+            .and_then(|text| object_handle_name(text))
+            .and_then(|name| collections.get(name))
+        else {
             continue;
         };
-        let keyed = registry
-            .arg_type_hint(name, &refs, idx + 1)
-            .is_some_and(|hint| hint.expected == Some(tcl_registry::types::TclType::Dict));
+        let Ok(names) = rules.split_list(value) else {
+            continue;
+        };
+        let keyed = words.with_source_schema(context, |schema| {
+            schema
+                .facts()
+                .argument_type_hint(ordinal + 1)
+                .is_some_and(|hint| hint.expected == Some(tcl_registry::types::TclType::Dict))
+        }) == Some(true);
         if keyed {
-            if let Some(value_var) = var_names.get(1) {
-                bind_loop_var(handles, value_var, classes);
+            if let Some(name) = names.get(1) {
+                bind_loop_var(handles, name, classes);
             }
         } else {
-            for var in &var_names {
-                bind_loop_var(handles, var, classes);
+            for name in &names {
+                bind_loop_var(handles, name, classes);
             }
         }
     }
@@ -4652,6 +4736,7 @@ fn bind_loop_vars_for_call(
 /// Decode a literal loop-variable-list word using Tcl's canonical list
 /// grammar. Substitutions, expansions, compound words, incomplete commands,
 /// and malformed list values all abstain.
+#[cfg(test)]
 fn static_loop_var_names(
     source: &str,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
@@ -4692,90 +4777,6 @@ fn static_loop_var_names(
     })
 }
 
-/// Everything an object-handle scan needs that does **not** change as the walk
-/// recurses into nested scripts — bundled so the recursive worker keeps a small
-/// signature.
-struct HandleScanCtx<'a> {
-    /// The whole document, for resolving a nested script's absolute span.
-    full_source: &'a str,
-    /// The document's dialect, for the lexer config and registry.
-    dialect: &'static tcl_dialect::DialectProfile,
-    /// The class hierarchy (local, or workspace-merged in project mode), or
-    /// `None` when no analysis is available.
-    classes: Option<&'a ClassHierarchy>,
-    /// The member-body installers this dialect's definers inject, resolved once
-    /// per document (see
-    /// [`CommandRegistry::member_body_handle_bindings`](tcl_registry::CommandRegistry::member_body_handle_bindings)).
-    member_bindings: &'a FxHashMap<&'static str, tcl_registry::HandleBindingSpec>,
-}
-
-/// Recursive worker for [`augment_snit_handles`].
-fn scan_snit_handles(
-    ctx: &HandleScanCtx<'_>,
-    text: &str,
-    base_offset: u32,
-    handles: &mut ObjectClassMap,
-    depth: u32,
-) {
-    if MAX_TOKEN_RECURSION.exceeded(depth) {
-        return;
-    }
-    let HandleScanCtx {
-        full_source,
-        dialect,
-        classes,
-        member_bindings,
-    } = *ctx;
-    let registry = crate::registry_for_dialect_profile(dialect);
-    for seg in segment_commands_with_offset_and_config(
-        text,
-        base_offset,
-        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar).at_depth(depth),
-    ) {
-        let texts = &seg.texts;
-        if let Some(head) = texts.first() {
-            let args: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
-            // The layout comes from the registry — `set`'s own
-            // `CommandSpec::binds_handle`, or the member-body installer the
-            // class system's definition-body grammar declares — so no command
-            // word is spelled here and `::set` binds exactly like `set`.
-            if let Some(binding) = member_bindings
-                .get(head.as_str())
-                .copied()
-                .or_else(|| registry.handle_binding(head).copied())
-                && let Some(bound) = binding.resolve(&args)
-            {
-                bind_object_handle(&bound, classes, registry, handles);
-            }
-        }
-        for (i, tok) in seg.argv.iter().enumerate() {
-            if !seg.single_token_word.get(i).copied().unwrap_or(false) {
-                continue;
-            }
-            let inner_span = match tok.kind {
-                TokenType::Str => subspec_content(full_source, *tok),
-                TokenType::Cmd => {
-                    let cstart = tok.span.start() as usize + tok.content_offset as usize;
-                    let cend = (tok.span.end() as usize).min(full_source.len());
-                    (cend > cstart)
-                        .then(|| full_source.get(cstart..cend).map(|inner| (cstart, inner)))
-                        .flatten()
-                }
-                _ => None,
-            };
-            if let Some((cstart, inner)) = inner_span {
-                scan_snit_handles(
-                    ctx,
-                    inner,
-                    u32::try_from(cstart).unwrap_or(0),
-                    handles,
-                    depth + 1,
-                );
-            }
-        }
-    }
-}
-
 fn collect_entries(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -4808,25 +4809,14 @@ fn collect_entries(
             .analyse(source, dialect.name);
         &fresh_analysis
     };
-    let Some(config) = analysis.body_lexer_config else {
-        return Vec::new();
-    };
-    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
-        return Vec::new();
-    }
-    let Some(registry) = analysis.resolved_registry() else {
-        return Vec::new();
-    };
-    let Some(dialect) = analysis.resolved_profile() else {
-        return Vec::new();
-    };
-    let Some(generation) = analysis
-        .resolved_input
-        .as_ref()
-        .map(|input| input.context_registry())
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
     else {
         return Vec::new();
     };
+    let config = current.config();
+    let registry = current.registry();
+    let dialect = current.profile();
+    let generation = current.context();
     let lexical = analysis.allows_lexical_declaration_advice();
     let analysis = Some(analysis);
     let mut entries: Vec<Entry> = Vec::new();
@@ -4897,7 +4887,12 @@ fn collect_entries(
     // surfaces it as a loop — and feeds the value variable(s) into the handle
     // map (the SpiceGenTcl `allNodes` / `actOnParam` shape).
     if lexical {
-        augment_loop_var_handles(source, dialect, &object_collections, &mut object_classes);
+        augment_loop_var_handles(
+            source,
+            analysis.unwrap(),
+            &object_collections,
+            &mut object_classes,
+        );
     }
 
     // snit object-handle bindings the compiler CFG doesn't surface — `install
@@ -4905,7 +4900,7 @@ fn collect_entries(
     // via a source scan, since snit method bodies (where these live) are not
     // lowered into the CFG `object_handle_classes` reads.
     if lexical {
-        augment_snit_handles(source, dialect, classes, &mut object_classes);
+        augment_snit_handles(source, analysis.unwrap(), classes, &mut object_classes);
     }
 
     // Walk every segmented command (recursing into braced bodies, braced
@@ -10522,5 +10517,117 @@ mod original_definition_vocabulary_tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod selected_source_token_tests {
+    use super::*;
+
+    #[test]
+    fn original_loop_handle_advice_keeps_actual_availability_captures_and_inert_data() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let mut registry = CommandRegistry::build_default();
+        let mut each = registry.get("foreach").unwrap().clone();
+        each.name = "selected_each";
+        each.surface = Some(tcl_registry::model::SpecSurface::TCL90_PLUS);
+        registry.insert(each);
+        let registry = std::sync::Arc::new(registry);
+        let source = "interp alias {} each {} selected_each {left right}
+set data {selected_each bogus $items {}}
+each $items {}";
+        let current = crate::refactor::test_logical_analysis(source, "tcl9.0", registry.clone());
+        let collections = ObjectClassMap::from([(
+            String::from("items"),
+            std::collections::HashSet::from([String::from("::Element")]),
+        )]);
+        let mut handles = ObjectClassMap::default();
+        augment_loop_var_handles(source, &current, &collections, &mut handles);
+        assert!(handles.contains_key("left"));
+        assert!(handles.contains_key("right"));
+        assert!(!handles.contains_key("bogus"));
+        let old = crate::refactor::test_logical_analysis(source, "tcl8.6", registry.clone());
+        handles.clear();
+        augment_loop_var_handles(source, &old, &collections, &mut handles);
+        assert!(handles.is_empty());
+        let replaced = "proc selected_each args {}
+selected_each hidden $items {}";
+        let analysis = crate::refactor::test_logical_analysis(replaced, "tcl9.0", registry);
+        augment_loop_var_handles(replaced, &analysis, &collections, &mut handles);
+        assert!(handles.is_empty());
+    }
+
+    #[test]
+    fn original_member_handle_advice_uses_the_genuine_factory_member_body() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let source = "snit::type Engine {method run {} {}}
+snit::type Wrapper {constructor {} {install item using Engine $win.a; install unknown using $type instance; proc nested {} {install borrowed using Engine instance}}}
+set inert {install leaked using Engine instance}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let regions = selected_member_handle_regions(source, &analysis, &context);
+        assert!(regions.iter().any(|(span, _)| {
+            source[span.as_range()].starts_with("install item using Engine $win.a")
+        }));
+        let mut handles = ObjectClassMap::default();
+        augment_snit_handles(
+            source,
+            &analysis,
+            Some(analysis.class_hierarchy()),
+            &mut handles,
+        );
+        assert!(handles.contains_key("item"));
+        assert!(!handles.contains_key("leaked"));
+        assert!(!handles.contains_key("unknown"));
+        assert!(!handles.contains_key("borrowed"));
+        let changed = source.replace("Engine instance", "Engine other");
+        handles.clear();
+        augment_snit_handles(
+            &changed,
+            &analysis,
+            Some(analysis.class_hierarchy()),
+            &mut handles,
+        );
+        assert!(handles.is_empty());
+    }
+
+    #[test]
+    fn original_semantic_tokens_withdraw_stale_grammar_foreign_and_missing_source_owner() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let source = "set x 1
+puts $x";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let registry = CommandRegistry::build_default();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let tokens = |source: &str, analysis: &AnalysisResult| {
+            full_with_cu_and_analysis(source, profile, &registry, None, Some(analysis))
+        };
+        assert!(!tokens(source, &analysis).data.is_empty());
+        assert!(
+            tokens(
+                "set y 1
+puts $y",
+                &analysis
+            )
+            .data
+            .is_empty()
+        );
+        let config = analysis.body_lexer_config.unwrap();
+        analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+        assert!(tokens(source, &analysis).data.is_empty());
+        analysis.body_lexer_config = Some(config);
+        analysis.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::resolve_environment("tcl8.4").default_context_registry(),
+            config,
+        ));
+        assert!(tokens(source, &analysis).data.is_empty());
+        analysis.resolved_input = None;
+        assert!(tokens(source, &analysis).data.is_empty());
     }
 }

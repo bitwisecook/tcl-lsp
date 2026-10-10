@@ -163,6 +163,14 @@ pub(crate) const FRAME_SENSITIVE_TRAITS: Traits = Traits::TERMINATES_BLOCK
     .union(Traits::CREATES_SCOPE_ALIAS)
     .union(Traits::CREATES_BARRIER);
 
+/// Whether selected traits act on the calling frame.
+///
+/// This pure predicate does not select a command or grant body/edit authority.
+#[must_use]
+pub const fn is_frame_sensitive(traits: Traits) -> bool {
+    traits.intersects(FRAME_SENSITIVE_TRAITS)
+}
+
 /// Whether selected traits permit frame-independent verbatim splicing.
 ///
 /// Consumers separately establish the selected implementation, argument layout

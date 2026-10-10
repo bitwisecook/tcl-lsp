@@ -890,3 +890,310 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
     assert_eq!(refused["source"], source);
     assert!(refused["optimisations"].as_array().unwrap().is_empty());
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn project_tokens_use_published_folder_inputs_and_refuse_a_missing_generation() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // The real token worker consumes per-file source advice without Native entry.
+    use salsa::Setter as _;
+    let (backend, _) = workspace_pack_backend().await;
+    let folder = Uri::from_str("file:///project-input354/library").unwrap();
+    let library_uri = Uri::from_str("file:///project-input354/library/reader.tcl").unwrap();
+    let caller_uri = Uri::from_str("file:///project-input354/caller.tcl").unwrap();
+    backend
+        .apply_folder_configs(vec![(
+            folder.clone(),
+            FolderConfig {
+                non_ascii_mode: Some(NonAsciiMode::Strict),
+                ..FolderConfig::default()
+            },
+        )])
+        .await;
+    backend
+        .db_set_source(
+            &library_uri,
+            "proc ::reader {name} {unindexed_metadata::read $name}",
+            "tcl".to_owned(),
+        )
+        .await;
+    let source = "reader retained";
+    backend
+        .db_set_source(&caller_uri, source, "tcl".to_owned())
+        .await;
+    let folder_config = backend.resolved_db_config(&library_uri).await;
+    let global_config = backend.resolved_db_config(&caller_uri).await;
+    assert_ne!(folder_config, global_config);
+    let library = *backend.db_files.lock().await.get(&library_uri).unwrap();
+    let caller = *backend.db_files.lock().await.get(&caller_uri).unwrap();
+    let project = backend.db_project.lock().await.unwrap();
+    let original_mapping = {
+        let snapshot = backend.db.snapshot("project_token_mapping354").await;
+        let mapping = project.token_configurations(&*snapshot).clone().unwrap();
+        assert!(mapping.contains(&(library, folder_config)));
+        assert!(mapping.contains(&(caller, global_config)));
+        mapping
+    };
+    let tokens = backend
+        .db_semantic_tokens(&caller_uri)
+        .await
+        .unwrap()
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(is_variable(&tokens.data, source, "retained"));
+
+    {
+        let mut db = backend.db.lock().await;
+        folder_config.set_spec_pack_key(&mut *db).to(u64::MAX - 354);
+    }
+    let tokens = backend
+        .db_semantic_tokens(&caller_uri)
+        .await
+        .unwrap()
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        !is_variable(&tokens.data, source, "retained"),
+        "the caller must not donate its available input to the library"
+    );
+    backend.sync_db_config().await;
+    let restored = backend
+        .db_semantic_tokens(&caller_uri)
+        .await
+        .unwrap()
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(is_variable(&restored.data, source, "retained"));
+
+    // Removing the folder override republishes handles without changing sources.
+    backend.apply_folder_configs(Vec::new()).await;
+    let snapshot = backend
+        .db
+        .snapshot("project_token_changed_mapping354")
+        .await;
+    let mapping = project.token_configurations(&*snapshot).as_ref().unwrap();
+    assert!(mapping.contains(&(library, global_config)));
+    assert!(!mapping.contains(&(library, folder_config)));
+    assert!(original_mapping.contains(&(library, folder_config)));
+    assert!(!original_mapping.contains(&(library, global_config)));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn project_token_config_publication_drops_partial_locks_and_preserves_snapshots() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    let backend = crate::tests::test_backend();
+    let first_uri = Uri::from_str("file:///project-publication354/first.tcl").unwrap();
+    backend
+        .db_set_source(&first_uri, "proc first {} {}", "tcl".to_owned())
+        .await;
+    let project = backend.db_project.lock().await.unwrap();
+    let global = *backend.db_config.lock().await;
+    let first = *backend.db_files.lock().await.get(&first_uri).unwrap();
+    let snapshot = backend
+        .db
+        .snapshot("project_token_before_publication354")
+        .await;
+    assert_eq!(
+        project.token_configurations(&*snapshot).as_ref().unwrap(),
+        &vec![(first, global)]
+    );
+    assert!(matches!(
+        backend.try_live_source_locks(),
+        Err(LivePublicationWait::SalsaSnapshots)
+    ));
+    drop(snapshot);
+    let folder_guard = backend.folder_db_configs.lock().await;
+    assert!(matches!(
+        backend.try_live_source_locks(),
+        Err(LivePublicationWait::FolderConfigs)
+    ));
+    assert!(backend.db.try_lock().is_ok());
+    assert!(backend.db_files.try_lock().is_ok());
+    let snapshot = backend
+        .db
+        .snapshot("project_token_while_config_locked354")
+        .await;
+    assert_eq!(
+        project.token_configurations(&*snapshot).as_ref().unwrap(),
+        &vec![(first, global)]
+    );
+    drop(snapshot);
+    drop(folder_guard);
+    let second_uri = Uri::from_str("file:///project-publication354/second.tcl").unwrap();
+    let locks = backend.try_live_source_locks().ok().unwrap();
+    Backend::set_live_db_source_locked(locks, &second_uri, "proc second {} {}", "tcl", true);
+    let second = *backend.db_files.lock().await.get(&second_uri).unwrap();
+    let snapshot = backend
+        .db
+        .snapshot("project_token_after_publication354")
+        .await;
+    let mapping = project.token_configurations(&*snapshot).as_ref().unwrap();
+    assert_eq!(mapping.len(), 2);
+    assert!(mapping.contains(&(first, global)));
+    assert!(mapping.contains(&(second, global)));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn callback_project_worker_uses_each_librarys_published_configuration() {
+    // naming.database.original-project-callback-projection
+    // docs/design/analysis/name-resolution-proofs/database-original-project-callback-projection.md
+    // Authentic source headers/counts remain independent of callback execution.
+    use salsa::Setter as _;
+    let backend = crate::tests::test_backend();
+    let folder = Uri::from_str("file:///project-source356/library").unwrap();
+    let library_uri = Uri::from_str("file:///project-source356/library/header.tcl").unwrap();
+    let caller_uri = Uri::from_str("file:///project-source356/caller.tcl").unwrap();
+    backend
+        .apply_folder_configs(vec![(
+            folder,
+            FolderConfig {
+                non_ascii_mode: Some(NonAsciiMode::Strict),
+                ..FolderConfig::default()
+            },
+        )])
+        .await;
+    backend
+        .db_set_source(&library_uri, "proc external {one} {}", "tcl8.6".to_owned())
+        .await;
+    let source = "lsort -command ::external {2 1}";
+    backend
+        .db_set_source(&caller_uri, source, "tcl8.6".to_owned())
+        .await;
+    let library_config = backend.resolved_db_config(&library_uri).await;
+    let caller_config = backend.resolved_db_config(&caller_uri).await;
+    assert_ne!(library_config, caller_config);
+    let analysis = backend
+        .analysis_for(&caller_uri, Arc::from(source), "tcl8.6".to_owned())
+        .await;
+    assert!(
+        analysis
+            .command_invocations
+            .iter()
+            .any(|row| row.original_callback_signature_lookup.is_some())
+    );
+    let current = backend
+        .project_callback_diagnostics_if(true, source, &analysis, &HashSet::new())
+        .await
+        .unwrap();
+    assert!(
+        current
+            .iter()
+            .any(|row| row.code == DiagCode::E003 && row.callback_source_arity().is_some())
+    );
+    assert!(
+        backend
+            .project_callback_diagnostics_if(false, source, &analysis, &HashSet::new())
+            .await
+            .is_none()
+    );
+    {
+        let mut db = backend.db.lock().await;
+        library_config
+            .set_spec_pack_key(&mut *db)
+            .to(u64::MAX - 3356);
+    }
+    let withdrawn = backend
+        .project_callback_diagnostics_if(true, source, &analysis, &HashSet::new())
+        .await
+        .unwrap();
+    assert!(
+        withdrawn
+            .iter()
+            .all(|row| row.callback_source_arity().is_none())
+    );
+    {
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        assert!(
+            tcl_lsp_db::document_analysis_input(&*db, files[&caller_uri], caller_config).is_ok()
+        );
+        assert!(
+            tcl_lsp_db::document_analysis_input(&*db, files[&library_uri], library_config).is_err()
+        );
+    }
+    {
+        let mut db = backend.db.lock().await;
+        library_config.set_spec_pack_key(&mut *db).to(0);
+    }
+    let restored = backend
+        .project_callback_diagnostics_if(true, source, &analysis, &HashSet::new())
+        .await
+        .unwrap();
+    assert!(
+        restored
+            .iter()
+            .any(|row| row.callback_source_arity().is_some())
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn configured_factory_rounds_refuse_stale_publication_and_withdraw_unavailable_library_hints()
+{
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // The real fixpoint publishes conditional manufacturers, not Native receivers.
+    use salsa::Setter as _;
+    let (backend, _) = workspace_pack_backend().await;
+    let folder = Uri::from_str("file:///project-source356/factories").unwrap();
+    let library_uri = Uri::from_str("file:///project-source356/factories/meta.tcl").unwrap();
+    let caller_uri = Uri::from_str("file:///project-source356/made.tcl").unwrap();
+    backend
+        .apply_folder_configs(vec![(
+            folder,
+            FolderConfig {
+                non_ascii_mode: Some(NonAsciiMode::Strict),
+                ..FolderConfig::default()
+            },
+        )])
+        .await;
+    backend.db_set_source(&library_uri,
+        "oo::class create ::Meta {superclass oo::class; self method create {name body} {next $name $body}}", "tcl".to_owned()).await;
+    backend
+        .db_set_source(&caller_uri, "::Meta create ::Made {}", "tcl".to_owned())
+        .await;
+    let library_config = backend.resolved_db_config(&library_uri).await;
+    let caller_config = backend.resolved_db_config(&caller_uri).await;
+    assert_ne!(library_config, caller_config);
+    let handles = index_evidence_handles(&backend);
+    let sync = sync_workspace_class_factories(&handles, None).await;
+    assert!(!sync.moved.is_empty());
+    let (library, caller, revision, prior) = {
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        let library = files[&library_uri];
+        let caller = files[&caller_uri];
+        let prior = caller.workspace_class_factories(&*db).clone().unwrap();
+        assert!(prior.contains_key("::Meta"));
+        (library, caller, tcl_lsp_db::database_revision(&db), prior)
+    };
+    assert!(matches!(
+        sync_workspace_class_factories_round(&handles).await,
+        ClassFactoryRound::Settled
+    ));
+    {
+        let mut db = backend.db.lock().await;
+        library_config
+            .set_spec_pack_key(&mut *db)
+            .to(u64::MAX - 4356);
+    }
+    let stale = apply_workspace_class_factories_if_current(
+        &handles,
+        revision,
+        Some(Arc::clone(&prior)),
+        vec![(library_uri.clone(), library), (caller_uri.clone(), caller)],
+    )
+    .await;
+    assert!(matches!(stale, ClassFactoryRound::Cancelled));
+    sync_workspace_class_factories(&handles, None).await;
+    {
+        let db = backend.db.lock().await;
+        assert!(tcl_lsp_db::document_analysis_input(&*db, library, library_config).is_err());
+        assert!(tcl_lsp_db::document_analysis_input(&*db, caller, caller_config).is_ok());
+        assert!(library.workspace_class_factories(&*db).is_none());
+        assert!(caller.workspace_class_factories(&*db).is_none());
+    }
+}

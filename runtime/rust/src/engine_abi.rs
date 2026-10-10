@@ -196,25 +196,30 @@ pub unsafe extern "C" fn tcl_engine_define_unit(
     params: *mut TclObj,
     body: *mut TclObj,
 ) -> c_int {
-    // SAFETY: caller guarantees a live interpreter.
-    let interp = unsafe { &mut *interp };
+    // SAFETY: caller guarantees a live interpreter and borrowed original objects.
+    match define_unit_original(unsafe { &mut *interp }, name, params, body) {
+        Ok(_) => TCL_OK,
+        Err(code) => code,
+    }
+}
+
+/// Common ordinary-procedure producer; status adapters retain its exact cause.
+fn define_unit_original(
+    interp: &mut Interp,
+    name: *mut TclObj,
+    params: *mut TclObj,
+    body: *mut TclObj,
+) -> Result<u64, c_int> {
     if interp.host_refusal_pending() {
-        return TCL_ERROR;
+        return Err(TCL_ERROR);
     }
     let name = obj_bytes(name);
-    let chosen_body = match interp.choose_original_procedure_body(body) {
-        Ok(body) => body,
-        Err(error) => {
-            return i32::try_from(interp.report_cmd_error(error.into()).as_int())
-                .unwrap_or(TCL_ERROR)
-        }
-    };
-    let parameters = match crate::cmd_proc::parse_params_object(interp, params, &name) {
-        Ok(parameters) => parameters,
-        Err(error) => {
-            return i32::try_from(interp.report_cmd_error(error).as_int()).unwrap_or(TCL_ERROR);
-        }
-    };
+    let chosen_body = interp.choose_original_procedure_body(body).map_err(|error| {
+        i32::try_from(interp.report_cmd_error(error.into()).as_int()).unwrap_or(TCL_ERROR)
+    })?;
+    let parameters = crate::cmd_proc::parse_params_object(interp, params, &name).map_err(|error| {
+        i32::try_from(interp.report_cmd_error(error).as_int()).unwrap_or(TCL_ERROR)
+    })?;
     let generation = interp.install_proc_chosen_storage(
         &name,
         parameters,
@@ -223,10 +228,10 @@ pub unsafe extern "C" fn tcl_engine_define_unit(
         None,
         None,
     );
-    if generation.is_none() || interp.host_refusal_pending() {
-        TCL_ERROR
+    if interp.host_refusal_pending() {
+        Err(TCL_ERROR)
     } else {
-        TCL_OK
+        generation.ok_or(TCL_ERROR)
     }
 }
 
@@ -380,3 +385,6 @@ mod procedure_publication_tests {
         }
     }
 }
+
+mod command_receipts;
+pub use command_receipts::*;

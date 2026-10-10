@@ -6153,7 +6153,7 @@ impl Vm {
                         &[result.into_value(), options.into_value()],
                     );
                 }
-                if let Err(c) = Self::deliver_sync(f, c) {
+                if let Err(c) = self.deliver_sync(f, c) {
                     return Tick::Return(c);
                 }
             }
@@ -6183,7 +6183,7 @@ impl Vm {
                         &[Value::string("-options"), opts, result],
                     )
                 };
-                if let Err(c) = Self::deliver_sync(f, c) {
+                if let Err(c) = self.deliver_sync(f, c) {
                     return Tick::Return(c);
                 }
             }
@@ -6235,7 +6235,7 @@ impl Vm {
                 };
                 let arguments = f.stack.split_off(f.stack.len() - argc);
                 let completion = self.invoke_native_fixed_math_call(&selected, &arguments);
-                if let Err(completion) = Self::deliver_sync(f, completion) {
+                if let Err(completion) = self.deliver_sync(f, completion) {
                     return Tick::Return(completion);
                 }
             }
@@ -6315,7 +6315,7 @@ impl Vm {
                 let words =
                     crate::NativeListItems::invocation_view(Rc::new(f.stack.split_off(marker)));
                 if words.is_empty() {
-                    if let Err(c) = Self::deliver_sync(f, ok(Value::empty())) {
+                    if let Err(c) = self.deliver_sync(f, ok(Value::empty())) {
                         return Tick::Return(c);
                     }
                 } else {
@@ -7128,7 +7128,7 @@ impl Vm {
         // `deliver_sync` pushes the result on `OK` and hands the completion back
         // otherwise; the chained method runs on the native stack, so there is
         // never a `Tick` to propagate from here.
-        Self::deliver_sync(f, res).map(|_| ())
+        self.deliver_sync(f, res).map(|_| ())
     }
 
     fn tcloo_next_list(&mut self, f: &mut Frame, nextto: bool) -> Result<(), Completion<Value>> {
@@ -7164,7 +7164,7 @@ impl Vm {
         } else {
             crate::cmd_oo::cmd_next_original(self, &words[0], &words[1..])
         };
-        Self::deliver_sync(f, result).map(|_| ())
+        self.deliver_sync(f, result).map(|_| ())
     }
 
     /// Dispatch a fully-assembled command word list. Returns `Some(Tick::Call)`
@@ -7641,6 +7641,7 @@ impl Vm {
     /// Deliver a synchronously-completed dispatch into `f`: an ok result is
     /// pushed onto the operand stack, a non-ok completion unwinds.
     fn deliver_sync(
+        &mut self,
         f: &mut Frame,
         res: Completion<Value>,
     ) -> Result<Option<Tick>, Completion<Value>> {
@@ -7653,7 +7654,16 @@ impl Vm {
                 res.options
                     .report_native_compound_ownership("deliver-sync-options");
             }
-            if !res.options.to_str().is_empty() {
+            let protocol = self
+                .actual_native_invocation_dialect()
+                .native_string_protocol();
+            let present = res
+                .options
+                .native_return_options_nonempty(protocol)
+                .map_err(|error| {
+                    self.refuse_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(error))
+                })?;
+            if present {
                 f.last_options = res.options;
             }
             f.stack.push(res.result.into_native_reference());
@@ -7749,7 +7759,7 @@ impl Vm {
         let res = self
             .publish_native_interp_completion(res)
             .map_err(|error| crate::command::completion_from_tcl_error(self, error.into()))?;
-        Self::deliver_sync(f, res)
+        self.deliver_sync(f, res)
     }
 
     fn retain_jim_dispatch(
@@ -7906,7 +7916,7 @@ impl Vm {
         match command {
             Some(Command::Proc(p)) => {
                 if let Some(result) = self.early_procedure_activation(&p, &words[1..])? {
-                    Self::deliver_sync(f, result)?;
+                    self.deliver_sync(f, result)?;
                     return Ok(None);
                 }
                 let p = self.prepare_dispatch_procedure(

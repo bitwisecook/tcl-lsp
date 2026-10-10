@@ -2111,3 +2111,14 @@ restored.chmod(0o755)
 ```
 
 Decompression restores the measured executable byte-for-byte; it is neither a new build nor an assertion or Native replay.
+
+## Independent naming274 unit construction
+
+The VM-only no-run build closes with two E0599 fixture errors caused by the missing ValueOps import. The independent Compiler/Registry/Syntax/Engine no-run build closes with an expr_simplify E0308 fixture ownership mismatch and a manager E0609 nonexistent Optimisation.source_context field. Neither invocation executes assertions, reaches test inventory or supplies a VM/Compiler pin. The second log retains actual successful Syntax/Registry/Engine libtest artifacts, which remain unsealed and unexecuted. Complete original command/source associations and failures remain separate from later source repairs, other binaries and Native provider evidence.
+
+| Closed operation | Status | Exact receipt | Complete log |
+| --- | --- | --- | --- |
+| `integration-vm-native-test-build274` | `compile-blocked`, exit101, 183.554294s; no assertions | [Lossless original](frozen274/integration-vm-native-test-build274/receipt.json.gz) | [Whole log](frozen274/integration-vm-native-test-build274/tests.log) |
+| `integration-compiler-registry-consumer-test-build274` | `compile-blocked`, exit101, 323.043956s; no assertions | [Lossless original](frozen274/integration-compiler-registry-consumer-test-build274/receipt.json.gz) | [Whole log](frozen274/integration-compiler-registry-consumer-test-build274/tests.log) |
+
+Both original receipts have uniform_source=true, lossless gzip round trips and independently checked complete frozen source inventories. Stored and original receipt digests are retained; no mutable implementation pin, actual Native capture or provider answer is changed by this archive.

@@ -475,8 +475,12 @@ impl ValueOps for Vm {
         version: tcl_dialect::TclVersion,
     ) -> Result<Value, ValueError> {
         let dialect = self.actual_native_invocation_dialect();
-        if dialect.native_string_protocol() != Some(tcl_syntax::native_string::NativeStringProtocol::C(version)) {
-            return Err(ValueError::CommandProtocolUnavailable("native external UTF-8 binary result issuer"));
+        if dialect.native_string_protocol()
+            != Some(tcl_syntax::native_string::NativeStringProtocol::C(version))
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "native external UTF-8 binary result issuer",
+            ));
         }
         Value::from_native_byte_array(Rc::from(bytes), dialect)
     }
@@ -635,6 +639,10 @@ impl ValueOps for Vm {
 
     fn new_bytes(&mut self, bytes: &[u8]) -> Value {
         Value::new_native_string_bytes(bytes.to_vec())
+    }
+
+    fn native_command_full_name_result(&mut self, bytes: &[u8]) -> Result<Value, ValueError> {
+        self.native_namespace_origin_result(bytes)
     }
 
     fn new_string(&mut self, s: String) -> Value {

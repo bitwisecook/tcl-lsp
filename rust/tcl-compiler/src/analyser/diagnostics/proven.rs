@@ -76,13 +76,27 @@ pub(in crate::analyser) struct CallWords<'a> {
 
 /// A call the walk dispatched with a word a literal-only check could not
 /// read, owned until the pass reads the words' proven values.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub(in crate::analyser) struct ProvenSite {
     cmd_tok: Token,
     args: Vec<String>,
     arg_tokens: Vec<Token>,
     arg_single: Vec<bool>,
     arg_expand_in: Vec<bool>,
+}
+
+impl ProvenSite {
+    /// Syntax-only coordinate adjustment for a memoised body fragment. The
+    /// whole-source invocation and actual CU revalidate every eventual value.
+    pub(in crate::analyser) fn rebase(&mut self, delta: u32) {
+        self.cmd_tok.span = tcl_lexer::Span::new(
+            self.cmd_tok.span.start() + delta,
+            self.cmd_tok.span.end() + delta,
+        );
+        for token in &mut self.arg_tokens {
+            token.span = tcl_lexer::Span::new(token.span.start() + delta, token.span.end() + delta);
+        }
+    }
 }
 
 /// A site's words with every proven word substituted.
@@ -151,6 +165,15 @@ impl<'u> WordIndex<'u> {
             .chain(cu.methods.values())
             .chain(cu.body_units.values());
         let registry = surface.commands();
+        if !cu
+            .ir_module
+            .retained_source_bindings
+            .as_ref()
+            .is_some_and(|owner| owner.matches_module(&cu.ir_module, registry))
+        {
+            return index;
+        }
+
         let Some(module_metadata) =
             crate::registry_invocation::InvocationMetadataContext::for_module(
                 registry,
@@ -466,11 +489,6 @@ impl Analyser {
         words: &ProvenWords,
         facts: &super::validity::UserResolutionFacts,
     ) {
-        let marks = (
-            self.result.diagnostics.len(),
-            self.dsl_gate_sites.len(),
-            self.pending_arity.len(),
-        );
         let Some(written) = self.original_diagnostic_call_at(site.cmd_tok, &site.arg_tokens) else {
             return;
         };
@@ -482,6 +500,12 @@ impl Analyser {
         let Some(original) = written.with_supplemental_literals(&literals) else {
             return;
         };
+        self.refine_original_path_arguments(&written, &original);
+        let marks = (
+            self.result.diagnostics.len(),
+            self.dsl_gate_sites.len(),
+            self.pending_arity.len(),
+        );
         let cmd_name = original.command();
         let Some((arguments, argument_tokens, _single)) = original.source_arguments() else {
             return;

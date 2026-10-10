@@ -122,6 +122,10 @@ enum RegistryPurposeDescription {
     TemplateSubstitution,
     /// Original selected script-reparse syntax, independent of execution.
     ScriptReparse,
+    /// Original channel path; source/value advice supplies no opened channel.
+    ChannelPath,
+    /// Original source-file path; source/value advice supplies no file entry.
+    SourceFilePath,
 }
 impl From<tcl_compiler::analyser::RegistrySourceDiagnosticKind> for RegistryPurposeDescription {
     fn from(kind: tcl_compiler::analyser::RegistrySourceDiagnosticKind) -> Self {
@@ -150,6 +154,8 @@ impl From<tcl_compiler::analyser::RegistrySourceDiagnosticKind> for RegistryPurp
             Kind::IndexBounds => Self::IndexBounds,
             Kind::TemplateSubstitution => Self::TemplateSubstitution,
             Kind::ScriptReparse => Self::ScriptReparse,
+            Kind::ChannelPath => Self::ChannelPath,
+            Kind::SourceFilePath => Self::SourceFilePath,
         }
     }
 }
@@ -179,8 +185,18 @@ impl RegistryPurposeDescription {
             Self::IndexBounds => matches!(code, "W230" | "W232"),
             Self::TemplateSubstitution => code == "W102",
             Self::ScriptReparse => matches!(code, "W101" | "W301" | "W309" | "W312"),
+            Self::ChannelPath => code == "W103",
+            Self::SourceFilePath => code == "W300",
         }
     }
+}
+
+/// Separate source value premise; deserialising it proves no native argument.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SupplementalLiteralDescription {
+    argument: usize,
+    value: String,
 }
 
 /// Authored metadata key retains its independently selected Native recipe.
@@ -552,6 +568,12 @@ enum SubjectDescription {
     },
     RegistrySource {
         purpose: RegistryPurposeDescription,
+        #[serde(
+            rename = "supplementalLiterals",
+            default,
+            skip_serializing_if = "Vec::is_empty"
+        )]
+        supplemental_literals: Vec<SupplementalLiteralDescription>,
         command: String,
         argument: Option<usize>,
         #[serde(rename = "writtenArgument")]
@@ -1006,6 +1028,14 @@ impl DiagnosticSubjectData {
                 let word = original.words().head_source()?.word()?;
                 SubjectDescription::RegistrySource {
                     purpose: original.kind().into(),
+                    supplemental_literals: original
+                        .supplemental_literals()
+                        .iter()
+                        .map(|(argument, value)| SupplementalLiteralDescription {
+                            argument: *argument,
+                            value: value.clone(),
+                        })
+                        .collect(),
                     command: original.words().command().to_owned(),
                     argument: original.argument(),
                     written_argument: original.written_argument(),
@@ -1986,6 +2016,50 @@ mod tests {
             assert_eq!(diagnostic_subject_data(&diagnostic), Some(payload));
         }
     }
+    #[test]
+    fn original_path_transport_keeps_alias_ordinals_and_proven_value_premises() {
+        // naming.diagnostic.registry-source-ownership
+        // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let source = "interp alias {} load {} source -encoding utf-8; load \"rép/$path\"; proc f {} {set p {|literal}; open $p}";
+        let result = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "tcl");
+        for (code, purpose, argument, literal) in [
+            (DiagCode::W300, "sourceFilePath", 2, None),
+            (DiagCode::W103, "channelPath", 0, Some("|literal")),
+        ] {
+            let mut diagnostic = result
+                .diagnostics
+                .iter()
+                .find(|finding| finding.code == code)
+                .expect("original path finding")
+                .clone();
+            let payload = diagnostic_subject_data(&diagnostic).unwrap();
+            assert_eq!(payload["subject"]["purpose"], purpose);
+            assert_eq!(payload["subject"]["argument"], argument);
+            assert_eq!(payload["subject"]["writtenArgument"], 0);
+            if let Some(literal) = literal {
+                assert_eq!(payload["subject"]["supplementalLiterals"][0]["argument"], 0);
+                assert_eq!(
+                    payload["subject"]["supplementalLiterals"][0]["value"],
+                    literal
+                );
+            }
+            assert!(DiagnosticSubjectData::from_value(&payload, code.as_str()).is_some());
+            assert!(DiagnosticSubjectData::from_value(&payload, "W102").is_none());
+            diagnostic.message = "translated 'open/source' with misleading values".to_owned();
+            diagnostic.fixes.clear();
+            assert_eq!(diagnostic_subject_data(&diagnostic), Some(payload));
+        }
+    }
+
     #[test]
     fn original_crossing_transport_keeps_captured_ordinals_and_ignores_presentation() {
         // naming.diagnostic.registry-source-ownership

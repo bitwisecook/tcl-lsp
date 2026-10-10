@@ -4737,6 +4737,56 @@ impl Value {
         )
     }
 
+    /// Test an actual carried option set without generating its string or
+    /// reading nested error objects. Resident emptiness retains its original
+    /// meaning; otherwise only an owning List/Dictionary size is available.
+    pub(crate) fn native_return_options_nonempty(
+        &self,
+        protocol: Option<NativeStringProtocol>,
+    ) -> Result<bool, ValueError> {
+        self.check_native_header()?;
+        // Existing bytes require no native getter or compound recipe. Unsealed
+        // owning shapes below remain a pure compatibility query, never a native
+        // List/Dictionary construction or execution receipt.
+        if let Some(bytes) = self.resident_string_bytes() {
+            return Ok(!bytes.is_empty());
+        }
+        let primary = self.0.intrep.borrow();
+        let structural = match &*primary {
+            IntRep::List {
+                items,
+                string_protocol,
+                ..
+            } => {
+                if string_protocol
+                    .get()
+                    .is_some_and(|retained| Some(retained) != protocol)
+                {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "foreign native return-options List backing",
+                    ));
+                }
+                Some(items.checked_length()? != 0)
+            }
+            IntRep::Dict(dictionary) => {
+                if dictionary
+                    .string_protocol
+                    .get()
+                    .is_some_and(|retained| Some(retained) != protocol)
+                {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "foreign native return-options Dictionary backing",
+                    ));
+                }
+                Some(dictionary.with_pairs(|pairs| !pairs.is_empty()))
+            }
+            _ => None,
+        };
+        structural.ok_or(ValueError::CommandProtocolUnavailable(
+            "native return-options storage is unavailable",
+        ))
+    }
+
     /// Retain original arguments at a reached C error-context capture.
     /// A diagnostic argv view owns no native member references before this
     /// event. Capture creates an owning List without reconstructing strings;
@@ -6104,6 +6154,109 @@ mod tests {
             }
         }
         assert_eq!(operations, 30);
+    }
+
+    #[test]
+    fn return_options_presence_uses_owned_shape_without_materialising_children() {
+        // naming.error.original-invocation-context-capture
+        // docs/design/analysis/name-resolution-proofs/error-original-invocation-context-capture.md
+        // Software shape query only; no native private object or execution proof.
+        assert!(!Value::empty().native_return_options_nonempty(None).unwrap());
+        assert!(
+            Value::string(" ")
+                .native_return_options_nonempty(None)
+                .unwrap()
+        );
+        assert!(
+            Value::list(vec![Value::string("-code"), Value::int(0)])
+                .native_return_options_nonempty(None)
+                .unwrap()
+        );
+        for version in [
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
+        ] {
+            let protocol = NativeStringProtocol::C(version);
+            let child = Value::native_list_constructor(vec![Value::string("original")], protocol);
+            let options = Value::native_list_constructor(
+                vec![Value::string("-errorstack"), child.clone()],
+                protocol,
+            );
+            let identity = child.native_object_identity();
+            let references = child.native_object_reference_count();
+            assert!(
+                options
+                    .native_return_options_nonempty(Some(protocol))
+                    .unwrap()
+            );
+            assert_eq!(child.native_object_identity(), identity);
+            assert_eq!(child.native_object_reference_count(), references);
+            assert!(child.resident_string_bytes().is_none());
+            assert!(options.resident_string_bytes().is_none());
+            assert!(
+                !Value::native_list_constructor(Vec::new(), protocol)
+                    .native_return_options_nonempty(Some(protocol))
+                    .unwrap()
+            );
+            let dictionary = Value::dict(vec![(Value::string("-errorstack"), child.clone())]);
+            dictionary.seal_compound_string_protocol(protocol).unwrap();
+            assert!(
+                dictionary
+                    .native_return_options_nonempty(Some(protocol))
+                    .unwrap()
+            );
+            assert!(dictionary.resident_string_bytes().is_none());
+            assert!(
+                !Value::empty()
+                    .native_return_options_nonempty(Some(protocol))
+                    .unwrap()
+            );
+            assert!(
+                Value::string(" ")
+                    .native_return_options_nonempty(Some(protocol))
+                    .unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn return_options_presence_preserves_retired_foreign_and_borrowed_refusals() {
+        // naming.error.original-invocation-context-capture
+        // docs/design/analysis/name-resolution-proofs/error-original-invocation-context-capture.md
+        // An emptiness query cannot revive a header or borrow argv ownership.
+        let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
+        let original =
+            Value::native_list_constructor(vec![Value::string("-code"), Value::int(0)], protocol);
+        assert!(
+            original
+                .native_return_options_nonempty(Some(NativeStringProtocol::Jim084))
+                .is_err()
+        );
+        let borrowed = Value::invocation_list_view(&crate::NativeListItems::new(
+            vec![Value::string("-code"), Value::int(0)],
+            false,
+        ));
+        assert!(
+            borrowed
+                .native_return_options_nonempty(Some(protocol))
+                .is_err()
+        );
+        assert!(original.native_return_options_nonempty(None).is_err());
+        let lifetime = original.native_lifetime_lease();
+        drop(original);
+        assert!(!lifetime.value().native_object_is_live());
+        assert!(
+            lifetime
+                .value()
+                .native_return_options_nonempty(Some(protocol))
+                .is_err()
+        );
+        assert!(
+            Value::int(0)
+                .native_return_options_nonempty(Some(protocol))
+                .is_err()
+        );
     }
 
     #[test]
