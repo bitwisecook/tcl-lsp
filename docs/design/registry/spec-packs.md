@@ -371,6 +371,11 @@ let packs survive releases without rebuilds:
   does not know and names the fix: the pack loads nothing at all, and one
   notice says why. An unknown *minor* within a known major keeps loading
   maximally.
+- `PackSet::load_errors` preserves whole-pack evaluation failures and their
+  file paths through merging, including failures before a `speclib` header.
+  Ordinary notices do not imply a failed load, and a valid pack can declare no
+  commands. `tcl spec test` rejects failed loads with status 2 before requiring
+  a package; a valid command-free pack exits 0 without starting a shell.
 - `VOCABULARY_VERSION` (`rust/tcl-spectcl/src/lib.rs`, part of the
   compiled-cache key) bumps only when a word's meaning changes — once, for
   2.0, because the legacy `dialects` word's translation output changed.

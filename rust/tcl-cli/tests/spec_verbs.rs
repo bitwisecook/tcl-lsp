@@ -1129,6 +1129,57 @@ fn spec_test_reports_what_the_examples_the_purity_and_the_reference_body_disagre
     );
 }
 
+#[test]
+fn spec_test_detects_temporary_namespace_variables_without_rejecting_locals() {
+    let package = r"package provide demo 1.0
+namespace eval demo {}
+proc demo::scratch {} {set ::scratch x; unset ::scratch; return ok}
+proc demo::nested {} {namespace eval ::temporary {set scratch x; unset scratch}; return ok}
+proc demo::once {} {
+    set ::once_scratch x
+    unset ::once_scratch
+    proc ::demo::once {} {return ok}
+    return ok
+}
+proc demo::arity_only {x} {set ::arity_scratch x; unset ::arity_scratch; return $x}
+proc demo::local {} {set scratch x; unset scratch; return ok}
+";
+    let pack = r"speclib demo 2.0 {
+    command demo::scratch {required_package demo; traits {PURE}; hover {example {demo::scratch}}}
+    command demo::nested {required_package demo; traits {PURE}; hover {example {demo::nested}}}
+    command demo::once {required_package demo; traits {PURE}; hover {example {demo::once}}}
+    command demo::arity_only {required_package demo; traits {PURE}; arity 1}
+    command demo::local {required_package demo; traits {PURE}; hover {example {demo::local}}}
+}
+";
+    let described = Described::new("spec-test-transient", package, pack, &["demo"]);
+    for version in tcl_dialect::TclVersion::ALL {
+        let Some(tclsh) = tcl_test_support::witness_tclsh(version) else {
+            continue;
+        };
+        let (stdout, stderr, code) = described.run(&tclsh.path);
+        assert_eq!(code, 1, "{version:?}: stdout: {stdout}\nstderr: {stderr}");
+        for (command, variable) in [
+            ("scratch", "scratch"),
+            ("nested", "::temporary::scratch"),
+            ("once", "once_scratch"),
+            ("arity_only", "arity_scratch"),
+        ] {
+            assert!(
+                stdout.lines().any(|line| {
+                    line.starts_with(&format!("demo::{command}: pure:")) && line.contains(variable)
+                }),
+                "{version:?}: missing {command}/{variable} in:\n{stdout}"
+            );
+        }
+        assert!(!stdout.contains("demo::local:"), "{version:?}: {stdout}");
+        assert!(
+            stdout.contains("5 command(s) tested against 'demo', 4 divergence(s)"),
+            "{version:?}: {stdout}"
+        );
+    }
+}
+
 /// A reference body a pack takes from a file of the package it ships is read when
 /// the pack loads and held to the command as one written in the pack is.
 #[test]
@@ -1261,6 +1312,44 @@ fn spec_test_says_when_there_is_nothing_to_test() {
     ]);
     assert_eq!(code, 2, "stdout: {stdout}\nstderr: {stderr}");
     assert!(stderr.contains("not a file"), "{stderr}");
+}
+
+#[test]
+fn spec_test_rejects_failed_pack_loads_before_starting_a_shell() {
+    let tree = Tree::new("spec-test-invalid");
+    let pack = tree.path().join("invalid.tclspec");
+    let absent_shell = tree.path().join("no-tclsh");
+    for (source, reason) in [
+        ("speclib demo 99.0 {}", "SpecTcl vocabulary 99.0"),
+        (
+            "speclib demo 2.0 {command demo::ok {arity 0}; error broken}",
+            "pack evaluation failed",
+        ),
+        ("set unrelated 1", "no speclib declaration was loaded"),
+    ] {
+        std::fs::write(&pack, source).expect("write invalid pack");
+        let (stdout, stderr, code) = run(&[
+            "spec",
+            "test",
+            &pack.to_string_lossy(),
+            "--tclsh",
+            &absent_shell.to_string_lossy(),
+        ]);
+        assert_eq!(code, 2, "{source}: stdout: {stdout}\nstderr: {stderr}");
+        assert!(stderr.contains(reason), "{source}: {stderr}");
+        assert!(!stdout.contains("no command to test"), "{stdout}");
+    }
+    std::fs::write(&pack, "speclib demo 2.0 {display_name {Empty}}")
+        .expect("write valid empty pack");
+    let (stdout, stderr, code) = run(&[
+        "spec",
+        "test",
+        &pack.to_string_lossy(),
+        "--tclsh",
+        &absent_shell.to_string_lossy(),
+    ]);
+    assert_eq!(code, 0, "stdout: {stdout}\nstderr: {stderr}");
+    assert!(stdout.contains("no command to test"), "{stdout}");
 }
 
 /// A shell that stops before it has asked every command is not a pass, whatever

@@ -44,10 +44,10 @@
 //! - **the reference body** — a command a Tcl body backs is run by that body,
 //!   in a child interpreter that has the package, on each example, and must
 //!   answer as the command does;
-//! - **purity** — a command declared `pure` is run again on each example with a
-//!   write trace on every variable of every namespace, and must change none;
-//!   the questions above are asked inside the same window, so a first call that
-//!   creates a variable is caught too. The probe's own namespace, the shell's own
+//! - **purity** — a command declared `pure` is run again on each example with
+//!   write/unset traces on namespace variables, and must change none. Execution
+//!   steps reveal new variables visible between Tcl commands. The questions
+//!   above share the same trace window. The probe's own namespace, the shell's own
 //!   `::tcl`, where one that reads its script from standard input keeps the
 //!   history of every statement it reads, and the global `errorInfo` and
 //!   `errorCode`, which the shell writes, are not counted.
@@ -310,24 +310,46 @@ proc ::__spec_test::changed {before after} {
 proc ::__spec_test::begin {} {
     if {$::__spec_test::skip} return
     set ::__spec_test::mark [::__spec_test::snapshot]
+    set ::__spec_test::writes {}
+    catch {unset ::__spec_test::traced}
+    array set ::__spec_test::traced {}
+    ::__spec_test::watch 0
+    foreach helper {attempt example reference pure} {
+        trace add execution ::__spec_test::$helper leavestep ::__spec_test::step
+    }
 }
-proc ::__spec_test::wrote {name args} {
+proc ::__spec_test::wrote {name name1 name2 op} {
     lappend ::__spec_test::writes $name
+    if {$op eq "unset" && ![array exists $name]} {unset ::__spec_test::traced($name)}
+}
+proc ::__spec_test::watch {created} {
+    foreach qualified [::__spec_test::variables] {
+        if {[info exists ::__spec_test::traced($qualified)]} continue
+        set prefix [list ::__spec_test::wrote $qualified]
+        if {![catch {trace add variable $qualified {write unset} $prefix}]} {
+            set ::__spec_test::traced($qualified) $prefix
+            if {$created} {lappend ::__spec_test::writes $qualified}
+        }
+    }
+}
+proc ::__spec_test::step {args} {
+    ::__spec_test::watch 1
+}
+proc ::__spec_test::end {} {
+    foreach helper {attempt example reference pure} {
+        trace remove execution ::__spec_test::$helper leavestep ::__spec_test::step
+    }
+    foreach qualified [array names ::__spec_test::traced] {
+        catch {trace remove variable $qualified {write unset} $::__spec_test::traced($qualified)}
+    }
 }
 proc ::__spec_test::pure {name lines} {
     if {$::__spec_test::skip} return
+    set earlier $::__spec_test::writes
     set reported {}
     foreach line $lines {
         set ::__spec_test::writes {}
-        set traced {}
-        foreach qualified [::__spec_test::variables] {
-            set prefix [list ::__spec_test::wrote $qualified]
-            if {![catch {trace add variable $qualified {write unset} $prefix}]} {lappend traced $qualified $prefix}
-        }
         catch {uplevel #0 $line}
-        foreach {qualified prefix} $traced {
-            catch {trace remove variable $qualified {write unset} $prefix}
-        }
         set names {}
         foreach written [lsort -unique $::__spec_test::writes] {lappend names [::__spec_test::shown $written]}
         if {[llength $names] > 0} {
@@ -335,8 +357,10 @@ proc ::__spec_test::pure {name lines} {
             ::__spec_test::say pure $name "declared pure, but `$line` wrote the variable(s) $names"
         }
     }
+    ::__spec_test::end
     set names {}
-    foreach qualified [::__spec_test::changed $::__spec_test::mark [::__spec_test::snapshot]] {
+    set changed [::__spec_test::changed $::__spec_test::mark [::__spec_test::snapshot]]
+    foreach qualified [lsort -unique [concat $earlier $changed]] {
         set shown [::__spec_test::shown $qualified]
         if {[lsearch -exact $reported $shown] < 0} {lappend names $shown}
     }

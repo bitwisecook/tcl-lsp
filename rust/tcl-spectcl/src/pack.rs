@@ -45,8 +45,8 @@ use crate::hooks::{DormantHook, dormant_hooks};
 use crate::loader::{Notice, Pack, PackCommand};
 use crate::stamps::StampRefusal;
 
-/// How loudly a notice should be shown. Every notice is a *degradation*, never
-/// a failure — the pack still loads — so nothing here is an error.
+/// How loudly a notice should be shown. Severity is presentation, not a load
+/// verdict: [`PackSet::load_errors`] carries whole-pack evaluation failures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Severity {
     /// Something the author wrote was dropped: an unknown word, a duplicate
@@ -267,6 +267,9 @@ pub struct PackSet {
     pub packs: Vec<MergedPack>,
     /// Every notice, from every file, in file-then-line order.
     pub notices: Vec<PackNotice>,
+    /// Whole-pack evaluation failures, with their source files, before merging.
+    /// Ordinary notices do not imply failure: a valid pack may declare no commands.
+    pub load_errors: Vec<(PathBuf, crate::LoadError)>,
     /// Content key over every contributing file plus the vocabulary version
     /// and loader build — the identity this pack set installs under in the
     /// per-profile registry cache. `0` for an empty set, which is the
@@ -461,6 +464,7 @@ pub(crate) fn load_sources(
     // by name, deterministically. Each file is parsed exactly once here — the
     // merge below consumes these `Pack`s rather than re-reading the source.
     let mut by_name: BTreeMap<String, Vec<(PackFile, Pack)>> = BTreeMap::new();
+    let mut load_errors = Vec::new();
     for (file, source) in sources {
         // A pack carrying `include` rows loads through a file-system
         // include context scoped to its own directory, and bypasses both
@@ -477,6 +481,9 @@ pub(crate) fn load_sources(
         } else {
             crate::cache::evaluate_pack_cached(&source, file.tier, file_trust)
         };
+        if let Some(error) = &pack.load_error {
+            load_errors.push((file.path.clone(), error.clone()));
+        }
         if pack.name.is_empty() {
             // No `speclib` wrapper: nothing to merge, but the loader's
             // explanation of why still belongs on the file.
@@ -559,6 +566,7 @@ pub(crate) fn load_sources(
     let set = PackSet {
         packs,
         notices,
+        load_errors,
         key,
     };
     // Publish the packs' declared extension routing so dialect detection's
@@ -1093,6 +1101,35 @@ mod tests {
             origin: Origin::DotDir,
             dependency_tier: None,
         }
+    }
+
+    #[test]
+    fn merged_sets_retain_load_failures_even_before_a_pack_names_itself() {
+        let _cache = cache_guard();
+        let dir = tmpdir("load-errors");
+        let unsupported = write(&dir, "unsupported.tclspec", "speclib demo 99.0 {}");
+        let broken = write(&dir, "broken.tclspec", "error before_header");
+        let empty = write(&dir, "empty.tclspec", "speclib empty 2.0 {}");
+        let set = load(&[
+            workspace_file(unsupported.clone()),
+            workspace_file(broken.clone()),
+            workspace_file(empty.clone()),
+        ]);
+        assert_eq!(set.load_errors.len(), 2, "{set:#?}");
+        assert_eq!(
+            set.load_errors[0],
+            (
+                unsupported,
+                crate::LoadError::UnsupportedMajor("99.0".to_owned())
+            )
+        );
+        assert_eq!(set.load_errors[1].0, broken);
+        assert!(matches!(
+            set.load_errors[1].1,
+            crate::LoadError::EvaluationFailed(_)
+        ));
+        assert!(set.packs.iter().any(|pack| pack.files.contains(&empty)));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

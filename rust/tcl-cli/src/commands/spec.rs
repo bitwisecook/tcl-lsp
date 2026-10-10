@@ -98,7 +98,7 @@ pub fn run(action: &SpecCommand) -> anyhow::Result<u8> {
 /// - **Evaluation is trusted.** The file is named on the command line by
 ///   its author rather than discovered in a workspace, so E-R2's provenance
 ///   gate (which asks *where a pack was found*) has nothing to answer here;
-///   `tcl spec check` is where a tier-gated verdict belongs.
+///   the `spectcl_check` MCP tool reports a tier-gated verdict.
 ///
 /// The text is run through the shared `SpecTcl` formatter profile — the one
 /// the studio's editors use — so an exported pack lands in the house style
@@ -184,7 +184,7 @@ fn run_export(args: &crate::cli::SpecExportArgs) -> anyhow::Result<u8> {
 /// One row is printed per divergence. The status is 1 when there is any, when the
 /// package could not be required at all, and when the shell stopped before it had
 /// asked every command, whatever status it stopped with; it is 2 when the verb
-/// itself could not run — a pack that is not a file, no shell, a package that did
+/// itself could not run — a pack that could not load, no shell, a package that did
 /// not finish in the time the policy allows.
 fn run_test(args: &SpecTestArgs) -> anyhow::Result<u8> {
     let Some(target) = test_target(args)? else {
@@ -216,8 +216,8 @@ struct TestTarget {
     probes: Vec<crate::commands::spec_test::CommandProbe>,
 }
 
-/// Load the pack and name the package it describes. `None` when the pack declares
-/// no command, which is said on the way out.
+/// Load the pack and name the package it describes. A failed load is an error;
+/// a valid command-free pack returns `None`, which is said on the way out.
 fn test_target(args: &SpecTestArgs) -> anyhow::Result<Option<TestTarget>> {
     use crate::commands::spec_test::{probes_of, required_package};
 
@@ -232,6 +232,9 @@ fn test_target(args: &SpecTestArgs) -> anyhow::Result<Option<TestTarget>> {
         origin: tcl_spectcl::discovery::Origin::Setting,
         dependency_tier: None,
     }]);
+    if let Some((path, error)) = set.load_errors.first() {
+        bail!("cannot load {}: {error}", path.display());
+    }
     let probes = probes_of(&set);
     if probes.is_empty() {
         for notice in &set.notices {
@@ -243,6 +246,12 @@ fn test_target(args: &SpecTestArgs) -> anyhow::Result<Option<TestTarget>> {
                     notice.line,
                     notice.message
                 ),
+            );
+        }
+        if set.packs.is_empty() {
+            bail!(
+                "cannot load {}: no speclib declaration was loaded",
+                args.pack.display()
             );
         }
         println!(

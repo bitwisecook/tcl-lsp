@@ -963,16 +963,31 @@ impl PackStore {
             self.pack.name.clone()
         };
         let mut packs = vec![merged(&name, &self.pack, Tier::Workspace)];
+        let mut load_errors: Vec<_> = self
+            .pack
+            .load_error
+            .iter()
+            .flat_map(|error| {
+                packs[0]
+                    .files
+                    .iter()
+                    .map(|path| (path.clone(), error.clone()))
+            })
+            .collect();
         if let Some(patch) = &self.patch {
-            packs.push(merged(
-                &self.patch_name(),
-                &patch.pack,
-                Tier::StudioOverride,
-            ));
+            let loaded = merged(&self.patch_name(), &patch.pack, Tier::StudioOverride);
+            load_errors.extend(patch.pack.load_error.iter().flat_map(|error| {
+                loaded
+                    .files
+                    .iter()
+                    .map(|path| (path.clone(), error.clone()))
+            }));
+            packs.push(loaded);
         }
         PackSet {
             packs,
             notices: Vec::new(),
+            load_errors,
             key: self.overlay_key(),
         }
     }
