@@ -1,0 +1,69 @@
+    Checking tcl-registry v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-registry)
+   Compiling tcl-version v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-version)
+    Checking tcl-syntax v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-syntax)
+    Checking tcl-cmd-core v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-cmd-core)
+    Checking tcl-runtime-api v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-runtime-api)
+    Checking tcl-compiler v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/.checkpoints/naming-validation/rust/tcl-vm)
+warning: unused import: `crate::depth_guard::MAX_EXPR_NODE_DEPTH`
+  --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:84:5
+   |
+84 | use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0716]: temporary value dropped while borrowed
+   --> rust/tcl-compiler/src/command_binding/declaration_preview.rs:971:22
+    |
+971 |                 Some(input.context_registry().context()),
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^ creates a temporary value which is freed while still in use
+...
+974 |             );
+    |              - temporary value is freed at the end of this statement
+975 |         let shape = resolution
+    |                     ---------- borrow later used here
+    |
+    = note: consider using a `let` binding to create a longer lived value
+
+For more information about this error, try `rustc --explain E0716`.
+warning: `tcl-compiler` (lib) generated 1 warning
+error: could not compile `tcl-compiler` (lib) due to 1 previous error; 1 warning emitted
+warning: build failed, waiting for other jobs to finish...
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/ssa.rs:9039:58
+     |
+9039 |         scan_selected_expression_roles(&child, &scanner, &registry, &mut reads);
+     |         ------------------------------                   ^^^^^^^^^ expected `SsaInvocationContext<'_>`, found `&CommandRegistry`
+     |         |
+     |         arguments to this function are incorrect
+     |
+note: function defined here
+    --> rust/tcl-compiler/src/ssa.rs:4453:4
+     |
+4453 | fn scan_selected_expression_roles(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+4456 |     selection: SsaInvocationContext<'_>,
+     |     -----------------------------------
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/ssa.rs:9049:60
+     |
+9049 |         scan_selected_expression_roles(&foreign, &scanner, &registry, &mut reads);
+     |         ------------------------------                     ^^^^^^^^^ expected `SsaInvocationContext<'_>`, found `&CommandRegistry`
+     |         |
+     |         arguments to this function are incorrect
+     |
+note: function defined here
+    --> rust/tcl-compiler/src/ssa.rs:4453:4
+     |
+4453 | fn scan_selected_expression_roles(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+4456 |     selection: SsaInvocationContext<'_>,
+     |     -----------------------------------
+
+Some errors have detailed explanations: E0308, E0716.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `tcl-compiler` (lib test) due to 3 previous errors

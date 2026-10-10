@@ -1920,6 +1920,8 @@ impl Value {
         formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
     ) -> Result<Rc<[u8]>, tcl_syntax::native_string::NativeStringUnavailable> {
         if !self.native_object_is_live() {
+            #[cfg(test)]
+            self.report_native_string_unavailable(protocol, "retired-header");
             return Err(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater);
         }
         if matches!(&*self.0.intrep.borrow(), IntRep::FrameLevel { version, .. }
@@ -2109,9 +2111,24 @@ impl Value {
                 | IntRep::JimScriptLine { .. }
                 | IntRep::Expression(_)
         ) {
+            #[cfg(test)]
+            self.report_native_string_unavailable(protocol, "primary-has-no-updater");
             return Err(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater);
         }
         self.materialize_native_bytearray_string(protocol)
+    }
+
+    #[cfg(test)]
+    fn report_native_string_unavailable(&self, protocol: NativeStringProtocol, reason: &str) {
+        // Failure context observes only the original header. No getter, object
+        // clone, payload, address or result storage is produced by this report.
+        eprintln!(
+            "native-string-unavailable reason={reason} protocol={protocol:?} primary={} live={} references={} resident={}",
+            self.native_object_type_name(),
+            self.native_object_is_live(),
+            self.native_object_reference_count(),
+            self.0.string.borrow().is_some(),
+        );
     }
 
     fn materialize_native_bytearray_string(

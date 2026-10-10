@@ -66,7 +66,32 @@ pub enum NativeDictionaryVariableLookup {
     ExistingRootWithElementCreation,
 }
 
+/// Original path-mutator variable publication, independent of C append/scope reads.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeDictionaryPathPublication {
+    /// C dict set/unset use their primitive read, then resolve the written name again.
+    COriginalName,
+    /// Jim reads normally, publishes a missing empty variable before path work,
+    /// and stores the transformed root through that same original variable name.
+    JimOriginalVariable,
+}
+
 impl crate::InvocationDialect {
+    /// Select the actual set/unset path worker's publication order. This pure
+    /// recipe supplies no cell, successful read, alias, object or loaded wrapper.
+    #[must_use]
+    pub fn native_dictionary_path_publication(self) -> Option<NativeDictionaryPathPublication> {
+        match self.native_string_protocol()? {
+            NativeStringProtocol::C(
+                TclVersion::V8_5 | TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1,
+            ) => Some(NativeDictionaryPathPublication::COriginalName),
+            NativeStringProtocol::Jim084 => {
+                Some(NativeDictionaryPathPublication::JimOriginalVariable)
+            }
+            NativeStringProtocol::C(TclVersion::V8_4) => None,
+        }
+    }
+
     /// Validate the already-produced Jim dictionary-variable root bytes.
     /// This is pure list/cardinality knowledge, independently of a current
     /// cell, successful read, representation conversion or native dispatch.
@@ -873,5 +898,37 @@ mod compiler_tests {
             ),
             NativeCompilationSelection::Unknown
         );
+    }
+}
+
+#[cfg(test)]
+mod path_publication_tests {
+    #[test]
+    fn original_path_publication_keeps_jim_worker_separate_from_c_lookup_frontier() {
+        // Source: Jim_SetDictKeysVector's ordinary variable lookup and initial
+        // missing-root store remain distinct from the C primitive GET frontier.
+        // Public proof: naming.dictionary.original-path-missing-variable-publication
+        // docs/design/analysis/name-resolution-proofs/dictionary-original-path-missing-variable-publication.md
+        use super::NativeDictionaryPathPublication as Publication;
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::of_point(
+                tcl_dialect::model::DialectPoint::for_tcl_version(version),
+            );
+            assert_eq!(
+                dialect.native_dictionary_path_publication(),
+                (version >= tcl_dialect::TclVersion::V8_5).then_some(Publication::COriginalName)
+            );
+        }
+        let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_84,
+        ));
+        assert_eq!(
+            jim.native_dictionary_path_publication(),
+            Some(Publication::JimOriginalVariable)
+        );
+        assert!(jim.native_dictionary_variable_lookup().is_none());
+        let authored_only =
+            crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::find("jim").unwrap());
+        assert!(authored_only.native_dictionary_path_publication().is_none());
     }
 }

@@ -436,7 +436,7 @@ pub(crate) fn dictionary_path_update_bytes(
 ) -> Result<tcl_runtime_api::VariableUpdateResult<Value>, Completion<Value>> {
     let objects = VmDictionaryObjects::selected(vm)
         .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
-    vm.dictionary_variable_update_bytes(name, publication, &objects, |vm, prepared| {
+    let operation = |vm: &mut Vm, prepared| {
         match value {
             Some(value) => {
                 tcl_cmd_core::native_dictionary::set_prepared_path(&objects, prepared, keys, value)
@@ -444,7 +444,31 @@ pub(crate) fn dictionary_path_update_bytes(
             None => tcl_cmd_core::native_dictionary::remove_prepared_path(&objects, prepared, keys),
         }
         .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
-    })
+    };
+    match vm
+        .native_invocation_dialect()
+        .native_dictionary_path_publication()
+    {
+        Some(tcl_registry::native_dictionary::NativeDictionaryPathPublication::COriginalName) => {
+            vm.dictionary_variable_update_bytes(name, publication, &objects, operation)
+        }
+        Some(
+            tcl_registry::native_dictionary::NativeDictionaryPathPublication::JimOriginalVariable,
+        ) => {
+            if !matches!(
+                publication,
+                crate::interp::native_dictionary::DictionaryVariablePublication::CommandName
+            ) {
+                return Err(vm.refuse_host_command(
+                    "Jim dictionary path has no C compiled-local receiver".into(),
+                ));
+            }
+            vm.jim_dictionary_path_update_bytes(name, &objects, operation)
+        }
+        None => {
+            Err(vm.refuse_host_command("native dictionary path publication is unavailable".into()))
+        }
+    }
 }
 
 pub(crate) fn dictionary_member_update_bytes(
@@ -1711,3 +1735,85 @@ mod native_rmw_fixture_tests {
 #[cfg(test)]
 #[path = "cmd_dict/scripted_tests.rs"]
 mod scripted_tests;
+
+#[cfg(test)]
+mod native_path_publication_tests {
+    fn original_result(rows: &str) -> (i64, Vec<u8>) {
+        let fields = rows
+            .lines()
+            .find(|row| row.starts_with("ORIGINAL|"))
+            .unwrap()
+            .split('|')
+            .collect::<Vec<_>>();
+        let bytes = fields[2].as_bytes();
+        assert_eq!(bytes.len() % 2, 0);
+        (
+            fields[1].parse().unwrap(),
+            bytes
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn original_path_missing_variable_publication_matches_all_15_available_native_windows() {
+        // naming.dictionary.original-path-missing-variable-publication
+        // docs/design/analysis/name-resolution-proofs/dictionary-original-path-missing-variable-publication.md
+        // Each complete original caller result keeps the error, existence,
+        // caller read and alias/member publication together. No private object
+        // header or C lookup receipt follows from these public observations.
+        // C84's three original NA rows are retained independently: this test
+        // checks absent purpose, without normalising a raw Return to C API Ok.
+        let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
+        let cases = [("missing-root-failed-path-unset", include_bytes!("../../tcl-registry/tests/data/native_dictionary_path_publication319/missing-root-failed-path-unset.tcl").as_slice(), [include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/missing-root-failed-path-unset/stdout"),
+include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/missing-root-failed-path-unset/stdout"),
+include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/missing-root-failed-path-unset/stdout"),
+include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/missing-root-failed-path-unset/stdout"),
+include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/missing-root-failed-path-unset/stdout"),
+include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/jim/missing-root-failed-path-unset/stdout")]),
+("missing-member-failed-path-unset", include_bytes!("../../tcl-registry/tests/data/native_dictionary_path_publication319/missing-member-failed-path-unset.tcl").as_slice(), [include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/missing-member-failed-path-unset/stdout"),
+include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/missing-member-failed-path-unset/stdout"),
+include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/missing-member-failed-path-unset/stdout"),
+include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/missing-member-failed-path-unset/stdout"),
+include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/missing-member-failed-path-unset/stdout"),
+include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/jim/missing-member-failed-path-unset/stdout")]),
+("linked-root-path-set", include_bytes!("../../tcl-registry/tests/data/native_dictionary_path_publication319/linked-root-path-set.tcl").as_slice(), [include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/linked-root-path-set/stdout"),
+include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/linked-root-path-set/stdout"),
+include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/linked-root-path-set/stdout"),
+include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/linked-root-path-set/stdout"),
+include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/linked-root-path-set/stdout"),
+include_str!("../../tcl-registry/tests/data/native_dictionary_path_publication319/jim/linked-root-path-set/stdout")])];
+        let mut compared = 0;
+        let mut unsupported = 0;
+        for (case, source, columns) in cases {
+            for (engine, column) in providers.iter().zip(columns) {
+                let (expected_code, expected_result) = original_result(column);
+                let profile =
+                    tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+                if *engine == "tcl8.4" {
+                    assert_eq!(expected_code, 0, "{engine}/{case} native API boundary");
+                    assert_eq!(expected_result, b"NOT_APPLICABLE");
+                    assert!(
+                        tcl_registry::InvocationDialect::of_profile(profile)
+                            .native_dictionary_path_publication()
+                            .is_none()
+                    );
+                    unsupported += 1;
+                    continue;
+                }
+                let mut vm = crate::native_fixture::interpreter(profile);
+                let completion = vm
+                    .try_eval_source_bytes(source)
+                    .unwrap_or_else(|error| panic!("{engine}/{case}: {error:?}"));
+                assert_eq!(completion.code.as_int(), expected_code, "{engine}/{case}");
+                let actual = vm.native_name_operand_bytes(&completion.result).unwrap();
+                assert_eq!(actual.as_ref(), expected_result, "{engine}/{case}");
+                assert!(vm.refused_completion().is_none(), "{engine}/{case}");
+                compared += 1;
+            }
+        }
+        assert_eq!(compared, 15);
+        assert_eq!(unsupported, 3);
+    }
+}

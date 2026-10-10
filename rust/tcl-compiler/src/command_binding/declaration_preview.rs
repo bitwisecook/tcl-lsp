@@ -77,6 +77,45 @@ impl LogicalProcedureDeclaration {
     }
 }
 
+/// Original declaration applicability for existential local-read advice.
+/// Native formals retain their selected byte topology; Logical formals retain
+/// their distinct authored declaration recipe. Neither supplies body entry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OriginalProcedureReadDeclaration {
+    source: ExecutedScriptSource,
+    formals: ProcedureReadFormals,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ProcedureReadFormals {
+    Native(super::formal_topology::OriginalFormalTopology),
+    Logical {
+        parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
+        text: String,
+    },
+}
+impl OriginalProcedureReadDeclaration {
+    pub(crate) fn source(&self) -> &ExecutedScriptSource {
+        &self.source
+    }
+    pub(crate) fn parameter_names(&self) -> Vec<String> {
+        match &self.formals {
+            ProcedureReadFormals::Native(topology) => topology.advisory_parameters(),
+            ProcedureReadFormals::Logical { parameters, .. } => parameters.clone(),
+        }
+        .into_iter()
+        .map(|formal| formal.name)
+        .collect()
+    }
+    pub(crate) fn parameters_text(&self) -> Option<&str> {
+        match &self.formals {
+            ProcedureReadFormals::Native(topology) => {
+                std::str::from_utf8(topology.original_input().bytes()).ok()
+            }
+            ProcedureReadFormals::Logical { text, .. } => Some(text),
+        }
+    }
+}
+
 /// One lexical body under its complete immutable parent lookup worlds.
 /// The registry is fixed for this collector. Parent command words are replaced
 /// by genuine child words before any semantic query, so they are not a body
@@ -306,6 +345,67 @@ impl SourceCommandBindings {
         body.original_parameters
             .is_none()
             .then_some(LogicalProcedureDeclaration { body })
+    }
+
+    /// Selected original header grammar for conditional diagnostic advice.
+    /// Namespace publication, allocated procedure and physical frame are not
+    /// prerequisites; the retained declaration and formal producer are.
+    pub(crate) fn original_procedure_read_declaration(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<OriginalProcedureReadDeclaration> {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, input,
+        )?;
+        let site = tokens.source_binding.as_ref()?.invocation_site()?;
+        if !self.matches_original_source_image(site.source.source_image(), input.lexer_config()) {
+            return None;
+        }
+        if input.has_logical_source_name_context() {
+            let recipe = self.original_logical_procedure_declaration(tokens, registry, input)?;
+            return Some(OriginalProcedureReadDeclaration {
+                source: recipe.source().clone(),
+                formals: ProcedureReadFormals::Logical {
+                    parameters: recipe.parameters().to_vec(),
+                    text: recipe.parameters_text()?.to_owned(),
+                },
+            });
+        }
+        let mut agreed = None;
+        for row in original_declaration_layouts(self.declaration_layouts.get(site)?)? {
+            if row.config != input.lexer_config()
+                || declaration_tokens(site, row)?.words() != tokens.words()
+            {
+                return None;
+            }
+            let advice = super::original_site_operand_layout_advice(
+                site,
+                tokens,
+                &row.snapshot,
+                &row.namespace,
+                row.config,
+            )?;
+            if advice.dialect() != super::source_analysis_entry::source_input_dialect(input) {
+                return None;
+            }
+            for target in advice.targets() {
+                if !target.registry_backed {
+                    return None;
+                }
+                let recipe = native_procedure_read_recipe(
+                    site, tokens, row, target, &advice, registry, metadata,
+                )?;
+                if agreed.as_ref().is_some_and(|previous| previous != &recipe) {
+                    return None;
+                }
+                agreed = Some(recipe);
+            }
+        }
+        agreed
     }
 
     /// Unanimous conditional procedure body at its genuine declaration.
@@ -950,6 +1050,7 @@ fn logical_procedure_body_recipe(
         return None;
     }
     let dialect = advice.dialect();
+    let actual_context = input.context_registry();
     let mut agreed = None;
     for target in advice.targets() {
         let effective = effective_words_for_target(tokens, target)?;
@@ -968,7 +1069,7 @@ fn logical_procedure_body_recipe(
         let resolution =
             tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
                 registry,
-                Some(input.context_registry().context()),
+                Some(actual_context.context()),
                 tcl_registry::InvocationWords::structured(head, arguments).with_dialect(dialect),
                 advice.realm(),
             );
@@ -1183,6 +1284,78 @@ fn procedure_body_recipe(
         logical_parameters_text: None,
         original_parameters,
         frame,
+    })
+}
+
+fn native_procedure_read_recipe(
+    site: &CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    row: &DeclarationLayoutObservation,
+    target: &super::SourceCommandTarget,
+    advice: &super::OriginalCompilationLookupAdvice,
+    registry: &tcl_registry::CommandRegistry,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+) -> Option<OriginalProcedureReadDeclaration> {
+    let dialect = advice.dialect();
+    let effective = effective_words_for_target(tokens, target)?;
+    let values: Vec<_> = effective
+        .words
+        .iter()
+        .map(|word| {
+            effective_invocation_word(word, dialect.lexer_grammar.escapes, dialect.word_values)
+        })
+        .collect();
+    let words: Vec<_> = values
+        .iter()
+        .map(EffectiveInvocationWord::as_registry_word)
+        .collect();
+    let RegistryInvocationResolution::Resolved(facts) =
+        crate::registry_invocation::resolve_registry_words_in_realm_with_metadata_context(
+            registry,
+            Some(metadata),
+            &words,
+            Some(dialect),
+            advice.realm(),
+        )
+        .ok()?
+    else {
+        return None;
+    };
+    let tcl_registry::native_procedure::NativeProcedureDefinitionSelection::Valid(shape) =
+        facts.procedure_definition?
+    else {
+        return None;
+    };
+    let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(parameters) =
+        original_declaration_operand_input(
+            site,
+            tokens,
+            row,
+            target,
+            &effective,
+            shape.parameters_at.checked_add(1)?,
+        )?
+    else {
+        return None;
+    };
+    let topology =
+        super::formal_topology::OriginalFormalTopology::from_original_key(parameters, dialect)?;
+    let body_at = shape.body_at.checked_add(1)?;
+    let crate::registry_invocation::InvocationWordOrigin::Written(written) =
+        effective.origins.get(body_at)?
+    else {
+        return None;
+    };
+    let source = ExecutedScriptSource::from_word(
+        site.clone(),
+        written.checked_sub(1)?,
+        tokens.words().get(*written)?,
+        words.get(body_at)?.literal()?,
+        row.config,
+    );
+    (source.origin == site.source).then_some(OriginalProcedureReadDeclaration {
+        source,
+        formals: ProcedureReadFormals::Native(topology),
     })
 }
 
@@ -1850,13 +2023,17 @@ mod tests {
 
     #[test]
     fn nested_declared_layout_keeps_original_scope_without_entered_authority() {
+        // Implementation binding: naming.source.original-registry-header-advice
+        // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
+        // The quiet source world retains conditional grammar, not a Native
+        // entry, executed procedure frame or result-completion receipt.
         let source = "proc wrap {condition} {if {$condition} {info exists condition}}";
-        let (bindings, tokens) = inventory_in_world(source, "info exists condition", true);
+        let (bindings, tokens) = inventory(source, "info exists condition");
         let binding = tokens.source_binding.as_ref().unwrap();
         let layout = binding
             .declaration_operand_layout_advice(&tokens)
             .expect("unchanged scalar condition retains original nested grammar");
-        assert!(!layout.closed_lookup());
+        assert!(layout.closed_lookup());
         assert!(binding.unknown);
         assert!(binding.proved_execution_target().is_none());
         assert!(binding.compiler_lookup_state.is_none());
@@ -1872,11 +2049,53 @@ mod tests {
         )
         .unwrap();
         assert!(originals.clone().all(|observation| {
-            observation.entry.owns_source(&site.source, site.offset)
+            !observation.snapshot.state.source_variables.dynamic_traces
+                && observation.snapshot.state.baseline.native_entry.is_none()
+                && observation.entry.owns_source(&site.source, site.offset)
                 && observation
                     .entry
                     .owns_original_context(&observation.snapshot.state.source_variables)
         }));
+    }
+
+    #[test]
+    fn nested_declared_layout_declines_lookup_after_unknown_variable_observers() {
+        // Implementation binding: naming.source.original-registry-header-advice
+        // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
+        // SourceAnalysisOptions::unknown_entry widens the original variable
+        // world through ModuleCommandBindings::mark_opaque_binding_mutation
+        // and ResolveContext::widen. Readonly in_frame keeps that observer
+        // uncertainty; a conditional source frame cannot erase it.
+        let source = "proc wrap {condition} {if {$condition} {info exists condition}}";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let (bindings, condition) =
+            inventory_in_world(source, "if {$condition} {info exists condition}", true);
+        let binding = condition.source_binding.as_ref().unwrap();
+        let site = binding.invocation_site().unwrap();
+        let parents = original_declaration_layouts(bindings.declaration_layouts.get(site).unwrap())
+            .unwrap()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert!(!parents.is_empty());
+        assert!(parents.iter().all(|parent| {
+            parent.snapshot.state.source_variables.dynamic_traces
+                && parent.snapshot.state.baseline.native_entry.is_none()
+                && parent.entry.owns_source(&site.source, site.offset)
+        }));
+        let originals = parent_declaration_layouts(site, &condition, &parents, registry);
+        assert!(originals.iter().all(|parent| parent.original.is_some()));
+        assert!(unanimous_nested_layouts_from_parents(site, &originals, registry).is_empty());
+        assert!(binding.proved_execution_target().is_none());
+        assert!(binding.compiler_lookup_state.is_none());
+        let (_, nested) = inventory_in_world(source, "info exists condition", true);
+        assert!(
+            nested
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .declaration_operand_layout_advice(&nested)
+                .is_none()
+        );
     }
 
     #[test]

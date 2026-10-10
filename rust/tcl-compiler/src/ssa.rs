@@ -9036,7 +9036,12 @@ mod tests {
         assert!(binding.proved_execution_target().is_none());
         let scanner = VarReferenceScanner::new(VarScanOptions::default());
         let mut reads = BTreeSet::new();
-        scan_selected_expression_roles(&child, &scanner, &registry, &mut reads);
+        scan_selected_expression_roles(
+            &child,
+            &scanner,
+            SsaInvocationContext::standalone(&registry),
+            &mut reads,
+        );
         assert_eq!(reads, BTreeSet::from(["tainted".to_owned()]));
 
         let mut foreign = child.clone();
@@ -9046,7 +9051,12 @@ mod tests {
             source: foreign.word_exprs[1].source().clone(),
         };
         reads.clear();
-        scan_selected_expression_roles(&foreign, &scanner, &registry, &mut reads);
+        scan_selected_expression_roles(
+            &foreign,
+            &scanner,
+            SsaInvocationContext::standalone(&registry),
+            &mut reads,
+        );
         assert!(
             reads.is_empty(),
             "foreign source cannot borrow May-read topology"

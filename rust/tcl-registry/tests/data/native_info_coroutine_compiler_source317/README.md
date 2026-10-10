@@ -1,0 +1,3 @@
+# Original coroutine compiler source
+
+This is a read-only source dossier, with no provider or compiler run. The original request and eight short excerpts remain exact. Three complete compiler source files and independently selected complete LF worker excerpts retain the zero-argument check and emitted opcode; the five complete info table sources are reused from the exact official native_info_inventory_original source files linked by the question record. source-inspection.json records the complete worker ranges and hashes. Public coroutine outcomes and current software recipe assertions retain separate scopes.

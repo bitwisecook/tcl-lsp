@@ -139,13 +139,30 @@ fn weak_context_association_preserves_ownership_and_refuses_other_interpreters()
     let original = Value::new_native_string_bytes(&b"a b"[..]);
     let first = NativeJimObjectContext::new(jim()).unwrap();
     let second = NativeJimObjectContext::new(jim()).unwrap();
+    // Association is weak and adds no ownership. Interpreter object-role
+    // references are independent; observe their actual baseline rather than
+    // inventing a cold-context reference count for the canonical empty object.
+    let first_empty_references = first.empty_object().native_object_reference_count();
+    let second_empty_references = second.empty_object().native_object_reference_count();
+    let first_lifetime = std::rc::Rc::downgrade(&first);
     original.bind_native_jim_context(&first).unwrap();
     assert_eq!(original.native_object_reference_count(), 1);
-    assert_eq!(first.empty_object().native_object_reference_count(), 1);
+    assert_eq!(std::rc::Rc::strong_count(&first), 1);
+    assert_eq!(
+        first.empty_object().native_object_reference_count(),
+        first_empty_references
+    );
     assert!(original.bind_native_jim_context(&second).is_err());
+    assert_eq!(std::rc::Rc::strong_count(&second), 1);
+    assert_eq!(
+        second.empty_object().native_object_reference_count(),
+        second_empty_references
+    );
     drop(first);
+    assert!(first_lifetime.upgrade().is_none());
     assert!(original.native_jim_context().is_err());
     assert!(original.bind_native_jim_context(&second).is_err());
+    assert_eq!(original.native_object_reference_count(), 1);
     assert_eq!(original.resident_string_bytes().unwrap().as_ref(), b"a b");
 }
 
@@ -373,13 +390,11 @@ fn original_source_length_and_concat_channels_match_all_native_providers() {
         ("tcl9.1", rows!("9.1.0")),
         ("jim", rows!("jim")),
     ] {
-        let mut vm = crate::Vm::with_native_core(
-            Box::new(Vec::<u8>::new()),
-            std::rc::Rc::new(crate::host_native::NativeHost::new()),
-            tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
-            tcl_registry::special_vars::NativeBootstrapInputs::default(),
-        )
-        .unwrap();
+        // Original241 executes these three unchanged inputs in one selected
+        // interpreter. C source compilation remains an independent supplied
+        // capability; Jim uses its original Script engine at the public door.
+        let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+        let mut vm = crate::native_fixture::interpreter(profile);
         for (index, source) in sources.into_iter().enumerate() {
             let completion = vm.try_eval_source_bytes(source).unwrap();
             let label = format!("ORIGINAL_{index}");

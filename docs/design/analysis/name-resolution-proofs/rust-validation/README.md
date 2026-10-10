@@ -1883,3 +1883,19 @@ Five independent diagnostic commands also complete with failures: the two-name L
 | [vm-dict-publication-progress241](frozen241/vm-dict-publication-progress241/receipt.json.gz) · [log](frozen241/vm-dict-publication-progress241/tests.log) | Exact1-name command 0P/1F/705filtered after64.96s; complete failing summary |
 
 [Compiler pin](frozen241/pinned-compiler241.json): SHA `4d5e04b249537c4b59fba2cd7f59b3b5d811582bdd7e4a9ffbb4171a5ab2f136`, artifact fresh: `false`. [VM pin](frozen241/pinned-vm241.json): SHA `d566a8e3ce05c2ec6834f1585470488df83f002530eb3e0d384f4f9aeb258c7b`, artifact fresh: `false`. Both belong to the independent successful Compiler/VM build.
+
+## Consumer242 check
+
+The exact locked14-package all-targets check fails101 after83.12 seconds with uniform_source: true. Its whole log records one E0716 temporary-context borrow in declaration_preview.rs and two E0308 SSA test-type errors. The command executes no assertions and supplies no successful check or executable pin. Its exact gzip receipt preserves the complete unchanged source inventory and requested package list; current edited definitions, other images and native outcomes remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [consumer-check242](frozen242/consumer-check242/receipt.json.gz) · [log](frozen242/consumer-check242/tests.log) | Failed101; three Compiler borrow/type errors; no assertions or successful check |
+
+## Consumer244 check
+
+The exact locked14-package all-targets check fails101 after86.95 seconds with uniform_source: true. Its whole log records three distinct Compiler errors: Option::flatten on a single metadata option in cfg_lookup_context.rs, a missing MAX_EXPR_NODE_DEPTH value in dataflow.rs and a ContextRegistry crate path in execution_regions.rs. The flatten failure is emitted for both library and library-test builds, preserving four diagnostic events. The command executes no assertions and supplies no successful check or executable pin. Its exact gzip receipt preserves the complete unchanged source inventory and requested package list; current edited definitions, other images and native outcomes remain independent.
+
+| Receipt and log | Actual result |
+| --- | --- |
+| [consumer-check244](frozen244/consumer-check244/receipt.json.gz) · [log](frozen244/consumer-check244/tests.log) | Failed101; three distinct Compiler type/import errors; four diagnostic events; no assertions or successful check |

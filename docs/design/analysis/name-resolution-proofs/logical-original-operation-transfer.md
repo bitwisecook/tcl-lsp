@@ -16,7 +16,7 @@ transfer requires a positive actual retained Logical input, genuine whole Author
 
 ## Scope
 
-Five fixed source/API controls test static selected move/delete/scalar-head outcomes, captured alias composition and quiet scalar transfer with observer/foreign/missing-owner refusal. All seven providers are not tested. No C/Jim/BIG-IP interpreter stores or commands are executed by this proof; genuine full-source Logical W123 diagnostics are separate from Native head admission.
+Fixed source/API controls test static selected move/delete/scalar-head outcomes, captured alias composition and quiet scalar transfer with observer/foreign/missing-owner refusal. All seven providers are not tested. No C/Jim/BIG-IP interpreter stores or commands are executed by this proof; genuine full-source Logical W123 diagnostics are separate from Native head admission. Conditional original Unicode source heads and qualified definer aliases share the selected symbolic move/delete continuation. Native abrupt-edge classification and current runtime publication remain independent.
 
 ## Provider answers
 
@@ -83,6 +83,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs), `command_binding::logical_operation::tests::logical_original_operation_refusals_do_not_recover_from_reporting_state` (linked): Unknown/rebound/dynamic/foreign/observed operations, occupied destinations, array contents and opaque cycles cannot manufacture a definite source deletion.
 - [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs), `command_binding::logical_operation::tests::logical_original_store_transfer_retains_source_purpose_without_native_normal` (linked): Quiet symbolic scalar contents change while Native and ordinary completion certificates remain absent and original command-world receipt remains unchanged.
 - [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs), `command_binding::logical_operation::tests::logical_original_store_transfer_refuses_observers_foreign_and_missing_owners` (linked): Dynamic observers/bindings, foreign origin/configuration, absent actual Logical input and physical foreign cells refuse symbolic transfer.
+- [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs), `command_binding::logical_operation::tests::logical_original_transfers_preserve_unicode_registry_moves_and_aliases` (linked): Complete positive Logical source preserves original Unicode moves and composed qualified registry alias prefixes in the authored model. These continuations prove no Native rename/alias execution, abrupt-edge exclusion or allocation.
 
 A named test is a coverage binding, not a claim that it executed.
 

@@ -26167,6 +26167,724 @@
       "candidate": false
     },
     {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/compile.receipt.json",
+      "sha256": "ec7f82931a6f318b8b7599e92362ad6d0b0ff51ec94e843ec8881e1bde0b461f",
+      "bytes": 2110,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/linked-root-path-set/receipt.json",
+      "sha256": "9aeafe9156e8fb800acb33406f9b4d1acf963326582b2cc7b6a1caed4d836dfa",
+      "bytes": 2768,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/linked-root-path-set/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/linked-root-path-set/stdout",
+      "sha256": "2a48e0363a3a20ef7e00ab50bd2ab36a03991a28767fc68ef4840c8031e21b76",
+      "bytes": 63,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/missing-member-failed-path-unset/receipt.json",
+      "sha256": "ec94878a9a6eeeeadde5841880e4d334196e19820d99c23ddf5487a46b70d945",
+      "bytes": 2780,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/missing-member-failed-path-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/missing-member-failed-path-unset/stdout",
+      "sha256": "2a48e0363a3a20ef7e00ab50bd2ab36a03991a28767fc68ef4840c8031e21b76",
+      "bytes": 63,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/missing-root-failed-path-unset/receipt.json",
+      "sha256": "aeb40437283dcef2cc14e16594ab65974a6aaee3102f1850655e6cec0c909205",
+      "bytes": 2777,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/missing-root-failed-path-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/missing-root-failed-path-unset/stdout",
+      "sha256": "2a48e0363a3a20ef7e00ab50bd2ab36a03991a28767fc68ef4840c8031e21b76",
+      "bytes": 63,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/probe.elf",
+      "sha256": "05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18",
+      "bytes": 858960,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/compile.receipt.json",
+      "sha256": "eaa023874916244268e4b7796984bc177b1d93951e86c2eb3c4d081184a7a91b",
+      "bytes": 2112,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/linked-root-path-set/receipt.json",
+      "sha256": "894526ea38a02c26b319e2fdbc3756d0e00c98f86a29950a0b4d906857e2839f",
+      "bytes": 2868,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/linked-root-path-set/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/linked-root-path-set/stdout",
+      "sha256": "3df948d3350ec5e1f93de1aabeb1ae4c25b9a3acfa915989c77430c3c13b9102",
+      "bytes": 163,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/missing-member-failed-path-unset/receipt.json",
+      "sha256": "e2922fcbb23ffecb248797ad77a5b925b5919842423fd07e5af05a9c33bbfc56",
+      "bytes": 2948,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/missing-member-failed-path-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/missing-member-failed-path-unset/stdout",
+      "sha256": "8d237cf0deba5e187e011c7b1f015366846f698b1d293c589b46db2f84b85999",
+      "bytes": 233,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/missing-root-failed-path-unset/receipt.json",
+      "sha256": "b537bf80fae1fefae8c90c7c4bb77f3ce2300fcc792cfd52badb758dd7d7ab0a",
+      "bytes": 2909,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/missing-root-failed-path-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/missing-root-failed-path-unset/stdout",
+      "sha256": "dc11096f54f932f869656877eb00819bce00da9194b6cd37bffa92915920f08e",
+      "bytes": 195,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/probe.elf",
+      "sha256": "293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f",
+      "bytes": 1254016,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/compile.receipt.json",
+      "sha256": "9f812df1ff5777db1b4ca9aea73fa01c1ce1f4303582025314d57c808acf28e8",
+      "bytes": 2240,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/linked-root-path-set/receipt.json",
+      "sha256": "62350ec68beaf17f1f4674c075e4ea3d88f21d4b0e85ab3d3ab1b2b36bc3d996",
+      "bytes": 2995,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/linked-root-path-set/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/linked-root-path-set/stdout",
+      "sha256": "b03fef55f4ba0a034b15a88e42cfdcf242ce156e85d7be6785f03aa0152d2ca8",
+      "bytes": 163,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/missing-member-failed-path-unset/receipt.json",
+      "sha256": "bdcac9c1c23b33ffe7c6ebe8d570ac88c9ef36cbed0adb8d9935ae1c83b3bec4",
+      "bytes": 3077,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/missing-member-failed-path-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/missing-member-failed-path-unset/stdout",
+      "sha256": "b6fb8afe170d8721bad0e1574d19259e69da11370a96e87736c6c2f0fa89ab85",
+      "bytes": 233,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/missing-root-failed-path-unset/receipt.json",
+      "sha256": "8c10e043924224920f74a0dcc8bf1310af23493c94e70e96042a8d9e0166b665",
+      "bytes": 3037,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/missing-root-failed-path-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/missing-root-failed-path-unset/stdout",
+      "sha256": "029acb8ccf7e42b0170203c3ffc94d6c3f86afd99c5d485e5544b2fbef4933f8",
+      "bytes": 195,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/probe.elf",
+      "sha256": "f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56",
+      "bytes": 1866728,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/compile.receipt.json",
+      "sha256": "9e9b1f27f9b7729515906dd8636b01f32edc32a19613775d55075bac97e79c98",
+      "bytes": 2226,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/linked-root-path-set/receipt.json",
+      "sha256": "034eb638c73aae376b7e4fc81e28df3f31305f950ccd8bbf5c0e22f8a40a0d7e",
+      "bytes": 2980,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/linked-root-path-set/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/linked-root-path-set/stdout",
+      "sha256": "da0356706f4b04fc48c860475ef48bc95694a35f129d8c546e6f4e73170b909e",
+      "bytes": 161,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/missing-member-failed-path-unset/receipt.json",
+      "sha256": "e72b0ad7254d8490ee2a6c510b6a2acc5c4a69fc644bfb08801f54956f77748f",
+      "bytes": 3062,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/missing-member-failed-path-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/missing-member-failed-path-unset/stdout",
+      "sha256": "d5cb8282519b12b24d11a92063a1a2cdafb05225e3666290a8ccab43ccb64087",
+      "bytes": 231,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/missing-root-failed-path-unset/receipt.json",
+      "sha256": "e427358b1f1b07225895cc4ffbbd64f920bd6561519f199a00592f9a3333926b",
+      "bytes": 3022,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/missing-root-failed-path-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/missing-root-failed-path-unset/stdout",
+      "sha256": "27b41450bffe7f1ac0429966287bf9d0a1024a33facd6943de8fa35e31278191",
+      "bytes": 193,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/probe.elf",
+      "sha256": "b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab",
+      "bytes": 2270224,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/compile.receipt.json",
+      "sha256": "1d60efc77ff276a613a6fe82baaeeb380e8de2bda89b5ca612505f4081943d58",
+      "bytes": 2226,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/linked-root-path-set/receipt.json",
+      "sha256": "73a7ee5a9549b7669d651e8b3126532e00de0844525e426d9a6084369d77eb77",
+      "bytes": 2979,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/linked-root-path-set/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/linked-root-path-set/stdout",
+      "sha256": "39e664ac90ddd62c48910408359e864d71dd0244c18b9e480a86e4045ec89cfc",
+      "bytes": 161,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/missing-member-failed-path-unset/receipt.json",
+      "sha256": "fe78a9f41f38c8d31853d681b36b13f0536744153ec61e69f20d02f0b576a324",
+      "bytes": 3062,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/missing-member-failed-path-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/missing-member-failed-path-unset/stdout",
+      "sha256": "1579ee2b745cf7346fcd99d76e4e14d5f7b8fb830d66e38b7f649344e9e6deea",
+      "bytes": 231,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/missing-root-failed-path-unset/receipt.json",
+      "sha256": "5fe3a780ee3ce197b2cc52e10696eae5b46c1253c3de8fa03b455f1605368778",
+      "bytes": 3021,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/missing-root-failed-path-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/missing-root-failed-path-unset/stdout",
+      "sha256": "fc446606bd34bb8b874182cbd3907210e054e71c12a2cbf7356492ae87045bac",
+      "bytes": 193,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/probe.elf",
+      "sha256": "1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528",
+      "bytes": 2507704,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/capture.py",
+      "sha256": "47a4532da1069e62be477b63848193caf747f438da09c1bb88d32055a16fc9d0",
+      "bytes": 4075,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/compile.receipt.json",
+      "sha256": "df4a5c60f75ffcc0f9590e11c02bdda01bb84fc414db7a0ab567836688e6555e",
+      "bytes": 2633,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/linked-root-path-set/receipt.json",
+      "sha256": "4dbb1ebda9a43b2831e2eb8998c21eb5773c7f6e0aa3294d2b68a1e18e82ddcb",
+      "bytes": 3365,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/linked-root-path-set/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/linked-root-path-set/stdout",
+      "sha256": "f1f9c255d2fbdc32b1159daba343e88506052112b17b31fb9f94ccfa6fb2d6ee",
+      "bytes": 181,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/missing-member-failed-path-unset/receipt.json",
+      "sha256": "b65c01922b87845e8dc91dc82a1d22e4ec514de8a73d5fa03093b60bd1566dd0",
+      "bytes": 3388,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/missing-member-failed-path-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/missing-member-failed-path-unset/stdout",
+      "sha256": "25c78c7d75b6c191657bba3cbc9fb0d68cd85041afa6769a58f9345e83a31edd",
+      "bytes": 191,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/missing-root-failed-path-unset/receipt.json",
+      "sha256": "ee988218e877b53488768f9d689f03279be17cebb16637e983ded397c48feb7c",
+      "bytes": 3343,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/missing-root-failed-path-unset/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/missing-root-failed-path-unset/stdout",
+      "sha256": "b39eb04dc627de45de57a7c9ef3fcb390eaf8035a9e54d2eeee962adb0ac8d93",
+      "bytes": 149,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/probe.elf",
+      "sha256": "6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16",
+      "bytes": 422376,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/linked-root-path-set.tcl",
+      "sha256": "b184a9e1b878a5f457bf797be130aeeb01181640a87c809f026f80acbf6d4f8e",
+      "bytes": 172,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/missing-member-failed-path-unset.tcl",
+      "sha256": "e2aedbd1650512adbdf08ba2c7d0e83b39ffa4e6aa50d041f37094b198437d0c",
+      "bytes": 282,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/missing-root-failed-path-unset.tcl",
+      "sha256": "77a73a31593de156c2d8f31e1ea742735ead2b9e066c16e00575f6a90d824a08",
+      "bytes": 227,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/probe.c",
+      "sha256": "5f3ce148bc84c374eec674275763ec575eb3466f21fd860f7009845549f96759",
+      "bytes": 2228,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/provider-version-association/8.4.20/receipt.json",
+      "sha256": "0f7234e7d052215ad3586d3f98dbfe640c84868c10d915cda35c612b11dfcf63",
+      "bytes": 2168,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/provider-version-association/8.5.19/receipt.json",
+      "sha256": "5c357fa1bd8f44e02b0b08fca76640fecbe85297493b116cb8e8e0a78aa617e7",
+      "bytes": 2167,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/provider-version-association/8.6.18/receipt.json",
+      "sha256": "9a89b544c51fe11d8dc302119e7047e0cdc0dceb183572c743c430a88c155af1",
+      "bytes": 2296,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/provider-version-association/9.0.4/receipt.json",
+      "sha256": "adcdc0557f5279db1a62ff25ff750400f64280c9c6d0151614ed663aa8fe1fc3",
+      "bytes": 2284,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/provider-version-association/9.1.0/receipt.json",
+      "sha256": "496e47fce5ab0c75d2c56654c7b242652d257dfd2f049869934e5190c6671bb8",
+      "bytes": 2283,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/provider-version-association/jim/receipt.json",
+      "sha256": "006a4501536c0ae6e1919ef33f8cfcad38ebd8698b965f90abfcd6d364e32b54",
+      "bytes": 3195,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/request.json",
+      "sha256": "b5bf680fd423ebc393fb23b354aeddea26aaf7f084568b77e5c633973e344bf0",
+      "bytes": 1649,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Exact original finite input request."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/source-inspection/Jim_SetDictKeysVector.c",
+      "sha256": "11411c437643954b2d1fea79c913a3a92ad6a5b9f411c1995040baa9c8e2275f",
+      "bytes": 2755,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/source-inspection/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "bytes": 546686,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_dictionary_path_publication319/source-inspection/request.json",
+      "sha256": "c7611fa375bef4b8a0ff6521f70974fcd5ea39fe65ff8b9152bfa4d551a7993c",
+      "bytes": 721,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.dictionary.original-path-missing-variable-publication"
+      ],
+      "reason": "Exact original finite input request."
+    },
+    {
       "path": "rust/tcl-registry/tests/data/native_dictionary_variable_values/8.4.20/compile.stderr",
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "bytes": 0,
@@ -37779,6 +38497,118 @@
       "sha256": "998f4056f341f6d1e61758d4c409112e5d232c96883bfa05528926c53e98f984",
       "bytes": 4143,
       "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.4.20/tclCmdIL.excerpt",
+      "sha256": "b4bfdb3fb6e7dbf4f781d0f95064579d75d4b75453b24a6d48f65df175da96a6",
+      "bytes": 381,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.5.19/tclCmdIL.excerpt",
+      "sha256": "995bafaf40d8072c0cc4184721765f5da7bed258bca61e58142d87f0ac2a32f3",
+      "bytes": 1143,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.6.18/TclCompileInfoCoroutineCmd.complete.excerpt",
+      "sha256": "5014489a521df45c6500d4a952140efd76befe1e94e0c6499d24bbf2bf9a4ff5",
+      "bytes": 628,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.6.18/tclCmdIL.excerpt",
+      "sha256": "703fc9501224cc267f80172c041d74b0b5497403423e4ae8767c34c949c4d48a",
+      "bytes": 2071,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.6.18/tclCompCmdsGR.c",
+      "sha256": "edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d",
+      "bytes": 84899,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.6.18/tclCompCmdsGR.excerpt",
+      "sha256": "78d955744011d1dcda020cb04c68d0eca4997e9b76f1ec72766cd1f418f04f07",
+      "bytes": 478,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.0.4/TclCompileInfoCoroutineCmd.complete.excerpt",
+      "sha256": "c904ceda42111d36dbdafa51550d168c495415532557b7e4fe43461274c54698",
+      "bytes": 545,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.0.4/tclCmdIL.excerpt",
+      "sha256": "f009f3959451b71592a39bd08dc04346eace9fb33f17d9d199f09d39dfc6a664",
+      "bytes": 2319,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.0.4/tclCompCmdsGR.c",
+      "sha256": "d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db",
+      "bytes": 78826,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.0.4/tclCompCmdsGR.excerpt",
+      "sha256": "4bd0391aaa675114b48e34bc51facdbe820db5796a1ac2f9d68721aa6518e631",
+      "bytes": 395,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.1.0/TclCompileInfoCoroutineCmd.complete.excerpt",
+      "sha256": "69d7423b5759cae36b54008be77946735a87f293c5ce281885ae32078df5ed30",
+      "bytes": 522,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.1.0/tclCmdIL.excerpt",
+      "sha256": "28b0dddebe9a2046b4220c08e3c970fbb246f8f88402c4417988a90421cf63fd",
+      "bytes": 2312,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.1.0/tclCompCmdsGR.c",
+      "sha256": "3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1",
+      "bytes": 90234,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.1.0/tclCompCmdsGR.excerpt",
+      "sha256": "4bd0391aaa675114b48e34bc51facdbe820db5796a1ac2f9d68721aa6518e631",
+      "bytes": 395,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/README.md",
+      "sha256": "5bd5125fe74a99c22eec8113534ea1e31e7e3d9398aabdf0b8497fdf52734699",
+      "bytes": 617,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/request.json",
+      "sha256": "efb09b9570a3a1eaeca5ff1c492497b05ad4ed6f85414aab3e623e2270020942",
+      "bytes": 4484,
+      "candidate": true,
+      "classification": "authored-contract",
+      "proof_ids": [
+        "naming.info.original-coroutine-name-compiler"
+      ],
+      "reason": "Exact read-only original source question, independently checked LF excerpts or source inspection index; no provider/compiler process."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/source-inspection.json",
+      "sha256": "7371f8ddce208257eadcef60201d3633502f13fc166baa94021b60d9b6d4fbab",
+      "bytes": 2815,
+      "candidate": true,
+      "classification": "authored-contract",
+      "proof_ids": [
+        "naming.info.original-coroutine-name-compiler"
+      ],
+      "reason": "Exact read-only original source question, independently checked LF excerpts or source inspection index; no provider/compiler process."
     },
     {
       "path": "rust/tcl-registry/tests/data/native_info_inventory_original/8.4.20/compile.stderr",
@@ -71928,6 +72758,317 @@
         "naming.procedure.original-formal-count-shape"
       ],
       "reason": "Exact original fixed ASCII source process/request or independent SDK association for bounded formal-count controls; setup/call outcomes and shared sequential state remain explicit."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.4.20/direct/receipt.json",
+      "sha256": "ae1c2c307178d4402c8da869c32230ebd657a4fc23ca43edc62b682f89eb1cbd",
+      "bytes": 1662,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.original-crlf-evaluation-channels"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.4.20/direct/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.4.20/direct/stdout",
+      "sha256": "7a94ac41a18d25cfdb35940506869fdc6ae1c3e958e665e465c2a2a40ff5727e",
+      "bytes": 252,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.4.20/file/receipt.json",
+      "sha256": "b0c2f284ebd2baf0dd742c0d142efafbd1e117c177297a0f0244939a2f319234",
+      "bytes": 1650,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.original-crlf-evaluation-channels"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.4.20/file/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.4.20/file/stdout",
+      "sha256": "5ccdb14272a04fdc57ab281935cc13dc97851a5f604ba3663de9f56af3b6a8e5",
+      "bytes": 244,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.5.19/direct/receipt.json",
+      "sha256": "d69e0aee972fa29a30908cb0829b54e0d12879c50dc4f500eeb509f98f05f00f",
+      "bytes": 1661,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.original-crlf-evaluation-channels"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.5.19/direct/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.5.19/direct/stdout",
+      "sha256": "4a9b76daed20cb1d373955fe7375c9e3f2e2a3fb0e918de5b81632e8c376ebc7",
+      "bytes": 252,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.5.19/file/receipt.json",
+      "sha256": "1ad6b3b9a0d5cdcaace242699330ab813c964051a0f5dd3390740651bb25677d",
+      "bytes": 1651,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.original-crlf-evaluation-channels"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.5.19/file/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.5.19/file/stdout",
+      "sha256": "316f249012dfc17971f55d80cf5f9c04d456ba59d341d058864d50c2d336ab8a",
+      "bytes": 244,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.6.18/direct/receipt.json",
+      "sha256": "35c4ae044b399948e2ec357b43103c0e558e3578bf31a6c07579216e8b4ac6bb",
+      "bytes": 1661,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.original-crlf-evaluation-channels"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.6.18/direct/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.6.18/direct/stdout",
+      "sha256": "efaf59945245209cd38b16278c2c383d628b2d7bc31a6eb89a46d59812b47595",
+      "bytes": 252,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.6.18/file/receipt.json",
+      "sha256": "93dead56f35db6c59a633450a5578f7fa6f2cc72178c800339f19c5a5a5fe113",
+      "bytes": 1651,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.original-crlf-evaluation-channels"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.6.18/file/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/8.6.18/file/stdout",
+      "sha256": "1581ff4772de4dececd856af213936fcbb653b5a82cc78972177f07635326c74",
+      "bytes": 244,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/9.0.4/direct/receipt.json",
+      "sha256": "80ca2db60f968e7252077b3a3164c8ae23c4dc6b24361f0f451f187b8f2da6e4",
+      "bytes": 1653,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.original-crlf-evaluation-channels"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/9.0.4/direct/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/9.0.4/direct/stdout",
+      "sha256": "d2a0ec6f463e5086b5666b1d9ea6ac1551711ab5c5702efdc7f56f4250f6b8aa",
+      "bytes": 250,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/9.0.4/file/receipt.json",
+      "sha256": "cab6adf17998c14b7331d75d3db88cef329e8964a419ecd50d2d643ccf460e65",
+      "bytes": 1645,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.original-crlf-evaluation-channels"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/9.0.4/file/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/9.0.4/file/stdout",
+      "sha256": "d7d0fc06fb013c28cc5e30176df3f0603799c2a7ca77e69abf7678d006009476",
+      "bytes": 242,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/9.1.0/direct/receipt.json",
+      "sha256": "2d7feee104167661d4be5f5fe74856d45f29969c5506dd25a0fc7abb42767475",
+      "bytes": 1656,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.original-crlf-evaluation-channels"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/9.1.0/direct/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/9.1.0/direct/stdout",
+      "sha256": "65a6c6663fd245bb3a28c292b36e4f24f75556b29bfdf70a54ef0bd1959b08e5",
+      "bytes": 250,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/9.1.0/file/receipt.json",
+      "sha256": "8599a10ea148cc92801b33e5028485e38945a2113869991d85d24beaae4ae25a",
+      "bytes": 1646,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.original-crlf-evaluation-channels"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/9.1.0/file/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/9.1.0/file/stdout",
+      "sha256": "3ebf515b026948561de678dc00d5b185958e8d748ae66441316a142ef4e1fbe5",
+      "bytes": 242,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/direct-original.tcl",
+      "sha256": "a8fc26e138e238e2f9d3b52f49c4b80a40a57687b39fab4a229000db745da4df",
+      "bytes": 52,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/file-original.tcl",
+      "sha256": "9d082c283227f3f84cd20f4afb2431147a96d11b49bc3455a1c95b4ef81e0392",
+      "bytes": 70,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/jim/direct/receipt.json",
+      "sha256": "f44684d2141931345088390b56b2a07cbb5b71b0918596afa9bffed6001c1428",
+      "bytes": 1605,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.original-crlf-evaluation-channels"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/jim/direct/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/jim/direct/stdout",
+      "sha256": "04529485692d2304ea40334ddeacd718606a7af3946767a1c1d2d672e3c84774",
+      "bytes": 270,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/jim/file/receipt.json",
+      "sha256": "7521f1efb74a1cabbda5334c03e25d93e1bc18a9927aa06e7f8ce09a273b8cc3",
+      "bytes": 1604,
+      "candidate": true,
+      "classification": "native-observation",
+      "proof_ids": [
+        "naming.source.original-crlf-evaluation-channels"
+      ],
+      "reason": "Whole actual compiler/link/process receipt with original channel, command, streams, completion and independent required pins."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/jim/file/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/jim/file/stdout",
+      "sha256": "04529485692d2304ea40334ddeacd718606a7af3946767a1c1d2d672e3c84774",
+      "bytes": 270,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/payload.tcl",
+      "sha256": "a8fc26e138e238e2f9d3b52f49c4b80a40a57687b39fab4a229000db745da4df",
+      "bytes": 52,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/query.tcl",
+      "sha256": "a9a3fc012fd96b6ec29613ccb2fc7ec66178db2cad93df2d81bf4816d04b1060",
+      "bytes": 108,
+      "candidate": false
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_original_source_crlf330/request.json",
+      "sha256": "15fa3e37a2c0daf00c142251d536bc74cc89d5998c55f9b5948cd86348ba6ee6",
+      "bytes": 1200,
+      "candidate": true,
+      "classification": "input-fixture",
+      "proof_ids": [
+        "naming.source.original-crlf-evaluation-channels"
+      ],
+      "reason": "Exact original finite input request."
     },
     {
       "path": "rust/tcl-registry/tests/data/native_package_error_publication/manifest.json",

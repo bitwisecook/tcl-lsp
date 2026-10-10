@@ -430,8 +430,7 @@ impl Lowerer<'_> {
         if !binding.proved_execution_target()?.registry_backed {
             return None;
         }
-        let invocation =
-            crate::registry_invocation::resolved_tokens_invocation(self.registry, None, tokens)?;
+        let invocation = self.resolved_metadata_invocation(tokens)?;
         let BodyExecutionSpec::DictionaryScope(spec) = invocation.facts.body_execution? else {
             return None;
         };
@@ -562,8 +561,7 @@ impl Lowerer<'_> {
         let contract = provider.contract;
         let effective = effective_command_words(tokens)?;
         let rules = WordValueRules::from_config(&self.config);
-        let invocation =
-            crate::registry_invocation::resolved_tokens_invocation(self.registry, None, tokens)?;
+        let invocation = self.resolved_metadata_invocation(tokens)?;
         let values = (provider.argument_offset..invocation.arguments.len())
             .map(|index| invocation.argument_literal(index))
             .collect::<Vec<_>>();
@@ -1287,6 +1285,16 @@ mod tests {
         );
     }
 
+    fn captured_provider_context() -> std::sync::Arc<tcl_registry::model::assembly::ContextRegistry> {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let mut commands = baseline.commands().project_for_profile(profile);
+        let mut test = commands.get("tcltest::test").unwrap().clone();
+        test.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
+        commands.insert(test);
+        std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(commands)))
+    }
+
     #[test]
     fn captured_provider_metadata_keeps_actual_availability_and_missing_owner_refusal() {
         // naming.compiler.original-analysis-metadata-context
@@ -1294,13 +1302,7 @@ mod tests {
         // Held original source binding and explicit stock loader; no physical
         // package load, execution or future lifecycle is observed by this test.
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
-        let baseline = tcl_registry::model::ingress::static_context_for("tcl8.6");
-        let mut commands = baseline.commands().project_for_profile(profile);
-        let mut test = commands.get("tcltest::test").unwrap().clone();
-        test.surface = Some(tcl_dialect::model::SpecSurface::TCL86_PLUS);
-        commands.insert(test);
-        let context =
-            std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(commands)));
+        let context = captured_provider_context();
         let loaders = [stock_body_provider_loader(
             tcl_registry::body_execution::TCLTEST_STOCK_PROVIDER,
             Some("2.5.11"),
@@ -1345,7 +1347,26 @@ mod tests {
                 .proved_execution_target()
                 .is_some()
         );
-        assert!(lowerer.selected_body_provider(&segment, &tokens).is_some());
+        let (contract, loader, commands, argument_offset) = {
+            let provider = lowerer.selected_body_provider(&segment, &tokens).unwrap();
+            (
+                provider.contract,
+                provider.loader.clone(),
+                provider.commands,
+                provider.argument_offset,
+            )
+        };
+        let provider = SelectedProvider {
+            contract,
+            loader: &loader,
+            commands,
+            argument_offset,
+        };
+        assert!(
+            lowerer
+                .selected_lifecycle_operands(&segment, &tokens, &provider)
+                .is_some()
+        );
         let older = std::sync::Arc::new(
             tcl_registry::model::ingress::static_context_for("tcl8.4")
                 .with_command_store(std::sync::Arc::clone(context.commands())),
@@ -1358,12 +1379,22 @@ mod tests {
             assert!(lowerer.selected_body_provider(&segment, &tokens).is_none());
             assert!(
                 lowerer
+                    .selected_lifecycle_operands(&segment, &tokens, &provider)
+                    .is_none()
+            );
+            assert!(
+                lowerer
                     .prove_possible_bodies(&segment, "::", &tokens)
                     .is_none()
             );
         }
         lowerer.dialect_context = Some(std::sync::Arc::clone(&context));
         assert!(lowerer.selected_body_provider(&segment, &tokens).is_some());
+        assert!(
+            lowerer
+                .selected_lifecycle_operands(&segment, &tokens, &provider)
+                .is_some()
+        );
     }
 
     #[test]

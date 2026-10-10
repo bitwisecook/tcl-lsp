@@ -708,6 +708,9 @@ mod tests {
         let mut stale = analysis.clone();
         stale.body_lexer_config = Some(tcl_lexer::LexerConfig::for_profile(Some(profile)));
         assert!(capture_source_path_expression(source, &stale, &word).is_none());
+        // naming.source.original-crlf-evaluation-channels
+        // docs/design/analysis/name-resolution-proofs/source-original-crlf-evaluation-channels.md
+        // Direct source evaluation preserves CRLF; file loading owns translation.
         let literal_source = "set path \"${root}/one\r\ntwo\\$literal\"";
         let (analysis, word) = last_value(literal_source, profile, config);
         let expression = capture_source_path_expression(literal_source, &analysis, &word).unwrap();
@@ -715,7 +718,7 @@ mod tests {
             expression
                 .evaluate(None, &|name| (name == "root").then(|| "/ROOT".to_owned()))
                 .as_deref(),
-            Some("/ROOT/one\ntwo$literal"),
+            Some("/ROOT/one\r\ntwo$literal"),
         );
         for source in ["set path $a(index)", "set path ${a(index)}"] {
             let (analysis, word) = last_value(source, profile, config);

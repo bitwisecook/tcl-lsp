@@ -1,0 +1,33 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/.proofs/native-jim-class-source269/probe.tcl"
+  ],
+  "exit": 0,
+  "seconds": 0.02778365100675728,
+  "reported_version_row": "version 9.1.0 initial_class {} alias_command {}",
+  "executable_path": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "executable_sha256": "2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d",
+  "source_sha256": "3206121d2eab608a21401a66bee0f13c6a27da8f827f0565aa34e3ca2357a506",
+  "stdout_sha256": "9418ff2db46381bd318f51163746b438d2c97619282e6bb324cef9d20710dbea",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  },
+  "required_sha256": {
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c": "5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c": "f7880cfc3cd9787502134b22832475df5ebad0432e66c8fae2281ddd98abe59d",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclPkg.c": "b21d3d4578ac6ad532f53782a8c2aa6d08087e9ecc6638d1b6850b1ca2aca684"
+  },
+  "rows": [
+    "version 9.1.0 initial_class {} alias_command {}",
+    "oo_package 1 {can't find package oo} class_command {}",
+    "jim_class_controls not_applicable no_class_command"
+  ],
+  "input_channel": "Original fixed ASCII LF CLI file; package require oo availability, caught public class/object results. Source contains no raw or counted NUL, non-ASCII, line continuations or control escapes. No internal object/header/native argv/cache/frame/currentness claim. C stock class-command absence is not applicable, separate from TclOO availability.",
+  "question": "naming.class.jim-source-member-chronology-control"
+}

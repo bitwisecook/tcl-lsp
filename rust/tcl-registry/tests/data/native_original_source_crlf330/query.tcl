@@ -1,0 +1,1 @@
+set codes {}; foreach c [split $path {}] {scan $c %c n; lappend codes $n}; list [string length $path] $codes

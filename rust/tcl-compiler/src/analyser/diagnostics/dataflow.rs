@@ -78,6 +78,9 @@ use super::helpers::{
     collect_existence_guards, find_dotted_quads, is_ident_continue, is_word_byte, phi_can_undef,
     source_slice,
 };
+#[cfg(test)]
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
+
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 use crate::analyser::utils::param_name_spans;
@@ -1302,10 +1305,8 @@ file; this call falls through to the 'unknown' handler."
                 let declaration = crate::script_binds::authored_procedure_read_advice(
                     &original_image,
                     procedure,
-                    self.lexer_config(),
-                    self.profile_registry()
-                        .profile()
-                        .map(tcl_registry::InvocationDialect::of_profile),
+                    &self.result,
+                    &self.analysis_context(),
                 )?;
                 self.declaration_potential_read_spans(
                     fu,
@@ -1334,10 +1335,8 @@ file; this call falls through to the 'unknown' handler."
                     |source| source.origin.source_image().clone(),
                 ),
                 procedure,
-                self.lexer_config(),
-                self.profile_registry()
-                    .profile()
-                    .map(tcl_registry::InvocationDialect::of_profile),
+                &self.result,
+                &self.analysis_context(),
             )
         });
 

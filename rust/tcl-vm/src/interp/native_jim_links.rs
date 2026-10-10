@@ -391,7 +391,6 @@ mod tests {
 #[cfg(test)]
 mod alias_publication_tests {
     use super::*;
-    use std::rc::Rc;
     #[test]
     fn original_upvar_error_publication_matches_all_six_native_sources() {
         // naming.variable.original-upvar-error-publication
@@ -448,13 +447,10 @@ mod alias_publication_tests {
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect();
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-            let mut vm = Vm::with_native_core(
-                Box::new(std::io::sink()),
-                Rc::new(crate::host_native::NativeHost::new()),
-                profile,
-                tcl_registry::special_vars::NativeBootstrapInputs::default(),
-            )
-            .unwrap();
+            // The original public source needs the independently attached C
+            // byte compiler; genuine Jim enters its original Script owner.
+            // Neither capability supplies a scripted distribution library.
+            let mut vm = crate::native_fixture::interpreter(profile);
             let completion = vm.eval_source(source).unwrap();
             assert_eq!(
                 completion.code,

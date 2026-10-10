@@ -3056,7 +3056,11 @@ separate `errorInfo` presentation. Catch and try use this same selected emitter.
 
 `InvocationRealm` is execution-entry data, not a command descriptor flag. `SourceAnalysisEntry` retains the driver phase, deferred bodies retain their definition phase, and immutable source lookup snapshots include it in equality and hashing. An audited evaluated-script handler selects a runtime phase from the actual script-materialisation protocol. Authored braced bodies preserve the parent rule-loader policy; a derived source origin alone cannot establish a runtime entry. Missing or conflicting phase evidence cannot borrow a runtime command table.
 
-CFG command replay projects the unanimous immutable entry baseline from its retained execution lookup snapshots. It rebuilds the initial world with that actual dialect, entry phase, native table, compiler mode, loader contracts and unknown-entry flag; it never uses a post-argv command table as the entry world. Conflicting or missing lookup snapshots on retained invocation carriers make replay opaque. A CFG without any retained source carrier keeps the legacy unpositioned entry contract. Registry snapshots must agree before a retained baseline can be reused.
+CFG command replay projects the unanimous immutable entry baseline from its retained execution lookup snapshots. It rebuilds the initial world with that actual dialect, entry phase, native table, compiler mode, loader contracts and unknown-entry flag; it never uses a post-argv command table as the entry world. Conflicting or missing lookup snapshots on retained invocation carriers make replay opaque. Registry snapshots must agree before a retained baseline can be reused.
+
+`Function` retains its `CfgMetadataContext` from CFG construction. `analyse_command_binding` uses the same retained availability and grammar owner for replay, `binding_at`, rebound names and wildcard detection. Each statement obtains its command lookup namespace from unanimous original invocation tokens. That holder is separate from the reporting `cfg.name`, variable activation namespace and procedure publication namespace. Native source queries retain their original naming input and exact interpreter namespace identity; a positive Logical source producer uses its own retained source model. Missing source consensus, a foreign store or namespace owner, changed grammar and unavailable supplied metadata leave the lookup Unknown. They cannot borrow the body holder or reconstruct a namespace from a displayed function name.
+
+An explicitly standalone CFG without retained source ownership has a separate unpositioned contract. Supplied-source paths never enter that contract after a failed original query. These command-state projections do not issue handler selection, body admission, compiler instructions, runtime frames or Normal completion.
 
 Procedure declarations also have an entry grammar. `native_procedure::procedure_definition_body_policy` selects `OriginalBracedLiteral` for an F5 rule-loader declaration and `EvaluatedValue` for a native interpreter entry. Check the original body word through the shared `NativeCompilationWordShape`; parser recovery and expansion remain unknown. This policy is separate from procedure header compilation, formal binding, runtime body entry and package availability. A quoted Tcl script can be a runtime procedure body without becoming a file-level iRule declaration.
 
@@ -9246,12 +9250,42 @@ opaque. Elimination uses opaque coverage to retain possible stores; expanding
 that coverage to existing symbolic SSA names does not create read occurrences
 or SSA versions.
 
+Body-local diagnostic suppression uses
+`OriginalSourceMaterializedFootprint::body_name_ownership` with the genuine
+original whole body. It retains the installer's source lookup and checks the
+body's full source, selected metadata and interpreter scope. The shared
+materialized engine separates by-name input operands from ordinary
+interpolation: `set name` may supply conditional local ownership, while
+`puts $name` supplies no binding. Literal operand names preserve a leading `$`
+and an unmatched final parenthesis. Known alias targets, captured operands and
+replacement barriers remain at the installer's original horizon. A named child
+requires its independently retained command world; source geometry cannot
+substitute the parent's table. Missing or derived body ownership refuses this
+projection. Its names suppress a source warning only; they prove neither an
+entered child nor a completed store.
+
+Existential procedure-read advice selects
+`SourceCommandBindings::original_procedure_read_declaration` from the complete
+original declaration observation and actual supplied input. The Native branch
+retains the original `OriginalFormalTopology` and independently selected native
+parameter grammar; the Logical branch retains its separate sealed
+`LogicalProcedureDeclaration`. Re-query selected descriptors with the complete
+availability context. A displayed `proc` head, a procedure label or a catalogue
+profile cannot supply that header. Renamed factory calls and captured formal
+operands keep their original producers. Verify the original body image, offset,
+formal value and parameter correspondence before delimiting diagnostic reads.
+This purpose requires no successful namespace publication or body activation,
+and supplies no Native formal installation, frame or current read.
+
 Substitution purity uses the same original child receipts and the function's
 Module-aware metadata. The Native branch requires closed execution alternatives
 and the independently proved normal handler. The Logical branch uses
 `original_logical_operation_invocation_with_metadata_context`, which validates
 the exact retained Logical input and resolves original alias captures and the
-selected subcommand. Catalogue traits attached to a displayed head are
+selected subcommand. Use `OriginalCompilationLookupAdvice::closed_logical_source_lookup` only for
+the positively retained authored namespace and original source targets. Its
+closure is distinct from `closed_lookup` and grants no physical variable frame.
+Catalogue traits attached to a displayed head are
 insufficient. Conditional procedure summaries additionally join the original
 implementation allocation to one matching declaration source site; a procedure
 name is a summary key only after that join. Receiver-method labels do not supply

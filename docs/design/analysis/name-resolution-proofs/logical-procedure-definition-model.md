@@ -16,7 +16,7 @@ A positively retained complete Logical input selects a separate authored descrip
 
 ## Scope
 
-Static ASCII original Logical definitions under a positively retained full input, known Authored namespace and quiet unchanged unprefixed stock definer. The full source context supplies only the authored model roster; foreign context/configuration tokens, Native input and unknown/unsealed input cannot borrow it. The selected original source grammar may have a Jim point without a Native name policy. Shared formal validity agrees with that selected list grammar. Stored script validity is independent of definition validity. Unknown/rebound/dynamic/opaque/invalid-namespace inputs decline. Native and hosted source remain separate.
+Static original Logical definitions under a positively retained complete input, known Authored namespace and quiet selected stock source definer. Genuine original words and effective captured-prefix operands use the selected actual source schema and strict formal grammar; labels cannot reconstruct a declaration. The full context supplies only the authored model roster; foreign context/configuration tokens, Native input and unknown/unsealed input cannot borrow it. Selected source grammar may have a Jim point without a Native name policy. Stored body validity, actual invocation, Native publication/Normal and physical frames remain independent. Unknown/rebound/dynamic/opaque/invalid-namespace inputs decline; Native and hosted source stay separate.
 
 ## Provider answers
 

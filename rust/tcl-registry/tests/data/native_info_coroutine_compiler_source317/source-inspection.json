@@ -1,0 +1,50 @@
+{
+  "question_id": "naming.info.original-coroutine-name-compiler",
+  "request_sha256": "efb09b9570a3a1eaeca5ff1c492497b05ad4ed6f85414aab3e623e2270020942",
+  "line_policy": "Exact LF line boundaries; original request/excerpts remain unchanged.",
+  "complete_workers": [
+    {
+      "version": "8.6.18",
+      "whole_source_path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.6.18/tclCompCmdsGR.c",
+      "source_sha256": "edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d",
+      "original_request_excerpt_path": "8.6.18/tclCompCmdsGR.excerpt",
+      "original_request_excerpt_sha256": "78d955744011d1dcda020cb04c68d0eca4997e9b76f1ec72766cd1f418f04f07",
+      "complete_function_lines": [
+        648,
+        671
+      ],
+      "complete_function_sha256": "5014489a521df45c6500d4a952140efd76befe1e94e0c6499d24bbf2bf9a4ff5",
+      "evidence": "info-coroutine-source317-8.6.18-TclCompileInfoCoroutineCmd.complete.excerpt",
+      "scope": "Exact LF line indexing, complete original worker source only; no compiler invocation or public argv/holder observation."
+    },
+    {
+      "version": "9.0.4",
+      "whole_source_path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.0.4/tclCompCmdsGR.c",
+      "source_sha256": "d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db",
+      "original_request_excerpt_path": "9.0.4/tclCompCmdsGR.excerpt",
+      "original_request_excerpt_sha256": "4bd0391aaa675114b48e34bc51facdbe820db5796a1ac2f9d68721aa6518e631",
+      "complete_function_lines": [
+        640,
+        662
+      ],
+      "complete_function_sha256": "c904ceda42111d36dbdafa51550d168c495415532557b7e4fe43461274c54698",
+      "evidence": "info-coroutine-source317-9.0.4-TclCompileInfoCoroutineCmd.complete.excerpt",
+      "scope": "Exact LF line indexing, complete original worker source only; no compiler invocation or public argv/holder observation."
+    },
+    {
+      "version": "9.1.0",
+      "whole_source_path": "rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.1.0/tclCompCmdsGR.c",
+      "source_sha256": "3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1",
+      "original_request_excerpt_path": "9.1.0/tclCompCmdsGR.excerpt",
+      "original_request_excerpt_sha256": "4bd0391aaa675114b48e34bc51facdbe820db5796a1ac2f9d68721aa6518e631",
+      "complete_function_lines": [
+        592,
+        614
+      ],
+      "complete_function_sha256": "69d7423b5759cae36b54008be77946735a87f293c5ce281885ae32078df5ed30",
+      "evidence": "info-coroutine-source317-9.1.0-TclCompileInfoCoroutineCmd.complete.excerpt",
+      "scope": "Exact LF line indexing, complete original worker source only; no compiler invocation or public argv/holder observation."
+    }
+  ],
+  "native_or_rust_launches": 0
+}

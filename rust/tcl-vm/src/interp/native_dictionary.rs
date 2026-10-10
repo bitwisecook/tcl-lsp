@@ -127,6 +127,33 @@ impl Vm {
         }
     }
 
+    /// The Jim core path worker owns ordinary variable access; the C primitive
+    /// lookup/read frontier and retained compiled receivers do not select it.
+    pub(crate) fn jim_dictionary_path_update_bytes<O: NativeDictionaryObjects<Value = Value>>(
+        &mut self,
+        name: &[u8],
+        objects: &O,
+        operation: impl FnOnce(&mut Self, O::Prepared) -> Result<Value, Completion<Value>>,
+    ) -> Result<VariableUpdateResult<Value>, Completion<Value>> {
+        if self.native_invocation_dialect().native_dictionary_path_publication()
+            != Some(tcl_registry::native_dictionary::NativeDictionaryPathPublication::JimOriginalVariable)
+        {
+            return Err(self.refuse_host_command("original Jim dictionary path worker is unavailable".into()));
+        }
+        // Jim_SetDictKeysVector publishes this fresh root before conversion or
+        // a failing intermediate-key lookup. Prepare borrows the actual stored
+        // member/root without adding a caller handle before its COW decision.
+        if self.get_var_bytes(name).is_none() {
+            self.store_var_result_bytes(name, Value::dict(Vec::new()))?;
+        }
+        let prepared = self
+            .prepare_dictionary_variable_container(name, objects)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let dictionary = operation(self, prepared)?;
+        let stored = self.store_var_result_bytes(name, dictionary)?;
+        Ok(Self::variable_update_result(stored, &Value::empty()))
+    }
+
     pub(crate) fn start_compiled_dictionary_update(
         &mut self,
         root_slot: usize,

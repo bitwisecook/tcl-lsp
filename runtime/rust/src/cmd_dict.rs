@@ -30,7 +30,7 @@
 
 use crate::dict;
 use crate::frame::VarError;
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp, obj_bytes};
 use crate::obj::{self, TclObj};
 use crate::parse;
 
@@ -895,10 +895,9 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if let Some(c) = interp.const_write_check(&name) {
         return c;
     }
-    let (target, is_new) = match dict_var_get(interp, &name) {
-        None => (dict::new_dict_obj(&[]), true),
-        Some(o) if obj::is_shared(o) => (obj::duplicate(o), true),
-        Some(o) => (o, false),
+    let (target, is_new) = match jim_working_path_dict(interp, &name) {
+        Ok(target) => target,
+        Err(code) => return code,
     };
     if let Err(e) = dict_path_set(target, keys, value) {
         if is_new {
@@ -906,9 +905,46 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         return bad_dict(interp, e);
     }
-    if is_new && dict_var_set(interp, &name, target).is_err() {
-        drop_fresh(target);
-        return cant_set(interp, &name);
+    store_jim_path_dict(interp, &name, target, is_new)
+}
+
+/// Jim's core worker publishes a missing empty root before key-path work.
+/// Its ordinary variable owner remains independent of the C primitive frontier.
+fn jim_working_path_dict(interp: &mut Interp, name: &[u8]) -> Result<(*mut TclObj, bool), Code> {
+    if interp
+        .native_invocation_dialect()
+        .native_dictionary_path_publication()
+        != Some(
+            tcl_registry::native_dictionary::NativeDictionaryPathPublication::JimOriginalVariable,
+        )
+    {
+        return Err(interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original Jim dictionary path worker",
+            )
+            .into(),
+        ));
+    }
+    match dict_var_get(interp, name) {
+        None => {
+            let target = dict::new_dict_obj(&[]);
+            if dict_var_set(interp, name, target).is_err() {
+                drop_fresh(target);
+                return Err(cant_set(interp, name));
+            }
+            Ok((target, false))
+        }
+        Some(original) if obj::is_shared(original) => Ok((obj::duplicate(original), true)),
+        Some(original) => Ok((original, false)),
+    }
+}
+
+fn store_jim_path_dict(interp: &mut Interp, name: &[u8], target: *mut TclObj, fresh: bool) -> Code {
+    if dict_var_set(interp, name, target).is_err() {
+        if fresh {
+            drop_fresh(target);
+        }
+        return cant_set(interp, name);
     }
     interp.set_result(target);
     Code::Ok
@@ -1041,10 +1077,9 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if let Some(c) = interp.const_write_check(&name) {
         return c;
     }
-    let (target, is_new) = match dict_var_get(interp, &name) {
-        None => (dict::new_dict_obj(&[]), true),
-        Some(o) if obj::is_shared(o) => (obj::duplicate(o), true),
-        Some(o) => (o, false),
+    let (target, is_new) = match jim_working_path_dict(interp, &name) {
+        Ok(target) => target,
+        Err(code) => return code,
     };
     match dict_path_unset(target, keys) {
         Ok(()) => {}
@@ -1061,12 +1096,7 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return bad_dict(interp, e);
         }
     }
-    if is_new && dict_var_set(interp, &name, target).is_err() {
-        drop_fresh(target);
-        return cant_set(interp, &name);
-    }
-    interp.set_result(target);
-    Code::Ok
+    store_jim_path_dict(interp, &name, target, is_new)
 }
 
 /// A `dict_path_unset` failure: a malformed dict on the path, or a missing
@@ -2004,8 +2034,8 @@ mod tests {
         assert_eq!(ok(b"dict filter {a 1 b 2 aa 3} key a*"), b"a 1 aa 3");
         assert_eq!(ok(b"dict filter {a 1 b 2 aa 3} value 2"), b"b 2");
         assert_eq!(ok(b"dict filter {a 1 b 2} key"), b""); // no patterns → empty
-                                                           // The filterType is validated *before* the dict is parsed (was a bug:
-                                                           // a bad dict + bogus type reported the dict error first).
+        // The filterType is validated *before* the dict is parsed (was a bug:
+        // a bad dict + bogus type reported the dict error first).
         let (c, b) = run(b"dict filter {a b c} bogus");
         assert_eq!(c, Code::Error);
         assert_eq!(
@@ -2175,5 +2205,94 @@ mod tests {
             ok(b"set v [dict create a 1]; llength $v; dict lappend v k x"),
             b"a 1 k x"
         );
+    }
+}
+
+#[cfg(test)]
+mod native_path_publication_tests {
+    fn original_result(rows: &str) -> (i64, Vec<u8>) {
+        let fields = rows
+            .lines()
+            .find(|row| row.starts_with("ORIGINAL|"))
+            .unwrap()
+            .split('|')
+            .collect::<Vec<_>>();
+        let bytes = fields[2].as_bytes();
+        assert_eq!(bytes.len() % 2, 0);
+        (
+            fields[1].parse().unwrap(),
+            bytes
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn original_path_missing_variable_publication_matches_all_15_available_native_windows() {
+        // naming.dictionary.original-path-missing-variable-publication
+        // docs/design/analysis/name-resolution-proofs/dictionary-original-path-missing-variable-publication.md
+        // Each complete original caller result keeps the error, existence,
+        // caller read and alias/member publication together. No private object
+        // header or C lookup receipt follows from these public observations.
+        // C84's three original NA rows are retained independently: this test
+        // checks absent purpose, without normalising a raw Return to C API Ok.
+        let providers = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"];
+        let cases = [("missing-root-failed-path-unset", include_bytes!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/missing-root-failed-path-unset.tcl").as_slice(), [include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/missing-root-failed-path-unset/stdout"),
+include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/missing-root-failed-path-unset/stdout"),
+include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/missing-root-failed-path-unset/stdout"),
+include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/missing-root-failed-path-unset/stdout"),
+include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/missing-root-failed-path-unset/stdout"),
+include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/missing-root-failed-path-unset/stdout")]),
+("missing-member-failed-path-unset", include_bytes!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/missing-member-failed-path-unset.tcl").as_slice(), [include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/missing-member-failed-path-unset/stdout"),
+include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/missing-member-failed-path-unset/stdout"),
+include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/missing-member-failed-path-unset/stdout"),
+include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/missing-member-failed-path-unset/stdout"),
+include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/missing-member-failed-path-unset/stdout"),
+include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/missing-member-failed-path-unset/stdout")]),
+("linked-root-path-set", include_bytes!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/linked-root-path-set.tcl").as_slice(), [include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.4.20/linked-root-path-set/stdout"),
+include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.5.19/linked-root-path-set/stdout"),
+include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/8.6.18/linked-root-path-set/stdout"),
+include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.0.4/linked-root-path-set/stdout"),
+include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/9.1.0/linked-root-path-set/stdout"),
+include_str!("../../../rust/tcl-registry/tests/data/native_dictionary_path_publication319/jim/linked-root-path-set/stdout")])];
+        let mut compared = 0;
+        let mut unsupported = 0;
+        for (case, source, columns) in cases {
+            for (engine, column) in providers.iter().zip(columns) {
+                let (expected_code, expected_result) = original_result(column);
+                let profile =
+                    tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+                if *engine == "tcl8.4" {
+                    assert_eq!(expected_code, 0, "{engine}/{case} native API boundary");
+                    assert_eq!(expected_result, b"NOT_APPLICABLE");
+                    assert!(
+                        tcl_registry::InvocationDialect::of_profile(profile)
+                            .native_dictionary_path_publication()
+                            .is_none()
+                    );
+                    unsupported += 1;
+                    continue;
+                }
+                let mut interp = crate::interp::Interp::with_native_core(
+                    crate::interp::default_host(),
+                    profile,
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                let code = interp.eval_str(source);
+                assert!(!interp.host_refusal_pending(), "{engine}/{case}");
+                assert_eq!(
+                    code.as_int(),
+                    expected_code,
+                    "{engine}/{case}: {:?}",
+                    interp.result_bytes()
+                );
+                assert_eq!(interp.result_bytes(), expected_result, "{engine}/{case}");
+                compared += 1;
+            }
+        }
+        assert_eq!(compared, 15);
+        assert_eq!(unsupported, 3);
     }
 }

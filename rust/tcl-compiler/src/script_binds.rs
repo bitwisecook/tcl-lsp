@@ -383,66 +383,41 @@ impl AuthoredProcedureReadAdvice {
 pub(crate) fn authored_procedure_read_advice(
     image: &tcl_lexer::SourceImage,
     procedure: &crate::ir::Procedure,
-    config: tcl_lexer::LexerConfig,
-    dialect: Option<tcl_registry::InvocationDialect>,
+    analysis: &crate::analyser::AnalysisResult,
+    context: &tcl_registry::model::ContextRegistry,
 ) -> Option<AuthoredProcedureReadAdvice> {
+    let config = analysis.body_lexer_config?;
+    let input = analysis.resolved_input.as_ref()?;
+    let realm = analysis.retained_command_realm()?;
+    if !realm.matches_resolved_analysis_input(input)
+        || !realm.matches_original_source_image(image, config)
+        || input.lexer_config() != config
+    {
+        return None;
+    }
+    let binding = realm.invocation_at_source("", procedure.span.start());
+    let (_, tokens) = binding.original_recorded_command()?;
+    let recipe = realm
+        .source_bindings_ref()
+        .original_procedure_read_declaration(&tokens, context.commands(), input)?;
+    let source = recipe.source();
     let body = procedure.body_source.as_ref()?;
-    let base = usize::try_from(procedure.body_offset).ok()?;
+    if source.origin.source_image() != image
+        || source.base() != procedure.body_offset
+        || source.text.try_text().ok()? != body
+        || recipe.parameters_text()? != procedure.params_raw
+        || recipe.parameter_names() != procedure.params
+    {
+        return None;
+    }
+    let base = usize::try_from(source.base()).ok()?;
     if image.bytes().get(base..base.checked_add(body.len())?) != Some(body.as_bytes()) {
-        return None;
-    }
-    let start = usize::try_from(procedure.span.start()).ok()?;
-    let end = usize::try_from(procedure.span.end()).ok()?;
-    let original =
-        tcl_lexer::SourceImage::from_bytes(image.bytes().get(start..end)?, image.channel());
-    let mut segments =
-        crate::segmenter::segment_commands_image_with_offset_and_config(&original, 0, config)?
-            .into_iter();
-    let segment = segments.next()?;
-    if segment.is_partial || segments.next().is_some() || segment.argv.len() != 4 {
-        return None;
-    }
-    let words = crate::ir::CommandTokens::from_segmented(&original.source_map(), config, &segment);
-    let values: Option<Vec<String>> = words
-        .words()
-        .iter()
-        .map(|word| {
-            match crate::registry_invocation::effective_invocation_word(
-                word,
-                config.escapes,
-                tcl_syntax::word_rules::WordValueRules::from_config(&config),
-            ) {
-                crate::registry_invocation::EffectiveInvocationWord::Literal(value) => Some(value),
-                _ => None,
-            }
-        })
-        .collect();
-    let values = values?;
-    if values[0] != "proc"
-        || values[1] != procedure.name
-        || values[2] != procedure.params_raw
-        || values[3] != *body
-    {
-        return None;
-    }
-    let formals = tcl_syntax::formal_params::parse_formal_parameters_in(
-        &procedure.params_raw,
-        dialect?.parameter_grammar()?,
-    )
-    .ok()?;
-    if formals
-        .iter()
-        .map(|formal| &formal.name)
-        .ne(procedure.params.iter())
-    {
         return None;
     }
     Some(AuthoredProcedureReadAdvice {
         body: tcl_lexer::Span::new(
-            procedure.body_offset,
-            procedure
-                .body_offset
-                .checked_add(u32::try_from(body.len()).ok()?)?,
+            source.base(),
+            source.base().checked_add(u32::try_from(body.len()).ok()?)?,
         ),
     })
 }
@@ -625,22 +600,30 @@ mod tests {
     }
     #[test]
     fn declaration_read_advice_requires_original_unchanged_body_and_formals() {
-        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        let source = "proc ::missing::p {arg} {puts $missing}";
-        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Authored read applicability, no installed procedure or entered frame.
+        let source = "proc p {arg} {puts $missing}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
             source,
-            registry,
-            false,
-            registry.profile().unwrap(),
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(input.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            input,
         );
-        let procedure = &unit.ir_module.procedures["::missing::p"];
+        let procedure = &unit.ir_module.procedures["::p"];
         let image = tcl_lexer::SourceImage::document(source);
-        let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
-        let dialect = Some(tcl_registry::InvocationDialect::of_profile(
-            registry.profile().unwrap(),
-        ));
-        let advice = super::authored_procedure_read_advice(&image, procedure, config, dialect)
-            .expect("authored declaration advice is independent of namespace publication");
+        let advice =
+            super::authored_procedure_read_advice(&image, procedure, &analysis, &context).unwrap();
         assert!(advice.owns(tcl_lexer::Span::new(
             procedure.body_offset,
             procedure.body_offset + 4
@@ -648,16 +631,153 @@ mod tests {
         assert!(!advice.owns(procedure.span));
         let mut changed = procedure.clone();
         changed.params.push("invented".into());
-        assert!(super::authored_procedure_read_advice(&image, &changed, config, dialect).is_none());
+        assert!(
+            super::authored_procedure_read_advice(&image, &changed, &analysis, &context).is_none()
+        );
         assert!(
             super::authored_procedure_read_advice(
-                &tcl_lexer::SourceImage::document("proc ::missing::p {arg} {puts $changed}"),
+                &tcl_lexer::SourceImage::document("proc p {arg} {puts $changed}"),
                 procedure,
-                config,
-                dialect,
+                &analysis,
+                &context,
             )
             .is_none()
         );
-        assert!(super::authored_procedure_read_advice(&image, procedure, config, None).is_none());
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            super::authored_procedure_read_advice(&image, procedure, &missing, &context).is_none()
+        );
+        let foreign =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        assert!(
+            super::authored_procedure_read_advice(&image, procedure, &analysis, &foreign).is_none()
+        );
+    }
+
+    #[test]
+    fn selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Original header topology only; no Native body entry or call outcome.
+        for (dialect, formals) in [
+            ("tcl8.4", "arg"),
+            ("tcl8.5", "arg"),
+            ("tcl8.6", "arg"),
+            ("tcl9.0", "arg"),
+            ("tcl9.1", "arg"),
+            ("jim", "&link"),
+        ] {
+            let source = format!("proc ::missing::p {{{formals}}} {{puts $missing}}");
+            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            let (_owner, captured) =
+                crate::environment_ingress::captured_native_entry_with_owner(profile);
+            let entry = crate::command_binding::SourceAnalysisEntry {
+                native_entry: Some(std::sync::Arc::new(captured)),
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                ..Default::default()
+            };
+            let analysis = crate::analyser::Analyser::new()
+                .with_source_analysis_entry(std::sync::Arc::new(entry))
+                .analyse(&source, dialect);
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let context = input.context_registry();
+            let realm = analysis.retained_command_realm().unwrap();
+            let binding = realm.invocation_at_source("", 0);
+            let (_, tokens) = binding.original_recorded_command().unwrap();
+            let recipe = realm
+                .source_bindings_ref()
+                .original_procedure_read_declaration(&tokens, context.commands(), input)
+                .unwrap_or_else(|| panic!("selected {dialect} formal source recipe"));
+            assert_eq!(recipe.parameters_text(), Some(formals));
+            assert_eq!(recipe.source().text.try_text().unwrap(), "puts $missing");
+            assert_eq!(
+                recipe.parameter_names(),
+                if dialect == "jim" {
+                    vec!["&link"]
+                } else {
+                    vec!["arg"]
+                }
+            );
+            let missing = crate::analyser::Analyser::new().analyse(&source, dialect);
+            let absent = missing
+                .retained_command_realm()
+                .unwrap()
+                .invocation_at_source("", 0);
+            if let Some((_, tokens)) = absent.original_recorded_command() {
+                assert!(
+                    missing
+                        .retained_command_realm()
+                        .unwrap()
+                        .source_bindings_ref()
+                        .original_procedure_read_declaration(&tokens, context.commands(), input)
+                        .is_none()
+                );
+            }
+        }
+    }
+
+    fn native_read_scope(source: &str, declaration: &str) -> bool {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let (_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            ..Default::default()
+        };
+        let analysis = crate::analyser::Analyser::new()
+            .with_source_analysis_entry(std::sync::Arc::new(entry))
+            .analyse(source, profile.name);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let realm = analysis.retained_command_realm().unwrap();
+        let binding = realm.invocation_at_source(
+            "",
+            u32::try_from(source.rfind(declaration).unwrap()).unwrap(),
+        );
+        let Some((_, tokens)) = binding.original_recorded_command() else {
+            return false;
+        };
+        realm
+            .source_bindings_ref()
+            .original_procedure_read_declaration(&tokens, context.commands(), input)
+            .is_some()
+    }
+
+    #[test]
+    fn selected_formal_read_scope_follows_original_factory_aliases_and_replacements() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Read applicability from original declaration operands, no installation.
+        for (source, declaration, expected) in [
+            (
+                "rename proc stock; stock p {arg} {puts $missing}",
+                "stock p",
+                true,
+            ),
+            (
+                "interp alias {} define {} proc p; define {arg} {puts $missing}",
+                "define {arg}",
+                true,
+            ),
+            (
+                "interp alias {} define {} proc p {arg}; define {puts $missing}",
+                "define {puts",
+                true,
+            ),
+            (
+                "proc proc {name params body} {}; proc p {arg} {puts $missing}",
+                "proc p",
+                false,
+            ),
+            (
+                "rename proc {}; proc p {arg} {puts $missing}",
+                "proc p",
+                false,
+            ),
+        ] {
+            assert_eq!(native_read_scope(source, declaration), expected, "{source}");
+        }
     }
 }

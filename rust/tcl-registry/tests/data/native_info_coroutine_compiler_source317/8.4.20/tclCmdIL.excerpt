@@ -1,0 +1,11 @@
+    static CONST char *subCmds[] = {
+	     "args", "body", "cmdcount", "commands",
+	     "complete", "default", "exists",
+#ifdef TCL_TIP280
+	     "frame",
+#endif
+	     "functions",
+	     "globals", "hostname", "level", "library", "loaded",
+	     "locals", "nameofexecutable", "patchlevel", "procs",
+	     "script", "sharedlibextension", "tclversion", "vars",
+	     (char *) NULL};

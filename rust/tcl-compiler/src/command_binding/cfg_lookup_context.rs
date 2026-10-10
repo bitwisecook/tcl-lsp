@@ -192,7 +192,7 @@ fn original_point(
         && retained_namespace(&snapshot.state, &binding.lookup_namespace_key))
     .then_some(())?;
     let config = binding.original_lexer_config_for_tokens(tokens)?;
-    let metadata = cfg.metadata_context.metadata_context(registry)?.flatten();
+    let metadata = cfg.metadata_context.metadata_context(registry)?;
     let supplied = metadata
         .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input);
     if let Some(input) = supplied {
