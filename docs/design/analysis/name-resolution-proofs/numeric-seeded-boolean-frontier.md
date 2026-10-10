@@ -14,9 +14,13 @@ For original fresh String/ByteArray and Double-/Boolean-primed forms, which bool
 
 The boolean matrix keeps success and failure separate for eighteen C inputs across four original storage/priming routes, plus eleven fresh original Jim String inputs. The seed PROBE BEFORE is not universally replaced: only the reached release/primitive error-code action determines it. Failed priming and existing numeric caches change later conversion/message rules. Jim has no corresponding ByteArray/primed axes in this exact probe.
 
+The current shared control keeps the original C84 Boolean callback-Eval final errorCode window separate from the independent direct primitive fields. Actual script propagation consumes an additional update without changing what the direct primitive capture observed.
+
 ## Scope
 
 C public original-object boolean getter is reached by one native callback from ASCII Tcl_Eval. Exact source bytes and selected storage/priming axes are retained; primitive result is duplicated before the callback returns, and final result/cache/errorCode/original input bytes are then sampled. Eighteen cases×four C storage/priming paths, seventy-two rows per selected getter; Jim eleven fresh String rows with explicit seed and no duplicated primitive-result observer. Capture source/library/executable/row count/run0 are recorded; original C output checksums, headers/compiler status/configure/runtime patch query were not recorded by these receipts. Retained streams have current permanent evidence hashes. BIG-IP is not tested; Jim is only measured for seeded fresh Strings.
+
+These added source definitions have no execution outcome attached. This question retains only its original seeded Boolean callback-Eval field purpose; direct Int/Long/Wide/Double/Boolean captures and software Runtime/VM adapter scopes remain independently bounded. No additional original process, header/result identity, explicit error flag, application scalar issuer, all release/origin behavior or expression truth is inferred.
 
 ## Provider answers
 
@@ -486,6 +490,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-syntax/src/scalar_getter/tests/error_tests.rs](../../../../rust/tcl-syntax/src/scalar_getter/tests/error_tests.rs), `scalar_getter::tests::error_tests::primitive_failures_keep_cache_origin_and_existing_error_state` (linked): Compares only the exact selected primitive/propgated/error-code fields across retained rows; no native callback dispatch authority is supplied.
 
 A named test is a coverage binding, not a claim that it executed.
+
+- [rust/tcl-syntax/src/scalar_getter/errors.rs](../../../../rust/tcl-syntax/src/scalar_getter/errors.rs), `NativeScalarGetterError::eval_error_code_update`: Keep the additional selected C84 invalid-input script-propagation code separately from the direct primitive update. Receipt presentation alone cannot establish that logging/evaluation was reached.
+- [rust/tcl-syntax/src/scalar_getter/target_tests.rs](../../../../rust/tcl-syntax/src/scalar_getter/target_tests.rs), `scalar_getter::target_tests::original_c84_primitive_code_and_callback_eval_code_are_separate_observations` (linked): The shared control compares only the independently captured original C84 Boolean callback-Eval storage0/case9/getter2 final message/errorCode window for this question, alongside separate original456 direct primitive fields. Later NONE is an explicit propagation update, not the direct primitive update; Int/Long Eval stages are not new provider observations.
+
+No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
 ## Replay
 

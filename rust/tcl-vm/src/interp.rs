@@ -21494,7 +21494,7 @@ impl Vm {
         let node = self.prepare_expression(src)?;
         let mut ops = ExprEval::new(self);
         let value = eval(&node, &mut ops)?;
-        Ok(ops.finish(value))
+        ops.finish_expression_result(value)
     }
 
     pub(crate) fn native_jim_wide_expression(
@@ -21903,7 +21903,7 @@ impl Vm {
         let completion = match self.prepare_expression_bytes(source).and_then(|node| {
             let mut ops = ExprEval::new(self);
             let value = eval(&node, &mut ops)?;
-            Ok(ops.finish(value))
+            ops.finish_expression_result(value)
         }) {
             Ok(completion) => completion,
             Err(error) => crate::command::completion_from_tcl_error(self, error),
@@ -26173,7 +26173,7 @@ mod family_b_tests {
             Ok(true)
         );
         assert!(
-            crate::expr::native_boolean(vm.numeric_context(), &Value::string("NaN"))
+            crate::expr::authored_boolean(vm.numeric_context(), &Value::string("NaN"))
                 .expect("authored logical numeric truth")
         );
         assert!(ValueOps::as_int(&mut vm, &Value::from_string_bytes(b"1\0tail".to_vec())).is_err());

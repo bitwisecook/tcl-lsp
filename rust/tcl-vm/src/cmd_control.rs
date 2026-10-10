@@ -429,7 +429,7 @@ impl ControlState {
                     return;
                 }
                 let value =
-                    match crate::expr::native_boolean(vm.numeric_context(), &completion.result) {
+                    match crate::expr::expression_boolean_for_vm(vm, &completion.result, tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi) {
                         Ok(value) => value,
                         Err(error) => {
                             self.finish(crate::command::completion_from_tcl_error(vm, error));

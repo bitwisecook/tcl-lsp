@@ -1264,22 +1264,16 @@ fn cmp(vm: &mut Vm, f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
 fn land_lor(vm: &mut Vm, f: &mut Frame, is_and: bool) -> Result<(), Completion<Value>> {
     let b = pop(f);
     let a = pop(f);
-    let value = expr::native_logical_in(vm.numeric_context(), a, &b, is_and)
+    let value = expr::logical_value_for_vm(vm, a, &b, is_and)
         .map_err(|error| crate::command::completion_from_tcl_error(vm, error))?;
     f.stack.push(value);
     Ok(())
 }
 
-/// Retain the selected expression release's boolean operand diagnostic.
-fn boolean_operand_error(vm: &mut Vm, error: crate::TclError) -> Completion<Value> {
-    let error = expr::boolean_operand_error(vm.numeric_context(), error);
-    crate::command::completion_from_tcl_error(vm, error)
-}
-
 fn un(vm: &mut Vm, f: &mut Frame, op: UnaryOp) -> Result<(), Completion<Value>> {
     let dialect = vm.native_invocation_dialect();
     let v = pop(f);
-    match expr::unary_in(vm.numeric_context(), op, &v) {
+    match expr::unary_for_vm(vm, op, &v) {
         Ok(r) => {
             f.stack.push(r.with_native_double_format(dialect));
             Ok(())
@@ -3625,7 +3619,7 @@ impl Vm {
             .expect("expression state present")
             .normalize
         {
-            match crate::expr::cvt_to_numeric_in(self.numeric_context(), value) {
+            match crate::expr::normalize_result_for_vm(self, &value, tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi) {
                 Ok(value) => value.with_native_double_format(self.native_invocation_dialect()),
                 Err(error) => {
                     return Tick::Return(crate::command::completion_from_tcl_error(self, error));
@@ -5987,7 +5981,7 @@ impl Vm {
                 // (`expr {1 ? "big" : "x"}`) passes through, and a bare `NaN` is
                 // the domain error.
                 let v = pop(f);
-                match crate::expr::cvt_to_numeric_in(self.numeric_context(), v) {
+                match crate::expr::normalize_numeric_instruction_for_vm(self, &v) {
                     Ok(nv) => f
                         .stack
                         .push(nv.with_native_double_format(self.native_invocation_dialect())),
@@ -6036,26 +6030,38 @@ impl Vm {
             }
             Op::JUMP_TRUE1 | Op::JUMP_TRUE4 => {
                 let c = pop(f);
-                match expr::native_boolean(self.numeric_context(), &c) {
+                match expr::boolean_for_vm(
+                    self,
+                    &c,
+                    tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
+                ) {
                     Ok(true) => {
                         if let Some(idx) = jump_target(&asm, &f.off2idx, instr) {
                             f.pc = idx;
                         }
                     }
                     Ok(false) => {}
-                    Err(e) => return Tick::Return(boolean_operand_error(self, e)),
+                    Err(e) => {
+                        return Tick::Return(crate::command::completion_from_tcl_error(self, e));
+                    }
                 }
             }
             Op::JUMP_FALSE1 | Op::JUMP_FALSE4 => {
                 let c = pop(f);
-                match expr::native_boolean(self.numeric_context(), &c) {
+                match expr::boolean_for_vm(
+                    self,
+                    &c,
+                    tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
+                ) {
                     Ok(false) => {
                         if let Some(idx) = jump_target(&asm, &f.off2idx, instr) {
                             f.pc = idx;
                         }
                     }
                     Ok(true) => {}
-                    Err(e) => return Tick::Return(boolean_operand_error(self, e)),
+                    Err(e) => {
+                        return Tick::Return(crate::command::completion_from_tcl_error(self, e));
+                    }
                 }
             }
             Op::JUMP_TABLE if instr.native_switch_version.is_some() => {

@@ -2,10 +2,44 @@
 //! Actual C8.4 reached normalization using complete independent host facts.
 
 use super::*;
+use std::rc::Rc;
 use tcl_platform::{NumericEnvironmentUnavailable, NumericErrorState};
 use tcl_syntax::native_object::NativeObjectCacheSnapshot;
 use tcl_syntax::scalar_getter::NativeScalarCache;
 use tcl_test_support::numeric_environment::RecordedNumericEnvironment;
+
+struct RecordedHost {
+    actual: Rc<dyn tcl_platform::Host>,
+    numeric: Rc<RecordedNumericEnvironment>,
+}
+impl tcl_platform::Host for RecordedHost {
+    fn capabilities(&self) -> tcl_platform::Capabilities {
+        self.actual.capabilities()
+    }
+    fn clock(&self) -> &dyn tcl_platform::Clock {
+        self.actual.clock()
+    }
+    fn stdio(&self) -> &dyn tcl_platform::StdIo {
+        self.actual.stdio()
+    }
+    fn env(&self) -> &dyn tcl_platform::Env {
+        self.actual.env()
+    }
+    fn numeric_environment(&self) -> Option<&dyn tcl_platform::NumericEnvironment> {
+        Some(&*self.numeric)
+    }
+}
+
+fn recorded_native_vm(numeric: Rc<RecordedNumericEnvironment>) -> Vm {
+    let mut vm =
+        crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.4"));
+    let host = RecordedHost {
+        actual: vm.host_rc(),
+        numeric,
+    };
+    vm.set_host(Rc::new(host));
+    vm
+}
 
 fn decode(hex: &str) -> Vec<u8> {
     hex.as_bytes()
@@ -34,25 +68,19 @@ fn c84_normalization_matches_six_original_float_error_windows() {
     {
         let row: Vec<_> = line.split('\t').collect();
         let index: usize = row[1].parse().unwrap();
-        let environment = RecordedNumericEnvironment::new(Ok(NumericErrorState {
+        let environment = Rc::new(RecordedNumericEnvironment::new(Ok(NumericErrorState {
             errno: row[3].parse().unwrap(),
             domain_error: row[4] == "1",
             range_error: row[5] == "1",
-        }));
+        })));
         let value = Value::from_native_scalar_cache(
             NativeScalarCache::Number(Number::Double(values[index])),
             None,
             dialect,
         )
         .unwrap();
-        let result = cvt_to_numeric_in(
-            NumericContext {
-                dialect,
-                simulation: None,
-                environment: Some(&environment),
-            },
-            value,
-        );
+        let mut vm = recorded_native_vm(Rc::clone(&environment));
+        let result = normalize_numeric_instruction_for_vm(&mut vm, &value);
         assert_eq!(result.is_err(), row[2] == "1", "{line}");
         match result {
             Err(error) => {
@@ -92,7 +120,9 @@ fn c84_normalization_matches_six_original_float_error_windows() {
         count += 1;
     }
     assert_eq!(count, 6);
-    let unavailable = RecordedNumericEnvironment::new(Err(NumericEnvironmentUnavailable::Target));
+    let unavailable = Rc::new(RecordedNumericEnvironment::new(Err(
+        NumericEnvironmentUnavailable::Target,
+    )));
     let value = Value::from_native_scalar_cache(
         NativeScalarCache::Number(Number::Double(f64::INFINITY)),
         None,
@@ -100,13 +130,9 @@ fn c84_normalization_matches_six_original_float_error_windows() {
     )
     .unwrap();
     assert!(
-        cvt_to_numeric_in(
-            NumericContext {
-                dialect,
-                simulation: None,
-                environment: Some(&unavailable)
-            },
-            value
+        normalize_numeric_instruction_for_vm(
+            &mut recorded_native_vm(Rc::clone(&unavailable)),
+            &value
         )
         .unwrap_err()
         .is_host()
@@ -116,7 +142,9 @@ fn c84_normalization_matches_six_original_float_error_windows() {
 #[test]
 fn c84_cached_resident_double_normalizes_without_fresh_c_call() {
     let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
-    let environment = RecordedNumericEnvironment::new(Err(NumericEnvironmentUnavailable::Target));
+    let environment = Rc::new(RecordedNumericEnvironment::new(Err(
+        NumericEnvironmentUnavailable::Target,
+    )));
     let original = Value::from_native_scalar_cache(
         NativeScalarCache::Number(Number::Double(1.0)),
         None,
@@ -125,13 +153,9 @@ fn c84_cached_resident_double_normalizes_without_fresh_c_call() {
     .unwrap();
     let protocol = dialect.native_string_protocol().unwrap();
     let resident = original.native_string_bytes(protocol).unwrap();
-    let result = cvt_to_numeric_in(
-        NumericContext {
-            dialect,
-            simulation: None,
-            environment: Some(&environment),
-        },
-        original.clone(),
+    let result = normalize_numeric_instruction_for_vm(
+        &mut recorded_native_vm(Rc::clone(&environment)),
+        &original.clone(),
     )
     .unwrap();
     assert!(!result.is_same_object(&original));

@@ -176212,6 +176212,49 @@
         "naming.vendor.original-source-context-input"
       ],
       "limits": "Full643 exact Syntax selection closes642 passed/1 failed. The Long field-comparison missing-presentation panic remains exact; no aggregate PASS or completed whole primitive-equivalence claim. External original provider evidence remains immutable and mutable implementation anchors remain held."
+    },
+    {
+      "id": "rust.frozen303.integration-compiler-registry-api-own-test-build303",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen303/integration-compiler-registry-api-own-test-build303/receipt.json.gz",
+        "sha256": "562e6fc5c497eeac0c7f28e744817aa9b3f50a9e80695fa930f08530122b8886",
+        "compression": "gzip",
+        "uncompressed_sha256": "dc6e77b93401c33ff6fc77fcb6479ce0a59d1a6ac6e8db68f6073288aadb7efc"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen303/integration-compiler-registry-api-own-test-build303/tests.log",
+        "sha256": "5eb4d3b0bc2a23557398606674d091e3168c70208357ee1b2dc74e9453d05df1"
+      },
+      "command": [
+        "env",
+        "CARGO_TARGET_DIR=/workspace/.targets/naming-upstream-clean",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-compiler",
+        "-p",
+        "tcl-registry",
+        "-p",
+        "tcl-runtime-api",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "--offline"
+      ],
+      "exit": 101,
+      "seconds": 228.489462587022,
+      "uniform_source": true,
+      "status": "compile-blocked",
+      "result": null,
+      "source_inventory": {
+        "json_pointer": "/source",
+        "authority": "The unchanged decompressed receipt retains the full original immutable source image, compile/archive paths, head and exact command association. All32894 archived source leaves independently byte-verified; no original metadata is replaced."
+      },
+      "tests": [],
+      "question_ids": [],
+      "limits": "This scoped Compiler/Registry/RuntimeAPI no-run command fails with one Compiler E0308 test-fixture diagnostic: native_lowering/tests.rs:74 passes the actual profile directly where LexerConfig::for_profile requires Option<&DialectProfile>. The full log records two newly-created RuntimeAPI and Registry libtest artifact events, but the overall operation fails; those partial events have no admitted strict pin, inventory or assertion from this failed command. Any independent successful Registry/RuntimeAPI or Syntax producer retains its own command, source and image scope; no success is transferred to this failed operation. No Native provider outcome or aggregate gate result is inferred; mutable implementation anchors remain held."
     }
   ]
 }

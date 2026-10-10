@@ -71,7 +71,7 @@ fn original_boolean_unit(
     let context = environment.default_context_registry();
     let registry = context.commands();
     let profile = environment.unit_profile();
-    let config = tcl_lexer::LexerConfig::for_profile(profile);
+    let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
     let input = crate::analyser::ResolvedAnalysisInput::new(
         profile,
         profile,

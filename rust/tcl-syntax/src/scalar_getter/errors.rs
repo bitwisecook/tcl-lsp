@@ -454,7 +454,7 @@ fn invalid_octal(protocol: NativeScalarGetterProtocol, kind: Kind, input: &[u8])
     if version == TclVersion::V8_4 {
         return matches!(kind, Kind::Wide | Kind::Long) && input[end..].trim_ascii().is_empty();
     }
-    kind != Kind::Wide
+    matches!(kind, Kind::Double | Kind::Boolean)
         && input[..end]
             .iter()
             .any(|byte| *byte == b'8' || *byte == b'9')

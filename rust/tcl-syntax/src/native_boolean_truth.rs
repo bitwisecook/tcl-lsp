@@ -138,12 +138,21 @@ impl NativeBooleanExpressionResultProduction {
     }
 }
 
+/// Exact reached result producer, independent of public Boolean ABI tags.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeExpressionResultProducer {
+    /// A Boolean expression result uses its separately selected outer producer.
+    Boolean(NativeBooleanExpressionResultProduction),
+    /// An actually reached C numeric-conversion instruction, without API copy.
+    NumericInstruction,
+}
+
 /// Selected original result conversion and public API copy policy. The caller
 /// performs these operations on a genuine retained result before truth extraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeBooleanExpressionResultProtocol {
     scalar: NativeScalarGetterProtocol,
-    production: NativeBooleanExpressionResultProduction,
+    producer: NativeExpressionResultProducer,
 }
 
 impl NativeBooleanExpressionResultProtocol {
@@ -153,7 +162,21 @@ impl NativeBooleanExpressionResultProtocol {
         scalar: NativeScalarGetterProtocol,
         production: NativeBooleanExpressionResultProduction,
     ) -> Self {
-        Self { scalar, production }
+        Self {
+            scalar,
+            producer: NativeExpressionResultProducer::Boolean(production),
+        }
+    }
+
+    /// Select an actually reached C TRY_CVT_TO_NUMERIC instruction. This
+    /// always converts the numeric result and never performs an API copy.
+    /// Jim supplies no corresponding C instruction producer.
+    #[must_use]
+    pub fn for_numeric_instruction(scalar: NativeScalarGetterProtocol) -> Option<Self> {
+        scalar.tcl_version().map(|_| Self {
+            scalar,
+            producer: NativeExpressionResultProducer::NumericInstruction,
+        })
     }
 
     /// Original scalar/number owner of the selected result conversion.
@@ -164,8 +187,17 @@ impl NativeBooleanExpressionResultProtocol {
 
     /// Exact retained producer, independently of normalisation outcome.
     #[must_use]
-    pub const fn production(self) -> NativeBooleanExpressionResultProduction {
-        self.production
+    pub const fn production(self) -> Option<NativeBooleanExpressionResultProduction> {
+        match self.producer {
+            NativeExpressionResultProducer::Boolean(production) => Some(production),
+            NativeExpressionResultProducer::NumericInstruction => None,
+        }
+    }
+
+    /// Actual result producer selected before reaching the physical worker.
+    #[must_use]
+    pub const fn producer(self) -> NativeExpressionResultProducer {
+        self.producer
     }
 
     /// Whether the selected outer Boolean result producer retains TRY_NUM.
@@ -175,7 +207,11 @@ impl NativeBooleanExpressionResultProtocol {
     #[must_use]
     pub fn converts_numeric_result(self) -> bool {
         self.scalar.tcl_version().is_some_and(|version| {
-            self.production == NativeBooleanExpressionResultProduction::PublicExpressionApi
+            matches!(
+                self.producer,
+                NativeExpressionResultProducer::NumericInstruction
+            ) || self.production()
+                == Some(NativeBooleanExpressionResultProduction::PublicExpressionApi)
                 || version < TclVersion::V8_6
         })
     }
@@ -185,7 +221,7 @@ impl NativeBooleanExpressionResultProtocol {
     /// An inline compiled expression does not perform this API copy.
     #[must_use]
     pub fn copies_api_result(self) -> bool {
-        self.production == NativeBooleanExpressionResultProduction::PublicExpressionApi
+        self.production() == Some(NativeBooleanExpressionResultProduction::PublicExpressionApi)
             && self
                 .scalar
                 .tcl_version()
@@ -195,11 +231,11 @@ impl NativeBooleanExpressionResultProtocol {
     /// The actual Boolean conversion site reached after this producer.
     #[must_use]
     pub const fn truth_purpose(self) -> NativeBooleanTruthPurpose {
-        match self.production {
-            NativeBooleanExpressionResultProduction::InlineExpression => {
+        match self.production() {
+            None | Some(NativeBooleanExpressionResultProduction::InlineExpression) => {
                 NativeBooleanTruthPurpose::ConditionalJump
             }
-            NativeBooleanExpressionResultProduction::PublicExpressionApi => {
+            Some(NativeBooleanExpressionResultProduction::PublicExpressionApi) => {
                 NativeBooleanTruthPurpose::ExpressionApiResult
             }
         }

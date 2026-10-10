@@ -3,7 +3,7 @@
 
 pub use tcl_syntax::native_boolean_truth::{
     NativeBooleanExpressionResultProduction, NativeBooleanExpressionResultProtocol,
-    NativeBooleanTruthProtocol, NativeBooleanTruthPurpose,
+    NativeBooleanTruthProtocol, NativeBooleanTruthPurpose, NativeExpressionResultProducer,
 };
 
 impl crate::InvocationDialect {
@@ -18,6 +18,16 @@ impl crate::InvocationDialect {
         self.native_scalar_getter_protocol().map(|scalar| {
             NativeBooleanExpressionResultProtocol::for_scalar_getter(scalar, production)
         })
+    }
+
+    /// Select an actually reached C numeric-result instruction, independent of
+    /// a Boolean condition's peephole removal or a public expression API copy.
+    #[must_use]
+    pub fn native_numeric_instruction_result_protocol(
+        self,
+    ) -> Option<NativeBooleanExpressionResultProtocol> {
+        self.native_scalar_getter_protocol()
+            .and_then(NativeBooleanExpressionResultProtocol::for_numeric_instruction)
     }
 
     /// Select the actual retained engine's reached Boolean operand conversion.

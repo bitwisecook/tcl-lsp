@@ -2697,3 +2697,9 @@ restored.chmod(0o755)
 ```
 
 Restoration proves exact bytes and launches no assertion. Primitive getter/host stages, mathematical expression advice, source geometry and original Native issuer/result purposes remain independent.
+
+## Source303 scoped Compiler, Registry and RuntimeAPI compilation
+
+The scoped no-run command selects Compiler, Registry and RuntimeAPI and closes with exit 101 after 228.489463s and `uniform_source: true`. Compiler reports one E0308 fixture type error at `native_lowering/tests.rs:74`: the actual profile is passed directly where `LexerConfig::for_profile` requires `Option<&DialectProfile>`. The original log records newly-created RuntimeAPI and Registry libtest artifact events. Those events supply no successful producer, admitted strict pin, inventory or assertion from the overall failed command.
+
+The [unchanged full original receipt](frozen303/integration-compiler-registry-api-own-test-build303/receipt.json.gz) preserves the complete immutable source image and command as lossless gzip. The [whole original log](frozen303/integration-compiler-registry-api-own-test-build303/tests.log) retains the fixture diagnostic and both partial creation events. All 32,894 source leaves are independently byte-verified. Any independent successful Registry/RuntimeAPI or Syntax producer and assertions retain their own command/source/image scope; no success is transferred to this failed invocation. No Native provider outcome or aggregate gate result is inferred.

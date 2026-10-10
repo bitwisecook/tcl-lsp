@@ -266,7 +266,7 @@ fn original_long64_public_value_cache_and_live_failure_fields_match_captures() {
                     let failure = conversion.outcome().unwrap_err();
                     let presentation = protocol
                         .failure_presentation(NativeScalarGetterKind::Long, failure, &bytes)
-                        .unwrap();
+                        .unwrap_or_else(|| panic!("{version:?} {failure:?}: {row}"));
                     assert_eq!(
                         hex(presentation.message_bytes()),
                         field(row, "result"),
@@ -302,6 +302,107 @@ fn original_long64_public_value_cache_and_live_failure_fields_match_captures() {
         }
     }
     assert_eq!(compared, 140);
+}
+
+#[test]
+fn original_long_octal_failure_keeps_its_integer_purpose() {
+    // naming.numeric.original-capi-scalar-publication-width
+    // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
+    // Seven original live failures separate the integer-only Long parser from
+    // Double/Boolean hints. Two C9 Long successes retain their measured cache.
+    // These public-field comparisons supply no object or expression authority.
+    let mut failures = 0;
+    for (index, version, kinds) in [
+        (
+            0,
+            TclVersion::V8_4,
+            [Some(NativeScalarGetterKind::Long), None, None],
+        ),
+        (
+            1,
+            TclVersion::V8_5,
+            [
+                Some(NativeScalarGetterKind::Long),
+                Some(NativeScalarGetterKind::Double),
+                Some(NativeScalarGetterKind::Boolean),
+            ],
+        ),
+        (
+            2,
+            TclVersion::V8_6,
+            [
+                Some(NativeScalarGetterKind::Long),
+                Some(NativeScalarGetterKind::Double),
+                Some(NativeScalarGetterKind::Boolean),
+            ],
+        ),
+    ] {
+        let fixture = C_LIVE[index];
+        let protocol = NativeScalarGetterProtocol::for_tcl_version(version);
+        for kind in kinds.into_iter().flatten() {
+            let getter = match kind {
+                NativeScalarGetterKind::Long => 1,
+                NativeScalarGetterKind::Double => 3,
+                NativeScalarGetterKind::Boolean => 4,
+                _ => unreachable!(),
+            };
+            let row = row(fixture, 13, getter);
+            let conversion = protocol
+                .fresh_conversion_with_target(kind, b"08", Some(target(fixture)))
+                .unwrap()
+                .unwrap();
+            assert_eq!(field(row, "code"), "1", "{row}");
+            let failure = conversion.outcome().unwrap_err();
+            assert_eq!(
+                failure,
+                if version == TclVersion::V8_4 || kind != NativeScalarGetterKind::Long {
+                    NativeScalarGetterFailure::InvalidOctal
+                } else {
+                    NativeScalarGetterFailure::Invalid
+                },
+                "{row}"
+            );
+            let presentation = protocol
+                .failure_presentation(kind, failure, b"08")
+                .unwrap_or_else(|| panic!("{version:?} {kind:?} {failure:?}: {row}"));
+            assert_eq!(
+                hex(presentation.message_bytes()),
+                field(row, "result"),
+                "{row}"
+            );
+            let code = match presentation.error_code_update() {
+                NativeScalarGetterErrorCode::Unchanged => b"SEEDED CODE".as_slice(),
+                NativeScalarGetterErrorCode::Set(code) => code.as_slice(),
+            };
+            assert_eq!(hex(code), field(row, "error_code"), "{row}");
+            assert!(conversion.cache().is_none(), "{row}");
+            assert_eq!(field(row, "after"), "NULL", "{row}");
+            failures += 1;
+        }
+    }
+    assert_eq!(failures, 7);
+    let mut successes = 0;
+    for (index, version) in [(3, TclVersion::V9_0), (4, TclVersion::V9_1)] {
+        let fixture = C_LIVE[index];
+        let row = row(fixture, 13, 1);
+        let conversion = NativeScalarGetterProtocol::for_tcl_version(version)
+            .fresh_conversion_with_target(
+                NativeScalarGetterKind::Long,
+                b"08",
+                Some(target(fixture)),
+            )
+            .unwrap()
+            .unwrap();
+        let Ok(NativeScalarGetterValue::Wide(value)) = conversion.outcome() else {
+            panic!("{row}")
+        };
+        assert_eq!(field(row, "code"), "0", "{row}");
+        assert_eq!(value.to_string(), field(row, "long"), "{row}");
+        assert_eq!(cache_type(conversion.cache()), "integer", "{row}");
+        assert_eq!(field(row, "after"), "int", "{row}");
+        successes += 1;
+    }
+    assert_eq!(successes, 2);
 }
 
 #[test]

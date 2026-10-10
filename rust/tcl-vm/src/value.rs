@@ -31,6 +31,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
+mod native_boolean_truth;
 mod native_list_storage;
 mod native_namespace_name;
 mod native_retirement;
@@ -3558,42 +3559,6 @@ impl Value {
             return Ok(outcome.is_ok());
         }
         Ok(true)
-    }
-
-    /// Withdraw a reached numeric string after C8.4 `TRY_CVT_TO_NUMERIC`.
-    /// Shared resident headers copy only their physical numeric cache; absent
-    /// resident storage keeps the original header and its real owners.
-    pub(crate) fn normalize_native_expression_number84(
-        self,
-        dialect: tcl_registry::InvocationDialect,
-    ) -> Result<Self, tcl_syntax::value::ValueError> {
-        self.check_native_header()?;
-        if dialect
-            .native_scalar_getter_protocol()
-            .is_none_or(|protocol| protocol.tcl_version() != Some(tcl_dialect::TclVersion::V8_4))
-        {
-            return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable);
-        }
-        let Some(
-            cache @ (NativeScalarCache::Tcl84Long(_)
-            | NativeScalarCache::Number(
-                Number::Int(_) | Number::Double(_) | Number::Nan { .. },
-            )),
-        ) = self.native_scalar_cache()
-        else {
-            return Ok(self);
-        };
-        if self.native_object_is_shared() && self.resident_string_bytes().is_some() {
-            return Self::from_native_scalar_cache(cache, None, dialect);
-        }
-        if !self.native_object_is_shared() {
-            *self.0.string.borrow_mut() = None;
-            self.0
-                .string_storage
-                .set(NativeStringStorageIdentity::Unknown);
-            *self.0.source_location.borrow_mut() = None;
-        }
-        Ok(self)
     }
 
     /// C8.4's expression setter reuses an actually unshared arithmetic
